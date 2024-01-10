@@ -22,13 +22,15 @@ sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
 [dev-dependencies]
+sov-chain-state = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
 sov-data-generators = { path = "../../sov-data-generators" }
-sov-chain-state = { path = ".", features = ["native"] }
 sov-mock-da = { path = "../../../adapters/mock-da" }
+sov-modules-core = { path = "../../sov-modules-core", version = "0.3", features = ["mocks"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 
 [features]
 default = []
+test-utils = []
 native = ["serde_json", "jsonrpsee", "sov-state/native", "sov-modules-api/native"]

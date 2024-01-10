@@ -108,6 +108,10 @@ pub(crate) fn setup(
     let chain_state_config = sov_chain_state::ChainStateConfig {
         initial_slot_height: INIT_HEIGHT,
         current_time: Default::default(),
+        gas_price_blocks_depth: 10,
+        gas_price_maximum_elasticity: 1,
+        initial_gas_price: [0, 0],
+        minimum_gas_price: [0, 0],
     };
 
     let chain_state = sov_chain_state::ChainState::<C, MockDaSpec>::default();

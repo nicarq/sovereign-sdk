@@ -460,9 +460,14 @@ impl<C: Context> WorkingSet<C> {
         self.gas_meter.remaining_funds()
     }
 
-    /// Overrides the current gas settings with the provided values.
-    pub fn set_gas(&mut self, funds: u64, gas_price: C::GasUnit) {
-        self.gas_meter = GasMeter::new(funds, gas_price);
+    /// Overrides the current gas funds available for transaction execution.
+    pub fn set_gas_funds(&mut self, funds: u64) {
+        self.gas_meter.set_gas_funds(funds);
+    }
+
+    /// Overrides the current gas price for transaction execution.
+    pub fn set_gas_price(&mut self, gas_price: C::GasUnit) {
+        self.gas_meter.set_gas_price(gas_price);
     }
 
     /// Attempts to charge the provided gas unit from the gas meter, using the internal price to

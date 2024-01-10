@@ -1,0 +1,340 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
+use sov_modules_api::{Context, DaSpec, GasUnit, StateMapAccessor, WorkingSet};
+use sov_state::codec::BcsCodec;
+
+use crate::{StateTransitionId, TransitionHeight};
+
+/// The parameters for the state based gas price computation.
+#[derive(
+    BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash,
+)]
+pub struct GasPriceState<C: Context> {
+    /// The depth at which the elastic gas price will extract its average target price from the
+    /// blocks.
+    pub blocks_depth: u64,
+
+    /// The elasticity reflects the degree to which the rate of change in price is responsive to
+    /// variations in used gas distances from the average target price.
+    pub maximum_elasticity: i64,
+
+    /// The current gas price.
+    pub price: C::GasUnit,
+
+    /// The minimum price computed for a block execution.
+    pub minimum_price: C::GasUnit,
+}
+
+impl<C: Context> GasPriceState<C> {
+    /// Sets the gas price of the underlying network to the provided historical value, and adjusts
+    /// the gas price for the working set accordingly.
+    ///
+    /// Will return `None` if the `historical_transitions` doesn't contain one of the queried
+    /// heights.
+    ///
+    /// For additional information, check [GasUnit::elastic_price].
+    pub fn update<
+        Da: DaSpec,
+        H: StateMapAccessor<TransitionHeight, StateTransitionId<C, Da>, BcsCodec, WorkingSet<C>>,
+    >(
+        mut self,
+        genesis_height: TransitionHeight,
+        height: TransitionHeight,
+        historical_transitions: &H,
+        working_set: &mut WorkingSet<C>,
+    ) -> Option<Self> {
+        let parent_height = height.saturating_sub(1).max(genesis_height);
+
+        // on genesis, fetch the initial gas price
+        if parent_height == genesis_height {
+            working_set.set_gas_price(self.price.clone());
+            return Some(self);
+        }
+
+        let height_from = height
+            .saturating_sub(self.blocks_depth)
+            .max(genesis_height + 1);
+        let height_count = height.saturating_sub(height_from);
+
+        let mut gas_target = C::GasUnit::ZEROED;
+        let mut transition = None;
+        for h in height_from..height {
+            let history = historical_transitions.get(&h, working_set)?;
+            gas_target.combine(&history.gas_used);
+            transition.replace(history);
+        }
+        gas_target.scalar_division(height_count);
+
+        // there was no gas consumed on the past blocks; preserve the price
+        if gas_target == C::GasUnit::ZEROED {
+            working_set.set_gas_price(self.price.clone());
+            return Some(self);
+        }
+
+        self.price = C::GasUnit::elastic_price(
+            self.maximum_elasticity,
+            &gas_target,
+            &transition?.gas_used,
+            &self.price,
+            &self.minimum_price,
+        );
+
+        working_set.set_gas_price(self.price.clone());
+
+        Some(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sov_mock_da::{MockDaSpec, MockValidityCond};
+    use sov_modules_api::default_context::DefaultContext;
+    use sov_modules_api::StateMap;
+    use sov_modules_core::Prefix;
+    use sov_prover_storage_manager::new_orphan_storage;
+
+    use super::*;
+
+    type W = WorkingSet<DefaultContext>;
+    type M = StateMap<TransitionHeight, StateTransitionId<DefaultContext, MockDaSpec>, BcsCodec>;
+    type DefaultGasPriceState = GasPriceState<DefaultContext>;
+
+    #[test]
+    fn price_is_unchanged_with_genesis_blocks() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let ws = &mut W::new(storage);
+        let prefix = Prefix::new(b"test".to_vec());
+        let ht = &M::with_codec(prefix, BcsCodec);
+
+        let genesis_height = 10;
+        let height = 10;
+
+        let expected = DefaultGasPriceState {
+            blocks_depth: 10,
+            maximum_elasticity: 1,
+            price: [5, 7],
+            minimum_price: [2, 3],
+        };
+        let state = DefaultGasPriceState {
+            blocks_depth: 10,
+            maximum_elasticity: 1,
+            price: [5, 7],
+            minimum_price: [2, 3],
+        }
+        .update(genesis_height, height, ht, ws)
+        .unwrap();
+
+        assert_eq!(
+            state,
+            expected,
+            "The genesis block does not include historical gas data and should be disregarded during price calculations."
+        );
+    }
+
+    #[test]
+    fn price_is_unchanged_with_singe_block() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let ws = &mut W::new(storage);
+        let prefix = Prefix::new(b"test".to_vec());
+        let ht = &M::with_codec(prefix, BcsCodec);
+
+        let genesis_height = 4;
+        let height = 5;
+
+        let expected = DefaultGasPriceState {
+            blocks_depth: 10,
+            maximum_elasticity: 1,
+            price: [5, 7],
+            minimum_price: [2, 3],
+        };
+        let state = DefaultGasPriceState {
+            blocks_depth: 10,
+            maximum_elasticity: 1,
+            price: [5, 7],
+            minimum_price: [2, 3],
+        }
+        .update(genesis_height, height, ht, ws)
+        .unwrap();
+
+        assert_eq!(
+            state,
+            expected,
+            "A standalone blockchain will not have any predecessor but the genesis block, and the genesis block does not carry any utilized gas data. Consequently, the price should remain constant."
+        );
+    }
+
+    #[test]
+    fn price_is_unchanged_with_two_blocks() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let ws = &mut W::new(storage);
+        let prefix = Prefix::new(b"test".to_vec());
+        let ht = &M::with_codec(prefix, BcsCodec);
+
+        let genesis_height = 5;
+        let height = 7;
+        let price = [5, 7];
+        let original_price = [0, 0];
+        let used = [1000, 2000];
+
+        ht.set(
+            &6,
+            &StateTransitionId::new(
+                [1; 32].into(),
+                [2; 32].into(),
+                MockValidityCond { is_valid: true },
+                original_price,
+                used,
+            ),
+            ws,
+        );
+
+        let expected = DefaultGasPriceState {
+            blocks_depth: 10,
+            maximum_elasticity: 1,
+            price,
+            minimum_price: [2, 3],
+        };
+        let state = DefaultGasPriceState {
+            blocks_depth: 10,
+            maximum_elasticity: 1,
+            price,
+            minimum_price: [2, 3],
+        }
+        .update(genesis_height, height, ht, ws)
+        .unwrap();
+
+        assert_eq!(
+            state,
+            expected,
+            "One analysis block does not affect the price update as it consumes the average itself, resulting in an empty target."
+        );
+    }
+
+    #[test]
+    fn price_is_changed_with_three_blocks() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let ws = &mut W::new(storage);
+        let prefix = Prefix::new(b"test".to_vec());
+        let ht = &M::with_codec(prefix, BcsCodec);
+
+        let genesis_height = 5;
+        let height = 8;
+
+        ht.set(
+            &6,
+            &StateTransitionId::new(
+                [1; 32].into(),
+                [2; 32].into(),
+                MockValidityCond { is_valid: true },
+                [5, 7],
+                [1000, 1000],
+            ),
+            ws,
+        );
+
+        ht.set(
+            &7,
+            &StateTransitionId::new(
+                [1; 32].into(),
+                [2; 32].into(),
+                MockValidityCond { is_valid: true },
+                [7, 11],
+                [2000, 2000],
+            ),
+            ws,
+        );
+
+        let expected = DefaultGasPriceState {
+            blocks_depth: 10,
+            maximum_elasticity: 1,
+            price: [17, 22],
+            minimum_price: [2, 3],
+        };
+        let state = DefaultGasPriceState {
+            blocks_depth: 10,
+            maximum_elasticity: 1,
+            price: [13, 17],
+            minimum_price: [2, 3],
+        }
+        .update(genesis_height, height, ht, ws)
+        .unwrap();
+
+        assert_eq!(
+            state,
+            expected,
+            "If a moving average is applied to the historical data of an asset's price, then it is expected that the price will exhibit fluctuations."
+        );
+    }
+
+    #[test]
+    fn analysis_will_consider_only_blocks_depth() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let ws = &mut W::new(storage);
+        let prefix = Prefix::new(b"test".to_vec());
+        let ht = &M::with_codec(prefix, BcsCodec);
+
+        let genesis_height = 5;
+        let height = 9;
+
+        ht.set(
+            &6,
+            &StateTransitionId::new(
+                [1; 32].into(),
+                [2; 32].into(),
+                MockValidityCond { is_valid: true },
+                [5, 7],
+                [1000, 1000],
+            ),
+            ws,
+        );
+
+        ht.set(
+            &7,
+            &StateTransitionId::new(
+                [1; 32].into(),
+                [2; 32].into(),
+                MockValidityCond { is_valid: true },
+                [7, 11],
+                [2000, 2000],
+            ),
+            ws,
+        );
+
+        ht.set(
+            &8,
+            &StateTransitionId::new(
+                [1; 32].into(),
+                [2; 32].into(),
+                MockValidityCond { is_valid: true },
+                [7, 11],
+                [1500, 1500],
+            ),
+            ws,
+        );
+
+        let expected = DefaultGasPriceState {
+            blocks_depth: 2,
+            maximum_elasticity: 1,
+            price: [11, 14],
+            minimum_price: [2, 3],
+        };
+        let state = DefaultGasPriceState {
+            blocks_depth: 2,
+            maximum_elasticity: 1,
+            price: [13, 17],
+            minimum_price: [2, 3],
+        }
+        .update(genesis_height, height, ht, ws)
+        .unwrap();
+
+        assert_eq!(
+            state, expected,
+            "The price analysis should have considered only the provided blocks depth."
+        );
+    }
+}

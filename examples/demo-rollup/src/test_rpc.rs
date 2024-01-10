@@ -128,11 +128,13 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
                 },
             ],
             inner: 0,
+            gas_price: vec![0, 0],
         },
         BatchReceipt {
             batch_hash: ::sha2::Sha256::digest(b"batch_receipt2"),
             tx_receipts: batch2_tx_receipts(),
             inner: 1,
+            gas_price: vec![0, 0],
         },
     ];
 

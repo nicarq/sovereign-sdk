@@ -53,6 +53,7 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
                 batch_hash: hash,
                 tx_receipts: Vec::new(),
                 inner: SequencerOutcome::Ignored,
+                gas_price: Vec::new(),
             },
             ApplyBatchError::Slashed {
                 hash,
@@ -65,6 +66,7 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
                     reason,
                     sequencer_da_address,
                 },
+                gas_price: Vec::new(),
             },
         }
     }
@@ -174,16 +176,14 @@ where
             "Error in preprocessing batch, there should be same number of txs and messages"
         );
 
-        // TODO fetch gas price from chain state
-        let gas_elastic_price = [0, 0];
         let mut sequencer_reward = 0u64;
+        let gas_price = batch_workspace.gas_price().to_vec();
 
         let mut tx_receipts = Vec::with_capacity(txs.len());
 
         let mut batch_workspace = self.apply_txs(
             txs,
             messages,
-            &gas_elastic_price,
             &mut tx_receipts,
             batch_workspace,
             &mut sequencer_reward,
@@ -205,6 +205,7 @@ where
                 batch_hash: blob.hash(),
                 tx_receipts,
                 inner: sequencer_outcome,
+                gas_price,
             }),
             batch_workspace.checkpoint(),
         )
@@ -238,7 +239,6 @@ where
         &self,
         txs: Vec<TransactionAndRawHash<C>>,
         messages: Vec<<RT as DispatchCall>::Decodable>,
-        gas_elastic_price: &[u64],
         tx_receipts: &mut Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
         sequencer_reward: &mut u64,
@@ -248,10 +248,9 @@ where
             txs.into_iter().zip(messages.into_iter())
         {
             // Update the working set gas meter with the available funds
-            let gas_price = C::GasUnit::from_arbitrary_dimensions(gas_elastic_price);
             let gas_limit = tx.gas_limit();
             let gas_tip = tx.gas_tip();
-            batch_workspace.set_gas(gas_limit, gas_price);
+            batch_workspace.set_gas_funds(gas_limit);
 
             // Pre dispatch hook
             // TODO set the sequencer pubkey
@@ -268,7 +267,7 @@ where
                     // Don't revert any state changes made by the pre_dispatch_hook even if the Tx is rejected.
                     // For example nonce for the relevant account is incremented.
                     error!("Stateful verification error - the sequencer included an invalid transaction: {}", e);
-                    let gas_used = batch_workspace.gas_used().to_dimensions();
+                    let gas_used = batch_workspace.gas_used().to_vec();
                     let receipt = TransactionReceipt {
                         tx_hash: raw_tx_hash,
                         body_to_save: None,
@@ -316,7 +315,7 @@ where
             };
             debug!("Tx {} effect: {:?}", hex::encode(raw_tx_hash), tx_effect);
 
-            let gas_used = batch_workspace.gas_used().to_dimensions();
+            let gas_used = batch_workspace.gas_used().to_vec();
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
                 body_to_save: None,

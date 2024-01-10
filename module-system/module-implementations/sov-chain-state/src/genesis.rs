@@ -1,17 +1,27 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::{StateValueAccessor, WorkingSet};
+use sov_modules_api::{Context, StateValueAccessor, WorkingSet};
 
-use crate::{ChainState, TransitionHeight};
+use crate::{ChainState, GasPriceState, TransitionHeight};
 
 /// Initial configuration of the chain state
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct ChainStateConfig {
+pub struct ChainStateConfig<C: Context> {
     /// Initial slot height
     pub initial_slot_height: TransitionHeight,
     /// The time at genesis
     pub current_time: Time,
+    /// The depth at which the elastic gas price will extract its average target price from the
+    /// blocks.
+    pub gas_price_blocks_depth: u64,
+    /// The elasticity reflects the degree to which the rate of change in price is responsive to
+    /// variations in used gas distances from the average target price.
+    pub gas_price_maximum_elasticity: i64,
+    /// The initial gas price for the genesis block.
+    pub initial_gas_price: C::GasUnit,
+    /// The minimum gas price allowed from the state computation.
+    pub minimum_gas_price: C::GasUnit,
 }
 
 impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
@@ -27,6 +37,17 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> ChainState<C, Da>
             .set(&config.initial_slot_height, working_set);
 
         self.time.set_genesis(&config.current_time, working_set);
+
+        self.gas_price_state.set(
+            &GasPriceState {
+                blocks_depth: config.gas_price_blocks_depth,
+                maximum_elasticity: config.gas_price_maximum_elasticity,
+                price: config.initial_gas_price.clone(),
+                minimum_price: config.minimum_gas_price.clone(),
+            },
+            working_set,
+        );
+
         Ok(())
     }
 }

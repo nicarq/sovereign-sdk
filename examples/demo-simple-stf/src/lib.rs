@@ -95,6 +95,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
                 batch_hash: hash,
                 tx_receipts: vec![],
                 inner: result,
+                gas_price: vec![],
             });
         }
 

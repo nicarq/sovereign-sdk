@@ -62,7 +62,7 @@ fn constants_price_is_charged_correctly() {
     // compute the expected gas cost, based on the json constants
     let bank = Bank::<C>::default();
     let config = bank.gas_config();
-    let gas_price = <C as Context>::GasUnit::from_arbitrary_dimensions(&[native_price, zk_price]);
+    let gas_price = <C as Context>::GasUnit::from_slice(&[native_price, zk_price]);
     let gas_used = config.create_token.value(&gas_price);
 
     assert_eq!(
@@ -212,7 +212,8 @@ impl BankGasTestCase {
             zk_price,
         } = self;
 
-        ws.set_gas(gas_limit, [native_price, zk_price]);
+        ws.set_gas_funds(gas_limit);
+        ws.set_gas_price([native_price, zk_price]);
         bank.call(message, &ctx, &mut ws)?;
 
         // can unlock storage dir

@@ -8663,6 +8663,7 @@ dependencies = [
  "sov-data-generators",
  "sov-mock-da",
  "sov-modules-api",
+ "sov-modules-core",
  "sov-prover-storage-manager",
  "sov-state",
  "tempfile",

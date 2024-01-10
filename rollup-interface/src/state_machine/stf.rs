@@ -70,6 +70,8 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     pub batch_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
+    /// Computed gas price for this batch.
+    pub gas_price: Vec<u64>,
     /// Any additional structured data to be saved in the database and served over RPC
     pub inner: BatchReceiptContents,
 }

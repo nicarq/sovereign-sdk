@@ -163,6 +163,8 @@ pub struct BatchReceiptStrategyArgs {
     pub max_txs: usize,
     /// The arguments to use for generating transactions in this batch
     pub transaction_strategy_args: TransactionReceiptStrategyArgs,
+    /// The gas unit dimensions count.
+    pub gas_unit_dimensions: usize,
 }
 
 impl Default for BatchReceiptStrategyArgs {
@@ -171,6 +173,7 @@ impl Default for BatchReceiptStrategyArgs {
             hasher: Some(default_fuzz_hasher()),
             max_txs: 10,
             transaction_strategy_args: Default::default(),
+            gas_unit_dimensions: 2,
         }
     }
 }
@@ -188,8 +191,9 @@ impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<
                     0..args.max_txs,
                 ),
                 any::<B>(),
+                proptest::collection::vec(any::<u64>(), 0..args.gas_unit_dimensions),
             )
-                .prop_map(move |(batch_hash, txs, receipt)| {
+                .prop_map(move |(batch_hash, txs, receipt, mut gas_price)| {
                     let batch_hash = match args.hasher {
                         Some(ref hasher) => {
                             let mut merkle_hasher = FuzzMerkleHasher { hasher };
@@ -198,10 +202,12 @@ impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<
                         }
                         None => batch_hash,
                     };
+                    gas_price.resize(args.gas_unit_dimensions, 0);
                     Self {
                         batch_hash,
                         tx_receipts: txs,
                         inner: receipt,
+                        gas_price,
                     }
                 })
                 .boxed()

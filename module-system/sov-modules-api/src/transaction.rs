@@ -77,8 +77,8 @@ impl<C: Context> Transaction<C> {
         #[config_constant]
         const GAS_TX_COST_PER_BYTE: &[u64];
 
-        let gas_tx_fixed_cost = C::GasUnit::from_arbitrary_dimensions(GAS_TX_FIXED_COST);
-        let mut gas_tx_cost = C::GasUnit::from_arbitrary_dimensions(GAS_TX_COST_PER_BYTE);
+        let gas_tx_fixed_cost = C::GasUnit::from_slice(GAS_TX_FIXED_COST);
+        let mut gas_tx_cost = C::GasUnit::from_slice(GAS_TX_COST_PER_BYTE);
 
         gas_tx_cost.scalar_product(self.runtime_msg.len() as u64);
         gas_tx_cost.combine(&gas_tx_fixed_cost);
