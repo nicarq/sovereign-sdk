@@ -1,3 +1,5 @@
+# Rename this file and move it into workflows/ to reactivate dependency review.
+
 name: 'Dependency Review'
 on: [pull_request]
 
