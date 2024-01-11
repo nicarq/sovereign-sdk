@@ -1,6 +1,7 @@
 [package]
 name = "sov-demo-prover-guest-celestia"
 version = "0.3.0"
+license = "Sovereign Labs Community Software License"
 edition = "2021"
 resolver = "2"
 

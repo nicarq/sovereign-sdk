@@ -1,0 +1,13 @@
+[package]
+name = "sov-universal-wallet-macros"
+version = "0.1.0"
+edition = "2021"
+license = "Sovereign Labs Community Software License"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { workspace = true }
+proc-macro2 = { workspace = true }
+sov-universal-wallet-macro-helpers = { workspace = true }
