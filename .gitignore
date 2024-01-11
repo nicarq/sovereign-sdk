@@ -16,4 +16,4 @@ demo_data/
 !/docker/credentials/bridge-0.key
 
 adapters/solana/libyellowstone_grpc_geyser.dylib
-
+examples/test-data/genesis/benchmark/accounts.json
