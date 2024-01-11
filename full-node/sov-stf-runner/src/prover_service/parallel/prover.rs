@@ -1,77 +1,21 @@
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, ZkvmHost};
 
-use super::ProverServiceError;
+use super::state::{ProverState, ProverStatus};
+use super::{ProverServiceError, Verifier};
+use crate::prover_service::aggregated::{AggregatedProof, AggregatedProofPublicInput, BlockProof};
+use crate::verifier::StateTransitionVerifier;
 use crate::{
-    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, WitnessSubmissionStatus,
+    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, WitnessSubmissionStatus,
 };
-
-enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
-    WitnessSubmitted(StateTransitionData<StateRoot, Witness, Da>),
-    ProvingInProgress,
-    Proved(Proof),
-    Err(anyhow::Error),
-}
-
-struct ProverState<StateRoot, Witness, Da: DaSpec> {
-    prover_status: HashMap<Da::SlotHash, ProverStatus<StateRoot, Witness, Da>>,
-    pending_tasks_count: usize,
-}
-
-impl<StateRoot, Witness, Da: DaSpec> ProverState<StateRoot, Witness, Da> {
-    fn remove(&mut self, hash: &Da::SlotHash) -> Option<ProverStatus<StateRoot, Witness, Da>> {
-        self.prover_status.remove(hash)
-    }
-
-    fn set_to_proving(
-        &mut self,
-        hash: Da::SlotHash,
-    ) -> Option<ProverStatus<StateRoot, Witness, Da>> {
-        self.prover_status
-            .insert(hash, ProverStatus::ProvingInProgress)
-    }
-
-    fn set_to_proved(
-        &mut self,
-        hash: Da::SlotHash,
-        proof: Result<Proof, anyhow::Error>,
-    ) -> Option<ProverStatus<StateRoot, Witness, Da>> {
-        match proof {
-            Ok(p) => self.prover_status.insert(hash, ProverStatus::Proved(p)),
-            Err(e) => self.prover_status.insert(hash, ProverStatus::Err(e)),
-        }
-    }
-
-    fn get_prover_status(
-        &self,
-        hash: Da::SlotHash,
-    ) -> Option<&ProverStatus<StateRoot, Witness, Da>> {
-        self.prover_status.get(&hash)
-    }
-
-    fn inc_task_count_if_not_busy(&mut self, num_threads: usize) -> bool {
-        if self.pending_tasks_count >= num_threads {
-            return false;
-        }
-
-        self.pending_tasks_count += 1;
-        true
-    }
-
-    fn dec_task_count(&mut self) {
-        assert!(self.pending_tasks_count > 0);
-        self.pending_tasks_count -= 1;
-    }
-}
 
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
 // the prover will reject new jobs.
@@ -79,7 +23,6 @@ pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
     prover_state: Arc<RwLock<ProverState<StateRoot, Witness, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
-    _aggregated_proof_block_jump: u64,
 }
 
 impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
@@ -88,7 +31,7 @@ where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    pub(crate) fn new(num_threads: usize, _aggregated_proof_block_jump: u64) -> Self {
+    pub(crate) fn new(num_threads: usize) -> Self {
         Self {
             num_threads,
             pool: rayon::ThreadPoolBuilder::new()
@@ -100,7 +43,6 @@ where
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
-            _aggregated_proof_block_jump,
         }
     }
 
@@ -112,7 +54,7 @@ where
         let data = ProverStatus::WitnessSubmitted(state_transition_data);
 
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
-        let entry = prover_state.prover_status.entry(header_hash);
+        let entry = prover_state.prover_status.entry(header_hash.clone());
 
         match entry {
             Entry::Occupied(_) => WitnessSubmissionStatus::WitnessExist,
@@ -126,9 +68,10 @@ where
     pub(crate) fn start_proving<Vm, V>(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-        config: Arc<ProofGenConfig<V, Da, Vm>>,
+        config: Arc<RollupProverConfig>,
         mut vm: Vm,
         zk_storage: V::PreState,
+        verifier: Arc<Verifier<Da, Vm, V>>,
     ) -> Result<ProofProcessingStatus, ProverServiceError>
     where
         Vm: ZkvmHost + 'static,
@@ -149,16 +92,47 @@ where
                 // Initiate a new proving job only if the prover is not busy.
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
-                    vm.add_hint(state_transition_data);
+                    vm.add_hint(&state_transition_data);
 
                     self.pool.spawn(move || {
                         tracing::info_span!("guest_execution").in_scope(|| {
-                            let proof = make_proof(vm, config, zk_storage);
+                            let proof = make_proof::<_, _, Da>(
+                                vm,
+                                config,
+                                zk_storage,
+                                &verifier.stf_verifier,
+                            );
 
                             let mut prover_state =
                                 prover_state_clone.write().expect("Lock was poisoned");
 
-                            prover_state.set_to_proved(block_header_hash, proof);
+                            let validity_condition = verifier
+                                .da_verifier
+                                .verify_relevant_tx_list(
+                                    &state_transition_data.da_block_header,
+                                    &state_transition_data.blobs,
+                                    state_transition_data.inclusion_proof,
+                                    state_transition_data.completeness_proof,
+                                )
+                                .expect("Invalid validity condition");
+
+                            let block_proof = proof.map(|p| BlockProof {
+                                _proof: p,
+                                st: StateTransition {
+                                    initial_state_root: state_transition_data.initial_state_root,
+                                    final_state_root: state_transition_data.final_state_root,
+                                    slot_hash: block_header_hash.clone(),
+                                    validity_condition,
+                                },
+                                height: state_transition_data.da_block_header.height(),
+                            });
+
+                            assert_eq!(
+                                block_header_hash,
+                                state_transition_data.da_block_header.hash(),
+                            );
+
+                            prover_state.set_to_proved(block_header_hash, block_proof);
                             prover_state.dec_task_count();
                         })
                     });
@@ -182,38 +156,64 @@ where
         }
     }
 
-    pub(crate) fn get_proof_submission_status_and_remove_on_success(
+    pub(crate) fn create_aggregated_proof(
         &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofSubmissionStatus, anyhow::Error> {
-        let mut prover_state = self.prover_state.write().unwrap();
-        let status = prover_state.get_prover_status(block_header_hash.clone());
+        jump: usize,
+        block_header_hashes: &[<Da::Spec as DaSpec>::SlotHash],
+    ) -> Result<ProofAggregationStatus<StateRoot>, anyhow::Error> {
+        assert!(jump >= 1);
+        assert_eq!(block_header_hashes.len(), jump);
+        let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
 
-        match status {
-            Some(ProverStatus::ProvingInProgress) => {
-                Ok(ProofSubmissionStatus::ProofGenerationInProgress)
+        let mut block_proofs_data = Vec::default();
+
+        for slot_hash in block_header_hashes {
+            let state = prover_state.get_prover_status(slot_hash);
+
+            match state {
+                Some(ProverStatus::WitnessSubmitted(_)) => {
+                    return Err(anyhow::anyhow!(
+                    "Witness for {:?} was submitted, but the proof generation is not triggered.",
+                    slot_hash
+                ))
+                }
+                Some(ProverStatus::ProvingInProgress) => {
+                    return Ok(ProofAggregationStatus::ProofGenerationInProgress)
+                }
+                Some(ProverStatus::Proved(block_proof)) => {
+                    assert_eq!(slot_hash, &block_proof.st.slot_hash);
+                    block_proofs_data.push(block_proof);
+                }
+                Some(ProverStatus::Err(e)) => return Err(anyhow::anyhow!(e.to_string())),
+                None => return Err(anyhow::anyhow!("Missing witness for: {:?}", slot_hash)),
             }
-            Some(ProverStatus::Proved(_)) => {
-                prover_state.remove(&block_header_hash);
-                Ok(ProofSubmissionStatus::Success)
-            }
-            Some(ProverStatus::WitnessSubmitted(_)) => Err(anyhow::anyhow!(
-                "Witness for {:?} was submitted, but the proof generation is not triggered.",
-                block_header_hash
-            )),
-            Some(ProverStatus::Err(e)) => Err(anyhow::anyhow!(e.to_string())),
-            None => Err(anyhow::anyhow!(
-                "Missing witness for: {:?}",
-                block_header_hash
-            )),
         }
+
+        // It is ok to unwrap here as we asserted that block_proofs_data.len() >= 1.
+        let initial_block_proof = block_proofs_data.first().unwrap();
+        let final_block_proof = block_proofs_data.last().unwrap();
+
+        let public_input = AggregatedProofPublicInput {
+            initial_state: initial_block_proof.st.initial_state_root.clone(),
+            final_state_root: final_block_proof.st.final_state_root.clone(),
+            initial_height: initial_block_proof.height,
+            final_height: final_block_proof.height,
+        };
+
+        let aggregated_proof = AggregatedProof::new(public_input);
+
+        for slot_hash in block_header_hashes {
+            prover_state.remove(slot_hash);
+        }
+        Ok(ProofAggregationStatus::Success(aggregated_proof))
     }
 }
 
 fn make_proof<V, Vm, Da>(
     mut vm: Vm,
-    config: Arc<ProofGenConfig<V, Da, Vm>>,
+    config: Arc<RollupProverConfig>,
     zk_storage: V::PreState,
+    stf_verifier: &StateTransitionVerifier<V, Da::Verifier, Vm::Guest>,
 ) -> Result<Proof, anyhow::Error>
 where
     Da: DaService,
@@ -222,12 +222,12 @@ where
     V::PreState: Send + Sync + 'static,
 {
     match config.deref() {
-        ProofGenConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
-        ProofGenConfig::Simulate(verifier) => verifier
+        RollupProverConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
+        RollupProverConfig::Simulate => stf_verifier
             .run_block(vm.simulate_with_hints(), zk_storage)
             .map(|_| Proof::PublicInput(Vec::default()))
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
-        ProofGenConfig::Execute => vm.run(false),
-        ProofGenConfig::Prover => vm.run(true),
+        RollupProverConfig::Execute => vm.run(false),
+        RollupProverConfig::Prove => vm.run(true),
     }
 }

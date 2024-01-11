@@ -1,4 +1,5 @@
 mod prover;
+mod state;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -14,9 +15,18 @@ use super::{ProverService, ProverServiceError};
 use crate::config::ProverServiceConfig;
 use crate::verifier::StateTransitionVerifier;
 use crate::{
-    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, RollupProverConfig,
-    WitnessSubmissionStatus,
+    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, WitnessSubmissionStatus,
 };
+
+pub(crate) struct Verifier<Da, Vm, V>
+where
+    Da: DaService,
+    Vm: ZkvmHost,
+    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+{
+    pub(crate) da_verifier: Da::Verifier,
+    pub(crate) stf_verifier: StateTransitionVerifier<V, Da::Verifier, Vm::Guest>,
+}
 
 /// Prover service that generates proofs in parallel.
 pub struct ParallelProverService<StateRoot, Witness, Da, Vm, V>
@@ -28,10 +38,13 @@ where
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
 {
     vm: Vm,
-    prover_config: Arc<ProofGenConfig<V, Da, Vm>>,
+    prover_config: Arc<RollupProverConfig>,
 
     zk_storage: V::PreState,
     prover_state: Prover<StateRoot, Witness, Da>,
+
+    verifier: Arc<Verifier<Da, Vm, V>>,
+    jump: usize,
 }
 
 impl<StateRoot, Witness, Da, Vm, V> ParallelProverService<StateRoot, Witness, Da, Vm, V>
@@ -54,25 +67,20 @@ where
         prover_service_config: ProverServiceConfig,
     ) -> Self {
         let stf_verifier =
-            StateTransitionVerifier::<V, Da::Verifier, Vm::Guest>::new(zk_stf, da_verifier);
+            StateTransitionVerifier::<V, Da::Verifier, Vm::Guest>::new(zk_stf, da_verifier.clone());
 
-        let config: ProofGenConfig<V, Da, Vm> = match config {
-            RollupProverConfig::Skip => ProofGenConfig::Skip,
-            RollupProverConfig::Simulate => ProofGenConfig::Simulate(stf_verifier),
-            RollupProverConfig::Execute => ProofGenConfig::Execute,
-            RollupProverConfig::Prove => ProofGenConfig::Prover,
-        };
-
-        let prover_config = Arc::new(config);
+        let verifier = Arc::new(Verifier {
+            da_verifier,
+            stf_verifier,
+        });
 
         Self {
             vm,
-            prover_config,
-            prover_state: Prover::new(
-                num_threads,
-                prover_service_config.aggregated_proof_block_jump,
-            ),
+            prover_config: Arc::new(config),
+            prover_state: Prover::new(num_threads),
+            jump: prover_service_config.aggregated_proof_block_jump,
             zk_storage,
+            verifier,
         }
     }
 
@@ -117,6 +125,10 @@ where
 
     type DaService = Da;
 
+    fn aggregated_proof_block_jump(&self) -> usize {
+        self.jump
+    }
+
     async fn submit_witness(
         &self,
         state_transition_data: StateTransitionData<
@@ -140,14 +152,15 @@ where
             self.prover_config.clone(),
             vm,
             zk_storage,
+            self.verifier.clone(),
         )
     }
 
-    async fn send_proof_to_da(
+    async fn create_aggregated_proof(
         &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofSubmissionStatus, anyhow::Error> {
+        block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
+    ) -> Result<ProofAggregationStatus<Self::StateRoot>, anyhow::Error> {
         self.prover_state
-            .get_proof_submission_status_and_remove_on_success(block_header_hash)
+            .create_aggregated_proof(self.jump, block_header_hashes)
     }
 }

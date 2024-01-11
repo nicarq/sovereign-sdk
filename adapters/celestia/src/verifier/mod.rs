@@ -23,6 +23,7 @@ use crate::types::ValidationError;
 use crate::utils::read_varint;
 use crate::{pfb_from_iter, BlobWithSender, CelestiaHeader};
 
+#[derive(Clone)]
 pub struct CelestiaVerifier {
     pub rollup_namespace: Namespace,
 }

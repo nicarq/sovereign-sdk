@@ -6,7 +6,7 @@ use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::StateTransitionData;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
-    ParallelProverService, ProofProcessingStatus, ProofSubmissionStatus, ProverService,
+    ParallelProverService, ProofAggregationStatus, ProofProcessingStatus, ProverService,
     ProverServiceConfig, ProverServiceError, RollupProverConfig, WitnessSubmissionStatus,
 };
 
@@ -18,15 +18,15 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_witness(make_transition_data(header_hash))
+        .submit_witness(make_transition_data(header_hash, 1))
         .await;
     prover_service.prove(header_hash).await?;
     vm.make_proof();
-    wait_for_proof_proof_da_submission(header_hash, &prover_service).await;
+    wait_for_proof_proof_da_submission(&[header_hash], &prover_service).await;
 
     // The proof has already been sent, and the prover_service no longer has a reference to it.
     let err = prover_service
-        .send_proof_to_da(header_hash)
+        .create_aggregated_proof(&[header_hash])
         .await
         .unwrap_err();
 
@@ -49,10 +49,11 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
 
     let header_hashes = (1..num_worker_threads + 1).map(|hash| MockHash::from([hash as u8; 32]));
 
+    let mut height = 1;
     // Saturate the prover.
     for header_hash in header_hashes.clone() {
         prover_service
-            .submit_witness(make_transition_data(header_hash))
+            .submit_witness(make_transition_data(header_hash, height))
             .await;
 
         let poof_processing_status = prover_service.prove(header_hash).await?;
@@ -61,45 +62,50 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
             poof_processing_status
         );
 
-        let proof_submission_status = prover_service.send_proof_to_da(header_hash).await?;
+        let proof_submission_status = prover_service
+            .create_aggregated_proof(&[header_hash])
+            .await?;
         assert_eq!(
-            ProofSubmissionStatus::ProofGenerationInProgress,
+            ProofAggregationStatus::ProofGenerationInProgress,
             proof_submission_status
         );
+        height += 1;
     }
 
     // Attempting to create another proof while the prover is busy.
     {
         let header_hash = MockHash::from([0; 32]);
         prover_service
-            .submit_witness(make_transition_data(header_hash))
+            .submit_witness(make_transition_data(header_hash, height))
             .await;
+        height += 1;
 
         let status = prover_service.prove(header_hash).await?;
         // The prover is busy and won't accept any new jobs.
         assert_eq!(ProofProcessingStatus::Busy, status);
 
-        let proof_submission_status = prover_service
-            .send_proof_to_da(header_hash)
+        let err = prover_service
+            .create_aggregated_proof(&[header_hash])
             .await
             .unwrap_err();
 
         // The new job wasn't accepted.
         assert_eq!(
-        proof_submission_status.to_string(),
-        "Missing witness for: 0x0000000000000000000000000000000000000000000000000000000000000000");
+            err.to_string(),
+            "Missing witness for: 0x0000000000000000000000000000000000000000000000000000000000000000"
+        );
     }
 
     vm.make_proof();
     for header_hash in header_hashes.clone() {
-        wait_for_proof_proof_da_submission(header_hash, &prover_service).await;
+        wait_for_proof_proof_da_submission(&[header_hash], &prover_service).await;
     }
 
     // Retry once the prover is available to process new proofs.
     {
         let header_hash = MockHash::from([(num_worker_threads + 1) as u8; 32]);
         prover_service
-            .submit_witness(make_transition_data(header_hash))
+            .submit_witness(make_transition_data(header_hash, height))
             .await;
 
         let status = prover_service.prove(header_hash).await?;
@@ -128,7 +134,7 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
 
     let header_hash = MockHash::from([0; 32]);
     let submission_status = prover_service
-        .submit_witness(make_transition_data(header_hash))
+        .submit_witness(make_transition_data(header_hash, 1))
         .await;
 
     assert_eq!(
@@ -137,7 +143,7 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
     );
 
     let submission_status = prover_service
-        .submit_witness(make_transition_data(header_hash))
+        .submit_witness(make_transition_data(header_hash, 2))
         .await;
 
     assert_eq!(WitnessSubmissionStatus::WitnessExist, submission_status);
@@ -151,7 +157,7 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyh
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_witness(make_transition_data(header_hash))
+        .submit_witness(make_transition_data(header_hash, 1))
         .await;
 
     let status = prover_service.prove(header_hash).await?;
@@ -175,7 +181,7 @@ struct TestProver {
 }
 
 async fn wait_for_proof_proof_da_submission(
-    header_hash: MockHash,
+    header_hashes: &[MockHash],
     prover_service: &ParallelProverService<
         [u8; 0],
         Vec<u8>,
@@ -185,8 +191,8 @@ async fn wait_for_proof_proof_da_submission(
     >,
 ) {
     for _ in 0..10 {
-        let status = prover_service.send_proof_to_da(header_hash).await;
-        if let Ok(ProofSubmissionStatus::Success) = status {
+        let status = prover_service.create_aggregated_proof(header_hashes).await;
+        if let Ok(ProofAggregationStatus::Success(_)) = status {
             return;
         }
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
@@ -219,6 +225,7 @@ fn make_new_prover() -> TestProver {
 
 fn make_transition_data(
     header_hash: MockHash,
+    height: u64,
 ) -> StateTransitionData<[u8; 0], Vec<u8>, MockDaSpec> {
     StateTransitionData {
         initial_state_root: [],
@@ -226,7 +233,7 @@ fn make_transition_data(
         da_block_header: MockBlockHeader {
             prev_hash: [0; 32].into(),
             hash: header_hash,
-            height: 0,
+            height,
             time: Time::now(),
         },
         inclusion_proof: [0; 32],

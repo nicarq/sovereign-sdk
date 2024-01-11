@@ -45,6 +45,7 @@ impl ValidityCondition for ChainValidityCondition {
     }
 }
 
+#[derive(Clone)]
 pub struct Verifier;
 
 impl DaVerifier for Verifier {

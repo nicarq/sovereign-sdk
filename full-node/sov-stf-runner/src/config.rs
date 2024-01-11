@@ -34,7 +34,7 @@ pub struct StorageConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, Copy)]
 pub struct ProverServiceConfig {
     /// The "distance"  measured in the number of blocks between two consecutive aggregated proofs.
-    pub aggregated_proof_block_jump: u64,
+    pub aggregated_proof_block_jump: usize,
 }
 
 /// Rollup Configuration

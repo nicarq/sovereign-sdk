@@ -1,4 +1,6 @@
+mod aggregated;
 mod parallel;
+pub use aggregated::AggregatedProof;
 use async_trait::async_trait;
 pub use parallel::ParallelProverService;
 use serde::Serialize;
@@ -30,9 +32,9 @@ pub enum WitnessSubmissionStatus {
 
 /// Represents the status of a DA proof submission.
 #[derive(Debug, Eq, PartialEq)]
-pub enum ProofSubmissionStatus {
-    /// Indicates successful submission of the proof to the DA.
-    Success,
+pub enum ProofAggregationStatus<StateRoot> {
+    /// Indicates successful proof generation.
+    Success(AggregatedProof<StateRoot>),
     /// Indicates that proof generation is currently in progress.
     ProofGenerationInProgress,
 }
@@ -73,6 +75,9 @@ pub trait ProverService {
     /// Data Availability service.
     type DaService: DaService;
 
+    /// The number of block proofs in the aggregated proof.
+    fn aggregated_proof_block_jump(&self) -> usize;
+
     /// Submit a witness for proving.
     async fn submit_witness(
         &self,
@@ -91,8 +96,8 @@ pub trait ProverService {
 
     /// Sends the ZK proof to the DA.
     /// This method is noy yet fully implemented: see #1185
-    async fn send_proof_to_da(
+    async fn create_aggregated_proof(
         &self,
-        block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofSubmissionStatus, anyhow::Error>;
+        block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
+    ) -> Result<ProofAggregationStatus<Self::StateRoot>, anyhow::Error>;
 }

@@ -11,8 +11,7 @@ use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::verifier::StateTransitionVerifier;
-use crate::{ProofSubmissionStatus, ProverService, RunnerConfig};
+use crate::{ProofAggregationStatus, ProverService, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -34,22 +33,6 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     prover_service: Ps,
-}
-
-/// Represents the possible modes of execution for a zkVM program
-pub enum ProofGenConfig<Stf, Da: DaService, Vm: ZkvmHost>
-where
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec>,
-{
-    /// Skips proving.
-    Skip,
-    /// The simulator runs the rollup verifier logic without even emulating the zkVM
-    Simulate(StateTransitionVerifier<Stf, Da::Verifier, Vm::Guest>),
-    /// The executor runs the rollup verification logic in the zkVM, but does not actually
-    /// produce a zk proof
-    Execute,
-    /// The prover runs the rollup verification logic in the zkVM and produces a zk proof
-    Prover,
 }
 
 /// How [`StateTransitionRunner`] is initialized
@@ -167,25 +150,32 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
+        let mut seen_state_transition_data: VecDeque<
+            StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
+        > = VecDeque::new();
+
         let mut seen_receipts: VecDeque<_> = VecDeque::new();
         let mut height = self.start_height;
+
+        let mut agg_block_hashes = Vec::default();
         loop {
             debug!("Requesting data for height {}", height);
             let mut filtered_block = self.da_service.get_block_at(height).await?;
 
             // Checking if reorg happened or not.
-            if let Some(prev_block_header) = seen_block_headers.back() {
-                if prev_block_header.hash() != filtered_block.header().prev_hash() {
+            if let Some(prev_block_header) = seen_state_transition_data.back() {
+                if prev_block_header.da_block_header.hash() != filtered_block.header().prev_hash() {
                     tracing::warn!("Block at height={} does not belong in current chain. Chain has forked. Traversing backwards", height);
-                    while let Some(seen_block_header) = seen_block_headers.pop_back() {
+                    while let Some(seen_block_header) = seen_state_transition_data.pop_back() {
                         seen_receipts.pop_back();
                         let block = self
                             .da_service
-                            .get_block_at(seen_block_header.height())
+                            .get_block_at(seen_block_header.da_block_header.height())
                             .await?;
-                        if block.header().prev_hash() == seen_block_header.prev_hash() {
-                            height = seen_block_header.height();
+                        if block.header().prev_hash()
+                            == seen_block_header.da_block_header.prev_hash()
+                        {
+                            height = seen_block_header.da_block_header.height();
                             filtered_block = block;
                             break;
                         }
@@ -249,43 +239,12 @@ where
             self.storage_manager
                 .save_change_set(filtered_block.header(), slot_result.change_set)?;
 
-            // ----------------
-            // Create ZK proof.
-            {
-                let header_hash = transition_data.da_block_header.hash();
-                self.prover_service.submit_witness(transition_data).await;
-                // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185):
-                //   This section will be moved and called upon block finalization once we have fork management ready.
-                self.prover_service
-                    .prove(header_hash.clone())
-                    .await
-                    .expect("The proof creation should succeed");
-
-                loop {
-                    let status = self
-                        .prover_service
-                        .send_proof_to_da(header_hash.clone())
-                        .await;
-
-                    match status {
-                        Ok(ProofSubmissionStatus::Success) => {
-                            break;
-                        }
-                        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
-                        Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
-                        }
-                        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
-                        Err(e) => panic!("{:?}", e),
-                    }
-                }
-            }
             let next_state_root = slot_result.state_root;
 
             seen_receipts.push_back(data_to_commit);
 
             self.state_root = next_state_root;
-            seen_block_headers.push_back(filtered_block.header().clone());
+            seen_state_transition_data.push_back(transition_data);
             height += 1;
 
             // ----------------
@@ -298,18 +257,29 @@ where
                 last_finalized.height()
             );
             // Checking all seen blocks, in case if there was delay in getting last finalized header.
-            while let Some(earliest_seen_header) = seen_block_headers.front() {
+            while let Some(earliest_seen_state_transition_data) = seen_state_transition_data.front()
+            {
                 tracing::debug!(
                     "Checking seen header height={}",
-                    earliest_seen_header.height()
+                    earliest_seen_state_transition_data.da_block_header.height()
                 );
-                if earliest_seen_header.height() <= last_finalized.height() {
+                if earliest_seen_state_transition_data.da_block_header.height()
+                    <= last_finalized.height()
+                {
                     tracing::debug!(
                         "Finalizing seen header height={}",
-                        earliest_seen_header.height()
+                        earliest_seen_state_transition_data.da_block_header.height()
                     );
-                    self.storage_manager.finalize(earliest_seen_header)?;
-                    seen_block_headers.pop_front();
+                    self.storage_manager
+                        .finalize(&earliest_seen_state_transition_data.da_block_header)?;
+
+                    let transition_data = seen_state_transition_data.pop_front().unwrap();
+                    agg_block_hashes.push(transition_data.da_block_header.hash());
+
+                    // Create ZK proof.
+                    self.create_aggregated_proof(transition_data, &mut agg_block_hashes)
+                        .await;
+
                     let receipts = seen_receipts.pop_front().unwrap();
                     self.ledger_db.commit_slot(receipts)?;
                     continue;
@@ -323,5 +293,41 @@ where
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         &self.state_root
+    }
+
+    async fn create_aggregated_proof(
+        &self,
+        transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, <Da as DaService>::Spec>,
+        agg_block_hashes: &mut Vec<<Da::Spec as DaSpec>::SlotHash>,
+    ) {
+        let header_hash = transition_data.da_block_header.hash();
+
+        self.prover_service.submit_witness(transition_data).await;
+        self.prover_service
+            .prove(header_hash.clone())
+            .await
+            .expect("The proof creation should succeed");
+
+        if agg_block_hashes.len() >= self.prover_service.aggregated_proof_block_jump() {
+            loop {
+                let status = self
+                    .prover_service
+                    .create_aggregated_proof(agg_block_hashes.as_slice())
+                    .await;
+
+                match status {
+                    Ok(ProofAggregationStatus::Success(_)) => {
+                        agg_block_hashes.clear();
+                        break;
+                    }
+                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
+                    Ok(ProofAggregationStatus::ProofGenerationInProgress) => {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    }
+                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
+                    Err(e) => panic!("{:?}", e),
+                }
+            }
+        }
     }
 }

@@ -22,7 +22,7 @@ pub trait DaService: Send + Sync + 'static {
     type Spec: DaSpec;
 
     /// The verifier for this DA layer.
-    type Verifier: DaVerifier<Spec = Self::Spec>;
+    type Verifier: DaVerifier<Spec = Self::Spec> + Clone;
 
     /// A DA layer block, possibly excluding some irrelevant information.
     type FilteredBlock: SlotData<

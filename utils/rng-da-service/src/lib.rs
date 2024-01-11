@@ -166,6 +166,7 @@ impl DaService for RngDaService {
     }
 }
 
+#[derive(Clone)]
 pub struct RngDaVerifier;
 impl DaVerifier for RngDaVerifier {
     type Spec = RngDaSpec;
