@@ -44,11 +44,6 @@ pub trait ZkvmHost: Zkvm + Clone {
     /// creating a SNARK of correct execution. Running the true guest binary comes
     /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error>;
-
-    /// Extracts public input form the proof.
-    fn extract_output<Da: DaSpec, Root: Serialize + DeserializeOwned>(
-        proof: &Proof,
-    ) -> Result<StateTransition<Da, Root>, Self::Error>;
 }
 
 /// A Zk proof system capable of proving and verifying arbitrary Rust code
