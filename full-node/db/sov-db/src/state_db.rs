@@ -15,7 +15,8 @@ use crate::schema::types::StateKey;
 ///
 /// StateDB implements several convenience functions for state storage -
 /// notably the [`TreeReader`] and [`TreeWriter`] traits.
-#[derive(Debug)]
+#[derive(Debug, derivative::Derivative)]
+#[derivative(Clone(bound = ""))]
 pub struct StateDB<Q> {
     /// The underlying [`DbSnapshot`] that plays as local cache and pointer to previous snapshots and/or [`sov_schema_db::DB`]
     db: Arc<DbSnapshot<Q>>,
@@ -23,16 +24,6 @@ pub struct StateDB<Q> {
     /// This [`Version`] is also used for querying data,
     /// so if this instance of StateDB is used as read only, it won't see newer data.
     next_version: Arc<Mutex<Version>>,
-}
-
-// Manual implementation of [`Clone`] to satisfy compiler
-impl<Q> Clone for StateDB<Q> {
-    fn clone(&self) -> Self {
-        StateDB {
-            db: self.db.clone(),
-            next_version: self.next_version.clone(),
-        }
-    }
 }
 
 impl<Q> StateDB<Q> {

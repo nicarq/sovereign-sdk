@@ -13,18 +13,11 @@ pub type Version = u64;
 
 /// Typesafe wrapper for Data, that is not part of the provable state
 /// TODO: Rename to AccessoryDb
-#[derive(Debug)]
+#[derive(Debug, derivative::Derivative)]
+#[derivative(Clone(bound = ""))]
 pub struct NativeDB<Q> {
     /// Pointer to [`DbSnapshot`] for up to date state
     db: Arc<DbSnapshot<Q>>,
-}
-
-impl<Q> Clone for NativeDB<Q> {
-    fn clone(&self) -> Self {
-        NativeDB {
-            db: self.db.clone(),
-        }
-    }
 }
 
 impl<Q> NativeDB<Q> {

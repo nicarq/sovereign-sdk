@@ -54,13 +54,7 @@ impl FromStr for MockAddress {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let addr = hex::decode(s).map_err(anyhow::Error::msg)?;
-        if addr.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid address length"));
-        }
-
-        let mut array = [0; 32];
-        array.copy_from_slice(&addr);
-        Ok(MockAddress { addr: array })
+        Self::try_from(addr.as_slice())
     }
 }
 

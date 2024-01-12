@@ -61,19 +61,10 @@ impl<'a> MockProof<'a> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Notifier {
     notified: Arc<Mutex<bool>>,
     cond: Arc<Condvar>,
-}
-
-impl Default for Notifier {
-    fn default() -> Self {
-        Self {
-            notified: Arc::new(Mutex::new(false)),
-            cond: Default::default(),
-        }
-    }
 }
 
 impl Notifier {
