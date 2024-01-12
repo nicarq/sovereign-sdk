@@ -14,17 +14,10 @@ use crate::MerkleProofSpec;
 extern crate risc0_zkvm;
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
-#[derive(Default)]
+#[derive(Default, derivative::Derivative)]
+#[derivative(Clone(bound = "S: MerkleProofSpec"))]
 pub struct ZkStorage<S: MerkleProofSpec> {
     _phantom_hasher: PhantomData<S::Hasher>,
-}
-
-impl<S: MerkleProofSpec> Clone for ZkStorage<S> {
-    fn clone(&self) -> Self {
-        Self {
-            _phantom_hasher: Default::default(),
-        }
-    }
 }
 
 impl<S: MerkleProofSpec> ZkStorage<S> {

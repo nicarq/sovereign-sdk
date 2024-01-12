@@ -117,23 +117,14 @@ pub mod mocks {
     use crate::{Context, WorkingSet};
 
     /// A mock kernel for use in tests
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, derivative::Derivative)]
+    #[derivative(Default(bound = ""))]
     pub struct MockKernel<C, Da> {
         /// The current slot height
         pub true_height: u64,
         /// The height at which transactions appear to be executing
         pub visible_height: u64,
         phantom: core::marker::PhantomData<(C, Da)>,
-    }
-
-    impl<C, Da> Default for MockKernel<C, Da> {
-        fn default() -> Self {
-            Self {
-                true_height: 0,
-                visible_height: 0,
-                phantom: Default::default(),
-            }
-        }
     }
 
     impl<C: Context, Da: DaSpec> MockKernel<C, Da> {
