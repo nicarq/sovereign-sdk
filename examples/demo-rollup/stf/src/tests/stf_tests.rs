@@ -1,10 +1,9 @@
-use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_data_generators::bank_data::get_default_token_address;
 use sov_data_generators::{has_tx_events, new_test_blob_from_batch};
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::{Context, PrivateKey, WorkingSet};
+use sov_modules_api::{PrivateKey, WorkingSet};
 use sov_modules_stf_blueprint::{Batch, SequencerOutcome, StfBlueprint};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -13,7 +12,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::simulate_da;
 use crate::tests::{
-    create_storage_manager_for_tests, get_genesis_config_for_tests, StfBlueprintTest, C,
+    create_storage_manager_for_tests, get_genesis_config_for_tests, read_private_key,
+    StfBlueprintTest, C,
 };
 
 #[test]
@@ -272,25 +272,4 @@ fn test_sequencer_unknown_sequencer() {
 
     // Assert that there are no events
     assert!(!has_tx_events(&apply_blob_outcome));
-}
-
-fn read_private_key<C: Context>() -> PrivateKeyAndAddress<C> {
-    let token_deployer_data =
-        std::fs::read_to_string("../../test-data/keys/token_deployer_private_key.json")
-            .expect("Unable to read file to string");
-
-    let token_deployer: PrivateKeyAndAddress<C> = serde_json::from_str(&token_deployer_data)
-        .unwrap_or_else(|_| {
-            panic!(
-                "Unable to convert data {} to PrivateKeyAndAddress",
-                &token_deployer_data
-            )
-        });
-
-    assert!(
-        token_deployer.is_matching_to_default(),
-        "Inconsistent key data"
-    );
-
-    token_deployer
 }

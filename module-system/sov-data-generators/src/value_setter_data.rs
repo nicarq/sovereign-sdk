@@ -52,12 +52,14 @@ impl<C: Context> MessageGenerator for ValueSetterMessages<C> {
                 let set_value_msg: sov_value_setter::CallMessage =
                     sov_value_setter::CallMessage::SetValue(*new_value);
 
+                let max_gas_price = None;
                 messages.push(Message::new(
                     admin.clone(),
                     set_value_msg,
                     DEFAULT_CHAIN_ID,
                     DEFAULT_GAS_TIP,
                     DEFAULT_GAS_LIMIT,
+                    max_gas_price,
                     value_setter_admin_nonce.try_into().unwrap(),
                 ));
             }
@@ -72,10 +74,19 @@ impl<C: Context> MessageGenerator for ValueSetterMessages<C> {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
+        max_gas_price: Option<C::GasUnit>,
         nonce: u64,
         _is_last: bool,
     ) -> Transaction<C> {
         let message = Encoder::encode_call(message);
-        Transaction::<C>::new_signed_tx(sender, message, chain_id, gas_tip, gas_limit, nonce)
+        Transaction::<C>::new_signed_tx(
+            sender,
+            message,
+            chain_id,
+            gas_tip,
+            gas_limit,
+            max_gas_price,
+            nonce,
+        )
     }
 }

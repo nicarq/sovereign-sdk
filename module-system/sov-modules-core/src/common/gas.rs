@@ -16,6 +16,8 @@ pub trait GasUnit:
     + Sync
     + PartialEq
     + Eq
+    + PartialOrd
+    + Ord
     + core::hash::Hash
     + Serialize
     + DeserializeOwned

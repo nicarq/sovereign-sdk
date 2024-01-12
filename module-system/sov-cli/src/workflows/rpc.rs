@@ -160,6 +160,7 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                             tx.chain_id,
                             tx.gas_tip,
                             tx.gas_limit,
+                            tx.max_gas_price,
                             nonce + offset as u64,
                         )
                         .try_to_vec()

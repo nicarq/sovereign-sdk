@@ -9,6 +9,7 @@ use sov_data_generators::MessageGenerator;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_modules_api::Context;
 use sov_modules_stf_blueprint::RawTx;
 
 use crate::runtime::Runtime;
@@ -28,6 +29,22 @@ pub fn simulate_da(value_setter_admin: DefaultPrivateKey) -> Vec<RawTx> {
     }]);
     messages.extend(value_setter.create_raw_txs::<Runtime<C, Da>>());
     messages.extend(bank_txs);
+    messages
+}
+
+pub fn simulate_da_with_max_gas_price(
+    value_setter_admin: DefaultPrivateKey,
+    max_gas_price: <DefaultContext as Context>::GasUnit,
+) -> Vec<RawTx> {
+    let mut messages = Vec::default();
+
+    let value_setter = ValueSetterMessages::new(vec![ValueSetterMessage {
+        admin: Rc::new(value_setter_admin),
+        messages: vec![99, 33],
+    }]);
+
+    let txs = value_setter.create_raw_txs_with_maximum_gas_price::<Runtime<C, Da>>(max_gas_price);
+    messages.extend(txs);
     messages
 }
 

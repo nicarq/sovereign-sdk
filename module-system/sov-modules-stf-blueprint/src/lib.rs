@@ -6,6 +6,9 @@ pub mod kernels;
 mod stf_blueprint;
 mod tx_verifier;
 
+#[cfg(feature = "test-utils")]
+mod utils;
+
 pub use batch::Batch;
 use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
@@ -73,6 +76,8 @@ pub enum TxEffect {
     Reverted,
     /// Batch was processed successfully.
     Successful,
+    /// Batch was skipped.
+    Skipped,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

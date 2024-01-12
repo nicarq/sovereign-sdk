@@ -12,8 +12,8 @@ use sov_state::Storage;
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
 pub struct BasicKernel<C: Context, Da: DaSpec> {
     phantom: std::marker::PhantomData<C>,
-    chain_state: ChainState<C, Da>,
-    blob_storage: BlobStorage<C, Da>,
+    pub(crate) chain_state: ChainState<C, Da>,
+    pub(crate) blob_storage: BlobStorage<C, Da>,
 }
 
 impl<C: Context, Da: DaSpec> Default for BasicKernel<C, Da> {

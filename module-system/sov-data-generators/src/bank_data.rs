@@ -36,6 +36,7 @@ const DEFAULT_PVT_KEY: &str = "236e80cb222c4ed0431b093b3ac53e6aa7a2273fe1f4351cd
 const DEFAULT_CHAIN_ID: u64 = 0;
 const DEFAULT_GAS_TIP: u64 = 0;
 const DEFAULT_GAS_LIMIT: u64 = 0;
+const DEFAULT_MAX_GAS_PRICE: Option<[u64; 2]> = None;
 const DEFAULT_INIT_BALANCE: u64 = 1000000;
 
 pub fn get_default_token_address() -> <DefaultContext as Spec>::Address {
@@ -233,24 +234,28 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
         let mut nonce = 0;
 
         for mint_message in &self.token_mint_txs {
+            let max_gas_price = None;
             messages.push(Message::new(
                 mint_message.minter_pkey.clone(),
                 mint_token_tx::<C>(mint_message),
                 DEFAULT_CHAIN_ID,
                 DEFAULT_GAS_TIP,
                 DEFAULT_GAS_LIMIT,
+                max_gas_price,
                 nonce,
             ));
             nonce += 1;
         }
 
         for transfer_message in &self.transfer_txs {
+            let max_gas_price = None;
             messages.push(Message::new(
                 transfer_message.sender_pkey.clone(),
                 transfer_token_tx::<C>(transfer_message),
                 DEFAULT_CHAIN_ID,
                 DEFAULT_GAS_TIP,
                 DEFAULT_GAS_LIMIT,
+                max_gas_price,
                 nonce,
             ));
             nonce += 1;
@@ -266,11 +271,20 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
+        max_gas_price: Option<C::GasUnit>,
         nonce: u64,
         _is_last: bool,
     ) -> sov_modules_api::transaction::Transaction<C> {
         let message = Encoder::encode_call(message);
-        Transaction::<C>::new_signed_tx(sender, message, chain_id, gas_tip, gas_limit, nonce)
+        Transaction::<C>::new_signed_tx(
+            sender,
+            message,
+            chain_id,
+            gas_tip,
+            gas_limit,
+            max_gas_price,
+            nonce,
+        )
     }
 }
 
@@ -310,6 +324,7 @@ impl MessageGenerator for BadSerializationBankCallMessages {
             DEFAULT_CHAIN_ID,
             DEFAULT_GAS_TIP,
             DEFAULT_GAS_LIMIT,
+            DEFAULT_MAX_GAS_PRICE,
             0,
         ));
         messages.push(Message::new(
@@ -324,6 +339,7 @@ impl MessageGenerator for BadSerializationBankCallMessages {
             DEFAULT_CHAIN_ID,
             DEFAULT_GAS_TIP,
             DEFAULT_GAS_LIMIT,
+            DEFAULT_MAX_GAS_PRICE,
             0,
         ));
         messages
@@ -336,6 +352,7 @@ impl MessageGenerator for BadSerializationBankCallMessages {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
+        max_gas_price: Option<<DefaultContext as Context>::GasUnit>,
         nonce: u64,
         is_last: bool,
     ) -> Transaction<DefaultContext> {
@@ -347,7 +364,13 @@ impl MessageGenerator for BadSerializationBankCallMessages {
         };
 
         Transaction::<DefaultContext>::new_signed_tx(
-            sender, call_data, chain_id, gas_tip, gas_limit, nonce,
+            sender,
+            call_data,
+            chain_id,
+            gas_tip,
+            gas_limit,
+            max_gas_price,
+            nonce,
         )
     }
 }
@@ -388,6 +411,7 @@ impl MessageGenerator for BadSignatureBankCallMessages {
             DEFAULT_CHAIN_ID,
             DEFAULT_GAS_TIP,
             DEFAULT_GAS_LIMIT,
+            DEFAULT_MAX_GAS_PRICE,
             0,
         ));
         messages
@@ -400,6 +424,7 @@ impl MessageGenerator for BadSignatureBankCallMessages {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
+        max_gas_price: Option<<DefaultContext as Context>::GasUnit>,
         nonce: u64,
         is_last: bool,
     ) -> Transaction<DefaultContext> {
@@ -412,6 +437,7 @@ impl MessageGenerator for BadSignatureBankCallMessages {
                 chain_id,
                 gas_tip,
                 gas_limit,
+                max_gas_price,
                 nonce,
             );
             Transaction::new(
@@ -421,11 +447,18 @@ impl MessageGenerator for BadSignatureBankCallMessages {
                 chain_id,
                 gas_tip,
                 gas_limit,
+                max_gas_price,
                 nonce,
             )
         } else {
             Transaction::<DefaultContext>::new_signed_tx(
-                sender, call_data, chain_id, gas_tip, gas_limit, nonce,
+                sender,
+                call_data,
+                chain_id,
+                gas_tip,
+                gas_limit,
+                max_gas_price,
+                nonce,
             )
         }
     }
@@ -467,6 +500,7 @@ impl MessageGenerator for BadNonceBankCallMessages {
             DEFAULT_CHAIN_ID,
             DEFAULT_GAS_TIP,
             DEFAULT_GAS_LIMIT,
+            DEFAULT_MAX_GAS_PRICE,
             0,
         ));
         messages
@@ -479,13 +513,20 @@ impl MessageGenerator for BadNonceBankCallMessages {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
+        max_gas_price: Option<<DefaultContext as Context>::GasUnit>,
         _nonce: u64,
         _is_last: bool,
     ) -> Transaction<DefaultContext> {
         let message = Encoder::encode_call(message);
         // hard-coding the nonce to 1000
         Transaction::<DefaultContext>::new_signed_tx(
-            sender, message, chain_id, gas_tip, gas_limit, 1000,
+            sender,
+            message,
+            chain_id,
+            gas_tip,
+            gas_limit,
+            max_gas_price,
+            1000,
         )
     }
 }
