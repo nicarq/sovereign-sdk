@@ -1,8 +1,9 @@
 use std::path::Path;
 
+use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::DaSpec;
+use sov_modules_api::{Context, DaSpec};
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -50,4 +51,25 @@ pub(crate) fn get_genesis_config_for_tests<Da: DaSpec>(
         runtime: rt_params,
         kernel: kernel_params,
     }
+}
+
+pub(crate) fn read_private_key<C: Context>() -> PrivateKeyAndAddress<C> {
+    let token_deployer_data =
+        std::fs::read_to_string("../../test-data/keys/token_deployer_private_key.json")
+            .expect("Unable to read file to string");
+
+    let token_deployer: PrivateKeyAndAddress<C> = serde_json::from_str(&token_deployer_data)
+        .unwrap_or_else(|_| {
+            panic!(
+                "Unable to convert data {} to PrivateKeyAndAddress",
+                &token_deployer_data
+            )
+        });
+
+    assert!(
+        token_deployer.is_matching_to_default(),
+        "Inconsistent key data"
+    );
+
+    token_deployer
 }

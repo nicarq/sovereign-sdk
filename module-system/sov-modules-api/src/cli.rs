@@ -18,6 +18,9 @@ pub trait CliTxImportArg {
 
     /// The gas limit for the transaction execution.
     fn gas_limit(&self) -> u64;
+
+    /// The maximum gas price for the transaction execution.
+    fn max_gas_price(&self) -> Option<&[u64]>;
 }
 
 /// An argument to the cli containing a json string
@@ -42,6 +45,14 @@ pub struct JsonStringArg {
         default_value = "0"
     )]
     pub gas_limit: u64,
+
+    /// The maximum gas price for the transaction execution.
+    #[arg(
+        long,
+        help = "The gas limit for the transaction execution.",
+        num_args = 0..
+    )]
+    pub max_gas_price: Option<Vec<u64>>,
 }
 
 /// An argument to the cli containing a path to a file
@@ -66,6 +77,14 @@ pub struct FileNameArg {
         default_value = "0"
     )]
     pub gas_limit: u64,
+
+    /// The maximum gas price for the transaction execution.
+    #[arg(
+        long,
+        help = "The gas limit for the transaction execution.",
+        num_args = 0..
+    )]
+    pub max_gas_price: Option<Vec<u64>>,
 }
 
 impl CliTxImportArg for JsonStringArg {
@@ -79,6 +98,10 @@ impl CliTxImportArg for JsonStringArg {
 
     fn gas_limit(&self) -> u64 {
         self.gas_limit
+    }
+
+    fn max_gas_price(&self) -> Option<&[u64]> {
+        self.max_gas_price.as_deref()
     }
 }
 
@@ -94,6 +117,10 @@ impl CliTxImportArg for FileNameArg {
     fn gas_limit(&self) -> u64 {
         self.gas_limit
     }
+
+    fn max_gas_price(&self) -> Option<&[u64]> {
+        self.max_gas_price.as_deref()
+    }
 }
 
 impl TryFrom<FileNameArg> for JsonStringArg {
@@ -104,6 +131,7 @@ impl TryFrom<FileNameArg> for JsonStringArg {
             chain_id,
             gas_tip,
             gas_limit,
+            max_gas_price,
         } = arg;
 
         Ok(JsonStringArg {
@@ -111,6 +139,7 @@ impl TryFrom<FileNameArg> for JsonStringArg {
             chain_id,
             gas_tip,
             gas_limit,
+            max_gas_price,
         })
     }
 }

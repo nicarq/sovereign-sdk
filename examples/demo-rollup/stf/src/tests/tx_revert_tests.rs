@@ -9,12 +9,15 @@ use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_state::Storage;
 
-use super::{create_storage_manager_for_tests, get_genesis_config_for_tests, RuntimeTest};
+use super::{
+    create_storage_manager_for_tests, get_genesis_config_for_tests, read_private_key, RuntimeTest,
+};
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::{
     simulate_da_with_bad_nonce, simulate_da_with_bad_serialization, simulate_da_with_bad_sig,
-    simulate_da_with_revert_msg,
+    simulate_da_with_max_gas_price, simulate_da_with_revert_msg,
 };
 use crate::tests::StfBlueprintTest;
 
@@ -357,5 +360,82 @@ fn test_tx_bad_serialization() {
             )
             .unwrap();
         assert_eq!(sequencer_balance_before, sequencer_balance_after);
+    }
+}
+
+#[test]
+fn test_tx_max_gas_price() {
+    // Test checks:
+    //  - The maximum gas price is respected
+
+    // sanity check
+    let gas_price = [1000, 1000];
+    let tx_max_price = [1500, 1500];
+    let outcome = TxEffect::Successful;
+    run_test(gas_price, tx_max_price, outcome);
+
+    // max gas price check
+    let gas_price = [1000, 1000];
+    let tx_max_price = [500, 500];
+    let outcome = TxEffect::Skipped;
+    run_test(gas_price, tx_max_price, outcome);
+
+    fn run_test(gas_price: [u64; 2], tx_max_price: [u64; 2], outcome: TxEffect) {
+        let tempdir = tempfile::tempdir().unwrap();
+        let config = get_genesis_config_for_tests();
+        let genesis_block = MockBlock::default();
+        let block_1 = genesis_block.next_mock();
+        let stf: StfBlueprintTest = StfBlueprint::new();
+        let mut storage_manager = create_storage_manager_for_tests(tempdir.path());
+
+        let private_key = read_private_key::<DefaultContext>().private_key;
+        let txs = simulate_da_with_max_gas_price(private_key, tx_max_price);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let mut blobs = [blob];
+
+        let (genesis_root, storage) = stf.init_chain(
+            storage_manager
+                .create_storage_on(genesis_block.header())
+                .unwrap(),
+            config,
+        );
+
+        let mut working_set = WorkingSet::new(storage.clone());
+
+        let mut gas_price_state = stf
+            .kernel()
+            .chain_state()
+            .get_gas_price_state(&mut working_set)
+            .expect("the gas state must exist from genesis");
+
+        gas_price_state.price = gas_price;
+
+        stf.kernel()
+            .chain_state()
+            .set_gas_price_state(&gas_price_state, &mut working_set);
+
+        let (rw, witnesses) = working_set.checkpoint().freeze();
+        storage.validate_and_commit(rw, &witnesses).unwrap();
+
+        storage_manager
+            .save_change_set(genesis_block.header(), storage)
+            .unwrap();
+
+        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+
+        let apply_block_result = stf.apply_slot(
+            &genesis_root,
+            storage,
+            Default::default(),
+            &block_1.header,
+            &block_1.validity_cond,
+            &mut blobs,
+        );
+
+        let txn_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();
+
+        assert_eq!(1, apply_block_result.batch_receipts.len());
+        assert_eq!(apply_block_result.batch_receipts[0].gas_price, gas_price);
+        assert_eq!(txn_receipts[0].receipt, outcome);
     }
 }

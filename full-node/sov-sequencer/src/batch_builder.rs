@@ -218,6 +218,7 @@ mod tests {
         let chain_id = 0;
         let gas_tip = 0;
         let gas_limit = 0;
+        let max_gas_price = None;
         let nonce = 1;
 
         Transaction::<DefaultContext>::new_signed_tx(
@@ -226,6 +227,7 @@ mod tests {
             chain_id,
             gas_tip,
             gas_limit,
+            max_gas_price,
             nonce,
         )
         .try_to_vec()
@@ -245,6 +247,7 @@ mod tests {
         let chain_id = 0;
         let gas_tip = 0;
         let gas_limit = 0;
+        let max_gas_price = None;
         let nonce = 1;
 
         Transaction::<DefaultContext>::new_signed_tx(
@@ -253,6 +256,7 @@ mod tests {
             chain_id,
             gas_tip,
             gas_limit,
+            max_gas_price,
             nonce,
         )
         .try_to_vec()

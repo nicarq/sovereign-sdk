@@ -8,7 +8,7 @@ use serde::Serialize;
 use sov_modules_api::clap::{self, Subcommand};
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg};
 use sov_modules_api::transaction::UnsignedTransaction;
-use sov_modules_api::CliWallet;
+use sov_modules_api::{CliWallet, GasUnit};
 
 use crate::wallet_state::WalletState;
 
@@ -115,18 +115,21 @@ where
         let chain_id;
         let gas_tip;
         let gas_limit;
+        let max_gas_price;
 
         let intermediate_repr: RT::CliStringRepr<U> = match self {
             ImportTransaction::FromFile(file) => {
                 chain_id = file.chain_id();
                 gas_tip = file.gas_tip();
                 gas_limit = file.gas_limit();
+                max_gas_price = file.max_gas_price().map(|m| m.to_vec());
                 file.try_into().map_err(Into::<anyhow::Error>::into)?
             }
             ImportTransaction::FromString(json) => {
                 chain_id = json.chain_id();
                 gas_tip = json.gas_tip();
                 gas_limit = json.gas_limit();
+                max_gas_price = json.max_gas_price().map(|m| m.to_vec());
                 json.try_into().map_err(Into::<anyhow::Error>::into)?
             }
         };
@@ -135,7 +138,9 @@ where
             .try_into()
             .map_err(Into::<anyhow::Error>::into)?;
 
-        let tx = UnsignedTransaction::new(tx, chain_id, gas_tip, gas_limit);
+        let max_gas_price = max_gas_price.map(|m| C::GasUnit::from_slice(&m));
+
+        let tx = UnsignedTransaction::new(tx, chain_id, gas_tip, gas_limit, max_gas_price);
 
         println!("Adding the following transaction to batch:");
         println!("{}", serde_json::to_string_pretty(&tx)?);

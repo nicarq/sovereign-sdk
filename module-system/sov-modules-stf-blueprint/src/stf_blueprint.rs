@@ -247,6 +247,22 @@ where
         for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
             txs.into_iter().zip(messages.into_iter())
         {
+            if let Some(max) = tx.max_gas_price() {
+                if max < batch_workspace.gas_price() {
+                    let gas_used = batch_workspace.gas_used().to_vec();
+                    let receipt = TransactionReceipt {
+                        tx_hash: raw_tx_hash,
+                        body_to_save: None,
+                        events: batch_workspace.take_events(),
+                        receipt: TxEffect::Skipped,
+                        gas_used,
+                    };
+
+                    tx_receipts.push(receipt);
+                    continue;
+                }
+            }
+
             // Update the working set gas meter with the available funds
             let gas_limit = tx.gas_limit();
             let gas_tip = tx.gas_tip();

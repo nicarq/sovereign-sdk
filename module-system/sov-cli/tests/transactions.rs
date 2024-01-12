@@ -22,6 +22,7 @@ fn test_import_transaction_from_string() {
             chain_id: 0,
             gas_tip: 0,
             gas_limit: 0,
+            max_gas_price: None,
         },
     };
 
@@ -49,6 +50,7 @@ fn test_import_transaction_from_file() {
             chain_id: 0,
             gas_tip: 0,
             gas_limit: 0,
+            max_gas_price: None,
         },
     };
 

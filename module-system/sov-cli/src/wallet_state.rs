@@ -16,7 +16,7 @@ where
     Tx: BorshSerialize + BorshDeserialize,
 {
     /// The accumulated transactions to be submitted to the DA layer
-    pub unsent_transactions: Vec<UnsignedTransaction<Tx>>,
+    pub unsent_transactions: Vec<UnsignedTransaction<Ctx, Tx>>,
     /// The addresses in the wallet
     pub addresses: AddressList<Ctx>,
     /// The addresses in the wallet

@@ -44,6 +44,8 @@ pub struct Message<C: Context, Mod: Module> {
     pub gas_tip: u64,
     /// The gas limit for the transaction execution.
     pub gas_limit: u64,
+    /// The maximum gas price for the transaction execution.
+    pub max_gas_price: Option<C::GasUnit>,
     /// The message nonce.
     pub nonce: u64,
 }
@@ -55,6 +57,7 @@ impl<C: Context, Mod: Module> Message<C, Mod> {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
+        max_gas_price: Option<C::GasUnit>,
         nonce: u64,
     ) -> Self {
         Self {
@@ -63,6 +66,7 @@ impl<C: Context, Mod: Module> Message<C, Mod> {
             chain_id,
             gas_tip,
             gas_limit,
+            max_gas_price,
             nonce,
         }
     }
@@ -93,6 +97,8 @@ pub trait MessageGenerator {
         gas_tip: u64,
         // The gas limit for the transaction execution
         gas_limit: u64,
+        // The maximum gas price for the transaction execution
+        max_gas_price: Option<<Self::Context as Context>::GasUnit>,
         // The message nonce
         nonce: u64,
         // A boolean that indicates whether this message is the last one to be sent.
@@ -113,6 +119,37 @@ pub trait MessageGenerator {
                 message.chain_id,
                 message.gas_tip,
                 message.gas_limit,
+                message.max_gas_price,
+                message.nonce,
+                is_last,
+            );
+
+            serialized_messages.push(RawTx {
+                data: tx.try_to_vec().unwrap(),
+            })
+        }
+        serialized_messages
+    }
+
+    /// Creates a vector of raw transactions from the module.
+    fn create_raw_txs_with_maximum_gas_price<Encoder: EncodeCall<Self::Module>>(
+        &self,
+        max_gas_price: <Self::Context as Context>::GasUnit,
+    ) -> Vec<RawTx> {
+        let mut messages_iter = self.create_messages().into_iter().peekable();
+        let mut serialized_messages = Vec::default();
+        while let Some(mut message) = messages_iter.next() {
+            let is_last = messages_iter.peek().is_none();
+
+            message.max_gas_price.replace(max_gas_price.clone());
+
+            let tx = self.create_tx::<Encoder>(
+                &message.sender_key,
+                message.content,
+                message.chain_id,
+                message.gas_tip,
+                message.gas_limit,
+                message.max_gas_price,
                 message.nonce,
                 is_last,
             );
