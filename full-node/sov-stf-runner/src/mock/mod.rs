@@ -13,7 +13,7 @@ pub struct MockStf<Cond> {
 impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, Da>
     for MockStf<Cond>
 {
-    type StateRoot = [u8; 0];
+    type StateRoot = Vec<u8>;
     type GenesisParams = ();
     type PreState = ();
     type ChangeSet = ();
@@ -27,13 +27,13 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         &self,
         _base_state: Self::PreState,
         _params: Self::GenesisParams,
-    ) -> ([u8; 0], ()) {
-        ([], ())
+    ) -> (Self::StateRoot, ()) {
+        (Vec::default(), ())
     }
 
     fn apply_slot<'a, I>(
         &self,
-        _pre_state_root: &[u8; 0],
+        _pre_state_root: &Self::StateRoot,
         _base_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
@@ -50,7 +50,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         SlotResult {
-            state_root: [],
+            state_root: Vec::default(),
             change_set: (),
             batch_receipts: vec![BatchReceipt {
                 batch_hash: [0; 32],

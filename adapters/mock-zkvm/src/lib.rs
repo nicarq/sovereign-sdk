@@ -8,8 +8,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::zk::{Matches, StateTransitionData, ValidityCondition};
+use sov_rollup_interface::zk::{Matches, ValidityCondition};
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -171,30 +170,6 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
         self.worker_thread_notifier.wait();
         let data = self.committed_data.pop_front().unwrap_or_default();
         Ok(sov_rollup_interface::zk::Proof::PublicInput(data))
-    }
-
-    fn extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + serde::de::DeserializeOwned,
-    >(
-        proof: &sov_rollup_interface::zk::Proof,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        match proof {
-            sov_rollup_interface::zk::Proof::PublicInput(pub_input) => {
-                let data: ProofInfo<Da::ValidityCondition> = bincode::deserialize(pub_input)?;
-                let st: StateTransitionData<Root, (), Da> = bincode::deserialize(&data.hint)?;
-
-                Ok(sov_rollup_interface::zk::StateTransition {
-                    initial_state_root: st.initial_state_root,
-                    final_state_root: st.final_state_root,
-                    slot_hash: st.da_block_header.hash(),
-                    validity_condition: data.validity_condition,
-                })
-            }
-            sov_rollup_interface::zk::Proof::Full(_) => {
-                panic!("Mock DA doesn't generate real proofs")
-            }
-        }
     }
 }
 

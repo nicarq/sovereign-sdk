@@ -194,7 +194,7 @@ where
         let final_block_proof = block_proofs_data.last().unwrap();
 
         let public_input = AggregatedProofPublicInput {
-            initial_state: initial_block_proof.st.initial_state_root.clone(),
+            initial_state_root: initial_block_proof.st.initial_state_root.clone(),
             final_state_root: final_block_proof.st.final_state_root.clone(),
             initial_height: initial_block_proof.height,
             final_height: final_block_proof.height,

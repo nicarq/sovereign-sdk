@@ -7,12 +7,17 @@ pub(crate) struct BlockProof<Da: DaSpec, Root> {
     pub(crate) st: StateTransition<Da, Root>,
 }
 
+/// Public input of an aggregated proof.
 #[derive(Debug, Eq, PartialEq)]
 pub struct AggregatedProofPublicInput<StateRoot> {
-    pub(crate) initial_state: StateRoot,
-    pub(crate) final_state_root: StateRoot,
-    pub(crate) initial_height: u64,
-    pub(crate) final_height: u64,
+    /// The state root before the aggregation.
+    pub initial_state_root: StateRoot,
+    /// The state root after the aggregation.
+    pub final_state_root: StateRoot,
+    /// The height before the aggregation.
+    pub initial_height: u64,
+    /// The height after the aggregation.
+    pub final_height: u64,
 }
 
 /// Represents an aggregated proof.
