@@ -9,7 +9,6 @@ use jsonrpsee::types::ErrorObject;
 use reth_interfaces::RethError;
 use reth_primitives::abi::decode_revert_reason;
 use reth_primitives::{Address, Bytes, U256};
-use reth_revm::tracing::js::JsInspectorError;
 use reth_rpc_types::error::EthRpcErrorCode;
 use reth_rpc_types::{BlockError, CallInputError};
 use revm::primitives::{EVMError, ExecutionResult, Halt, InvalidHeader, OutOfGasError};
@@ -145,16 +144,6 @@ impl From<EthApiError> for ErrorObject<'static> {
 impl From<EthApiError> for RpcError {
     fn from(error: EthApiError) -> Self {
         RpcError::Call(error.into())
-    }
-}
-impl From<JsInspectorError> for EthApiError {
-    fn from(error: JsInspectorError) -> Self {
-        match error {
-            err @ JsInspectorError::JsError(_) => {
-                EthApiError::InternalJsTracerError(err.to_string())
-            }
-            err => EthApiError::InvalidParams(err.to_string()),
-        }
     }
 }
 

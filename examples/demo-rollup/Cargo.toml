@@ -75,7 +75,6 @@ ethers-contract = { workspace = true }
 ethers-middleware = { workspace = true }
 ethers-providers = { workspace = true }
 ethers-signers = { workspace = true }
-ethers = { workspace = true }
 revm = { workspace = true }
 
 reqwest = "0.11"

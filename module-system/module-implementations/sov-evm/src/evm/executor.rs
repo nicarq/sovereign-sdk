@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use reth_primitives::TransactionSignedEcRecovered;
-use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
+use reth_revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use revm::primitives::{CfgEnv, EVMError, Env, ExecutionResult, ResultAndState, TxEnv};
 use revm::{self, Database, DatabaseCommit};
 
