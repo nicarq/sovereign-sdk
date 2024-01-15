@@ -1,7 +1,6 @@
 use anyhow::Result;
-use reth_primitives::TransactionSignedEcRecovered;
-use reth_revm::into_reth_log;
-use revm::primitives::{CfgEnv, EVMError, SpecId};
+use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered, H160, H256};
+use revm::primitives::{CfgEnv, EVMError, Log, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, WorkingSet};
 
@@ -131,5 +130,17 @@ pub(crate) fn get_spec_id(spec: Vec<(u64, SpecId)>, block_number: u64) -> SpecId
                 panic!("EVM spec must start from block 0")
             }
         }
+    }
+}
+
+/// Copied from <https://github.com/paradigmxyz/reth/blob/e83d3aa704f87825ca8cab6f593ab4d4adbf6792/crates/revm/revm-primitives/src/compat.rs#L17-L23>.
+/// All rights reserved.
+///
+/// By copying the code, we can avoid depending on the whole crate.
+pub fn into_reth_log(log: Log) -> RethLog {
+    RethLog {
+        address: H160(log.address.0),
+        topics: log.topics.into_iter().map(|h| H256(h.0)).collect(),
+        data: log.data.into(),
     }
 }

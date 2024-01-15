@@ -16,10 +16,11 @@ pub mod experimental {
 
     use borsh::ser::BorshSerialize;
     use demo_stf::runtime::Runtime;
-    use ethers::types::{Bytes, H256};
     use jsonrpsee::types::ErrorObjectOwned;
     use jsonrpsee::RpcModule;
-    use reth_primitives::{TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256};
+    use reth_primitives::{
+        Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, H256, U128, U256,
+    };
     use reth_rpc_types::{CallRequest, TransactionRequest, TypedTransactionRequest};
     use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
     use sov_modules_api::utils::to_jsonrpsee_error_object;
@@ -129,7 +130,7 @@ pub mod experimental {
             let tx = CallMessage { tx: raw_tx };
             let message = <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(tx);
 
-            Ok((H256::from(tx_hash), message))
+            Ok((tx_hash, message))
         }
 
         async fn build_and_submit_batch(

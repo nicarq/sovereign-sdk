@@ -50,7 +50,6 @@ std = [
     "bytes",
     "digest/default",
     "hex/default",
-    "proptest?/default",
     "serde/default",
     "sha2?/default",
     "thiserror"
