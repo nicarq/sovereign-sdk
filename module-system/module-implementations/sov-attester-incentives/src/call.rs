@@ -10,7 +10,7 @@ use sov_chain_state::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    CallResponse, DaSpec, Spec, StateTransition, ValidityConditionChecker, WorkingSet,
+    event, CallResponse, DaSpec, Spec, StateTransition, ValidityConditionChecker, WorkingSet,
 };
 use sov_state::storage::{Storage, StorageKey, StorageProof, StorageValue};
 use thiserror::Error;
@@ -257,7 +257,7 @@ where
         bonded_set.remove(user, working_set);
 
         // We raise an event
-        working_set.add_event("user_slashed", &format!("address {user:?}"));
+        event!(working_set, "user_slashed", format!("address {user:?}"));
 
         reward
     }
@@ -366,9 +366,10 @@ where
         balances.set(user_address, &total_balance, working_set);
 
         // Emit the bonding event
-        working_set.add_event(
+        event!(
+            working_set,
             event_key,
-            &format!("new_deposit: {bond_amount:?}. total_bond: {total_balance:?}"),
+            format!("new_deposit: {bond_amount:?}. total_bond: {total_balance:?}")
         );
 
         Ok(CallResponse::default())
@@ -387,9 +388,10 @@ where
             self.reward_sender(context, old_balance, working_set)?;
 
             // Emit the unbonding event
-            working_set.add_event(
+            event!(
+                working_set,
                 "unbonded_challenger",
-                &format!("amount_withdrawn: {old_balance:?}"),
+                format!("amount_withdrawn: {old_balance:?}")
             );
         }
 
@@ -466,9 +468,9 @@ where
                 .remove(context.sender(), working_set);
 
             // Emit the unbonding event
-            working_set.add_event("unbonded_challenger", {
+            event!(working_set, "unbonded_challenger", {
                 let amount = unbonding_info.amount;
-                &format!("amount_withdrawn: {:?}", amount)
+                format!("amount_withdrawn: {:?}", amount)
             });
         } else {
             return Err(AttesterIncentiveErrors::AttesterIsNotUnbonding);
@@ -726,9 +728,10 @@ where
             working_set,
         )?;
 
-        working_set.add_event(
+        event!(
+            working_set,
             "processed_valid_attestation",
-            &format!("attester: {:?}", context.sender()),
+            format!("attester: {:?}", context.sender())
         );
 
         // Now we have to check whether the claimed_transition_num is the max_attested_height.
@@ -873,9 +876,10 @@ where
                 // Now remove the bad transition from the pool
                 self.bad_transition_pool.remove(transition_num, working_set);
 
-                working_set.add_event(
+                event!(
+                    working_set,
                     "processed_valid_proof",
-                    &format!("challenger: {:?}", context.sender()),
+                    format!("challenger: {:?}", context.sender())
                 );
             }
             Err(_err) => {

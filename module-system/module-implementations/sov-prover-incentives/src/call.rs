@@ -4,7 +4,7 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::Coins;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, WorkingSet};
+use sov_modules_api::{event, CallResponse, WorkingSet};
 
 use crate::ProverIncentives;
 
@@ -53,9 +53,10 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
         self.bonded_provers.set(prover, &total_balance, working_set);
 
         // Emit the bonding event
-        working_set.add_event(
+        event!(
+            working_set,
             "bonded_prover",
-            &format!("new_deposit: {bond_amount:?}. total_bond: {total_balance:?}"),
+            format!("new_deposit: {bond_amount:?}. total_bond: {total_balance:?}")
         );
 
         Ok(CallResponse::default())
@@ -97,9 +98,10 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
             self.bonded_provers.set(context.sender(), &0, working_set);
 
             // Emit the unbonding event
-            working_set.add_event(
+            event!(
+                working_set,
                 "unbonded_prover",
-                &format!("amount_withdrawn: {old_balance:?}"),
+                format!("amount_withdrawn: {old_balance:?}")
             );
         }
 
@@ -144,14 +146,16 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
             self.bonded_provers
                 .set(context.sender(), &old_balance, working_set);
 
-            working_set.add_event(
+            event!(
+                working_set,
                 "processed_valid_proof",
-                &format!("prover: {:?}", context.sender()),
+                format!("prover: {:?}", context.sender())
             );
         } else {
-            working_set.add_event(
+            event!(
+                working_set,
                 "processed_invalid_proof",
-                &format!("slashed_prover: {:?}", context.sender()),
+                format!("slashed_prover: {:?}", context.sender())
             );
         }
 

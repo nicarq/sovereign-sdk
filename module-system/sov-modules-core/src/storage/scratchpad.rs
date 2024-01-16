@@ -440,6 +440,8 @@ impl<C: Context> WorkingSet<C> {
     }
 
     /// Adds an event to the working set.
+    ///
+    /// Consider using the dedicated `event!` macro instead.
     pub fn add_event(&mut self, key: &str, value: &str) {
         self.events.push(Event::new(key, value));
     }

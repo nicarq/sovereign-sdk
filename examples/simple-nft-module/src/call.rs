@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, Context, StateMapAccessor, WorkingSet};
+use sov_modules_api::{event, CallResponse, Context, StateMapAccessor, WorkingSet};
 
 use crate::NonFungibleToken;
 
@@ -48,7 +48,12 @@ impl<C: Context> NonFungibleToken<C> {
 
         self.owners.set(&id, context.sender(), working_set);
 
-        working_set.add_event("NFT mint", &format!("A token with id {id} was minted"));
+        event!(
+            working_set,
+            "NFT mint",
+            format!("A token with id {id} was minted")
+        );
+
         Ok(CallResponse::default())
     }
 
@@ -69,9 +74,10 @@ impl<C: Context> NonFungibleToken<C> {
             bail!("Only token owner can transfer token");
         }
         self.owners.set(&id, &to, working_set);
-        working_set.add_event(
+        event!(
+            working_set,
             "NFT transfer",
-            &format!("A token with id {id} was transferred"),
+            format!("A token with id {id} was transferred")
         );
         Ok(CallResponse::default())
     }
@@ -93,7 +99,11 @@ impl<C: Context> NonFungibleToken<C> {
         }
         self.owners.remove(&id, working_set);
 
-        working_set.add_event("NFT burn", &format!("A token with id {id} was burned"));
+        event!(
+            working_set,
+            "NFT burn",
+            format!("A token with id {id} was burned")
+        );
         Ok(CallResponse::default())
     }
 }

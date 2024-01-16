@@ -3871,6 +3871,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "integration-tests",
  "jsonrpsee 0.20.3",
  "serde",
  "sov-chain-state",
