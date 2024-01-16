@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anyhow::Result;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, WorkingSet};
+use sov_modules_api::{event, CallResponse, WorkingSet};
 use thiserror::Error;
 
 use crate::ExampleModule;
@@ -34,7 +34,7 @@ impl<C: sov_modules_api::Context> ExampleModule<C> {
         working_set: &mut WorkingSet<C>,
     ) -> Result<sov_modules_api::CallResponse> {
         self.value.set(&new_value, working_set);
-        working_set.add_event("set", &format!("value_set: {new_value:?}"));
+        event!(working_set, "set", format!("value_set: {new_value:?}"));
 
         Ok(CallResponse::default())
     }

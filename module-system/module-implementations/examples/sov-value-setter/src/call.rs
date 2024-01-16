@@ -4,7 +4,7 @@ use anyhow::Result;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, WorkingSet};
+use sov_modules_api::{event, CallResponse, WorkingSet};
 use thiserror::Error;
 
 use super::ValueSetter;
@@ -50,7 +50,7 @@ impl<C: sov_modules_api::Context> ValueSetter<C> {
 
         // This is how we set a new value:
         self.value.set(&new_value, working_set);
-        working_set.add_event("set", &format!("value_set: {new_value:?}"));
+        event!(working_set, "set", format!("value_set: {new_value:?}"));
 
         Ok(CallResponse::default())
     }

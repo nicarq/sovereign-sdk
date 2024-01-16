@@ -253,7 +253,7 @@ impl<C: sov_modules_api::Context> NonFungibleToken<C> {
 First, we need to implement actual logic of handling different cases. Let's add `mint`, `transfer` and `burn` methods:
 
 ```rust, ignore
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{event, WorkingSet};
 
 impl<C: sov_modules_api::Context> NonFungibleToken<C> {
     pub(crate) fn mint(
@@ -268,7 +268,7 @@ impl<C: sov_modules_api::Context> NonFungibleToken<C> {
 
         self.owners.set(&id, context.sender(), working_set);
 
-        working_set.add_event("NFT mint", &format!("A token with id {id} was minted"));
+        event!(working_set, "NFT mint", format!("A token with id {id} was minted"));
         Ok(sov_modules_api::CallResponse::default())
     }
 
@@ -289,9 +289,9 @@ impl<C: sov_modules_api::Context> NonFungibleToken<C> {
             anyhow::bail!("Only token owner can transfer token");
         }
         self.owners.set(&id, &to, working_set);
-        working_set.add_event(
+        event!(working_set, 
             "NFT transfer",
-            &format!("A token with id {id} was transferred"),
+            format!("A token with id {id} was transferred"),
         );
         Ok(sov_modules_api::CallResponse::default())
     }
@@ -313,7 +313,7 @@ impl<C: sov_modules_api::Context> NonFungibleToken<C> {
         }
         self.owners.remove(&id, working_set);
 
-        working_set.add_event("NFT burn", &format!("A token with id {id} was burned"));
+        event!(working_set, "NFT burn", format!("A token with id {id} was burned"));
         Ok(sov_modules_api::CallResponse::default())
     }
 }

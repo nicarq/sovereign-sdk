@@ -11,7 +11,12 @@ readme = "README.md"
 publish = false
 resolver = "2"
 
+[features]
+native = []
+
 [dev-dependencies]
+integration-tests = { path = ".", features = ["native"] }
+
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 tempfile = { workspace = true }
