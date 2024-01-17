@@ -160,7 +160,7 @@ where
         &self,
         jump: usize,
         block_header_hashes: &[<Da::Spec as DaSpec>::SlotHash],
-    ) -> Result<ProofAggregationStatus<StateRoot>, anyhow::Error> {
+    ) -> Result<ProofAggregationStatus, anyhow::Error> {
         assert!(jump >= 1);
         assert_eq!(block_header_hashes.len(), jump);
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
@@ -194,8 +194,8 @@ where
         let final_block_proof = block_proofs_data.last().unwrap();
 
         let public_input = AggregatedProofPublicInput {
-            initial_state_root: initial_block_proof.st.initial_state_root.clone(),
-            final_state_root: final_block_proof.st.final_state_root.clone(),
+            initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
+            final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
             initial_height: initial_block_proof.height,
             final_height: final_block_proof.height,
         };

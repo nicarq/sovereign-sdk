@@ -9,11 +9,11 @@ pub(crate) struct BlockProof<Da: DaSpec, Root> {
 
 /// Public input of an aggregated proof.
 #[derive(Debug, Eq, PartialEq)]
-pub struct AggregatedProofPublicInput<StateRoot> {
-    /// The state root before the aggregation.
-    pub initial_state_root: StateRoot,
-    /// The state root after the aggregation.
-    pub final_state_root: StateRoot,
+pub struct AggregatedProofPublicInput {
+    /// The serialized state root before the aggregation.
+    pub initial_state_root: Vec<u8>,
+    /// The serialized state root after the aggregation.
+    pub final_state_root: Vec<u8>,
     /// The height before the aggregation.
     pub initial_height: u64,
     /// The height after the aggregation.
@@ -22,17 +22,17 @@ pub struct AggregatedProofPublicInput<StateRoot> {
 
 /// Represents an aggregated proof.
 #[derive(Debug, Eq, PartialEq)]
-pub struct AggregatedProof<StateRoot> {
-    pub(crate) public_input: AggregatedProofPublicInput<StateRoot>,
+pub struct AggregatedProof {
+    pub(crate) public_input: AggregatedProofPublicInput,
 }
 
-impl<StateRoot> AggregatedProof<StateRoot> {
-    pub(crate) fn new(public_input: AggregatedProofPublicInput<StateRoot>) -> Self {
+impl AggregatedProof {
+    pub(crate) fn new(public_input: AggregatedProofPublicInput) -> Self {
         Self { public_input }
     }
 
     /// Public input of the aggregated proof.
-    pub fn public_input(&self) -> &AggregatedProofPublicInput<StateRoot> {
+    pub fn public_input(&self) -> &AggregatedProofPublicInput {
         &self.public_input
     }
 
