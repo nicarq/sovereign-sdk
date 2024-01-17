@@ -129,6 +129,13 @@ revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "516f62cc" 
 
 secp256k1 = { version = "0.27.0", default-features = false, features = ["global-context", "rand-std", "recovery"] }
 
+[patch.crates-io]
+# Uncomment to apply the v0.19 build script download issue hotfix.
+risc0-circuit-recursion = { git = "https://github.com/neysofu/risc0-hotfixes", rev = "v0.19.2-hotfix" }
+risc0-zkvm = { git = "https://github.com/neysofu/risc0-hotfixes", rev = "v0.19.2-hotfix" }
+risc0-zkvm-platform = { git = "https://github.com/neysofu/risc0-hotfixes", rev = "v0.19.2-hotfix" }
+risc0-circuit-rv32im = { git = "https://github.com/neysofu/risc0-hotfixes", rev = "v0.19.2-hotfix" }
+
 [patch.'https://github.com/eigerco/celestia-node-rs.git']
 # Uncomment to apply local changes
 # celestia-proto = { path = "../celestia-node-rs/proto" }
