@@ -287,7 +287,7 @@ async fn wait_for_aggregated_proof(
         MockZkvm<MockValidityCond>,
         MockStf<MockValidityCond>,
     >,
-) -> Result<ProofAggregationStatus<StateRoot>, anyhow::Error> {
+) -> Result<ProofAggregationStatus, anyhow::Error> {
     let mut counter = 0;
     loop {
         let status = prover_service

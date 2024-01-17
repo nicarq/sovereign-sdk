@@ -159,7 +159,7 @@ where
     async fn create_aggregated_proof(
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
-    ) -> Result<ProofAggregationStatus<Self::StateRoot>, anyhow::Error> {
+    ) -> Result<ProofAggregationStatus, anyhow::Error> {
         self.prover_state
             .create_aggregated_proof(self.jump, block_header_hashes)
     }

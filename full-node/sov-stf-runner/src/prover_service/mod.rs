@@ -32,9 +32,9 @@ pub enum WitnessSubmissionStatus {
 
 /// Represents the status of a DA proof submission.
 #[derive(Debug, Eq, PartialEq)]
-pub enum ProofAggregationStatus<StateRoot> {
+pub enum ProofAggregationStatus {
     /// Indicates successful proof generation.
-    Success(AggregatedProof<StateRoot>),
+    Success(AggregatedProof),
     /// Indicates that proof generation is currently in progress.
     ProofGenerationInProgress,
 }
@@ -99,5 +99,5 @@ pub trait ProverService {
     async fn create_aggregated_proof(
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
-    ) -> Result<ProofAggregationStatus<Self::StateRoot>, anyhow::Error>;
+    ) -> Result<ProofAggregationStatus, anyhow::Error>;
 }
