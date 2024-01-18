@@ -1,4 +1,6 @@
-use std::collections::VecDeque;
+//! Concrete implementation(s) of [`BatchBuilder`].
+
+use std::collections::{HashSet, VecDeque};
 use std::io::Cursor;
 
 use anyhow::{bail, Context as ErrorContext};
@@ -6,8 +8,11 @@ use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, DispatchCall, PublicKey, Spec, WorkingSet};
-use sov_rollup_interface::services::batch_builder::BatchBuilder;
+use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
 use tracing::{info, warn};
+
+use self::mempool::Mempool;
+use crate::TxHash;
 
 /// Transaction stored in the mempool.
 pub struct PooledTransaction<C: Context, R: DispatchCall<Context = C>> {
@@ -17,6 +22,8 @@ pub struct PooledTransaction<C: Context, R: DispatchCall<Context = C>> {
     tx: Transaction<C>,
     /// The decoded runtime message, cached during initial verification.
     msg: Option<R::Decodable>,
+    /// Hash calculated with [`calculate_hash`].
+    hash: TxHash,
 }
 
 impl<C, R> std::fmt::Debug for PooledTransaction<C, R>
@@ -32,20 +39,14 @@ where
     }
 }
 
-impl<C, R> PooledTransaction<C, R>
-where
-    C: Context,
-    R: DispatchCall<Context = C>,
-{
-    fn calculate_hash(&self) -> [u8; 32] {
-        <C as Spec>::Hasher::digest(&self.raw[..]).into()
-    }
+fn calculate_hash<C: Spec>(tx_raw: &[u8]) -> TxHash {
+    <C as Spec>::Hasher::digest(tx_raw).into()
 }
 
 /// BatchBuilder that creates batches of transactions in the order they were submitted
 /// Only transactions that were successfully dispatched are included.
 pub struct FiFoStrictBatchBuilder<C: Context, R: DispatchCall<Context = C>> {
-    mempool: VecDeque<PooledTransaction<C, R>>,
+    mempool: Mempool<C, R>,
     mempool_max_txs_count: usize,
     runtime: R,
     max_batch_size_bytes: usize,
@@ -67,7 +68,7 @@ where
         sequencer: C::Address,
     ) -> Self {
         Self {
-            mempool: VecDeque::new(),
+            mempool: Mempool::new(),
             mempool_max_txs_count,
             max_batch_size_bytes,
             runtime,
@@ -87,7 +88,7 @@ where
     /// The transaction is discarded if:
     /// - mempool is full
     /// - transaction is invalid (deserialization, verification or decoding of the runtime message failed)
-    fn accept_tx(&mut self, raw: Vec<u8>) -> anyhow::Result<()> {
+    fn accept_tx(&mut self, raw: Vec<u8>) -> anyhow::Result<TxHash> {
         if self.mempool.len() >= self.mempool_max_txs_count {
             bail!("Mempool is full")
         }
@@ -112,22 +113,39 @@ where
             .map_err(anyhow::Error::new)
             .context("Failed to decode message in transaction")?;
 
-        self.mempool.push_back(PooledTransaction {
+        let hash = calculate_hash::<C>(&raw);
+        let tx = PooledTransaction {
             raw,
             tx,
             msg: Some(msg),
-        });
-        Ok(())
+            hash,
+        };
+
+        self.mempool.push_back(tx);
+
+        Ok(hash)
+    }
+
+    fn contains(&self, hash: &TxHash) -> bool {
+        self.mempool.contains(hash)
     }
 
     /// Builds a new batch of valid transactions in order they were added to mempool
     /// Only transactions, which are dispatched successfully are included in the batch
-    fn get_next_blob(&mut self) -> anyhow::Result<Vec<Vec<u8>>> {
+    fn get_next_blob(&mut self) -> anyhow::Result<Vec<TxWithHash>> {
         let mut working_set = WorkingSet::new(self.current_storage.clone());
         let mut txs = Vec::new();
         let mut current_batch_size = 0;
 
         while let Some(mut pooled) = self.mempool.pop_front() {
+            // In order to fill batch as big as possible, we only check if valid
+            // tx can fit in the batch.
+            let tx_len = pooled.raw.len();
+            if current_batch_size + tx_len > self.max_batch_size_bytes {
+                self.mempool.push_front(pooled);
+                break;
+            }
+
             // Take the decoded runtime message cached upon accepting transaction
             // into the pool or attempt to decode the message again if
             // the transaction was previously executed,
@@ -150,22 +168,17 @@ where
                 }
             }
 
-            // In order to fill batch as big as possible, we only check if valid tx can fit in the batch.
-            let tx_len = pooled.raw.len();
-            if current_batch_size + tx_len > self.max_batch_size_bytes {
-                self.mempool.push_front(pooled);
-                break;
-            }
-
             // Update size of current batch
             current_batch_size += tx_len;
 
-            let tx_hash: [u8; 32] = pooled.calculate_hash();
             info!(
-                hash = hex::encode(tx_hash),
+                hash = hex::encode(pooled.hash),
                 "Transaction has been included in the batch",
             );
-            txs.push(pooled.raw);
+            txs.push(TxWithHash {
+                raw_tx: pooled.raw,
+                hash: pooled.hash,
+            });
         }
 
         if txs.is_empty() {
@@ -173,6 +186,64 @@ where
         }
 
         Ok(txs)
+    }
+}
+
+mod mempool {
+    use super::*;
+
+    pub struct Mempool<C: Context, R: DispatchCall<Context = C>> {
+        txs: VecDeque<PooledTransaction<C, R>>,
+        // Makes it cheap to check if transaction is already in the mempool.
+        hashes: HashSet<TxHash>,
+    }
+
+    impl<C: Context, R: DispatchCall<Context = C>> Mempool<C, R> {
+        pub fn new() -> Self {
+            Self {
+                txs: VecDeque::new(),
+                hashes: HashSet::new(),
+            }
+        }
+
+        pub fn len(&self) -> usize {
+            self.txs.len()
+        }
+
+        pub fn contains(&self, hash: &TxHash) -> bool {
+            self.hashes.contains(hash)
+        }
+
+        pub fn push_back(&mut self, tx: PooledTransaction<C, R>) {
+            self.assert_invariant();
+
+            self.hashes.insert(tx.hash);
+            self.txs.push_back(tx);
+        }
+
+        pub fn push_front(&mut self, tx: PooledTransaction<C, R>) {
+            self.assert_invariant();
+
+            self.hashes.insert(tx.hash);
+            self.txs.push_front(tx);
+        }
+
+        fn assert_invariant(&self) {
+            assert_eq!(
+                self.txs.len(),
+                self.hashes.len(),
+                "Mempool invariant violated, the variables got out of sync. This is a bug!"
+            );
+        }
+
+        pub fn pop_front(&mut self) -> Option<PooledTransaction<C, R>> {
+            let tx = self.txs.pop_front();
+            if let Some(tx) = &tx {
+                self.hashes.remove(&tx.hash);
+            }
+
+            tx
+        }
     }
 }
 
@@ -466,7 +537,12 @@ mod tests {
 
             let build_result = batch_builder.get_next_blob();
             assert!(build_result.is_ok());
-            let blob = build_result.unwrap();
+            let blob = build_result
+                .unwrap()
+                .iter()
+                // We discard hashes for the sake of comparison
+                .map(|t| t.raw_tx.clone())
+                .collect::<Vec<_>>();
             assert_eq!(2, blob.len());
             assert!(blob.contains(&txs[0]));
             assert!(blob.contains(&txs[2]));
