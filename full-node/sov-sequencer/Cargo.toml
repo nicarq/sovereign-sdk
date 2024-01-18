@@ -11,27 +11,30 @@ version = { workspace = true }
 readme = "README.md"
 resolver = "2"
 
-
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true }
+dashmap = "5"
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["client", "server"] }
+mini-moka = "0.10"
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
+tokio = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", features = ["native"] }
 sov-state = { path = "../../module-system/sov-state", version = "0.3" }
 
-
 [dev-dependencies]
-tempfile = { workspace = true }
+demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
 rand = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 sov-value-setter = { path = "../../module-system/module-implementations/examples/sov-value-setter", features = ["native"] }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3", features = ["native"] }
+sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
+sov-data-generators = { path = "../../module-system/sov-data-generators" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-schema-db = { path = "../db/sov-schema-db" }
 sov-db = { path = "../db/sov-db" }
+tempfile = { workspace = true }
