@@ -64,7 +64,7 @@ fn setup_storage(
 
     for h in 1..=rollup_height {
         let block_header = MockBlockHeader::from_height(h);
-        let storage = storage_manager.create_storage_on(&block_header).unwrap();
+        let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header).unwrap();
 
         let new_keys = generate_random_bytes(&mut rng, num_new_writes, &old_writes);
         let new_values = generate_random_bytes(&mut rng, num_new_writes, &[]);
@@ -111,13 +111,13 @@ fn setup_storage(
         };
 
         let witness = ArrayWitness::default();
-        let (_, state_update) = storage
+        let (_, state_update) = stf_state
             .compute_state_update(state_operations, &witness)
             .unwrap();
-        storage.commit(&state_update, &OrderedReadsAndWrites::default());
+        stf_state.commit(&state_update, &OrderedReadsAndWrites::default());
 
         storage_manager
-            .save_change_set(&block_header, storage)
+            .save_change_set(&block_header, stf_state, ledger_state.into())
             .unwrap();
 
         if h > fork_len {
@@ -157,7 +157,7 @@ fn bench_random_read(
         num_old_writes,
     );
     let block = MockBlockHeader::from_height(rollup_height + 1);
-    let storage = storage_manager.create_storage_on(&block).unwrap();
+    let storage = storage_manager.create_state_for(&block).unwrap();
     let cache_key = CacheKey {
         key: Arc::new(random_key),
     };
@@ -171,9 +171,9 @@ fn bench_random_read(
         &(storage, storage_key),
         |b, i| {
             b.iter(|| {
-                let (storage, random_key) = i;
+                let ((stf_state, _), random_key) = i;
                 let witness = ArrayWitness::default();
-                let result = black_box(storage.get(random_key, None, &witness));
+                let result = black_box(stf_state.get(random_key, None, &witness));
                 assert!(result.is_some());
                 black_box(result);
             })
@@ -201,7 +201,7 @@ fn bench_not_found_read(
         num_old_writes,
     );
     let block = MockBlockHeader::from_height(rollup_height + 1);
-    let storage = storage_manager.create_storage_on(&block).unwrap();
+    let storage = storage_manager.create_state_for(&block).unwrap();
     let cache_key = CacheKey {
         key: Arc::new(non_existing_key),
     };
@@ -215,7 +215,7 @@ fn bench_not_found_read(
         &(storage, storage_key),
         |b, i| {
             b.iter(|| {
-                let (storage, random_key) = i;
+                let ((storage, _), random_key) = i;
                 let witness = ArrayWitness::default();
                 let result = black_box(storage.get(random_key, None, &witness));
                 assert!(result.is_none());

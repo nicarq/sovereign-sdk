@@ -8054,7 +8054,6 @@ dependencies = [
  "borsh",
  "byteorder",
  "criterion",
- "derivative",
  "jmt",
  "proptest",
  "proptest-derive",
@@ -8447,6 +8446,7 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tracing",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]

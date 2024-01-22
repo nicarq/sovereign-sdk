@@ -4,10 +4,12 @@
 mod runtime_rpc;
 mod wallet;
 use std::net::SocketAddr;
+use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::schema::{CacheDb, ChangeSet};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
@@ -43,8 +45,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Manager for the native storage lifecycle.
     type StorageManager: HierarchicalStorageManager<
         Self::DaSpec,
-        NativeStorage = <Self::NativeContext as Spec>::Storage,
-        NativeChangeSet = <Self::NativeContext as Spec>::Storage,
+        StfState = <Self::NativeContext as Spec>::Storage,
+        StfChangeSet = <Self::NativeContext as Spec>::Storage,
+        LedgerState = CacheDb,
+        LedgerChangeSet = ChangeSet,
     >;
 
     /// Runtime for the Zero Knowledge environment.
@@ -67,7 +71,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
-        storage: &<Self::NativeContext as Spec>::Storage,
+        storage: Arc<RwLock<<Self::NativeContext as Spec>::Storage>>,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
@@ -121,8 +125,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> Result<Self::StorageManager, anyhow::Error>;
 
     /// Creates instance of a LedgerDB.
-    fn create_ledger_db(&self, rollup_config: &RollupConfig<Self::DaConfig>) -> LedgerDB {
-        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
+    fn create_ledger_db(
+        &self,
+        ledger_state: <Self::StorageManager as HierarchicalStorageManager<Self::DaSpec>>::LedgerState,
+    ) -> anyhow::Result<LedgerDB> {
+        LedgerDB::with_cache_db(ledger_state)
     }
 
     /// Creates a new rollup.
@@ -148,7 +155,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .create_prover_service(prover_config, &rollup_config, &da_service)
             .await;
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
         let genesis_config = self.create_genesis_config(
             runtime_genesis_paths,
             kernel_genesis_config,
@@ -156,15 +162,17 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         )?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-        let prover_storage = storage_manager.create_finalized_storage()?;
+        let (prover_storage, ledger_state) =
+            storage_manager.create_state_for(&last_finalized_block_header)?;
+        let ledger_db = self.create_ledger_db(ledger_state)?;
 
         let prev_root = ledger_db
             .get_head_slot()?
             .map(|(number, _)| prover_storage.get_root_hash(number.0))
             .transpose()?;
 
-        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods = self.create_rpc_methods(&prover_storage, &ledger_db, &da_service)?;
+        let rpc_storage = Arc::new(RwLock::new(prover_storage));
+        let rpc_methods = self.create_rpc_methods(rpc_storage.clone(), &ledger_db, &da_service)?;
 
         let native_stf = StfBlueprint::new();
 
@@ -182,6 +190,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             ledger_db,
             native_stf,
             storage_manager,
+            rpc_storage,
             init_variant,
             prover_service,
         )?;
@@ -204,7 +213,7 @@ pub struct Rollup<S: RollupBlueprint> {
         S::Vm,
         S::ProverService,
     >,
-    /// Rpc methods for the rollup.
+    /// RPC methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
 }
 
@@ -218,7 +227,7 @@ impl<S: RollupBlueprint> Rollup<S> {
     pub async fn run_and_report_rpc_port(
         self,
         channel: Option<oneshot::Sender<SocketAddr>>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         let mut runner = self.runner;
         runner.start_rpc_server(self.rpc_methods, channel).await;
         runner.run_in_process().await?;

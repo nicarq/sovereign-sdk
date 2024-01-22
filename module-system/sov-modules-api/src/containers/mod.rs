@@ -78,7 +78,7 @@ mod test {
                 ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config.clone())
                     .unwrap();
             let header = MockBlockHeader::default();
-            let prover_storage = storage_manager.create_storage_on(&header).unwrap();
+            let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
             for test in tests.clone() {
                 {
                     let mut working_set: WorkingSet<DefaultContext> =
@@ -96,7 +96,7 @@ mod test {
                 }
             }
             storage_manager
-                .save_change_set(&header, prover_storage)
+                .save_change_set(&header, prover_storage, ledger_state.into())
                 .unwrap();
             storage_manager.finalize(&header).unwrap();
         }
@@ -106,7 +106,7 @@ mod test {
                 ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
                     .unwrap();
             let header = MockBlockHeader::default();
-            let storage = storage_manager.create_storage_on(&header).unwrap();
+            let (storage, _) = storage_manager.create_state_for(&header).unwrap();
             for test in tests {
                 assert_eq!(
                     test.value,
@@ -129,7 +129,7 @@ mod test {
                 ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config.clone())
                     .unwrap();
             let header = MockBlockHeader::default();
-            let prover_storage = storage_manager.create_storage_on(&header).unwrap();
+            let (prover_storage, _) = storage_manager.create_state_for(&header).unwrap();
             assert!(prover_storage.is_empty());
         }
 
@@ -141,7 +141,7 @@ mod test {
                 ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config.clone())
                     .unwrap();
             let header = MockBlockHeader::default();
-            let prover_storage = storage_manager.create_storage_on(&header).unwrap();
+            let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
             assert!(prover_storage.is_empty());
             let mut storage: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
             storage.set(&key, value.clone());
@@ -150,7 +150,7 @@ mod test {
                 .validate_and_commit(cache, &witness)
                 .expect("storage is valid");
             storage_manager
-                .save_change_set(&header, prover_storage)
+                .save_change_set(&header, prover_storage, ledger_state.into())
                 .unwrap();
             storage_manager.finalize(&header).unwrap();
         }
@@ -160,7 +160,10 @@ mod test {
             let mut storage_manager =
                 ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config.clone())
                     .unwrap();
-            let prover_storage = storage_manager.create_finalized_storage().unwrap();
+            let mock_block_header = MockBlockHeader::from_height(100000);
+            let (prover_storage, _ledger_state) = storage_manager
+                .create_state_for(&mock_block_header)
+                .unwrap();
             assert!(!prover_storage.is_empty());
             assert_eq!(
                 value,

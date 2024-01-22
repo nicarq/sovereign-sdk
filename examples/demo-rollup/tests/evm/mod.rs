@@ -7,19 +7,29 @@ use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use sov_evm::SimpleStorageContract;
+use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
-use tokio::time::{sleep, Duration};
 
 use crate::test_helpers::start_rollup;
 
 #[cfg(feature = "experimental")]
 #[tokio::test]
-async fn evm_tx_tests() -> Result<(), anyhow::Error> {
+async fn evm_tx_tests_instant_finality() -> anyhow::Result<()> {
+    evm_tx_test(0).await
+}
+
+#[cfg(feature = "experimental")]
+#[tokio::test]
+async fn evm_tx_tests_non_instant_finality() -> anyhow::Result<()> {
+    evm_tx_test(3).await
+}
+
+async fn evm_tx_test(finalization_blocks: u32) -> anyhow::Result<()> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_task = tokio::spawn(async {
+    let rollup_task = tokio::spawn(async move {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
@@ -28,6 +38,13 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
             RollupProverConfig::Skip,
+            MockDaConfig {
+                // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
+                // Otherwise batches are going to be rejected
+                sender_address: MockAddress::new([0; 32]),
+                finalization_blocks,
+                wait_attempts: 1_000,
+            },
         )
         .await;
     });
@@ -81,11 +98,14 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
     let balance = client.eth_get_balance(client.from_addr).await;
     assert!(balance > ethereum_types::U256::zero());
 
+    let mut slot_subscription = client.subscribe_for_slots().await;
+
     let (contract_address, runtime_code) = {
         let runtime_code = client.deploy_contract_call().await?;
 
         let deploy_contract_req = client.deploy_contract().await?;
         client.send_publish_batch_request().await;
+        let _ = slot_subscription.next().await.unwrap().unwrap();
 
         let contract_address = deploy_contract_req
             .await?
@@ -117,6 +137,7 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
             .set_value(contract_address, set_arg, None, None)
             .await;
         client.send_publish_batch_request().await;
+        let _ = slot_subscription.next().await.unwrap().unwrap();
         set_value_req.await.unwrap().unwrap().transaction_hash
     };
 
@@ -147,19 +168,18 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
     // This call should fail because function does not exist
     let failing_call = client.failing_call(contract_address).await;
     assert!(failing_call.is_err());
-
     // Create a blob with multiple transactions.
-    let mut requests = Vec::default();
-    for value in 150..153 {
-        let set_value_req = client.set_value(contract_address, value, None, None).await;
-        requests.push(set_value_req);
-    }
+    let values: Vec<u32> = (150..153).collect();
+    let requests = client
+        .set_values(contract_address, values, None, None)
+        .await;
 
     client.send_publish_batch_request().await;
-    client.send_publish_batch_request().await;
+    let _ = slot_subscription.next().await.unwrap().unwrap();
 
     for req in requests {
-        req.await.unwrap();
+        let receipt = req.await.unwrap();
+        assert!(receipt.is_some());
     }
 
     {
@@ -174,6 +194,7 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
         let tx_hash = {
             let set_value_req = client.set_value_unsigned(contract_address, value).await;
             client.send_publish_batch_request().await;
+            let _ = slot_subscription.next().await.unwrap().unwrap();
             set_value_req.await.unwrap().unwrap().transaction_hash
         };
 
@@ -184,24 +205,26 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
         let get_arg = client.query_contract(contract_address).await?;
         assert_eq!(value, get_arg.as_u32());
     }
+    tracing::info!("5: SET VALUE 2 SUBMITTED");
 
     {
         // get initial gas price
         let initial_gas_price = client.eth_gas_price().await;
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
-        for _ in 0..4 {
-            let mut requests = Vec::default();
-            for value in 0..25 {
-                let set_value_req = client
-                    .set_value(contract_address, value, Some(20u64), Some(21u64))
-                    .await;
-                requests.push(set_value_req);
-            }
+        for i in 0..4 {
+            let values: Vec<u32> = (0..25).collect();
+            let requests = client
+                .set_values(contract_address, values, Some(20u64), Some(21u64))
+                .await;
             client.send_publish_batch_request().await;
-            sleep(Duration::from_millis(1000)).await;
+            slot_subscription.next().await;
+            tracing::info!(
+                "6.{}: {} REQUESTS FOR GAS PRICE HAVE BEEN SUBMITTED",
+                i,
+                requests.len()
+            );
         }
-        sleep(Duration::from_millis(6000)).await;
         // get gas price
         let latest_gas_price = client.eth_gas_price().await;
 

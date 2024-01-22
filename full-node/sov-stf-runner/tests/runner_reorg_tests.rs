@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
     MockDaVerifier, MockValidityCond, PlannedFork,
@@ -10,7 +12,7 @@ use sov_stf_runner::{
 
 mod hash_stf;
 
-use hash_stf::{get_result_from_blocks, HashStf, Q, S};
+use hash_stf::{get_result_from_blocks, HashStf, S};
 use sov_db::ledger_db::LedgerDB;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
@@ -130,15 +132,11 @@ async fn runner_execution(
                 bind_port: 0,
             },
         },
-        da: MockDaConfig {
-            sender_address: da_service.get_sequencer_address(),
-        },
+        da: MockDaConfig::instant_with_sender(da_service.get_sequencer_address()),
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,
         },
     };
-
-    let ledger_db = LedgerDB::with_path(path).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 
@@ -146,6 +144,11 @@ async fn runner_execution(
         path: rollup_config.storage.path.clone(),
     };
     let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
+    let genesis_block = MockBlockHeader::from_height(0);
+    let (genesis_storage, ledger_genesis) =
+        storage_manager.create_state_for(&genesis_block).unwrap();
+    let rpc_storage = Arc::new(RwLock::new(genesis_storage.clone()));
+    let ledger_db = LedgerDB::with_cache_db(ledger_genesis).unwrap();
 
     let vm = MockZkvm::new(MockValidityCond::default());
     let verifier = MockDaVerifier::default();
@@ -157,7 +160,7 @@ async fn runner_execution(
         verifier,
         prover_config,
         // Should be ZkStorage, but we don't need it for this test
-        storage_manager.create_finalized_storage().unwrap(),
+        genesis_storage,
         1,
         rollup_config.prover_service,
     );
@@ -168,6 +171,7 @@ async fn runner_execution(
         ledger_db,
         stf,
         storage_manager,
+        rpc_storage,
         init_variant,
         prover_service,
     )
@@ -183,25 +187,26 @@ async fn runner_execution(
 
 fn get_saved_root_hash(
     path: &std::path::Path,
-) -> anyhow::Result<Option<<ProverStorage<S, Q> as Storage>::Root>> {
+) -> anyhow::Result<Option<<ProverStorage<S> as Storage>::Root>> {
     let storage_config = sov_state::config::Config {
         path: path.to_path_buf(),
     };
     let mut storage_manager = ProverStorageManager::<MockDaSpec, S>::new(storage_config).unwrap();
-    let finalized_storage = storage_manager.create_finalized_storage()?;
+    let mock_block_header = MockBlockHeader::from_height(1000000);
+    let (stf_state, ledger_state) = storage_manager.create_state_for(&mock_block_header)?;
 
-    let ledger_db = LedgerDB::with_path(path).unwrap();
+    let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
     ledger_db
         .get_head_slot()?
-        .map(|(number, _)| finalized_storage.get_root_hash(number.0))
+        .map(|(number, _)| stf_state.get_root_hash(number.0))
         .transpose()
 }
 
 fn get_expected_execution_hash_from(
     genesis_params: &[u8],
     blobs: Vec<Vec<u8>>,
-) -> ([u8; 32], Option<<ProverStorage<S, Q> as Storage>::Root>) {
+) -> ([u8; 32], Option<<ProverStorage<S> as Storage>::Root>) {
     let blocks: Vec<MockBlock> = blobs
         .into_iter()
         .enumerate()

@@ -6,7 +6,7 @@ use demo_stf::runtime::RuntimeCall;
 use jsonrpsee::core::client::{Subscription, SubscriptionClientT};
 use jsonrpsee::rpc_params;
 use sov_bank::Coins;
-use sov_mock_da::MockDaSpec;
+use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::transaction::Transaction;
@@ -21,17 +21,33 @@ const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
 
 #[tokio::test]
-async fn bank_tx_tests() -> Result<(), anyhow::Error> {
+async fn bank_tx_tests_instant_finality() -> Result<(), anyhow::Error> {
+    bank_tx_tests(0).await
+}
+
+#[tokio::test]
+async fn bank_tx_tests_non_instant_finality() -> Result<(), anyhow::Error> {
+    bank_tx_tests(3).await
+}
+
+async fn bank_tx_tests(finalization_blocks: u32) -> anyhow::Result<()> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_task = tokio::spawn(async {
+    let rollup_task = tokio::spawn(async move {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            RollupProverConfig::Skip,
+            MockDaConfig {
+                // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
+                // Otherwise batches are going to be rejected
+                sender_address: MockAddress::new([0; 32]),
+                finalization_blocks,
+                wait_attempts: 10,
+            },
         )
         .await;
     });
@@ -62,7 +78,7 @@ async fn build_create_token_tx(key: &DefaultPrivateKey, nonce: u64) -> Transacti
     let gas_limit = 0;
     let max_gas_price = None;
     Transaction::<DefaultContext>::new_signed_tx(
-        &key,
+        key,
         msg.try_to_vec().unwrap(),
         chain_id,
         gas_tip,
@@ -93,7 +109,7 @@ async fn build_transfer_token_tx(
     let gas_limit = 0;
     let max_gas_price = None;
     Transaction::<DefaultContext>::new_signed_tx(
-        &key,
+        key,
         msg.try_to_vec().unwrap(),
         chain_id,
         gas_tip,
@@ -126,7 +142,6 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
             "ledger_unsubscribeSlots",
         )
         .await?;
-
     client.send_transaction(tx).await?;
 
     // Wait until the rollup has processed the next slot
@@ -144,14 +159,7 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
     let recipient_key = DefaultPrivateKey::generate();
     let recipient_address: <DefaultContext as Spec>::Address = recipient_key.to_address();
 
-    let tx = build_transfer_token_tx(
-        &key,
-        token_address.clone(),
-        recipient_address.clone(),
-        100,
-        1,
-    )
-    .await;
+    let tx = build_transfer_token_tx(&key, token_address, recipient_address, 100, 1).await;
 
     let mut slot_processed_subscription: Subscription<u64> = client
         .ws()
@@ -176,14 +184,7 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
     .await?;
     assert_eq!(balance_response.amount.unwrap_or_default(), 900);
 
-    let tx = build_transfer_token_tx(
-        &key,
-        token_address.clone(),
-        recipient_address.clone(),
-        200,
-        2,
-    )
-    .await;
+    let tx = build_transfer_token_tx(&key, token_address, recipient_address, 200, 2).await;
 
     let mut slot_processed_subscription: Subscription<u64> = client
         .ws()

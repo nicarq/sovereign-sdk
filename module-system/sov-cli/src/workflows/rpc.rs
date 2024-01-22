@@ -143,7 +143,9 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                 );
             }
             RpcWorkflows::SubmitBatch { nonce_override, .. } => {
-                let private_key = load_key::<C>(&account.location)?;
+                let private_key = load_key::<C>(&account.location).with_context(|| {
+                    format!("Unable to load key {}", account.location.display())
+                })?;
 
                 let nonce = match nonce_override {
                     Some(nonce) => *nonce,

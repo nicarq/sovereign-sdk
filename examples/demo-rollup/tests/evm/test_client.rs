@@ -8,11 +8,12 @@ use ethers_core::types::{
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
 use ethers_signers::Wallet;
-use jsonrpsee::core::client::ClientT;
+use jsonrpsee::core::client::{ClientT, Subscription, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::Bytes;
 use sov_evm::SimpleStorageContract;
+use sov_sequencer::utils::SimpleClient;
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
 const GAS: u64 = 900000u64;
@@ -23,6 +24,7 @@ pub(crate) struct TestClient {
     contract: SimpleStorageContract,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
+    simple_client: SimpleClient,
 }
 
 impl TestClient {
@@ -42,6 +44,9 @@ impl TestClient {
             .unwrap();
 
         let http_client = HttpClientBuilder::default().build(host).unwrap();
+        let simple_client = SimpleClient::new("localhost", rpc_addr.port())
+            .await
+            .unwrap();
 
         Self {
             chain_id,
@@ -49,6 +54,7 @@ impl TestClient {
             contract,
             client,
             http_client,
+            simple_client,
         }
     }
 
@@ -119,6 +125,40 @@ impl TestClient {
         self.eth_send_transaction(typed_transaction).await
     }
 
+    pub(crate) async fn set_values(
+        &self,
+        contract_address: H160,
+        set_args: Vec<u32>,
+        max_priority_fee_per_gas: Option<u64>,
+        max_fee_per_gas: Option<u64>,
+    ) -> Vec<PendingTransaction<'_, Http>> {
+        let mut requests = vec![];
+        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+
+        for (i, set_arg) in set_args.into_iter().enumerate() {
+            let req = Eip1559TransactionRequest::new()
+                .from(self.from_addr)
+                .to(contract_address)
+                .chain_id(self.chain_id)
+                .nonce(nonce + (i as u64))
+                .data(self.contract.set_call_data(set_arg))
+                .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
+                .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
+                .gas(GAS);
+
+            let typed_transaction = TypedTransaction::Eip1559(req);
+
+            requests.push(
+                self.client
+                    .send_transaction(typed_transaction, None)
+                    .await
+                    .unwrap(),
+            )
+        }
+
+        requests
+    }
+
     pub(crate) async fn set_value(
         &self,
         contract_address: H160,
@@ -127,6 +167,7 @@ impl TestClient {
         max_fee_per_gas: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        tracing::info!("NONCE FOR {} is {}", self.from_addr, nonce);
 
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -338,5 +379,17 @@ impl TestClient {
             .unwrap();
 
         gas.as_u64()
+    }
+
+    pub(crate) async fn subscribe_for_slots(&self) -> Subscription<u64> {
+        self.simple_client
+            .ws()
+            .subscribe(
+                "ledger_subscribeSlots",
+                rpc_params![],
+                "ledger_unsubscribeSlots",
+            )
+            .await
+            .unwrap()
     }
 }

@@ -6,12 +6,16 @@ use proptest::{prop_compose, proptest};
 use reqwest::header::CONTENT_TYPE;
 use serde_json::json;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
 use sov_rollup_interface::stf::{BatchReceipt, Event, TransactionReceipt};
+use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_state::DefaultStorageSpec;
 #[cfg(test)]
 use sov_stf_runner::RpcConfig;
 use tendermint::crypto::Sha256;
@@ -39,8 +43,8 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
 
         let response_body = res.text().await.unwrap();
         assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&response_body).unwrap(),
             query.expected,
+            serde_json::from_str::<serde_json::Value>(&response_body).unwrap(),
         );
     }
 }
@@ -61,7 +65,19 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
     rt.block_on(async {
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
-        let mut ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
+        let storage_config = sov_state::config::Config {
+            path: tmpdir.path().to_path_buf(),
+        };
+        let mut storage_manager =
+            ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
+                .expect("ProverStorage initialization failed");
+        let genesis_block_header = MockBlockHeader::from_height(0);
+
+        let (_stf_state, ledger_state) = storage_manager
+            .create_state_for(&genesis_block_header)
+            .expect("Getting genesis storage failed");
+
+        let mut ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
         populate_ledger(&mut ledger_db, slots);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")

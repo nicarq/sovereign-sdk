@@ -11,7 +11,9 @@ use jmt::{JellyfishMerkleTree, KeyHash};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sov_db::state_db::StateDB;
-use sov_schema_db::snapshot::{DbSnapshot, NoopQueryManager, ReadOnlyLock};
+use sov_schema_db::cache::cache_container::CacheContainer;
+use sov_schema_db::cache::cache_db::CacheDb;
+use sov_schema_db::{ReadOnlyLock, DB};
 
 // TODO: Improve for collisions
 fn generate_random_bytes(count: usize) -> Vec<Vec<u8>> {
@@ -35,14 +37,18 @@ struct TestData {
     largest_key: Vec<u8>,
     random_key: Vec<u8>,
     non_existing_key: Vec<u8>,
-    db: StateDB<NoopQueryManager>,
+    db: StateDB,
 }
 
-fn prepare_data(size: usize) -> TestData {
+fn prepare_data(size: usize, db: DB) -> TestData {
     assert!(size > 0, "Do not generate empty TestData");
-    let manager = ReadOnlyLock::new(Arc::new(RwLock::new(Default::default())));
-    let db_snapshot = DbSnapshot::<NoopQueryManager>::new(0, manager);
-    let db = StateDB::with_db_snapshot(db_snapshot).unwrap();
+    let to_parent = Arc::new(RwLock::new(Default::default()));
+    let manager = ReadOnlyLock::new(Arc::new(RwLock::new(CacheContainer::new(
+        db,
+        to_parent.clone().into(),
+    ))));
+    let db_snapshot = CacheDb::new(0, manager);
+    let db = StateDB::with_cache_db(db_snapshot).unwrap();
     db.inc_next_version();
 
     let mut raw_data = generate_random_bytes(size * 2 + 1);
@@ -98,7 +104,9 @@ fn prepare_data(size: usize) -> TestData {
 }
 
 fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
-    let TestData { db, random_key, .. } = prepare_data(size);
+    let tempdir = tempfile::tempdir().unwrap();
+    let state_db = StateDB::setup_schema_db(tempdir.path()).unwrap();
+    let TestData { db, random_key, .. } = prepare_data(size, state_db);
     let version = db.get_next_version() - 1;
     g.bench_with_input(
         BenchmarkId::new("bench_random_read", size),
@@ -115,11 +123,13 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
 }
 
 fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
+    let tempdir = tempfile::tempdir().unwrap();
+    let state_db = StateDB::setup_schema_db(tempdir.path()).unwrap();
     let TestData {
         db,
         largest_key: _largest_key,
         ..
-    } = prepare_data(size);
+    } = prepare_data(size, state_db);
     let version = db.get_next_version() - 1;
     g.bench_with_input(
         BenchmarkId::new("bench_largest_read", size),
@@ -136,11 +146,13 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
 }
 
 fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
+    let tempdir = tempfile::tempdir().unwrap();
+    let state_db = StateDB::setup_schema_db(tempdir.path()).unwrap();
     let TestData {
         db,
         non_existing_key,
         ..
-    } = prepare_data(size);
+    } = prepare_data(size, state_db);
     let version = db.get_next_version() - 1;
     g.bench_with_input(
         BenchmarkId::new("bench_not_found_read", size),

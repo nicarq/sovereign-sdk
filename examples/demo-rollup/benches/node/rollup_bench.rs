@@ -8,16 +8,16 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use demo_stf::genesis_config::{get_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_mock_da::{MockBlock, MockBlockHeader};
+use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Verifier;
 use sov_rng_da_service::{RngDaService, RngDaSpec};
-use sov_rollup_interface::da::Time;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
 use tempfile::TempDir;
@@ -40,16 +40,21 @@ fn rollup_bench(_bench: &mut Criterion) {
 
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
     rollup_config.storage.path = PathBuf::from(temp_dir.path());
-    let ledger_db =
-        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open");
 
     let da_service = Arc::new(RngDaService::new());
 
     let storage_config = sov_state::config::Config {
         path: rollup_config.storage.path,
     };
-    let storage = new_orphan_storage::<DefaultStorageSpec>(&storage_config.path)
-        .expect("Failed to initialize orphan ProverStorage");
+    let mut storage_manager =
+        ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
+            .expect("ProverStorage initialization failed");
+    let (stf_state, ledger_state) = storage_manager
+        .create_state_for(&MockBlockHeader::from_height(0))
+        .expect("Getting genesis storage failed");
+
+    let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+
     let stf = StfBlueprint::<
         DefaultContext,
         RngDaSpec,
@@ -72,22 +77,14 @@ fn rollup_bench(_bench: &mut Criterion) {
         }
     };
 
-    let (mut current_root, storage) = stf.init_chain(storage, demo_genesis_config);
+    let (mut current_root, stf_state) = stf.init_chain(stf_state, demo_genesis_config);
 
     // data generation
     let mut blobs = vec![];
     let mut blocks = vec![];
     for height in start_height..end_height {
-        let num_bytes = height.to_le_bytes();
-        let mut barray = [0u8; 32];
-        barray[..num_bytes.len()].copy_from_slice(&num_bytes);
         let filtered_block = MockBlock {
-            header: MockBlockHeader {
-                hash: barray.into(),
-                prev_hash: [0u8; 32].into(),
-                height,
-                time: Time::now(),
-            },
+            header: MockBlockHeader::from_height(height),
             validity_cond: Default::default(),
             blobs: Default::default(),
         };
@@ -105,7 +102,7 @@ fn rollup_bench(_bench: &mut Criterion) {
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
             let apply_block_result = stf.apply_slot(
                 &current_root,
-                storage.clone(),
+                stf_state.clone(),
                 Default::default(),
                 &filtered_block.header,
                 &filtered_block.validity_cond,

@@ -114,3 +114,36 @@ impl<S: Schema> SeekKeyEncoder<S> for KeyPrefix2 {
         Ok(bytes)
     }
 }
+
+#[cfg(feature = "arbitrary")]
+impl proptest::arbitrary::Arbitrary for TestField {
+    type Parameters = std::ops::Range<u32>;
+
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        use proptest::prelude::any;
+        use proptest::strategy::Strategy;
+
+        any::<u32>()
+            .prop_filter("Value should be in range", move |v| args.contains(v))
+            .prop_map(TestField)
+            .boxed()
+    }
+
+    type Strategy = proptest::strategy::BoxedStrategy<Self>;
+}
+
+#[cfg(feature = "arbitrary")]
+impl proptest::arbitrary::Arbitrary for TestCompositeField {
+    type Parameters = ();
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        use proptest::prelude::any;
+        use proptest::strategy::Strategy;
+
+        (any::<u32>(), any::<u32>(), any::<u32>())
+            .prop_map(|(a, b, c)| TestCompositeField(a, b, c))
+            .boxed()
+    }
+
+    type Strategy = proptest::strategy::BoxedStrategy<Self>;
+}

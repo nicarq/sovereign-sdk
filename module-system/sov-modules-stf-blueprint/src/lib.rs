@@ -59,8 +59,10 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     type GenesisPaths: Send + Sync;
 
     #[cfg(feature = "native")]
-    /// Default rpc methods.
-    fn rpc_methods(storage: <C as Spec>::Storage) -> jsonrpsee::RpcModule<()>;
+    /// Default RPC methods.
+    fn rpc_methods(
+        storage: std::sync::Arc<std::sync::RwLock<<C as Spec>::Storage>>,
+    ) -> jsonrpsee::RpcModule<()>;
 
     #[cfg(feature = "native")]
     /// Reads genesis configs.

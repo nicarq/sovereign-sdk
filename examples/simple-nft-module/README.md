@@ -396,10 +396,10 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, Context, Module, WorkingSet};
 use sov_rollup_interface::stf::Event;
 use sov_state::{DefaultStorageSpec, ProverStorage};
-use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
+use sov_prover_storage_manager::{new_orphan_storage};
 
 pub type C = DefaultContext;
-pub type Storage = ProverStorage<DefaultStorageSpec, SnapshotManager>;
+pub type Storage = ProverStorage<DefaultStorageSpec>;
 
 
 #[test]
