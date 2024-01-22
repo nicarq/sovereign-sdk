@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event};
-use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
+use sov_schema_db::cache::cache_db::CacheDb;
+use sov_schema_db::cache::change_set::ChangeSet;
+use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder};
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
@@ -17,20 +19,6 @@ use crate::schema::types::{
 };
 
 mod rpc;
-
-const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
-
-#[derive(Clone, Debug)]
-/// A database which stores the ledger history (slots, transactions, events, etc).
-/// Ledger data is first ingested into an in-memory map before being fed to the state-transition function.
-/// Once the state-transition function has been executed and finalized, the results are committed to the final db
-pub struct LedgerDB {
-    /// The database which stores the committed ledger. Uses an optimized layout which
-    /// requires transactions to be executed before being committed.
-    db: Arc<DB>,
-    next_item_numbers: Arc<Mutex<ItemNumbers>>,
-    slot_subscriptions: tokio::sync::broadcast::Sender<u64>,
-}
 
 /// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
 /// the respective heights at the start or end of slot processing.
@@ -85,32 +73,76 @@ impl<S: SlotData, B, T> SlotCommit<S, B, T> {
     }
 }
 
+#[derive(Clone, Debug)]
+/// A database which stores the ledger history (slots, transactions, events, etc).
+/// Ledger data is first ingested into an in-memory map
+/// before being fed to the state-transition function.
+/// Once the state-transition function has been executed and finalized,
+/// the results are committed to the final db
+pub struct LedgerDB {
+    /// The database which stores the committed ledger.
+    /// Uses an optimized layout which
+    /// requires transactions to be executed before being committed.
+    db: Arc<CacheDb>,
+    next_item_numbers: Arc<Mutex<ItemNumbers>>,
+    slot_subscriptions: tokio::sync::broadcast::Sender<u64>,
+}
+
 impl LedgerDB {
-    /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
-    /// The returned instance will be at the path `{path}/ledger-db`.
-    pub fn with_path(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
-        let path = path.as_ref().join(LEDGER_DB_PATH_SUFFIX);
-        let inner = DB::open(
+    const DB_PATH_SUFFIX: &'static str = "ledger";
+    const DB_NAME: &'static str = "ledger-db";
+
+    /// Initialize [`sov_schema_db::DB`] that matches tables and columns for [`LedgerDB`]
+    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<sov_schema_db::DB> {
+        let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
+        sov_schema_db::DB::open(
             path,
-            "ledger-db",
+            Self::DB_NAME,
             LEDGER_TABLES.iter().copied(),
             &gen_rocksdb_options(&Default::default(), false),
-        )?;
+        )
+    }
 
-        let next_item_numbers = ItemNumbers {
-            slot_number: Self::last_version_written(&inner, SlotByNumber)?.unwrap_or_default() + 1,
-            batch_number: Self::last_version_written(&inner, BatchByNumber)?.unwrap_or_default()
+    fn load_next_item_numbers(db_snapshot: &CacheDb) -> anyhow::Result<ItemNumbers> {
+        Ok(ItemNumbers {
+            slot_number: Self::last_version_written(db_snapshot, SlotByNumber)?.unwrap_or_default()
                 + 1,
-            tx_number: Self::last_version_written(&inner, TxByNumber)?.unwrap_or_default() + 1,
-            event_number: Self::last_version_written(&inner, EventByNumber)?.unwrap_or_default()
+            batch_number: Self::last_version_written(db_snapshot, BatchByNumber)?
+                .unwrap_or_default()
                 + 1,
-        };
+            tx_number: Self::last_version_written(db_snapshot, TxByNumber)?.unwrap_or_default() + 1,
+            event_number: Self::last_version_written(db_snapshot, EventByNumber)?
+                .unwrap_or_default()
+                + 1,
+        })
+    }
 
+    /// Initialize a new [`LedgerDB`] with an provided [`CacheDb`]
+    pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
+        let next_item_numbers = Self::load_next_item_numbers(&db)?;
         Ok(Self {
-            db: Arc::new(inner),
+            db: Arc::new(db),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
             slot_subscriptions: tokio::sync::broadcast::channel(10).0,
         })
+    }
+
+    /// Replace underlying [`CacheDb`] with provided one.
+    /// Keeps underlying broadcast channel open.
+    pub fn replace_db(&mut self, db: CacheDb) -> anyhow::Result<()> {
+        self.db.overwrite_change_set(db);
+        let loaded_item_numbers = Self::load_next_item_numbers(&self.db)?;
+        let mut next_item_numbers = self
+            .next_item_numbers
+            .lock()
+            .expect("ItemNumbers lock is poisoned");
+        *next_item_numbers = loaded_item_numbers;
+        Ok(())
+    }
+
+    /// Extract [`ChangeSet`] from underlying [`CacheDb`]
+    pub fn clone_change_set(&self) -> ChangeSet {
+        self.db.clone_change_set()
     }
 
     /// Get the next slot, block, transaction, and event numbers
@@ -154,20 +186,16 @@ impl LedgerDB {
     /// Gets all data with identifier in `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
+    /// directly via RPC.
     fn get_data_range<T, K, V>(&self, range: &std::ops::Range<K>) -> Result<Vec<V>, anyhow::Error>
     where
         T: Schema<Key = K, Value = V>,
         K: Into<u64> + Copy + SeekKeyEncoder<T>,
     {
-        let mut raw_iter = self.db.iter()?;
-        let max_items = (range.end.into() - range.start.into()) as usize;
-        raw_iter.seek(&range.start)?;
-        let iter = raw_iter.take(max_items);
-        let mut out = Vec::with_capacity(max_items);
-        for res in iter {
-            let batch = res?.value;
-            out.push(batch)
+        let raw_out = self.db.collect_in_range(range.clone())?;
+        let mut out = Vec::with_capacity(raw_out.len());
+        for (_, value) in raw_out {
+            out.push(value)
         }
         Ok(out)
     }
@@ -289,7 +317,7 @@ impl LedgerDB {
             &mut schema_batch,
         )?;
 
-        self.db.write_schemas(schema_batch)?;
+        self.db.write_many(schema_batch)?;
 
         // Notify subscribers. This call returns an error IFF there are no subscribers, so we don't need to check the result
         let _ = self
@@ -300,28 +328,19 @@ impl LedgerDB {
     }
 
     fn last_version_written<T: Schema<Key = U>, U: Into<u64>>(
-        db: &DB,
+        db: &CacheDb,
         _schema: T,
     ) -> anyhow::Result<Option<u64>> {
-        let mut iter = db.iter::<T>()?;
-        iter.seek_to_last();
+        let largest = db.get_largest::<T>()?;
 
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.key.into())),
-            Some(Err(e)) => Err(e),
+        match largest {
+            Some((k, _v)) => Ok(Some(k.into())),
             _ => Ok(None),
         }
     }
 
     /// Get the most recent committed slot, if any
     pub fn get_head_slot(&self) -> anyhow::Result<Option<(SlotNumber, StoredSlot)>> {
-        let mut iter = self.db.iter::<SlotByNumber>()?;
-        iter.seek_to_last();
-
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.into_tuple())),
-            Some(Err(e)) => Err(e),
-            _ => Ok(None),
-        }
+        self.db.get_largest::<SlotByNumber>()
     }
 }

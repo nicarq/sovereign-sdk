@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
     MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier,
@@ -74,9 +76,7 @@ fn initialize_runner(
                 bind_port: 0,
             },
         },
-        da: MockDaConfig {
-            sender_address: address,
-        },
+        da: MockDaConfig::instant_with_sender(address),
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,
         },
@@ -84,14 +84,17 @@ fn initialize_runner(
 
     let da_service = MockDaService::new(address);
 
-    let ledger_db = LedgerDB::with_path(path).unwrap();
-
     let stf = HashStf::<MockValidityCond>::new();
 
     let storage_config = sov_state::config::Config {
         path: path.to_path_buf(),
     };
     let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
+    let genesis_block = MockBlockHeader::from_height(0);
+    let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_block).unwrap();
+
+    let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+    let rpc_storage = Arc::new(RwLock::new(genesis_storage.clone()));
 
     let vm = MockZkvm::new(MockValidityCond::default());
     let verifier = MockDaVerifier::default();
@@ -104,7 +107,7 @@ fn initialize_runner(
         verifier,
         prover_config,
         // Should be ZkStorage, but we don't need it for this test
-        storage_manager.create_finalized_storage().unwrap(),
+        genesis_storage,
         1,
         rollup_config.prover_service,
     );
@@ -115,6 +118,7 @@ fn initialize_runner(
         ledger_db,
         stf,
         storage_manager,
+        rpc_storage,
         init_variant,
         prover_service,
     )

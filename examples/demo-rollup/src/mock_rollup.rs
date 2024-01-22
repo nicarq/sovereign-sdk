@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use async_trait::async_trait;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
@@ -51,7 +53,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     fn create_rpc_methods(
         &self,
-        storage: &<Self::NativeContext as Spec>::Storage,
+        storage: Arc<RwLock<<Self::NativeContext as Spec>::Storage>>,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
@@ -63,7 +65,7 @@ impl RollupBlueprint for MockDemoRollup {
             Self::NativeRuntime,
             Self::NativeContext,
             Self::DaService,
-        >(storage, ledger_db, da_service, sequencer)?;
+        >(storage.clone(), ledger_db, da_service, sequencer)?;
 
         #[cfg(feature = "experimental")]
         crate::eth::register_ethereum::<Self::DaService>(
@@ -79,7 +81,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Self::DaService {
-        MockDaService::new(rollup_config.da.sender_address)
+        MockDaService::from_config(rollup_config.da.clone())
     }
 
     async fn create_prover_service(

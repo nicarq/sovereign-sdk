@@ -1,7 +1,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use sov_schema_db::snapshot::{DbSnapshot, QueryManager, ReadOnlyDbSnapshot};
+use sov_schema_db::cache::cache_db::CacheDb;
+use sov_schema_db::cache::change_set::ChangeSet;
 use sov_schema_db::SchemaBatch;
 
 use crate::rocks_db_config::gen_rocksdb_options;
@@ -13,18 +14,17 @@ pub type Version = u64;
 
 /// Typesafe wrapper for Data, that is not part of the provable state
 /// TODO: Rename to AccessoryDb
-#[derive(Debug, derivative::Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct NativeDB<Q> {
-    /// Pointer to [`DbSnapshot`] for up to date state
-    db: Arc<DbSnapshot<Q>>,
+#[derive(Clone, Debug)]
+pub struct NativeDB {
+    /// Pointer to [`CacheDb`] for up to date state
+    db: Arc<CacheDb>,
 }
 
-impl<Q> NativeDB<Q> {
-    const DB_PATH_SUFFIX: &'static str = "native-db";
-    const DB_NAME: &'static str = "native";
+impl NativeDB {
+    const DB_PATH_SUFFIX: &'static str = "native";
+    const DB_NAME: &'static str = "native-db";
 
-    /// Initialize [`sov_schema_db::DB`] that matches tables and columns for NativeDB
+    /// Initialize [`sov_schema_db::DB`] that matches tables and columns for [`NativeDB`]
     pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<sov_schema_db::DB> {
         let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
         sov_schema_db::DB::open(
@@ -35,22 +35,18 @@ impl<Q> NativeDB<Q> {
         )
     }
 
-    /// Convert it to [`ReadOnlyDbSnapshot`] which cannot be edited anymore
-    pub fn freeze(self) -> anyhow::Result<ReadOnlyDbSnapshot> {
+    /// Convert it to [`ChangeSet`] which cannot be edited anymore
+    pub fn freeze(self) -> anyhow::Result<ChangeSet> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
             "NativeDB underlying DbSnapshot has more than 1 strong references"
         ))?;
-        Ok(ReadOnlyDbSnapshot::from(inner))
+        Ok(ChangeSet::from(inner))
     }
-}
 
-impl<Q: QueryManager> NativeDB<Q> {
-    /// Create instance of [`NativeDB`] from [`DbSnapshot`]
-    pub fn with_db_snapshot(db_snapshot: DbSnapshot<Q>) -> anyhow::Result<Self> {
+    /// Create instance of [`NativeDB`] from [`CacheDb`]
+    pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
         // We keep Result type, just for future archival state integration
-        Ok(Self {
-            db: Arc::new(db_snapshot),
-        })
+        Ok(Self { db: Arc::new(db) })
     }
 
     /// Queries for a value in the [`NativeDB`], given a key.
@@ -92,21 +88,29 @@ impl<Q: QueryManager> NativeDB<Q> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::RwLock;
 
-    use sov_schema_db::snapshot::{NoopQueryManager, ReadOnlyLock};
+    use sov_schema_db::cache::cache_container::CacheContainer;
+    use sov_schema_db::cache::cache_db::CacheDb;
 
     use super::*;
 
-    fn setup_db() -> NativeDB<NoopQueryManager> {
-        let manager = ReadOnlyLock::new(Arc::new(RwLock::new(Default::default())));
-        let db_snapshot = DbSnapshot::<NoopQueryManager>::new(0, manager);
-        NativeDB::with_db_snapshot(db_snapshot).unwrap()
+    fn setup_db(path: &Path) -> NativeDB {
+        let db = NativeDB::setup_schema_db(path).unwrap();
+        let to_parent = Arc::new(RwLock::new(HashMap::new()));
+        let cache_container = Arc::new(RwLock::new(CacheContainer::new(
+            db,
+            to_parent.clone().into(),
+        )));
+        let db_snapshot = CacheDb::new(0, cache_container.into());
+        NativeDB::with_cache_db(db_snapshot).unwrap()
     }
 
     #[test]
     fn get_after_set() {
-        let db = setup_db();
+        let tempdir = tempfile::tempdir().unwrap();
+        let db = setup_db(tempdir.path());
 
         let key = b"foo".to_vec();
         let value = b"bar".to_vec();
@@ -121,7 +125,8 @@ mod tests {
 
     #[test]
     fn get_after_delete() {
-        let db = setup_db();
+        let tempdir = tempfile::tempdir().unwrap();
+        let db = setup_db(tempdir.path());
 
         let key = b"deleted".to_vec();
         db.set_values(vec![(key.clone(), None)], 0).unwrap();
@@ -130,7 +135,8 @@ mod tests {
 
     #[test]
     fn get_nonexistent() {
-        let db = setup_db();
+        let tempdir = tempfile::tempdir().unwrap();
+        let db = setup_db(tempdir.path());
 
         let key = b"spam".to_vec();
         assert_eq!(db.get_value_option(&key, 0).unwrap(), None);

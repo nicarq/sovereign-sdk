@@ -28,12 +28,12 @@ fn test_demo_values_in_db() {
 
     let last_block = {
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let storage = storage_manager
-            .create_storage_on(genesis_block.header())
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(genesis_block.header())
             .unwrap();
-        let (genesis_root, storage) = stf.init_chain(storage, config);
+        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), storage)
+            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
 
         let priv_key = read_private_key::<DefaultContext>().private_key;
@@ -42,11 +42,11 @@ fn test_demo_values_in_db() {
 
         let mut blobs = [blob];
 
-        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+        let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
 
         let result = stf.apply_slot(
             &genesis_root,
-            storage,
+            stf_state,
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
@@ -66,7 +66,7 @@ fn test_demo_values_in_db() {
 
         assert!(has_tx_events(&apply_blob_outcome),);
         storage_manager
-            .save_change_set(block_1.header(), result.change_set)
+            .save_change_set(block_1.header(), result.change_set, ledger_state.into())
             .unwrap();
         block_1
     };
@@ -75,10 +75,10 @@ fn test_demo_values_in_db() {
     {
         let next_block = last_block.next_mock();
         let runtime = &mut Runtime::<DefaultContext, MockDaSpec>::default();
-        let storage = storage_manager
-            .create_storage_on(next_block.header())
+        let (stf_state, _ledger_state) = storage_manager
+            .create_state_for(next_block.header())
             .unwrap();
-        let mut working_set = WorkingSet::new(storage);
+        let mut working_set = WorkingSet::new(stf_state);
         let resp = runtime
             .bank
             .supply_of(None, get_default_token_address(), &mut working_set)
@@ -102,12 +102,12 @@ fn test_demo_values_in_cache() {
     let config = get_genesis_config_for_tests();
 
     let genesis_block = MockBlock::default();
-    let storage = storage_manager
-        .create_storage_on(genesis_block.header())
+    let (stf_state, ledger_state) = storage_manager
+        .create_state_for(genesis_block.header())
         .unwrap();
-    let (genesis_root, storage) = stf.init_chain(storage, config);
+    let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
     storage_manager
-        .save_change_set(genesis_block.header(), storage)
+        .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
         .unwrap();
 
     let private_key = read_private_key::<DefaultContext>().private_key;
@@ -116,11 +116,11 @@ fn test_demo_values_in_cache() {
     let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
     let mut blobs = [blob];
     let block_1 = genesis_block.next_mock();
-    let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+    let (stf_state, _ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
 
     let apply_block_result = stf.apply_slot(
         &genesis_root,
-        storage,
+        stf_state,
         Default::default(),
         &block_1.header,
         &block_1.validity_cond,
@@ -168,23 +168,24 @@ fn test_demo_values_not_in_db() {
     {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
-        let storage = storage_manager
-            .create_storage_on(genesis_block.header())
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(genesis_block.header())
             .unwrap();
-        let (genesis_root, storage) = stf.init_chain(storage, config);
+        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), storage)
+            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
 
         let txs = simulate_da(value_setter_admin_private_key);
         let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
         let mut blobs = [blob];
 
-        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+        let (stf_state, _ledger_state) =
+            storage_manager.create_state_for(block_1.header()).unwrap();
 
         let apply_block_result = stf.apply_slot(
             &genesis_root,
-            storage,
+            stf_state,
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
@@ -205,8 +206,9 @@ fn test_demo_values_not_in_db() {
     // values are missing because change set from apply slot wasn't saved back to storage manager
     {
         let runtime = &mut Runtime::<C, MockDaSpec>::default();
-        let storage = storage_manager.create_storage_on(block_2.header()).unwrap();
-        let mut working_set = WorkingSet::new(storage);
+        let (stf_state, _ledger_state) =
+            storage_manager.create_state_for(block_2.header()).unwrap();
+        let mut working_set = WorkingSet::new(stf_state);
 
         let resp = runtime
             .bank
@@ -233,14 +235,12 @@ fn test_sequencer_unknown_sequencer() {
 
     let mut storage_manager = create_storage_manager_for_tests(path);
     let stf: StfBlueprintTest = StfBlueprint::new();
-    let (genesis_root, storage) = stf.init_chain(
-        storage_manager
-            .create_storage_on(genesis_block.header())
-            .unwrap(),
-        config,
-    );
+    let (stf_state, ledger_state) = storage_manager
+        .create_state_for(genesis_block.header())
+        .unwrap();
+    let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
     storage_manager
-        .save_change_set(genesis_block.header(), storage)
+        .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
         .unwrap();
 
     let some_sequencer: [u8; 32] = [121; 32];
@@ -250,11 +250,11 @@ fn test_sequencer_unknown_sequencer() {
     let blob = new_test_blob_from_batch(Batch { txs }, &some_sequencer, [0; 32]);
     let mut blobs = [blob];
 
-    let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+    let (stf_state, _ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
 
     let apply_block_result = stf.apply_slot(
         &genesis_root,
-        storage,
+        stf_state,
         Default::default(),
         &block_1.header,
         &block_1.validity_cond,

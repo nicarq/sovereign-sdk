@@ -1,8 +1,10 @@
 use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::sync::{Arc, RwLock};
 
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::schema::{CacheDb, ChangeSet};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -29,6 +31,7 @@ where
     da_service: Da,
     stf: Stf,
     storage_manager: Sm,
+    rpc_storage: Arc<RwLock<Sm::StfState>>,
     ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
@@ -52,15 +55,14 @@ impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Vm: ZkvmHost,
-    Sm: HierarchicalStorageManager<Da::Spec>,
+    Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = ChangeSet, LedgerState = CacheDb>,
     Stf: StateTransitionFunction<
         Vm,
         Da::Spec,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
-        PreState = Sm::NativeStorage,
-        ChangeSet = Sm::NativeChangeSet,
+        PreState = Sm::StfState,
+        ChangeSet = Sm::StfChangeSet,
     >,
-
     Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
 {
     /// Creates a new `StateTransitionRunner`.
@@ -72,9 +74,10 @@ where
     pub fn new(
         runner_config: RunnerConfig,
         da_service: Da,
-        ledger_db: LedgerDB,
+        mut ledger_db: LedgerDB,
         stf: Stf,
         mut storage_manager: Sm,
+        rpc_storage: Arc<RwLock<Sm::StfState>>,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Ps,
     ) -> Result<Self, anyhow::Error> {
@@ -93,9 +96,15 @@ where
                     "No history detected. Initializing chain on block_header={:?}...",
                     block_header
                 );
-                let storage = storage_manager.create_storage_on(&block_header)?;
-                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set(&block_header, initialized_storage)?;
+                let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header)?;
+                ledger_db.replace_db(ledger_state)?;
+                let (genesis_root, initialized_storage) = stf.init_chain(stf_state, params);
+                let ledger_change_set = ledger_db.clone_change_set();
+                storage_manager.save_change_set(
+                    &block_header,
+                    initialized_storage,
+                    ledger_change_set,
+                )?;
                 storage_manager.finalize(&block_header)?;
                 info!(
                     "Chain initialization is done. Genesis root: 0x{}",
@@ -117,6 +126,7 @@ where
             da_service,
             stf,
             storage_manager,
+            rpc_storage,
             ledger_db,
             state_root: prev_state_root,
             listen_address,
@@ -125,6 +135,9 @@ where
     }
 
     /// Starts a RPC server with provided rpc methods.
+    ///  # Arguments:
+    ///   * methods: [`RpcModule`] with all RPC methods.
+    ///   * channel: If `Some`, notification with actual [`SocketAddr`] where RPC server listens
     pub async fn start_rpc_server(
         &self,
         methods: RpcModule<()>,
@@ -138,12 +151,12 @@ where
                 .unwrap();
 
             let bound_address = server.local_addr().unwrap();
+            info!("Starting RPC server at {} ", &bound_address);
+            let _server_handle = server.start(methods);
+
             if let Some(channel) = channel {
                 channel.send(bound_address).unwrap();
             }
-            info!("Starting RPC server at {} ", &bound_address);
-
-            let _server_handle = server.start(methods);
             futures::future::pending::<()>().await;
         });
     }
@@ -153,13 +166,11 @@ where
         let mut seen_state_transition_data: VecDeque<
             StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
         > = VecDeque::new();
-
-        let mut seen_receipts: VecDeque<_> = VecDeque::new();
         let mut height = self.start_height;
 
         let mut agg_block_hashes = Vec::default();
         loop {
-            debug!("Requesting data for height {}", height);
+            debug!("Requesting DA block for height={}", height);
             let mut filtered_block = self.da_service.get_block_at(height).await?;
 
             // Checking if reorg happened or not.
@@ -167,7 +178,6 @@ where
                 if prev_block_header.da_block_header.hash() != filtered_block.header().prev_hash() {
                     tracing::warn!("Block at height={} does not belong in current chain. Chain has forked. Traversing backwards", height);
                     while let Some(seen_block_header) = seen_state_transition_data.pop_back() {
-                        seen_receipts.pop_back();
                         let block = self
                             .da_service
                             .get_block_at(seen_block_header.da_block_header.height())
@@ -180,7 +190,7 @@ where
                             break;
                         }
                     }
-                    tracing::info!("Resuming execution on height={}", height);
+                    info!("Resuming execution on height={}", height);
                 }
             }
 
@@ -202,13 +212,15 @@ where
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
-            let pre_state = self
+            let (stf_pre_state, ledger_state) = self
                 .storage_manager
-                .create_storage_on(filtered_block.header())?;
+                .create_state_for(filtered_block.header())?;
+            self.ledger_db.replace_db(ledger_state)?;
+
             let slot_result = self.stf.apply_slot(
                 // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
                 &self.state_root,
-                pre_state,
+                stf_pre_state,
                 Default::default(),
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
@@ -236,37 +248,54 @@ where
                     state_transition_witness: slot_result.witness,
                 };
 
-            self.storage_manager
-                .save_change_set(filtered_block.header(), slot_result.change_set)?;
-
+            // Post apply slot machinery
             let next_state_root = slot_result.state_root;
-
-            seen_receipts.push_back(data_to_commit);
-
             self.state_root = next_state_root;
             seen_state_transition_data.push_back(transition_data);
             height += 1;
+            self.ledger_db.commit_slot(data_to_commit)?;
+
+            // Save data back to StorageManager
+            let ledger_change_set = self.ledger_db.clone_change_set();
+            self.storage_manager.save_change_set(
+                filtered_block.header(),
+                slot_result.change_set,
+                ledger_change_set,
+            )?;
+
+            // Update RPC storage
+            {
+                let (new_rpc_storage, _) = self
+                    .storage_manager
+                    .create_state_after(filtered_block.header())?;
+                let mut rpc_storage = self
+                    .rpc_storage
+                    .write()
+                    .expect("RPC Storage RwLock poisoned");
+                *rpc_storage = new_rpc_storage;
+            }
 
             // ----------------
             // Finalization. Done after seen block for proper handling of instant finality
             // Can be moved to another thread to improve throughput
             let last_finalized = self.da_service.get_last_finalized_block_header().await?;
             // For safety we finalize blocks one by one
-            tracing::info!(
+            info!(
                 "Last finalized header height is {}, ",
                 last_finalized.height()
             );
+
             // Checking all seen blocks, in case if there was delay in getting last finalized header.
             while let Some(earliest_seen_state_transition_data) = seen_state_transition_data.front()
             {
-                tracing::debug!(
+                debug!(
                     "Checking seen header height={}",
                     earliest_seen_state_transition_data.da_block_header.height()
                 );
                 if earliest_seen_state_transition_data.da_block_header.height()
                     <= last_finalized.height()
                 {
-                    tracing::debug!(
+                    debug!(
                         "Finalizing seen header height={}",
                         earliest_seen_state_transition_data.da_block_header.height()
                     );
@@ -280,8 +309,6 @@ where
                     self.create_aggregated_proof(transition_data, &mut agg_block_hashes)
                         .await;
 
-                    let receipts = seen_receipts.pop_front().unwrap();
-                    self.ledger_db.commit_slot(receipts)?;
                     continue;
                 }
 

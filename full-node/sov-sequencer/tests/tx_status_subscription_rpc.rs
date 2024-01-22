@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use borsh::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use sov_data_generators::bank_data::BankMessageGenerator;
@@ -30,8 +32,8 @@ fn new_sequencer(
     let mut storage_manager =
         ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config).unwrap();
     let genesis_block_header = MockBlockHeader::from_height(0);
-    let storage = storage_manager
-        .create_storage_on(&genesis_block_header)
+    let (stf_state, _ledger_storage) = storage_manager
+        .create_state_for(&genesis_block_header)
         .expect("Getting genesis storage failed");
 
     let da_service = MockDaService::new(sequencer_addr.into());
@@ -39,7 +41,7 @@ fn new_sequencer(
         usize::MAX,
         usize::MAX,
         runtime,
-        storage,
+        Arc::new(RwLock::new(stf_state)),
         sequencer_addr.into(),
     );
 

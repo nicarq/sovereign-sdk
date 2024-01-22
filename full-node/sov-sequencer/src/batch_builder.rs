@@ -2,6 +2,7 @@
 
 use std::collections::{HashSet, VecDeque};
 use std::io::Cursor;
+use std::sync::{Arc, RwLock};
 
 use anyhow::{bail, Context as ErrorContext};
 use borsh::BorshDeserialize;
@@ -50,7 +51,7 @@ pub struct FiFoStrictBatchBuilder<C: Context, R: DispatchCall<Context = C>> {
     mempool_max_txs_count: usize,
     runtime: R,
     max_batch_size_bytes: usize,
-    current_storage: C::Storage,
+    current_storage: Arc<RwLock<C::Storage>>,
     sequencer: C::Address,
 }
 
@@ -64,7 +65,7 @@ where
         max_batch_size_bytes: usize,
         mempool_max_txs_count: usize,
         runtime: R,
-        current_storage: C::Storage,
+        current_storage: Arc<RwLock<C::Storage>>,
         sequencer: C::Address,
     ) -> Self {
         Self {
@@ -113,6 +114,10 @@ where
             .map_err(anyhow::Error::new)
             .context("Failed to decode message in transaction")?;
 
+        tracing::debug!(
+            "Transaction has been added to the mempool: raw_tx={:?}",
+            raw
+        );
         let hash = calculate_hash::<C>(&raw);
         let tx = PooledTransaction {
             raw,
@@ -120,7 +125,6 @@ where
             msg: Some(msg),
             hash,
         };
-
         self.mempool.push_back(tx);
 
         Ok(hash)
@@ -133,7 +137,15 @@ where
     /// Builds a new batch of valid transactions in order they were added to mempool
     /// Only transactions, which are dispatched successfully are included in the batch
     fn get_next_blob(&mut self) -> anyhow::Result<Vec<TxWithHash>> {
-        let mut working_set = WorkingSet::new(self.current_storage.clone());
+        tracing::debug!("Build next blob has been called");
+        let storage = {
+            let storage_guard = self
+                .current_storage
+                .read()
+                .expect("Internal Storage lock is poisoned");
+            storage_guard.clone()
+        };
+        let mut working_set = WorkingSet::new(storage);
         let mut txs = Vec::new();
         let mut current_batch_size = 0;
 
@@ -184,6 +196,8 @@ where
         if txs.is_empty() {
             bail!("No valid transactions are available");
         }
+
+        tracing::info!("Batch of {} transactions has been built", txs.len());
 
         Ok(txs)
     }
@@ -259,9 +273,9 @@ mod tests {
     use sov_modules_api::{
         Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, PrivateKey,
     };
-    use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
+    use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::services::batch_builder::BatchBuilder;
-    use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+    use sov_state::Storage;
     use sov_value_setter::{CallMessage, ValueSetter, ValueSetterConfig};
     use tempfile::TempDir;
 
@@ -337,28 +351,24 @@ mod tests {
     fn create_batch_builder(
         batch_size_bytes: usize,
         tmpdir: &TempDir,
-    ) -> (
-        FiFoStrictBatchBuilder<C, TestRuntime<C>>,
-        ProverStorage<DefaultStorageSpec, SnapshotManager>,
-    ) {
-        let storage = new_orphan_storage(tmpdir.path()).unwrap();
-
+    ) -> FiFoStrictBatchBuilder<C, TestRuntime<C>> {
+        let storage = Arc::new(RwLock::new(new_orphan_storage(tmpdir.path()).unwrap()));
         let sequencer = Address::from([0; 32]);
-        let batch_builder = FiFoStrictBatchBuilder::new(
+        FiFoStrictBatchBuilder::new(
             batch_size_bytes,
             MAX_TX_POOL_SIZE,
             TestRuntime::<C>::default(),
             storage.clone(),
             sequencer,
-        );
-        (batch_builder, storage)
+        )
     }
 
     fn setup_runtime(
-        storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
+        batch_builder: &mut FiFoStrictBatchBuilder<C, TestRuntime<C>>,
         admin: Option<DefaultPublicKey>,
     ) {
         let runtime = TestRuntime::<C>::default();
+        let storage = { batch_builder.current_storage.read().unwrap().clone() };
         let mut working_set = WorkingSet::new(storage.clone());
 
         let admin = admin.unwrap_or_else(|| {
@@ -372,6 +382,10 @@ mod tests {
         runtime.genesis(&config, &mut working_set).unwrap();
         let (log, witness) = working_set.checkpoint().freeze();
         storage.validate_and_commit(log, &witness).unwrap();
+        {
+            let mut current_storage = batch_builder.current_storage.write().unwrap();
+            *current_storage = storage;
+        }
     }
 
     mod accept_tx {
@@ -382,7 +396,7 @@ mod tests {
             let tx = generate_random_valid_tx();
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let (mut batch_builder, _) = create_batch_builder(tx.len(), &tmpdir);
+            let mut batch_builder = create_batch_builder(tx.len(), &tmpdir);
 
             batch_builder.accept_tx(tx).unwrap();
         }
@@ -393,7 +407,7 @@ mod tests {
             let batch_size = tx.len().saturating_sub(1);
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let (mut batch_builder, _) = create_batch_builder(batch_size, &tmpdir);
+            let mut batch_builder = create_batch_builder(batch_size, &tmpdir);
 
             let accept_result = batch_builder.accept_tx(tx);
             assert!(accept_result.is_err());
@@ -406,7 +420,7 @@ mod tests {
         #[test]
         fn reject_tx_on_full_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
-            let (mut batch_builder, _) = create_batch_builder(usize::MAX, &tmpdir);
+            let mut batch_builder = create_batch_builder(usize::MAX, &tmpdir);
 
             for _ in 0..MAX_TX_POOL_SIZE {
                 let tx = generate_random_valid_tx();
@@ -425,7 +439,7 @@ mod tests {
             let tx = generate_random_bytes();
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let (mut batch_builder, _) = create_batch_builder(tx.len(), &tmpdir);
+            let mut batch_builder = create_batch_builder(tx.len(), &tmpdir);
 
             let accept_result = batch_builder.accept_tx(tx);
             assert!(accept_result.is_err());
@@ -441,7 +455,7 @@ mod tests {
             let tx = generate_signed_tx_with_invalid_payload(&private_key);
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let (mut batch_builder, _) = create_batch_builder(tx.len(), &tmpdir);
+            let mut batch_builder = create_batch_builder(tx.len(), &tmpdir);
 
             let accept_result = batch_builder.accept_tx(tx);
             assert!(accept_result.is_err());
@@ -456,7 +470,7 @@ mod tests {
             let tx = generate_random_valid_tx();
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let (mut batch_builder, _) = create_batch_builder(tx.len(), &tmpdir);
+            let mut batch_builder = create_batch_builder(tx.len(), &tmpdir);
             batch_builder.mempool_max_txs_count = 0;
 
             let accept_result = batch_builder.accept_tx(tx);
@@ -471,8 +485,8 @@ mod tests {
         #[test]
         fn error_on_empty_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
-            let (mut batch_builder, storage) = create_batch_builder(10, &tmpdir);
-            setup_runtime(storage, None);
+            let mut batch_builder = create_batch_builder(10, &tmpdir);
+            setup_runtime(&mut batch_builder, None);
 
             let build_result = batch_builder.get_next_blob();
             assert!(build_result.is_err());
@@ -493,7 +507,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let batch_size = txs[0].len() * 3 + 1;
-            let (mut batch_builder, _) = create_batch_builder(batch_size, &tmpdir);
+            let mut batch_builder = create_batch_builder(batch_size, &tmpdir);
             // Skipping runtime setup
 
             for tx in &txs {
@@ -526,8 +540,8 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let batch_size = txs[0].len() + txs[2].len() + 1;
-            let (mut batch_builder, storage) = create_batch_builder(batch_size, &tmpdir);
-            setup_runtime(storage, Some(value_setter_admin.pub_key()));
+            let mut batch_builder = create_batch_builder(batch_size, &tmpdir);
+            setup_runtime(&mut batch_builder, Some(value_setter_admin.pub_key()));
 
             for tx in &txs {
                 batch_builder.accept_tx(tx.clone()).unwrap();

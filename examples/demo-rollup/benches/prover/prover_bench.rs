@@ -202,14 +202,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
     println!("Starting from empty storage, initialization chain");
     let genesis_block = MockBlock::default();
-    let (mut prev_state_root, storage) = stf.init_chain(
-        storage_manager
-            .create_storage_on(genesis_block.header())
-            .unwrap(),
-        genesis_config,
-    );
+    let (stf_state, ledger_state) = storage_manager
+        .create_state_for(genesis_block.header())
+        .unwrap();
+    let (mut prev_state_root, stf_state) = stf.init_chain(stf_state, genesis_config);
     storage_manager
-        .save_change_set(genesis_block.header(), storage)
+        .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
         .unwrap();
     // Write it to the database immediately!
     storage_manager.finalize(&genesis_block.header).unwrap();
@@ -235,13 +233,13 @@ async fn main() -> Result<(), anyhow::Error> {
             num_blobs += blob_txs.len();
         }
 
-        let storage = storage_manager
-            .create_storage_on(filtered_block.header())
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(filtered_block.header())
             .unwrap();
 
         let result = stf.apply_slot(
             &prev_state_root,
-            storage,
+            stf_state,
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_condition(),
@@ -278,7 +276,11 @@ async fn main() -> Result<(), anyhow::Error> {
         println!("==================================================\n");
         prev_state_root = result.state_root;
         storage_manager
-            .save_change_set(filtered_block.header(), result.change_set)
+            .save_change_set(
+                filtered_block.header(),
+                result.change_set,
+                ledger_state.into(),
+            )
             .unwrap();
         // TODO: Do we want to finalize some older blocks
     }

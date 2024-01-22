@@ -42,24 +42,23 @@ fn test_tx_revert() {
         let mut storage_manager = create_storage_manager_for_tests(tempdir.path());
         let stf: StfBlueprintTest = StfBlueprint::new();
 
-        let (genesis_root, storage) = stf.init_chain(
-            storage_manager
-                .create_storage_on(genesis_block.header())
-                .unwrap(),
-            config,
-        );
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(genesis_block.header())
+            .unwrap();
+        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), storage)
+            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
 
         let txs = simulate_da_with_revert_msg();
         let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
         let mut blobs = [blob];
 
-        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+        let (stf_state, _ledger_state) =
+            storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
-            storage,
+            stf_state,
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
@@ -143,14 +142,12 @@ fn test_tx_bad_signature() {
     let storage = {
         let mut storage_manager = create_storage_manager_for_tests(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let (genesis_root, storage) = stf.init_chain(
-            storage_manager
-                .create_storage_on(genesis_block.header())
-                .unwrap(),
-            config,
-        );
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(genesis_block.header())
+            .unwrap();
+        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), storage)
+            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
 
         let txs = simulate_da_with_bad_sig();
@@ -159,10 +156,11 @@ fn test_tx_bad_signature() {
         let blob_sender = blob.sender();
         let mut blobs = [blob];
 
-        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+        let (stf_state, _ledger_state) =
+            storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
-            storage,
+            stf_state,
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
@@ -212,24 +210,23 @@ fn test_tx_bad_nonce() {
     {
         let mut storage_manager = create_storage_manager_for_tests(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let (genesis_root, storage) = stf.init_chain(
-            storage_manager
-                .create_storage_on(genesis_block.header())
-                .unwrap(),
-            config,
-        );
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(genesis_block.header())
+            .unwrap();
+        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), storage)
+            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
         let txs = simulate_da_with_bad_nonce();
 
         let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
         let mut blobs = [blob];
 
-        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+        let (stf_state, _ledger_state) =
+            storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
-            storage,
+            stf_state,
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
@@ -268,16 +265,14 @@ fn test_tx_bad_serialization() {
     let (genesis_root, sequencer_balance_before) = {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
-        let (genesis_root, storage) = stf.init_chain(
-            storage_manager
-                .create_storage_on(genesis_block.header())
-                .unwrap(),
-            config,
-        );
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(genesis_block.header())
+            .unwrap();
+        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
 
         let balance = {
             let runtime: RuntimeTest = Runtime::default();
-            let mut working_set = WorkingSet::new(storage.clone());
+            let mut working_set = WorkingSet::new(stf_state.clone());
 
             let coins = runtime
                 .sequencer_registry
@@ -294,7 +289,7 @@ fn test_tx_bad_serialization() {
                 .unwrap()
         };
         storage_manager
-            .save_change_set(genesis_block.header(), storage)
+            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
         (genesis_root, balance)
     };
@@ -307,7 +302,7 @@ fn test_tx_bad_serialization() {
         let blob_sender = blob.sender();
         let mut blobs = [blob];
 
-        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+        let (storage, _) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             storage,
@@ -393,14 +388,11 @@ fn test_tx_max_gas_price() {
         let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
         let mut blobs = [blob];
 
-        let (genesis_root, storage) = stf.init_chain(
-            storage_manager
-                .create_storage_on(genesis_block.header())
-                .unwrap(),
-            config,
-        );
-
-        let mut working_set = WorkingSet::new(storage.clone());
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(genesis_block.header())
+            .unwrap();
+        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+        let mut working_set = WorkingSet::new(stf_state.clone());
 
         let mut gas_price_state = stf
             .kernel()
@@ -415,17 +407,18 @@ fn test_tx_max_gas_price() {
             .set_gas_price_state(&gas_price_state, &mut working_set);
 
         let (rw, witnesses) = working_set.checkpoint().freeze();
-        storage.validate_and_commit(rw, &witnesses).unwrap();
+        stf_state.validate_and_commit(rw, &witnesses).unwrap();
 
         storage_manager
-            .save_change_set(genesis_block.header(), storage)
+            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
 
-        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+        let (stf_state, _ledger_state) =
+            storage_manager.create_state_for(block_1.header()).unwrap();
 
         let apply_block_result = stf.apply_slot(
             &genesis_root,
-            storage,
+            stf_state,
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,

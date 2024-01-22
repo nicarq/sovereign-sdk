@@ -14,19 +14,20 @@
 //! [`define_schema!`] macro to define the schema name, the types of key and value, and name of the
 //! column family.
 
+pub mod cache;
 mod iterator;
 mod metrics;
 pub mod schema;
 mod schema_batch;
-pub mod snapshot;
 #[cfg(feature = "test-utils")]
 pub mod test;
 
 use std::path::Path;
+use std::sync::{Arc, LockResult, RwLock, RwLockReadGuard};
 
 use anyhow::format_err;
 use iterator::ScanDirection;
-pub use iterator::{RawDbReverseIterator, SchemaIterator, SeekKeyEncoder};
+pub use iterator::{SchemaIterator, SeekKeyEncoder};
 use metrics::{
     SCHEMADB_BATCH_COMMIT_BYTES, SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS, SCHEMADB_DELETES,
     SCHEMADB_GET_BYTES, SCHEMADB_GET_LATENCY_SECONDS, SCHEMADB_PUT_BYTES,
@@ -37,9 +38,10 @@ pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
 use thiserror::Error;
 use tracing::info;
 
+use crate::iterator::RawDbIter;
 pub use crate::schema::Schema;
 use crate::schema::{ColumnFamilyName, KeyCodec, ValueCodec};
-pub use crate::schema_batch::{SchemaBatch, SchemaBatchIterator};
+pub use crate::schema_batch::SchemaBatch;
 
 /// This DB is a schematized RocksDB wrapper where all data passed in and out are typed according to
 /// [`Schema`]s.
@@ -195,13 +197,26 @@ impl DB {
         self.iter_with_direction::<S>(Default::default(), ScanDirection::Forward)
     }
 
-    /// Returns a [`RawDbReverseIterator`] which allows to iterate over raw values, backwards
-    pub fn raw_iter<S: Schema>(&self) -> anyhow::Result<RawDbReverseIterator> {
+    ///  Returns a [`RawDbIter`] which allows to iterate over raw values in specified [`ScanDirection`].
+    pub(crate) fn raw_iter<S: Schema>(
+        &self,
+        direction: ScanDirection,
+    ) -> anyhow::Result<RawDbIter> {
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
-        Ok(RawDbReverseIterator::new(
-            self.inner
-                .raw_iterator_cf_opt(cf_handle, Default::default()),
-        ))
+        Ok(RawDbIter::new(&self.inner, cf_handle, .., direction))
+    }
+
+    /// Get a [`RawDbIter`] in given range and direction.
+    pub(crate) fn raw_iter_range<S: Schema>(
+        &self,
+        range: impl std::ops::RangeBounds<SchemaKey>,
+        direction: ScanDirection,
+    ) -> anyhow::Result<RawDbIter> {
+        if is_range_bounds_inverse(&range) {
+            anyhow::bail!("lower_bound > upper_bound");
+        }
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+        Ok(RawDbIter::new(&self.inner, cf_handle, range, direction))
     }
 
     /// Returns a forward [`SchemaIterator`] on a certain schema with the provided read options.
@@ -307,6 +322,30 @@ pub enum Operation {
     Delete,
 }
 
+impl Operation {
+    /// Returns [`S::Value`] if the operation is [`Operation::Put`] and `None` if [`Operation::Delete`].
+    fn decode_value<S: Schema>(&self) -> anyhow::Result<Option<S::Value>> {
+        match self {
+            Operation::Put { value } => {
+                let value = S::Value::decode_value(value)?;
+                Ok(Some(value))
+            }
+            Operation::Delete => Ok(None),
+        }
+    }
+}
+
+fn is_range_bounds_inverse(range: &impl std::ops::RangeBounds<SchemaKey>) -> bool {
+    match (range.start_bound(), range.end_bound()) {
+        (std::ops::Bound::Included(start), std::ops::Bound::Included(end)) => start > end,
+        (std::ops::Bound::Included(start), std::ops::Bound::Excluded(end)) => start > end,
+        (std::ops::Bound::Excluded(start), std::ops::Bound::Included(end)) => start > end,
+        (std::ops::Bound::Excluded(start), std::ops::Bound::Excluded(end)) => start > end,
+        (std::ops::Bound::Unbounded, _) => false,
+        (_, std::ops::Bound::Unbounded) => false,
+    }
+}
+
 /// An error that occurred during (de)serialization of a [`Schema`]'s keys or
 /// values.
 #[derive(Error, Debug)]
@@ -334,6 +373,33 @@ fn default_write_options() -> rocksdb::WriteOptions {
     opts
 }
 
+/// Wrapper around `RwLock` that only allows read access.
+/// This type implies that wrapped type suppose to be used only for reading.
+/// It is useful to indicate that user of this type can only do reading.
+/// This also implies that that inner `Arc<RwLock<T>>` is a clone and some other part can do writing.
+#[derive(Debug)]
+pub struct ReadOnlyLock<T> {
+    lock: Arc<RwLock<T>>,
+}
+
+impl<T> ReadOnlyLock<T> {
+    /// Create new [`ReadOnlyLock`] from [`Arc<RwLock<T>>`].
+    pub fn new(lock: Arc<RwLock<T>>) -> Self {
+        Self { lock }
+    }
+
+    /// Acquires a read lock on the underlying [`RwLock`].
+    pub fn read(&self) -> LockResult<RwLockReadGuard<'_, T>> {
+        self.lock.read()
+    }
+}
+
+impl<T> From<Arc<RwLock<T>>> for ReadOnlyLock<T> {
+    fn from(value: Arc<RwLock<T>>) -> Self {
+        Self::new(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -353,5 +419,15 @@ mod tests {
         let db_debug = format!("{:?}", db);
         assert!(db_debug.contains("test_db_debug"));
         assert!(db_debug.contains(tmpdir.path().to_str().unwrap()));
+    }
+
+    #[test]
+    fn test_range_inverse() {
+        assert!(is_range_bounds_inverse(&(vec![4]..vec![3])));
+        assert!(is_range_bounds_inverse(&(vec![4]..=vec![3])));
+        // Not inverse, but empty
+        assert!(!is_range_bounds_inverse(&(vec![3]..vec![3])));
+        // Not inverse
+        assert!(!is_range_bounds_inverse(&(vec![3]..=vec![3])));
     }
 }

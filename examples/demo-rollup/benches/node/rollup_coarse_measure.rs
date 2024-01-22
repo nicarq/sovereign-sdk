@@ -98,8 +98,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
     rollup_config.storage.path = PathBuf::from(temp_dir.path());
-    let ledger_db =
-        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open");
 
     let da_service = Arc::new(RngDaService::new());
 
@@ -112,9 +110,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let genesis_block_header = MockBlockHeader::from_height(0);
 
-    let storage = storage_manager
-        .create_storage_on(&genesis_block_header)
+    let (stf_state, ledger_state) = storage_manager
+        .create_state_for(&genesis_block_header)
         .expect("Getting genesis storage failed");
+
+    let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
     let stf = StfBlueprint::<
         DefaultContext,
@@ -125,12 +125,14 @@ async fn main() -> Result<(), anyhow::Error> {
     >::new();
 
     let demo_genesis_config = {
-        let integ_test_conf_dir: &Path = "../test-data/genesis/integration-tests".as_ref();
-        let rt_params =
-            get_genesis_config::<DefaultContext, _>(&GenesisPaths::from_dir(integ_test_conf_dir))
-                .unwrap();
+        let integration_test_conf_dir: &Path = "../test-data/genesis/integration-tests".as_ref();
+        let rt_params = get_genesis_config::<DefaultContext, _>(&GenesisPaths::from_dir(
+            integration_test_conf_dir,
+        ))
+        .unwrap();
 
-        let chain_state = read_json_file(integ_test_conf_dir.join("chain_state.json")).unwrap();
+        let chain_state =
+            read_json_file(integration_test_conf_dir.join("chain_state.json")).unwrap();
         let kernel_params = BasicKernelGenesisConfig { chain_state };
         GenesisParams {
             runtime: rt_params,
@@ -138,10 +140,14 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     };
 
-    let (mut current_root, storage) = stf.init_chain(storage, demo_genesis_config);
+    let (mut current_root, stf_state) = stf.init_chain(stf_state, demo_genesis_config);
 
     storage_manager
-        .save_change_set(&genesis_block_header, storage)
+        .save_change_set(
+            &genesis_block_header,
+            stf_state,
+            ledger_db.clone_change_set(),
+        )
         .expect("Saving genesis storage failed");
     storage_manager.finalize(&genesis_block_header).unwrap();
 
@@ -161,12 +167,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Setup. Block h=1 has a single tx that creates the token. Exclude from timers
     let filtered_block = blocks.remove(0);
-    let storage = storage_manager
-        .create_storage_on(filtered_block.header())
+    let (stf_state, ledger_state) = storage_manager
+        .create_state_for(filtered_block.header())
         .unwrap();
     let apply_block_result = stf.apply_slot(
         &current_root,
-        storage,
+        stf_state,
         Default::default(),
         filtered_block.header(),
         &filtered_block.validity_cond,
@@ -174,7 +180,11 @@ async fn main() -> Result<(), anyhow::Error> {
     );
     current_root = apply_block_result.state_root;
     storage_manager
-        .save_change_set(filtered_block.header(), apply_block_result.change_set)
+        .save_change_set(
+            filtered_block.header(),
+            apply_block_result.change_set,
+            ledger_state.into(),
+        )
         .unwrap();
     storage_manager.finalize(filtered_block.header()).unwrap();
 
@@ -189,13 +199,13 @@ async fn main() -> Result<(), anyhow::Error> {
     let total = Instant::now();
     let mut apply_block_time = Duration::new(0, 0);
     for (filtered_block, mut blobs) in blocks.into_iter().zip(blobs.into_iter()) {
-        let storage = storage_manager
-            .create_storage_on(filtered_block.header())
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(filtered_block.header())
             .unwrap();
         let now = Instant::now();
         let apply_block_result = stf.apply_slot(
             &current_root,
-            storage,
+            stf_state,
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_cond,
@@ -205,7 +215,11 @@ async fn main() -> Result<(), anyhow::Error> {
         h_apply_block.observe(now.elapsed().as_secs_f64());
         current_root = apply_block_result.state_root;
         storage_manager
-            .save_change_set(filtered_block.header(), apply_block_result.change_set)
+            .save_change_set(
+                filtered_block.header(),
+                apply_block_result.change_set,
+                ledger_state.into(),
+            )
             .unwrap();
 
         if let Some(height_to_finalize) = filtered_block.header().height().checked_sub(fork_length)

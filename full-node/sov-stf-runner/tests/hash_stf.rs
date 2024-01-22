@@ -3,7 +3,7 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
-use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
+use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
@@ -13,7 +13,6 @@ use sov_state::{
 };
 
 pub type S = DefaultStorageSpec;
-pub type Q = SnapshotManager;
 
 #[derive(Default, Clone)]
 pub struct HashStf<Cond> {
@@ -34,9 +33,9 @@ impl<Cond> HashStf<Cond> {
 
     fn save_from_hasher(
         hasher: sha2::Sha256,
-        storage: ProverStorage<S, Q>,
+        storage: ProverStorage<S>,
         witness: &ArrayWitness,
-    ) -> ([u8; 32], ProverStorage<S, Q>) {
+    ) -> ([u8; 32], ProverStorage<S>) {
         let result = hasher.finalize();
 
         let hash_key = HashStf::<Cond>::hash_key();
@@ -68,8 +67,8 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 {
     type StateRoot = [u8; 32];
     type GenesisParams = Vec<u8>;
-    type PreState = ProverStorage<S, Q>;
-    type ChangeSet = ProverStorage<S, Q>;
+    type PreState = ProverStorage<S>;
+    type ChangeSet = ProverStorage<S>;
     type TxReceiptContents = ();
     type BatchReceiptContents = [u8; 32];
     type Witness = ArrayWitness;
@@ -188,7 +187,7 @@ fn compare_output() {
 pub fn get_result_from_blocks(
     genesis_params: &[u8],
     blocks: &[MockBlock],
-) -> ([u8; 32], Option<<ProverStorage<S, Q> as Storage>::Root>) {
+) -> ([u8; 32], Option<<ProverStorage<S> as Storage>::Root>) {
     let tmpdir = tempfile::tempdir().unwrap();
 
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
