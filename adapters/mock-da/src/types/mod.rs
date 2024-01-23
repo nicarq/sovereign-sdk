@@ -10,6 +10,7 @@ use sov_rollup_interface::da::{BlockHashTrait, BlockHeaderTrait, CountedBufReade
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
 
+use crate::utils::hash_to_array;
 use crate::validity_condition::MockValidityCond;
 
 /// A mock hash digest.
@@ -32,7 +33,7 @@ impl Debug for MockHash {
 }
 
 impl core::fmt::Display for MockHash {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         write!(f, "0x{}", hex::encode(self.0))
     }
 }
@@ -193,7 +194,22 @@ impl MockBlob {
         }
     }
 
-    /// Creates a new mock blob with the given data and an aggretated zkp proof, claiming to have been published by the provided address.
+    /// Build new blob, but calculates hash from input data
+    pub fn new_with_hash(data: Vec<u8>, zk_proof: Vec<u8>, address: MockAddress) -> Self {
+        let mut data_hash = hash_to_array(&data).to_vec();
+        let proof_hash = hash_to_array(&zk_proof);
+        data_hash.extend_from_slice(&proof_hash);
+        let blob_hash = hash_to_array(&data_hash);
+        Self {
+            address,
+            data: CountedBufReader::new(Bytes::from(data)),
+            zk_proofs_data: zk_proof,
+            hash: blob_hash,
+        }
+    }
+
+    /// Creates a new mock blob with the given data and an aggregated zkp proof,
+    /// claiming to have been published by the provided address.
     pub fn new_with_zkp_proof(
         data: Vec<u8>,
         zk_proofs_data: Vec<u8>,
