@@ -24,7 +24,7 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 [dev-dependencies]
 sov-chain-state = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
-sov-data-generators = { path = "../../sov-data-generators" }
+sov-test-utils = { path = "../../sov-test-utils" }
 sov-mock-da = { path = "../../../adapters/mock-da" }
 sov-modules-core = { path = "../../sov-modules-core", version = "0.3", features = ["mocks"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }

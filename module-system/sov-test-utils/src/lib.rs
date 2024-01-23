@@ -9,6 +9,7 @@ use sov_modules_api::{Context, DaSpec, Module, RollupAddress, Spec};
 use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
 
 pub mod bank_data;
+pub mod logging;
 pub mod value_setter_data;
 
 pub fn new_test_blob_from_batch(
