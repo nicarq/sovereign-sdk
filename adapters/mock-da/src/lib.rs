@@ -4,6 +4,7 @@
 #[cfg(feature = "native")]
 mod service;
 mod types;
+mod utils;
 mod validity_condition;
 /// Contains DaSpec and DaVerifier
 pub mod verifier;

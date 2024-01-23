@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use pin_project::pin_project;
-use sha2::Digest;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::maybestd::sync::Arc;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -14,6 +13,7 @@ use tokio::sync::{broadcast, RwLock, RwLockWriteGuard};
 use tokio::time;
 
 use crate::types::{default_wait_attempts, MockAddress, MockBlob, MockBlock, MockDaVerifier};
+use crate::utils::hash_to_array;
 use crate::verifier::MockDaSpec;
 use crate::{MockBlockHeader, MockDaConfig, MockHash};
 
@@ -219,17 +219,9 @@ impl MockDaService {
             Some(block_header) => (block_header.hash(), block_header.height + 1),
         };
 
-        let data_hash = hash_to_array(blob);
-        let proof_hash = hash_to_array(&zkp_proof);
         // Hash only from single blob
-        let block_hash = block_hash(height, data_hash, proof_hash, previous_block_hash.into());
-
-        let blob = MockBlob::new_with_zkp_proof(
-            blob.to_vec(),
-            zkp_proof,
-            self.sequencer_da_address,
-            data_hash,
-        );
+        let blob = MockBlob::new_with_hash(blob.to_vec(), zkp_proof, self.sequencer_da_address);
+        let block_hash = block_hash(height, blob.hash, previous_block_hash.into());
         let header = MockBlockHeader {
             prev_hash: previous_block_hash,
             hash: block_hash,
@@ -403,25 +395,9 @@ impl DaService for MockDaService {
     }
 }
 
-fn hash_to_array(bytes: &[u8]) -> [u8; 32] {
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(bytes);
-    let result = hasher.finalize();
-    result
-        .as_slice()
-        .try_into()
-        .expect("SHA256 should be 32 bytes")
-}
-
-fn block_hash(
-    height: u64,
-    data_hash: [u8; 32],
-    proof_hash: [u8; 32],
-    prev_hash: [u8; 32],
-) -> MockHash {
+fn block_hash(height: u64, blob_hash: [u8; 32], prev_hash: [u8; 32]) -> MockHash {
     let mut block_to_hash = height.to_be_bytes().to_vec();
-    block_to_hash.extend_from_slice(&data_hash[..]);
-    block_to_hash.extend_from_slice(&proof_hash[..]);
+    block_to_hash.extend_from_slice(&blob_hash[..]);
     block_to_hash.extend_from_slice(&prev_hash[..]);
 
     MockHash::from(hash_to_array(&block_to_hash))

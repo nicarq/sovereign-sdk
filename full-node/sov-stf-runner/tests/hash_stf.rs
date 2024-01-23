@@ -54,7 +54,7 @@ impl<Cond> HashStf<Cond> {
 
         let mut root_hash = [0u8; 32];
 
-        for (i, &byte) in jmt_root_hash.as_ref().iter().enumerate().take(32) {
+        for (i, &byte) in jmt_root_hash.as_ref().iter().enumerate() {
             root_hash[i] = byte;
         }
 
@@ -88,7 +88,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     fn apply_slot<'a, I>(
         &self,
         pre_state_root: &Self::StateRoot,
-        storage: Self::PreState,
+        pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
@@ -107,10 +107,18 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             "Applying slot in HashStf at height={}",
             slot_header.height()
         );
+
+        let storage_root_hash = pre_state.get_root_hash(slot_header.height()).unwrap();
+        assert_eq!(
+            pre_state_root,
+            storage_root_hash.as_ref(),
+            "Incorrect pre_state_root has been passed"
+        );
+
         let mut hasher = sha2::Sha256::new();
 
         let hash_key = HashStf::<Cond>::hash_key();
-        let existing_cache = storage.get(&hash_key, None, &witness).unwrap();
+        let existing_cache = pre_state.get(&hash_key, None, &witness).unwrap();
         tracing::debug!(
             "HashStf provided_state_root={:?}, saved={:?}",
             pre_state_root,
@@ -123,8 +131,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             hasher.update(data);
         }
 
-        let (state_root, storage) = HashStf::<Cond>::save_from_hasher(hasher, storage, &witness);
-
+        let (state_root, storage) = HashStf::<Cond>::save_from_hasher(hasher, pre_state, &witness);
         SlotResult {
             state_root,
             change_set: storage,
@@ -164,7 +171,7 @@ fn compare_output() {
         }
 
         let block = MockBlock {
-            header: MockBlockHeader::from_height((idx + 1) as u64),
+            header: MockBlockHeader::from_height(idx as u64 + 1),
             validity_cond: MockValidityCond::default(),
             blobs,
         };

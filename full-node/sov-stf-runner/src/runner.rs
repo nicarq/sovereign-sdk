@@ -174,26 +174,22 @@ where
             let mut filtered_block = self.da_service.get_block_at(height).await?;
 
             // Checking if reorg happened or not.
-            if let Some(prev_block_header) = seen_state_transition_data.back() {
-                if prev_block_header.da_block_header.hash() != filtered_block.header().prev_hash() {
-                    tracing::warn!("Block at height={} does not belong in current chain. Chain has forked. Traversing backwards", height);
-                    while let Some(seen_block_header) = seen_state_transition_data.pop_back() {
-                        let block = self
-                            .da_service
-                            .get_block_at(seen_block_header.da_block_header.height())
-                            .await?;
-                        if block.header().prev_hash()
-                            == seen_block_header.da_block_header.prev_hash()
-                        {
-                            height = seen_block_header.da_block_header.height();
-                            filtered_block = block;
-                            break;
-                        }
-                    }
-                    info!("Resuming execution on height={}", height);
-                }
+            if let Some(ForkPoint {
+                height: new_height,
+                block: new_block,
+                pre_state_root,
+            }) = has_reorg_happened::<Stf, Da, Vm>(
+                &filtered_block,
+                &mut seen_state_transition_data,
+                &self.da_service,
+            )
+            .await?
+            {
+                height = new_height;
+                filtered_block = new_block;
+                self.state_root = pre_state_root;
+                info!("Resuming execution on height={}", height);
             }
-
             let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
 
             info!(
@@ -218,7 +214,6 @@ where
             self.ledger_db.replace_db(ledger_state)?;
 
             let slot_result = self.stf.apply_slot(
-                // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
                 &self.state_root,
                 stf_pre_state,
                 Default::default(),
@@ -356,5 +351,241 @@ where
                 }
             }
         }
+    }
+}
+
+struct ForkPoint<Da: DaService, StateRoot> {
+    // Height when reorg happened
+    height: u64,
+    // new block at [Self::height]`
+    block: Da::FilteredBlock,
+    // State root of the rollup at the beginning of this block
+    pre_state_root: StateRoot,
+}
+
+// Returns None if no reorg happened, otherwise returns block at which reorg happened
+// Errors if reorg happened, but it cannot backtrack to the seen block from the current chain.
+// This cab indicate that rollup started from non-finalized block.
+// Also can error if da_service returns error.
+async fn has_reorg_happened<Stf, Da, Vm>(
+    filtered_block: &Da::FilteredBlock,
+    seen_state_transition_data: &mut VecDeque<
+        StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
+    >,
+    da_service: &Da,
+) -> anyhow::Result<Option<ForkPoint<Da, Stf::StateRoot>>>
+where
+    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
+    Vm: Zkvm,
+    Stf: StateTransitionFunction<Vm, Da::Spec>,
+{
+    if let Some(prev_block_header) = seen_state_transition_data.back() {
+        if prev_block_header.da_block_header.hash() != filtered_block.header().prev_hash() {
+            tracing::warn!(
+                "Block {:?} does not belong in current chain. Chain has forked. Traversing seen headers backwards", filtered_block.header()
+            );
+            while let Some(seen_transition_data) = seen_state_transition_data.pop_back() {
+                let block = da_service
+                    .get_block_at(seen_transition_data.da_block_header.height())
+                    .await?;
+                if block.header().prev_hash() == seen_transition_data.da_block_header.prev_hash() {
+                    return Ok(Some(ForkPoint {
+                        height: seen_transition_data.da_block_header.height(),
+                        block,
+                        pre_state_root: seen_transition_data.initial_state_root,
+                    }));
+                }
+            }
+            //
+            anyhow::bail!("Could not match any seen block with the current chain. Could rollup start from non-finalized block?");
+        }
+    }
+    Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::default::Default;
+
+    use sov_mock_da::{
+        MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec,
+        MockValidityCond,
+    };
+    use sov_mock_zkvm::MockZkvm;
+
+    use super::*;
+    use crate::mock::MockStf;
+
+    type Da = MockDaService;
+    type Vm = MockZkvm<MockValidityCond>;
+    type Stf = MockStf<MockValidityCond>;
+    type StateRoot =
+        <MockStf<MockValidityCond> as StateTransitionFunction<Vm, MockDaSpec>>::StateRoot;
+    type StfWitness =
+        <MockStf<MockValidityCond> as StateTransitionFunction<Vm, MockDaSpec>>::Witness;
+
+    #[tokio::test]
+    async fn test_reorg_happened_empty_seen() {
+        let mut seen_state_transition_data: VecDeque<
+            StateTransitionData<StateRoot, StfWitness, MockDaSpec>,
+        > = VecDeque::new();
+        let filtered_block = MockBlock::default();
+        let da_service = MockDaService::new(MockAddress::new([0; 32]));
+        let result = has_reorg_happened::<Stf, Da, Vm>(
+            &filtered_block,
+            &mut seen_state_transition_data,
+            &da_service,
+        )
+        .await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_reorg_happened_correct_block_returned() {
+        let sequencer_address = MockAddress::new([0; 32]);
+        let da_service = MockDaService::with_finality(sequencer_address, 5);
+        // seen blocks are 1, 2, 3, 4, 5
+        let mut seen_state_transition_data: VecDeque<
+            StateTransitionData<StateRoot, StfWitness, MockDaSpec>,
+        > = VecDeque::new();
+
+        let header_from_height = |height| -> MockBlockHeader {
+            let mut header = MockBlockHeader::from_height(height);
+            // Just magic number to prevent collision
+            header.hash.0[0] = 255;
+            header
+        };
+
+        let fork_point = 3;
+        let last_block = 5;
+        // Filling the seen data and da service
+        for height in 1..=last_block {
+            let raw_blob: Vec<u8> = vec![height as u8; 32];
+            // first byte means "fork id", second byte means initial or final
+            let initial_state_root = vec![0, 0, height as u8];
+            let final_state_root = vec![0, 1, height as u8];
+
+            da_service.send_transaction(&raw_blob).await.unwrap();
+            if height < fork_point {
+                // Just take block from the service
+                let block = da_service.get_block_at(height).await.unwrap();
+                seen_state_transition_data.push_back(StateTransitionData {
+                    initial_state_root,
+                    final_state_root,
+                    da_block_header: block.header.clone(),
+                    inclusion_proof: Default::default(),
+                    completeness_proof: Default::default(),
+                    blobs: block.blobs,
+                    state_transition_witness: Default::default(),
+                });
+            } else {
+                let prev_header = if height == fork_point {
+                    let block = da_service.get_block_at(height - 1).await.unwrap();
+                    block.header
+                } else {
+                    header_from_height(height - 1)
+                };
+                // Just double it from "canonical" chain
+                let raw_blob = vec![height as u8; 64];
+                let blob = MockBlob::new_with_hash(raw_blob, Default::default(), sequencer_address);
+                let mut header = header_from_height(height);
+                header.prev_hash = prev_header.hash;
+                seen_state_transition_data.push_back(StateTransitionData {
+                    initial_state_root,
+                    final_state_root,
+                    da_block_header: header,
+                    inclusion_proof: Default::default(),
+                    completeness_proof: Default::default(),
+                    blobs: vec![blob],
+                    state_transition_witness: Default::default(),
+                });
+            }
+        }
+
+        let block_head = da_service.get_block_at(last_block).await.unwrap();
+        let result = has_reorg_happened::<Stf, Da, Vm>(
+            &block_head,
+            &mut seen_state_transition_data,
+            &da_service,
+        )
+        .await;
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.is_some());
+        let actual_fork_point = result.unwrap();
+        let block_at_fork_point = da_service.get_block_at(fork_point).await.unwrap();
+        let expected_fork_point = ForkPoint::<Da, StateRoot> {
+            height: fork_point,
+            block: block_at_fork_point,
+            pre_state_root: vec![0, 0, fork_point as u8],
+        };
+
+        assert_eq!(expected_fork_point.height, actual_fork_point.height);
+        assert_eq!(
+            expected_fork_point.pre_state_root,
+            actual_fork_point.pre_state_root
+        );
+        assert_eq!(expected_fork_point.block, actual_fork_point.block);
+    }
+
+    #[tokio::test]
+    async fn test_no_seen_block_has_been_tracked() {
+        // Idea of the test is data in "seen blocks" is completely different from the data in the da service
+        // This means, that caller started from non-finalized block, and reorg happend while runner was stopped
+        let sequencer_address = MockAddress::new([0; 32]);
+        let da_service = MockDaService::with_finality(sequencer_address, 5);
+        // seen blocks are 1, 2, 3, 4, 5
+        let mut seen_state_transition_data: VecDeque<
+            StateTransitionData<StateRoot, StfWitness, MockDaSpec>,
+        > = VecDeque::new();
+
+        let header_from_height = |height| -> MockBlockHeader {
+            let mut header = MockBlockHeader::from_height(height);
+            // Just magic number to prevent collision
+            header.hash.0[0] = 255;
+            header
+        };
+
+        let last_block = 5;
+        // Filling the seen data and da service
+        for height in 1..=last_block {
+            let raw_blob: Vec<u8> = vec![height as u8; 32];
+            // first byte means "fork id", second byte means initial or final
+            let initial_state_root = vec![0, 0, height as u8];
+            let final_state_root = vec![0, 1, height as u8];
+
+            da_service.send_transaction(&raw_blob).await.unwrap();
+
+            let prev_header = header_from_height(height - 1);
+            // Just double it from "canonical" chain
+            let raw_blob = vec![height as u8; 64];
+            let blob = MockBlob::new_with_hash(raw_blob, Default::default(), sequencer_address);
+            let mut header = header_from_height(height);
+            header.prev_hash = prev_header.hash;
+            seen_state_transition_data.push_back(StateTransitionData {
+                initial_state_root,
+                final_state_root,
+                da_block_header: header,
+                inclusion_proof: Default::default(),
+                completeness_proof: Default::default(),
+                blobs: vec![blob],
+                state_transition_witness: Default::default(),
+            });
+        }
+
+        let block_head = da_service.get_block_at(last_block).await.unwrap();
+        let result = has_reorg_happened::<Stf, Da, Vm>(
+            &block_head,
+            &mut seen_state_transition_data,
+            &da_service,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            "Could not match any seen block with the current chain. Could rollup start from non-finalized block?",
+            result.err().unwrap().to_string()
+        );
     }
 }
