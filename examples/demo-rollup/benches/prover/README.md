@@ -234,7 +234,7 @@ crypto-bigint = {git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag 
 
 ## Augmented input set
 
-- In order to increase the accuracy of the benchmarks, and get estimates closer to real use-cases, we have integrated the data-generation module `sov-data-generators`, to be able to generate transaction data more easily. We have added cycle-tracking methods to have a finer understanding of the system's performances.
+- In order to increase the accuracy of the benchmarks, and get estimates closer to real use-cases, we have integrated the data-generation module from `sov-test-utils` to be able to generate transaction data more easily. We have added cycle-tracking methods to have a finer understanding of the system's performances.
 
 For our benchmark, we have used two block types:
 

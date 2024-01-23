@@ -2,8 +2,6 @@ use std::sync::{Arc, RwLock};
 
 use borsh::BorshSerialize;
 use demo_stf::runtime::Runtime;
-use sov_data_generators::bank_data::BankMessageGenerator;
-use sov_data_generators::MessageGenerator;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::digest::Digest;
@@ -15,6 +13,8 @@ use sov_sequencer::batch_builder::FiFoStrictBatchBuilder;
 use sov_sequencer::utils::SimpleClient;
 use sov_sequencer::{Sequencer, TxStatus};
 use sov_state::DefaultStorageSpec;
+use sov_test_utils::bank_data::BankMessageGenerator;
+use sov_test_utils::MessageGenerator;
 use tempfile::TempDir;
 
 fn new_sequencer(

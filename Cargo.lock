@@ -2034,7 +2034,6 @@ dependencies = [
  "sov-blob-storage",
  "sov-chain-state",
  "sov-cli",
- "sov-data-generators",
  "sov-evm",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -2047,6 +2046,7 @@ dependencies = [
  "sov-soft-confirmations-kernel",
  "sov-state",
  "sov-stf-runner",
+ "sov-test-utils",
  "sov-value-setter",
  "tempfile",
  "tokio",
@@ -3916,7 +3916,6 @@ dependencies = [
  "jsonrpsee 0.20.3",
  "serde",
  "sov-chain-state",
- "sov-data-generators",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -3925,6 +3924,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-schema-db",
  "sov-state",
+ "sov-test-utils",
  "sov-value-setter",
  "tempfile",
 ]
@@ -8003,12 +8003,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-chain-state",
- "sov-data-generators",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-core",
  "sov-prover-storage-manager",
  "sov-state",
+ "sov-test-utils",
  "tempfile",
 ]
 
@@ -8029,20 +8029,6 @@ dependencies = [
  "sov-mock-da",
  "sov-modules-api",
  "tempfile",
-]
-
-[[package]]
-name = "sov-data-generators"
-version = "0.3.0"
-dependencies = [
- "borsh",
- "proptest",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-state",
- "sov-value-setter",
 ]
 
 [[package]]
@@ -8108,7 +8094,6 @@ dependencies = [
  "sov-bank",
  "sov-celestia-adapter",
  "sov-cli",
- "sov-data-generators",
  "sov-db",
  "sov-ethereum",
  "sov-evm",
@@ -8125,6 +8110,7 @@ dependencies = [
  "sov-sequencer",
  "sov-state",
  "sov-stf-runner",
+ "sov-test-utils",
  "sov-zk-cycle-macros",
  "tempfile",
  "tendermint 0.32.2",
@@ -8401,12 +8387,12 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-data-generators",
  "sov-modules-api",
  "sov-modules-macros",
  "sov-nft-module",
  "sov-prover-storage-manager",
  "sov-state",
+ "sov-test-utils",
  "tempfile",
  "tokio",
  "tracing",
@@ -8536,7 +8522,6 @@ dependencies = [
  "mini-moka",
  "rand 0.8.5",
  "serde",
- "sov-data-generators",
  "sov-db",
  "sov-mock-da",
  "sov-modules-api",
@@ -8544,6 +8529,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-schema-db",
  "sov-state",
+ "sov-test-utils",
  "sov-value-setter",
  "tempfile",
  "tokio",
@@ -8648,6 +8634,21 @@ dependencies = [
  "tokio",
  "toml 0.8.8",
  "tracing",
+ "tracing-subscriber 0.3.18",
+]
+
+[[package]]
+name = "sov-test-utils"
+version = "0.3.0"
+dependencies = [
+ "borsh",
+ "proptest",
+ "sov-bank",
+ "sov-mock-da",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-state",
+ "sov-value-setter",
  "tracing-subscriber 0.3.18",
 ]
 

@@ -1,6 +1,4 @@
 use sov_chain_state::{ChainState, TransitionInProgress};
-use sov_data_generators::value_setter_data::ValueSetterMessages;
-use sov_data_generators::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_context::DefaultContext;
@@ -10,6 +8,8 @@ use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_test_utils::value_setter_data::ValueSetterMessages;
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 
 use crate::chain_state::helpers::{create_chain_state_genesis_config, TestKernel, TestRuntime};
 type C = DefaultContext;

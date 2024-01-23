@@ -1,6 +1,4 @@
 use sov_accounts::Response;
-use sov_data_generators::bank_data::{get_default_private_key, get_default_token_address};
-use sov_data_generators::{has_tx_events, new_test_blob_from_batch};
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{PrivateKey, WorkingSet};
@@ -10,6 +8,8 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::Storage;
+use sov_test_utils::bank_data::{get_default_private_key, get_default_token_address};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch};
 
 use super::{
     create_storage_manager_for_tests, get_genesis_config_for_tests, read_private_key, RuntimeTest,

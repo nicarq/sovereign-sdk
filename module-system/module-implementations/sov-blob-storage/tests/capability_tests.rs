@@ -749,6 +749,7 @@ impl TestRuntime<DefaultContext, MockDaSpec> {
         // In addition to "genesis", register one non-preferred sequencer
         let register_message = sov_sequencer_registry::CallMessage::Register {
             da_address: REGULAR_SEQUENCER_DA.as_ref().to_vec(),
+            amount: LOCKED_AMOUNT,
         };
         runtime
             .sequencer_registry

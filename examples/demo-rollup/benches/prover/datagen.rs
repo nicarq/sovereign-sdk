@@ -4,14 +4,14 @@ use std::io::BufWriter;
 use std::path::Path;
 
 use serde::Serialize;
-use sov_data_generators::bank_data::BankMessageGenerator;
-use sov_data_generators::MessageGenerator;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::default_signature::DefaultPublicKey;
 use sov_modules_api::PrivateKey;
 use sov_rollup_interface::services::da::DaService;
+use sov_test_utils::bank_data::BankMessageGenerator;
+use sov_test_utils::MessageGenerator;
 
 #[derive(Serialize)]
 struct AccountsData {
