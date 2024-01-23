@@ -1,15 +1,15 @@
 use helpers::*;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::hooks::ApplyBlobHooks;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_sequencer_registry::{SequencerOutcome, SequencerRegistry};
+use sov_sequencer_registry::{CallMessage, SequencerOutcome, SequencerRegistry};
 
 mod helpers;
 
 #[test]
 fn begin_blob_hook_known_sequencer() {
-    let mut test_sequencer = create_test_sequencer();
+    let test_sequencer = create_test_sequencer();
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     test_sequencer.genesis(working_set);
@@ -40,7 +40,7 @@ fn begin_blob_hook_known_sequencer() {
 
 #[test]
 fn begin_blob_hook_unknown_sequencer() {
-    let mut test_sequencer = create_test_sequencer();
+    let test_sequencer = create_test_sequencer();
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     test_sequencer.genesis(working_set);
@@ -65,7 +65,7 @@ fn begin_blob_hook_unknown_sequencer() {
 
 #[test]
 fn end_blob_hook_success() {
-    let mut test_sequencer = create_test_sequencer();
+    let test_sequencer = create_test_sequencer();
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     test_sequencer.genesis(working_set);
@@ -101,7 +101,7 @@ fn end_blob_hook_success() {
 
 #[test]
 fn end_blob_hook_slash() {
-    let mut test_sequencer = create_test_sequencer();
+    let test_sequencer = create_test_sequencer();
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     test_sequencer.genesis(working_set);
@@ -154,7 +154,7 @@ fn end_blob_hook_slash_preferred_sequencer() {
 
     sequencer_config.is_preferred_sequencer = true;
 
-    let mut test_sequencer = TestSequencer {
+    let test_sequencer = TestSequencer {
         bank,
         bank_config,
         registry,
@@ -205,7 +205,7 @@ fn end_blob_hook_slash_preferred_sequencer() {
 
 #[test]
 fn end_blob_hook_slash_unknown_sequencer() {
-    let mut test_sequencer = create_test_sequencer();
+    let test_sequencer = create_test_sequencer();
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     test_sequencer.genesis(working_set);
@@ -244,4 +244,180 @@ fn end_blob_hook_slash_unknown_sequencer() {
         .sequencer_address(sequencer_address, working_set)
         .unwrap();
     assert!(resp.address.is_none());
+}
+
+#[test]
+fn begin_blob_hook_without_enough_stake() {
+    let test_sequencer = create_test_sequencer();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    test_sequencer.genesis(working_set);
+
+    let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
+
+    let mut test_blob = MockBlob::new(Vec::new(), genesis_sequencer_da_address, [0_u8; 32]);
+
+    test_sequencer
+        .set_coins_amount_to_lock(LOCKED_AMOUNT + 1, working_set)
+        .unwrap();
+
+    let res = test_sequencer
+        .registry
+        .begin_blob_hook(&mut test_blob, working_set);
+
+    assert!(
+        res.is_err(),
+        "the staked required amount was increased; the genesis sequencer is out of balance"
+    );
+}
+
+#[test]
+fn slashed_sequencer_shouldnt_preserve_balance() {
+    let test_sequencer = create_test_sequencer_large_balance();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    test_sequencer.genesis(working_set);
+
+    // created settings
+
+    let initial_balance = test_sequencer.bank_config.tokens[0].address_and_balances[0].1;
+    let deposit_amount = 100;
+    let stake_amount = test_sequencer.sequencer_config.coins_to_lock.amount;
+    let token_address = test_sequencer.sequencer_config.coins_to_lock.token_address;
+    let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
+
+    // sanity check the balance
+
+    let genesis_sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
+    let balance_after_genesis = initial_balance - stake_amount;
+    let balance = test_sequencer
+        .bank
+        .balance_of(None, genesis_sequencer_address, token_address, working_set)
+        .unwrap()
+        .amount
+        .unwrap();
+    assert_eq!(balance, balance_after_genesis);
+
+    let staked_balance = test_sequencer
+        .registry
+        .get_sender_balance(&genesis_sequencer_da_address, working_set)
+        .unwrap();
+    assert_eq!(staked_balance, stake_amount);
+
+    // deposit some additional stake amount
+
+    let da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
+    let reward_address = generate_address(REWARD_SEQUENCER_KEY);
+    let sender_context = C::new(genesis_sequencer_address, reward_address, 1);
+    let deposit_message = CallMessage::Deposit {
+        da_address: da_address.as_ref().to_vec(),
+        amount: deposit_amount,
+    };
+
+    test_sequencer
+        .registry
+        .call(deposit_message, &sender_context, working_set)
+        .expect("Sequencer deposit has failed");
+
+    let balance_after_deposit = balance_after_genesis - deposit_amount;
+    let balance = test_sequencer
+        .bank
+        .balance_of(None, genesis_sequencer_address, token_address, working_set)
+        .unwrap()
+        .amount
+        .unwrap();
+    assert_eq!(balance, balance_after_deposit);
+
+    let staked_balance = test_sequencer
+        .registry
+        .get_sender_balance(&genesis_sequencer_da_address, working_set)
+        .unwrap();
+
+    assert_eq!(
+        staked_balance,
+        stake_amount + deposit_amount,
+        "the deposit should be added to the staked amount"
+    );
+
+    // submit an invalid block and expect the sequencer to be slashed
+
+    assert!(
+        test_sequencer.query_if_sequencer_is_allowed(&genesis_sequencer_da_address, working_set),
+    );
+
+    let data = Vec::new();
+    let hash = [0u8; 32]; // invalid
+    let result = SequencerOutcome::Slashed {
+        sequencer: genesis_sequencer_da_address,
+    };
+
+    let mut test_blob = MockBlob::new(data, genesis_sequencer_da_address, hash);
+
+    test_sequencer
+        .registry
+        .begin_blob_hook(&mut test_blob, working_set)
+        .unwrap();
+
+    test_sequencer
+        .registry
+        .end_blob_hook(result, working_set)
+        .unwrap();
+
+    assert!(
+        !test_sequencer.query_if_sequencer_is_allowed(&genesis_sequencer_da_address, working_set),
+        "the sequencer was slashed and shouldn't be allowed"
+    );
+
+    let balance = test_sequencer
+        .bank
+        .balance_of(None, genesis_sequencer_address, token_address, working_set)
+        .unwrap()
+        .amount
+        .unwrap();
+
+    assert_eq!(
+        balance,
+        balance_after_deposit,
+        "the balance should be unchanged after slash; the slashed tokens are frozen on the registry account"
+    );
+
+    let staked_balance = test_sequencer
+        .registry
+        .get_sender_balance(&genesis_sequencer_da_address, working_set);
+    assert!(staked_balance.is_none());
+
+    // register the sequencer again and check the balances
+
+    let register_message = CallMessage::Register {
+        da_address: genesis_sequencer_da_address.as_ref().to_vec(),
+        amount: LOCKED_AMOUNT,
+    };
+
+    test_sequencer
+        .registry
+        .call(register_message, &sender_context, working_set)
+        .expect("Sequencer registration has failed");
+
+    let balance_after_re_register = balance_after_deposit - stake_amount;
+    let balance = test_sequencer
+        .bank
+        .balance_of(None, genesis_sequencer_address, token_address, working_set)
+        .unwrap()
+        .amount
+        .unwrap();
+
+    assert_eq!(
+        balance, balance_after_re_register,
+        "the stake amount should be deducted from the sender account"
+    );
+
+    let staked_balance = test_sequencer
+        .registry
+        .get_sender_balance(&genesis_sequencer_da_address, working_set)
+        .unwrap();
+
+    assert_eq!(
+        staked_balance, stake_amount,
+        "the previous deposit should have been removed when the sequencer was slashed"
+    );
 }

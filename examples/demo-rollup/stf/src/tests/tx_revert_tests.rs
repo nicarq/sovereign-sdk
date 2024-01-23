@@ -276,8 +276,7 @@ fn test_tx_bad_serialization() {
 
             let coins = runtime
                 .sequencer_registry
-                .get_coins_to_lock(&mut working_set)
-                .unwrap();
+                .get_coins_to_lock(&mut working_set);
 
             runtime
                 .bank
@@ -344,8 +343,7 @@ fn test_tx_bad_serialization() {
         // Balance of sequencer is not increased
         let coins = runtime
             .sequencer_registry
-            .get_coins_to_lock(&mut working_set)
-            .unwrap();
+            .get_coins_to_lock(&mut working_set);
         let sequencer_balance_after = runtime
             .bank
             .get_balance_of(

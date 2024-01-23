@@ -13,11 +13,52 @@
         "Register": {
           "type": "object",
           "required": [
+            "amount",
             "da_address"
           ],
           "properties": {
+            "amount": {
+              "description": "The inital balance of the sequencer.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "da_address": {
               "description": "The raw Da address of the sequencer you're registering.",
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "uint8",
+                "minimum": 0.0
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Increases the balance of the sequencer, transferring the funds from the sequencer account to the rollup.",
+      "type": "object",
+      "required": [
+        "Deposit"
+      ],
+      "properties": {
+        "Deposit": {
+          "type": "object",
+          "required": [
+            "amount",
+            "da_address"
+          ],
+          "properties": {
+            "amount": {
+              "description": "The amount to increase.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "da_address": {
+              "description": "The raw Da address of the sequencer.",
               "type": "array",
               "items": {
                 "type": "integer",
