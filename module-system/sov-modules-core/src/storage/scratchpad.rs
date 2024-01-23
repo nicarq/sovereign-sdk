@@ -674,6 +674,26 @@ pub mod kernel_state {
         }
     }
 
+    /// A special wrapper over [`WorkingSet`] that allows access to kernel values to bootstrap the kernel working set
+    pub struct BootstrapWorkingSet<'a, C: Context> {
+        /// The inner working set
+        pub(crate) inner: &'a mut WorkingSet<C>,
+    }
+
+    impl<'a, C: Context> StateReaderAndWriter for BootstrapWorkingSet<'a, C> {
+        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+            self.inner.delta.get(key)
+        }
+
+        fn set(&mut self, key: &StorageKey, value: StorageValue) {
+            self.inner.delta.set(key, value)
+        }
+
+        fn delete(&mut self, key: &StorageKey) {
+            self.inner.delta.delete(key)
+        }
+    }
+
     /// A wrapper over [`WorkingSet`] that allows access to kernel values
     pub struct KernelWorkingSet<'a, C: Context> {
         /// The inner working set
@@ -691,17 +711,33 @@ pub mod kernel_state {
     }
 
     impl<'a, C: Context> KernelWorkingSet<'a, C> {
+        /// This private method instantiates a bootstrap working set to initialize a kernel
+        fn get_bootstrap(inner: &'a mut WorkingSet<C>) -> BootstrapWorkingSet<'a, C> {
+            BootstrapWorkingSet { inner }
+        }
+
         /// Build a new kernel working set from the associated kernel
         pub fn from_kernel<K: Kernel<C, Da>, Da: DaSpec>(
             kernel: &K,
             ws: &'a mut WorkingSet<C>,
         ) -> Self {
-            let true_slot_num = kernel.true_height(ws);
-            let virtual_slot_num = kernel.visible_height(ws);
+            let mut bootstrapper = KernelWorkingSet::get_bootstrap(ws);
+            let true_slot_num = kernel.true_height(&mut bootstrapper);
+            let virtual_slot_num = kernel.visible_height(&mut bootstrapper);
             Self {
                 inner: ws,
                 true_slot_num,
                 virtual_slot_num,
+            }
+        }
+
+        /// Returns a kernel working set with its heights intiialized to 0.
+        /// This is intended to be used for genesis setup only.
+        pub fn uninitialized(ws: &'a mut WorkingSet<C>) -> Self {
+            Self {
+                inner: ws,
+                true_slot_num: 0,
+                virtual_slot_num: 0,
             }
         }
 

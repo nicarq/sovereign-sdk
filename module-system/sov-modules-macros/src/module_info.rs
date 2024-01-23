@@ -57,7 +57,7 @@ fn impl_prefix_functions(struct_def: &StructDef) -> Result<proc_macro2::TokenStr
 // Implements the `ModuleInfo` trait.
 fn impl_module_info(
     struct_def: &StructDef,
-    variant: ModuleType,
+    _variant: ModuleType,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let module_address = struct_def.module_address();
 
@@ -92,12 +92,6 @@ fn impl_module_info(
                 modules.push(&field.ident);
             }
             ModuleFieldAttribute::KernelModule => {
-                if let ModuleType::Standard = variant {
-                    return Err(syn::Error::new_spanned(
-                        &field.ident,
-                        "The `#[kernel_module]` attribute is only allowed in kernel modules.",
-                    ));
-                }
                 impl_self_init.push(make_init_module(field, ModuleType::Kernel)?);
                 impl_self_body.push(&field.ident);
                 modules.push(&field.ident);

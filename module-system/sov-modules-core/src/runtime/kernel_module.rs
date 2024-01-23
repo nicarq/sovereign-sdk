@@ -1,7 +1,7 @@
 //! Traits to allow modular development of kernels. These traits are closely related but to the traits
 //! for normal modules.
 
-use crate::{Context, ModuleError, WorkingSet};
+use crate::{Context, KernelWorkingSet, ModuleError};
 
 /// All the methods have a default implementation that can't be invoked (because they take `NonInstantiable` parameter).
 /// This allows developers to override only some of the methods in their implementation and safely ignore the others.
@@ -16,7 +16,7 @@ pub trait KernelModule {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<Self::Context>,
+        _working_set: &mut KernelWorkingSet<Self::Context>,
     ) -> Result<(), ModuleError> {
         Ok(())
     }

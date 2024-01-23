@@ -115,7 +115,10 @@ pub(crate) fn setup(
 
     let chain_state = sov_chain_state::ChainState::<C, MockDaSpec>::default();
     chain_state
-        .genesis(&chain_state_config, working_set)
+        .genesis(
+            &chain_state_config,
+            &mut KernelWorkingSet::uninitialized(working_set),
+        )
         .expect("Chain state genesis must succeed");
 
     // initialize prover incentives

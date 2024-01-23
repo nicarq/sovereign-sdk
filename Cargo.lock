@@ -7949,6 +7949,7 @@ dependencies = [
  "sov-chain-state",
  "sov-mock-da",
  "sov-modules-api",
+ "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-sequencer-registry",
  "sov-state",

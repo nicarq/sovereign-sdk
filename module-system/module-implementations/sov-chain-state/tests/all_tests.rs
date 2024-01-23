@@ -33,7 +33,12 @@ fn test_simple_chain_state() {
     };
 
     // Genesis, initialize and then commit the state
-    chain_state.genesis(&config, &mut working_set).unwrap();
+    chain_state
+        .genesis(
+            &config,
+            &mut KernelWorkingSet::uninitialized(&mut working_set),
+        )
+        .unwrap();
     let (reads_writes, witness) = working_set.checkpoint().freeze();
     let genesis_root = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
@@ -41,8 +46,11 @@ fn test_simple_chain_state() {
     let mut base_working_set = WorkingSet::new(storage.clone());
 
     // Check the slot height before any changes to the state.
-    let initial_height = chain_state.true_slot_height(&mut base_working_set);
     let mock_kernel: MockKernel<DefaultContext, MockDaSpec> = MockKernel::new(0, 1);
+    let initial_height = chain_state.true_slot_height(&mut KernelWorkingSet::from_kernel(
+        &mock_kernel,
+        &mut base_working_set,
+    ));
     let mut working_set = KernelWorkingSet::from_kernel(&mock_kernel, &mut base_working_set);
 
     assert_eq!(
@@ -86,7 +94,7 @@ fn test_simple_chain_state() {
     );
 
     // Check that the slot height has been updated
-    let new_height_storage = chain_state.true_slot_height(working_set.inner);
+    let new_height_storage = chain_state.true_slot_height(&mut working_set);
 
     assert_eq!(
         new_height_storage,
@@ -142,7 +150,7 @@ fn test_simple_chain_state() {
     chain_state.end_slot_hook(&mut working_set);
 
     // Check that the slot height has been updated correctly
-    let new_height_storage = chain_state.true_slot_height(working_set.inner);
+    let new_height_storage = chain_state.true_slot_height(&mut working_set);
     assert_eq!(
         new_height_storage,
         INIT_HEIGHT + 2,
@@ -230,7 +238,7 @@ fn test_simple_chain_state() {
     chain_state.end_slot_hook(&mut working_set);
 
     // Check that the slot height has been updated correctly
-    let new_height_storage = chain_state.true_slot_height(working_set.inner);
+    let new_height_storage = chain_state.true_slot_height(&mut working_set);
     assert_eq!(
         new_height_storage,
         INIT_HEIGHT + 3,

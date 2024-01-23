@@ -11,9 +11,9 @@ where
 {
     /// Increment the current slot height
     pub(crate) fn increment_true_slot_height(&self, working_set: &mut KernelWorkingSet<C>) {
-        let current_height = self.true_height.get(working_set.inner).unwrap_or_default();
+        let current_height = self.true_height.get(working_set).unwrap_or_default();
         self.true_height
-            .set(&(current_height.saturating_add(1)), working_set.inner);
+            .set(&(current_height.saturating_add(1)), working_set);
     }
 
     /// Store the previous state transition
