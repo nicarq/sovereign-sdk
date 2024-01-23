@@ -46,6 +46,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> SequencerRegistry
         self.register_sequencer(
             &config.seq_da_address,
             &config.seq_rollup_address,
+            config.coins_to_lock.amount,
             working_set,
         )?;
         if config.is_preferred_sequencer {

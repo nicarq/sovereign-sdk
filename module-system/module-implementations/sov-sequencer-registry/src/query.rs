@@ -28,7 +28,10 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<SequencerAddressResponse<C>> {
         Ok(SequencerAddressResponse {
-            address: self.allowed_sequencers.get(&da_address, working_set),
+            address: self
+                .allowed_sequencers
+                .get(&da_address, working_set)
+                .map(|s| s.rollup_address),
         })
     }
 }
