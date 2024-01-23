@@ -4,8 +4,6 @@ use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
-#[cfg(feature = "experimental")]
-use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_state::Storage;
@@ -93,20 +91,17 @@ impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, 
     }
 }
 
-impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
+impl<C: Context, Da: DaSpec> SlotHooks for Runtime<C, Da> {
     type Context = C;
 
     fn begin_slot_hook(
         &self,
-        #[allow(unused_variables)] slot_header: &Da::BlockHeader,
-        #[allow(unused_variables)] validity_condition: &Da::ValidityCondition,
         #[allow(unused_variables)]
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
         #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
     ) {
         #[cfg(feature = "experimental")]
-        self.evm
-            .begin_slot_hook(slot_header.hash().into(), pre_state_root, working_set);
+        self.evm.begin_slot_hook(pre_state_root, working_set);
     }
 
     fn end_slot_hook(
@@ -118,7 +113,7 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
     }
 }
 
-impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da> {
+impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<C, Da> {
     type Context = C;
 
     fn finalize_hook(

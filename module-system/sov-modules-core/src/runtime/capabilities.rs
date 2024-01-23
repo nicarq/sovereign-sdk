@@ -8,6 +8,7 @@
 
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 
+use crate::kernel_state::BootstrapWorkingSet;
 use crate::{Context, KernelWorkingSet, Spec, Storage, WorkingSet};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
@@ -26,13 +27,13 @@ pub trait Kernel<C: Context, Da: DaSpec>: BlobSelector<Da, Context = C> + Defaul
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut KernelWorkingSet<'_, C>,
     ) -> Result<(), anyhow::Error>;
 
     /// Return the current slot height
-    fn true_height(&self, working_set: &mut WorkingSet<C>) -> u64;
+    fn true_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64;
     /// Return the height at which transactions currently *appear* to be executing.
-    fn visible_height(&self, working_set: &mut WorkingSet<C>) -> u64;
+    fn visible_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64;
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state
@@ -114,7 +115,8 @@ pub mod mocks {
     use sov_rollup_interface::da::DaSpec;
 
     use super::{BlobRefOrOwned, BlobSelector, Kernel};
-    use crate::{Context, WorkingSet};
+    use crate::capabilities::BootstrapWorkingSet;
+    use crate::{Context, KernelWorkingSet, WorkingSet};
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, derivative::Derivative)]
@@ -136,13 +138,20 @@ pub mod mocks {
                 phantom: core::marker::PhantomData,
             }
         }
+
+        /// The genesis working set
+        pub fn genesis_ws(ws: &mut WorkingSet<C>) -> KernelWorkingSet<'_, C> {
+            let kernel = Self::new(0, 0);
+            let ws = KernelWorkingSet::from_kernel(&kernel, ws);
+            ws
+        }
     }
 
     impl<C: Context, Da: DaSpec> Kernel<C, Da> for MockKernel<C, Da> {
-        fn true_height(&self, _ws: &mut WorkingSet<C>) -> u64 {
+        fn true_height(&self, _ws: &mut BootstrapWorkingSet<'_, C>) -> u64 {
             self.true_height
         }
-        fn visible_height(&self, _ws: &mut WorkingSet<C>) -> u64 {
+        fn visible_height(&self, _ws: &mut BootstrapWorkingSet<'_, C>) -> u64 {
             self.visible_height
         }
 
@@ -154,7 +163,7 @@ pub mod mocks {
         fn genesis(
             &self,
             _config: &Self::GenesisConfig,
-            _working_set: &mut WorkingSet<C>,
+            _working_set: &mut KernelWorkingSet<'_, C>,
         ) -> Result<(), anyhow::Error> {
             Ok(())
         }

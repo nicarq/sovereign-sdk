@@ -14,7 +14,6 @@ where
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
     pub fn begin_slot_hook(
         &self,
-        da_root_hash: [u8; 32],
         pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
         working_set: &mut WorkingSet<C>,
     ) {
@@ -31,7 +30,8 @@ where
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
             timestamp: parent_block.header.timestamp + cfg.block_timestamp_delta,
-            prevrandao: da_root_hash.into(),
+            // TODO: Needs fixing: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/39
+            prevrandao: H256(pre_state_root.clone().into()),
             basefee: parent_block
                 .header
                 .next_block_base_fee(cfg.base_fee_params)

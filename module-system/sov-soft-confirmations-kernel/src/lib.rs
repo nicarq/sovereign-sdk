@@ -6,7 +6,8 @@ use sov_chain_state::ChainState;
 use sov_modules_api::runtime::capabilities::{
     BlobRefOrOwned, BlobSelector, Kernel, KernelSlotHooks,
 };
-use sov_modules_api::{Context, DaSpec, KernelModule, WorkingSet};
+use sov_modules_api::{Context, DaSpec, KernelModule, KernelWorkingSet};
+use sov_state::storage::kernel_state::BootstrapWorkingSet;
 use sov_state::Storage;
 
 /// A kernel supporting based sequencing with soft confirmations
@@ -38,10 +39,10 @@ pub struct SoftConfirmationsKernelGenesisConfig<C: Context, Da: DaSpec> {
 }
 
 impl<C: Context, Da: DaSpec> Kernel<C, Da> for SoftConfirmationsKernel<C, Da> {
-    fn true_height(&self, working_set: &mut WorkingSet<C>) -> u64 {
+    fn true_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
         self.chain_state.true_slot_height(working_set)
     }
-    fn visible_height(&self, working_set: &mut WorkingSet<C>) -> u64 {
+    fn visible_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
         self.chain_state.visible_slot_height(working_set)
     }
 
@@ -53,7 +54,7 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for SoftConfirmationsKernel<C, Da> {
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut KernelWorkingSet<'_, C>,
     ) -> Result<(), anyhow::Error> {
         Ok(self.chain_state.genesis(&config.chain_state, working_set)?)
     }

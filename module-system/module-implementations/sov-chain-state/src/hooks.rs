@@ -41,7 +41,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
                 }
             };
 
-            let height = self.true_slot_height(working_set.inner);
+            let height = self.true_slot_height(working_set);
             self.store_state_transition(height, transition, working_set.inner);
         }
 
@@ -52,7 +52,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
             .genesis_height
             .get(working_set.inner)
             .expect("the genesis height is part of the module initialization");
-        let height = self.true_slot_height(working_set.inner);
+        let height = self.true_slot_height(working_set);
 
         let gas_price_state = self
             .get_gas_price_state(working_set.inner)
@@ -89,7 +89,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
     }
 }
 
-impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for ChainState<C, Da> {
+impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook for ChainState<C, Da> {
     type Context = C;
 
     fn finalize_hook(

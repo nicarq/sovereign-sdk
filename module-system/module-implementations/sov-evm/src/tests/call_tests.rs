@@ -37,7 +37,11 @@ fn call_test() {
             .as_slice(),
     );
 
-    evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
+    evm.begin_slot_hook(
+        //[5u8; 32],
+        &[10u8; 32].into(),
+        &mut working_set,
+    );
 
     let set_arg = 999;
     {
@@ -99,7 +103,11 @@ fn failed_transaction_test() {
     let (evm, mut working_set) = get_evm(&EvmConfig::default());
     let working_set = &mut working_set;
 
-    evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), working_set);
+    evm.begin_slot_hook(
+        //[5u8; 32],
+        &[10u8; 32].into(),
+        working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");

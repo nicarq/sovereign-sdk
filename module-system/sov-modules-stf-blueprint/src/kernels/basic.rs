@@ -6,7 +6,8 @@ use sov_chain_state::ChainState;
 use sov_modules_api::runtime::capabilities::{
     BlobRefOrOwned, BlobSelector, Kernel, KernelSlotHooks,
 };
-use sov_modules_api::{Context, DaSpec, KernelModule, WorkingSet};
+use sov_modules_api::{Context, DaSpec, KernelModule, KernelWorkingSet};
+use sov_modules_core::kernel_state::BootstrapWorkingSet;
 use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
@@ -26,6 +27,25 @@ impl<C: Context, Da: DaSpec> Default for BasicKernel<C, Da> {
     }
 }
 
+#[cfg(feature = "test-utils")]
+/// These methods are used in the tests to access the internal state of the kernel
+/// Normally these should not be used, because everything happens inside the stf.
+impl<C: Context, Da: DaSpec> BasicKernel<C, Da>
+where
+    C: Context,
+    Da: DaSpec,
+{
+    /// Getter function for a basic kernel
+    pub fn get_chain_state(&self) -> &sov_chain_state::ChainState<C, Da> {
+        &self.chain_state
+    }
+
+    /// Getter function for blob storage
+    pub fn get_blob_storage(&self) -> &sov_blob_storage::BlobStorage<C, Da> {
+        &self.blob_storage
+    }
+}
+
 /// Path information required to initialize a basic kernel from files
 pub struct BasicKernelGenesisPaths {
     /// The path to the chain_state genesis config
@@ -39,10 +59,10 @@ pub struct BasicKernelGenesisConfig<C: Context, Da: DaSpec> {
 }
 
 impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
-    fn true_height(&self, working_set: &mut WorkingSet<C>) -> u64 {
+    fn true_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
         self.chain_state.true_slot_height(working_set)
     }
-    fn visible_height(&self, working_set: &mut WorkingSet<C>) -> u64 {
+    fn visible_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
         self.chain_state.true_slot_height(working_set)
     }
 
@@ -54,7 +74,7 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut KernelWorkingSet<'_, C>,
     ) -> Result<(), anyhow::Error> {
         Ok(self.chain_state.genesis(&config.chain_state, working_set)?)
     }
@@ -66,13 +86,13 @@ impl<C: Context, Da: DaSpec> BlobSelector<Da> for BasicKernel<C, Da> {
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        _working_set: &mut sov_modules_api::KernelWorkingSet<'k, Self::Context>,
+        working_set: &mut sov_modules_api::KernelWorkingSet<'k, Self::Context>,
     ) -> anyhow::Result<Vec<BlobRefOrOwned<'a, Da::BlobTransaction>>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         self.blob_storage
-            .get_blobs_for_this_slot(current_blobs, _working_set)
+            .get_blobs_for_this_slot(current_blobs, working_set)
     }
 }
 

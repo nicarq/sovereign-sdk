@@ -7,6 +7,7 @@ mod gas;
 pub use gas::GasPriceState;
 #[cfg(test)]
 mod tests;
+use sov_modules_api::StateReaderAndWriter;
 
 mod genesis;
 pub use genesis::*;
@@ -21,15 +22,14 @@ mod utils;
 #[cfg(feature = "native")]
 mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(feature = "native")]
-pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    Context, DaSpec, Error, KernelModule, KernelModuleInfo, ValidityConditionChecker, WorkingSet,
+    Context, DaSpec, Error, KernelModule, KernelModuleInfo, KernelStateValue,
+    ValidityConditionChecker, WorkingSet,
 };
-use sov_state::codec::BcsCodec;
+use sov_state::codec::{BcsCodec, BorshCodec};
 use sov_state::storage::kernel_state::VersionReader;
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
@@ -148,10 +148,7 @@ impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
     }
 }
 
-/// A new module:
-/// - Must derive `ModuleInfo`
-/// - Must contain `[address]` field
-/// - Can contain any number of ` #[state]` or `[module]` fields
+/// The chain state module definition. Contains the current state of the da layer.
 #[derive(Clone, KernelModuleInfo)]
 pub struct ChainState<C: Context, Da: DaSpec> {
     /// Address of the module.
@@ -159,17 +156,13 @@ pub struct ChainState<C: Context, Da: DaSpec> {
     address: C::Address,
 
     /// The current block height
-    // We use a standard StateValue here instead of a `KernelStateValue` to avoid a chicken-and-egg problem.
-    // You need to load the current visible_height in order to create a `KernelWorkingSet`, which is itself
-    // required in order to read a `KernelStateValue`. This value is still protected by the fact that it exists
-    // on a kernel module, which will not be accessible to the runtime.
     #[state]
-    visible_height: sov_modules_api::StateValue<TransitionHeight>,
+    visible_height: sov_modules_api::KernelStateValue<TransitionHeight>,
 
     /// The real slot height of the rollup.
     // This value is also required to create a `KernelWorkingSet`. See note on `visible_height` above.
     #[state]
-    true_height: sov_modules_api::StateValue<TransitionHeight>,
+    true_height: sov_modules_api::KernelStateValue<TransitionHeight>,
 
     /// The current time, as reported by the DA layer
     #[state]
@@ -208,12 +201,20 @@ pub struct ChainState<C: Context, Da: DaSpec> {
 
 impl<C: Context, Da: DaSpec> ChainState<C, Da> {
     /// Returns transition height in the current slot
-    pub fn true_slot_height(&self, working_set: &mut WorkingSet<C>) -> TransitionHeight {
+    pub fn true_slot_height<T>(&self, working_set: &mut T) -> TransitionHeight
+    where
+        KernelStateValue<u64>: StateValueAccessor<u64, BorshCodec, T>,
+        T: StateReaderAndWriter,
+    {
         self.true_height.get(working_set).unwrap_or_default()
     }
 
     /// Returns transition height in the current slot
-    pub fn visible_slot_height(&self, working_set: &mut WorkingSet<C>) -> TransitionHeight {
+    pub fn visible_slot_height<T>(&self, working_set: &mut T) -> TransitionHeight
+    where
+        KernelStateValue<u64>: StateValueAccessor<u64, BorshCodec, T>,
+        T: StateReaderAndWriter,
+    {
         self.visible_height.get(working_set).unwrap_or_default()
     }
 
@@ -271,7 +272,11 @@ impl<C: Context, Da: DaSpec> KernelModule for ChainState<C, Da> {
 
     type Config = ChainStateConfig<C>;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut KernelWorkingSet<C>,
+    ) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)
     }

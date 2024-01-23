@@ -14,13 +14,14 @@ use crate::experimental::PendingTransaction;
 use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH};
 
 lazy_static! {
-    pub(crate) static ref DA_ROOT_HASH: H256 = H256::from([5u8; 32]);
+    // To fix: Used to be [5u8; 32]. Now we take the hash of the pre-state-root, ie: [10u8; 32]
+    pub(crate) static ref DA_ROOT_HASH: H256 = H256::from([10u8; 32]);
 }
 
 #[test]
 fn begin_slot_hook_creates_pending_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &[10u8; 32].into(), &mut working_set);
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut working_set);
     let pending_block = evm.block_env.get(&mut working_set).unwrap();
     assert_eq!(
         pending_block,
@@ -38,7 +39,7 @@ fn begin_slot_hook_creates_pending_block() {
 #[test]
 fn end_slot_hook_sets_head() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &[10u8; 32].into(), &mut working_set);
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut working_set);
 
     evm.pending_transactions.push(
         &create_pending_transaction(H256::from([1u8; 32]), 1),
@@ -97,7 +98,7 @@ fn end_slot_hook_sets_head() {
 #[test]
 fn end_slot_hook_moves_transactions_and_receipts() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &[10u8; 32].into(), &mut working_set);
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut working_set);
 
     let tx1 = create_pending_transaction(H256::from([1u8; 32]), 1);
     evm.pending_transactions.push(&tx1, &mut working_set);
@@ -180,7 +181,7 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
 fn finalize_hook_creates_final_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let p = [10u8; 32].into();
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &p, &mut working_set);
+    evm.begin_slot_hook(&p, &mut working_set);
     evm.pending_transactions.push(
         &create_pending_transaction(H256::from([1u8; 32]), 1),
         &mut working_set,
@@ -197,7 +198,7 @@ fn finalize_hook_creates_final_block() {
     evm.finalize_hook(&root_hash, &mut accessory_state);
     assert_eq!(evm.blocks.len(&mut accessory_state), 2);
 
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &root_hash, &mut working_set);
+    evm.begin_slot_hook(&root_hash, &mut working_set);
 
     let mut accessory_state = working_set.accessory_state();
 
@@ -227,9 +228,7 @@ fn finalize_hook_creates_final_block() {
                     gas_limit: 30000000,
                     gas_used: 200,
                     timestamp: 52,
-                    mix_hash: H256(hex!(
-                        "0505050505050505050505050505050505050505050505050505050505050505"
-                    )),
+                    mix_hash: *DA_ROOT_HASH,
                     nonce: 0,
                     base_fee_per_gas: Some(62),
                     extra_data: Bytes::default(),
@@ -238,7 +237,8 @@ fn finalize_hook_creates_final_block() {
                     parent_beacon_block_root: None,
                 },
                 hash: H256(hex!(
-                    "38cd68642013a65c7fdeea92f9f0e1b5709156ac9140f00ffb182c7a605337b0"
+                    // This hash changes because the header is different
+                    "29be93851c5baf9039ec6f792328f107dd93f40e20772d0beb9bd925adeebe3f"
                 )),
             },
             transactions: 0..2

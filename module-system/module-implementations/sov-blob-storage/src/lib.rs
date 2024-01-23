@@ -3,7 +3,9 @@
 
 mod call;
 pub use call::CallMessage;
+
 mod capabilities;
+
 #[cfg(feature = "native")]
 mod query;
 
@@ -92,7 +94,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
         &self,
         working_set: &mut KernelWorkingSet<'_, C>,
     ) -> TransitionHeight {
-        self.chain_state.true_slot_height(working_set.inner)
+        self.chain_state.true_slot_height(working_set)
     }
 
     pub(crate) fn get_deferred_slots_count(&self, _working_set: &mut WorkingSet<C>) -> u64 {

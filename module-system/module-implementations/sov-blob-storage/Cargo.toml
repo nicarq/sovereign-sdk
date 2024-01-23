@@ -38,6 +38,7 @@ sov-blob-storage = { path = ".", features = ["native"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-bank = { path = "../sov-bank" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
 
 [features]
 default = []

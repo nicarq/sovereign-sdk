@@ -1,5 +1,5 @@
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::da::BlobReaderTrait;
 
 use crate::transaction::Transaction;
 
@@ -56,13 +56,11 @@ pub trait ApplyBlobHooks<B: BlobReaderTrait> {
 }
 
 /// Hooks that execute during the `StateTransitionFunction::begin_slot` and `end_slot` functions.
-pub trait SlotHooks<Da: DaSpec> {
+pub trait SlotHooks {
     type Context: Context;
 
     fn begin_slot_hook(
         &self,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
         working_set: &mut WorkingSet<Self::Context>,
     );
@@ -70,7 +68,7 @@ pub trait SlotHooks<Da: DaSpec> {
     fn end_slot_hook(&self, working_set: &mut WorkingSet<Self::Context>);
 }
 
-pub trait FinalizeHook<Da: DaSpec> {
+pub trait FinalizeHook {
     type Context: Context;
 
     fn finalize_hook(

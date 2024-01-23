@@ -137,7 +137,16 @@ macro_rules! impl_gas_unit {
             }
 
             fn scalar_division(&mut self, scalar: u64) -> &mut Self {
-                self.iter_mut().for_each(|s| *s /= scalar);
+                self.iter_mut().for_each(|s| {
+                    // TO CHECK: safe division that doesn't panic on division by zero
+                    *s = {
+                        if scalar == 0 {
+                            0
+                        } else {
+                            *s / scalar
+                        }
+                    }
+                });
                 self
             }
 

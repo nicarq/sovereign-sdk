@@ -11,6 +11,8 @@ mod utils;
 
 pub use batch::Batch;
 use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
+#[cfg(feature = "mocks")]
+use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet, Spec,
@@ -41,8 +43,8 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     DispatchCall<Context = C>
     + Genesis<Context = C, Config = Self::GenesisConfig>
     + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
-    + SlotHooks<Da, Context = C>
-    + FinalizeHook<Da, Context = C>
+    + SlotHooks<Context = C>
+    + FinalizeHook<Context = C>
     + ApplyBlobHooks<
         Da::BlobTransaction,
         Context = C,
@@ -142,12 +144,8 @@ where
             &mut working_set,
         );
 
-        self.runtime.begin_slot_hook(
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            &mut working_set,
-        );
+        self.runtime
+            .begin_slot_hook(pre_state_root, &mut working_set);
 
         working_set.checkpoint()
     }
@@ -217,9 +215,10 @@ where
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
         let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
+        let mut startup_ws = KernelWorkingSet::uninitialized(&mut working_set);
 
         self.kernel
-            .genesis(&params.kernel, &mut working_set)
+            .genesis(&params.kernel, &mut startup_ws)
             .expect("Kernel initialization must succeed");
         self.runtime
             .genesis(&params.runtime, &mut working_set)
