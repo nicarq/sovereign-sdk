@@ -1,4 +1,4 @@
-use sov_chain_state::TransitionHeight;
+use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::prelude::*;
 use sov_modules_api::runtime::capabilities::{BlobRefOrOwned, BlobSelector};
 use sov_modules_api::{BlobReaderTrait, Context, DaSpec, KernelWorkingSet, WorkingSet};

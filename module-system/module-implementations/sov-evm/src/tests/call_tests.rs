@@ -2,12 +2,15 @@ use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateValueAccessor, StateVecAccessor};
+use sov_modules_api::{
+    Context, Module, StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet,
+};
+use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::SimpleStorageContract;
-use crate::tests::genesis_tests::get_evm;
+use crate::tests::genesis_tests::setup;
 use crate::tests::test_signer::TestSigner;
 use crate::{AccountData, EvmConfig};
 type C = DefaultContext;
@@ -15,7 +18,7 @@ type C = DefaultContext;
 #[test]
 fn call_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
-    let config = EvmConfig {
+    let evm_config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
             balance: U256::from(1000000000),
@@ -29,7 +32,9 @@ fn call_test() {
         ..Default::default()
     };
 
-    let (evm, mut working_set) = get_evm(&config);
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut working_set) = setup(&evm_config, &mut working_set);
 
     let contract_addr: Address = Address::from_slice(
         hex::decode("819c5497b157177315e1204f52e588b393771719")
@@ -37,11 +42,7 @@ fn call_test() {
             .as_slice(),
     );
 
-    evm.begin_slot_hook(
-        //[5u8; 32],
-        &[10u8; 32].into(),
-        &mut working_set,
-    );
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut working_set);
 
     let set_arg = 999;
     {
@@ -54,21 +55,24 @@ fn call_test() {
             set_arg_message(contract_addr, &dev_signer, 1, set_arg),
         ];
         for tx in messages {
-            evm.call(tx, &context, &mut working_set).unwrap();
+            evm.call(tx, &context, working_set.get_ws_mut()).unwrap();
         }
     }
-    evm.end_slot_hook(&mut working_set);
+    evm.end_slot_hook(working_set.get_ws_mut());
 
-    let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
+    let db_account = evm
+        .accounts
+        .get(&contract_addr, working_set.get_ws_mut())
+        .unwrap();
     let storage_value = db_account
         .storage
-        .get(&U256::ZERO, &mut working_set)
+        .get(&U256::ZERO, working_set.get_ws_mut())
         .unwrap();
 
     assert_eq!(U256::from(set_arg), storage_value);
     assert_eq!(
         evm.receipts
-            .iter(&mut working_set.accessory_state())
+            .iter(&mut working_set.get_ws_mut().accessory_state())
             .collect::<Vec<_>>(),
         [
             Receipt {
@@ -100,14 +104,13 @@ fn call_test() {
 #[test]
 fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
-    let (evm, mut working_set) = get_evm(&EvmConfig::default());
-    let working_set = &mut working_set;
+    let binding = EvmConfig::default();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut versioned_ws) = setup(&binding, &mut working_set);
 
-    evm.begin_slot_hook(
-        //[5u8; 32],
-        &[10u8; 32].into(),
-        working_set,
-    );
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
+    let working_set = versioned_ws.get_ws_mut();
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");

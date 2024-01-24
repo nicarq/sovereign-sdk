@@ -654,9 +654,30 @@ pub mod kernel_state {
     }
 
     impl<'a, C: Context> VersionedWorkingSet<'a, C> {
+        /// Instantiates a [`VersionedWorkingSet`] from a kernel working set.
+        /// Sets the `slot_num` to the virtual slot number of the kernel.
+        pub fn from_kernel_ws_virtual<Da: DaSpec>(
+            kernel_ws: KernelWorkingSet<'a, C>,
+        ) -> VersionedWorkingSet<'a, C> {
+            VersionedWorkingSet {
+                ws: kernel_ws.inner,
+                slot_num: kernel_ws.virtual_slot_num,
+            }
+        }
+
         /// Returns the working slot number
         pub fn slot_num(&self) -> u64 {
             self.slot_num
+        }
+
+        /// Returns a reference to the inner working set
+        pub fn get_ws(&self) -> &WorkingSet<C> {
+            self.ws
+        }
+
+        /// Returns a mutable reference to the inner working set
+        pub fn get_ws_mut(&mut self) -> &mut WorkingSet<C> {
+            self.ws
         }
     }
 
@@ -749,6 +770,16 @@ pub mod kernel_state {
         /// Returns the slot number visible from user space
         pub fn virtual_slot(&self) -> u64 {
             self.virtual_slot_num
+        }
+
+        /// Updates the kernel working set internals
+        pub fn update_true_height(&mut self, true_height: u64) {
+            self.true_slot_num = true_height;
+        }
+
+        /// Updates the kernel working set internals
+        pub fn update_virtual_height(&mut self, virtual_height: u64) {
+            self.virtual_slot_num = virtual_height;
         }
     }
 

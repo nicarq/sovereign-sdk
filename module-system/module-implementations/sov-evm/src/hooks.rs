@@ -1,13 +1,13 @@
 use reth_primitives::{Bloom, Bytes, H256, U256};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
+use sov_modules_api::{AccessoryWorkingSet, DaSpec, Spec, VersionedWorkingSet, WorkingSet};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::experimental::PendingTransaction;
 use crate::Evm;
 
-impl<C: sov_modules_api::Context> Evm<C>
+impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da>
 where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
@@ -15,30 +15,43 @@ where
     pub fn begin_slot_hook(
         &self,
         pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
-        working_set: &mut WorkingSet<C>,
+        versioned_working_set: &mut VersionedWorkingSet<C>,
     ) {
         let mut parent_block = self
             .head
-            .get(working_set)
+            .get(versioned_working_set.get_ws_mut())
             .expect("Head block should always be set");
 
         parent_block.header.state_root = H256(pre_state_root.clone().into());
-        self.head.set(&parent_block, working_set);
+        self.head
+            .set(&parent_block, versioned_working_set.get_ws_mut());
 
-        let cfg = self.cfg.get(working_set).unwrap_or_default();
+        let current_tansition = self
+            .chain_state
+            .get_in_progress_transition(versioned_working_set)
+            .expect("There should always be a transition in progress");
+
+        let cfg = self
+            .cfg
+            .get(versioned_working_set.get_ws_mut())
+            .unwrap_or_default();
+
         let new_pending_env = BlockEnv {
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
             timestamp: parent_block.header.timestamp + cfg.block_timestamp_delta,
-            // TODO: Needs fixing: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/39
-            prevrandao: H256(pre_state_root.clone().into()),
+            // WARNING: `prevrandao`` value is predictable up to [`DEFERRED_SLOTS_COUNT`] in advance,
+            // Users should follow the same best practice that they would on Ethereum and use future randomness.
+            // See: https://eips.ethereum.org/EIPS/eip-4399#tips-for-application-developers
+            prevrandao: H256(current_tansition.block_hash().clone().into()),
             basefee: parent_block
                 .header
                 .next_block_base_fee(cfg.base_fee_params)
                 .unwrap(),
             gas_limit: cfg.block_gas_limit,
         };
-        self.block_env.set(&new_pending_env, working_set);
+        self.block_env
+            .set(&new_pending_env, versioned_working_set.get_ws_mut());
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.

@@ -11,7 +11,7 @@ mod query;
 
 #[cfg(feature = "native")]
 pub use query::*;
-use sov_chain_state::TransitionHeight;
+use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::{
     KernelModuleInfo, KernelWorkingSet, Module, StateMap, StateMapAccessor, StateValue, WorkingSet,

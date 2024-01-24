@@ -115,7 +115,7 @@ pub(crate) fn setup(
 
     let chain_state = sov_chain_state::ChainState::<C, MockDaSpec>::default();
     chain_state
-        .genesis(
+        .genesis_unchecked(
             &chain_state_config,
             &mut KernelWorkingSet::uninitialized(working_set),
         )

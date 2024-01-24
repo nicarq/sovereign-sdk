@@ -76,7 +76,7 @@ pub struct Runtime<C: Context, Da: DaSpec> {
     #[cfg(feature = "experimental")]
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
-    pub evm: sov_evm::Evm<C>,
+    pub evm: sov_evm::Evm<C, Da>,
 }
 
 impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for Runtime<C, Da>

@@ -32,11 +32,15 @@ fn test_simple_chain_state() {
         minimum_gas_price,
     };
 
+    // Check the slot height before any changes to the state.
+    let mock_kernel: MockKernel<DefaultContext, MockDaSpec> =
+        MockKernel::new(INIT_HEIGHT, INIT_HEIGHT);
+
     // Genesis, initialize and then commit the state
     chain_state
-        .genesis(
+        .genesis_unchecked(
             &config,
-            &mut KernelWorkingSet::uninitialized(&mut working_set),
+            &mut KernelWorkingSet::from_kernel(&mock_kernel, &mut working_set),
         )
         .unwrap();
     let (reads_writes, witness) = working_set.checkpoint().freeze();
@@ -45,8 +49,6 @@ fn test_simple_chain_state() {
     // Computes the initial, post genesis, working set
     let mut base_working_set = WorkingSet::new(storage.clone());
 
-    // Check the slot height before any changes to the state.
-    let mock_kernel: MockKernel<DefaultContext, MockDaSpec> = MockKernel::new(0, 1);
     let initial_height = chain_state.true_slot_height(&mut KernelWorkingSet::from_kernel(
         &mock_kernel,
         &mut base_working_set,
@@ -101,6 +103,10 @@ fn test_simple_chain_state() {
         INIT_HEIGHT + 1,
         "The new height did not update"
     );
+
+    // Update the kernel
+    let mock_kernel: MockKernel<DefaultContext, MockDaSpec> =
+        MockKernel::new(new_height_storage, new_height_storage);
 
     // Check that the new state transition is being stored
     let new_tx_in_progress: TransitionInProgress<DefaultContext, MockDaSpec> = chain_state
@@ -161,6 +167,10 @@ fn test_simple_chain_state() {
         new_slot_data.header.time(),
         "The time was not updated in the hook"
     );
+
+    // Update the kernel
+    let _mock_kernel: MockKernel<DefaultContext, MockDaSpec> =
+        MockKernel::new(new_height_storage, new_height_storage);
 
     // Check the transition in progress
     let new_tx_in_progress: TransitionInProgress<DefaultContext, MockDaSpec> = chain_state

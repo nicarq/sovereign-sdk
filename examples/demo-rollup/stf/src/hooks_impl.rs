@@ -98,10 +98,13 @@ impl<C: Context, Da: DaSpec> SlotHooks for Runtime<C, Da> {
         &self,
         #[allow(unused_variables)]
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
+        #[allow(unused_variables)] versioned_working_set: &mut sov_modules_api::VersionedWorkingSet<
+            C,
+        >,
     ) {
         #[cfg(feature = "experimental")]
-        self.evm.begin_slot_hook(pre_state_root, working_set);
+        self.evm
+            .begin_slot_hook(pre_state_root, versioned_working_set);
     }
 
     fn end_slot_hook(

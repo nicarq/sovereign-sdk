@@ -36,8 +36,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> ChainState<C, Da>
         self.true_height
             .set(&config.initial_slot_height, working_set);
 
-        self.time
-            .set_genesis(&config.current_time, working_set.inner);
+        self.time.set_current(&config.current_time, working_set);
 
         self.gas_price_state.set(
             &GasPriceState {

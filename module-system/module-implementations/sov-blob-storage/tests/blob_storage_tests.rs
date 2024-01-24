@@ -25,7 +25,7 @@ fn empty_test() {
         minimum_gas_price: [0, 0],
     };
     chain_state
-        .genesis(
+        .genesis_unchecked(
             &chain_state_config,
             &mut KernelWorkingSet::uninitialized(&mut working_set),
         )
@@ -55,7 +55,7 @@ fn store_and_retrieve_standard() {
         minimum_gas_price: [0, 0],
     };
     chain_state
-        .genesis(
+        .genesis_unchecked(
             &chain_state_config,
             &mut KernelWorkingSet::uninitialized(&mut working_set),
         )

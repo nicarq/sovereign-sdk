@@ -24,6 +24,7 @@ mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
+use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
     Context, DaSpec, Error, KernelModule, KernelModuleInfo, KernelStateValue,
@@ -33,9 +34,6 @@ use sov_state::codec::{BcsCodec, BorshCodec};
 use sov_state::storage::kernel_state::VersionReader;
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
-
-/// Type alias that contains the height of a given transition
-pub type TransitionHeight = u64;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 /// Structure that contains the information needed to represent a single state transition.
@@ -146,6 +144,11 @@ impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
     pub const fn gas_used(&self) -> &C::GasUnit {
         &self.gas_used
     }
+
+    /// Returns the block hash of the transition in progress
+    pub const fn block_hash(&self) -> &Da::SlotHash {
+        &self.da_block_hash
+    }
 }
 
 /// The chain state module definition. Contains the current state of the da layer.
@@ -181,7 +184,7 @@ pub struct ChainState<C: Context, Da: DaSpec> {
     /// The transition that is currently processed
     #[state]
     in_progress_transition:
-        sov_modules_api::KernelStateValue<TransitionInProgress<C, Da>, BcsCodec>,
+        sov_modules_api::VersionedStateValue<TransitionInProgress<C, Da>, BcsCodec>,
 
     /// The parameters for the state based gas price computation.
     #[state]
@@ -241,9 +244,9 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
     /// Returns the transition in progress of the module.
     pub fn get_in_progress_transition(
         &self,
-        working_set: &mut KernelWorkingSet<C>,
+        working_set: &mut impl VersionReader,
     ) -> Option<TransitionInProgress<C, Da>> {
-        self.in_progress_transition.get(working_set)
+        self.in_progress_transition.get_current(working_set)
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.
@@ -272,7 +275,7 @@ impl<C: Context, Da: DaSpec> KernelModule for ChainState<C, Da> {
 
     type Config = ChainStateConfig<C>;
 
-    fn genesis(
+    fn genesis_unchecked(
         &self,
         config: &Self::Config,
         working_set: &mut KernelWorkingSet<C>,

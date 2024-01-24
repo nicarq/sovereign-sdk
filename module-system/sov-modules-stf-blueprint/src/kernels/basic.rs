@@ -63,6 +63,7 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
         self.chain_state.true_slot_height(working_set)
     }
     fn visible_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
+        // TODO: switch to visible_slot_height once the sequencer incentives are implemented
         self.chain_state.true_slot_height(working_set)
     }
 
@@ -76,7 +77,9 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
         config: &Self::GenesisConfig,
         working_set: &mut KernelWorkingSet<'_, C>,
     ) -> Result<(), anyhow::Error> {
-        Ok(self.chain_state.genesis(&config.chain_state, working_set)?)
+        Ok(self
+            .chain_state
+            .genesis_unchecked(&config.chain_state, working_set)?)
     }
 }
 
