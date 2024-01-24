@@ -99,7 +99,7 @@ impl<C: Context> SlotHooks for TestRuntime<C> {
     fn begin_slot_hook(
         &self,
         _pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        _working_set: &mut sov_modules_api::WorkingSet<C>,
+        _working_set: &mut sov_modules_api::VersionedWorkingSet<C>,
     ) {
     }
 

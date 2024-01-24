@@ -36,7 +36,7 @@ pub use revm::primitives::SpecId;
 mod experimental {
 
     use reth_primitives::Address;
-    use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+    use sov_modules_api::{DaSpec, Error, ModuleInfo, WorkingSet};
     use sov_state::codec::BcsCodec;
 
     use super::evm::db::EvmDb;
@@ -60,7 +60,7 @@ mod experimental {
     #[allow(dead_code)]
     // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
     #[derive(ModuleInfo, Clone)]
-    pub struct Evm<C: sov_modules_api::Context> {
+    pub struct Evm<C: sov_modules_api::Context, Da: DaSpec> {
         /// The address of the evm module.
         #[address]
         pub(crate) address: C::Address,
@@ -121,9 +121,12 @@ mod experimental {
         /// Used only by the RPC: Receipts.
         #[state]
         pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,
+
+        #[kernel_module]
+        pub(crate) chain_state: sov_chain_state::ChainState<C, Da>,
     }
 
-    impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
+    impl<C: sov_modules_api::Context, Da: DaSpec> sov_modules_api::Module for Evm<C, Da> {
         type Context = C;
 
         type Config = EvmConfig;
@@ -150,7 +153,7 @@ mod experimental {
         }
     }
 
-    impl<C: sov_modules_api::Context> Evm<C> {
+    impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         pub(crate) fn get_db<'a>(&self, working_set: &'a mut WorkingSet<C>) -> EvmDb<'a, C> {
             EvmDb::new(self.accounts.clone(), self.code.clone(), working_set)
         }

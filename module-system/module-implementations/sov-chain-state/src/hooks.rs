@@ -29,7 +29,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
                     gas_used,
                 } = self
                     .in_progress_transition
-                    .get(working_set)
+                    .get_current(working_set)
                     .expect("There should always be a transition in progress");
 
                 StateTransitionId {
@@ -45,7 +45,9 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
             self.store_state_transition(height, transition, working_set.inner);
         }
 
+        // Since we increment the true slot height, we have to update the working set.
         self.increment_true_slot_height(working_set);
+
         self.time.set_current(&slot_header.time(), working_set);
 
         let genesis_height = self
@@ -65,7 +67,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
             )
             .expect("the transition data must be available");
 
-        self.in_progress_transition.set(
+        self.in_progress_transition.set_current(
             &TransitionInProgress {
                 da_block_hash: slot_header.hash(),
                 validity_condition: *validity_condition,
@@ -80,12 +82,12 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
     pub fn end_slot_hook(&self, working_set: &mut KernelWorkingSet<C>) {
         let mut in_progress_transition = self
             .in_progress_transition
-            .get(working_set)
+            .get_current(working_set)
             .expect("There should always be a transition in progress");
 
         in_progress_transition.gas_used = working_set.inner.gas_used().clone();
         self.in_progress_transition
-            .set(&in_progress_transition, working_set);
+            .set_current(&in_progress_transition, working_set);
     }
 }
 

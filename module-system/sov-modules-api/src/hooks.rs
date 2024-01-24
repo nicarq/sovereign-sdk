@@ -1,4 +1,6 @@
-use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
+use sov_modules_core::{
+    AccessoryWorkingSet, Context, Spec, Storage, VersionedWorkingSet, WorkingSet,
+};
 use sov_rollup_interface::da::BlobReaderTrait;
 
 use crate::transaction::Transaction;
@@ -55,6 +57,9 @@ pub trait ApplyBlobHooks<B: BlobReaderTrait> {
     ) -> anyhow::Result<()>;
 }
 
+/// Type alias that contains the height of a given transition
+pub type TransitionHeight = u64;
+
 /// Hooks that execute during the `StateTransitionFunction::begin_slot` and `end_slot` functions.
 pub trait SlotHooks {
     type Context: Context;
@@ -62,7 +67,7 @@ pub trait SlotHooks {
     fn begin_slot_hook(
         &self,
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut VersionedWorkingSet<Self::Context>,
     );
 
     fn end_slot_hook(&self, working_set: &mut WorkingSet<Self::Context>);

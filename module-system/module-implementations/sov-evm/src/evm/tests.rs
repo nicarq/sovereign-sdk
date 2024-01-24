@@ -4,6 +4,7 @@ use reth_primitives::TransactionKind;
 use revm::precompile::B160;
 use revm::primitives::{CfgEnv, ExecutionResult, Output, SpecId, KECCAK_EMPTY, U256};
 use revm::{Database, DatabaseCommit};
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -24,7 +25,7 @@ fn simple_contract_execution_sov_state() {
     let mut working_set: WorkingSet<C> =
         WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    let evm = Evm::<C>::default();
+    let evm = Evm::<C, MockDaSpec>::default();
     let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set);
 
     simple_contract_execution(evm_db);

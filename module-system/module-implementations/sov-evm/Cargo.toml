@@ -15,6 +15,7 @@ publish = false
 [dependencies]
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
+sov-chain-state = { path = "../sov-chain-state", version = "0.3"}
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -58,6 +59,7 @@ tokio = { workspace = true }
 tempfile = { workspace = true }
 bytes = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 
 
 [features]

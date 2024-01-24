@@ -12,8 +12,14 @@ pub trait KernelModule {
     /// Configuration for the genesis method.
     type Config;
 
-    /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
-    fn genesis(
+    /// # Warning
+    /// This function runs *before* the runtime containing normal modules is initialized.
+    /// If you try to read or write a value from a normal module during genesis, you might encounter
+    /// unexpected behavior!
+    ///
+    /// This function is called once, when the rollup is created. It initializes the state of the kernel without
+    /// checking that any "normal" modules that this kernel module may depend on have been initialized
+    fn genesis_unchecked(
         &self,
         _config: &Self::Config,
         _working_set: &mut KernelWorkingSet<Self::Context>,

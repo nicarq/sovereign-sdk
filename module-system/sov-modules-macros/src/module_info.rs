@@ -94,7 +94,8 @@ fn impl_module_info(
             ModuleFieldAttribute::KernelModule => {
                 impl_self_init.push(make_init_module(field, ModuleType::Kernel)?);
                 impl_self_body.push(&field.ident);
-                modules.push(&field.ident);
+                // Notice that we don't add the item to the modules list if it's a kernel module.
+                // This excludes the module from the dependency sorting that runs at genesis.;
             }
             ModuleFieldAttribute::Address => {
                 impl_self_init.push(make_init_address(field, ident, generic_param)?);
@@ -229,14 +230,18 @@ fn make_init_module(
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let field_ident = &field.ident;
     let ty = &field.ty;
-    let trait_to_assert = match variant {
-        ModuleType::Standard => quote::quote! { ::sov_modules_api::Module },
-        ModuleType::Kernel => quote::quote! { ::sov_modules_api::KernelModule },
+    let trait_assertion = match variant {
+        ModuleType::Standard => {
+            quote::quote! { let _ = <#ty as ::sov_modules_api::Module>::genesis; }
+        }
+        ModuleType::Kernel => {
+            quote::quote! { let _ = <#ty as ::sov_modules_api::KernelModule>::genesis_unchecked; }
+        }
     };
 
     Ok(quote::quote! {
         // Ensure that the type implements "Module" or "KernelModule" at compile time
-        let _ = <#ty as #trait_to_assert>::genesis;
+        #trait_assertion
         let #field_ident = <#ty as ::std::default::Default>::default();
     })
 }

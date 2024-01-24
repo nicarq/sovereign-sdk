@@ -10,7 +10,7 @@ use revm::primitives::{
 };
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{DaSpec, WorkingSet};
 use tracing::info;
 
 use crate::call::get_cfg_env;
@@ -22,7 +22,7 @@ use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 use crate::{EthApiError, Evm};
 
 #[rpc_gen(client, server)]
-impl<C: sov_modules_api::Context> Evm<C> {
+impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     /// Handler for `net_version`
     #[rpc_method(name = "net_version")]
     pub fn net_version(&self, working_set: &mut WorkingSet<C>) -> RpcResult<String> {

@@ -8,7 +8,7 @@ use reth_primitives::{H256, U256, U64};
 use reth_rpc_types::BlockTransactions;
 use serde::{Deserialize, Serialize};
 use sov_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{DaSpec, WorkingSet};
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -84,20 +84,20 @@ impl GasPriceOracleConfig {
 }
 
 /// Calculates a gas price depending on recent blocks.
-pub struct GasPriceOracle<C: sov_modules_api::Context> {
+pub struct GasPriceOracle<C: sov_modules_api::Context, Da: DaSpec> {
     /// The type used to get block and tx info
-    provider: Evm<C>,
+    provider: Evm<C, Da>,
     /// The config for the oracle
     oracle_config: GasPriceOracleConfig,
     /// The latest calculated price and its block hash
     last_price: Mutex<GasPriceOracleResult>,
     /// Cache
-    cache: BlockCache<C>,
+    cache: BlockCache<C, Da>,
 }
 
-impl<C: sov_modules_api::Context> GasPriceOracle<C> {
+impl<C: sov_modules_api::Context, Da: DaSpec> GasPriceOracle<C, Da> {
     /// Creates and returns the [GasPriceOracle].
-    pub fn new(provider: Evm<C>, mut oracle_config: GasPriceOracleConfig) -> Self {
+    pub fn new(provider: Evm<C, Da>, mut oracle_config: GasPriceOracleConfig) -> Self {
         // sanitize the percentile to be less than 100
         if oracle_config.percentile > 100 {
             warn!(prev_percentile = ?oracle_config.percentile, "Invalid configured gas price percentile, assuming 100.");
@@ -110,7 +110,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             provider: provider.clone(),
             oracle_config,
             last_price: Default::default(),
-            cache: BlockCache::<C>::new(max_header_history, provider),
+            cache: BlockCache::<C, Da>::new(max_header_history, provider),
         }
     }
 

@@ -99,7 +99,7 @@ pub mod experimental {
     pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
         da_service: Da,
         batch_builder: Arc<Mutex<EthBatchBuilder<C>>>,
-        gas_price_oracle: GasPriceOracle<C>,
+        gas_price_oracle: GasPriceOracle<C, Da::Spec>,
         #[cfg(feature = "local")]
         eth_signer: DevSigner,
         storage: Arc<RwLock<C::Storage>>,
@@ -113,7 +113,7 @@ pub mod experimental {
             #[cfg(feature = "local")] eth_signer: DevSigner,
             storage: Arc<RwLock<C::Storage>>,
         ) -> Self {
-            let evm = Evm::<C>::default();
+            let evm = Evm::<C, Da::Spec>::default();
             let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
             Self {
                 da_service,
@@ -136,7 +136,8 @@ pub mod experimental {
             let tx_hash = signed_transaction.hash();
 
             let tx = CallMessage { tx: raw_tx };
-            let message = <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(tx);
+            let message =
+                <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C, Da::Spec>>>::encode_call(tx);
 
             Ok((tx_hash, message))
         }
@@ -219,7 +220,7 @@ pub mod experimental {
                     .await
                     .unwrap();
 
-                let evm = Evm::<C>::default();
+                let evm = Evm::<C, Da::Spec>::default();
                 let base_fee = evm
                     .get_block_by_number(None, None, &mut working_set)
                     .unwrap()
@@ -276,7 +277,7 @@ pub mod experimental {
         rpc.register_async_method("eth_sendTransaction", |parameters, ethereum| async move {
             let mut transaction_request: TransactionRequest = parameters.one().unwrap();
 
-            let evm = Evm::<C>::default();
+            let evm = Evm::<C, Da::Spec>::default();
 
             // get from, return error if none
             let from = transaction_request

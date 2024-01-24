@@ -4,16 +4,16 @@ use reth_primitives::H256;
 use reth_rpc_types::{Block, Rich};
 use schnellru::{ByLength, LruMap};
 use sov_evm::EthResult;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{DaSpec, WorkingSet};
 
 /// Block cache for gas oracle
-pub struct BlockCache<C: sov_modules_api::Context> {
+pub struct BlockCache<C: sov_modules_api::Context, Da: DaSpec> {
     cache: Mutex<LruMap<H256, Rich<Block>, ByLength>>,
-    provider: sov_evm::Evm<C>,
+    provider: sov_evm::Evm<C, Da>,
 }
 
-impl<C: sov_modules_api::Context> BlockCache<C> {
-    pub fn new(max_size: u32, provider: sov_evm::Evm<C>) -> Self {
+impl<C: sov_modules_api::Context, Da: DaSpec> BlockCache<C, Da> {
+    pub fn new(max_size: u32, provider: sov_evm::Evm<C, Da>) -> Self {
         Self {
             cache: Mutex::new(LruMap::new(ByLength::new(max_size))),
             provider,

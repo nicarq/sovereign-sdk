@@ -19,7 +19,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_bank::Amount;
-use sov_chain_state::TransitionHeight;
+use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
     Context, DaSpec, Error, KernelModuleInfo, ValidityConditionChecker, WorkingSet, Zkvm,
 };

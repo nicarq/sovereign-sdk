@@ -5,7 +5,7 @@ use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{Address, Bloom, Bytes, EMPTY_OMMER_ROOT, H256, KECCAK_EMPTY, U256};
 use revm::primitives::SpecId;
 use sov_modules_api::prelude::*;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{DaSpec, WorkingSet};
 
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
@@ -81,7 +81,7 @@ impl Default for EvmConfig {
     }
 }
 
-impl<C: sov_modules_api::Context> Evm<C> {
+impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,

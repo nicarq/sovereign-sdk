@@ -18,6 +18,7 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet, Spec,
     StateCheckpoint, Zkvm,
 };
+use sov_modules_core::VersionedWorkingSet;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_state::Storage;
@@ -137,6 +138,9 @@ where
         pre_state_root: &<C::Storage as Storage>::Root,
     ) -> StateCheckpoint<C> {
         let mut working_set = state_checkpoint.to_revertable();
+
+        // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
+        // That way the state of the runtime modules is always in sync with the transaction `being executed`.
         self.kernel.begin_slot_hook(
             slot_header,
             validity_condition,
@@ -144,8 +148,14 @@ where
             &mut working_set,
         );
 
+        // We build and pass down the VersionedWorkingSet to the [`begin_slot_hook`] method to have access to context
+        // aware information.
+        let kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut working_set);
+        let mut versioned_working_set =
+            VersionedWorkingSet::from_kernel_ws_virtual::<Da>(kernel_working_set);
+
         self.runtime
-            .begin_slot_hook(pre_state_root, &mut working_set);
+            .begin_slot_hook(pre_state_root, &mut versioned_working_set);
 
         working_set.checkpoint()
     }
