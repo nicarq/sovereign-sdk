@@ -10,6 +10,12 @@ mod prover_storage;
 mod witness;
 mod zk_storage;
 
+pub mod jmt {
+    //! Re-export the [`jellyfish-merkle-tree`](https://github.com/penumbra-zone/jmt) crate.
+    pub use jmt::proof::SparseMerkleProof;
+    pub use jmt::{KeyHash, RootHash};
+}
+
 #[cfg(feature = "native")]
 pub use prover_storage::ProverStorage;
 pub use zk_storage::ZkStorage;

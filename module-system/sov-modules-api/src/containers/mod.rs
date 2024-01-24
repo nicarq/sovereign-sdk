@@ -25,9 +25,10 @@ pub use versioned_value::VersionedStateValue;
 
 #[cfg(test)]
 mod test {
-    use jmt::Version;
     use sov_mock_da::{MockBlockHeader, MockDaSpec};
-    use sov_modules_core::{StateReaderAndWriter, Storage, StorageKey, StorageValue, WorkingSet};
+    use sov_modules_core::{
+        StateReaderAndWriter, Storage, StorageKey, StorageValue, Version, WorkingSet,
+    };
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_state::DefaultStorageSpec;
