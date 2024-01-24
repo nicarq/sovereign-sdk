@@ -1,4 +1,3 @@
-use jmt::proof::SparseMerkleProof;
 use sov_bank::{BankConfig, TokenConfig};
 use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
@@ -11,6 +10,7 @@ use sov_modules_api::{
 };
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_rollup_interface::da::Time;
+use sov_state::jmt::{RootHash, SparseMerkleProof};
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -30,7 +30,7 @@ pub const INIT_HEIGHT: u64 = 0;
 pub(crate) fn commit_get_new_working_set(
     storage: &ProverStorage<DefaultStorageSpec>,
     working_set: WorkingSet<C>,
-) -> (jmt::RootHash, WorkingSet<C>) {
+) -> (RootHash, WorkingSet<C>) {
     let (reads_writes, witness) = working_set.checkpoint().freeze();
 
     let prev_root = storage
@@ -156,7 +156,7 @@ pub(crate) fn setup(
 }
 
 pub(crate) struct ExecutionSimulationVars {
-    pub state_root: jmt::RootHash,
+    pub state_root: RootHash,
     pub state_proof: StorageProof<SparseMerkleProof<<C as Spec>::Hasher>>,
 }
 

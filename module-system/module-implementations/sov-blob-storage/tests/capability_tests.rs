@@ -15,6 +15,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::SequencerConfig;
+use sov_state::jmt::RootHash;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 type C = DefaultContext;
@@ -735,7 +736,7 @@ pub(crate) type TestKernel<C, Da> = BasicKernel<C, Da>;
 impl TestRuntime<DefaultContext, MockDaSpec> {
     pub fn pre_initialized(
         with_preferred_sequencer: bool,
-    ) -> (ProverStorage<DefaultStorageSpec>, Self, jmt::RootHash) {
+    ) -> (ProverStorage<DefaultStorageSpec>, Self, RootHash) {
         use sov_modules_api::Genesis;
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
