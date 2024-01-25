@@ -2029,6 +2029,7 @@ dependencies = [
  "bincode",
  "borsh",
  "hex",
+ "serde",
  "sov-chain-state",
  "sov-modules-api",
  "sov-sequencer-registry",
@@ -2071,6 +2072,7 @@ dependencies = [
  "serde",
  "sov-modules-api",
  "sov-state",
+ "tracing",
 ]
 
 [[package]]
@@ -2121,6 +2123,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

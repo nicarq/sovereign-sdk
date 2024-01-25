@@ -3,9 +3,8 @@ use std::path::PathBuf;
 
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
-use sov_modules_api::runtime::capabilities::{
-    BlobRefOrOwned, BlobSelector, Kernel, KernelSlotHooks,
-};
+use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, KernelModule, KernelWorkingSet};
 use sov_state::storage::kernel_state::BootstrapWorkingSet;
 use sov_state::Storage;
@@ -43,7 +42,7 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for SoftConfirmationsKernel<C, Da> {
         self.chain_state.true_slot_height(working_set)
     }
     fn visible_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
-        self.chain_state.visible_slot_height(working_set)
+        self.chain_state.next_visible_slot_height(working_set)
     }
 
     type GenesisConfig = SoftConfirmationsKernelGenesisConfig<C, Da>;
@@ -62,19 +61,20 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for SoftConfirmationsKernel<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> BlobSelector<Da> for SoftConfirmationsKernel<C, Da> {
+impl<C: Context, Da: DaSpec> BatchSelector<Da> for SoftConfirmationsKernel<C, Da> {
     type Context = C;
+    type Batch = BatchWithId;
 
-    fn get_blobs_for_this_slot<'a, 'k, I>(
+    fn get_batches_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
         _working_set: &mut sov_modules_api::KernelWorkingSet<'k, Self::Context>,
-    ) -> anyhow::Result<Vec<BlobRefOrOwned<'a, Da::BlobTransaction>>>
+    ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         self.blob_storage
-            .get_blobs_for_this_slot(current_blobs, _working_set)
+            .get_batches_for_this_slot(current_blobs, _working_set)
     }
 }
 

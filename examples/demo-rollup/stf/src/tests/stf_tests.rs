@@ -1,8 +1,9 @@
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
+use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::{PrivateKey, WorkingSet};
-use sov_modules_stf_blueprint::{Batch, SequencerOutcome, StfBlueprint};
+use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -38,7 +39,11 @@ fn test_demo_values_in_db() {
 
         let priv_key = read_private_key::<DefaultContext>().private_key;
         let txs = simulate_da(priv_key);
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(
+            BatchWithId { txs, id: [0; 32] },
+            &MOCK_SEQUENCER_DA_ADDRESS,
+            [0; 32],
+        );
 
         let mut blobs = [blob];
 
@@ -113,7 +118,11 @@ fn test_demo_values_in_cache() {
     let private_key = read_private_key::<DefaultContext>().private_key;
     let txs = simulate_da(private_key);
 
-    let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+    let blob = new_test_blob_from_batch(
+        BatchWithId { txs, id: [0; 32] },
+        &MOCK_SEQUENCER_DA_ADDRESS,
+        [0; 32],
+    );
     let mut blobs = [blob];
     let block_1 = genesis_block.next_mock();
     let (stf_state, _ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
@@ -177,7 +186,11 @@ fn test_demo_values_not_in_db() {
             .unwrap();
 
         let txs = simulate_da(value_setter_admin_private_key);
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(
+            BatchWithId { txs, id: [0; 32] },
+            &MOCK_SEQUENCER_DA_ADDRESS,
+            [0; 32],
+        );
         let mut blobs = [blob];
 
         let (stf_state, _ledger_state) =
@@ -247,7 +260,7 @@ fn test_sequencer_unknown_sequencer() {
 
     let private_key = read_private_key::<DefaultContext>().private_key;
     let txs = simulate_da(private_key);
-    let blob = new_test_blob_from_batch(Batch { txs }, &some_sequencer, [0; 32]);
+    let blob = new_test_blob_from_batch(BatchWithId { txs, id: [0; 32] }, &some_sequencer, [0; 32]);
     let mut blobs = [blob];
 
     let (stf_state, _ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
@@ -261,15 +274,6 @@ fn test_sequencer_unknown_sequencer() {
         &mut blobs,
     );
 
-    assert_eq!(1, apply_block_result.batch_receipts.len());
-    let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
-
-    assert_eq!(
-        SequencerOutcome::Ignored,
-        apply_blob_outcome.inner,
-        "Batch should have been skipped due to unknown sequencer"
-    );
-
-    // Assert that there are no events
-    assert!(!has_tx_events(&apply_blob_outcome));
+    // The sequencer isn't registered, so the blob should be ignored.
+    assert_eq!(0, apply_block_result.batch_receipts.len());
 }

@@ -24,7 +24,7 @@ mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::hooks::TransitionHeight;
+pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
     Context, DaSpec, Error, KernelModule, KernelModuleInfo, KernelStateValue,
@@ -34,6 +34,9 @@ use sov_state::codec::{BcsCodec, BorshCodec};
 use sov_state::storage::kernel_state::VersionReader;
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
+
+/// Type alias that contains the height of a given transition
+pub type VirtualSlotNumber = u64;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 /// Structure that contains the information needed to represent a single state transition.
@@ -158,9 +161,9 @@ pub struct ChainState<C: Context, Da: DaSpec> {
     #[address]
     address: C::Address,
 
-    /// The current block height
+    /// The height that should be loaded as the visible set at the start of the next block
     #[state]
-    visible_height: sov_modules_api::KernelStateValue<TransitionHeight>,
+    next_visible_height: sov_modules_api::KernelStateValue<TransitionHeight>,
 
     /// The real slot height of the rollup.
     // This value is also required to create a `KernelWorkingSet`. See note on `visible_height` above.
@@ -195,11 +198,6 @@ pub struct ChainState<C: Context, Da: DaSpec> {
     // TODO: This should be made read-only
     #[state]
     genesis_hash: sov_modules_api::StateValue<<C::Storage as Storage>::Root>,
-
-    /// The height of genesis
-    // TODO: This should be made read-only
-    #[state]
-    genesis_height: sov_modules_api::StateValue<TransitionHeight>,
 }
 
 impl<C: Context, Da: DaSpec> ChainState<C, Da> {
@@ -212,13 +210,25 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
         self.true_height.get(working_set).unwrap_or_default()
     }
 
-    /// Returns transition height in the current slot
-    pub fn visible_slot_height<T>(&self, working_set: &mut T) -> TransitionHeight
+    /// Returns transition height for the next slot to start execution
+    pub fn next_visible_slot_height<T>(&self, working_set: &mut T) -> TransitionHeight
     where
         KernelStateValue<u64>: StateValueAccessor<u64, BorshCodec, T>,
         T: StateReaderAndWriter,
     {
-        self.visible_height.get(working_set).unwrap_or_default()
+        self.next_visible_height
+            .get(working_set)
+            .unwrap_or_default()
+    }
+
+    /// Returns transition height in the current slot
+    pub fn set_next_visible_slot_height<T>(&self, value: &u64, working_set: &mut T)
+    where
+        KernelStateValue<u64>: StateValueAccessor<u64, BorshCodec, T>,
+        T: StateReaderAndWriter,
+    {
+        tracing::debug!("Setting next visible slot height to {}", value);
+        self.next_visible_height.set(value, working_set)
     }
 
     /// Returns the current time, as reported by the DA layer
@@ -234,11 +244,6 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
         working_set: &mut WorkingSet<C>,
     ) -> Option<<C::Storage as Storage>::Root> {
         self.genesis_hash.get(working_set)
-    }
-
-    /// Returns the genesis height of the module.
-    pub fn get_genesis_height(&self, working_set: &mut WorkingSet<C>) -> Option<TransitionHeight> {
-        self.genesis_height.get(working_set)
     }
 
     /// Returns the transition in progress of the module.

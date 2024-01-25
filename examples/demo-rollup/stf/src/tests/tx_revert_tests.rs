@@ -1,8 +1,9 @@
 use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
+use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{PrivateKey, WorkingSet};
-use sov_modules_stf_blueprint::{Batch, SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -51,7 +52,11 @@ fn test_tx_revert() {
             .unwrap();
 
         let txs = simulate_da_with_revert_msg();
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(
+            BatchWithId { txs, id: [0; 32] },
+            &MOCK_SEQUENCER_DA_ADDRESS,
+            [0; 32],
+        );
         let mut blobs = [blob];
 
         let (stf_state, _ledger_state) =
@@ -152,7 +157,11 @@ fn test_tx_bad_signature() {
 
         let txs = simulate_da_with_bad_sig();
 
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(
+            BatchWithId { txs, id: [0; 32] },
+            &MOCK_SEQUENCER_DA_ADDRESS,
+            [0; 32],
+        );
         let blob_sender = blob.sender();
         let mut blobs = [blob];
 
@@ -219,7 +228,11 @@ fn test_tx_bad_nonce() {
             .unwrap();
         let txs = simulate_da_with_bad_nonce();
 
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(
+            BatchWithId { txs, id: [0; 32] },
+            &MOCK_SEQUENCER_DA_ADDRESS,
+            [0; 32],
+        );
         let mut blobs = [blob];
 
         let (stf_state, _ledger_state) =
@@ -297,7 +310,11 @@ fn test_tx_bad_serialization() {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
         let txs = simulate_da_with_bad_serialization();
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(
+            BatchWithId { txs, id: [0; 32] },
+            &MOCK_SEQUENCER_DA_ADDRESS,
+            [0; 32],
+        );
         let blob_sender = blob.sender();
         let mut blobs = [blob];
 
@@ -383,7 +400,11 @@ fn test_tx_max_gas_price() {
 
         let private_key = read_private_key::<DefaultContext>().private_key;
         let txs = simulate_da_with_max_gas_price(private_key, tx_max_price);
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(
+            BatchWithId { txs, id: [0; 32] },
+            &MOCK_SEQUENCER_DA_ADDRESS,
+            [0; 32],
+        );
         let mut blobs = [blob];
 
         let (stf_state, ledger_state) = storage_manager

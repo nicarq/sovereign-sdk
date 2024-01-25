@@ -24,7 +24,7 @@ no matter which ones you pick.
 ## Overview
 
 To get a fully functional rollup, we recommend implementing the [State Transition Function
-interface](../../rollup-interface/specs/interfaces/stf.md) ("STF")  trait, which specifies your rollup's abstract logic. Second, there's
+interface](../../rollup-interface/specs/interfaces/stf.md) ("STF") trait, which specifies your rollup's abstract logic. Second, there's
 a related struct called `State Transition Runner` ("STR") which tells a full node how to run your abstract STF on a concrete machine.
 
 ## Implementing State Transition _Function_
@@ -100,17 +100,17 @@ There are two kind of hooks:
 1. `pre_dispatch_tx_hook`: Invoked immediately before each transaction is processed. This is a good time to apply stateful transaction verification, like checking the nonce.
 2. `post_dispatch_tx_hook`: Invoked immediately after each transaction is executed. This is a good place to perform any post-execution operations, like incrementing the nonce.
 
-`ApplyBlobHooks`, which has the following methods:
+`ApplyBatchHooks`, which has the following methods:
 
-1. `begin_blob_hook `Invoked at the beginning of the `apply_blob` function, before the blob is deserialized into a group of transactions. This is a good time to ensure that the sequencer is properly bonded.
-2. `end_blob_hook` invoked at the end of the `apply_blob` function. This is a good place to reward sequencers.
+1. `begin_batch_hook `Invoked at the beginning of the `apply_blob` function, before the blob is deserialized into a group of transactions. This is a good time to ensure that the sequencer is properly bonded.
+2. `end_batch_hook` invoked at the end of the `apply_blob` function. This is a good place to reward sequencers.
 
 To use the `StfBlueprint`, the runtime needs to provide implementation of these hooks which specifies what needs to happen at each of these four stages.
 
 In this demo, we only rely on two modules which need access to the hooks - `sov-accounts` and `sequencer-registry`.
 
 The `sov-accounts` module implements `TxHooks` because it needs to check and increment the sender nonce for every transaction.
-The `sequencer-registry` implements `ApplyBlobHooks` since it is responsible for managing the sequencer bond.
+The `sequencer-registry` implements `ApplyBatchHooks` since it is responsible for managing the sequencer bond.
 
 The implementation for `MyRuntime` is straightforward because we can leverage the existing hooks provided by `sov-accounts` and `sequencer-registry` and reuse them in our implementation.
 
@@ -137,7 +137,7 @@ impl<C: Context> TxHooks for Runtime<C> {
 ```
 
 ```Rust
-impl<C: Context> ApplyBlobHooks for Runtime<C> {
+impl<C: Context> ApplyBatchHooks for Runtime<C> {
     type Context = C;
 
     fn lock_sequencer_bond(
@@ -184,7 +184,6 @@ The State Transition Runner struct contains logic related to initialization and 
 1. `new` - which consumes all the dependencies need for running the rollup.
 2. `run` - which runs the rollup.
 3. `start_rpc_server` - which exposes an RPC server.
-
 
 ## Wrapping Up
 

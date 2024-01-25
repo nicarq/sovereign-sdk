@@ -1,6 +1,7 @@
 use helpers::*;
-use sov_mock_da::{MockAddress, MockBlob};
-use sov_modules_api::hooks::ApplyBlobHooks;
+use sov_mock_da::{MockAddress, MockDaSpec};
+use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::{CallMessage, SequencerOutcome, SequencerRegistry};
@@ -22,11 +23,14 @@ fn begin_blob_hook_known_sequencer() {
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
-    let mut test_blob = MockBlob::new(Vec::new(), genesis_sequencer_da_address, [0_u8; 32]);
+    let mut test_batch = BatchWithId {
+        txs: Vec::new(),
+        id: [0u8; 32],
+    };
 
     test_sequencer
         .registry
-        .begin_blob_hook(&mut test_blob, working_set)
+        .begin_batch_hook(&mut test_batch, &genesis_sequencer_da_address, working_set)
         .unwrap();
 
     let resp = test_sequencer.query_balance_via_bank(working_set).unwrap();
@@ -45,15 +49,16 @@ fn begin_blob_hook_unknown_sequencer() {
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     test_sequencer.genesis(working_set);
 
-    let mut test_blob = MockBlob::new(
-        Vec::new(),
-        MockAddress::from(UNKNOWN_SEQUENCER_DA_ADDRESS),
-        [0_u8; 32],
-    );
+    let mut test_batch = BatchWithId {
+        txs: Vec::new(),
+        id: [0u8; 32],
+    };
 
-    let result = test_sequencer
-        .registry
-        .begin_blob_hook(&mut test_blob, working_set);
+    let result = test_sequencer.registry.begin_batch_hook(
+        &mut test_batch,
+        &MockAddress::from(UNKNOWN_SEQUENCER_DA_ADDRESS),
+        working_set,
+    );
     assert!(result.is_err());
     let expected_message = format!(
         "sender {} is not allowed to submit blobs",
@@ -76,15 +81,17 @@ fn end_blob_hook_success() {
     assert_eq!(INITIAL_BALANCE - LOCKED_AMOUNT, balance_after_genesis);
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
-
-    let mut test_blob = MockBlob::new(Vec::new(), genesis_sequencer_da_address, [0_u8; 32]);
+    let mut test_batch = BatchWithId {
+        txs: Vec::new(),
+        id: [0u8; 32],
+    };
 
     test_sequencer
         .registry
-        .begin_blob_hook(&mut test_blob, working_set)
+        .begin_batch_hook(&mut test_batch, &genesis_sequencer_da_address, working_set)
         .unwrap();
 
-    <SequencerRegistry<C, Da> as ApplyBlobHooks<MockBlob>>::end_blob_hook(
+    <SequencerRegistry<C, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         SequencerOutcome::Completed,
         working_set,
@@ -113,17 +120,20 @@ fn end_blob_hook_slash() {
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
-    let mut test_blob = MockBlob::new(Vec::new(), genesis_sequencer_da_address, [0_u8; 32]);
+    let mut test_batch = BatchWithId {
+        txs: Vec::new(),
+        id: [0u8; 32],
+    };
 
     test_sequencer
         .registry
-        .begin_blob_hook(&mut test_blob, working_set)
+        .begin_batch_hook(&mut test_batch, &genesis_sequencer_da_address, working_set)
         .unwrap();
 
     let result = SequencerOutcome::Slashed {
         sequencer: genesis_sequencer_da_address,
     };
-    <SequencerRegistry<C, Da> as ApplyBlobHooks<MockBlob>>::end_blob_hook(
+    <SequencerRegistry<C, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         result,
         working_set,
@@ -172,17 +182,20 @@ fn end_blob_hook_slash_preferred_sequencer() {
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
-    let mut test_blob = MockBlob::new(Vec::new(), genesis_sequencer_da_address, [0_u8; 32]);
+    let mut test_batch = BatchWithId {
+        txs: Vec::new(),
+        id: [0u8; 32],
+    };
 
     test_sequencer
         .registry
-        .begin_blob_hook(&mut test_blob, working_set)
+        .begin_batch_hook(&mut test_batch, &genesis_sequencer_da_address, working_set)
         .unwrap();
 
     let result = SequencerOutcome::Slashed {
         sequencer: genesis_sequencer_da_address,
     };
-    <SequencerRegistry<C, Da> as ApplyBlobHooks<MockBlob>>::end_blob_hook(
+    <SequencerRegistry<C, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         result,
         working_set,
@@ -210,17 +223,18 @@ fn end_blob_hook_slash_unknown_sequencer() {
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     test_sequencer.genesis(working_set);
 
-    let mut test_blob = MockBlob::new(
-        Vec::new(),
-        MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
-        [0_u8; 32],
-    );
-
+    let mut test_batch = BatchWithId {
+        txs: Vec::new(),
+        id: [0u8; 32],
+    };
     let sequencer_address = MockAddress::from(UNKNOWN_SEQUENCER_DA_ADDRESS);
-
     test_sequencer
         .registry
-        .begin_blob_hook(&mut test_blob, working_set)
+        .begin_batch_hook(
+            &mut test_batch,
+            &MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
+            working_set,
+        )
         .unwrap();
 
     let resp = test_sequencer
@@ -232,7 +246,7 @@ fn end_blob_hook_slash_unknown_sequencer() {
     let result = SequencerOutcome::Slashed {
         sequencer: sequencer_address,
     };
-    <SequencerRegistry<C, Da> as ApplyBlobHooks<MockBlob>>::end_blob_hook(
+    <SequencerRegistry<C, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         result,
         working_set,
@@ -255,15 +269,20 @@ fn begin_blob_hook_without_enough_stake() {
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
-    let mut test_blob = MockBlob::new(Vec::new(), genesis_sequencer_da_address, [0_u8; 32]);
+    let mut test_blob = BatchWithId {
+        txs: vec![],
+        id: [0; 32],
+    };
 
     test_sequencer
         .set_coins_amount_to_lock(LOCKED_AMOUNT + 1, working_set)
         .unwrap();
 
-    let res = test_sequencer
-        .registry
-        .begin_blob_hook(&mut test_blob, working_set);
+    let res = test_sequencer.registry.begin_batch_hook(
+        &mut test_blob,
+        &genesis_sequencer_da_address,
+        working_set,
+    );
 
     assert!(
         res.is_err(),
@@ -345,22 +364,24 @@ fn slashed_sequencer_shouldnt_preserve_balance() {
         test_sequencer.query_if_sequencer_is_allowed(&genesis_sequencer_da_address, working_set),
     );
 
-    let data = Vec::new();
     let hash = [0u8; 32]; // invalid
     let result = SequencerOutcome::Slashed {
         sequencer: genesis_sequencer_da_address,
     };
 
-    let mut test_blob = MockBlob::new(data, genesis_sequencer_da_address, hash);
+    let mut test_blob = BatchWithId {
+        txs: vec![],
+        id: hash,
+    };
 
     test_sequencer
         .registry
-        .begin_blob_hook(&mut test_blob, working_set)
+        .begin_batch_hook(&mut test_blob, &genesis_sequencer_da_address, working_set)
         .unwrap();
 
     test_sequencer
         .registry
-        .end_blob_hook(result, working_set)
+        .end_batch_hook(result, working_set)
         .unwrap();
 
     assert!(

@@ -12,7 +12,6 @@ use sov_state::Storage;
 #[test]
 fn test_simple_chain_state() {
     // The initial height can be any value.
-    const INIT_HEIGHT: u64 = 10;
     // Initialize the module.
     let tmpdir = tempfile::tempdir().unwrap();
 
@@ -24,7 +23,6 @@ fn test_simple_chain_state() {
     let gas_price_maximum_elasticity = 1;
     let minimum_gas_price = [1, 1];
     let config = ChainStateConfig {
-        initial_slot_height: INIT_HEIGHT,
         current_time: Default::default(),
         gas_price_blocks_depth: 10,
         gas_price_maximum_elasticity,
@@ -32,15 +30,11 @@ fn test_simple_chain_state() {
         minimum_gas_price,
     };
 
-    // Check the slot height before any changes to the state.
-    let mock_kernel: MockKernel<DefaultContext, MockDaSpec> =
-        MockKernel::new(INIT_HEIGHT, INIT_HEIGHT);
-
     // Genesis, initialize and then commit the state
     chain_state
         .genesis_unchecked(
             &config,
-            &mut KernelWorkingSet::from_kernel(&mock_kernel, &mut working_set),
+            &mut KernelWorkingSet::uninitialized(&mut working_set),
         )
         .unwrap();
     let (reads_writes, witness) = working_set.checkpoint().freeze();
@@ -49,16 +43,15 @@ fn test_simple_chain_state() {
     // Computes the initial, post genesis, working set
     let mut base_working_set = WorkingSet::new(storage.clone());
 
+    // Check the slot height before any changes to the state.
+    let mock_kernel: MockKernel<DefaultContext, MockDaSpec> = MockKernel::new(0, 0);
     let initial_height = chain_state.true_slot_height(&mut KernelWorkingSet::from_kernel(
         &mock_kernel,
         &mut base_working_set,
     ));
     let mut working_set = KernelWorkingSet::from_kernel(&mock_kernel, &mut base_working_set);
 
-    assert_eq!(
-        initial_height, INIT_HEIGHT,
-        "The initial height was not computed"
-    );
+    assert_eq!(initial_height, 0, "The initial height was not computed");
     assert_eq!(
         chain_state.get_time(&mut working_set),
         Default::default(),
@@ -70,7 +63,7 @@ fn test_simple_chain_state() {
         header: MockBlockHeader {
             prev_hash: [0; 32].into(),
             hash: [1; 32].into(),
-            height: INIT_HEIGHT + 1,
+            height: 1,
             time: Time::now(),
         },
         validity_cond: MockValidityCond { is_valid: true },
@@ -98,11 +91,7 @@ fn test_simple_chain_state() {
     // Check that the slot height has been updated
     let new_height_storage = chain_state.true_slot_height(&mut working_set);
 
-    assert_eq!(
-        new_height_storage,
-        INIT_HEIGHT + 1,
-        "The new height did not update"
-    );
+    assert_eq!(new_height_storage, 1, "The new height did not update");
 
     // Update the kernel
     let mock_kernel: MockKernel<DefaultContext, MockDaSpec> =
@@ -140,7 +129,7 @@ fn test_simple_chain_state() {
         header: MockBlockHeader {
             prev_hash: [1; 32].into(),
             hash: [2; 32].into(),
-            height: INIT_HEIGHT + 2,
+            height: 2,
             time: Time::now(),
         },
         validity_cond: MockValidityCond { is_valid: false },
@@ -157,11 +146,7 @@ fn test_simple_chain_state() {
 
     // Check that the slot height has been updated correctly
     let new_height_storage = chain_state.true_slot_height(&mut working_set);
-    assert_eq!(
-        new_height_storage,
-        INIT_HEIGHT + 2,
-        "The new height did not update"
-    );
+    assert_eq!(new_height_storage, 2, "The new height did not update");
     assert_eq!(
         chain_state.get_time(&mut working_set),
         new_slot_data.header.time(),
@@ -194,7 +179,7 @@ fn test_simple_chain_state() {
 
     // Check the transition stored
     let last_tx_stored: StateTransitionId<DefaultContext, MockDaSpec> = chain_state
-        .get_historical_transitions(INIT_HEIGHT + 1, working_set.inner)
+        .get_historical_transitions(1, working_set.inner)
         .unwrap();
     let expected_tx_stored: StateTransitionId<DefaultContext, MockDaSpec> = StateTransitionId::new(
         [1; 32].into(),
@@ -232,7 +217,7 @@ fn test_simple_chain_state() {
         header: MockBlockHeader {
             prev_hash: [2; 32].into(),
             hash: [3; 32].into(),
-            height: INIT_HEIGHT + 3,
+            height: 3,
             time: Time::now(),
         },
         validity_cond: MockValidityCond { is_valid: false },
@@ -249,11 +234,7 @@ fn test_simple_chain_state() {
 
     // Check that the slot height has been updated correctly
     let new_height_storage = chain_state.true_slot_height(&mut working_set);
-    assert_eq!(
-        new_height_storage,
-        INIT_HEIGHT + 3,
-        "The new height did not update"
-    );
+    assert_eq!(new_height_storage, 3, "The new height did not update");
     assert_eq!(
         chain_state.get_time(&mut working_set),
         new_slot_data.header.time(),

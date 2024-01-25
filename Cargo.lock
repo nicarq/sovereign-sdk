@@ -3915,6 +3915,7 @@ dependencies = [
  "integration-tests",
  "jsonrpsee 0.20.3",
  "serde",
+ "sov-bank",
  "sov-chain-state",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -3923,6 +3924,7 @@ dependencies = [
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-schema-db",
+ "sov-sequencer-registry",
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
@@ -7949,7 +7951,9 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-sequencer-registry",
+ "sov-soft-confirmations-kernel",
  "sov-state",
+ "sov-test-utils",
  "tempfile",
  "tracing",
 ]
@@ -8006,6 +8010,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -8273,6 +8278,7 @@ dependencies = [
  "sov-zk-cycle-macros",
  "tempfile",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

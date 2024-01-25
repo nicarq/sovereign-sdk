@@ -1,13 +1,16 @@
+use std::collections::HashMap;
+
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::TokenConfig;
-use sov_blob_storage::DEFERRED_SLOTS_COUNT;
+use sov_blob_storage::{PreferredBatch, DEFERRED_SLOTS_COUNT};
 use sov_chain_state::ChainStateConfig;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::da::Time;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::DefaultRuntime;
-use sov_modules_api::runtime::capabilities::{
-    BlobRefOrOwned, BlobSelector, Kernel, KernelSlotHooks,
-};
+use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
+use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, KernelWorkingSet,
     MessageCodec, Module, Spec, WorkingSet,
@@ -15,8 +18,12 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::SequencerConfig;
-use sov_state::jmt::RootHash;
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+use sov_soft_confirmations_kernel::{
+    SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
+};
+use sov_state::{jmt, DefaultStorageSpec, ProverStorage, Storage};
+use sov_test_utils::new_test_blob_from_batch;
+use tracing::{debug, info};
 
 type C = DefaultContext;
 type B = MockBlob;
@@ -48,24 +55,51 @@ fn get_bank_config(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SequencerInfo {
+    Preferred {
+        slots_to_advance: u64,
+        sequence_number: u64,
+    },
+    Regular,
+}
+
 fn make_blobs(
     blob_num: &mut u8,
     slot: u64,
-    senders_are_preferred: impl Iterator<Item = bool>,
+    senders_are_preferred: impl Iterator<Item = SequencerInfo>,
 ) -> Vec<BlobWithAppearance<MockBlob>> {
     let blobs: Vec<_> = senders_are_preferred
         .enumerate()
-        .map(|(offset, is_preferred)| {
-            let sender = if is_preferred {
-                PREFERRED_SEQUENCER_DA
-            } else {
-                REGULAR_SEQUENCER_DA
+        .map(|(offset, sequencer_info)| {
+            let blob = match sequencer_info {
+                SequencerInfo::Preferred {
+                    slots_to_advance,
+                    sequence_number,
+                } => B::new(
+                    PreferredBatch {
+                        txs: vec![RawTx {
+                            data: vec![*blob_num],
+                        }],
+                        sequence_number,
+                        virtual_slots_to_advance: slots_to_advance as u8,
+                    }
+                    .try_to_vec()
+                    .unwrap(),
+                    PREFERRED_SEQUENCER_DA,
+                    [*blob_num + offset as u8; 32],
+                ),
+                SequencerInfo::Regular => make_blob(
+                    vec![*blob_num],
+                    REGULAR_SEQUENCER_DA,
+                    [*blob_num + offset as u8; 32],
+                ),
             };
 
             BlobWithAppearance {
-                blob: B::new(vec![], sender, [*blob_num + offset as u8; 32]),
+                blob,
                 appeared_in_slot: slot,
-                is_from_preferred: is_preferred,
+                sequencer_info,
             }
         })
         .collect();
@@ -74,47 +108,50 @@ fn make_blobs(
 }
 
 fn make_blobs_by_slot(
-    is_from_preferred_by_slot: &[Vec<bool>],
+    sequencer_by_slot: &[Vec<SequencerInfo>],
 ) -> Vec<Vec<BlobWithAppearance<MockBlob>>> {
     let mut blob_num = 0;
-    is_from_preferred_by_slot
+    sequencer_by_slot
         .iter()
         .enumerate()
-        .map(|(slot, senders)| make_blobs(&mut blob_num, slot as u64, senders.iter().cloned()))
+        .map(|(index, senders)| {
+            // The first blobs arrive one block after geneseis
+            let slot_num = index + 1;
+            make_blobs(&mut blob_num, slot_num as u64, senders.iter().cloned())
+        })
         .collect()
 }
 
-#[test]
-fn priority_sequencer_flow_general() {
-    let is_from_preferred_by_slot = [
-        vec![false, false, true],
-        vec![false, true, false],
-        vec![false, false],
-    ];
-    let blobs_by_slot: Vec<_> = make_blobs_by_slot(&is_from_preferred_by_slot);
-    do_deferred_blob_test(blobs_by_slot, vec![])
+fn make_blob(tx_data: Vec<u8>, sender: MockAddress, id: [u8; 32]) -> B {
+    B::new(
+        Batch {
+            txs: vec![RawTx { data: tx_data }],
+        }
+        .try_to_vec()
+        .unwrap(),
+        sender,
+        id,
+    )
 }
 
 pub struct SlotTestInfo {
     pub slot_number: u64,
-    /// Any "requests for early processing" to be sent during this slot
-    pub early_processing_request_with_sender:
-        Option<(sov_blob_storage::CallMessage, Address, Address)>,
+    pub expected_virtual_slot: u64,
     /// The expected number of blobs to process, if known
     pub expected_blobs_to_process: Option<usize>,
 }
 
-// Tests of the "blob deferral" logic tend to have the same structure, which is encoded in this helper:
+// Tests of the "preferred sequencer" logic tend to have the same structure, which is encoded in this helper:
 // 1. Initialize the rollup
 // 2. Calculate the expected order of blobs to be processed
 // 3. In a loop...
-//   (Optionally) Assert that the correct number of blobs has been processed that slot
-//   (Optionally) Request early processing of some blobs in the next slot
+//   Check that the virtual slot height is as expected
 //   Assert that blobs are pulled out of the queue in the expected order
 // 4. Assert that all blobs have been processed
 fn do_deferred_blob_test(
     blobs_by_slot: Vec<Vec<BlobWithAppearance<MockBlob>>>,
     test_info: Vec<SlotTestInfo>,
+    first_sequence_number: u64,
 ) {
     let num_slots = blobs_by_slot.len();
     // Initialize the rollup
@@ -123,12 +160,11 @@ fn do_deferred_blob_test(
     // Define the kernel
     let mut working_set = WorkingSet::new(current_storage.clone());
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut working_set);
-    let test_kernel = TestKernel::<C, Da>::default();
+    let test_kernel = SoftConfirmationsKernel::<C, Da>::default();
     test_kernel
         .genesis(
-            &BasicKernelGenesisConfig {
+            &SoftConfirmationsKernelGenesisConfig {
                 chain_state: ChainStateConfig {
-                    initial_slot_height: 0,
                     current_time: Default::default(),
                     gas_price_blocks_depth: 0,
                     gas_price_maximum_elasticity: 0,
@@ -140,20 +176,71 @@ fn do_deferred_blob_test(
         )
         .unwrap();
 
-    // Compute the *expected* order of blob processing.
-    let mut expected_blobs = blobs_by_slot.iter().flatten().cloned().collect::<Vec<_>>();
-    expected_blobs.sort_by_key(|b| b.priority());
-    let mut expected_blobs = expected_blobs.into_iter();
+    // Compute the expected order of batches to be executed
+    let mut ordered_batches = {
+        let mut next_sequence_number = first_sequence_number;
+        let mut preferred_batches = HashMap::new();
+        let mut batches = Vec::new();
+        let mut current_virtual_slot = 0;
+        let mut next_virtual_slot = 1;
+        for real_slot_num in 0..(blobs_by_slot.len() + DEFERRED_SLOTS_COUNT as usize) {
+            let empty_vec = vec![]; // Use a let binding to avoid dropping temporary value
+            let slot: &Vec<BlobWithAppearance<MockBlob>> =
+                blobs_by_slot.get(real_slot_num).unwrap_or(&empty_vec);
+            for blob in slot.iter() {
+                if let SequencerInfo::Preferred {
+                    sequence_number, ..
+                } = blob.sequencer_info
+                {
+                    preferred_batches.insert(sequence_number, blob.clone());
+                }
+            }
+            if let Some(next_preferred) = preferred_batches.get(&next_sequence_number) {
+                batches.push(vec![next_preferred.clone()]);
+                next_sequence_number += 1;
+                if let SequencerInfo::Preferred {
+                    slots_to_advance, ..
+                } = next_preferred.sequencer_info
+                {
+                    next_virtual_slot += std::cmp::max(slots_to_advance, 1);
+                } else {
+                    panic!("Expected preferred sequencer blob")
+                }
+                if next_virtual_slot > real_slot_num as u64 + 1 {
+                    next_virtual_slot = real_slot_num as u64 + 1;
+                }
+            } else {
+                if next_virtual_slot + DEFERRED_SLOTS_COUNT <= real_slot_num as u64 {
+                    next_virtual_slot += 1;
+                }
+                batches.push(vec![]);
+            }
+
+            for slot in blobs_by_slot
+                .get(current_virtual_slot as usize..next_virtual_slot as usize)
+                .unwrap_or_default()
+            {
+                for blob in slot {
+                    if let SequencerInfo::Regular = blob.sequencer_info {
+                        batches.last_mut().unwrap().push(blob.clone());
+                    }
+                }
+            }
+            current_virtual_slot = next_virtual_slot;
+        }
+        debug!("Expected batches: {:?}", &batches);
+        batches.into_iter()
+    };
+
     let mut slots_iterator = blobs_by_slot
         .into_iter()
         .map(|blobs| blobs.into_iter().map(|b| b.blob).collect())
         .chain(std::iter::repeat(Vec::new()));
 
     let mut test_info = test_info.into_iter().peekable();
-    let mut has_processed_blobs_early = false;
 
-    // Loop  enough times that all provided slots are processed and all deferred blobs expire
-    for slot_number in 0..num_slots as u64 + DEFERRED_SLOTS_COUNT {
+    // Loop enough times that all provided slots are processed and all deferred blobs expire
+    for slot_number in 1..=num_slots as u64 + DEFERRED_SLOTS_COUNT {
         // Run the blob selector module
         let slot_number_u8 = slot_number as u8;
         let mut slot_data = MockBlock {
@@ -176,328 +263,158 @@ fn do_deferred_blob_test(
 
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
 
-        let blobs_to_execute = test_kernel
-            .get_blobs_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
+        let batches_to_execute = test_kernel
+            .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
             .unwrap();
+
+        assert_eq!(kernel_working_set.current_slot(), slot_number);
 
         // Run any extra logic provided by the test for this slot
         if let Some(next_slot_info) = test_info.peek() {
             if next_slot_info.slot_number == slot_number {
+                assert_eq!(
+                    kernel_working_set.virtual_slot(),
+                    next_slot_info.expected_virtual_slot
+                );
                 let next_slot_info = test_info.next().unwrap();
                 // If applicable, assert that the expected number of blobs was processed
                 if let Some(expected) = next_slot_info.expected_blobs_to_process {
-                    assert_eq!(expected, blobs_to_execute.len())
-                }
-
-                // If applicable, send the requested call message to the blob_storage module
-                if let Some((msg, sender, sequencer)) =
-                    next_slot_info.early_processing_request_with_sender
-                {
-                    test_kernel
-                        .get_blob_storage()
-                        .call(
-                            msg,
-                            &DefaultContext::new(sender, sequencer, slot_number),
-                            &mut working_set,
-                        )
-                        .unwrap();
-                    has_processed_blobs_early = true;
+                    info!(
+                        "selected_batches for slot {}: {:?}",
+                        slot_number, &batches_to_execute
+                    );
+                    assert_eq!(expected, batches_to_execute.len())
                 }
             }
         }
 
+        let batches_for_this_slot = ordered_batches.next().unwrap_or_default();
+        debug!(
+            "Expected batches for slot {}, {:?}",
+            slot_number, batches_for_this_slot
+        );
+        let mut batches_for_this_slot = batches_for_this_slot.into_iter();
         // Check that the computed list of blobs is the one we expected
-        for blob in blobs_to_execute {
-            let expected: BlobWithAppearance<MockBlob> = expected_blobs.next().unwrap();
-            if !has_processed_blobs_early {
-                assert_eq!(expected.must_be_processed_by(), slot_number);
-            }
-            assert_blobs_are_equal(expected.blob, blob, &format!("Slot {}", slot_number));
+        for batch in batches_to_execute {
+            let expected: BlobWithAppearance<MockBlob> = batches_for_this_slot.next().unwrap();
+            let is_from_preferred = batch.1 == PREFERRED_SEQUENCER_DA;
+            assert!(slot_number <= expected.must_be_processed_by());
+            assert_blob_matches_batch(
+                expected.blob,
+                batch,
+                &format!("Slot {}", slot_number),
+                is_from_preferred,
+            );
         }
+        assert!(batches_for_this_slot.next().is_none());
     }
     // Ensure that all blobs have been processed
-    assert!(expected_blobs.next().is_none());
+    assert!(ordered_batches.next().is_none());
 }
 
 #[test]
-fn bonus_blobs_are_delivered_on_request() {
-    // If blobs are deferred for less than two slots, "early processing" is not possible
-    if DEFERRED_SLOTS_COUNT < 2 {
-        return;
-    }
-
+fn test_preferred_sequencer_flow() {
     let is_from_preferred_by_slot = [
-        vec![false, false, true, false, false],
-        vec![false, true, false],
-        vec![false, false],
+        vec![
+            SequencerInfo::Regular,
+            SequencerInfo::Regular,
+            SequencerInfo::Preferred {
+                slots_to_advance: 1,
+                sequence_number: 0,
+            },
+        ],
+        vec![SequencerInfo::Regular, SequencerInfo::Regular],
+        vec![
+            SequencerInfo::Regular,
+            SequencerInfo::Preferred {
+                slots_to_advance: 2,
+                sequence_number: 1,
+            },
+            SequencerInfo::Regular,
+        ],
+        vec![],
+        vec![SequencerInfo::Preferred {
+            slots_to_advance: 1,
+            sequence_number: 2,
+        }],
     ];
     let blobs_by_slot: Vec<_> = make_blobs_by_slot(&is_from_preferred_by_slot);
-    let test_info = vec![
-        SlotTestInfo {
-            slot_number: 0,
-            expected_blobs_to_process: Some(1), // The first slot will process the one blob from the preferred sequencer
-            early_processing_request_with_sender: Some((
-                sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 4 },
-                PREFERRED_SEQUENCER_ROLLUP,
-                REGULAR_REWARD_ROLLUP,
-            )),
-        },
-        SlotTestInfo {
-            slot_number: 1,
-            expected_blobs_to_process: Some(5), // The second slot will process four bonus blobs plus the one from the preferred sequencer
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: 2,
-            expected_blobs_to_process: Some(0), // The third slot won't process any blobs
-            early_processing_request_with_sender: None,
-        },
-    ];
-
-    do_deferred_blob_test(blobs_by_slot, test_info)
+    do_deferred_blob_test(
+        blobs_by_slot,
+        vec![
+            SlotTestInfo {
+                slot_number: 1,
+                expected_virtual_slot: 1,
+                expected_blobs_to_process: Some(3), // In the first slot there's a preferred batch, so we process everything
+            },
+            SlotTestInfo {
+                slot_number: 2,
+                expected_virtual_slot: 2,
+                expected_blobs_to_process: Some(0), // No preferred batch, we process nothing
+            },
+            SlotTestInfo {
+                slot_number: 3,
+                expected_virtual_slot: 2,
+                expected_blobs_to_process: Some(5), // Process both deffered blobs from slot 2 and the three from slot 3
+            },
+            SlotTestInfo {
+                slot_number: 4,
+                expected_virtual_slot: 4,
+                expected_blobs_to_process: Some(0),
+            },
+            SlotTestInfo {
+                slot_number: 5,
+                expected_virtual_slot: 4,
+                expected_blobs_to_process: Some(1),
+            },
+        ],
+        0,
+    );
 }
 
 #[test]
-fn test_deferrable_with_small_count() {
-    // If blobs are deferred for less than two slots ensure that "early" processing requests do not alter
-    // the order of blob processing
-    if DEFERRED_SLOTS_COUNT > 1 {
-        return;
-    }
-
+fn test_virtual_slot_stays_in_range() {
     let is_from_preferred_by_slot = [
-        vec![false, false, true, false, false],
-        vec![false, true, false],
-        vec![false, false],
+        vec![SequencerInfo::Preferred {
+            slots_to_advance: 8,
+            sequence_number: 0,
+        }],
+        vec![SequencerInfo::Regular, SequencerInfo::Regular],
+        vec![SequencerInfo::Regular, SequencerInfo::Regular],
+        vec![SequencerInfo::Regular, SequencerInfo::Regular],
     ];
     let blobs_by_slot: Vec<_> = make_blobs_by_slot(&is_from_preferred_by_slot);
-    let test_info = if DEFERRED_SLOTS_COUNT == 1 {
+    do_deferred_blob_test(
+        blobs_by_slot,
         vec![
             SlotTestInfo {
-                slot_number: 0,
-                expected_blobs_to_process: Some(1), // The first slot will process the one blob from the preferred sequencer
-                early_processing_request_with_sender: Some((
-                    sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 8 },
-                    PREFERRED_SEQUENCER_ROLLUP,
-                    REGULAR_REWARD_ROLLUP,
-                )),
-            },
-            SlotTestInfo {
                 slot_number: 1,
-                expected_blobs_to_process: Some(7), // The second slot will process seven bonus blobs plus the one from the preferred sequencer
-                early_processing_request_with_sender: None,
+                expected_virtual_slot: 1,
+                expected_blobs_to_process: Some(1), // In the first slot there's a preferred batch, so we process everything
             },
             SlotTestInfo {
-                slot_number: 2,
-                expected_blobs_to_process: Some(0), // The third slot won't process any blobs
-                early_processing_request_with_sender: None,
-            },
-        ]
-    } else {
-        // If the deferred slots count is 0, all blobs are processed as soon as they become available.
-        vec![
-            SlotTestInfo {
-                slot_number: 0,
-                expected_blobs_to_process: Some(5),
-                early_processing_request_with_sender: Some((
-                    sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 4 },
-                    PREFERRED_SEQUENCER_ROLLUP,
-                    REGULAR_REWARD_ROLLUP,
-                )),
+                slot_number: 2, //
+                expected_virtual_slot: 2,
+                expected_blobs_to_process: Some(0), // No preferred batch, we process nothing
             },
             SlotTestInfo {
-                slot_number: 1,
-                expected_blobs_to_process: Some(3),
-                early_processing_request_with_sender: None,
-            },
-            SlotTestInfo {
-                slot_number: 2,
+                slot_number: DEFERRED_SLOTS_COUNT + 2,
+                expected_virtual_slot: 2,
                 expected_blobs_to_process: Some(2),
-                early_processing_request_with_sender: None,
             },
-        ]
-    };
-
-    do_deferred_blob_test(blobs_by_slot, test_info)
-}
-
-// cases to handle:
-// 1. Happy flow (with some bonus blobs)
-// 2. Preferred sequencer exits
-// 3. Too many bonus blobs requested
-// 4. Bonus blobs requested just once
-// 5. Bonus blob requests ignored if not preferred seq
-#[test]
-fn sequencer_requests_more_bonus_blobs_than_possible() {
-    // If blobs are deferred for less than two slots, "early processing" is not possible
-    if DEFERRED_SLOTS_COUNT < 2 {
-        return;
-    }
-
-    let is_from_preferred_by_slot = [
-        vec![false, false, true, false, false],
-        vec![false, true, false],
-        vec![false, false],
-    ];
-    let blobs_by_slot: Vec<_> = make_blobs_by_slot(&is_from_preferred_by_slot);
-    let test_info = vec![
-        SlotTestInfo {
-            slot_number: 0,
-            expected_blobs_to_process: Some(1), // The first slot will process the one blob from the preferred sequencer
-            early_processing_request_with_sender: Some((
-                sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 1000 }, // Request a huge number of blobs
-                PREFERRED_SEQUENCER_ROLLUP,
-                REGULAR_REWARD_ROLLUP,
-            )),
-        },
-        SlotTestInfo {
-            slot_number: 1,
-            expected_blobs_to_process: Some(7), // The second slot will process all 7 available blobs and then halt
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: 2,
-            expected_blobs_to_process: Some(0), // The third slot won't process any blobs, since none are from the preferred sequencer
-            early_processing_request_with_sender: None,
-        },
-    ];
-
-    do_deferred_blob_test(blobs_by_slot, test_info)
-}
-
-// This test ensure that blob storage behaves as expected when it only needs to process a subset of the
-// deferred blobs from a slot.
-#[test]
-fn some_blobs_from_slot_processed_early() {
-    // If blobs are deferred for less than two slots, "early processing" is not possible
-    if DEFERRED_SLOTS_COUNT < 2 {
-        return;
-    }
-
-    let is_from_preferred_by_slot = [
-        vec![false, false, true, false, false],
-        vec![false, true, false],
-        vec![false, false],
-    ];
-    let blobs_by_slot: Vec<_> = make_blobs_by_slot(&is_from_preferred_by_slot);
-    let test_info = vec![
-        SlotTestInfo {
-            slot_number: 0,
-            // The first slot will process the one blob from the preferred sequencer
-            expected_blobs_to_process: Some(1),
-            early_processing_request_with_sender: Some((
-                sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 5 }, // Request 5 bonus blobs
-                PREFERRED_SEQUENCER_ROLLUP,
-                REGULAR_REWARD_ROLLUP,
-            )),
-        },
-        SlotTestInfo {
-            slot_number: 1,
-            expected_blobs_to_process: Some(6), // The second slot will process 5 bonus blobs plus the one from the preferred sequencer. One blob from slot two will be deferred again
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: 2,
-            expected_blobs_to_process: Some(0), // The third slot won't process any blobs
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: DEFERRED_SLOTS_COUNT + 1,
-            expected_blobs_to_process: Some(1), // We process that one re-deferred bob in slot `DEFERRED_SLOTS_COUNT + 1`
-            early_processing_request_with_sender: None,
-        },
-    ];
-
-    do_deferred_blob_test(blobs_by_slot, test_info)
-}
-
-#[test]
-fn request_one_blob_early() {
-    // If blobs are deferred for less than two slots, "early processing" is not possible
-    if DEFERRED_SLOTS_COUNT < 2 {
-        return;
-    }
-
-    let is_from_preferred_by_slot = [
-        vec![false, false, true, false, false],
-        vec![false, true, false],
-    ];
-    let blobs_by_slot: Vec<_> = make_blobs_by_slot(&is_from_preferred_by_slot);
-    let test_info = vec![
-        SlotTestInfo {
-            slot_number: 0,
-            // The first slot will process the one blob from the preferred sequencer
-            expected_blobs_to_process: Some(1),
-            early_processing_request_with_sender: Some((
-                sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 1 }, // Request 1 bonus blob
-                PREFERRED_SEQUENCER_ROLLUP,
-                REGULAR_REWARD_ROLLUP,
-            )),
-        },
-        SlotTestInfo {
-            slot_number: 1,
-            expected_blobs_to_process: Some(2), // The second slot will process 1 bonus blob plus the one from the preferred sequencer. Three blobs from slot one will be deferred again
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: DEFERRED_SLOTS_COUNT,
-            expected_blobs_to_process: Some(3), // We process the 3 re-deferred blobs from slot 0 in slot `DEFERRED_SLOTS_COUNT`
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: DEFERRED_SLOTS_COUNT + 1,
-            expected_blobs_to_process: Some(2), // We process that two deferred blobs from slot 1 in slot `DEFERRED_SLOTS_COUNT + 1`
-            early_processing_request_with_sender: None,
-        },
-    ];
-    do_deferred_blob_test(blobs_by_slot, test_info)
-}
-
-#[test]
-fn bonus_blobs_request_ignored_if_not_from_preferred_seq() {
-    // If blobs are deferred for less than two slots, "early processing" is not possible
-    if DEFERRED_SLOTS_COUNT < 2 {
-        return;
-    }
-    let is_from_preferred_by_slot = [
-        vec![false, false, true, false, false],
-        vec![false, true, false],
-        vec![false, false],
-    ];
-    let blobs_by_slot: Vec<_> = make_blobs_by_slot(&is_from_preferred_by_slot);
-    let test_info = vec![
-        SlotTestInfo {
-            slot_number: 0,
-            // The first slot will process the one blob from the preferred sequencer
-            expected_blobs_to_process: Some(1),
-            early_processing_request_with_sender: Some((
-                sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 1 }, // Request 1 bonus blob, but send the request from the *WRONG* address
-                REGULAR_SEQUENCER_ROLLUP,
-                REGULAR_REWARD_ROLLUP,
-            )),
-        },
-        SlotTestInfo {
-            slot_number: 1,
-            expected_blobs_to_process: Some(1), // The second slot will one blob from the preferred sequencer but no bonus blobs
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: DEFERRED_SLOTS_COUNT,
-            expected_blobs_to_process: Some(4), // We process the 4 deferred blobs from slot 0 in slot `DEFERRED_SLOTS_COUNT`
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: DEFERRED_SLOTS_COUNT + 1,
-            expected_blobs_to_process: Some(2), // We process that two deferred blobs from slot 1 in slot `DEFERRED_SLOTS_COUNT + 1`
-            early_processing_request_with_sender: None,
-        },
-        SlotTestInfo {
-            slot_number: DEFERRED_SLOTS_COUNT + 2,
-            expected_blobs_to_process: Some(2), // We process that two deferred blobs from slot 2 in slot `DEFERRED_SLOTS_COUNT + 2`
-            early_processing_request_with_sender: None,
-        },
-    ];
-    do_deferred_blob_test(blobs_by_slot, test_info);
+            SlotTestInfo {
+                slot_number: DEFERRED_SLOTS_COUNT + 3,
+                expected_virtual_slot: 3,
+                expected_blobs_to_process: Some(2),
+            },
+            SlotTestInfo {
+                slot_number: DEFERRED_SLOTS_COUNT + 4,
+                expected_virtual_slot: 4,
+                expected_blobs_to_process: Some(2),
+            },
+        ],
+        0,
+    );
 }
 
 #[test]
@@ -507,12 +424,11 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
 
     // Define the kernel
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut working_set);
-    let test_kernel = TestKernel::<C, Da>::default();
+    let test_kernel = BasicKernel::<C, Da>::default();
     test_kernel
         .genesis(
             &BasicKernelGenesisConfig {
                 chain_state: ChainStateConfig {
-                    initial_slot_height: 0,
                     current_time: Default::default(),
                     gas_price_blocks_depth: 0,
                     gas_price_maximum_elasticity: 0,
@@ -525,12 +441,12 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
         .unwrap();
 
     let unregistered_sequencer = MockAddress::from([7; 32]);
-    let blob_1 = B::new(vec![1], REGULAR_SEQUENCER_DA, [1u8; 32]);
-    let blob_2 = B::new(vec![2, 2], unregistered_sequencer, [2u8; 32]);
-    let blob_3 = B::new(vec![3, 3, 3], PREFERRED_SEQUENCER_DA, [3u8; 32]);
+    let blob_1 = make_blob(vec![1], REGULAR_SEQUENCER_DA, [1u8; 32]);
+    let blob_2 = make_blob(vec![2, 2], unregistered_sequencer, [2u8; 32]);
+    let blob_3 = make_blob(vec![3, 3, 3], PREFERRED_SEQUENCER_DA, [3u8; 32]);
 
     let slot_1_blobs = vec![blob_1.clone(), blob_2, blob_3.clone()];
-    let mut blobs_processed = 0;
+    let mut batches_processed = 0;
 
     for slot_number in 0..DEFERRED_SLOTS_COUNT + 1 {
         let slot_number_u8 = slot_number as u8;
@@ -557,34 +473,29 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
 
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
         let blobs_to_execute = test_kernel
-            .get_blobs_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
+            .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
             .unwrap();
 
-        for blob in blobs_to_execute {
-            blobs_processed += 1;
-            let sender = match blob {
-                BlobRefOrOwned::Ref(b) => b.sender(),
-                BlobRefOrOwned::Owned(b) => b.sender(),
-            };
-            assert_ne!(sender, unregistered_sequencer)
+        for batch in blobs_to_execute {
+            batches_processed += 1;
+            assert_ne!(batch.1, unregistered_sequencer)
         }
     }
-    assert_eq!(blobs_processed, 2)
+    assert_eq!(batches_processed, 2)
 }
 
 #[test]
-fn test_blobs_not_deferred_without_preferred_sequencer() {
+fn test_based_sequencing() {
     let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(false);
     let mut working_set = WorkingSet::new(current_storage.clone());
 
     // Define the kernel
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut working_set);
-    let test_kernel = TestKernel::<C, Da>::default();
+    let test_kernel = BasicKernel::<C, Da>::default();
     test_kernel
         .genesis(
             &BasicKernelGenesisConfig {
                 chain_state: ChainStateConfig {
-                    initial_slot_height: 0,
                     current_time: Default::default(),
                     gas_price_blocks_depth: 0,
                     gas_price_maximum_elasticity: 0,
@@ -596,9 +507,22 @@ fn test_blobs_not_deferred_without_preferred_sequencer() {
         )
         .unwrap();
 
-    let blob_1 = B::new(vec![1], REGULAR_SEQUENCER_DA, [1u8; 32]);
-    let blob_2 = B::new(vec![2, 2], REGULAR_SEQUENCER_DA, [2u8; 32]);
-    let blob_3 = B::new(vec![3, 3, 3], PREFERRED_SEQUENCER_DA, [3u8; 32]);
+    assert_eq!(
+        test_kernel
+            .chain_state()
+            .next_visible_slot_height(&mut kernel_working_set),
+        1
+    );
+    assert_eq!(
+        test_kernel
+            .chain_state()
+            .true_slot_height(&mut kernel_working_set),
+        0
+    );
+
+    let blob_1 = make_blob(vec![1], REGULAR_SEQUENCER_DA, [1u8; 32]);
+    let blob_2 = make_blob(vec![2, 2], REGULAR_SEQUENCER_DA, [2u8; 32]);
+    let blob_3 = make_blob(vec![3, 3, 3], PREFERRED_SEQUENCER_DA, [3u8; 32]);
 
     let slot_1_blobs = vec![blob_1.clone(), blob_2.clone(), blob_3.clone()];
 
@@ -620,12 +544,19 @@ fn test_blobs_not_deferred_without_preferred_sequencer() {
     );
     kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
     let mut execute_in_slot_1 = test_kernel
-        .get_blobs_for_this_slot(&mut slot_1_data.blobs, &mut kernel_working_set)
+        .get_batches_for_this_slot(&mut slot_1_data.blobs, &mut kernel_working_set)
         .unwrap();
     assert_eq!(3, execute_in_slot_1.len());
-    assert_blobs_are_equal(blob_1, execute_in_slot_1.remove(0), "slot 1");
-    assert_blobs_are_equal(blob_2, execute_in_slot_1.remove(0), "slot 1");
-    assert_blobs_are_equal(blob_3, execute_in_slot_1.remove(0), "slot 1");
+    assert_blob_matches_batch(blob_1, execute_in_slot_1.remove(0), "slot 1", false);
+    assert_blob_matches_batch(blob_2, execute_in_slot_1.remove(0), "slot 1", false);
+    assert_blob_matches_batch(blob_3, execute_in_slot_1.remove(0), "slot 1", false);
+    assert_eq!(
+        test_kernel
+            .chain_state()
+            .true_slot_height(&mut kernel_working_set),
+        1
+    );
+    assert_eq!(kernel_working_set.virtual_slot(), 1);
 
     let mut slot_2_data = MockBlock {
         header: MockBlockHeader {
@@ -644,83 +575,67 @@ fn test_blobs_not_deferred_without_preferred_sequencer() {
         &mut working_set,
     );
     kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
-    let execute_in_slot_2: Vec<BlobRefOrOwned<'_, B>> = test_kernel
-        .get_blobs_for_this_slot(&mut slot_2_data.blobs, &mut kernel_working_set)
+    let execute_in_slot_2 = test_kernel
+        .get_batches_for_this_slot(&mut slot_2_data.blobs, &mut kernel_working_set)
         .unwrap();
+    assert_eq!(
+        test_kernel
+            .chain_state()
+            .true_slot_height(&mut kernel_working_set),
+        2
+    );
+    assert_eq!(kernel_working_set.virtual_slot(), 2);
     assert!(execute_in_slot_2.is_empty());
 }
 
 /// Check hashes and data of two blobs.
-fn assert_blobs_are_equal<B: BlobReaderTrait>(
+fn assert_blob_matches_batch<B: BlobReaderTrait>(
     mut expected: B,
-    mut actual: BlobRefOrOwned<B>,
+    actual: (BatchWithId, B::Address),
     slot_hint: &str,
+    is_preferred: bool,
 ) {
-    let actual_inner = actual.as_mut_ref();
-    assert_eq!(
-        expected.hash(),
-        actual_inner.hash(),
-        "incorrect hashes in {}",
-        slot_hint
-    );
+    // Reconstruct the original blob from the batch and its sender
+    let actual_id = actual.0.id;
+    if is_preferred {
+        assert_eq!(expected.hash(), actual.0.id);
+        let expected = PreferredBatch::try_from_slice(expected.full_data()).unwrap();
+        assert_eq!(expected.txs, actual.0.txs);
+    } else {
+        let mut actual_inner = new_test_blob_from_batch(actual.0, actual.1.as_ref(), actual_id);
+        assert_eq!(
+            expected.hash(),
+            actual_inner.hash(),
+            "incorrect hashes in {}",
+            slot_hint
+        );
 
-    assert_eq!(
-        actual_inner.full_data(),
-        expected.full_data(),
-        "incorrect data read in {}",
-        slot_hint
-    );
+        assert_eq!(
+            actual_inner.full_data(),
+            expected.full_data(),
+            "incorrect data read in {}",
+            slot_hint
+        );
+    }
 }
 
 /// A utility struct to allow easy expected ordering of blobs
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 struct BlobWithAppearance<B> {
     pub blob: B,
     appeared_in_slot: u64,
-    is_from_preferred: bool,
+    sequencer_info: SequencerInfo,
 }
 
 impl<B> BlobWithAppearance<B> {
     pub fn must_be_processed_by(&self) -> u64 {
-        if self.is_from_preferred {
-            self.appeared_in_slot
-        } else {
-            self.appeared_in_slot + DEFERRED_SLOTS_COUNT
+        match self.sequencer_info {
+            SequencerInfo::Preferred {
+                slots_to_advance: _slots_to_advance,
+                sequence_number,
+            } => self.appeared_in_slot + sequence_number,
+            SequencerInfo::Regular => self.appeared_in_slot + DEFERRED_SLOTS_COUNT,
         }
-    }
-
-    /// A helper for sorting blobs be expected order. Blobs are ordered first by the slot in which the must be processed
-    /// Then by whether they're from the preferred sequencer. (Lower score means that an item is sorted first)
-    pub fn priority(&self) -> u64 {
-        if self.is_from_preferred {
-            self.appeared_in_slot * 10
-        } else {
-            (self.appeared_in_slot + DEFERRED_SLOTS_COUNT) * 10 + 1
-        }
-    }
-}
-
-#[test]
-fn test_blob_priority_sorting() {
-    let blob1 = BlobWithAppearance {
-        blob: [0u8],
-        appeared_in_slot: 1,
-        is_from_preferred: true,
-    };
-
-    let blob2 = BlobWithAppearance {
-        blob: [0u8],
-        appeared_in_slot: 1,
-        is_from_preferred: false,
-    };
-
-    let mut blobs = vec![blob2, blob1];
-    assert!(!blobs[0].is_from_preferred);
-    blobs.sort_by_key(|b| b.must_be_processed_by());
-    if DEFERRED_SLOTS_COUNT == 0 {
-        assert!(blobs[1].is_from_preferred);
-    } else {
-        assert!(blobs[0].is_from_preferred);
     }
 }
 
@@ -731,12 +646,10 @@ struct TestRuntime<C: Context, Da: DaSpec> {
     pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<C, Da>,
 }
 
-pub(crate) type TestKernel<C, Da> = BasicKernel<C, Da>;
-
 impl TestRuntime<DefaultContext, MockDaSpec> {
     pub fn pre_initialized(
         with_preferred_sequencer: bool,
-    ) -> (ProverStorage<DefaultStorageSpec>, Self, RootHash) {
+    ) -> (ProverStorage<DefaultStorageSpec>, Self, jmt::RootHash) {
         use sov_modules_api::Genesis;
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
@@ -787,8 +700,6 @@ impl TestRuntime<DefaultContext, MockDaSpec> {
             },
             is_preferred_sequencer: with_preferred_sequencer,
         };
-
-        let _initial_slot_height = 0;
 
         GenesisConfig {
             bank: bank_config,

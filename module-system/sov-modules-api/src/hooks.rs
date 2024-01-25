@@ -1,8 +1,9 @@
 use sov_modules_core::{
     AccessoryWorkingSet, Context, Spec, Storage, VersionedWorkingSet, WorkingSet,
 };
-use sov_rollup_interface::da::BlobReaderTrait;
+use sov_rollup_interface::da::DaSpec;
 
+use crate::batch::BatchWithId;
 use crate::transaction::Transaction;
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
@@ -36,23 +37,24 @@ pub trait TxHooks {
 /// Hooks related to the Sequencer functionality.
 /// In essence, the sequencer locks a bond at the beginning of the `StateTransitionFunction::apply_blob`,
 /// and is rewarded once a blob of transactions is processed.
-pub trait ApplyBlobHooks<B: BlobReaderTrait> {
+pub trait ApplyBatchHooks<Da: DaSpec> {
     type Context: Context;
-    type BlobResult;
+    type BatchResult;
 
     /// Runs at the beginning of apply_blob, locks the sequencer bond.
     /// If this hook returns Err, batch is not applied
-    fn begin_blob_hook(
+    fn begin_batch_hook(
         &self,
-        blob: &mut B,
+        batch: &mut BatchWithId,
+        sender: &Da::Address,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
 
     /// Executes at the end of apply_blob and rewards or slashed the sequencer
     /// If this hook returns Err rollup panics
-    fn end_blob_hook(
+    fn end_batch_hook(
         &self,
-        result: Self::BlobResult,
+        result: Self::BatchResult,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
 }

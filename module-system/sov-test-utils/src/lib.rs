@@ -3,6 +3,7 @@ use std::rc::Rc;
 use borsh::ser::BorshSerialize;
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
+use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::Transaction;
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{Context, DaSpec, Module, RollupAddress, Spec};
@@ -13,12 +14,12 @@ pub mod logging;
 pub mod value_setter_data;
 
 pub fn new_test_blob_from_batch(
-    batch: Batch,
+    batch: BatchWithId,
     address: &[u8],
     hash: [u8; 32],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
     let address = MockAddress::try_from(address).unwrap();
-    let data = batch.try_to_vec().unwrap();
+    let data = Batch { txs: batch.txs }.try_to_vec().unwrap();
     MockBlob::new(data, address, hash)
 }
 

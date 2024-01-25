@@ -1,19 +1,19 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-mod batch;
 pub mod kernels;
 mod stf_blueprint;
-mod tx_verifier;
 
 #[cfg(feature = "test-utils")]
 mod utils;
 
-pub use batch::Batch;
-use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
+pub use sov_modules_api::batch::Batch;
+use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 #[cfg(feature = "mocks")]
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
+pub use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, Spec, StateCheckpoint, Zkvm,
@@ -26,7 +26,6 @@ use sov_state::Storage;
 use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
 use tracing::info;
-pub use tx_verifier::RawTx;
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -46,10 +45,10 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
     + SlotHooks<Context = C>
     + FinalizeHook<Context = C>
-    + ApplyBlobHooks<
-        Da::BlobTransaction,
+    + ApplyBatchHooks<
+        Da,
         Context = C,
-        BlobResult = SequencerOutcome<
+        BatchResult = SequencerOutcome<
             <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
         >,
     > + Default
@@ -171,7 +170,7 @@ where
         <<C as Spec>::Storage as Storage>::Witness,
         C::Storage,
     ) {
-        // Run end end_slot_hook
+        // Run end_slot_hook
         let mut working_set = checkpoint.to_revertable();
         self.runtime.end_slot_hook(&mut working_set);
         // Save checkpoint
@@ -203,7 +202,7 @@ where
     Da: DaSpec,
     Vm: Zkvm,
     RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
+    K: KernelSlotHooks<C, Da, Batch = BatchWithId>,
 {
     type StateRoot = <C::Storage as Storage>::Root;
 
@@ -228,6 +227,8 @@ where
         let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
         let mut startup_ws = KernelWorkingSet::uninitialized(&mut working_set);
 
+        // Important! The kernel *must* be initialized before the runtime, since runtime
+        // module authors are allowed to depend on the kernel.
         self.kernel
             .genesis(&params.kernel, &mut startup_ws)
             .expect("Kernel initialization must succeed");
@@ -282,29 +283,29 @@ where
         let mut batch_workspace = checkpoint.to_revertable();
         let mut kernel_working_set =
             KernelWorkingSet::from_kernel(&self.kernel, &mut batch_workspace);
-        let selected_blobs = self
+        let selected_batches = self
             .kernel
-            .get_blobs_for_this_slot(blobs, &mut kernel_working_set)
+            .get_batches_for_this_slot(blobs, &mut kernel_working_set)
             .expect("blob selection must succeed, probably serialization failed");
 
         info!(
-            "Selected {} blob(s) for execution in current slot",
-            selected_blobs.len()
+            "Selected {} batch(es) for execution in current slot",
+            selected_batches.len()
         );
 
         let mut checkpoint = batch_workspace.checkpoint();
 
         let mut batch_receipts = vec![];
 
-        for (blob_idx, mut blob) in selected_blobs.into_iter().enumerate() {
+        for (blob_idx, (batch, sender)) in selected_batches.into_iter().enumerate() {
             let (apply_blob_result, checkpoint_after_blob) =
-                self.apply_blob(checkpoint, blob.as_mut_ref());
+                self.apply_batch(checkpoint, batch, &sender);
             checkpoint = checkpoint_after_blob;
             let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
             info!(
                 "blob #{} from sequencer {} with blob_hash 0x{} has been applied with #{} transactions, sequencer outcome {:?}",
                 blob_idx,
-                blob.as_mut_ref().sender(),
+                &sender,
                 hex::encode(batch_receipt.batch_hash),
                 batch_receipt.tx_receipts.len(),
                 batch_receipt.inner

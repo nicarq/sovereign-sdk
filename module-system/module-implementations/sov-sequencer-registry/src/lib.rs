@@ -3,7 +3,7 @@
 //! sequencer is supported. The sequencer's address and bond are registered
 //! during the rollup deployment.
 //!
-//! The module implements the [`sov_modules_api::hooks::ApplyBlobHooks`] trait.
+//! The module implements the [`sov_modules_api::hooks::ApplyBatchHooks`] trait.
 
 #![deny(missing_docs)]
 mod call;
@@ -245,5 +245,10 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
         self.allowed_sequencers
             .get(sender, working_set)
             .map(|s| s.balance)
+    }
+
+    /// Slash the sequencer with the given address.
+    pub fn slash_sequencer(&self, da_address: &Da::Address, working_set: &mut WorkingSet<C>) {
+        self.delete(da_address, working_set);
     }
 }

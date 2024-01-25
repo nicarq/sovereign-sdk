@@ -7,7 +7,6 @@ use crate::ChainStateConfig;
 fn test_config_serialization() {
     let time = Time::new(2, NanoSeconds::new(3).unwrap());
     let config = ChainStateConfig {
-        initial_slot_height: 1,
         current_time: time,
         gas_price_blocks_depth: 10,
         gas_price_maximum_elasticity: 5,
@@ -17,7 +16,6 @@ fn test_config_serialization() {
 
     let data = r#"
     {
-        "initial_slot_height":1,
         "current_time":{
             "secs":2,
             "nanos":3

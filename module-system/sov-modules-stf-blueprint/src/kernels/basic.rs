@@ -3,16 +3,14 @@ use std::path::PathBuf;
 
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
-use sov_modules_api::runtime::capabilities::{
-    BlobRefOrOwned, BlobSelector, Kernel, KernelSlotHooks,
-};
+use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, KernelModule, KernelWorkingSet};
-use sov_modules_core::kernel_state::BootstrapWorkingSet;
+use sov_state::storage::kernel_state::BootstrapWorkingSet;
 use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
 pub struct BasicKernel<C: Context, Da: DaSpec> {
-    phantom: std::marker::PhantomData<C>,
     pub(crate) chain_state: ChainState<C, Da>,
     pub(crate) blob_storage: BlobStorage<C, Da>,
 }
@@ -20,7 +18,6 @@ pub struct BasicKernel<C: Context, Da: DaSpec> {
 impl<C: Context, Da: DaSpec> Default for BasicKernel<C, Da> {
     fn default() -> Self {
         Self {
-            phantom: std::marker::PhantomData,
             chain_state: Default::default(),
             blob_storage: Default::default(),
         }
@@ -63,7 +60,6 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
         self.chain_state.true_slot_height(working_set)
     }
     fn visible_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
-        // TODO: switch to visible_slot_height once the sequencer incentives are implemented
         self.chain_state.true_slot_height(working_set)
     }
 
@@ -77,25 +73,29 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
         config: &Self::GenesisConfig,
         working_set: &mut KernelWorkingSet<'_, C>,
     ) -> Result<(), anyhow::Error> {
-        Ok(self
-            .chain_state
-            .genesis_unchecked(&config.chain_state, working_set)?)
+        self.chain_state
+            .genesis_unchecked(&config.chain_state, working_set)?;
+        self.blob_storage.genesis_unchecked(&(), working_set)?;
+        Ok(())
     }
 }
 
-impl<C: Context, Da: DaSpec> BlobSelector<Da> for BasicKernel<C, Da> {
+impl<C: Context, Da: DaSpec> BatchSelector<Da> for BasicKernel<C, Da> {
     type Context = C;
 
-    fn get_blobs_for_this_slot<'a, 'k, I>(
+    type Batch = BatchWithId;
+
+    fn get_batches_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
         working_set: &mut sov_modules_api::KernelWorkingSet<'k, Self::Context>,
-    ) -> anyhow::Result<Vec<BlobRefOrOwned<'a, Da::BlobTransaction>>>
+    ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        self.blob_storage
-            .get_blobs_for_this_slot(current_blobs, working_set)
+        Ok(self
+            .blob_storage
+            .select_blobs_as_based_sequencer(current_blobs, working_set))
     }
 }
 

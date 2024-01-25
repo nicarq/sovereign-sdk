@@ -1,28 +1,33 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-mod call;
-pub use call::CallMessage;
-
 mod capabilities;
 
 #[cfg(feature = "native")]
 mod query;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 pub use query::*;
-use sov_modules_api::hooks::TransitionHeight;
+use serde::{Deserialize, Serialize};
+use sov_chain_state::TransitionHeight;
+use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::macros::config_constant;
+use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
-    KernelModuleInfo, KernelWorkingSet, Module, StateMap, StateMapAccessor, StateValue, WorkingSet,
+    KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, StateMap, StateMapAccessor,
+    WorkingSet,
 };
+use sov_state::codec::BcsCodec;
 
 /// For how many slots deferred blobs are stored before being executed
 #[config_constant]
 pub const DEFERRED_SLOTS_COUNT: u64;
 
+/// The sequence number for a batch from the preferred sequencer.   
+pub type SequenceNumber = u64;
+
 /// Blob storage contains only address and vector of blobs
-#[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(Clone, KernelModuleInfo)]
 pub struct BlobStorage<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> {
     /// The address of blob storage module
@@ -34,14 +39,15 @@ pub struct BlobStorage<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec>
     /// DA block number => vector of blobs
     /// Caller controls the order of blobs in the vector
     #[state]
-    pub(crate) deferred_blobs: StateMap<u64, Vec<Vec<u8>>>,
+    pub(crate) deferred_blobs: StateMap<u64, Vec<(BatchWithId, Da::Address)>, BcsCodec>,
 
-    /// The number of deferred blobs which the preferred sequencer has asked to have executed during the next slot.
-    /// This request will be honored unless:
-    /// 1. More blobs have reached the maximum deferral period than the sequencer requests. In that case, all of those blobs will still be executed
-    /// 2. The sequencer requests more blobs than are in the deferred queue. In that case, all of the blobs in the deferred queue will be executed.
+    /// Any preferred sequencer blobs which were received out of order. Mapped from sequence number to batch.
     #[state]
-    pub(crate) deferred_blobs_requested_for_execution_next_slot: StateValue<u16>,
+    pub(crate) deferred_preferred_sequencer_blobs: StateMap<SequenceNumber, PreferredBatchWithId>,
+
+    /// The next sequence number for the preferred sequencer. This is used to determine if a batch is out of order.
+    #[state]
+    next_sequence_number: KernelStateValue<SequenceNumber>,
 
     #[module]
     pub(crate) sequencer_registry: sov_sequencer_registry::SequencerRegistry<C, Da>,
@@ -53,19 +59,13 @@ pub struct BlobStorage<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec>
 /// Non standard methods for blob storage
 impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da> {
     /// Store blobs for given block number, overwrite if already exists
-    pub fn store_blobs(
+    pub fn store_batches(
         &self,
         slot_height: TransitionHeight,
-        blobs: &[&Da::BlobTransaction],
+        batches: &Vec<(BatchWithId, Da::Address)>,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
-        let mut raw_blobs: Vec<Vec<u8>> = Vec::with_capacity(blobs.len());
-        for blob in blobs {
-            raw_blobs.push(bincode::serialize(blob)?);
-        }
-        self.deferred_blobs
-            .set(&slot_height, &raw_blobs, working_set);
-        Ok(())
+    ) {
+        self.deferred_blobs.set(&slot_height, batches, working_set);
     }
 
     /// Take all blobs for given block number, return empty vector if not exists
@@ -74,13 +74,10 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
         &self,
         slot_height: TransitionHeight,
         working_set: &mut WorkingSet<C>,
-    ) -> Vec<Da::BlobTransaction> {
+    ) -> Vec<(BatchWithId, Da::Address)> {
         self.deferred_blobs
             .remove(&slot_height, working_set)
             .unwrap_or_default()
-            .iter()
-            .map(|b| bincode::deserialize(b).expect("malformed blob was stored previously"))
-            .collect()
     }
 
     pub(crate) fn get_preferred_sequencer(
@@ -89,45 +86,40 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
     ) -> Option<Da::Address> {
         self.sequencer_registry.get_preferred_sequencer(working_set)
     }
-
-    pub(crate) fn get_true_slot_height(
-        &self,
-        working_set: &mut KernelWorkingSet<'_, C>,
-    ) -> TransitionHeight {
-        self.chain_state.true_slot_height(working_set)
-    }
-
-    pub(crate) fn get_deferred_slots_count(&self, _working_set: &mut WorkingSet<C>) -> u64 {
-        DEFERRED_SLOTS_COUNT
-    }
 }
 
 /// Empty module implementation
-impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> Module for BlobStorage<C, Da> {
+impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> KernelModule for BlobStorage<C, Da> {
     type Context = C;
     type Config = ();
-    type CallMessage = CallMessage;
-    type Event = ();
 
-    fn genesis(
+    fn genesis_unchecked(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<Self::Context>,
+        _working_set: &mut KernelWorkingSet<'_, Self::Context>,
     ) -> Result<(), sov_modules_api::Error> {
         Ok(())
     }
+}
 
-    fn call(
-        &self,
-        message: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
-        match message {
-            CallMessage::ProcessDeferredBlobsEarly { number } => {
-                self.handle_process_blobs_early_msg(context, number, working_set);
-                Ok(Default::default())
-            }
-        }
-    }
+/// Contains raw transactions obtained from the DA blob, plus metadata required for blobs
+/// from the preferred sequencer.
+#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct PreferredBatch {
+    /// The sequence number of the batch. The rollup attempts to process batches in order by sequence number.
+    pub sequence_number: u64,
+    /// The actual transactions of the batch
+    pub txs: Vec<RawTx>,
+
+    /// The number of virtual slots to advance fter processing the batch. Minimum 1.
+    pub virtual_slots_to_advance: u8,
+}
+
+/// A preferred batch and the ID (hash) of the blob that it was deserialized from
+#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct PreferredBatchWithId {
+    /// Raw transactions.
+    pub inner: PreferredBatch,
+    /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
+    pub id: [u8; 32],
 }

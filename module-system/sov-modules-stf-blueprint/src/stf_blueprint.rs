@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
+use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
+use sov_modules_api::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
 };
@@ -9,8 +11,7 @@ use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, Event, TransactionReceipt};
 use tracing::{debug, error};
 
-use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
-use crate::{Batch, Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
+use crate::{Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
 
 type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
 
@@ -103,27 +104,28 @@ where
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    pub(crate) fn apply_blob(
+    pub(crate) fn apply_batch(
         &self,
         checkpoint: StateCheckpoint<C>,
-        blob: &mut Da::BlobTransaction,
+        mut batch: BatchWithId,
+        sender: &Da::Address,
     ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
-        debug!(
-            "Applying batch from sequencer: 0x{}",
-            hex::encode(blob.sender())
-        );
+        debug!("Applying batch from sequencer: 0x{}", hex::encode(sender));
 
         let mut batch_workspace = checkpoint.to_revertable();
 
         // ApplyBlobHook: begin
-        if let Err(e) = self.runtime.begin_blob_hook(blob, &mut batch_workspace) {
+        if let Err(e) = self
+            .runtime
+            .begin_batch_hook(&mut batch, sender, &mut batch_workspace)
+        {
             error!(
-                "Error: The batch was rejected by the 'begin_blob_hook' hook. Skipping batch without slashing the sequencer: {}",
+                "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer: {}",
                 e
             );
 
             return (
-                Err(ApplyBatchError::Ignored(blob.hash())),
+                Err(ApplyBatchError::Ignored(batch.id)),
                 batch_workspace.revert(),
             );
         }
@@ -133,20 +135,21 @@ where
 
         // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
         let _ = self.convert_to_runtime_events(&mut batch_workspace);
+        let batch_id = batch.id;
 
-        let (txs, messages) = match self.pre_process_batch(blob) {
+        let (txs, messages) = match self.pre_process_batch(batch) {
             Ok((txs, messages)) => (txs, messages),
             Err(reason) => {
                 // Explicitly revert on slashing, even though nothing has changed in pre_process.
                 let mut batch_workspace = batch_workspace.checkpoint().to_revertable();
-                let sequencer_da_address = blob.sender();
+                let sequencer_da_address = sender;
                 let sequencer_outcome = SequencerOutcome::Slashed {
                     reason,
                     sequencer_da_address: sequencer_da_address.clone(),
                 };
                 let checkpoint = match self
                     .runtime
-                    .end_blob_hook(sequencer_outcome, &mut batch_workspace)
+                    .end_batch_hook(sequencer_outcome, &mut batch_workspace)
                 {
                     Ok(()) => {
                         // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
@@ -160,9 +163,9 @@ where
 
                 return (
                     Err(ApplyBatchError::Slashed {
-                        hash: blob.hash(),
+                        hash: batch_id,
                         reason,
-                        sequencer_da_address,
+                        sequencer_da_address: sequencer_da_address.clone(),
                     }),
                     checkpoint,
                 );
@@ -194,7 +197,7 @@ where
 
         if let Err(e) = self
             .runtime
-            .end_blob_hook(sequencer_outcome.clone(), &mut batch_workspace)
+            .end_batch_hook(sequencer_outcome.clone(), &mut batch_workspace)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             error!("Failed on `end_blob_hook`: {}", e);
@@ -202,7 +205,7 @@ where
 
         (
             Ok(BatchReceipt {
-                batch_hash: blob.hash(),
+                batch_hash: batch_id,
                 tx_receipts,
                 inner: sequencer_outcome,
                 gas_price,
@@ -215,7 +218,7 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn pre_process_batch(
         &self,
-        blob_data: &mut impl BlobReaderTrait,
+        batch: BatchWithId,
     ) -> Result<
         (
             Vec<TransactionAndRawHash<C>>,
@@ -223,9 +226,6 @@ where
         ),
         SlashingReason,
     > {
-        let batch = self.deserialize_batch(blob_data)?;
-        debug!("Deserialized batch with {} txs", batch.txs.len());
-
         // Run the stateless verification, since it is stateless we don't commit.
         let txs = self.verify_txs_stateless(batch)?;
 
@@ -244,8 +244,10 @@ where
         sequencer_reward: &mut u64,
     ) -> WorkingSet<C> {
         // Dispatching transactions
-        for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
-            txs.into_iter().zip(messages.into_iter())
+        for ((tx, raw_tx_hash), msg) in txs
+            .into_iter()
+            .map(|tx| tx.split())
+            .zip(messages.into_iter())
         {
             if let Some(max) = tx.max_gas_price() {
                 if max < batch_workspace.gas_price() {
@@ -354,33 +356,12 @@ where
         batch_workspace
     }
 
-    // Attempt to deserialize batch, error results in sequencer slashing.
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn deserialize_batch(
-        &self,
-        blob_data: &mut impl BlobReaderTrait,
-    ) -> Result<Batch, SlashingReason> {
-        match Batch::try_from_slice(data_for_deserialization(blob_data)) {
-            Ok(batch) => Ok(batch),
-            Err(e) => {
-                assert_eq!(blob_data.verified_data().len(), blob_data.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
-                // If the deserialization fails, we need to make sure it's not because the prover was malicious and left
-                // out some relevant data! Make that check here. If the data is missing, panic.
-                error!(
-                    "Unable to deserialize batch provided by the sequencer {}",
-                    e
-                );
-                Err(SlashingReason::InvalidBatchEncoding)
-            }
-        }
-    }
-
     // Stateless verification of transaction, such as signature check
     // Single malformed transaction results in sequencer slashing.
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn verify_txs_stateless(
         &self,
-        batch: Batch,
+        batch: BatchWithId,
     ) -> Result<Vec<TransactionAndRawHash<C>>, SlashingReason> {
         match verify_txs_stateless(batch.txs) {
             Ok(txs) => Ok(txs),
@@ -399,7 +380,7 @@ where
         txs: &[TransactionAndRawHash<C>],
     ) -> Result<Vec<<RT as DispatchCall>::Decodable>, SlashingReason> {
         let mut decoded_messages = Vec::with_capacity(txs.len());
-        for TransactionAndRawHash { tx, raw_tx_hash } in txs {
+        for (tx, raw_tx_hash) in txs.iter().map(|tx| tx.as_tuple()) {
             match RT::decode_call(tx.runtime_msg()) {
                 Ok(msg) => decoded_messages.push(msg),
                 Err(e) => {
@@ -435,14 +416,4 @@ where
             })
             .collect()
     }
-}
-
-#[cfg(feature = "native")]
-fn data_for_deserialization(blob: &mut impl BlobReaderTrait) -> &[u8] {
-    blob.full_data()
-}
-
-#[cfg(not(feature = "native"))]
-fn data_for_deserialization(blob: &mut impl BlobReaderTrait) -> &[u8] {
-    blob.verified_data()
 }

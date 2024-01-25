@@ -249,7 +249,6 @@ pub(crate) fn setup<'b>(
     chain_state
         .genesis_unchecked(
             &ChainStateConfig {
-                initial_slot_height: 0,
                 current_time: Time::now(),
                 gas_price_blocks_depth: 0,
                 gas_price_maximum_elasticity: 0,

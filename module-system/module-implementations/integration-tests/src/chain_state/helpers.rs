@@ -1,34 +1,53 @@
 use std::sync::{Arc, RwLock};
 
+use sov_bank::{get_genesis_token_address, Bank, BankConfig, Coins, TokenConfig};
 use sov_chain_state::ChainStateConfig;
-use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
+use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    AccessoryWorkingSet, BlobReaderTrait, Context, DaSpec, DispatchCall, Event, GasUnit, Genesis,
-    MessageCodec, PublicKey, Spec,
+    AccessoryWorkingSet, Context, DaSpec, DispatchCall, Event, GasUnit, Genesis, MessageCodec,
+    PublicKey, Spec,
 };
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeTxHook, SequencerOutcome};
+use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::Storage;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 #[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-pub(crate) struct TestRuntime<C: Context> {
+pub(crate) struct TestRuntime<C: Context, Da: DaSpec> {
     pub value_setter: ValueSetter<C>,
+    pub sequencer_registry: SequencerRegistry<C, Da>,
+    pub bank: Bank<C>,
 }
 
 pub(crate) fn create_chain_state_genesis_config<C: Context, Da: DaSpec>(
     admin_pub_key: <C as Spec>::Address,
-) -> GenesisParams<GenesisConfig<C>, BasicKernelGenesisConfig<C, Da>> {
-    let runtime_config: <TestRuntime<C> as sov_modules_stf_blueprint::Runtime<C, Da>>::GenesisConfig =
-        GenesisConfig { value_setter: ValueSetterConfig { admin: admin_pub_key } };
+    seq_rollup_address: <C as Spec>::Address,
+    seq_da_address: Da::Address,
+    seq_stake_amount: u64,
+    token_name: String,
+    salt: u64,
+    init_balance: u64,
+) -> GenesisParams<GenesisConfig<C, Da>, BasicKernelGenesisConfig<C, Da>> {
+    let runtime_config: <TestRuntime<C, Da> as sov_modules_stf_blueprint::Runtime<C, Da>>::GenesisConfig =
+        GenesisConfig { value_setter: ValueSetterConfig { admin: admin_pub_key }, sequencer_registry: SequencerConfig{
+            seq_rollup_address: seq_rollup_address.clone(),
+            seq_da_address,
+            coins_to_lock: Coins { amount: seq_stake_amount, token_address: get_genesis_token_address::<C>(&token_name, salt) },
+            is_preferred_sequencer: true,
+        }, bank: BankConfig{
+            tokens: vec![TokenConfig{token_name,
+            address_and_balances: vec![(seq_rollup_address.clone(), init_balance)], authorized_minters: vec![seq_rollup_address.clone()], salt}]
+        } };
+
     let kernel_config: <TestKernel<C, Da> as Kernel<C, Da>>::GenesisConfig =
         BasicKernelGenesisConfig {
             chain_state: ChainStateConfig {
-                initial_slot_height: 0,
                 current_time: Default::default(),
                 gas_price_blocks_depth: 10,
                 gas_price_maximum_elasticity: 1,
@@ -44,7 +63,7 @@ pub(crate) fn create_chain_state_genesis_config<C: Context, Da: DaSpec>(
 
 pub(crate) type TestKernel<C, Da> = BasicKernel<C, Da>;
 
-impl<C: Context> TxHooks for TestRuntime<C> {
+impl<C: Context, Da: DaSpec> TxHooks for TestRuntime<C, Da> {
     type Context = C;
     type PreArg = RuntimeTxHook<C>;
     type PreResult = C;
@@ -72,28 +91,29 @@ impl<C: Context> TxHooks for TestRuntime<C> {
     }
 }
 
-impl<C: Context, B: BlobReaderTrait> ApplyBlobHooks<B> for TestRuntime<C> {
+impl<C: Context, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<C, Da> {
     type Context = C;
-    type BlobResult = SequencerOutcome<<B as BlobReaderTrait>::Address>;
+    type BatchResult = SequencerOutcome<Da::Address>;
 
-    fn begin_blob_hook(
+    fn begin_batch_hook(
         &self,
-        _blob: &mut B,
+        _batch: &mut BatchWithId,
+        _sender: &<Da as DaSpec>::Address,
         _working_set: &mut sov_modules_api::WorkingSet<C>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn end_blob_hook(
+    fn end_batch_hook(
         &self,
-        _result: Self::BlobResult,
+        _result: Self::BatchResult,
         _working_set: &mut sov_modules_api::WorkingSet<C>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 }
 
-impl<C: Context> SlotHooks for TestRuntime<C> {
+impl<C: Context, Da: DaSpec> SlotHooks for TestRuntime<C, Da> {
     type Context = C;
 
     fn begin_slot_hook(
@@ -106,7 +126,7 @@ impl<C: Context> SlotHooks for TestRuntime<C> {
     fn end_slot_hook(&self, _working_set: &mut sov_modules_api::WorkingSet<C>) {}
 }
 
-impl<C: Context> FinalizeHook for TestRuntime<C> {
+impl<C: Context, Da: DaSpec> FinalizeHook for TestRuntime<C, Da> {
     type Context = C;
 
     fn finalize_hook(
@@ -117,8 +137,8 @@ impl<C: Context> FinalizeHook for TestRuntime<C> {
     }
 }
 
-impl<C: Context, Da: DaSpec> Runtime<C, Da> for TestRuntime<C> {
-    type GenesisConfig = GenesisConfig<C>;
+impl<C: Context, Da: DaSpec> Runtime<C, Da> for TestRuntime<C, Da> {
+    type GenesisConfig = GenesisConfig<C, Da>;
 
     type GenesisPaths = ();
 
