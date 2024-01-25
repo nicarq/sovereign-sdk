@@ -47,8 +47,9 @@ async fn test_simple_reorg_case() {
         vec![15, 15, 15, 15],
     ];
 
-    let mut da_service = MockDaService::with_finality(sequencer_address, 4);
-    da_service.set_wait_attempts(2);
+    let mut da_service = MockDaService::new(sequencer_address)
+        .with_finality(4)
+        .with_wait_attempts(2);
 
     let genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
 
@@ -88,8 +89,7 @@ async fn test_instant_finality_data_stored() {
     let sequencer_address = MockAddress::new([11u8; 32]);
     let genesis_params = vec![1, 2, 3, 4, 5];
 
-    let mut da_service = MockDaService::new(sequencer_address);
-    da_service.set_wait_attempts(2);
+    let da_service = MockDaService::new(sequencer_address).with_wait_attempts(2);
 
     let genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
 
@@ -132,7 +132,7 @@ async fn runner_execution(
                 bind_port: 0,
             },
         },
-        da: MockDaConfig::instant_with_sender(da_service.get_sequencer_address()),
+        da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,
         },

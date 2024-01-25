@@ -27,9 +27,9 @@ impl serde::Serialize for MockAddress {
         S: serde::Serializer,
     {
         if serializer.is_human_readable() {
-            serde::Serialize::serialize(&hex::encode(self.addr), serializer)
+            hex::serialize(self.addr, serializer)
         } else {
-            serde::Serialize::serialize(&self.addr, serializer)
+            self.addr.serialize(serializer)
         }
     }
 }
@@ -40,11 +40,9 @@ impl<'de> serde::Deserialize<'de> for MockAddress {
         D: serde::Deserializer<'de>,
     {
         if deserializer.is_human_readable() {
-            let hex_addr: String = serde::Deserialize::deserialize(deserializer)?;
-            Ok(MockAddress::from_str(&hex_addr).map_err(serde::de::Error::custom)?)
+            hex::deserialize(deserializer).map(MockAddress::new)
         } else {
-            let addr = <[u8; 32] as serde::Deserialize>::deserialize(deserializer)?;
-            Ok(MockAddress { addr })
+            serde::Deserialize::deserialize(deserializer).map(MockAddress::new)
         }
     }
 }
@@ -62,12 +60,10 @@ impl<'a> TryFrom<&'a [u8]> for MockAddress {
     type Error = anyhow::Error;
 
     fn try_from(addr: &'a [u8]) -> Result<Self, Self::Error> {
-        if addr.len() != 32 {
-            anyhow::bail!("Address must be 32 bytes long");
-        }
-        let mut addr_bytes = [0u8; 32];
-        addr_bytes.copy_from_slice(addr);
-        Ok(Self { addr: addr_bytes })
+        let addr = addr
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("address must be 32 bytes long"))?;
+        Ok(Self { addr })
     }
 }
 
@@ -99,8 +95,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_mock_address_string() {
-        let addr = MockAddress { addr: [3u8; 32] };
+    fn human_readable_serde_roundtrip() {
+        let addr = MockAddress::new([3u8; 32]);
+        let json = serde_json::to_string(&addr).unwrap();
+        let recovered_addr = serde_json::from_str::<MockAddress>(&json).unwrap();
+        assert_eq!(addr, recovered_addr);
+    }
+
+    #[test]
+    fn binary_serde_roundtrip() {
+        let addr = MockAddress::new([3u8; 32]);
+        let bytes = bincode::serialize(&addr).unwrap();
+        let recovered_addr = bincode::deserialize::<MockAddress>(&bytes).unwrap();
+        assert_eq!(addr, recovered_addr);
+    }
+
+    #[test]
+    fn try_from_bytes() {
+        let addr = MockAddress::new([100u8; 32]);
+        let addr_bytes = addr.as_ref();
+        let recovered_addr = MockAddress::try_from(addr_bytes).unwrap();
+        assert_eq!(addr, recovered_addr);
+    }
+
+    #[test]
+    fn parse_from_string() {
+        let addr = MockAddress::new([1u8; 32]);
         let s = addr.to_string();
         let recovered_addr = s.parse::<MockAddress>().unwrap();
         assert_eq!(addr, recovered_addr);

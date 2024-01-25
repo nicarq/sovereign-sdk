@@ -444,7 +444,7 @@ mod tests {
     #[tokio::test]
     async fn test_reorg_happened_correct_block_returned() {
         let sequencer_address = MockAddress::new([0; 32]);
-        let da_service = MockDaService::with_finality(sequencer_address, 5);
+        let da_service = MockDaService::new(sequencer_address).with_finality(5);
         // seen blocks are 1, 2, 3, 4, 5
         let mut seen_state_transition_data: VecDeque<
             StateTransitionData<StateRoot, StfWitness, MockDaSpec>,
@@ -532,9 +532,9 @@ mod tests {
     #[tokio::test]
     async fn test_no_seen_block_has_been_tracked() {
         // Idea of the test is data in "seen blocks" is completely different from the data in the da service
-        // This means, that caller started from non-finalized block, and reorg happend while runner was stopped
+        // This means, that caller started from non-finalized block, and reorg happened while runner was stopped
         let sequencer_address = MockAddress::new([0; 32]);
-        let da_service = MockDaService::with_finality(sequencer_address, 5);
+        let da_service = MockDaService::new(sequencer_address).with_finality(5);
         // seen blocks are 1, 2, 3, 4, 5
         let mut seen_state_transition_data: VecDeque<
             StateTransitionData<StateRoot, StfWitness, MockDaSpec>,

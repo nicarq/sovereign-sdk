@@ -1,13 +1,11 @@
 use std::collections::VecDeque;
-use std::pin::Pin;
-use std::sync::Mutex;
-use std::task::{Context, Poll};
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use pin_project::pin_project;
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
-use sov_rollup_interface::maybestd::sync::Arc;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::sync::{broadcast, RwLock, RwLockWriteGuard};
 use tokio::time;
@@ -15,7 +13,7 @@ use tokio::time;
 use crate::types::{default_wait_attempts, MockAddress, MockBlob, MockBlock, MockDaVerifier};
 use crate::utils::hash_to_array;
 use crate::verifier::MockDaSpec;
-use crate::{MockBlockHeader, MockDaConfig, MockHash};
+use crate::{MockBlockHeader, MockDaConfig, MockHash, MockValidityCond};
 
 const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
     prev_hash: MockHash([0; 32]),
@@ -25,11 +23,19 @@ const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
     time: Time::from_secs(1672531200),
 };
 
+const GENESIS_BLOCK: MockBlock = MockBlock {
+    header: GENESIS_HEADER,
+    validity_cond: MockValidityCond { is_valid: true },
+    blobs: vec![],
+};
+
 /// Time in milliseconds to wait for the next block if it is not there yet.
 /// How many times wait attempts are done depends on service configuration.
 pub const WAIT_ATTEMPT_PAUSE_MS: u64 = 10;
 
-/// Definition of a fork that will be executed in `MockDaService` at specified height
+/// Definition of a fork that will be executed by [`MockDaService`] at a
+/// specified height.
+#[derive(Clone)]
 pub struct PlannedFork {
     trigger_at_height: u64,
     fork_height: u64,
@@ -60,11 +66,11 @@ impl PlannedFork {
     }
 }
 
-#[derive(Clone)]
-/// DaService used in tests.
-/// Currently only supports single blob per block.
+/// A [`DaService`] for use in tests.
+///
 /// Height of the first submitted block is 1.
 /// Submitted blocks are kept indefinitely in memory.
+#[derive(Clone)]
 pub struct MockDaService {
     sequencer_da_address: MockAddress,
     blocks: Arc<RwLock<VecDeque<MockBlock>>>,
@@ -73,64 +79,52 @@ pub struct MockDaService {
     /// Used for calculating correct finality from state of `blocks`
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: u64,
-    planned_fork: Arc<Mutex<Option<PlannedFork>>>,
+    planned_fork: Option<PlannedFork>,
 }
 
 impl MockDaService {
     /// Creates a new [`MockDaService`] with instant finality.
     pub fn new(sequencer_da_address: MockAddress) -> Self {
-        Self::with_params(sequencer_da_address, 0, default_wait_attempts())
-    }
+        let (tx, mut rx) = broadcast::channel(16);
 
-    /// Creates a new [`MockDaService`] from given [`MockDaConfig`].
-    pub fn from_config(config: MockDaConfig) -> Self {
-        Self::with_params(
-            config.sender_address,
-            config.finalization_blocks,
-            config.wait_attempts,
-        )
-    }
+        // Spawn a task, so the receiver is not dropped and the channel is not
+        // closed. Once the sender is dropped, the receiver will receive an
+        // error and the task will exit.
+        tokio::spawn(async move { while rx.recv().await.is_ok() {} });
 
-    /// Create a new [`MockDaService`] with given finality.
-    pub fn with_finality(sequencer_da_address: MockAddress, blocks_to_finality: u32) -> Self {
-        Self::with_params(
-            sequencer_da_address,
-            blocks_to_finality,
-            default_wait_attempts(),
-        )
-    }
-
-    fn with_params(
-        sequencer_da_address: MockAddress,
-        blocks_to_finality: u32,
-        wait_attempts: u64,
-    ) -> Self {
-        let (tx, rx1) = broadcast::channel(16);
-        // Spawn a task, so channel is never closed
-        tokio::spawn(async move {
-            let mut rx = rx1;
-            while let Ok(header) = rx.recv().await {
-                tracing::debug!("Finalized MockHeader: {}", header);
-            }
-        });
         Self {
             sequencer_da_address,
             blocks: Arc::new(Default::default()),
-            blocks_to_finality,
+            blocks_to_finality: 0,
             finalized_header_sender: tx,
-            wait_attempts,
-            planned_fork: Arc::new(Mutex::new(None)),
+            wait_attempts: default_wait_attempts(),
+            planned_fork: None,
         }
     }
 
-    /// Get sequencer address
-    pub fn get_sequencer_address(&self) -> MockAddress {
-        self.sequencer_da_address
+    /// Creates new [`MockDaService`] from given [`MockDaConfig`].
+    pub fn from_config(config: MockDaConfig) -> Self {
+        Self::new(config.sender_address)
+            .with_wait_attempts(config.wait_attempts)
+            .with_finality(config.finalization_blocks)
     }
 
-    /// Change number of wait attempts before giving up on waiting for block
-    pub fn set_wait_attempts(&mut self, wait_attempts: u64) {
+    /// Sets the desired distance between the last finalized block and the head
+    /// block.
+    pub fn with_finality(mut self, blocks_to_finality: u32) -> Self {
+        self.blocks_to_finality = blocks_to_finality;
+        self
+    }
+
+    /// Sets the number of wait attempts before giving up on waiting for a block.
+    pub fn with_wait_attempts(mut self, wait_attempts: u64) -> Self {
         self.wait_attempts = wait_attempts;
+        self
+    }
+
+    /// Returns the sequencer's address.
+    pub fn sequencer_address(&self) -> MockAddress {
+        self.sequencer_da_address
     }
 
     async fn wait_for_height(&self, height: u64) -> anyhow::Result<()> {
@@ -158,7 +152,7 @@ impl MockDaService {
     /// Rewrites existing non finalized blocks with given blocks
     /// New blobs will be added **after** specified height,
     /// meaning that first blob will be in the block of height + 1.
-    pub async fn fork_at(&self, height: u64, blobs: Vec<Vec<u8>>) -> anyhow::Result<()> {
+    pub async fn fork_at(&self, height: u64, blobs: &[Vec<u8>]) -> anyhow::Result<()> {
         let mut blocks = self.blocks.write().await;
         let last_finalized_height = self.get_last_finalized_height(&blocks).await;
         if last_finalized_height > height {
@@ -170,16 +164,14 @@ impl MockDaService {
         }
         blocks.retain(|b| b.header().height <= height);
         for blob in blobs {
-            let _ = self
-                .add_blob(&blob, Default::default(), &mut blocks)
-                .await?;
+            let _ = self.add_blob(blob, Default::default(), &mut blocks).await?;
         }
 
         Ok(())
     }
 
     /// Set planned fork, that will be executed at specified height
-    pub async fn set_planned_fork(&self, planned_fork: PlannedFork) -> anyhow::Result<()> {
+    pub async fn set_planned_fork(&mut self, planned_fork: PlannedFork) -> anyhow::Result<()> {
         let last_finalized_height = {
             let blocks = self.blocks.write().await;
             self.get_last_finalized_height(&blocks).await
@@ -192,9 +184,7 @@ impl MockDaService {
             );
         }
 
-        let mut fork = self.planned_fork.lock().unwrap();
-        *fork = Some(planned_fork);
-
+        self.planned_fork = Some(planned_fork);
         Ok(())
     }
 
@@ -214,16 +204,19 @@ impl MockDaService {
         zkp_proof: Vec<u8>,
         blocks: &mut RwLockWriteGuard<'_, VecDeque<MockBlock>>,
     ) -> anyhow::Result<u64> {
-        let (previous_block_hash, height) = match blocks.iter().last().map(|b| b.header().clone()) {
-            None => (GENESIS_HEADER.hash(), GENESIS_HEADER.height() + 1),
-            Some(block_header) => (block_header.hash(), block_header.height + 1),
-        };
+        let prev = blocks
+            .iter()
+            .last()
+            .map(|b| b.header().clone())
+            .unwrap_or(GENESIS_HEADER);
+
+        let height = prev.height() + 1;
 
         // Hash only from single blob
         let blob = MockBlob::new_with_hash(blob.to_vec(), zkp_proof, self.sequencer_da_address);
-        let block_hash = block_hash(height, blob.hash, previous_block_hash.into());
+        let block_hash = block_hash(height, blob.hash, prev.hash().into());
         let header = MockBlockHeader {
-            prev_hash: previous_block_hash,
+            prev_hash: prev.hash(),
             hash: block_hash,
             height,
             time: Time::now(),
@@ -249,49 +242,16 @@ impl MockDaService {
 
     /// Executes planned fork if it is planned at given height
     async fn planned_fork_handler(&self, height: u64) -> anyhow::Result<()> {
-        let planned_fork_now = {
-            let mut planned_fork_guard = self.planned_fork.lock().unwrap();
-            if planned_fork_guard
-                .as_ref()
-                .map_or(false, |x| x.trigger_at_height == height)
-            {
-                Some(planned_fork_guard.take().unwrap())
-            } else {
-                None
-            }
-        };
-        if let Some(planned_fork_now) = planned_fork_now {
-            self.fork_at(planned_fork_now.fork_height, planned_fork_now.blobs)
+        if let Some(planned_fork_now) = &self.planned_fork {
+            if planned_fork_now.trigger_at_height == height {
+                self.fork_at(
+                    planned_fork_now.fork_height,
+                    planned_fork_now.blobs.as_slice(),
+                )
                 .await?;
+            }
         }
         Ok(())
-    }
-}
-
-#[pin_project]
-/// Stream of finalized headers
-pub struct MockDaBlockHeaderStream {
-    #[pin]
-    inner: tokio_stream::wrappers::BroadcastStream<MockBlockHeader>,
-}
-
-impl MockDaBlockHeaderStream {
-    /// Create new stream of finalized headers
-    pub fn new(receiver: broadcast::Receiver<MockBlockHeader>) -> Self {
-        Self {
-            inner: tokio_stream::wrappers::BroadcastStream::new(receiver),
-        }
-    }
-}
-
-impl futures::Stream for MockDaBlockHeaderStream {
-    type Item = Result<MockBlockHeader, anyhow::Error>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project(); // Requires the pin-project crate or similar functionality
-        this.inner
-            .poll_next(cx)
-            .map(|opt| opt.map(|res| res.map_err(Into::into)))
     }
 }
 
@@ -300,7 +260,7 @@ impl DaService for MockDaService {
     type Spec = MockDaSpec;
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
-    type HeaderStream = MockDaBlockHeaderStream;
+    type HeaderStream = BoxStream<'static, anyhow::Result<MockBlockHeader>>;
     type TransactionId = ();
     type Error = anyhow::Error;
 
@@ -310,8 +270,9 @@ impl DaService for MockDaService {
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         if height == 0 {
-            anyhow::bail!("The lowest queryable block should be > 0");
+            return Ok(GENESIS_BLOCK);
         }
+
         // Fork logic
         self.planned_fork_handler(height).await?;
         // Block until there's something
@@ -344,7 +305,14 @@ impl DaService for MockDaService {
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
         let receiver = self.finalized_header_sender.subscribe();
-        Ok(MockDaBlockHeaderStream::new(receiver))
+        let stream = futures::stream::unfold(receiver, |mut receiver| async move {
+            match receiver.recv().await {
+                Ok(header) => Some((Ok(header), receiver)),
+                Err(_) => None,
+            }
+        });
+
+        Ok(stream.boxed())
     }
 
     async fn get_head_block_header(
@@ -407,7 +375,6 @@ fn block_hash(height: u64, blob_hash: [u8; 32], prev_hash: [u8; 32]) -> MockHash
 mod tests {
     use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
     use tokio::task::JoinHandle;
-    use tokio_stream::StreamExt;
 
     use super::*;
 
@@ -423,23 +390,14 @@ mod tests {
         assert_eq!(GENESIS_HEADER, head_header);
 
         let zero_block = da.get_block_at(0).await;
-        assert!(zero_block.is_err());
-        assert_eq!(
-            "The lowest queryable block should be > 0",
-            zero_block.unwrap_err().to_string()
-        );
-
-        {
-            let has_planned_fork = da.planned_fork.lock().unwrap();
-            assert!(has_planned_fork.is_none());
-        }
+        assert_eq!(zero_block.unwrap().header(), &GENESIS_HEADER);
     }
 
     async fn get_finalized_headers_collector(
         da: &mut MockDaService,
         expected_num_headers: usize,
     ) -> JoinHandle<Vec<MockBlockHeader>> {
-        let mut receiver: MockDaBlockHeaderStream = da.subscribe_finalized_header().await.unwrap();
+        let mut receiver = da.subscribe_finalized_header().await.unwrap();
         // All finalized headers should be pushed by that time
         // This prevents test for freezing in case of a bug
         // But we need to wait longer, as `MockDa
@@ -471,7 +429,7 @@ mod tests {
     }
 
     async fn test_push_and_read(finalization: u64, num_blocks: usize) {
-        let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
+        let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(finalization as _);
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
         let collector_handle =
@@ -506,7 +464,7 @@ mod tests {
     }
 
     async fn test_push_many_then_read(finalization: u64, num_blocks: usize) {
-        let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
+        let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(finalization as _);
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
         let collector_handle =
@@ -590,7 +548,7 @@ mod tests {
 
         #[tokio::test]
         async fn read_multiple_times() {
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4);
+            let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;
 
             // 1 -> 2 -> 3
@@ -637,7 +595,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_reorg_control_success() {
-            let da = MockDaService::with_finality(MockAddress::new([1; 32]), 4);
+            let da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
 
             // 1 -> 2 -> 3.1 -> 4.1
             //      \ -> 3.2 -> 4.2
@@ -657,7 +615,7 @@ mod tests {
             let head_before = da.get_head_block_header().await.unwrap();
 
             // Do reorg
-            da.fork_at(2, vec![vec![3, 3, 3, 3], vec![4, 4, 4, 4]])
+            da.fork_at(2, &[vec![3, 3, 3, 3], vec![4, 4, 4, 4]])
                 .await
                 .unwrap();
 
@@ -672,7 +630,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_attempt_reorg_after_finalized() {
-            let da = MockDaService::with_finality(MockAddress::new([1; 32]), 2);
+            let da = MockDaService::new(MockAddress::new([1; 32])).with_finality(2);
 
             // 1 -> 2 -> 3 -> 4
 
@@ -689,9 +647,7 @@ mod tests {
             assert_eq!(&finalized_header_before, block_2_before.header());
 
             // Attempt at finalized header. It will try to overwrite height 2 and 3
-            let result = da
-                .fork_at(1, vec![vec![3, 3, 3, 3], vec![4, 4, 4, 4]])
-                .await;
+            let result = da.fork_at(1, &[vec![3, 3, 3, 3], vec![4, 4, 4, 4]]).await;
             assert!(result.is_err());
             assert_eq!(
                 "Cannot fork at height 1, last finalized height is 2",
@@ -711,9 +667,7 @@ mod tests {
             assert_eq!(block_4_before, block_4_after);
 
             // Overwriting height 3 and 4 is ok
-            let result2 = da
-                .fork_at(2, vec![vec![3, 3, 3, 3], vec![4, 4, 4, 4]])
-                .await;
+            let result2 = da.fork_at(2, &[vec![3, 3, 3, 3], vec![4, 4, 4, 4]]).await;
             assert!(result2.is_ok());
             let block_2_after_reorg = da.get_block_at(2).await.unwrap();
             let block_3_after_reorg = da.get_block_at(3).await.unwrap();
@@ -724,17 +678,14 @@ mod tests {
 
         #[tokio::test]
         async fn test_planned_reorg() {
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4);
+            let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;
 
             // Planned for will replace blocks at height 3 and 4
             let planned_fork = PlannedFork::new(4, 2, vec![vec![3, 3, 3, 3], vec![4, 4, 4, 4]]);
 
             da.set_planned_fork(planned_fork).await.unwrap();
-            {
-                let has_planned_fork = da.planned_fork.lock().unwrap();
-                assert!(has_planned_fork.is_some());
-            }
+            assert!(da.planned_fork.is_some());
 
             da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
             da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
@@ -746,21 +697,19 @@ mod tests {
             let block_3_before = da.get_block_at(3).await.unwrap();
             assert_consecutive_blocks(&block_2_before, &block_3_before);
             let block_4 = da.get_block_at(4).await.unwrap();
-            {
-                let has_planned_fork = da.planned_fork.lock().unwrap();
-                assert!(!has_planned_fork.is_some());
-            }
 
             // Fork is happening!
             assert_ne!(block_3_before.header().hash(), block_4.header().prev_hash());
             let block_3_after = da.get_block_at(3).await.unwrap();
             assert_consecutive_blocks(&block_3_after, &block_4);
             assert_consecutive_blocks(&block_2_before, &block_3_after);
+            // Still have it, but it is old
+            assert!(da.planned_fork.is_some());
         }
 
         #[tokio::test]
         async fn test_planned_reorg_shorter() {
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4);
+            let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;
             // Planned for will replace blocks at height 3 and 4
             let planned_fork =
