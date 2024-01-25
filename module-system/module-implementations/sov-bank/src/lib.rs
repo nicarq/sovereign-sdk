@@ -20,6 +20,9 @@ pub use token::{Amount, Coins};
 /// Methods to get a token address.
 pub use utils::{get_genesis_token_address, get_token_address};
 
+mod event;
+use crate::event::Event;
+
 /// Gas configuration for the bank module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BankGasConfig<GU: GasUnit> {
@@ -66,7 +69,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Bank<C> {
 
     type CallMessage = call::CallMessage<C>;
 
-    type Event = ();
+    type Event = Event<C>;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)

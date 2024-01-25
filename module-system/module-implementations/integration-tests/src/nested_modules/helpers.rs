@@ -1,7 +1,21 @@
 use sov_modules_api::{Context, ModuleInfo, StateMap, StateValue, WorkingSet};
 
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
+)]
+pub(crate) enum Event {
+    Update,
+    Execute,
+}
+
 pub mod module_a {
-    use sov_modules_api::{event, Module, StateMapAccessor, StateValueAccessor};
+    use sov_modules_api::{Module, StateMapAccessor, StateValueAccessor};
 
     use super::*;
 
@@ -24,7 +38,7 @@ pub mod module_a {
 
         type CallMessage = ();
 
-        type Event = ();
+        type Event = Event;
 
         fn call(
             &self,
@@ -38,7 +52,7 @@ pub mod module_a {
 
     impl<C: Context> ModuleA<C> {
         pub fn update(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<C>) {
-            event!(working_set, "module A", "update");
+            self.emit_event(working_set, "modulea_update", Event::Update);
             self.state_1_a
                 .set(&key.to_owned(), &value.to_owned(), working_set);
             self.state_2_a.set(&value.to_owned(), working_set)
@@ -47,7 +61,7 @@ pub mod module_a {
 }
 
 pub mod module_b {
-    use sov_modules_api::{event, Module, StateMapAccessor};
+    use sov_modules_api::{Module, StateMapAccessor};
 
     use super::*;
 
@@ -70,7 +84,7 @@ pub mod module_b {
 
         type CallMessage = ();
 
-        type Event = ();
+        type Event = Event;
 
         fn call(
             &self,
@@ -84,7 +98,7 @@ pub mod module_b {
 
     impl<C: Context> ModuleB<C> {
         pub fn update(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<C>) {
-            event!(working_set, "module B", "update");
+            self.emit_event(working_set, "moduleb_update", Event::Update);
             self.state_1_b
                 .set(&key.to_owned(), &value.to_owned(), working_set);
             self.mod_1_a.update("key_from_b", value, working_set);
@@ -93,7 +107,7 @@ pub mod module_b {
 }
 
 pub(crate) mod module_c {
-    use sov_modules_api::{event, Module};
+    use sov_modules_api::Module;
 
     use super::*;
 
@@ -116,7 +130,7 @@ pub(crate) mod module_c {
 
         type CallMessage = ();
 
-        type Event = ();
+        type Event = Event;
 
         fn call(
             &self,
@@ -130,7 +144,7 @@ pub(crate) mod module_c {
 
     impl<C: Context> ModuleC<C> {
         pub fn execute(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<C>) {
-            event!(working_set, "module C", "execute");
+            self.emit_event(working_set, "modulec_execute", Event::Execute);
             self.mod_1_a.update(key, value, working_set);
             self.mod_1_b.update(key, value, working_set);
             self.mod_1_a.update(key, value, working_set);

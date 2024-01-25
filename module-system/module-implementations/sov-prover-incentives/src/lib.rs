@@ -1,6 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod call;
+mod event;
 mod genesis;
 
 #[cfg(test)]
@@ -16,6 +17,8 @@ pub use genesis::*;
 pub use query::*;
 use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet, Zkvm};
 use sov_state::codec::BcsCodec;
+
+use crate::event::Event;
 
 /// A new module:
 /// - Must derive `ModuleInfo`
@@ -57,7 +60,7 @@ impl<C: Context, Vm: Zkvm> sov_modules_api::Module for ProverIncentives<C, Vm> {
 
     type CallMessage = call::CallMessage;
 
-    type Event = ();
+    type Event = Event<C>;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         // The initialization logic

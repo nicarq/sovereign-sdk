@@ -136,8 +136,8 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
                     tx_hash: ::sha2::Sha256::digest(b"tx2"),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
-                        Event::new("event1_key", "event1_value"),
-                        Event::new("event2_key", "event2_value"),
+                        Event::new("event1_key".as_bytes(), "event1_value".as_bytes()),
+                        Event::new("event2_key".as_bytes(), "event2_value".as_bytes()),
                     ],
                     receipt: 1,
                     gas_used: vec![2, 3],
@@ -270,15 +270,15 @@ fn test_get_batches() {
 fn test_get_events() {
     let payload = jsonrpc_req!("ledger_getEvents", [1]);
     let expected = jsonrpc_result!([{
-        "key":[101,118,101,110,116,49,95,107,101,121],
-        "value":[101,118,101,110,116,49,95,118,97,108,117,101]
+        "key": "event1_key".as_bytes(),
+        "value":  "event1_value".as_bytes()
     }]);
     regular_test_helper(payload, &expected);
 
     let payload = jsonrpc_req!("ledger_getEvents", [2]);
     let expected = jsonrpc_result!([{
-        "key":[101,118,101,110,116,50,95,107,101,121],
-        "value":[101,118,101,110,116,50,95,118,97,108,117,101]
+        "key": "event2_key".as_bytes(),
+        "value":  "event2_value".as_bytes()
     }]);
     regular_test_helper(payload, &expected);
 
@@ -566,10 +566,7 @@ proptest!(
                     if random_event_num_usize < *end_event_range {
                         let event_index = random_event_num_usize - *start_event_range;
                         let event: &Event = tx.events.get(event_index).unwrap();
-                        let event_json = json!({
-                            "key": event.key().inner(),
-                            "value": event.value().inner(),
-                        });
+                        let event_json = json!(event);
 
                         test_helper(vec![TestExpect{
                             payload:

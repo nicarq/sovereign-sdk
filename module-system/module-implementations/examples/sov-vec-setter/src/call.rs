@@ -4,10 +4,11 @@ use anyhow::Result;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{event, CallResponse, WorkingSet};
+use sov_modules_api::{CallResponse, Module, WorkingSet};
 use thiserror::Error;
 
 use super::VecSetter;
+use crate::event::Event;
 
 /// This enumeration represents the available call messages for interacting with the `sov-vec-setter` module.
 #[cfg_attr(
@@ -62,10 +63,13 @@ impl<C: sov_modules_api::Context> VecSetter<C> {
 
         let new_length = self.vector.len(working_set);
 
-        event!(
+        self.emit_event(
             working_set,
-            "push",
-            format!("value_push: {new_value:?}, new length: {new_length:?}")
+            "push_value",
+            Event::Push {
+                value: new_value,
+                length: new_length,
+            },
         );
 
         Ok(CallResponse::default())
@@ -90,10 +94,13 @@ impl<C: sov_modules_api::Context> VecSetter<C> {
         // This is how we set a new value:
         self.vector.set(index, &new_value, working_set)?;
 
-        event!(
+        self.emit_event(
             working_set,
-            "set",
-            format!("value_set: {new_value:?} for index: {index:?}")
+            "set_value",
+            Event::Set {
+                value: new_value,
+                index,
+            },
         );
 
         Ok(CallResponse::default())
@@ -119,10 +126,10 @@ impl<C: sov_modules_api::Context> VecSetter<C> {
 
         let new_length = self.vector.len(working_set);
 
-        event!(
+        self.emit_event(
             working_set,
-            "set_all",
-            format!("new length: {new_length:?}")
+            "set_all_values",
+            Event::SetAll { length: new_length },
         );
 
         Ok(CallResponse::default())
@@ -147,12 +154,14 @@ impl<C: sov_modules_api::Context> VecSetter<C> {
 
         let new_length = self.vector.len(working_set);
 
-        event!(
+        self.emit_event(
             working_set,
-            "pop",
-            format!("value_pop: {pop_value:?}, new length: {new_length:?}")
+            "pop_value",
+            Event::Pop {
+                pop_value,
+                length: new_length,
+            },
         );
-
         Ok(CallResponse::default())
     }
 }

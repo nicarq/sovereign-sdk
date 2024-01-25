@@ -4,10 +4,11 @@ use anyhow::Result;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{event, CallResponse, WorkingSet};
+use sov_modules_api::{CallResponse, Module, WorkingSet};
 use thiserror::Error;
 
 use super::ValueSetter;
+use crate::event::Event;
 
 /// This enumeration represents the available call messages for interacting with the `sov-value-setter` module.
 #[cfg_attr(feature = "native", derive(CliWalletArg), derive(schemars::JsonSchema))]
@@ -50,7 +51,8 @@ impl<C: sov_modules_api::Context> ValueSetter<C> {
 
         // This is how we set a new value:
         self.value.set(&new_value, working_set);
-        event!(working_set, "set", format!("value_set: {new_value:?}"));
+
+        self.emit_event(working_set, "set_value", Event::NewValue(new_value));
 
         Ok(CallResponse::default())
     }

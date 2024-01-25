@@ -39,8 +39,8 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message, &minter_context, &mut working_set)
         .expect("Failed to mint token");
-    // No events at the moment. If there are, needs to be checked
-    assert!(working_set.events().is_empty());
+    // Create token event should be present
+    assert_eq!(working_set.events().len(), 1);
 
     let query_total_supply =
         |token_address: Address, working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
@@ -72,7 +72,8 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message.clone(), &minter_context, &mut working_set)
         .expect("Failed to mint token");
-    assert!(working_set.events().is_empty());
+    // Create token event should be present
+    assert_eq!(working_set.events().len(), 1);
 
     let total_supply = query_total_supply(token_address, &mut working_set);
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
@@ -135,8 +136,7 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message, &minter_context, &mut working_set)
         .expect("Failed to mint token");
-    // No events at the moment. If there are, needs to be checked
-    assert!(working_set.events().is_empty());
+    assert_eq!(working_set.events().len(), 2);
 
     // Try to mint new token with original token creator, in this case minter_context
     let mint_amount = 10;
@@ -185,7 +185,7 @@ fn mint_token() {
         .call(mint_message, &authorized_minter_2_context, &mut working_set)
         .expect("Failed to mint token");
     let supply = query_total_supply(token_address, &mut working_set);
-    assert!(working_set.events().is_empty());
+    assert_eq!(working_set.events().len(), 2);
     assert_eq!(Some(110), supply);
 
     // Try to mint new token with authorized sender 1
@@ -202,7 +202,7 @@ fn mint_token() {
         .call(mint_message, &authorized_minter_1_context, &mut working_set)
         .expect("Failed to mint token");
     let supply = query_total_supply(token_address, &mut working_set);
-    assert!(working_set.events().is_empty());
+    assert_eq!(working_set.events().len(), 2);
     assert_eq!(Some(120), supply);
 
     // Overflow test - account balance

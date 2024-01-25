@@ -64,10 +64,42 @@ impl EventMacro {
 
         let event_enum_legs = struct_def.create_event_enum_legs();
         let event_enum = struct_def.create_enum(&event_enum_legs, EVENT, &serialization_methods);
+        let event_cases = struct_def.fields.iter().map(|field| {
+            let name = &field.ident;
+            let module_ty = &field.ty;
+
+            quote::quote! {
+        _ if event.type_id() == &core::any::TypeId::of::<<#module_ty as ::sov_modules_api::Module>::Event>() => {
+            event.downcast::<<#module_ty as ::sov_modules_api::Module>::Event>()
+                  .map(|boxed_event| Self::RuntimeEvent::#name(boxed_event))
+        }
+    }
+        });
+
+        let impl_generics = &struct_def.impl_generics;
+        let type_generics = &struct_def.type_generics;
+        let ident_name = &struct_def.ident;
+        let event_enum_name = struct_def.enum_ident(EVENT);
+        let impl_runtime_event_processor = quote::quote! {
+            impl #impl_generics ::sov_modules_api::RuntimeEventProcessor for #ident_name #type_generics {
+                type RuntimeEvent = #event_enum_name #type_generics;
+
+                fn convert_to_runtime_event(
+                    event: ::sov_modules_api::TypedEvent
+                ) -> Option<Self::RuntimeEvent> {
+                    match event.type_id() {
+                        #(#event_cases)*
+                        _ => None,
+                    }
+                }
+            }
+        };
 
         Ok(quote::quote! {
             #[doc="This enum is generated from the underlying Runtime, the variants correspond to events from the relevant modules"]
             #event_enum
+
+             #impl_runtime_event_processor
         }
             .into())
     }

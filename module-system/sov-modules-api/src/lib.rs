@@ -35,7 +35,8 @@ pub use sov_modules_core::{
     archival_state, runtime, AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context,
     DispatchCall, EncodeCall, GasUnit, Genesis, KernelModule, KernelWorkingSet, Module,
     ModuleCallJsonSchema, ModuleError, ModuleError as Error, ModuleInfo, ModulePrefix, PublicKey,
-    Signature, Spec, StateCheckpoint, StateReaderAndWriter, VersionedWorkingSet, WorkingSet,
+    RuntimeEventProcessor, Signature, Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent,
+    VersionedWorkingSet, WorkingSet,
 };
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
@@ -192,49 +193,4 @@ pub trait CliWallet: sov_modules_core::DispatchCall {
     /// allow for different representations of the same type in the interface; a
     /// typical end-usage will impl traits only in the case where `CliStringRepr<T>: Into::RuntimeCall`
     type CliStringRepr<T>;
-}
-
-/// Produces an event with the given key and value, on the specified
-/// [`WorkingSet`](crate::WorkingSet).
-///
-/// Invocations of this macro are only evaluated when the `native` Cargo feature
-/// is enabled; otherwise, they are ignored entirely and the passed arguments
-/// are not evaluated. Thus, this macro is effectively zero-cost in zkVM
-/// environments.
-///
-/// # Examples
-///
-/// ```
-/// use sov_modules_api::{event, WorkingSet, Context};
-///
-/// fn event_example<C: Context>(working_set: &mut WorkingSet<C>) {
-///    event!(working_set, "my_event", "my_value");
-///
-///    // Keys must implement `AsRef<str>`, and values must implement
-///    // `ToString`.
-///    event!(working_set, "my_event", 42);
-///    event!(working_set, "my_json_event", serde_json::json!({"event_data": "Hello, world!"}));
-/// }
-/// ```
-///
-/// # Lower-level events API
-///
-/// The [`event!`](crate::event) macro is a convenience wrapper around
-/// [`WorkingSet::add_event`](crate::WorkingSet::add_event), with added feature
-/// gating and key and value type conversions.
-#[macro_export]
-macro_rules! event {
-    ($working_set:ident, $event_key:expr, $event_value:expr) => {{
-        // This hack will prevent the unused variable warning when the `native`
-        // feature is disabled.
-        #[allow(dead_code)]
-        let event_value_producer = || -> String { std::string::ToString::to_string(&$event_value) };
-
-        if cfg!(feature = "native") {
-            let key_str = std::convert::AsRef::<str>::as_ref(&$event_key);
-            let value_string = event_value_producer();
-
-            $working_set.add_event(key_str, value_string.as_str());
-        }
-    }};
 }

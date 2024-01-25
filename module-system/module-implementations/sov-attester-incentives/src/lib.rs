@@ -15,6 +15,7 @@ mod tests;
 #[cfg(feature = "native")]
 mod query;
 
+mod event;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 pub use query::*;
@@ -24,6 +25,8 @@ use sov_modules_api::{
     Context, DaSpec, Error, KernelModuleInfo, ValidityConditionChecker, WorkingSet, Zkvm,
 };
 use sov_state::codec::BcsCodec;
+
+use crate::event::Event;
 
 /// The information about an attender's unbonding
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug)]
@@ -132,7 +135,7 @@ where
 
     type CallMessage = call::CallMessage<C, Da>;
 
-    type Event = ();
+    type Event = Event<C>;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         // The initialization logic

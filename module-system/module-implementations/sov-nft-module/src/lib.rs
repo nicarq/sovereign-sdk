@@ -16,11 +16,13 @@ mod query;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_modules_api::{CallResponse, Context, Error, Module, ModuleInfo, StateMap, WorkingSet};
+mod event;
 mod offchain;
 #[cfg(feature = "offchain")]
 mod sql;
 /// Utility functions.
 pub mod utils;
+use crate::event::Event;
 
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
@@ -47,7 +49,7 @@ impl<C: Context> Module for NonFungibleToken<C> {
 
     type CallMessage = CallMessage<C>;
 
-    type Event = ();
+    type Event = Event;
 
     fn genesis(
         &self,

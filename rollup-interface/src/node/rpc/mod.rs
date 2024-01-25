@@ -39,15 +39,6 @@ pub struct TxIdAndOffset {
     pub offset: u64,
 }
 
-/// A struct containing enough information to uniquely specify single event.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct TxIdAndKey {
-    /// The [`TxIdentifier`] of the transaction containing this event.
-    pub tx_id: TxIdentifier,
-    /// The key of the event.
-    pub key: EventKey,
-}
-
 /// An identifier that specifies a single batch
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -74,6 +65,15 @@ pub enum TxIdentifier {
     /// contains 0 txs, batch 1 contains 8 txs, and batch 3 contains 7 txs,
     /// the last tx in batch 3 would have number 15. The counter never resets.
     Number(u64),
+}
+
+/// A struct containing enough information to uniquely specify single event.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct TxIdAndKey {
+    /// The [`TxIdentifier`] of the transaction containing this event.
+    pub tx_id: TxIdentifier,
+    /// The key of the event.
+    pub key: EventKey,
 }
 
 /// An identifier that specifies a single event.

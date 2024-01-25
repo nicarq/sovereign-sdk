@@ -6,7 +6,7 @@ use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    AccessoryWorkingSet, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, Genesis,
+    AccessoryWorkingSet, BlobReaderTrait, Context, DaSpec, DispatchCall, Event, GasUnit, Genesis,
     MessageCodec, PublicKey, Spec,
 };
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
@@ -14,7 +14,7 @@ use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeTxHook, Sequencer
 use sov_state::Storage;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
-#[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+#[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub(crate) struct TestRuntime<C: Context> {
     pub value_setter: ValueSetter<C>,

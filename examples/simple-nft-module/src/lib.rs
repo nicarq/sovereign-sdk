@@ -2,6 +2,7 @@
 #![doc = include_str!("../README.md")]
 
 mod call;
+
 pub use call::CallMessage;
 mod genesis;
 pub use genesis::*;
@@ -10,6 +11,8 @@ mod query;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_modules_api::{CallResponse, Context, Error, Module, ModuleInfo, WorkingSet};
+mod event;
+pub use crate::event::Event;
 
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
@@ -36,7 +39,7 @@ impl<C: Context> Module for NonFungibleToken<C> {
 
     type CallMessage = CallMessage<C>;
 
-    type Event = ();
+    type Event = Event;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
