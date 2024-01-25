@@ -117,9 +117,19 @@ fn print_cycle_averages(metric_map: HashMap<String, (u64, u64)>) {
     metrics_vec.sort_by(|a, b| b.1.cmp(&a.1));
 
     let mut table = Table::new();
-    table.add_row(row!["Function", "Average Cycles", "Num Calls"]);
+    table.add_row(row![
+        "Function",
+        "Average Cycles",
+        "Num Calls",
+        "Total Cycles"
+    ]);
     for (k, (avg, count)) in metrics_vec {
-        table.add_row(row![k, format!("{}", avg), format!("{}", count)]);
+        table.add_row(row![
+            k,
+            format!("{}", avg),
+            format!("{}", count),
+            format!("{}", avg * count)
+        ]);
     }
     table.printstd();
 }
