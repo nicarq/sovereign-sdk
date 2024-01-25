@@ -1,3 +1,4 @@
+use core::convert::Infallible;
 use core::marker::PhantomData;
 
 use anyhow::Error;
@@ -6,16 +7,16 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use sov_rollup_interface::zk::{ValidityCondition, ValidityConditionChecker};
 
-/// A trivial test validity condition structure that only contains a boolean
+/// A trivial test validity condition structure that only contains a boolean.
 #[derive(
     Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, PartialEq, Clone, Copy, Eq,
 )]
 pub struct MockValidityCond {
-    /// The associated validity condition field. If it is true, the validity condition is verified
+    /// The associated validity condition field value.
     pub is_valid: bool,
 }
 
-// Validity conditions should usually be valid
+/// [`MockValidityCond`] is true by default.
 impl Default for MockValidityCond {
     fn default() -> Self {
         Self { is_valid: true }
@@ -23,16 +24,17 @@ impl Default for MockValidityCond {
 }
 
 impl ValidityCondition for MockValidityCond {
-    type Error = Error;
+    type Error = Infallible;
+
     fn combine<H: Digest>(&self, rhs: Self) -> Result<Self, Self::Error> {
         Ok(MockValidityCond {
-            is_valid: self.is_valid & rhs.is_valid,
+            is_valid: self.is_valid && rhs.is_valid,
         })
     }
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Debug)]
 /// A mock validity condition checker that always evaluate to cond
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct MockValidityCondChecker<Cond: ValidityCondition> {
     phantom: PhantomData<Cond>,
 }
