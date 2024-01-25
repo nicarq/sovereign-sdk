@@ -3,6 +3,7 @@ use std::env;
 use async_trait::async_trait;
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
+use futures::stream::BoxStream;
 use sov_bank::{Bank, Coins};
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash, MockValidityCond,
@@ -60,26 +61,12 @@ impl DaSpec for RngDaSpec {
     type ChainParams = ();
 }
 
-/// Dummy Header Stream
-pub struct RngHeaderStream;
-
-impl futures::Stream for RngHeaderStream {
-    type Item = anyhow::Result<<RngDaSpec as DaSpec>::BlockHeader>;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        unimplemented!()
-    }
-}
-
 #[async_trait]
 impl DaService for RngDaService {
     type Spec = RngDaSpec;
     type Verifier = RngDaVerifier;
     type FilteredBlock = MockBlock;
-    type HeaderStream = RngHeaderStream;
+    type HeaderStream = BoxStream<'static, anyhow::Result<MockBlockHeader>>;
     type TransactionId = ();
     type Error = anyhow::Error;
 
