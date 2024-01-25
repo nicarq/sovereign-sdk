@@ -2,18 +2,29 @@ use std::io::Cursor;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, Spec};
 use sov_rollup_interface::digest::Digest;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 use tracing::debug;
 
+use crate::transaction::Transaction;
+use crate::{Context, Spec};
+
 type RawTxHash = [u8; 32];
 
-pub(crate) struct TransactionAndRawHash<C: Context> {
+pub struct TransactionAndRawHash<C: Context> {
     pub(crate) tx: Transaction<C>,
     pub(crate) raw_tx_hash: RawTxHash,
+}
+
+impl<C: Context> TransactionAndRawHash<C> {
+    pub fn split(self) -> (Transaction<C>, RawTxHash) {
+        (self.tx, self.raw_tx_hash)
+    }
+
+    pub fn as_tuple(&self) -> (&Transaction<C>, &RawTxHash) {
+        (&self.tx, &self.raw_tx_hash)
+    }
 }
 
 /// RawTx represents a serialized rollup transaction received from the DA.
@@ -36,7 +47,7 @@ impl RawTx {
     }
 }
 
-pub(crate) fn verify_txs_stateless<C: Context>(
+pub fn verify_txs_stateless<C: Context>(
     raw_txs: Vec<RawTx>,
 ) -> anyhow::Result<Vec<TransactionAndRawHash<C>>> {
     let mut txs = Vec::with_capacity(raw_txs.len());

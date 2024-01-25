@@ -636,10 +636,7 @@ where
             // minimal bond and that the attester is not unbonding
 
             // We add a check here that the claimed transition height is the same as the genesis height.
-            let genesis_height = self
-                .chain_state
-                .get_genesis_height(working_set)
-                .expect("Must be set at genesis");
+            let genesis_height = 0;
             let previous = claimed_transition_height
                 .checked_sub(1)
                 .expect("Transition height must be > 0");

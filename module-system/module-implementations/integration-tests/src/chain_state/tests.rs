@@ -1,6 +1,7 @@
 use sov_chain_state::{ChainState, TransitionInProgress};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
+use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{GasUnit, KernelWorkingSet, WorkingSet};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
@@ -28,26 +29,41 @@ fn test_simple_value_setter_with_chain_state() {
         C,
         MockDaSpec,
         MockZkvm<MockValidityCond>,
-        TestRuntime<C>,
+        TestRuntime<C, MockDaSpec>,
         BasicKernel<C, MockDaSpec>,
     >::new();
 
     let value_setter_messages = ValueSetterMessages::default();
-    let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<C>>();
+    let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<C, MockDaSpec>>();
 
     let admin_pub_key = value_setter_messages.messages[0].admin.default_address();
     let test_kernel = TestKernel::<C, MockDaSpec>::default();
 
+    const MOCK_SEQUENCER_DA_ADDRESS: [u8; 32] = [1_u8; 32];
+    const INIT_BALANCE: u64 = 100000000;
+    const SEQUENCER_STAKE_AMOUNT: u64 = 10000;
+    const TOKEN_NAME: &str = "TEST_TOKEN";
+    const SALT: u64 = 0;
+
     // Genesis
     let (init_root_hash, storage) = stf.init_chain(
         storage,
-        create_chain_state_genesis_config::<C, MockDaSpec>(admin_pub_key),
+        create_chain_state_genesis_config::<C, MockDaSpec>(
+            admin_pub_key,
+            MOCK_SEQUENCER_DA_ADDRESS.into(),
+            MOCK_SEQUENCER_DA_ADDRESS.into(),
+            SEQUENCER_STAKE_AMOUNT,
+            TOKEN_NAME.to_string(),
+            SALT,
+            INIT_BALANCE,
+        ),
     );
 
-    const MOCK_SEQUENCER_DA_ADDRESS: [u8; 32] = [1_u8; 32];
-
     let blob = new_test_blob_from_batch(
-        sov_modules_stf_blueprint::Batch { txs: value_setter },
+        BatchWithId {
+            txs: value_setter,
+            id: [0; 32],
+        },
         &MOCK_SEQUENCER_DA_ADDRESS,
         [2; 32],
     );
@@ -60,7 +76,7 @@ fn test_simple_value_setter_with_chain_state() {
             time: Time::now(),
         },
         validity_cond: MockValidityCond::default(),
-        blobs: Default::default(),
+        blobs: vec![blob.clone()],
     };
 
     {

@@ -38,12 +38,12 @@ impl<C: Context> GasPriceState<C> {
         H: StateMapAccessor<TransitionHeight, StateTransitionId<C, Da>, BcsCodec, WorkingSet<C>>,
     >(
         mut self,
-        genesis_height: TransitionHeight,
         height: TransitionHeight,
         historical_transitions: &H,
         working_set: &mut WorkingSet<C>,
     ) -> Option<Self> {
-        let parent_height = height.saturating_sub(1).max(genesis_height);
+        let genesis_height = 0;
+        let parent_height = height.saturating_sub(1);
 
         // on genesis, fetch the initial gas price
         if parent_height == genesis_height {
@@ -107,8 +107,7 @@ mod tests {
         let prefix = Prefix::new(b"test".to_vec());
         let ht = &M::with_codec(prefix, BcsCodec);
 
-        let genesis_height = 10;
-        let height = 10;
+        let height = 0;
 
         let expected = DefaultGasPriceState {
             blocks_depth: 10,
@@ -122,7 +121,7 @@ mod tests {
             price: [5, 7],
             minimum_price: [2, 3],
         }
-        .update(genesis_height, height, ht, ws)
+        .update(height, ht, ws)
         .unwrap();
 
         assert_eq!(
@@ -140,8 +139,7 @@ mod tests {
         let prefix = Prefix::new(b"test".to_vec());
         let ht = &M::with_codec(prefix, BcsCodec);
 
-        let genesis_height = 4;
-        let height = 5;
+        let height = 1;
 
         let expected = DefaultGasPriceState {
             blocks_depth: 10,
@@ -155,7 +153,7 @@ mod tests {
             price: [5, 7],
             minimum_price: [2, 3],
         }
-        .update(genesis_height, height, ht, ws)
+        .update(height, ht, ws)
         .unwrap();
 
         assert_eq!(
@@ -173,14 +171,13 @@ mod tests {
         let prefix = Prefix::new(b"test".to_vec());
         let ht = &M::with_codec(prefix, BcsCodec);
 
-        let genesis_height = 5;
-        let height = 7;
+        let height = 2;
         let price = [5, 7];
         let original_price = [0, 0];
         let used = [1000, 2000];
 
         ht.set(
-            &6,
+            &1,
             &StateTransitionId::new(
                 [1; 32].into(),
                 [2; 32].into(),
@@ -203,7 +200,7 @@ mod tests {
             price,
             minimum_price: [2, 3],
         }
-        .update(genesis_height, height, ht, ws)
+        .update(height, ht, ws)
         .unwrap();
 
         assert_eq!(
@@ -221,11 +218,10 @@ mod tests {
         let prefix = Prefix::new(b"test".to_vec());
         let ht = &M::with_codec(prefix, BcsCodec);
 
-        let genesis_height = 5;
-        let height = 8;
+        let height = 3;
 
         ht.set(
-            &6,
+            &1,
             &StateTransitionId::new(
                 [1; 32].into(),
                 [2; 32].into(),
@@ -237,7 +233,7 @@ mod tests {
         );
 
         ht.set(
-            &7,
+            &2,
             &StateTransitionId::new(
                 [1; 32].into(),
                 [2; 32].into(),
@@ -260,7 +256,7 @@ mod tests {
             price: [13, 17],
             minimum_price: [2, 3],
         }
-        .update(genesis_height, height, ht, ws)
+        .update(height, ht, ws)
         .unwrap();
 
         assert_eq!(
@@ -278,11 +274,10 @@ mod tests {
         let prefix = Prefix::new(b"test".to_vec());
         let ht = &M::with_codec(prefix, BcsCodec);
 
-        let genesis_height = 5;
-        let height = 9;
+        let height = 4;
 
         ht.set(
-            &6,
+            &1,
             &StateTransitionId::new(
                 [1; 32].into(),
                 [2; 32].into(),
@@ -294,7 +289,7 @@ mod tests {
         );
 
         ht.set(
-            &7,
+            &2,
             &StateTransitionId::new(
                 [1; 32].into(),
                 [2; 32].into(),
@@ -306,7 +301,7 @@ mod tests {
         );
 
         ht.set(
-            &8,
+            &3,
             &StateTransitionId::new(
                 [1; 32].into(),
                 [2; 32].into(),
@@ -329,7 +324,7 @@ mod tests {
             price: [13, 17],
             minimum_price: [2, 3],
         }
-        .update(genesis_height, height, ht, ws)
+        .update(height, ht, ws)
         .unwrap();
 
         assert_eq!(

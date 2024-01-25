@@ -10,6 +10,7 @@ use async_trait::async_trait;
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::{CacheDb, ChangeSet};
+use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
@@ -57,9 +58,12 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
 
     /// The kernel for the native environment.
-    type NativeKernel: KernelSlotHooks<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
+    type NativeKernel: KernelSlotHooks<Self::NativeContext, Self::DaSpec, Batch = BatchWithId>
+        + Default
+        + Send
+        + Sync;
     /// The kernel for the Zero Knowledge environment.
-    type ZkKernel: KernelSlotHooks<Self::ZkContext, Self::DaSpec> + Default;
+    type ZkKernel: KernelSlotHooks<Self::ZkContext, Self::DaSpec, Batch = BatchWithId> + Default;
 
     /// Prover service.
     type ProverService: ProverService<

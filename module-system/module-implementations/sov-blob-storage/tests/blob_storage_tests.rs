@@ -1,12 +1,13 @@
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::{ChainState, ChainStateConfig};
-use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
+use sov_mock_da::{MockAddress, MockDaSpec};
+use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{KernelModule, KernelWorkingSet, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 type C = DefaultContext;
-type B = MockBlob;
 type Da = MockDaSpec;
 
 #[test]
@@ -17,7 +18,6 @@ fn empty_test() {
     let chain_state = ChainState::<C, Da>::default();
     let initial_slot_height = 1;
     let chain_state_config = ChainStateConfig {
-        initial_slot_height,
         current_time: Default::default(),
         gas_price_blocks_depth: 10,
         gas_price_maximum_elasticity: 1,
@@ -33,8 +33,7 @@ fn empty_test() {
 
     let blob_storage = BlobStorage::<C, Da>::default();
 
-    let blobs: Vec<B> =
-        blob_storage.take_blobs_for_slot_height(initial_slot_height, &mut working_set);
+    let blobs = blob_storage.take_blobs_for_slot_height(initial_slot_height, &mut working_set);
 
     assert!(blobs.is_empty());
 }
@@ -45,9 +44,7 @@ fn store_and_retrieve_standard() {
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let chain_state = ChainState::<C, Da>::default();
-    let initial_slot_height = 1;
     let chain_state_config = ChainStateConfig {
-        initial_slot_height,
         current_time: Default::default(),
         gas_price_blocks_depth: 10,
         gas_price_maximum_elasticity: 1,
@@ -77,33 +74,28 @@ fn store_and_retrieve_standard() {
         .is_empty());
 
     let sender = MockAddress::from([1u8; 32]);
-    let dummy_hash = [2u8; 32];
 
-    let blob_1 = B::new(vec![1, 2, 3], sender, dummy_hash);
-    let blob_2 = B::new(vec![3, 4, 5], sender, dummy_hash);
-    let blob_3 = B::new(vec![6, 7, 8], sender, dummy_hash);
-    let blob_4 = B::new(vec![9, 9, 9], sender, dummy_hash);
-    let blob_5 = B::new(vec![0, 1, 0], sender, dummy_hash);
+    let mut batches = Vec::new();
+    for i in 1..=5 {
+        let batch = BatchWithId {
+            txs: vec![RawTx {
+                data: vec![i * 3 + 1, i * 3 + 2, i * 3 + 3],
+            }],
+            id: [i; 32],
+        };
+        batches.push((batch, sender));
+    }
 
-    let slot_2_blobs = vec![blob_1, blob_2, blob_3];
-    let slot_2_blob_refs: Vec<&MockBlob> = slot_2_blobs.iter().collect();
-    let slot_3_blobs = vec![blob_4];
-    let slot_3_blob_refs: Vec<&MockBlob> = slot_3_blobs.iter().collect();
-    let slot_4_blobs = vec![blob_5];
-    let slot_4_blob_refs: Vec<&MockBlob> = slot_4_blobs.iter().collect();
+    let slot_2_batches = &batches[..3];
+    let slot_3_batches = &batches[3..4];
+    let slot_4_batches = &batches[4..5];
 
-    blob_storage
-        .store_blobs(2, &slot_2_blob_refs, &mut working_set)
-        .unwrap();
-    blob_storage
-        .store_blobs(3, &slot_3_blob_refs, &mut working_set)
-        .unwrap();
-    blob_storage
-        .store_blobs(4, &slot_4_blob_refs, &mut working_set)
-        .unwrap();
+    blob_storage.store_batches(2, &slot_2_batches.to_vec(), &mut working_set);
+    blob_storage.store_batches(3, &slot_3_batches.to_vec(), &mut working_set);
+    blob_storage.store_batches(4, &slot_4_batches.to_vec(), &mut working_set);
 
     assert_eq!(
-        slot_2_blobs,
+        slot_2_batches,
         blob_storage.take_blobs_for_slot_height(2, &mut working_set)
     );
     assert!(blob_storage
@@ -111,16 +103,20 @@ fn store_and_retrieve_standard() {
         .is_empty());
 
     assert_eq!(
-        slot_3_blobs,
-        blob_storage.take_blobs_for_slot_height(3, &mut working_set)
+        slot_3_batches,
+        blob_storage
+            .take_blobs_for_slot_height(3, &mut working_set)
+            .as_slice()
     );
     assert!(blob_storage
         .take_blobs_for_slot_height(3, &mut working_set)
         .is_empty());
 
     assert_eq!(
-        slot_4_blobs,
-        blob_storage.take_blobs_for_slot_height(4, &mut working_set)
+        slot_4_batches,
+        blob_storage
+            .take_blobs_for_slot_height(4, &mut working_set)
+            .as_slice()
     );
     assert!(blob_storage
         .take_blobs_for_slot_height(4, &mut working_set)

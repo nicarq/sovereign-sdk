@@ -83,7 +83,6 @@ native = [
 serde = [
     "sov-bank/serde",
     "sov-sequencer-registry/serde",
-    "sov-blob-storage/serde",
     "sov-value-setter/serde",
     "sov-accounts/serde",
     "sov-nft-module/serde",

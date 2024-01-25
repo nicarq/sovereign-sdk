@@ -50,21 +50,12 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
 
         self.time.set_current(&slot_header.time(), working_set);
 
-        let genesis_height = self
-            .genesis_height
-            .get(working_set.inner)
-            .expect("the genesis height is part of the module initialization");
         let height = self.true_slot_height(working_set);
 
         let gas_price_state = self
             .get_gas_price_state(working_set.inner)
             .expect("the gas price state will be available from genesis")
-            .update(
-                genesis_height,
-                height,
-                &self.historical_transitions,
-                working_set.inner,
-            )
+            .update(height, &self.historical_transitions, working_set.inner)
             .expect("the transition data must be available");
 
         self.in_progress_transition.set_current(

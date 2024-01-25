@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+pub mod batch;
 #[cfg(feature = "native")]
 pub mod cli;
 mod containers;
@@ -7,6 +8,7 @@ pub mod default_context;
 pub mod default_signature;
 pub mod hooks;
 mod pub_key_hex;
+pub mod tx_verifier;
 
 #[cfg(feature = "macros")]
 mod reexport_macros;

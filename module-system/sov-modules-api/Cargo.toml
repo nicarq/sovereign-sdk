@@ -24,6 +24,7 @@ borsh = { workspace = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 sha2 = { workspace = true }
 bech32 = { workspace = true, default-features = true }
 derive_more = { workspace = true, default-features = true }

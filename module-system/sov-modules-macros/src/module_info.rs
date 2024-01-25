@@ -95,7 +95,7 @@ fn impl_module_info(
                 impl_self_init.push(make_init_module(field, ModuleType::Kernel)?);
                 impl_self_body.push(&field.ident);
                 // Notice that we don't add the item to the modules list if it's a kernel module.
-                // This excludes the module from the dependency sorting that runs at genesis.;
+                // This excludes the module from the dependency sorting that runs at genesis.
             }
             ModuleFieldAttribute::Address => {
                 impl_self_init.push(make_init_address(field, ident, generic_param)?);
