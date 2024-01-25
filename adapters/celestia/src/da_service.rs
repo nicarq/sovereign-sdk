@@ -1,6 +1,3 @@
-use std::pin::Pin;
-use std::task::{Context, Poll};
-
 use async_trait::async_trait;
 use celestia_rpc::prelude::*;
 use celestia_types::blob::{Blob as JsonBlob, Commitment, SubmitOptions};
@@ -8,10 +5,9 @@ use celestia_types::consts::appconsts::{
     CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, FIRST_SPARSE_SHARE_CONTENT_SIZE, SHARE_SIZE,
 };
 use celestia_types::nmt::Namespace;
-use celestia_types::ExtendedHeader;
-use jsonrpsee::core::client::Subscription;
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
-use pin_project::pin_project;
 use sov_rollup_interface::da::CountedBufReader;
 use sov_rollup_interface::services::da::DaService;
 use tracing::{debug, info, instrument, trace};
@@ -105,38 +101,6 @@ impl CelestiaService {
     }
 }
 
-/// A Wrapper around [`Subscription`] that converts [`ExtendedHeader`] to [`CelestiaHeader`]
-/// and converts [`Error`] to [`BoxError`]
-#[pin_project]
-pub struct CelestiaBlockHeaderSubscription {
-    #[pin]
-    inner: Subscription<ExtendedHeader>,
-}
-
-impl CelestiaBlockHeaderSubscription {
-    /// Create a new [`CelestiaBlockHeaderSubscription`] from [`Subscription`]
-    pub fn new(inner: Subscription<ExtendedHeader>) -> Self {
-        Self { inner }
-    }
-}
-
-impl futures::Stream for CelestiaBlockHeaderSubscription {
-    type Item = Result<CelestiaHeader, BoxError>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-        let poll_result = this.inner.poll_next(cx);
-        Poll::Ready(match poll_result {
-            Poll::Ready(Some(Ok(extended_header))) => {
-                Some(Ok(CelestiaHeader::from(extended_header)))
-            }
-            Poll::Ready(Some(Err(e))) => Some(Err(e.into())),
-            Poll::Ready(None) => None,
-            Poll::Pending => return Poll::Pending,
-        })
-    }
-}
-
 #[async_trait]
 impl DaService for CelestiaService {
     type Spec = CelestiaSpec;
@@ -144,7 +108,7 @@ impl DaService for CelestiaService {
     type Verifier = CelestiaVerifier;
 
     type FilteredBlock = FilteredCelestiaBlock;
-    type HeaderStream = CelestiaBlockHeaderSubscription;
+    type HeaderStream = BoxStream<'static, anyhow::Result<CelestiaHeader>>;
     type TransactionId = ();
     type Error = BoxError;
 
@@ -186,8 +150,12 @@ impl DaService for CelestiaService {
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        let subscription = self.client.header_subscribe().await?;
-        Ok(CelestiaBlockHeaderSubscription::new(subscription))
+        Ok(self
+            .client
+            .header_subscribe()
+            .await?
+            .map(|res| res.map(CelestiaHeader::from).map_err(Into::into))
+            .boxed())
     }
 
     async fn get_head_block_header(

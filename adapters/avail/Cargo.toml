@@ -23,7 +23,6 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 # Convenience
 tokio = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
-pin-project = { workspace = true, optional = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.17", features = ["fmt"] }
 async-trait = { workspace = true }
@@ -45,7 +44,6 @@ native = [
     "dep:avail-subxt",
     "dep:subxt",
     "dep:futures",
-    "dep:pin-project",
     "dep:sp-keyring",
     "dep:sp-core",
     "sov-rollup-interface/native",

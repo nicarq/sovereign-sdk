@@ -1,13 +1,12 @@
 use core::time::Duration;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use avail_subxt::api::runtime_types::sp_core::bounded::bounded_vec::BoundedVec;
 use avail_subxt::primitives::AvailExtrinsicParams;
 use avail_subxt::{api, AvailConfig};
-use pin_project::pin_project;
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use reqwest::StatusCode;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
@@ -156,31 +155,6 @@ async fn wait_for_appdata(
     }
 }
 
-/// Convincice copy from [`subxt::blocks::BlocksClient`]
-type BlockStream<T> = Pin<Box<dyn futures::Stream<Item = Result<T, subxt::Error>> + Send>>;
-/// Wrapper around return of [`subxt::blocks::BlocksClient::subscribe_finalized`]
-/// that maps `Ok` variant to [`AvailHeader`] and `Error` variant to [`anyhow::Error`]
-#[pin_project]
-pub struct AvailBlockHeaderStream {
-    #[pin]
-    inner: BlockStream<subxt::blocks::Block<AvailConfig, OnlineClient<AvailConfig>>>,
-}
-
-impl futures::Stream for AvailBlockHeaderStream {
-    type Item = anyhow::Result<AvailHeader>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-        let poll_result = this.inner.poll_next(cx);
-        Poll::Ready(match poll_result {
-            Poll::Ready(Some(Ok(block))) => Some(Ok(AvailHeader::from(block))),
-            Poll::Ready(Some(Err(e))) => Some(Err(e.into())),
-            Poll::Ready(None) => None,
-            Poll::Pending => return Poll::Pending,
-        })
-    }
-}
-
 #[async_trait]
 impl DaService for DaProvider {
     type Spec = DaLayerSpec;
@@ -188,7 +162,7 @@ impl DaService for DaProvider {
     type Verifier = Verifier;
 
     type FilteredBlock = AvailBlock;
-    type HeaderStream = AvailBlockHeaderStream;
+    type HeaderStream = BoxStream<'static, anyhow::Result<AvailHeader>>;
     type TransactionId = ();
     type Error = anyhow::Error;
 
@@ -249,10 +223,13 @@ impl DaService for DaProvider {
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        let block_stream = self.node_client.blocks().subscribe_finalized().await?;
-        Ok(AvailBlockHeaderStream {
-            inner: block_stream,
-        })
+        Ok(self
+            .node_client
+            .blocks()
+            .subscribe_finalized()
+            .await?
+            .map(|block_res| block_res.map(AvailHeader::from).map_err(Into::into))
+            .boxed())
     }
 
     async fn get_head_block_header(
