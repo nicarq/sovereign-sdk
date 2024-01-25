@@ -44,8 +44,8 @@ fn burn_deployed_tokens() {
     };
     bank.call(mint_message, &minter_context, &mut working_set)
         .expect("Failed to mint token");
-    // No events at the moment. If there are, needs to be checked
-    assert!(working_set.events().is_empty());
+    // Create token event should be present
+    assert_eq!(working_set.events().len(), 1);
 
     let query_total_supply = |working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
         let total_supply: TotalSupplyResponse =
@@ -73,7 +73,7 @@ fn burn_deployed_tokens() {
 
     bank.call(burn_message.clone(), &minter_context, &mut working_set)
         .expect("Failed to burn token");
-    assert!(working_set.events().is_empty());
+    assert_eq!(working_set.events().len(), 1);
 
     let current_total_supply = query_total_supply(&mut working_set);
     assert_eq!(Some(initial_balance - burn_amount), current_total_supply);
@@ -119,7 +119,7 @@ fn burn_deployed_tokens() {
 
     bank.call(burn_zero_message, &minter_context, &mut working_set)
         .expect("Failed to burn token");
-    assert!(working_set.events().is_empty());
+    assert_eq!(working_set.events().len(), 1);
     let minter_balance_after = query_user_balance(minter_address, &mut working_set);
     assert_eq!(minter_balance, minter_balance_after);
 

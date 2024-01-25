@@ -33,12 +33,16 @@ pub use experimental::Evm;
 pub use revm::primitives::SpecId;
 
 #[cfg(feature = "experimental")]
+mod event;
+
+#[cfg(feature = "experimental")]
 mod experimental {
 
     use reth_primitives::Address;
     use sov_modules_api::{DaSpec, Error, ModuleInfo, WorkingSet};
     use sov_state::codec::BcsCodec;
 
+    use super::event::Event;
     use super::evm::db::EvmDb;
     use super::evm::{DbAccount, EvmChainConfig};
     use crate::evm::primitive_types::{
@@ -133,7 +137,7 @@ mod experimental {
 
         type CallMessage = super::call::CallMessage;
 
-        type Event = ();
+        type Event = Event;
 
         fn genesis(
             &self,

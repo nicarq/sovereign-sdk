@@ -268,7 +268,7 @@ impl<C: sov_modules_api::Context> NonFungibleToken<C> {
 
         self.owners.set(&id, context.sender(), working_set);
 
-        event!(working_set, "NFT mint", format!("A token with id {id} was minted"));
+        self.emit_event(working_set, "nft_mint", Event::Mint { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 
@@ -289,10 +289,7 @@ impl<C: sov_modules_api::Context> NonFungibleToken<C> {
             anyhow::bail!("Only token owner can transfer token");
         }
         self.owners.set(&id, &to, working_set);
-        event!(working_set, 
-            "NFT transfer",
-            format!("A token with id {id} was transferred"),
-        );
+        self.emit_event(working_set, "nft_transfer", Event::Transfer { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 
@@ -313,7 +310,7 @@ impl<C: sov_modules_api::Context> NonFungibleToken<C> {
         }
         self.owners.remove(&id, working_set);
 
-        event!(working_set, "NFT burn", format!("A token with id {id} was burned"));
+        self.emit_event(working_set, "nft_burn", Event::Burn { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 }

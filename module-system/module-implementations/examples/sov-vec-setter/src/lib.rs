@@ -1,6 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod call;
+mod event;
 mod genesis;
 
 #[cfg(feature = "native")]
@@ -11,6 +12,8 @@ pub use call::CallMessage;
 pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+
+use crate::event::Event;
 
 /// Initial configuration for sov-vec-setter module.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +49,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for VecSetter<C> {
 
     type CallMessage = call::CallMessage;
 
-    type Event = ();
+    type Event = Event;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         // The initialization logic

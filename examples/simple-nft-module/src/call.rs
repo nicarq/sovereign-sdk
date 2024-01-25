@@ -1,9 +1,9 @@
 use anyhow::{bail, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{event, CallResponse, Context, StateMapAccessor, WorkingSet};
+use sov_modules_api::{CallResponse, Context, Module, StateMapAccessor, WorkingSet};
 
-use crate::NonFungibleToken;
+use crate::{Event, NonFungibleToken};
 
 #[cfg_attr(
     feature = "native",
@@ -48,11 +48,7 @@ impl<C: Context> NonFungibleToken<C> {
 
         self.owners.set(&id, context.sender(), working_set);
 
-        event!(
-            working_set,
-            "NFT mint",
-            format!("A token with id {id} was minted")
-        );
+        self.emit_event(working_set, "simple_nft_mint", Event::Mint { id });
 
         Ok(CallResponse::default())
     }
@@ -74,11 +70,7 @@ impl<C: Context> NonFungibleToken<C> {
             bail!("Only token owner can transfer token");
         }
         self.owners.set(&id, &to, working_set);
-        event!(
-            working_set,
-            "NFT transfer",
-            format!("A token with id {id} was transferred")
-        );
+        self.emit_event(working_set, "nft_transfer", Event::Transfer { id });
         Ok(CallResponse::default())
     }
 
@@ -99,11 +91,7 @@ impl<C: Context> NonFungibleToken<C> {
         }
         self.owners.remove(&id, working_set);
 
-        event!(
-            working_set,
-            "NFT burn",
-            format!("A token with id {id} was burned")
-        );
+        self.emit_event(working_set, "nft_burned", Event::Burn { id });
         Ok(CallResponse::default())
     }
 }

@@ -178,10 +178,10 @@ pub struct Event {
 
 impl Event {
     /// Create a new event with the given key and value
-    pub fn new(key: &str, value: &str) -> Self {
+    pub fn new(key: &[u8], value: &[u8]) -> Self {
         Self {
-            key: EventKey(key.as_bytes().to_vec()),
-            value: EventValue(value.as_bytes().to_vec()),
+            key: EventKey(key.to_vec()),
+            value: EventValue(value.to_vec()),
         }
     }
 
@@ -214,6 +214,11 @@ impl Event {
 pub struct EventKey(Vec<u8>);
 
 impl EventKey {
+    /// Create a new event serialized from Typed Event
+    pub fn new(value: &[u8]) -> Self {
+        Self(value.to_vec())
+    }
+
     /// Return the inner bytes of the event key.
     pub fn inner(&self) -> &Vec<u8> {
         &self.0
@@ -227,6 +232,7 @@ pub struct EventValue(Vec<u8>);
 
 impl EventValue {
     /// Return the inner bytes of the event value.
+    /// Return the inner bytes of the event key.
     pub fn inner(&self) -> &Vec<u8> {
         &self.0
     }

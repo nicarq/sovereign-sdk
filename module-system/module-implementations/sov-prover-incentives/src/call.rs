@@ -4,9 +4,9 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::Coins;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{event, CallResponse, WorkingSet};
+use sov_modules_api::{CallResponse, Module, WorkingSet};
 
-use crate::ProverIncentives;
+use crate::{Event, ProverIncentives};
 
 /// This enumeration represents the available call messages for interacting with the `ExampleModule` module.
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
@@ -53,10 +53,13 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
         self.bonded_provers.set(prover, &total_balance, working_set);
 
         // Emit the bonding event
-        event!(
+        self.emit_event(
             working_set,
-            "bonded_prover",
-            format!("new_deposit: {bond_amount:?}. total_bond: {total_balance:?}")
+            "bond_prover_helper",
+            Event::<C>::BondedProver {
+                deposit: bond_amount,
+                total_balance,
+            },
         );
 
         Ok(CallResponse::default())
@@ -98,10 +101,12 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
             self.bonded_provers.set(context.sender(), &0, working_set);
 
             // Emit the unbonding event
-            event!(
+            self.emit_event(
                 working_set,
-                "unbonded_prover",
-                format!("amount_withdrawn: {old_balance:?}")
+                "unbond_prover",
+                Event::<C>::UnBondedProver {
+                    amount_withdrawn: old_balance,
+                },
             );
         }
 
@@ -146,16 +151,20 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
             self.bonded_provers
                 .set(context.sender(), &old_balance, working_set);
 
-            event!(
+            self.emit_event(
                 working_set,
-                "processed_valid_proof",
-                format!("prover: {:?}", context.sender())
+                "process_valid_proof",
+                Event::<C>::ProcessedValidProof {
+                    prover: context.sender().clone(),
+                },
             );
         } else {
-            event!(
+            self.emit_event(
                 working_set,
-                "processed_invalid_proof",
-                format!("slashed_prover: {:?}", context.sender())
+                "process_invalid_proof",
+                Event::<C>::ProcessedInvalidProof {
+                    slashed_prover: context.sender().clone(),
+                },
             );
         }
 

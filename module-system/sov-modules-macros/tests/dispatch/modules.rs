@@ -20,7 +20,7 @@ pub mod first_test_module {
         }
     }
 
-    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq)]
+    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
     pub enum Event {
         FirstModuleEnum1(u64),
         FirstModuleEnum2,
@@ -72,7 +72,7 @@ pub mod second_test_module {
         }
     }
 
-    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq)]
+    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
     pub enum Event {
         SecondModuleEnum,
     }

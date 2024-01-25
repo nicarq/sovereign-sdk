@@ -1,11 +1,12 @@
 //! Runtime state machine definitions.
 
+use alloc::boxed::Box;
 use alloc::vec::Vec;
+use core::any::Any;
 use core::{fmt, mem};
 
 pub use kernel_state::{KernelWorkingSet, VersionedWorkingSet};
 use sov_rollup_interface::maybestd::collections::HashMap;
-use sov_rollup_interface::stf::Event;
 
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::{GasMeter, Prefix};
@@ -335,6 +336,52 @@ impl<C: Context> StateCheckpoint<C> {
     }
 }
 
+/// Represents a convenience struct to track the event and its type, functioning similarly to a typemap.
+///
+/// This struct is used to store information about an event, including its key, type identifier,
+/// and the event itself encapsulated in a boxed trait object.
+///
+/// # Fields
+/// - `event_key`: A vector of bytes representinexamples/simple-nft-module/README.mdg the unique key of the event.
+/// - `type_id`: The type identifier of the event, using [`core::any::TypeId`].
+/// - `boxed_event`: The event encapsulated in a box, implementing [`core::any::Any`] and [`core::marker::Send`].
+pub struct TypedEvent {
+    event_key: Vec<u8>,
+    type_id: core::any::TypeId,
+    boxed_event: alloc::boxed::Box<dyn core::any::Any + core::marker::Send>,
+}
+
+impl TypedEvent {
+    /// Created a Typed Event
+    pub fn new<E: 'static + core::marker::Send>(event_key: &str, event: E) -> Self {
+        TypedEvent {
+            event_key: event_key.as_bytes().to_vec(),
+            type_id: event.type_id(),
+            boxed_event: Box::new(event),
+        }
+    }
+
+    /// Try to cast from the TypedEvent to a specific type E provided
+    /// checks type_id to avoid un-necessary casting
+    pub fn downcast<E: core::clone::Clone + 'static>(self) -> Option<E> {
+        if core::any::TypeId::of::<E>() == self.type_id {
+            self.boxed_event.downcast::<E>().ok().map(|boxed| *boxed)
+        } else {
+            None
+        }
+    }
+
+    /// Function to peek at the type id
+    pub fn type_id(&self) -> &core::any::TypeId {
+        &self.type_id
+    }
+
+    /// Function to peek at the event key
+    pub fn event_key(&self) -> &[u8] {
+        &self.event_key
+    }
+}
+
 /// This structure contains the read-write set and the events collected during the execution of a transaction.
 /// There are two ways to convert it into a StateCheckpoint:
 /// 1. By using the checkpoint() method, where all the changes are added to the underlying StateCheckpoint.
@@ -342,7 +389,7 @@ impl<C: Context> StateCheckpoint<C> {
 pub struct WorkingSet<C: Context> {
     delta: RevertableWriter<Delta<C::Storage>>,
     accessory_delta: RevertableWriter<AccessoryDelta<C::Storage>>,
-    events: Vec<Event>,
+    events: Vec<TypedEvent>,
     gas_meter: GasMeter<C::GasUnit>,
     archival_working_set: Option<ArchivalJmtWorkingSet<C>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
@@ -439,21 +486,28 @@ impl<C: Context> WorkingSet<C> {
         }
     }
 
-    /// Adds an event to the working set.
-    ///
-    /// Consider using the dedicated `event!` macro instead.
-    pub fn add_event(&mut self, key: &str, value: &str) {
-        self.events.push(Event::new(key, value));
+    /// Adds a typed event to the working set.
+    pub fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
+        self.events.push(TypedEvent::new(event_key, event));
     }
 
-    /// Extracts all events from this working set.
-    pub fn take_events(&mut self) -> Vec<Event> {
-        mem::take(&mut self.events)
+    /// Extracts all typed events from this working set.
+    pub fn take_events(&mut self) -> Vec<TypedEvent> {
+        core::mem::take(&mut self.events)
     }
 
-    /// Returns an immutable slice of all events that have been previously
+    /// Extracts a typed event at index `index`
+    pub fn take_event(&mut self, index: usize) -> Option<TypedEvent> {
+        if index < self.events.len() {
+            Some(self.events.remove(index))
+        } else {
+            None
+        }
+    }
+
+    /// Returns an immutable map of all typed events that have been previously
     /// written to this working set.
-    pub fn events(&self) -> &[Event] {
+    pub fn events(&self) -> &[TypedEvent] {
         &self.events
     }
 

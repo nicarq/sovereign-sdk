@@ -6,14 +6,16 @@ mod genesis;
 #[cfg(test)]
 mod tests;
 
+mod event;
 #[cfg(feature = "native")]
 mod query;
-
 pub use call::*;
 pub use genesis::*;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+
+use crate::event::Event;
 
 /// A new module:
 /// - Must derive `ModuleInfo`
@@ -42,7 +44,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for ValueSetter<C> {
 
     type CallMessage = call::CallMessage;
 
-    type Event = ();
+    type Event = Event;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         // The initialization logic

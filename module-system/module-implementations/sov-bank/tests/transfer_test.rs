@@ -306,8 +306,8 @@ fn transfer_deployed_token() {
     };
     bank.call(mint_message, &sender_context, &mut working_set)
         .expect("Failed to mint token");
-    // No events at the moment. If there are, needs to be checked
-    assert!(working_set.events().is_empty());
+    // Create token event should be present
+    assert_eq!(working_set.events().len(), 1);
     let total_supply_before = query_total_supply(&mut working_set);
     assert!(total_supply_before.is_some());
 
@@ -328,7 +328,7 @@ fn transfer_deployed_token() {
 
     bank.call(transfer_message, &sender_context, &mut working_set)
         .expect("Transfer call failed");
-    assert!(working_set.events().is_empty());
+    assert_eq!(working_set.events().len(), 1);
 
     let sender_balance_after = query_user_balance(sender_address, &mut working_set);
     let receiver_balance_after = query_user_balance(receiver_address, &mut working_set);

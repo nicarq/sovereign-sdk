@@ -1,9 +1,10 @@
-use simple_nft_module::{CallMessage, NonFungibleToken, NonFungibleTokenConfig, OwnerResponse};
+use simple_nft_module::{
+    CallMessage, Event, NonFungibleToken, NonFungibleTokenConfig, OwnerResponse,
+};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address as gen_addr_generic;
 use sov_modules_api::{Address, Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_rollup_interface::stf::Event;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
 pub type C = DefaultContext;
@@ -44,9 +45,11 @@ fn genesis_and_mint() {
     nft.call(mint_message.clone(), &owner2_context, &mut working_set)
         .expect("Minting failed");
 
+    let typed_event = working_set.take_event(0).unwrap();
+
     assert_eq!(
-        working_set.events()[0],
-        Event::new("NFT mint", "A token with id 1 was minted")
+        typed_event.downcast::<Event>().unwrap(),
+        Event::Mint { id: 1 }
     );
     let query3: OwnerResponse<C> = nft.get_owner(1, &mut working_set).unwrap();
     assert_eq!(query3.owner, Some(owner2));
@@ -97,9 +100,11 @@ fn transfer() {
     nft.call(transfer_message, &owner1_context, &mut working_set)
         .expect("Transfer failed");
 
+    let typed_event = working_set.take_event(0).unwrap();
+
     assert_eq!(
-        working_set.events()[0],
-        Event::new("NFT transfer", "A token with id 1 was transferred")
+        typed_event.downcast::<Event>().unwrap(),
+        Event::Transfer { id: 1 }
     );
 
     let token1_owner = query_token_owner(1, &mut working_set);
@@ -147,9 +152,11 @@ fn burn() {
         .expect("Burn failed");
     assert!(!working_set.events().is_empty());
 
+    let typed_event = working_set.take_event(0).unwrap();
+
     assert_eq!(
-        working_set.events()[0],
-        Event::new("NFT burn", "A token with id 0 was burned")
+        typed_event.downcast::<Event>().unwrap(),
+        Event::Burn { id: 0 }
     );
     let query: OwnerResponse<C> = nft.get_owner(0, &mut working_set).unwrap();
 

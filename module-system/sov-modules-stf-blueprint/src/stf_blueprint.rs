@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
 };
 use sov_modules_core::WorkingSet;
-use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, Event, TransactionReceipt};
 use tracing::{debug, error};
 
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
@@ -132,7 +132,7 @@ where
         batch_workspace = batch_workspace.checkpoint().to_revertable();
 
         // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
-        let _ = batch_workspace.take_events();
+        let _ = self.convert_to_runtime_events(&mut batch_workspace);
 
         let (txs, messages) = match self.pre_process_batch(blob) {
             Ok((txs, messages)) => (txs, messages),
@@ -253,7 +253,7 @@ where
                     let receipt = TransactionReceipt {
                         tx_hash: raw_tx_hash,
                         body_to_save: None,
-                        events: batch_workspace.take_events(),
+                        events: self.convert_to_runtime_events(&mut batch_workspace),
                         receipt: TxEffect::Skipped,
                         gas_used,
                     };
@@ -287,7 +287,7 @@ where
                     let receipt = TransactionReceipt {
                         tx_hash: raw_tx_hash,
                         body_to_save: None,
-                        events: batch_workspace.take_events(),
+                        events: self.convert_to_runtime_events(&mut batch_workspace),
                         receipt: TxEffect::Reverted,
                         gas_used,
                     };
@@ -309,7 +309,8 @@ where
 
             *sequencer_reward = sequencer_reward.saturating_add(gas_reward);
 
-            let events = batch_workspace.take_events();
+            let events: Vec<_> = self.convert_to_runtime_events(&mut batch_workspace);
+
             let tx_effect = match tx_result {
                 Ok(_) => TxEffect::Successful,
                 Err(e) => {
@@ -408,6 +409,31 @@ where
             }
         }
         Ok(decoded_messages)
+    }
+
+    // Helper function to take typed events and perform a conversion to the storable Events (
+    fn convert_to_runtime_events(&self, workspace: &mut WorkingSet<C>) -> Vec<Event> {
+        workspace
+            .take_events()
+            .into_iter()
+            .map(|typed_event| {
+                // This seems to be needed because doing `&typed_event.event_key().to_vec()`
+                // directly as the first function param to Event::new() is running into a linter bug
+                // where it thinks that the to_vec is not necessary.
+                // (probably due to the borrow and move in the same statement)
+                // https://github.com/rust-lang/rust-clippy/issues/12098
+                let key = typed_event.event_key().to_vec();
+                Event::new(
+                    &key,
+                    &<RT as ::sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event(
+                        typed_event,
+                    )
+                    .expect("Unknown event type")
+                    .try_to_vec()
+                    .expect("unable to serialize event"),
+                )
+            })
+            .collect()
     }
 }
 

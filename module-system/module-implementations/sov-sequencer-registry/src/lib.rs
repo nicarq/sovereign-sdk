@@ -7,6 +7,7 @@
 
 #![deny(missing_docs)]
 mod call;
+mod event;
 mod genesis;
 mod hooks;
 #[cfg(feature = "native")]
@@ -21,6 +22,8 @@ use sov_bank::{Amount, Coins};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, Context, Error, ModuleInfo, StateMap, StateValue, WorkingSet};
 use sov_state::codec::BcsCodec;
+
+use crate::event::Event;
 
 /// An allowed sequencer for a rollup.
 #[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
@@ -87,7 +90,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequen
 
     type CallMessage = CallMessage;
 
-    type Event = ();
+    type Event = Event;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)

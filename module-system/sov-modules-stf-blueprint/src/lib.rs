@@ -15,8 +15,8 @@ use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet, Spec,
-    StateCheckpoint, Zkvm,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet,
+    RuntimeEventProcessor, Spec, StateCheckpoint, Zkvm,
 };
 use sov_modules_core::VersionedWorkingSet;
 pub use sov_rollup_interface::stf::BatchReceipt;
@@ -53,6 +53,7 @@ pub trait Runtime<C: Context, Da: DaSpec>:
             <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
         >,
     > + Default
+    + RuntimeEventProcessor
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;

@@ -1,10 +1,10 @@
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Context, Event, ModulePrefix, StateMap, WorkingSet};
+use sov_modules_api::{Context, ModulePrefix, StateMap, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{Storage, ZkStorage};
 
-use super::helpers::module_c;
+use super::helpers::{module_c, Event};
 
 #[test]
 fn nested_module_call_test() {
@@ -17,14 +17,21 @@ fn nested_module_call_test() {
         execute_module_logic::<DefaultContext>(&mut working_set);
         test_state_update::<DefaultContext>(&mut working_set);
     }
+
+    let events: Vec<Event> = working_set
+        .take_events() // This should take all events at once
+        .into_iter() // Consume the Vec<TypedEvent>
+        .map(|typed_event| typed_event.downcast::<Event>().unwrap()) // Downcast each TypedEvent
+        .collect();
+
     assert_eq!(
-        working_set.events(),
-        &vec![
-            Event::new("module C", "execute"),
-            Event::new("module A", "update"),
-            Event::new("module B", "update"),
-            Event::new("module A", "update"),
-            Event::new("module A", "update"),
+        events,
+        vec![
+            Event::Execute,
+            Event::Update,
+            Event::Update,
+            Event::Update,
+            Event::Update,
         ]
     );
 

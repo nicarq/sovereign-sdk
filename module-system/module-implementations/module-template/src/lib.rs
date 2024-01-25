@@ -1,8 +1,10 @@
 mod call;
+mod event;
 mod genesis;
 #[cfg(feature = "native")]
 mod query;
 pub use call::CallMessage;
+pub use event::Event;
 #[cfg(feature = "native")]
 pub use query::*;
 use serde::{Deserialize, Serialize};
@@ -42,7 +44,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for ExampleModule<C> {
 
     type CallMessage = call::CallMessage;
 
-    type Event = ();
+    type Event = Event;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         // The initialization logic

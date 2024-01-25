@@ -10,12 +10,12 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    event, CallResponse, DaSpec, Spec, StateTransition, ValidityConditionChecker, WorkingSet,
+    CallResponse, DaSpec, Module, Spec, StateTransition, ValidityConditionChecker, WorkingSet,
 };
 use sov_state::storage::{Storage, StorageKey, StorageProof, StorageValue};
 use thiserror::Error;
 
-use crate::{AttesterIncentives, UnbondingInfo};
+use crate::{AttesterIncentives, Event, UnbondingInfo};
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 /// A wrapper for attestations which implements `borsh` serialization. This is necessary since
@@ -257,7 +257,13 @@ where
         bonded_set.remove(user, working_set);
 
         // We raise an event
-        event!(working_set, "user_slashed", format!("address {user:?}"));
+        self.emit_event(
+            working_set,
+            "user_slashed",
+            Event::<C>::UserSlashed {
+                address: user.clone(),
+            },
+        );
 
         reward
     }
@@ -354,9 +360,9 @@ where
             .transfer_from(user_address, &self.address, coins, working_set)
             .map_err(|_err| AttesterIncentiveErrors::TransferFailure)?;
 
-        let (balances, event_key) = match role {
-            Role::Attester => (&self.bonded_attesters, "bonded_attester"),
-            Role::Challenger => (&self.bonded_challengers, "bonded_challenger"),
+        let balances = match role {
+            Role::Attester => &self.bonded_attesters,
+            Role::Challenger => &self.bonded_challengers,
         };
 
         // Update our record of the total bonded amount for the sender.
@@ -366,11 +372,24 @@ where
         balances.set(user_address, &total_balance, working_set);
 
         // Emit the bonding event
-        event!(
-            working_set,
-            event_key,
-            format!("new_deposit: {bond_amount:?}. total_bond: {total_balance:?}")
-        );
+        match role {
+            Role::Attester => self.emit_event(
+                working_set,
+                "bonded_attester",
+                Event::<C>::BondedAttester {
+                    new_deposit: bond_amount,
+                    total_bond: total_balance,
+                },
+            ),
+            Role::Challenger => self.emit_event(
+                working_set,
+                "bonded_challenger",
+                Event::<C>::BondedChallenger {
+                    new_deposit: bond_amount,
+                    total_bond: total_balance,
+                },
+            ),
+        }
 
         Ok(CallResponse::default())
     }
@@ -388,11 +407,13 @@ where
             self.reward_sender(context, old_balance, working_set)?;
 
             // Emit the unbonding event
-            event!(
+            self.emit_event(
                 working_set,
-                "unbonded_challenger",
-                format!("amount_withdrawn: {old_balance:?}")
-            );
+                "unbond_challenger",
+                Event::<C>::UnbondedChallenger {
+                    amount_withdrawn: old_balance,
+                },
+            )
         }
 
         Ok(CallResponse::default())
@@ -467,11 +488,13 @@ where
             self.unbonding_attesters
                 .remove(context.sender(), working_set);
 
-            // Emit the unbonding event
-            event!(working_set, "unbonded_challenger", {
-                let amount = unbonding_info.amount;
-                format!("amount_withdrawn: {:?}", amount)
-            });
+            self.emit_event(
+                working_set,
+                "unbond_challenger",
+                Event::<C>::UnbondedChallenger {
+                    amount_withdrawn: unbonding_info.amount,
+                },
+            );
         } else {
             return Err(AttesterIncentiveErrors::AttesterIsNotUnbonding);
         }
@@ -728,10 +751,12 @@ where
             working_set,
         )?;
 
-        event!(
+        self.emit_event(
             working_set,
-            "processed_valid_attestation",
-            format!("attester: {:?}", context.sender())
+            "process_attestation",
+            Event::<C>::ProcessedValidAttestation {
+                attester: context.sender().clone(),
+            },
         );
 
         // Now we have to check whether the claimed_transition_num is the max_attested_height.
@@ -876,10 +901,12 @@ where
                 // Now remove the bad transition from the pool
                 self.bad_transition_pool.remove(transition_num, working_set);
 
-                event!(
+                self.emit_event(
                     working_set,
-                    "processed_valid_proof",
-                    format!("challenger: {:?}", context.sender())
+                    "process_challenge",
+                    Event::<C>::ProcessedValidProof {
+                        challenger: context.sender().clone(),
+                    },
                 );
             }
             Err(_err) => {

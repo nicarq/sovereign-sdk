@@ -10,12 +10,14 @@ pub use genesis::*;
 mod query;
 #[cfg(feature = "native")]
 pub use query::*;
+mod event;
 #[cfg(test)]
 mod tests;
-
 pub use call::{CallMessage, UPDATE_ACCOUNT_MSG};
 pub use hooks::AccountsTxHook;
 use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
+
+use crate::event::Event;
 
 impl<C: Context> FromIterator<C::PublicKey> for AccountConfig<C> {
     fn from_iter<T: IntoIterator<Item = C::PublicKey>>(iter: T) -> Self {
@@ -59,7 +61,7 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
 
     type CallMessage = call::CallMessage<C>;
 
-    type Event = ();
+    type Event = Event;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)

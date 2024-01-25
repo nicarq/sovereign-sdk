@@ -1,9 +1,9 @@
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
-use sov_modules_api::{Address, Context, Event, Module, WorkingSet};
+use sov_modules_api::{Address, Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::ZkStorage;
 
-use super::ValueSetter;
+use super::{Event, ValueSetter};
 use crate::{call, query, ValueSetterConfig};
 
 #[test]
@@ -45,8 +45,11 @@ fn test_value_setter_helper<C: Context>(
     // Test events
     {
         module.call(call_msg, &context, working_set).unwrap();
-        let event = &working_set.events()[0];
-        assert_eq!(event, &Event::new("set", "value_set: 99"));
+        let typed_event = working_set.take_event(0).unwrap();
+        assert_eq!(
+            typed_event.downcast::<Event>().unwrap(),
+            Event::NewValue(99)
+        );
     }
 
     // Test query

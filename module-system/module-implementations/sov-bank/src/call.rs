@@ -1,8 +1,9 @@
 use anyhow::{bail, Context, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, StateMapAccessor, WorkingSet};
+use sov_modules_api::{CallResponse, Module, StateMapAccessor, WorkingSet};
 
+use crate::event::Event;
 use crate::{Amount, Bank, Coins, Token};
 
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
@@ -95,6 +96,13 @@ impl<C: sov_modules_api::Context> Bank<C> {
         }
 
         self.tokens.set(&token_address, &token, working_set);
+        self.emit_event(
+            working_set,
+            "token_created",
+            Event::<C>::TokenCreated {
+                token_address: token_address.clone(),
+            },
+        );
         Ok(token_address)
     }
 
