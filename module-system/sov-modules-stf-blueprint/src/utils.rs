@@ -1,5 +1,3 @@
-use sov_blob_storage::BlobStorage;
-use sov_chain_state::ChainState;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{Context, DaSpec};
 
@@ -21,13 +19,13 @@ impl<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: KernelSlotHooks<C, Da>>
 }
 
 impl<C: Context, Da: DaSpec> BasicKernel<C, Da> {
-    /// Returns the underlying blob storage.
-    pub fn blob_storage(&self) -> &BlobStorage<C, Da> {
-        &self.blob_storage
+    /// Gets a reference to the kernel's ChainState module.
+    pub fn chain_state(&self) -> &sov_chain_state::ChainState<C, Da> {
+        &self.chain_state
     }
 
-    /// Returns the underlying chain state.
-    pub fn chain_state(&self) -> &ChainState<C, Da> {
-        &self.chain_state
+    /// Gets a reference to the kernel's BlobStorage module.
+    pub fn blob_storage(&self) -> &sov_blob_storage::BlobStorage<C, Da> {
+        &self.blob_storage
     }
 }

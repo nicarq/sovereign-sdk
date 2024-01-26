@@ -24,25 +24,6 @@ impl<C: Context, Da: DaSpec> Default for BasicKernel<C, Da> {
     }
 }
 
-#[cfg(feature = "test-utils")]
-/// These methods are used in the tests to access the internal state of the kernel
-/// Normally these should not be used, because everything happens inside the stf.
-impl<C: Context, Da: DaSpec> BasicKernel<C, Da>
-where
-    C: Context,
-    Da: DaSpec,
-{
-    /// Getter function for a basic kernel
-    pub fn get_chain_state(&self) -> &sov_chain_state::ChainState<C, Da> {
-        &self.chain_state
-    }
-
-    /// Getter function for blob storage
-    pub fn get_blob_storage(&self) -> &sov_blob_storage::BlobStorage<C, Da> {
-        &self.blob_storage
-    }
-}
-
 /// Path information required to initialize a basic kernel from files
 pub struct BasicKernelGenesisPaths {
     /// The path to the chain_state genesis config
