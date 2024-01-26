@@ -377,7 +377,7 @@ fn default_write_options() -> rocksdb::WriteOptions {
 /// This type implies that wrapped type suppose to be used only for reading.
 /// It is useful to indicate that user of this type can only do reading.
 /// This also implies that that inner `Arc<RwLock<T>>` is a clone and some other part can do writing.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReadOnlyLock<T> {
     lock: Arc<RwLock<T>>,
 }
