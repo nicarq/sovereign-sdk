@@ -96,3 +96,18 @@ impl<C: Context, Da: DaSpec> KernelSlotHooks<C, Da> for SoftConfirmationsKernel<
         self.chain_state.end_slot_hook(&mut ws);
     }
 }
+
+/// These methods are used in the tests to access the internal state of the kernel.
+/// Normally these should not be used, because everything happens inside the stf.
+#[cfg(feature = "test-utils")]
+impl<C: Context, Da: DaSpec> SoftConfirmationsKernel<C, Da> {
+    /// Gets a reference to the kernel's ChainState module.
+    pub fn get_chain_state(&self) -> &sov_chain_state::ChainState<C, Da> {
+        &self.chain_state
+    }
+
+    /// Gets a reference to the kernel's BlobStorage module.
+    pub fn get_blob_storage(&self) -> &sov_blob_storage::BlobStorage<C, Da> {
+        &self.blob_storage
+    }
+}

@@ -418,6 +418,122 @@ fn test_virtual_slot_stays_in_range() {
 }
 
 #[test]
+fn test_recovery_mode() {
+    // Initialize the rollup
+    let (current_storage, runtime, genesis_root) = TestRuntime::pre_initialized(true);
+
+    // Define the kernel
+    let mut working_set = WorkingSet::new(current_storage.clone());
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut working_set);
+    let test_kernel = SoftConfirmationsKernel::<C, Da>::default();
+    test_kernel
+        .genesis(
+            &SoftConfirmationsKernelGenesisConfig {
+                chain_state: ChainStateConfig {
+                    current_time: Default::default(),
+                    gas_price_blocks_depth: 0,
+                    gas_price_maximum_elasticity: 0,
+                    initial_gas_price: GasUnit::ZEROED,
+                    minimum_gas_price: GasUnit::ZEROED,
+                },
+            },
+            &mut kernel_working_set,
+        )
+        .unwrap();
+
+    // Populate the rollup with deferred blobs
+    for slot_number in 1..=DEFERRED_SLOTS_COUNT {
+        let slot_number_u8 = slot_number as u8;
+        let mut slot_data = MockBlock {
+            header: MockBlockHeader {
+                prev_hash: [slot_number_u8; 32].into(),
+                hash: [slot_number_u8 + 1; 32].into(),
+                height: slot_number,
+                time: Time::now(),
+            },
+            validity_cond: Default::default(),
+            blobs: vec![
+                make_blob(
+                    vec![slot_number_u8],
+                    REGULAR_SEQUENCER_DA,
+                    [slot_number_u8 + 1; 32],
+                ),
+                make_blob(
+                    vec![slot_number_u8 + 128],
+                    REGULAR_SEQUENCER_DA,
+                    [slot_number_u8 + 128; 32],
+                ),
+            ],
+        };
+        test_kernel.begin_slot_hook(
+            &slot_data.header,
+            &slot_data.validity_cond,
+            &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
+            &mut working_set,
+        );
+        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+        let blobs_to_execute = test_kernel
+            .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
+            .unwrap();
+        assert_eq!(kernel_working_set.virtual_slot(), 1);
+        assert_eq!(blobs_to_execute.len(), 0);
+    }
+    // Slash the preferred sequencer and run one block to enter recovery mode
+    {
+        runtime
+            .sequencer_registry
+            .slash_sequencer(&PREFERRED_SEQUENCER_DA, &mut working_set);
+    }
+
+    // Ensure that the virtual slot advances two-at a time until it catches up
+    for slot_number in DEFERRED_SLOTS_COUNT + 2..DEFERRED_SLOTS_COUNT * 3 {
+        let slot_number_u8 = slot_number as u8;
+        let mut slot_data = MockBlock {
+            header: MockBlockHeader {
+                prev_hash: [slot_number_u8; 32].into(),
+                hash: [slot_number_u8 + 1; 32].into(),
+                height: slot_number,
+                time: Time::now(),
+            },
+            validity_cond: Default::default(),
+            blobs: vec![],
+        };
+        test_kernel.begin_slot_hook(
+            &slot_data.header,
+            &slot_data.validity_cond,
+            &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
+            &mut working_set,
+        );
+        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+        let blobs_to_execute = test_kernel
+            .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
+            .unwrap();
+        let next_height = test_kernel
+            .get_chain_state()
+            .next_visible_slot_height(&mut kernel_working_set);
+        if next_height <= DEFERRED_SLOTS_COUNT + 1 {
+            assert_eq!(blobs_to_execute.len(), 4);
+        } else if next_height == DEFERRED_SLOTS_COUNT + 2 {
+            assert_eq!(blobs_to_execute.len(), 2);
+        } else {
+            assert_eq!(blobs_to_execute.len(), 0);
+        }
+
+        match kernel_working_set.virtual_slot().cmp(&slot_number) {
+            std::cmp::Ordering::Less => {
+                assert_eq!(next_height - kernel_working_set.virtual_slot(), 2);
+            }
+            std::cmp::Ordering::Equal => {
+                assert!(next_height - kernel_working_set.virtual_slot() <= 2)
+            }
+            std::cmp::Ordering::Greater => {
+                panic!("Virtual slot must not advance beyond real slot!")
+            }
+        }
+    }
+}
+
+#[test]
 fn test_blobs_from_non_registered_sequencers_are_not_saved() {
     let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(true);
     let mut working_set = WorkingSet::new(current_storage.clone());

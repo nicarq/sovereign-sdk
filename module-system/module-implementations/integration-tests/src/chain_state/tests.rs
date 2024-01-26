@@ -119,7 +119,7 @@ fn test_simple_value_setter_with_chain_state() {
         // Computes the new working set after slot application
         let mut working_set = WorkingSet::new(storage.clone());
 
-        let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.get_chain_state();
+        let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.chain_state();
 
         // Check that the root hash has been stored correctly
         let stored_root = chain_state_ref.get_genesis_hash(&mut working_set).unwrap();
@@ -185,7 +185,7 @@ fn test_simple_value_setter_with_chain_state() {
         // Computes the new working set after slot application
         let mut working_set = WorkingSet::new(result.change_set);
 
-        let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.get_chain_state();
+        let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.chain_state();
 
         // Check that the root hash has been stored correctly
         let stored_root = chain_state_ref.get_genesis_hash(&mut working_set).unwrap();
