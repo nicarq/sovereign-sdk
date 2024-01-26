@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
 
 use jsonrpsee::RpcModule;
@@ -28,7 +29,8 @@ where
     Ps: ProverService,
 {
     start_height: u64,
-    da_service: Da,
+    da_polling_interval_ms: u64,
+    da_service: Arc<Da>,
     stf: Stf,
     storage_manager: Sm,
     rpc_storage: Arc<RwLock<Sm::StfState>>,
@@ -36,6 +38,73 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     prover_service: Ps,
+    sync_state: Arc<SyncState>,
+}
+
+/// The state necessary to track the sync status of the node
+#[derive(Debug, Default)]
+pub struct SyncState {
+    current_height: AtomicU64,
+    target_height: AtomicU64,
+}
+
+/// The status of the current sync
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SyncStatus {
+    /// The node has caught up to the chain tip
+    Synced {
+        /// The current height to which we've synced
+        current_height: u64,
+    },
+    /// The node is currently syncing
+    Syncing {
+        /// The current height to which we've synced
+        current_height: u64,
+        /// The height to which we're syncing. This reflects the current view of the DA chain tip
+        target_height: u64,
+    },
+}
+
+impl SyncStatus {
+    /// Returns true if the sync status is `Synced`
+    pub fn is_synced(&self) -> bool {
+        match self {
+            SyncStatus::Synced { .. } => true,
+            SyncStatus::Syncing { .. } => false,
+        }
+    }
+}
+
+impl SyncState {
+    async fn update_target<Da: DaService<Error = anyhow::Error>>(
+        &self,
+        da_service: &Da,
+    ) -> Result<(), anyhow::Error> {
+        let target_height = da_service.get_head_block_header().await?.height();
+        self.target_height
+            .store(target_height, std::sync::atomic::Ordering::Release);
+        Ok(())
+    }
+
+    fn status(&self) -> SyncStatus {
+        let current = self
+            .current_height
+            .load(std::sync::atomic::Ordering::Acquire);
+        let target = self
+            .target_height
+            .load(std::sync::atomic::Ordering::Acquire);
+
+        if current == target {
+            SyncStatus::Synced {
+                current_height: current,
+            }
+        } else {
+            SyncStatus::Syncing {
+                current_height: current,
+                target_height: target,
+            }
+        }
+    }
 }
 
 /// How [`StateTransitionRunner`] is initialized
@@ -123,7 +192,8 @@ where
 
         Ok(Self {
             start_height,
-            da_service,
+            da_polling_interval_ms: runner_config.da_polling_interval_ms,
+            da_service: Arc::new(da_service),
             stf,
             storage_manager,
             rpc_storage,
@@ -131,6 +201,10 @@ where
             state_root: prev_state_root,
             listen_address,
             prover_service,
+            sync_state: Arc::new(SyncState {
+                current_height: AtomicU64::new(start_height),
+                target_height: AtomicU64::new(std::u64::MAX),
+            }),
         })
     }
 
@@ -161,12 +235,48 @@ where
         });
     }
 
+    /// Spawn a [`tokio::task`] that updates the sync status every 10 seconds.
+    pub fn spawn_sync_status_updater(&self, polling_interval_ms: u64) {
+        let sync_state = self.sync_state.clone();
+        let da_service = self.da_service.clone();
+
+        tokio::task::spawn(async move {
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_millis(polling_interval_ms));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            interval.tick().await; // Tick the interval once because it starts at 0ms. <https://docs.rs/tokio/latest/src/tokio/time/interval.rs.html#427>
+            loop {
+                sync_state
+                    .update_target(da_service.as_ref())
+                    .await
+                    .expect("Failed to update target height");
+                if let SyncStatus::Syncing {
+                    current_height,
+                    target_height,
+                } = sync_state.status()
+                {
+                    info!(
+                        "Sync in progress. Current height: {}, target height: {}",
+                        current_height, target_height
+                    );
+                }
+                interval.tick().await;
+            }
+        });
+    }
+
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
         let mut seen_state_transition_data: VecDeque<
             StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
         > = VecDeque::new();
         let mut height = self.start_height;
+        let target_height = self.da_service.get_head_block_header().await?.height();
+        self.sync_state
+            .target_height
+            .store(target_height, std::sync::atomic::Ordering::Release);
+
+        self.spawn_sync_status_updater(self.da_polling_interval_ms);
 
         let mut agg_block_hashes = Vec::default();
         loop {
@@ -248,6 +358,9 @@ where
             self.state_root = next_state_root;
             seen_state_transition_data.push_back(transition_data);
             height += 1;
+            self.sync_state
+                .current_height
+                .store(height, std::sync::atomic::Ordering::Release);
             self.ledger_db.commit_slot(data_to_commit)?;
 
             // Save data back to StorageManager
