@@ -1,3 +1,5 @@
+mod cache_container_group;
+
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -14,6 +16,8 @@ use sov_schema_db::cache::change_set::ChangeSet;
 use sov_schema_db::cache::SnapshotId;
 use sov_schema_db::ReadOnlyLock;
 use sov_state::{MerkleProofSpec, ProverStorage};
+
+use crate::cache_container_group::{CacheContainerRwLockGroup, CacheDbGroup};
 
 /// Implementation of [`HierarchicalStorageManager`] that handles relation between snapshots
 /// And reorgs on Data Availability layer.
@@ -34,9 +38,7 @@ pub struct ProverStorageManager<Da: DaSpec, S: MerkleProofSpec> {
     // Same reference for individual managers
     snapshot_id_to_parent: Arc<RwLock<HashMap<SnapshotId, SnapshotId>>>,
 
-    state_snapshot_manager: Arc<RwLock<CacheContainer>>,
-    accessory_snapshot_manager: Arc<RwLock<CacheContainer>>,
-    ledger_snapshot_manager: Arc<RwLock<CacheContainer>>,
+    cache_containers: CacheContainerRwLockGroup,
 
     phantom_mp_spec: PhantomData<S>,
 }
@@ -52,12 +54,20 @@ where
     ) -> Self {
         let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
 
-        let state_snapshot_manager =
-            CacheContainer::new(state_db, ReadOnlyLock::new(snapshot_id_to_parent.clone()));
-        let accessory_snapshot_manager =
-            CacheContainer::new(native_db, ReadOnlyLock::new(snapshot_id_to_parent.clone()));
-        let ledger_snapshot_manager =
-            CacheContainer::new(ledger_db, ReadOnlyLock::new(snapshot_id_to_parent.clone()));
+        let read_only_snapshot_id_to_parent = ReadOnlyLock::new(snapshot_id_to_parent.clone());
+
+        let state_cache_container =
+            CacheContainer::new(state_db, read_only_snapshot_id_to_parent.clone());
+        let accessory_cache_container =
+            CacheContainer::new(native_db, read_only_snapshot_id_to_parent.clone());
+        let ledger_cache_container =
+            CacheContainer::new(ledger_db, read_only_snapshot_id_to_parent.clone());
+
+        let cache_containers = CacheContainerRwLockGroup::new(
+            state_cache_container,
+            accessory_cache_container,
+            ledger_cache_container,
+        );
 
         Self {
             chain_forks: Default::default(),
@@ -66,9 +76,7 @@ where
             block_hash_to_snapshot_id: Default::default(),
             dangled_snapshots: Default::default(),
             snapshot_id_to_parent,
-            state_snapshot_manager: Arc::new(RwLock::new(state_snapshot_manager)),
-            accessory_snapshot_manager: Arc::new(RwLock::new(accessory_snapshot_manager)),
-            ledger_snapshot_manager: Arc::new(RwLock::new(ledger_snapshot_manager)),
+            cache_containers,
             phantom_mp_spec: Default::default(),
         }
     }
@@ -89,36 +97,24 @@ where
             && self.blocks_to_parent.is_empty()
             && self.block_hash_to_snapshot_id.is_empty()
             && self.snapshot_id_to_parent.read().unwrap().is_empty()
-            && self.state_snapshot_manager.read().unwrap().is_empty()
-            && self.accessory_snapshot_manager.read().unwrap().is_empty()
+            && self.cache_containers.is_empty()
     }
 
     fn get_storage_with_snapshot_id(
         &self,
         snapshot_id: SnapshotId,
     ) -> anyhow::Result<(ProverStorage<S>, CacheDb)> {
-        let state_db_snapshot = CacheDb::new(
-            snapshot_id,
-            ReadOnlyLock::new(self.state_snapshot_manager.clone()),
-        );
+        let CacheDbGroup {
+            state: state_cache_db,
+            accessory: native_cache_db,
+            ledger: ledger_cache_db,
+        } = self.cache_containers.get_cache_db_group(snapshot_id);
 
-        let state_db = StateDB::with_cache_db(state_db_snapshot)?;
-
-        let native_db_snapshot = CacheDb::new(
-            snapshot_id,
-            ReadOnlyLock::new(self.accessory_snapshot_manager.clone()),
-        );
-
-        let native_db = NativeDB::with_cache_db(native_db_snapshot)?;
-
-        let ledger_state = CacheDb::new(
-            snapshot_id,
-            ReadOnlyLock::new(self.ledger_snapshot_manager.clone()),
-        );
-
+        let state_db = StateDB::with_cache_db(state_cache_db)?;
+        let native_db = NativeDB::with_cache_db(native_cache_db)?;
         Ok((
             ProverStorage::with_db_handles(state_db, native_db),
-            ledger_state,
+            ledger_cache_db,
         ))
     }
 
@@ -150,17 +146,15 @@ where
             .remove(&current_block_hash)
             .ok_or(anyhow::anyhow!("Attempt to finalize non existing snapshot"))?;
 
-        let mut state_manager = self.state_snapshot_manager.write().unwrap();
-        let mut accessory_manager = self.accessory_snapshot_manager.write().unwrap();
-        let mut ledger_manager = self.ledger_snapshot_manager.write().unwrap();
+        let mut cache_containers = self.cache_containers.write();
 
         let mut snapshot_id_to_parent = self.snapshot_id_to_parent.write().unwrap();
         snapshot_id_to_parent.remove(snapshot_id);
 
-        // Return error here, as underlying database can return error
-        state_manager.commit_snapshot(snapshot_id)?;
-        accessory_manager.commit_snapshot(snapshot_id)?;
-        ledger_manager.commit_snapshot(snapshot_id)?;
+        // Panic, because what else can we do? We don't know what data
+        cache_containers
+            .commit_snapshot(snapshot_id)
+            .expect("Unable to commit snapshot");
 
         for orphan_id in self.dangled_snapshots.iter() {
             if snapshot_id_to_parent.get(orphan_id) == Some(snapshot_id) {
@@ -182,7 +176,6 @@ where
             self.blocks_to_parent.remove(&block_hash).unwrap();
 
             let snapshot_id = self.block_hash_to_snapshot_id.remove(&block_hash).unwrap();
-            tracing::debug!("Discarding snapshot={}", snapshot_id);
 
             for orphan_id in self.dangled_snapshots.iter() {
                 if snapshot_id_to_parent.get(orphan_id) == Some(&snapshot_id) {
@@ -192,10 +185,14 @@ where
 
             snapshot_id_to_parent.remove(&snapshot_id);
 
-            state_manager.discard_snapshot(&snapshot_id);
-            accessory_manager.discard_snapshot(&snapshot_id);
-            ledger_manager.discard_snapshot(&snapshot_id);
-
+            // TODO: This should be addressed in the future.
+            // Ideally non saved back snapshots should be discarded
+            let has_been_discarded = cache_containers.discard_snapshot(&snapshot_id);
+            tracing::debug!(
+                "Discarding snapshot={}, was present {}",
+                snapshot_id,
+                has_been_discarded
+            );
             to_discard.extend(child_block_hashes);
         }
 
@@ -234,8 +231,7 @@ where
             "Cannot provide storage for corrupt block: prev_hash == current_hash"
         );
         if let Some(prev_snapshot_id) = self.block_hash_to_snapshot_id.get(&prev_block_hash) {
-            let state_snapshot_manager = self.state_snapshot_manager.read().unwrap();
-            if !state_snapshot_manager.contains_snapshot(prev_snapshot_id) {
+            if !self.cache_containers.contains_snapshot(prev_snapshot_id) {
                 anyhow::bail!("Snapshot for previous block has been saved yet");
             }
         }
@@ -292,8 +288,7 @@ where
         let parent_snapshot_id = match self.block_hash_to_snapshot_id.get(&current_block_hash) {
             None => anyhow::bail!("Snapshot for current block has been saved yet"),
             Some(prev_snapshot_id) => {
-                let state_snapshot_manager = self.state_snapshot_manager.read().unwrap();
-                if !state_snapshot_manager.contains_snapshot(prev_snapshot_id) {
+                if !self.cache_containers.contains_snapshot(prev_snapshot_id) {
                     anyhow::bail!("Snapshot for current block has been saved yet");
                 }
                 prev_snapshot_id
@@ -314,25 +309,18 @@ where
         }
         self.dangled_snapshots.insert(new_snapshot_id);
 
-        let state_db_snapshot = CacheDb::new(
-            new_snapshot_id,
-            ReadOnlyLock::new(self.state_snapshot_manager.clone()),
-        );
-        let state_db = StateDB::with_cache_db(state_db_snapshot)?;
+        let CacheDbGroup {
+            state: state_cache_db,
+            accessory: accessory_cache_db,
+            ledger: ledger_cache_db,
+        } = self.cache_containers.get_cache_db_group(new_snapshot_id);
 
-        let native_db_snapshot = CacheDb::new(
-            new_snapshot_id,
-            ReadOnlyLock::new(self.accessory_snapshot_manager.clone()),
-        );
+        let state_db = StateDB::with_cache_db(state_cache_db)?;
+        let native_db = NativeDB::with_cache_db(accessory_cache_db)?;
 
-        let native_db = NativeDB::with_cache_db(native_db_snapshot)?;
-        let ledger_state = CacheDb::new(
-            new_snapshot_id,
-            ReadOnlyLock::new(self.ledger_snapshot_manager.clone()),
-        );
         Ok((
             ProverStorage::with_db_handles(state_db, native_db),
-            ledger_state,
+            ledger_cache_db,
         ))
     }
 
@@ -395,19 +383,10 @@ where
         }
 
         {
-            let mut state_manager = self.state_snapshot_manager.write().unwrap();
-            let mut native_manager = self.accessory_snapshot_manager.write().unwrap();
-            let mut ledger_manager = self.ledger_snapshot_manager.write().unwrap();
-
-            state_manager
-                .add_snapshot(state_change_set)
-                .expect("Adding duplicate snapshot, this is not expected");
-            native_manager
-                .add_snapshot(accessory_change_set)
-                .expect("Adding duplicate snapshot, this is not expected");
-            ledger_manager
-                .add_snapshot(ledger_change_set)
-                .expect("Adding duplicate snapshot, this is not expected");
+            let mut cache_containers = self.cache_containers.write();
+            cache_containers
+                .add_snapshot(state_change_set, accessory_change_set, ledger_change_set)
+                .expect("Adding duplicate change sets, bug detected");
         }
         tracing::debug!(
             "Snapshot id={} for block={:?} has been saved to StorageManager",
@@ -459,41 +438,27 @@ mod tests {
 
     fn validate_internal_consistency(storage_manager: &ProverStorageManager<Da, S>) {
         let snapshot_id_to_parent = storage_manager.snapshot_id_to_parent.read().unwrap();
-        let state_snapshot_manager = storage_manager.state_snapshot_manager.read().unwrap();
-        let native_snapshot_manager = storage_manager.state_snapshot_manager.read().unwrap();
 
         for (block_hash, parent_block_hash) in storage_manager.blocks_to_parent.iter() {
-            // For each block hash there should be snapshot id
+            // For each block hash, there should be snapshot id
             let snapshot_id = storage_manager
                 .block_hash_to_snapshot_id
                 .get(block_hash)
                 .expect("Missing snapshot_id");
 
-            // For each snapshot id, that is not head, there should be parent snapshot id
-            if !storage_manager
-                .chain_forks
-                .get(block_hash)
-                .unwrap_or(&vec![])
-                .is_empty()
-            {
+            let contains = storage_manager
+                .cache_containers
+                .contains_snapshot(snapshot_id);
+            // Dangled snapshots must not be saved
+            if storage_manager.dangled_snapshots.contains(snapshot_id) {
                 assert!(
-                    state_snapshot_manager.contains_snapshot(snapshot_id),
-                    "snapshot id={} is missing in state_snapshot_manager",
+                    !contains,
+                    "dangled snapshot id={} somehow got saved into cache container",
                     snapshot_id
-                );
-                assert!(
-                    native_snapshot_manager.contains_snapshot(snapshot_id),
-                    "snapshot id={} is missing in native_snapshot_manager",
-                    snapshot_id
-                );
-            } else {
-                assert_eq!(
-                    state_snapshot_manager.contains_snapshot(snapshot_id),
-                    native_snapshot_manager.contains_snapshot(snapshot_id),
                 );
             }
 
-            // If there's reference to parent snapshot id, it should be consistent with block hash i
+            // If there's a reference to parent snapshot id, it should be consistent with block hash i
             match snapshot_id_to_parent.get(snapshot_id) {
                 None => {
                     assert!(storage_manager
@@ -557,6 +522,7 @@ mod tests {
         let _storage = storage_manager.create_state_for(&block_header).unwrap();
 
         assert!(!storage_manager.is_empty());
+        // main `.is_empty()` check covers everything, but since it is a test, we want to double check ourselves.
         assert!(!storage_manager.chain_forks.is_empty());
         assert!(!storage_manager.block_hash_to_snapshot_id.is_empty());
         assert!(storage_manager
@@ -564,16 +530,7 @@ mod tests {
             .read()
             .unwrap()
             .is_empty());
-        assert!(storage_manager
-            .state_snapshot_manager
-            .read()
-            .unwrap()
-            .is_empty());
-        assert!(storage_manager
-            .accessory_snapshot_manager
-            .read()
-            .unwrap()
-            .is_empty());
+        assert!(storage_manager.cache_containers.is_empty());
     }
 
     #[test]
@@ -597,7 +554,7 @@ mod tests {
 
         let (storage_2, _) = storage_manager.create_state_for(&block_header).unwrap();
 
-        // We just check, that both storage have same underlying id.
+        // We just check that both storages have same underlying id.
         // This is more tight with implementation.
         let (state_snapshot_1, native_snapshot_1) = storage_1.freeze().unwrap();
         // let state_snapshot_1 = FrozenDbSnapshot::from(state_db_1);
@@ -641,8 +598,8 @@ mod tests {
     #[test]
     fn read_state_before_parent_is_added() {
         // Blocks A -> B
-        // create snapshot A from block A
-        // create snapshot B from block B
+        // snapshot A from block A
+        // snapshot B from block B
         // query data from block B, before adding snapshot A back to the manager!
         let tmpdir = tempfile::tempdir().unwrap();
 
@@ -740,7 +697,7 @@ mod tests {
 
     #[test]
     fn try_save_unknown_snapshot() {
-        // This test we create 2 snapshot managers and try to save snapshots from first manager
+        // This test we create 2 snapshot managers and try to save snapshots from the first manager
         // in another
         // First it checks for yet unknown id 2. It is larger that last known snapshot 1.
         // Then we commit own snapshot 1, and then try to save alien snapshot with id 1
@@ -1075,7 +1032,8 @@ mod tests {
         assert!(storage_manager.is_empty());
 
         // Chains:
-        // 1    2    3    4    5
+        // 1 -> 2 -> 3 -> 4 -> 5
+        // ---------------------
         //      / -> L -> M
         // A -> B -> C -> D -> E
         // |    \ -> G -> H
@@ -1419,7 +1377,7 @@ mod tests {
         assert!(storage_manager.is_empty());
         // Check that values are in the database.
         // Storage manager is empty, as checked before,
-        // so new storage should read from database
+        // so new storage should read from the database
         let new_block_after_e = MockBlockHeader {
             prev_hash: MockHash::from([5; 32]),
             hash: MockHash::from([6; 32]),
@@ -1484,7 +1442,9 @@ mod tests {
 
         // B is finalized and then C.
 
-        // Would F see data from E
+        // Would F see data from E?
+        // In current version it won't, because it will not have a pointer to parent.
+        // Фnd will read from the database.
         let tmpdir = tempfile::tempdir().unwrap();
         let storage_config = sov_state::config::Config {
             path: tmpdir.path().to_path_buf(),
@@ -1606,7 +1566,7 @@ mod tests {
         // E, H, G are moved to the separate thread.
         // They read data from each snapshot all the time,
         // checking that data from each for is present
-        // Data in each snapshot is key == value for key in height*10..((height+1)*10)
+        // Data in each snapshot is key == value for a key in height*10..((height+1)*10)
         // TBD: Delete operations!
 
         let tmpdir = tempfile::tempdir().unwrap();
