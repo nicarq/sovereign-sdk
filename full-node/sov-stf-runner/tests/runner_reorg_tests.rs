@@ -127,6 +127,7 @@ async fn runner_execution(
         },
         runner: RunnerConfig {
             start_height: 1,
+            da_polling_interval_ms: 150,
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),
                 bind_port: 0,

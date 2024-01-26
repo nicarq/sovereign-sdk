@@ -15,6 +15,7 @@ path = "benches/demo_data"
 # We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
 # any blocks before this height
 start_height = 1
+da_polling_interval_ms = 10000
 
 [runner.rpc_config]
 # the host and port to bind the rpc server for

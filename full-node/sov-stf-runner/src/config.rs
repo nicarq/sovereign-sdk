@@ -10,6 +10,8 @@ use serde::Deserialize;
 pub struct RunnerConfig {
     /// DA start height.
     pub start_height: u64,
+    /// Polling interval for the DA service to check the sync status (in milliseconds).
+    pub da_polling_interval_ms: u64,
     /// RPC configuration.
     pub rpc_config: RpcConfig,
 }
@@ -91,6 +93,7 @@ mod tests {
             path = "/tmp"
             [runner]
             start_height = 31337
+            da_polling_interval_ms = 10000
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
@@ -105,6 +108,7 @@ mod tests {
         let expected = RollupConfig {
             runner: RunnerConfig {
                 start_height: 31337,
+                da_polling_interval_ms: 10_000,
                 rpc_config: RpcConfig {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12345,
