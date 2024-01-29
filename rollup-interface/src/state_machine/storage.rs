@@ -44,4 +44,7 @@ pub trait HierarchicalStorageManager<Da: DaSpec> {
     /// Finalizes state on given block header.
     /// Usually means that this state won't be altered anymore and can be persisted.
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()>;
+
+    /// Height of the rollup state.
+    fn state_height(&self) -> anyhow::Result<u64>;
 }

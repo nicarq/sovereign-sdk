@@ -1,12 +1,11 @@
 mod aggregated;
 mod parallel;
-pub use aggregated::AggregatedProof;
+pub use aggregated::{AggregatedProofData, StateTransitionInfo};
 use async_trait::async_trait;
 pub use parallel::ParallelProverService;
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::StateTransitionData;
 use thiserror::Error;
 
 /// The possible configurations of the prover.
@@ -34,7 +33,7 @@ pub enum WitnessSubmissionStatus {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ProofAggregationStatus {
     /// Indicates successful proof generation.
-    Success(AggregatedProof),
+    Success(AggregatedProofData),
     /// Indicates that proof generation is currently in progress.
     ProofGenerationInProgress,
 }
@@ -78,10 +77,10 @@ pub trait ProverService {
     /// The number of block proofs in the aggregated proof.
     fn aggregated_proof_block_jump(&self) -> usize;
 
-    /// Submit a witness for proving.
-    async fn submit_witness(
+    /// Submit a state transition info for proving.
+    async fn submit_state_transition_info(
         &self,
-        state_transition_data: StateTransitionData<
+        state_transition_info: StateTransitionInfo<
             Self::StateRoot,
             Self::Witness,
             <Self::DaService as DaService>::Spec,

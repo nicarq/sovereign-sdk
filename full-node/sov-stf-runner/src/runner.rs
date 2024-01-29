@@ -14,7 +14,7 @@ use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::{ProofAggregationStatus, ProverService, RunnerConfig};
+use crate::{ProofAggregationStatus, ProverService, RunnerConfig, StateTransitionInfo};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -38,14 +38,14 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     prover_service: Ps,
-    sync_state: Arc<SyncState>,
+    sync_state: Arc<DaSyncState>,
 }
 
 /// The state necessary to track the sync status of the node
 #[derive(Debug, Default)]
-pub struct SyncState {
-    current_height: AtomicU64,
-    target_height: AtomicU64,
+pub struct DaSyncState {
+    current_da_height: AtomicU64,
+    target_da_height: AtomicU64,
 }
 
 /// The status of the current sync
@@ -54,14 +54,14 @@ pub enum SyncStatus {
     /// The node has caught up to the chain tip
     Synced {
         /// The current height to which we've synced
-        current_height: u64,
+        current_da_height: u64,
     },
     /// The node is currently syncing
     Syncing {
         /// The current height to which we've synced
-        current_height: u64,
+        current_da_height: u64,
         /// The height to which we're syncing. This reflects the current view of the DA chain tip
-        target_height: u64,
+        target_da_height: u64,
     },
 }
 
@@ -75,33 +75,33 @@ impl SyncStatus {
     }
 }
 
-impl SyncState {
+impl DaSyncState {
     async fn update_target<Da: DaService<Error = anyhow::Error>>(
         &self,
         da_service: &Da,
     ) -> Result<(), anyhow::Error> {
-        let target_height = da_service.get_head_block_header().await?.height();
-        self.target_height
-            .store(target_height, std::sync::atomic::Ordering::Release);
+        let target_da_height = da_service.get_head_block_header().await?.height();
+        self.target_da_height
+            .store(target_da_height, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 
     fn status(&self) -> SyncStatus {
         let current = self
-            .current_height
+            .current_da_height
             .load(std::sync::atomic::Ordering::Acquire);
         let target = self
-            .target_height
+            .target_da_height
             .load(std::sync::atomic::Ordering::Acquire);
 
         if current == target {
             SyncStatus::Synced {
-                current_height: current,
+                current_da_height: current,
             }
         } else {
             SyncStatus::Syncing {
-                current_height: current,
-                target_height: target,
+                current_da_height: current,
+                target_da_height: target,
             }
         }
     }
@@ -201,9 +201,9 @@ where
             state_root: prev_state_root,
             listen_address,
             prover_service,
-            sync_state: Arc::new(SyncState {
-                current_height: AtomicU64::new(start_height),
-                target_height: AtomicU64::new(std::u64::MAX),
+            sync_state: Arc::new(DaSyncState {
+                current_da_height: AtomicU64::new(start_height),
+                target_da_height: AtomicU64::new(std::u64::MAX),
             }),
         })
     }
@@ -251,13 +251,13 @@ where
                     .await
                     .expect("Failed to update target height");
                 if let SyncStatus::Syncing {
-                    current_height,
-                    target_height,
+                    current_da_height,
+                    target_da_height,
                 } = sync_state.status()
                 {
                     info!(
                         "Sync in progress. Current height: {}, target height: {}",
-                        current_height, target_height
+                        current_da_height, target_da_height
                     );
                 }
                 interval.tick().await;
@@ -267,21 +267,21 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let mut seen_state_transition_data: VecDeque<
-            StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
+        let mut seen_state_transition: VecDeque<
+            StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>,
         > = VecDeque::new();
-        let mut height = self.start_height;
+        let mut da_height = self.start_height;
         let target_height = self.da_service.get_head_block_header().await?.height();
         self.sync_state
-            .target_height
+            .target_da_height
             .store(target_height, std::sync::atomic::Ordering::Release);
 
         self.spawn_sync_status_updater(self.da_polling_interval_ms);
 
         let mut agg_block_hashes = Vec::default();
         loop {
-            debug!("Requesting DA block for height={}", height);
-            let mut filtered_block = self.da_service.get_block_at(height).await?;
+            debug!("Requesting DA block for height={}", da_height);
+            let mut filtered_block = self.da_service.get_block_at(da_height).await?;
 
             // Checking if reorg happened or not.
             if let Some(ForkPoint {
@@ -290,22 +290,22 @@ where
                 pre_state_root,
             }) = has_reorg_happened::<Stf, Da, Vm>(
                 &filtered_block,
-                &mut seen_state_transition_data,
+                &mut seen_state_transition,
                 &self.da_service,
             )
             .await?
             {
-                height = new_height;
+                da_height = new_height;
                 filtered_block = new_block;
                 self.state_root = pre_state_root;
-                info!("Resuming execution on height={}", height);
+                info!("Resuming execution on height={}", da_height);
             }
             let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
 
             info!(
                 "Extracted {} relevant blobs at height {}: {:?}",
                 blobs.len(),
-                height,
+                da_height,
                 blobs
                     .iter()
                     .map(|b| format!(
@@ -321,6 +321,7 @@ where
             let (stf_pre_state, ledger_state) = self
                 .storage_manager
                 .create_state_for(filtered_block.header())?;
+
             self.ledger_db.replace_db(ledger_state)?;
 
             let slot_result = self.stf.apply_slot(
@@ -356,11 +357,11 @@ where
             // Post apply slot machinery
             let next_state_root = slot_result.state_root;
             self.state_root = next_state_root;
-            seen_state_transition_data.push_back(transition_data);
-            height += 1;
+
+            da_height += 1;
             self.sync_state
-                .current_height
-                .store(height, std::sync::atomic::Ordering::Release);
+                .current_da_height
+                .store(da_height, std::sync::atomic::Ordering::Release);
             self.ledger_db.commit_slot(data_to_commit)?;
 
             // Save data back to StorageManager
@@ -393,25 +394,36 @@ where
                 last_finalized.height()
             );
 
+            let state_height = self.storage_manager.state_height()?;
+            seen_state_transition.push_back(StateTransitionInfo {
+                data: transition_data,
+                state_height,
+            });
+
             // Checking all seen blocks, in case if there was delay in getting last finalized header.
-            while let Some(earliest_seen_state_transition_data) = seen_state_transition_data.front()
-            {
+            while let Some(earliest_seen_state_transition_info) = seen_state_transition.front() {
                 debug!(
                     "Checking seen header height={}",
-                    earliest_seen_state_transition_data.da_block_header.height()
+                    earliest_seen_state_transition_info
+                        .da_block_header()
+                        .height()
                 );
-                if earliest_seen_state_transition_data.da_block_header.height()
+                if earliest_seen_state_transition_info
+                    .da_block_header()
+                    .height()
                     <= last_finalized.height()
                 {
                     debug!(
                         "Finalizing seen header height={}",
-                        earliest_seen_state_transition_data.da_block_header.height()
+                        earliest_seen_state_transition_info
+                            .da_block_header()
+                            .height()
                     );
                     self.storage_manager
-                        .finalize(&earliest_seen_state_transition_data.da_block_header)?;
+                        .finalize(earliest_seen_state_transition_info.da_block_header())?;
 
-                    let transition_data = seen_state_transition_data.pop_front().unwrap();
-                    agg_block_hashes.push(transition_data.da_block_header.hash());
+                    let transition_data = seen_state_transition.pop_front().unwrap();
+                    agg_block_hashes.push(transition_data.da_block_header().hash());
 
                     // Create ZK proof.
                     self.create_aggregated_proof(transition_data, &mut agg_block_hashes)
@@ -432,12 +444,14 @@ where
 
     async fn create_aggregated_proof(
         &self,
-        transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, <Da as DaService>::Spec>,
+        transition_data: StateTransitionInfo<Stf::StateRoot, Stf::Witness, <Da as DaService>::Spec>,
         agg_block_hashes: &mut Vec<<Da::Spec as DaSpec>::SlotHash>,
     ) {
-        let header_hash = transition_data.da_block_header.hash();
+        let header_hash = transition_data.da_block_header().hash();
 
-        self.prover_service.submit_witness(transition_data).await;
+        self.prover_service
+            .submit_state_transition_info(transition_data)
+            .await;
         self.prover_service
             .prove(header_hash.clone())
             .await
@@ -482,8 +496,8 @@ struct ForkPoint<Da: DaService, StateRoot> {
 // Also can error if da_service returns error.
 async fn has_reorg_happened<Stf, Da, Vm>(
     filtered_block: &Da::FilteredBlock,
-    seen_state_transition_data: &mut VecDeque<
-        StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
+    seen_state_transition: &mut VecDeque<
+        StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>,
     >,
     da_service: &Da,
 ) -> anyhow::Result<Option<ForkPoint<Da, Stf::StateRoot>>>
@@ -492,20 +506,20 @@ where
     Vm: Zkvm,
     Stf: StateTransitionFunction<Vm, Da::Spec>,
 {
-    if let Some(prev_block_header) = seen_state_transition_data.back() {
-        if prev_block_header.da_block_header.hash() != filtered_block.header().prev_hash() {
+    if let Some(state_transition) = seen_state_transition.back() {
+        if state_transition.da_block_header().hash() != filtered_block.header().prev_hash() {
             tracing::warn!(
                 "Block {:?} does not belong in current chain. Chain has forked. Traversing seen headers backwards", filtered_block.header()
             );
-            while let Some(seen_transition_data) = seen_state_transition_data.pop_back() {
+            while let Some(state_transition) = seen_state_transition.pop_back() {
                 let block = da_service
-                    .get_block_at(seen_transition_data.da_block_header.height())
+                    .get_block_at(state_transition.da_block_header().height())
                     .await?;
-                if block.header().prev_hash() == seen_transition_data.da_block_header.prev_hash() {
+                if block.header().prev_hash() == state_transition.da_block_header().prev_hash() {
                     return Ok(Some(ForkPoint {
-                        height: seen_transition_data.da_block_header.height(),
+                        height: state_transition.da_block_header().height(),
                         block,
-                        pre_state_root: seen_transition_data.initial_state_root,
+                        pre_state_root: state_transition.initial_state_root().clone(),
                     }));
                 }
             }
@@ -518,6 +532,7 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use std::default::Default;
 
     use sov_mock_da::{
@@ -539,14 +554,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_reorg_happened_empty_seen() {
-        let mut seen_state_transition_data: VecDeque<
-            StateTransitionData<StateRoot, StfWitness, MockDaSpec>,
+        let mut seen_state_transition_info: VecDeque<
+            StateTransitionInfo<StateRoot, StfWitness, MockDaSpec>,
         > = VecDeque::new();
         let filtered_block = MockBlock::default();
         let da_service = MockDaService::new(MockAddress::new([0; 32]));
         let result = has_reorg_happened::<Stf, Da, Vm>(
             &filtered_block,
-            &mut seen_state_transition_data,
+            &mut seen_state_transition_info,
             &da_service,
         )
         .await;
@@ -559,8 +574,8 @@ mod tests {
         let sequencer_address = MockAddress::new([0; 32]);
         let da_service = MockDaService::new(sequencer_address).with_finality(5);
         // seen blocks are 1, 2, 3, 4, 5
-        let mut seen_state_transition_data: VecDeque<
-            StateTransitionData<StateRoot, StfWitness, MockDaSpec>,
+        let mut seen_state_transition_info: VecDeque<
+            StateTransitionInfo<StateRoot, StfWitness, MockDaSpec>,
         > = VecDeque::new();
 
         let header_from_height = |height| -> MockBlockHeader {
@@ -575,23 +590,15 @@ mod tests {
         // Filling the seen data and da service
         for height in 1..=last_block {
             let raw_blob: Vec<u8> = vec![height as u8; 32];
-            // first byte means "fork id", second byte means initial or final
-            let initial_state_root = vec![0, 0, height as u8];
-            let final_state_root = vec![0, 1, height as u8];
-
             da_service.send_transaction(&raw_blob).await.unwrap();
             if height < fork_point {
                 // Just take block from the service
                 let block = da_service.get_block_at(height).await.unwrap();
-                seen_state_transition_data.push_back(StateTransitionData {
-                    initial_state_root,
-                    final_state_root,
-                    da_block_header: block.header.clone(),
-                    inclusion_proof: Default::default(),
-                    completeness_proof: Default::default(),
-                    blobs: block.blobs,
-                    state_transition_witness: Default::default(),
-                });
+                seen_state_transition_info.push_back(make_transition_info(
+                    block.header.clone(),
+                    block.blobs,
+                    height,
+                ));
             } else {
                 let prev_header = if height == fork_point {
                     let block = da_service.get_block_at(height - 1).await.unwrap();
@@ -604,22 +611,19 @@ mod tests {
                 let blob = MockBlob::new_with_hash(raw_blob, Default::default(), sequencer_address);
                 let mut header = header_from_height(height);
                 header.prev_hash = prev_header.hash;
-                seen_state_transition_data.push_back(StateTransitionData {
-                    initial_state_root,
-                    final_state_root,
-                    da_block_header: header,
-                    inclusion_proof: Default::default(),
-                    completeness_proof: Default::default(),
-                    blobs: vec![blob],
-                    state_transition_witness: Default::default(),
-                });
+
+                seen_state_transition_info.push_back(make_transition_info(
+                    header,
+                    vec![blob],
+                    height,
+                ));
             }
         }
 
         let block_head = da_service.get_block_at(last_block).await.unwrap();
         let result = has_reorg_happened::<Stf, Da, Vm>(
             &block_head,
-            &mut seen_state_transition_data,
+            &mut seen_state_transition_info,
             &da_service,
         )
         .await;
@@ -649,8 +653,8 @@ mod tests {
         let sequencer_address = MockAddress::new([0; 32]);
         let da_service = MockDaService::new(sequencer_address).with_finality(5);
         // seen blocks are 1, 2, 3, 4, 5
-        let mut seen_state_transition_data: VecDeque<
-            StateTransitionData<StateRoot, StfWitness, MockDaSpec>,
+        let mut seen_state_transition_info: VecDeque<
+            StateTransitionInfo<StateRoot, StfWitness, MockDaSpec>,
         > = VecDeque::new();
 
         let header_from_height = |height| -> MockBlockHeader {
@@ -664,10 +668,6 @@ mod tests {
         // Filling the seen data and da service
         for height in 1..=last_block {
             let raw_blob: Vec<u8> = vec![height as u8; 32];
-            // first byte means "fork id", second byte means initial or final
-            let initial_state_root = vec![0, 0, height as u8];
-            let final_state_root = vec![0, 1, height as u8];
-
             da_service.send_transaction(&raw_blob).await.unwrap();
 
             let prev_header = header_from_height(height - 1);
@@ -676,21 +676,13 @@ mod tests {
             let blob = MockBlob::new_with_hash(raw_blob, Default::default(), sequencer_address);
             let mut header = header_from_height(height);
             header.prev_hash = prev_header.hash;
-            seen_state_transition_data.push_back(StateTransitionData {
-                initial_state_root,
-                final_state_root,
-                da_block_header: header,
-                inclusion_proof: Default::default(),
-                completeness_proof: Default::default(),
-                blobs: vec![blob],
-                state_transition_witness: Default::default(),
-            });
+            seen_state_transition_info.push_back(make_transition_info(header, vec![blob], height));
         }
 
         let block_head = da_service.get_block_at(last_block).await.unwrap();
         let result = has_reorg_happened::<Stf, Da, Vm>(
             &block_head,
-            &mut seen_state_transition_data,
+            &mut seen_state_transition_info,
             &da_service,
         )
         .await;
@@ -700,5 +692,28 @@ mod tests {
             "Could not match any seen block with the current chain. Could rollup start from non-finalized block?",
             result.err().unwrap().to_string()
         );
+    }
+
+    fn make_transition_info(
+        header: MockBlockHeader,
+        blobs: Vec<MockBlob>,
+        height: u64,
+    ) -> StateTransitionInfo<Vec<u8>, (), MockDaSpec> {
+        // first byte means "fork id", second byte means initial or final
+        let initial_state_root = vec![0, 0, height as u8];
+        let final_state_root = vec![0, 1, height as u8];
+
+        StateTransitionInfo {
+            data: StateTransitionData {
+                initial_state_root,
+                final_state_root,
+                da_block_header: header,
+                inclusion_proof: Default::default(),
+                completeness_proof: Default::default(),
+                blobs,
+                state_transition_witness: Default::default(),
+            },
+            state_height: height,
+        }
     }
 }

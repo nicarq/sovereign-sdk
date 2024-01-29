@@ -7,7 +7,8 @@ use sov_rollup_interface::zk::StateTransitionData;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
     ParallelProverService, ProofAggregationStatus, ProofProcessingStatus, ProverService,
-    ProverServiceConfig, ProverServiceError, RollupProverConfig, WitnessSubmissionStatus,
+    ProverServiceConfig, ProverServiceError, RollupProverConfig, StateTransitionInfo,
+    WitnessSubmissionStatus,
 };
 use tokio::time;
 
@@ -21,7 +22,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_witness(make_transition_data(header_hash, 1))
+        .submit_state_transition_info(make_transition_info(header_hash, 1))
         .await;
     prover_service.prove(header_hash).await?;
 
@@ -61,7 +62,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     // Saturate the prover.
     for header_hash in header_hashes.clone() {
         prover_service
-            .submit_witness(make_transition_data(header_hash, height))
+            .submit_state_transition_info(make_transition_info(header_hash, height))
             .await;
 
         let poof_processing_status = prover_service.prove(header_hash).await?;
@@ -85,7 +86,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     {
         let header_hash = MockHash::from([0; 32]);
         prover_service
-            .submit_witness(make_transition_data(header_hash, height))
+            .submit_state_transition_info(make_transition_info(header_hash, height))
             .await;
 
         let status = prover_service.prove(header_hash).await?;
@@ -118,7 +119,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     {
         let header_hash = MockHash::from([(num_worker_threads + 1) as u8; 32]);
         prover_service
-            .submit_witness(make_transition_data(header_hash, height))
+            .submit_state_transition_info(make_transition_info(header_hash, height))
             .await;
 
         let status = prover_service.prove(header_hash).await?;
@@ -147,7 +148,7 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
 
     let header_hash = MockHash::from([0; 32]);
     let submission_status = prover_service
-        .submit_witness(make_transition_data(header_hash, 1))
+        .submit_state_transition_info(make_transition_info(header_hash, 1))
         .await;
 
     assert_eq!(
@@ -156,7 +157,7 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
     );
 
     let submission_status = prover_service
-        .submit_witness(make_transition_data(header_hash, 2))
+        .submit_state_transition_info(make_transition_info(header_hash, 2))
         .await;
 
     assert_eq!(WitnessSubmissionStatus::WitnessExist, submission_status);
@@ -170,7 +171,7 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyh
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_witness(make_transition_data(header_hash, 1))
+        .submit_state_transition_info(make_transition_info(header_hash, 1))
         .await;
 
     let status = prover_service.prove(header_hash).await?;
@@ -199,7 +200,7 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
     {
         for (height, hash) in header_hashes[0..end_block].iter().enumerate() {
             prover_service
-                .submit_witness(make_transition_data(*hash, height as u64))
+                .submit_state_transition_info(make_transition_info(*hash, height as u64))
                 .await;
 
             prover_service.prove(*hash).await?;
@@ -225,8 +226,8 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                assert_eq!(proof.public_input().initial_height, 0);
-                assert_eq!(proof.public_input().final_height, (jump - 1) as u64);
+                assert_eq!(proof.info().initial_state_height, 0);
+                assert_eq!(proof.info().final_state_height, (jump - 1) as u64);
             }
             ProofAggregationStatus::ProofGenerationInProgress => panic!("Prover should succeed"),
         }
@@ -239,7 +240,10 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
             .enumerate()
         {
             prover_service
-                .submit_witness(make_transition_data(*hash, (height + end_block) as u64))
+                .submit_state_transition_info(make_transition_info(
+                    *hash,
+                    (height + end_block) as u64,
+                ))
                 .await;
 
             prover_service.prove(*hash).await?;
@@ -253,9 +257,9 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                assert_eq!(proof.public_input().initial_height as usize, jump);
+                assert_eq!(proof.info().initial_state_height as usize, jump);
                 assert_eq!(
-                    proof.public_input().final_height as usize,
+                    proof.info().final_state_height as usize,
                     total_nb_of_blocks - 1
                 );
             }
@@ -331,22 +335,25 @@ fn make_new_prover(jump: usize) -> TestProver {
     }
 }
 
-fn make_transition_data(
+fn make_transition_info(
     header_hash: MockHash,
     height: u64,
-) -> StateTransitionData<StateRoot, Vec<u8>, MockDaSpec> {
-    StateTransitionData {
-        initial_state_root: Vec::default(),
-        final_state_root: Vec::default(),
-        da_block_header: MockBlockHeader {
-            prev_hash: [0; 32].into(),
-            hash: header_hash,
-            height,
-            time: Time::now(),
+) -> StateTransitionInfo<StateRoot, Vec<u8>, MockDaSpec> {
+    StateTransitionInfo::new(
+        StateTransitionData {
+            initial_state_root: Vec::default(),
+            final_state_root: Vec::default(),
+            da_block_header: MockBlockHeader {
+                prev_hash: [0; 32].into(),
+                hash: header_hash,
+                height,
+                time: Time::now(),
+            },
+            inclusion_proof: [0; 32],
+            completeness_proof: (),
+            blobs: vec![],
+            state_transition_witness: vec![],
         },
-        inclusion_proof: [0; 32],
-        completeness_proof: (),
-        blobs: vec![],
-        state_transition_witness: vec![],
-    }
+        height,
+    )
 }
