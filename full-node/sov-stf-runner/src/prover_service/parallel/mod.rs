@@ -9,13 +9,14 @@ use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
+use sov_rollup_interface::zk::ZkvmHost;
 
 use super::{ProverService, ProverServiceError};
 use crate::config::ProverServiceConfig;
 use crate::verifier::StateTransitionVerifier;
 use crate::{
-    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, WitnessSubmissionStatus,
+    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
+    WitnessSubmissionStatus,
 };
 
 pub(crate) struct Verifier<Da, Vm, V>
@@ -129,15 +130,16 @@ where
         self.jump
     }
 
-    async fn submit_witness(
+    async fn submit_state_transition_info(
         &self,
-        state_transition_data: StateTransitionData<
+        state_transition_info: StateTransitionInfo<
             Self::StateRoot,
             Self::Witness,
             <Self::DaService as DaService>::Spec,
         >,
     ) -> WitnessSubmissionStatus {
-        self.prover_state.submit_witness(state_transition_data)
+        self.prover_state
+            .submit_state_transition_info(state_transition_info)
     }
 
     async fn prove(

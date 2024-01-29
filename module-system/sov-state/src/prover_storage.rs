@@ -228,4 +228,8 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
             JellyfishMerkleTree::new(&self.db);
         temp_merkle.get_root_hash(version)
     }
+
+    fn version(&self) -> u64 {
+        self.db.get_next_version() - 1
+    }
 }

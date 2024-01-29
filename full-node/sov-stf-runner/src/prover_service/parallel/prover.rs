@@ -11,10 +11,13 @@ use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, Zkvm
 
 use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
-use crate::prover_service::aggregated::{AggregatedProof, AggregatedProofPublicInput, BlockProof};
+use crate::prover_service::aggregated::{
+    AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput, BlockProof,
+};
 use crate::verifier::StateTransitionVerifier;
 use crate::{
-    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, WitnessSubmissionStatus,
+    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
+    WitnessSubmissionStatus,
 };
 
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
@@ -46,12 +49,12 @@ where
         }
     }
 
-    pub(crate) fn submit_witness(
+    pub(crate) fn submit_state_transition_info(
         &self,
-        state_transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
+        state_transition_info: StateTransitionInfo<StateRoot, Witness, Da::Spec>,
     ) -> WitnessSubmissionStatus {
-        let header_hash = state_transition_data.da_block_header.hash();
-        let data = ProverStatus::WitnessSubmitted(state_transition_data);
+        let header_hash = state_transition_info.da_block_header().hash();
+        let data = ProverStatus::WitnessSubmitted(state_transition_info);
 
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
         let entry = prover_state.prover_status.entry(header_hash.clone());
@@ -86,13 +89,13 @@ where
             .ok_or_else(|| anyhow::anyhow!("Missing witness for block: {:?}", block_header_hash))?;
 
         match prover_status {
-            ProverStatus::WitnessSubmitted(state_transition_data) => {
+            ProverStatus::WitnessSubmitted(state_transition_info) => {
                 let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
 
                 // Initiate a new proving job only if the prover is not busy.
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
-                    vm.add_hint(&state_transition_data);
+                    vm.add_hint(&state_transition_info.data);
 
                     self.pool.spawn(move || {
                         tracing::info_span!("guest_execution").in_scope(|| {
@@ -106,31 +109,38 @@ where
                             let mut prover_state =
                                 prover_state_clone.write().expect("Lock was poisoned");
 
+                            let StateTransitionData {
+                                initial_state_root,
+                                final_state_root,
+                                da_block_header,
+                                inclusion_proof,
+                                completeness_proof,
+                                blobs,
+                                ..
+                            } = state_transition_info.data;
+
                             let validity_condition = verifier
                                 .da_verifier
                                 .verify_relevant_tx_list(
-                                    &state_transition_data.da_block_header,
-                                    &state_transition_data.blobs,
-                                    state_transition_data.inclusion_proof,
-                                    state_transition_data.completeness_proof,
+                                    &da_block_header,
+                                    &blobs,
+                                    inclusion_proof,
+                                    completeness_proof,
                                 )
                                 .expect("Invalid validity condition");
 
                             let block_proof = proof.map(|p| BlockProof {
                                 _proof: p,
                                 st: StateTransition {
-                                    initial_state_root: state_transition_data.initial_state_root,
-                                    final_state_root: state_transition_data.final_state_root,
+                                    initial_state_root,
+                                    final_state_root,
                                     slot_hash: block_header_hash.clone(),
                                     validity_condition,
                                 },
-                                height: state_transition_data.da_block_header.height(),
+                                height: state_transition_info.state_height,
                             });
 
-                            assert_eq!(
-                                block_header_hash,
-                                state_transition_data.da_block_header.hash(),
-                            );
+                            assert_eq!(block_header_hash, da_block_header.hash());
 
                             prover_state.set_to_proved(block_header_hash, block_proof);
                             prover_state.dec_task_count();
@@ -196,11 +206,16 @@ where
         let public_input = AggregatedProofPublicInput {
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
-            initial_height: initial_block_proof.height,
-            final_height: final_block_proof.height,
+            initial_da_block_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
+            final_da_block_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
         };
 
-        let aggregated_proof = AggregatedProof::new(public_input);
+        let info = AggregatedProofDataInfo {
+            initial_state_height: initial_block_proof.height,
+            final_state_height: final_block_proof.height,
+        };
+
+        let aggregated_proof = AggregatedProofData::new(public_input, info);
 
         for slot_hash in block_header_hashes {
             prover_state.remove(slot_hash);

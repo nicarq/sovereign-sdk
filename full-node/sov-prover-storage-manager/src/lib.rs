@@ -15,6 +15,7 @@ use sov_schema_db::cache::cache_db::CacheDb;
 use sov_schema_db::cache::change_set::ChangeSet;
 use sov_schema_db::cache::SnapshotId;
 use sov_schema_db::ReadOnlyLock;
+use sov_state::storage::NativeStorage;
 use sov_state::{MerkleProofSpec, ProverStorage};
 
 use crate::cache_container_group::{CacheContainerRwLockGroup, CacheDbGroup};
@@ -401,6 +402,13 @@ where
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
         self.finalize_by_hash_pair(prev_block_hash, current_block_hash)
+    }
+
+    fn state_height(&self) -> anyhow::Result<u64> {
+        Ok(self
+            .get_storage_with_snapshot_id(self.latest_snapshot_id)?
+            .0
+            .version())
     }
 }
 
