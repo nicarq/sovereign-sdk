@@ -36,7 +36,7 @@ impl Witness for ArrayWitness {
             .next_idx
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let hints_lock = self.hints.lock().unwrap();
-        T::deserialize_reader(&mut std::io::Cursor::new(&hints_lock[idx]))
+        T::deserialize(&mut hints_lock[idx].as_slice())
             .expect("Hint deserialization should never fail")
     }
 

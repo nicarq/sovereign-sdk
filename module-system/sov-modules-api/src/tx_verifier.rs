@@ -1,5 +1,3 @@
-use std::io::Cursor;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::digest::Digest;
@@ -42,8 +40,7 @@ impl RawTx {
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn deserialize<C: Context>(&self) -> Result<Transaction<C>, std::io::Error> {
-        let mut data = Cursor::new(&self.data);
-        Transaction::<C>::deserialize_reader(&mut data)
+        Transaction::<C>::deserialize(&mut self.data.as_slice())
     }
 }
 

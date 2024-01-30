@@ -1,11 +1,11 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::{fs, mem};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::transaction::UnsignedTransaction;
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{clap, Context, PrivateKey};
 
 /// A struct representing the current state of the CLI wallet
@@ -61,6 +61,46 @@ where
         let data = serde_json::to_string_pretty(self)?;
         fs::write(path, data)?;
         Ok(())
+    }
+
+    /// Returns the serialized, signed transactions of the state.
+    ///
+    /// Consumes unsigned transactions, signing them with the provided key and using the supplied
+    /// nonce for each transaction, incrementally.
+    pub fn take_signed_transactions(
+        &mut self,
+        signing_key: &Ctx::PrivateKey,
+        nonce: u64,
+    ) -> Vec<Vec<u8>> {
+        mem::take(&mut self.unsent_transactions)
+            .into_iter()
+            .enumerate()
+            .map(
+                |(
+                    offset,
+                    UnsignedTransaction {
+                        tx,
+                        chain_id,
+                        gas_tip,
+                        gas_limit,
+                        max_gas_price,
+                    },
+                )| {
+                    let runtime_msg = tx.try_to_vec().unwrap();
+                    let tx = Transaction::<Ctx>::new_signed_tx(
+                        signing_key,
+                        runtime_msg,
+                        chain_id,
+                        gas_tip,
+                        gas_limit,
+                        max_gas_price,
+                        nonce + offset as u64,
+                    );
+
+                    tx.try_to_vec().unwrap()
+                },
+            )
+            .collect()
     }
 }
 

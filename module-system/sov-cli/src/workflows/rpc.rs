@@ -1,6 +1,5 @@
 //! Query the current state of the rollup and send transactions
 
-use core::mem;
 use std::path::Path;
 
 use anyhow::Context;
@@ -12,7 +11,6 @@ use serde::Serialize;
 use sov_accounts::AccountsRpcClient;
 use sov_bank::{BalanceResponse, BankRpcClient};
 use sov_modules_api::clap;
-use sov_modules_api::transaction::Transaction;
 
 use crate::wallet_state::{AddressEntry, KeyIdentifier, WalletState};
 use crate::workflows::keys::load_key;
@@ -152,23 +150,7 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                     None => get_nonce_for_account(&client, account).await?,
                 };
 
-                let txs = mem::take(&mut wallet_state.unsent_transactions)
-                    .into_iter()
-                    .enumerate()
-                    .map(|(offset, tx)| {
-                        Transaction::<C>::new_signed_tx(
-                            &private_key,
-                            tx.try_to_vec().unwrap(),
-                            tx.chain_id,
-                            tx.gas_tip,
-                            tx.gas_limit,
-                            tx.max_gas_price,
-                            nonce + offset as u64,
-                        )
-                        .try_to_vec()
-                        .unwrap()
-                    })
-                    .collect::<Vec<_>>();
+                let txs = wallet_state.take_signed_transactions(&private_key, nonce);
 
                 let response: String = client
                     .request("sequencer_publishBatch", txs)
