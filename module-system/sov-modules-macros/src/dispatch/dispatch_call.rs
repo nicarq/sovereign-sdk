@@ -58,9 +58,17 @@ impl<'a> StructDef<'a> {
                 type Context = #generic_param;
                 type Decodable = #call_enum #ty_generics;
 
-                fn decode_call(serialized_message: &[u8]) -> ::core::result::Result<Self::Decodable, std::io::Error> {
-                    let mut data = ::std::io::Cursor::new(serialized_message);
-                    <#call_enum #ty_generics as ::borsh::BorshDeserialize>::deserialize_reader(&mut data)
+                fn decode_call(mut serialized_message: &[u8]) -> ::core::result::Result<Self::Decodable, ::std::io::Error> {
+                    let c = <#call_enum #ty_generics as ::borsh::BorshDeserialize>::deserialize(&mut serialized_message)?;
+                    if !serialized_message.is_empty() {
+                        return ::core::result::Result::Err(
+                            ::std::io::Error::new(
+                                ::std::io::ErrorKind::Other,
+                                "the provided message contains dangling data",
+                            )
+                        );
+                    }
+                    ::core::result::Result::Ok(c)
                 }
 
                 fn dispatch_call(

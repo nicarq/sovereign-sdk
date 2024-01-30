@@ -1,7 +1,6 @@
 //! Concrete implementation(s) of [`BatchBuilder`].
 
 use std::collections::{HashSet, VecDeque};
-use std::io::Cursor;
 use std::sync::{Arc, RwLock};
 
 use anyhow::{bail, Context as ErrorContext};
@@ -102,8 +101,7 @@ where
         }
 
         // Deserialize
-        let mut data = Cursor::new(&raw);
-        let tx = Transaction::<C>::deserialize_reader(&mut data)
+        let tx = Transaction::<C>::deserialize(&mut raw.as_slice())
             .context("Failed to deserialize transaction")?;
 
         // Verify
