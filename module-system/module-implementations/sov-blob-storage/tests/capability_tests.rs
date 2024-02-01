@@ -145,7 +145,7 @@ pub struct SlotTestInfo {
 // 1. Initialize the rollup
 // 2. Calculate the expected order of blobs to be processed
 // 3. In a loop...
-//   Check that the virtual slot height is as expected
+//   Check that the virtual slot number is as expected
 //   Assert that blobs are pulled out of the queue in the expected order
 // 4. Assert that all blobs have been processed
 fn do_deferred_blob_test(
@@ -510,7 +510,7 @@ fn test_recovery_mode() {
             .unwrap();
         let next_height = test_kernel
             .get_chain_state()
-            .next_visible_slot_height(&mut kernel_working_set);
+            .next_visible_slot_number(&mut kernel_working_set);
         if next_height <= DEFERRED_SLOTS_COUNT + 1 {
             assert_eq!(blobs_to_execute.len(), 4);
         } else if next_height == DEFERRED_SLOTS_COUNT + 2 {
@@ -626,13 +626,13 @@ fn test_based_sequencing() {
     assert_eq!(
         test_kernel
             .chain_state()
-            .next_visible_slot_height(&mut kernel_working_set),
+            .next_visible_slot_number(&mut kernel_working_set),
         1
     );
     assert_eq!(
         test_kernel
             .chain_state()
-            .true_slot_height(&mut kernel_working_set),
+            .true_slot_number(&mut kernel_working_set),
         0
     );
 
@@ -669,7 +669,7 @@ fn test_based_sequencing() {
     assert_eq!(
         test_kernel
             .chain_state()
-            .true_slot_height(&mut kernel_working_set),
+            .true_slot_number(&mut kernel_working_set),
         1
     );
     assert_eq!(kernel_working_set.virtual_slot(), 1);
@@ -697,7 +697,7 @@ fn test_based_sequencing() {
     assert_eq!(
         test_kernel
             .chain_state()
-            .true_slot_height(&mut kernel_working_set),
+            .true_slot_number(&mut kernel_working_set),
         2
     );
     assert_eq!(kernel_working_set.virtual_slot(), 2);

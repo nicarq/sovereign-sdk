@@ -25,7 +25,7 @@ pub struct Attestation<Da: DaSpec, StateProof, StateRoot> {
     /// The alleged state root before applying the contents of the da block
     pub initial_state_root: StateRoot,
     /// The hash of the block in which the transition occurred
-    pub da_block_hash: Da::SlotHash,
+    pub slot_hash: Da::SlotHash,
     /// The alleged post-state root
     pub post_state_root: StateRoot,
     /// A proof that the attester was bonded at some point in time before the attestation is generated

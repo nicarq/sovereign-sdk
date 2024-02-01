@@ -41,7 +41,7 @@ pub type VirtualSlotNumber = u64;
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 /// Structure that contains the information needed to represent a single state transition.
 pub struct StateTransitionId<C: Context, Da: DaSpec> {
-    da_block_hash: Da::SlotHash,
+    slot_hash: Da::SlotHash,
     post_state_root: <C::Storage as Storage>::Root,
     validity_condition: Da::ValidityCondition,
     gas_price: C::GasUnit,
@@ -52,14 +52,14 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
     /// Creates a new state transition. Only available for testing as we only want to create
     /// new state transitions from existing [`TransitionInProgress`].
     pub fn new(
-        da_block_hash: Da::SlotHash,
+        slot_hash: Da::SlotHash,
         post_state_root: <C::Storage as Storage>::Root,
         validity_condition: Da::ValidityCondition,
         gas_price: C::GasUnit,
         gas_used: C::GasUnit,
     ) -> Self {
         Self {
-            da_block_hash,
+            slot_hash,
             post_state_root,
             validity_condition,
             gas_price,
@@ -73,10 +73,10 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
     /// the pairs are equal, return [`true`].
     pub fn compare_hashes(
         &self,
-        da_block_hash: &Da::SlotHash,
+        slot_hash: &Da::SlotHash,
         post_state_root: &<C::Storage as Storage>::Root,
     ) -> bool {
-        self.da_block_hash == *da_block_hash && self.post_state_root == *post_state_root
+        self.slot_hash == *slot_hash && self.post_state_root == *post_state_root
     }
 
     /// Returns the post state root of a state transition
@@ -84,9 +84,9 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
         &self.post_state_root
     }
 
-    /// Returns the da block hash of a state transition
-    pub fn da_block_hash(&self) -> &Da::SlotHash {
-        &self.da_block_hash
+    /// Returns the slot hash of a state transition
+    pub fn slot_hash(&self) -> &Da::SlotHash {
+        &self.slot_hash
     }
 
     /// Returns the total gas used for the block execution
@@ -116,7 +116,7 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 /// Represents a transition in progress for the rollup.
 pub struct TransitionInProgress<C: Context, Da: DaSpec> {
-    da_block_hash: Da::SlotHash,
+    slot_hash: Da::SlotHash,
     validity_condition: Da::ValidityCondition,
     gas_price: C::GasUnit,
     gas_used: C::GasUnit,
@@ -125,13 +125,13 @@ pub struct TransitionInProgress<C: Context, Da: DaSpec> {
 impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
     /// Creates a new transition in progress
     pub fn new(
-        da_block_hash: Da::SlotHash,
+        slot_hash: Da::SlotHash,
         validity_condition: Da::ValidityCondition,
         gas_price: C::GasUnit,
         gas_used: C::GasUnit,
     ) -> Self {
         Self {
-            da_block_hash,
+            slot_hash,
             validity_condition,
             gas_price,
             gas_used,
@@ -150,7 +150,7 @@ impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
 
     /// Returns the block hash of the transition in progress
     pub const fn block_hash(&self) -> &Da::SlotHash {
-        &self.da_block_hash
+        &self.slot_hash
     }
 }
 
@@ -163,12 +163,12 @@ pub struct ChainState<C: Context, Da: DaSpec> {
 
     /// The height that should be loaded as the visible set at the start of the next block
     #[state]
-    next_visible_height: sov_modules_api::KernelStateValue<TransitionHeight>,
+    next_visible_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
 
-    /// The real slot height of the rollup.
+    /// The real slot number of the rollup.
     // This value is also required to create a `KernelWorkingSet`. See note on `visible_height` above.
     #[state]
-    true_height: sov_modules_api::KernelStateValue<TransitionHeight>,
+    true_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
 
     /// The current time, as reported by the DA layer
     #[state]
@@ -202,33 +202,33 @@ pub struct ChainState<C: Context, Da: DaSpec> {
 
 impl<C: Context, Da: DaSpec> ChainState<C, Da> {
     /// Returns transition height in the current slot
-    pub fn true_slot_height<T>(&self, working_set: &mut T) -> TransitionHeight
+    pub fn true_slot_number<T>(&self, working_set: &mut T) -> TransitionHeight
     where
         KernelStateValue<u64>: StateValueAccessor<u64, BorshCodec, T>,
         T: StateReaderAndWriter,
     {
-        self.true_height.get(working_set).unwrap_or_default()
+        self.true_slot_number.get(working_set).unwrap_or_default()
     }
 
     /// Returns transition height for the next slot to start execution
-    pub fn next_visible_slot_height<T>(&self, working_set: &mut T) -> TransitionHeight
+    pub fn next_visible_slot_number<T>(&self, working_set: &mut T) -> TransitionHeight
     where
         KernelStateValue<u64>: StateValueAccessor<u64, BorshCodec, T>,
         T: StateReaderAndWriter,
     {
-        self.next_visible_height
+        self.next_visible_slot_number
             .get(working_set)
             .unwrap_or_default()
     }
 
     /// Returns transition height in the current slot
-    pub fn set_next_visible_slot_height<T>(&self, value: &u64, working_set: &mut T)
+    pub fn set_next_visible_slot_number<T>(&self, value: &u64, working_set: &mut T)
     where
         KernelStateValue<u64>: StateValueAccessor<u64, BorshCodec, T>,
         T: StateReaderAndWriter,
     {
-        tracing::debug!("Setting next visible slot height to {}", value);
-        self.next_visible_height.set(value, working_set)
+        tracing::debug!("Setting next visible slot number to {}", value);
+        self.next_visible_slot_number.set(value, working_set)
     }
 
     /// Returns the current time, as reported by the DA layer

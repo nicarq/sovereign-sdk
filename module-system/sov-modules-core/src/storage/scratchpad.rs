@@ -441,7 +441,7 @@ impl<C: Context> WorkingSet<C> {
     pub fn versioned_state(&mut self, context: &C) -> VersionedWorkingSet<C> {
         VersionedWorkingSet {
             ws: self,
-            slot_num: context.slot_height(),
+            slot_num: context.visible_slot_number(),
         }
     }
 
@@ -797,8 +797,8 @@ pub mod kernel_state {
             ws: &'a mut WorkingSet<C>,
         ) -> Self {
             let mut bootstrapper = KernelWorkingSet::get_bootstrap(ws);
-            let true_slot_num = kernel.true_height(&mut bootstrapper);
-            let virtual_slot_num = kernel.visible_height(&mut bootstrapper);
+            let true_slot_num = kernel.true_slot_number(&mut bootstrapper);
+            let virtual_slot_num = kernel.visible_slot_number(&mut bootstrapper);
             Self {
                 inner: ws,
                 true_slot_num,
@@ -827,8 +827,8 @@ pub mod kernel_state {
         }
 
         /// Updates the kernel working set internals
-        pub fn update_true_height(&mut self, true_height: u64) {
-            self.true_slot_num = true_height;
+        pub fn update_true_slot_number(&mut self, true_slot_num: u64) {
+            self.true_slot_num = true_slot_num;
         }
 
         /// Updates the kernel working set internals

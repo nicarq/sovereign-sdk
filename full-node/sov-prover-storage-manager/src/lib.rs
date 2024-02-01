@@ -404,7 +404,7 @@ where
         self.finalize_by_hash_pair(prev_block_hash, current_block_hash)
     }
 
-    fn state_height(&self) -> anyhow::Result<u64> {
+    fn slot_number(&self) -> anyhow::Result<u64> {
         Ok(self
             .get_storage_with_snapshot_id(self.latest_snapshot_id)?
             .0

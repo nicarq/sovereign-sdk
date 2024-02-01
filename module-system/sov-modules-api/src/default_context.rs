@@ -54,7 +54,7 @@ impl Context for DefaultContext {
         }
     }
 
-    fn slot_height(&self) -> u64 {
+    fn visible_slot_number(&self) -> u64 {
         self.visible_height
     }
 }
@@ -98,7 +98,7 @@ impl Context for ZkDefaultContext {
         }
     }
 
-    fn slot_height(&self) -> u64 {
+    fn visible_slot_number(&self) -> u64 {
         self.visible_height
     }
 }

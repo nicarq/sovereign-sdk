@@ -43,9 +43,9 @@ fn test_simple_chain_state() {
     // Computes the initial, post genesis, working set
     let mut base_working_set = WorkingSet::new(storage.clone());
 
-    // Check the slot height before any changes to the state.
+    // Check the slot number before any changes to the state.
     let mock_kernel: MockKernel<DefaultContext, MockDaSpec> = MockKernel::new(0, 0);
-    let initial_height = chain_state.true_slot_height(&mut KernelWorkingSet::from_kernel(
+    let initial_height = chain_state.true_slot_number(&mut KernelWorkingSet::from_kernel(
         &mock_kernel,
         &mut base_working_set,
     ));
@@ -88,8 +88,8 @@ fn test_simple_chain_state() {
         "The time was not updated in the hook"
     );
 
-    // Check that the slot height has been updated
-    let new_height_storage = chain_state.true_slot_height(&mut working_set);
+    // Check that the slot number has been updated
+    let new_height_storage = chain_state.true_slot_number(&mut working_set);
 
     assert_eq!(new_height_storage, 1, "The new height did not update");
 
@@ -144,8 +144,8 @@ fn test_simple_chain_state() {
     );
     chain_state.end_slot_hook(&mut working_set);
 
-    // Check that the slot height has been updated correctly
-    let new_height_storage = chain_state.true_slot_height(&mut working_set);
+    // Check that the slot number has been updated correctly
+    let new_height_storage = chain_state.true_slot_number(&mut working_set);
     assert_eq!(new_height_storage, 2, "The new height did not update");
     assert_eq!(
         chain_state.get_time(&mut working_set),
@@ -232,8 +232,8 @@ fn test_simple_chain_state() {
     );
     chain_state.end_slot_hook(&mut working_set);
 
-    // Check that the slot height has been updated correctly
-    let new_height_storage = chain_state.true_slot_height(&mut working_set);
+    // Check that the slot number has been updated correctly
+    let new_height_storage = chain_state.true_slot_number(&mut working_set);
     assert_eq!(new_height_storage, 3, "The new height did not update");
     assert_eq!(
         chain_state.get_time(&mut working_set),

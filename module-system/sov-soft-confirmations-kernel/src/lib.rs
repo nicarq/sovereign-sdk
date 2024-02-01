@@ -38,11 +38,11 @@ pub struct SoftConfirmationsKernelGenesisConfig<C: Context, Da: DaSpec> {
 }
 
 impl<C: Context, Da: DaSpec> Kernel<C, Da> for SoftConfirmationsKernel<C, Da> {
-    fn true_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
-        self.chain_state.true_slot_height(working_set)
+    fn true_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
+        self.chain_state.true_slot_number(working_set)
     }
-    fn visible_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
-        self.chain_state.next_visible_slot_height(working_set)
+    fn visible_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
+        self.chain_state.next_visible_slot_number(working_set)
     }
 
     type GenesisConfig = SoftConfirmationsKernelGenesisConfig<C, Da>;

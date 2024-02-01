@@ -16,7 +16,7 @@ fn empty_test() {
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let chain_state = ChainState::<C, Da>::default();
-    let initial_slot_height = 1;
+    let initial_slot_number = 1;
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
         gas_price_blocks_depth: 10,
@@ -33,7 +33,7 @@ fn empty_test() {
 
     let blob_storage = BlobStorage::<C, Da>::default();
 
-    let blobs = blob_storage.take_blobs_for_slot_height(initial_slot_height, &mut working_set);
+    let blobs = blob_storage.take_blobs_for_slot_number(initial_slot_number, &mut working_set);
 
     assert!(blobs.is_empty());
 }
@@ -61,16 +61,16 @@ fn store_and_retrieve_standard() {
     let blob_storage = BlobStorage::<C, Da>::default();
 
     assert!(blob_storage
-        .take_blobs_for_slot_height(1, &mut working_set)
+        .take_blobs_for_slot_number(1, &mut working_set)
         .is_empty());
     assert!(blob_storage
-        .take_blobs_for_slot_height(2, &mut working_set)
+        .take_blobs_for_slot_number(2, &mut working_set)
         .is_empty());
     assert!(blob_storage
-        .take_blobs_for_slot_height(3, &mut working_set)
+        .take_blobs_for_slot_number(3, &mut working_set)
         .is_empty());
     assert!(blob_storage
-        .take_blobs_for_slot_height(4, &mut working_set)
+        .take_blobs_for_slot_number(4, &mut working_set)
         .is_empty());
 
     let sender = MockAddress::from([1u8; 32]);
@@ -96,29 +96,29 @@ fn store_and_retrieve_standard() {
 
     assert_eq!(
         slot_2_batches,
-        blob_storage.take_blobs_for_slot_height(2, &mut working_set)
+        blob_storage.take_blobs_for_slot_number(2, &mut working_set)
     );
     assert!(blob_storage
-        .take_blobs_for_slot_height(2, &mut working_set)
+        .take_blobs_for_slot_number(2, &mut working_set)
         .is_empty());
 
     assert_eq!(
         slot_3_batches,
         blob_storage
-            .take_blobs_for_slot_height(3, &mut working_set)
+            .take_blobs_for_slot_number(3, &mut working_set)
             .as_slice()
     );
     assert!(blob_storage
-        .take_blobs_for_slot_height(3, &mut working_set)
+        .take_blobs_for_slot_number(3, &mut working_set)
         .is_empty());
 
     assert_eq!(
         slot_4_batches,
         blob_storage
-            .take_blobs_for_slot_height(4, &mut working_set)
+            .take_blobs_for_slot_number(4, &mut working_set)
             .as_slice()
     );
     assert!(blob_storage
-        .take_blobs_for_slot_height(4, &mut working_set)
+        .take_blobs_for_slot_number(4, &mut working_set)
         .is_empty());
 }
