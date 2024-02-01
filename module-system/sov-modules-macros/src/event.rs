@@ -1,9 +1,8 @@
 use proc_macro2::Span;
 use syn::DeriveInput;
 
-use super::common::{
-    get_generics_type_param, get_serialization_attrs, StructDef, StructFieldExtractor,
-};
+use super::common::{get_generics_type_param, StructDef, StructFieldExtractor};
+use crate::common::get_serialization_attrs;
 
 pub(crate) const EVENT: &str = "Event";
 
@@ -40,7 +39,6 @@ impl EventMacro {
         input: DeriveInput,
     ) -> Result<proc_macro::TokenStream, syn::Error> {
         let serialization_methods = get_serialization_attrs(&input)?;
-
         let DeriveInput {
             data,
             ident,
@@ -49,7 +47,6 @@ impl EventMacro {
         } = input;
 
         let generic_param = get_generics_type_param(&generics, Span::call_site())?;
-
         let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
         let fields = self.field_extractor.get_fields_from_struct(&data)?;
 
@@ -80,6 +77,7 @@ impl EventMacro {
         let type_generics = &struct_def.type_generics;
         let ident_name = &struct_def.ident;
         let event_enum_name = struct_def.enum_ident(EVENT);
+
         let impl_runtime_event_processor = quote::quote! {
             impl #impl_generics ::sov_modules_api::RuntimeEventProcessor for #ident_name #type_generics {
                 type RuntimeEvent = #event_enum_name #type_generics;
@@ -95,11 +93,36 @@ impl EventMacro {
             }
         };
 
+        let from_event_cases = struct_def.fields.iter().map(|field| {
+            let variant_name = &field.ident;
+
+            quote::quote! {
+                #event_enum_name::#variant_name(ref event) => {
+                    let event_data = serde_json::to_value(event).unwrap_or_default();
+                    let json_value = serde_json::json!({ stringify!(#variant_name): event_data });
+                    sov_rollup_interface::rpc::EventResponse { module_event: json_value }
+                }
+            }
+        });
+
+        let impl_from = quote::quote! {
+            impl #impl_generics From<#event_enum_name #type_generics> for sov_rollup_interface::rpc::EventResponse {
+                fn from(event: #event_enum_name #type_generics) -> Self {
+                    match event {
+                        #(#from_event_cases),*
+                    }
+                }
+            }
+        };
+
         Ok(quote::quote! {
             #[doc="This enum is generated from the underlying Runtime, the variants correspond to events from the relevant modules"]
             #event_enum
 
-             #impl_runtime_event_processor
+            #impl_runtime_event_processor
+
+            #impl_from
+
         }
             .into())
     }

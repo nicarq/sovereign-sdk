@@ -619,6 +619,7 @@ dependencies = [
  "borsh",
  "hex",
  "serde",
+ "serde_json",
  "sov-accounts",
  "sov-bank",
  "sov-blob-storage",
@@ -2214,6 +2215,7 @@ dependencies = [
  "digest 0.10.7",
  "hex",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "thiserror",
 ]

@@ -18,7 +18,12 @@ use sov_state::Storage;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 #[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
+#[serialization(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize
+)]
 pub(crate) struct TestRuntime<C: Context, Da: DaSpec> {
     pub value_setter: ValueSetter<C>,
     pub sequencer_registry: SequencerRegistry<C, Da>,

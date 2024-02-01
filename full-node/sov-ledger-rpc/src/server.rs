@@ -23,6 +23,9 @@ const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 /// use tempfile::tempdir;
 /// use sov_db::ledger_db::LedgerDB;
 /// use sov_db::schema::{CacheContainer, CacheDb};
+/// use demo_stf::runtime::Runtime;
+/// use sov_mock_da::MockDaSpec;
+/// use sov_modules_api::default_context::DefaultContext;
 ///
 /// /// Creates a new [`LedgerDB`] and starts serving JSON-RPC requests.
 /// async fn rpc_server() -> jsonrpsee::server::ServerHandle {
@@ -31,7 +34,7 @@ const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 ///     let cache_container = CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
 ///     let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
 ///     let ledger_db = LedgerDB::with_cache_db(cache_db).unwrap();
-///     let rpc_module = rpc_module::<LedgerDB, u32, u32>(ledger_db).unwrap();
+///     let rpc_module = rpc_module::<LedgerDB, u32, u32, <Runtime<DefaultContext, MockDaSpec> as sov_modules_api::RuntimeEventProcessor>::RuntimeEvent>(ledger_db).unwrap();
 ///
 ///     let server = jsonrpsee::server::ServerBuilder::default()
 ///         .build("127.0.0.1:0")
@@ -40,11 +43,12 @@ const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 ///     server.start(rpc_module)
 /// }
 /// ```
-pub fn rpc_module<T, B, Tx>(ledger: T) -> anyhow::Result<RpcModule<T>>
+pub fn rpc_module<T, B, Tx, E>(ledger: T) -> anyhow::Result<RpcModule<T>>
 where
     T: LedgerRpcProvider + Send + Sync + 'static,
     B: serde::Serialize + DeserializeOwned + Clone + 'static,
     Tx: serde::Serialize + DeserializeOwned + Clone + 'static,
+    E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::EventResponse>,
 {
     let mut rpc = RpcModule::new(ledger);
 
@@ -77,7 +81,7 @@ where
     })?;
     rpc.register_method("ledger_getEvents", move |params, db| {
         let ids: Vec<EventIdentifier> = params.parse().or_else(|_| params.one())?;
-        db.get_events(&ids)
+        db.get_events::<E>(&ids)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 
@@ -123,7 +127,7 @@ where
     rpc.register_method("ledger_getEventByNumber", move |params, ledger| {
         let args: u64 = params.one()?;
         ledger
-            .get_event_by_number(args)
+            .get_event_by_number::<E>(args)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 

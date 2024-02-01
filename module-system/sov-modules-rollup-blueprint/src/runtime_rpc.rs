@@ -30,6 +30,7 @@ where
             LedgerDB,
             SequencerOutcome<<C as Spec>::Address>,
             TxEffect,
+            <RT as ::sov_modules_api::RuntimeEventProcessor>::RuntimeEvent,
         >(ledger_db.clone())?)?;
     }
 

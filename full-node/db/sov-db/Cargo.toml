@@ -31,7 +31,7 @@ tempfile = { workspace = true, optional = true }
 rocksdb = { workspace = true }
 bincode = { workspace = true }
 tokio = { workspace = true }
-
+serde_json ={ workspace = true }
 
 [dev-dependencies]
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
