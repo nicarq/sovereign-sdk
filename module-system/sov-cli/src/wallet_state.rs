@@ -3,8 +3,10 @@ use std::str::FromStr;
 use std::{fs, mem};
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use semver::Version;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{clap, Context, PrivateKey};
 
@@ -21,6 +23,8 @@ where
     pub addresses: AddressList<Ctx>,
     /// The addresses in the wallet
     pub rpc_url: Option<String>,
+    /// The version of the library that serialized the state.
+    pub version: String,
 }
 
 impl<Tx, Ctx> Default for WalletState<Tx, Ctx>
@@ -35,6 +39,7 @@ where
                 addresses: Vec::new(),
             },
             rpc_url: None,
+            version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 }
@@ -49,7 +54,47 @@ where
         let path = path.as_ref();
         if path.exists() {
             let data = fs::read(path)?;
+
+            let version = env!("CARGO_PKG_VERSION")
+                .parse::<Version>()
+                .expect("Failed to parse the library version");
+
+            let value: Value = serde_json::from_slice(data.as_slice()).map_err(|e|
+                anyhow::anyhow!(
+                    "Failed to read the JSON state of the wallet. Check if `{}` points to a valid JSON state file. Error: {e}",
+                    path.display()
+                )
+            )?;
+
+            let data_version = value
+                .get("version")
+                .and_then(Value::as_str)
+                .and_then(|v| v.parse::<Version>().ok())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Failed to read the version from state of the wallet. Check if `{}` points to a valid JSON state file.",
+                        path.display()
+                    )
+                })?;
+
+            if version.major != data_version.major
+                || version.major == 0 && version.minor != data_version.minor
+            {
+                anyhow::bail!(
+                    "The version that created the state on the state file `{}` is `{data_version}`, and the library is `{version}`.
+
+This discrepancy may result in data layout inconsistency. Consider one of the following options:
+
+- Migrate the wallet state to the current version. Check the repository documentation.
+- Use a different data directory via the environment variable `SOV_WALLET_DIR_ENV_VAR` to generate an empty state with the current version.
+- Delete the state file` so the wallet will generate a new empty state.
+- Manually update the version on the state file to `{version}`. Warning: this approach assumes the data layout to be the same.",
+                    path.display(),
+                );
+            }
+
             let state = serde_json::from_slice(data.as_slice())?;
+
             Ok(state)
         } else {
             Ok(Default::default())
