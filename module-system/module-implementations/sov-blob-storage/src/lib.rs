@@ -61,22 +61,22 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_batches(
         &self,
-        slot_height: TransitionHeight,
+        slot_number: TransitionHeight,
         batches: &Vec<(BatchWithId, Da::Address)>,
         working_set: &mut WorkingSet<C>,
     ) {
-        self.deferred_blobs.set(&slot_height, batches, working_set);
+        self.deferred_blobs.set(&slot_number, batches, working_set);
     }
 
     /// Take all blobs for given block number, return empty vector if not exists
     /// Returned blobs are removed from the storage
-    pub fn take_blobs_for_slot_height(
+    pub fn take_blobs_for_slot_number(
         &self,
-        slot_height: TransitionHeight,
+        slot_number: TransitionHeight,
         working_set: &mut WorkingSet<C>,
     ) -> Vec<(BatchWithId, Da::Address)> {
         self.deferred_blobs
-            .remove(&slot_height, working_set)
+            .remove(&slot_number, working_set)
             .unwrap_or_default()
     }
 

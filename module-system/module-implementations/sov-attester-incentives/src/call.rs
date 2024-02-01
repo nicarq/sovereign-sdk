@@ -580,8 +580,8 @@ where
             .get_historical_transitions(claimed_transition_height, working_set)
         {
             // We first need to compare the initial block hash to the previous post state root
-            if !curr_tx.compare_hashes(&attestation.da_block_hash, &attestation.post_state_root) {
-                // Check if the attestation has the same da_block_hash and post_state_root as the actual transition
+            if !curr_tx.compare_hashes(&attestation.slot_hash, &attestation.post_state_root) {
+                // Check if the attestation has the same slot_hash and post_state_root as the actual transition
                 // that we found in state. If not, slash the attester.
                 // If so, the attestation is valid, so return Ok
                 return Err(self.slash_and_invalidate_attestation(
@@ -806,7 +806,7 @@ where
             return Err(SlashingReason::InvalidInitialHash);
         }
 
-        if &public_outputs.slot_hash != transition.da_block_hash() {
+        if &public_outputs.slot_hash != transition.slot_hash() {
             return Err(SlashingReason::TransitionInvalid);
         }
 

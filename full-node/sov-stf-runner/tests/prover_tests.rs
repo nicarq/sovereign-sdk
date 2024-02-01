@@ -226,8 +226,8 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                assert_eq!(proof.info().initial_state_height, 0);
-                assert_eq!(proof.info().final_state_height, (jump - 1) as u64);
+                assert_eq!(proof.info().initial_slot_number, 0);
+                assert_eq!(proof.info().final_slot_number, (jump - 1) as u64);
             }
             ProofAggregationStatus::ProofGenerationInProgress => panic!("Prover should succeed"),
         }
@@ -257,9 +257,9 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                assert_eq!(proof.info().initial_state_height as usize, jump);
+                assert_eq!(proof.info().initial_slot_number as usize, jump);
                 assert_eq!(
-                    proof.info().final_state_height as usize,
+                    proof.info().final_slot_number as usize,
                     total_nb_of_blocks - 1
                 );
             }

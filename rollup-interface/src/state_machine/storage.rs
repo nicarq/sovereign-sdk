@@ -46,5 +46,5 @@ pub trait HierarchicalStorageManager<Da: DaSpec> {
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()>;
 
     /// Height of the rollup state.
-    fn state_height(&self) -> anyhow::Result<u64>;
+    fn slot_number(&self) -> anyhow::Result<u64>;
 }

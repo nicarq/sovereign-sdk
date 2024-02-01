@@ -3,7 +3,7 @@ use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData};
 
 pub(crate) struct BlockProof<Da: DaSpec, Root> {
     pub(crate) _proof: Proof,
-    pub(crate) height: u64,
+    pub(crate) slot_number: u64,
     pub(crate) st: StateTransition<Da, Root>,
 }
 
@@ -14,20 +14,20 @@ pub struct AggregatedProofPublicInput {
     pub initial_state_root: Vec<u8>,
     /// The final state root of the aggregated proof.
     pub final_state_root: Vec<u8>,
-    /// The initial da block hash of the aggregated proof.
-    pub initial_da_block_hash: Vec<u8>,
-    // The final da block hash of the aggregated proof.
-    pub final_da_block_hash: Vec<u8>,
+    /// The initial slot hash of the aggregated proof.
+    pub initial_slot_hash: Vec<u8>,
+    // The final slot hash of the aggregated proof.
+    pub final_slot_hash: Vec<u8>,
 }
 
 // Additional information that is not zk proven. Can be used by clients for
 // bookkeeping purposes.
 #[derive(Debug, Eq, PartialEq)]
 pub struct AggregatedProofDataInfo {
-    /// The initial state height of the aggregated proof.
-    pub initial_state_height: u64,
-    /// The final state height of the aggregated proof.
-    pub final_state_height: u64,
+    /// The initial slot height of the aggregated proof.
+    pub initial_slot_number: u64,
+    /// The final slot height of the aggregated proof.
+    pub final_slot_number: u64,
 }
 
 /// Represents an aggregated proof.
@@ -65,14 +65,14 @@ impl AggregatedProofData {
 pub struct StateTransitionInfo<StateRoot, Witness, Da: DaSpec> {
     /// Public input to the per block zk proof.
     pub(crate) data: StateTransitionData<StateRoot, Witness, Da>,
-    /// State height.
-    pub(crate) state_height: u64,
+    /// Slot number.
+    pub(crate) slot_number: u64,
 }
 
 impl<StateRoot, Witness, Da: DaSpec> StateTransitionInfo<StateRoot, Witness, Da> {
     /// StateTransitionInfo constructor.
-    pub fn new(data: StateTransitionData<StateRoot, Witness, Da>, state_height: u64) -> Self {
-        Self { data, state_height }
+    pub fn new(data: StateTransitionData<StateRoot, Witness, Da>, slot_number: u64) -> Self {
+        Self { data, slot_number }
     }
 
     pub(crate) fn da_block_header(&self) -> &Da::BlockHeader {

@@ -9,14 +9,14 @@ where
     C: Context,
     Da: DaSpec,
 {
-    /// Increment the current slot height
+    /// Increment the current slot number
     /// This function also modifies the kernel working set to update the true height.
-    pub(crate) fn increment_true_slot_height(&self, working_set: &mut KernelWorkingSet<C>) {
-        let current_height = self.true_height.get(working_set).unwrap_or_default();
+    pub(crate) fn increment_true_slot_number(&self, working_set: &mut KernelWorkingSet<C>) {
+        let current_height = self.true_slot_number.get(working_set).unwrap_or_default();
         let new_height = current_height.saturating_add(1);
-        self.true_height.set(&(new_height), working_set);
+        self.true_slot_number.set(&(new_height), working_set);
 
-        working_set.update_true_height(new_height);
+        working_set.update_true_slot_number(new_height);
     }
 
     /// Store the previous state transition

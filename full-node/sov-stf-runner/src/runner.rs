@@ -394,10 +394,11 @@ where
                 last_finalized.height()
             );
 
-            let state_height = self.storage_manager.state_height()?;
+            let slot_number = self.ledger_db.get_next_items_numbers().slot_number;
+
             seen_state_transition.push_back(StateTransitionInfo {
                 data: transition_data,
-                state_height,
+                slot_number,
             });
 
             // Checking all seen blocks, in case if there was delay in getting last finalized header.
@@ -713,7 +714,7 @@ mod tests {
                 blobs,
                 state_transition_witness: Default::default(),
             },
-            state_height: height,
+            slot_number: height,
         }
     }
 }

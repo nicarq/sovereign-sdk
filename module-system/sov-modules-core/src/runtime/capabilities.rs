@@ -30,10 +30,10 @@ pub trait Kernel<C: Context, Da: DaSpec>: BatchSelector<Da, Context = C> + Defau
         working_set: &mut KernelWorkingSet<'_, C>,
     ) -> Result<(), anyhow::Error>;
 
-    /// Return the current slot height
-    fn true_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64;
-    /// Return the height at which transactions currently *appear* to be executing.
-    fn visible_height(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64;
+    /// Return the current slot number
+    fn true_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64;
+    /// Return the slot number at which transactions currently *appear* to be executing.
+    fn visible_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64;
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state
@@ -85,19 +85,19 @@ pub mod mocks {
     #[derive(Debug, Clone, derivative::Derivative)]
     #[derivative(Default(bound = ""))]
     pub struct MockKernel<C, Da> {
-        /// The current slot height
-        pub true_height: u64,
-        /// The height at which transactions appear to be executing
-        pub visible_height: u64,
+        /// The current slot number
+        pub true_slot_number: u64,
+        /// The slot number at which transactions appear to be executing
+        pub visible_slot_number: u64,
         phantom: core::marker::PhantomData<(C, Da)>,
     }
 
     impl<C: Context, Da: DaSpec> MockKernel<C, Da> {
-        /// Create a new mock kernel with the given slot height
-        pub fn new(true_height: u64, visible_height: u64) -> Self {
+        /// Create a new mock kernel with the given slot number
+        pub fn new(true_slot_number: u64, visible_height: u64) -> Self {
             Self {
-                true_height,
-                visible_height,
+                true_slot_number,
+                visible_slot_number: visible_height,
                 phantom: core::marker::PhantomData,
             }
         }
@@ -111,11 +111,11 @@ pub mod mocks {
     }
 
     impl<C: Context, Da: DaSpec> Kernel<C, Da> for MockKernel<C, Da> {
-        fn true_height(&self, _ws: &mut BootstrapWorkingSet<'_, C>) -> u64 {
-            self.true_height
+        fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, C>) -> u64 {
+            self.true_slot_number
         }
-        fn visible_height(&self, _ws: &mut BootstrapWorkingSet<'_, C>) -> u64 {
-            self.visible_height
+        fn visible_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, C>) -> u64 {
+            self.visible_slot_number
         }
 
         type GenesisConfig = ();

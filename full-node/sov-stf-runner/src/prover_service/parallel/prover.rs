@@ -137,7 +137,7 @@ where
                                     slot_hash: block_header_hash.clone(),
                                     validity_condition,
                                 },
-                                height: state_transition_info.state_height,
+                                slot_number: state_transition_info.slot_number,
                             });
 
                             assert_eq!(block_header_hash, da_block_header.hash());
@@ -206,13 +206,13 @@ where
         let public_input = AggregatedProofPublicInput {
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
-            initial_da_block_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
-            final_da_block_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
+            initial_slot_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
+            final_slot_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
         };
 
         let info = AggregatedProofDataInfo {
-            initial_state_height: initial_block_proof.height,
-            final_state_height: final_block_proof.height,
+            initial_slot_number: initial_block_proof.slot_number,
+            final_slot_number: final_block_proof.slot_number,
         };
 
         let aggregated_proof = AggregatedProofData::new(public_input, info);

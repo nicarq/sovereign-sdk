@@ -23,7 +23,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
         } else {
             let transition: StateTransitionId<C, Da> = {
                 let TransitionInProgress {
-                    da_block_hash,
+                    slot_hash,
                     validity_condition,
                     gas_price,
                     gas_used,
@@ -33,7 +33,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
                     .expect("There should always be a transition in progress");
 
                 StateTransitionId {
-                    da_block_hash,
+                    slot_hash,
                     post_state_root: pre_state_root.clone(),
                     validity_condition,
                     gas_used,
@@ -41,26 +41,26 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
                 }
             };
 
-            let height = self.true_slot_height(working_set);
-            self.store_state_transition(height, transition, working_set.inner);
+            let slot_number = self.true_slot_number(working_set);
+            self.store_state_transition(slot_number, transition, working_set.inner);
         }
 
-        // Since we increment the true slot height, we have to update the working set.
-        self.increment_true_slot_height(working_set);
+        // Since we increment the true slot number, we have to update the working set.
+        self.increment_true_slot_number(working_set);
 
         self.time.set_current(&slot_header.time(), working_set);
 
-        let height = self.true_slot_height(working_set);
+        let slot_number = self.true_slot_number(working_set);
 
         let gas_price_state = self
             .get_gas_price_state(working_set.inner)
             .expect("the gas price state will be available from genesis")
-            .update(height, &self.historical_transitions, working_set.inner)
+            .update(slot_number, &self.historical_transitions, working_set.inner)
             .expect("the transition data must be available");
 
         self.in_progress_transition.set_current(
             &TransitionInProgress {
-                da_block_hash: slot_header.hash(),
+                slot_hash: slot_header.hash(),
                 validity_condition: *validity_condition,
                 gas_price: gas_price_state.price.clone(),
                 gas_used: C::GasUnit::ZEROED,

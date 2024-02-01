@@ -137,12 +137,12 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
         for slot in 0..num_slots_to_load {
             let slot_to_check = working_set.virtual_slot().saturating_add(slot);
             let batches_from_next_slot =
-                self.take_blobs_for_slot_height(slot_to_check, working_set.inner);
+                self.take_blobs_for_slot_number(slot_to_check, working_set.inner);
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
 
         self.chain_state
-            .set_next_visible_slot_height(&(working_set.virtual_slot() + 2), working_set);
+            .set_next_visible_slot_number(&(working_set.virtual_slot() + 2), working_set);
 
         batches_to_process
     }
@@ -158,7 +158,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         self.chain_state
-            .set_next_visible_slot_height(&(working_set.current_slot() + 1), working_set);
+            .set_next_visible_slot_number(&(working_set.current_slot() + 1), working_set);
         let mut batches = Vec::new();
         for blob in current_blobs.into_iter() {
             if !self.blob_is_allowed(blob, working_set.inner) {
@@ -313,7 +313,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
         for slot in 0..num_slots_to_advance {
             let slot_to_check = working_set.virtual_slot().saturating_add(slot);
             let batches_from_next_slot =
-                self.take_blobs_for_slot_height(slot_to_check, working_set.inner);
+                self.take_blobs_for_slot_number(slot_to_check, working_set.inner);
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
 
@@ -331,7 +331,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
             );
         }
         self.chain_state
-            .set_next_visible_slot_height(&next_virtual_height, working_set);
+            .set_next_visible_slot_number(&next_virtual_height, working_set);
         batches_to_process
     }
 }

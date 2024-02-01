@@ -86,7 +86,7 @@ fn test_simple_value_setter_with_chain_state() {
         let kernel_working_set = KernelWorkingSet::uninitialized(&mut init_working_set);
 
         let new_height_storage = {
-            // Check the slot height before apply slot
+            // Check the slot number before apply slot
             kernel_working_set.current_slot()
         };
 
@@ -126,7 +126,7 @@ fn test_simple_value_setter_with_chain_state() {
 
         assert_eq!(stored_root, init_root_hash, "Root hashes don't match");
 
-        // Check the slot height
+        // Check the slot number
         let mut kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
         let new_height_storage = kernel_working_set.current_slot();
 
@@ -192,9 +192,9 @@ fn test_simple_value_setter_with_chain_state() {
 
         assert_eq!(stored_root, init_root_hash, "Root hashes don't match");
 
-        // Check the slot height
+        // Check the slot number
         let mut kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
-        let new_height_storage = chain_state_ref.true_slot_height(&mut kernel_working_set);
+        let new_height_storage = chain_state_ref.true_slot_number(&mut kernel_working_set);
         assert_eq!(new_height_storage, 2, "The new height did not update");
 
         // Check the tx in progress

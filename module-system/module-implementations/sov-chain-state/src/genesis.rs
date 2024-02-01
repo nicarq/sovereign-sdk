@@ -28,8 +28,8 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> ChainState<C, Da>
         config: &<Self as sov_modules_api::KernelModule>::Config,
         working_set: &mut KernelWorkingSet<C>,
     ) -> Result<()> {
-        self.true_height.set(&0, working_set);
-        self.next_visible_height.set(&1, working_set);
+        self.true_slot_number.set(&0, working_set);
+        self.next_visible_slot_number.set(&1, working_set);
 
         self.time.set_current(&config.current_time, working_set);
 
