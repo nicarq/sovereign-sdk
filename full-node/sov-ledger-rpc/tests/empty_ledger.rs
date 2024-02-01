@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 
+use demo_stf::runtime::Runtime;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::core::params::ArrayParams;
 use sov_db::ledger_db::LedgerDB;
@@ -8,6 +9,8 @@ use sov_db::schema::{CacheContainer, CacheDb};
 use sov_ledger_rpc::client::RpcClient;
 use sov_ledger_rpc::server::rpc_module;
 use sov_ledger_rpc::HexHash;
+use sov_mock_da::MockDaSpec;
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::Event;
 use sov_rollup_interface::rpc::{
     BatchResponse, EventIdentifier, QueryMode, SlotResponse, TxIdAndOffset, TxIdentifier,
@@ -22,7 +25,7 @@ async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
         CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
     let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
     let ledger_db = LedgerDB::with_cache_db(cache_db).unwrap();
-    let rpc_module = rpc_module::<LedgerDB, u32, u32>(ledger_db).unwrap();
+    let rpc_module = rpc_module::<LedgerDB, u32, u32, <Runtime<DefaultContext, MockDaSpec> as sov_modules_api::RuntimeEventProcessor>::RuntimeEvent>(ledger_db).unwrap();
 
     let server = jsonrpsee::server::ServerBuilder::default()
         .build("127.0.0.1:0")

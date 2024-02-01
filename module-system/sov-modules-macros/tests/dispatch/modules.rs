@@ -20,7 +20,7 @@ pub mod first_test_module {
         }
     }
 
-    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
     pub enum Event {
         FirstModuleEnum1(u64),
         FirstModuleEnum2,
@@ -72,7 +72,7 @@ pub mod second_test_module {
         }
     }
 
-    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
     pub enum Event {
         SecondModuleEnum,
     }
@@ -129,13 +129,18 @@ pub mod third_test_module {
         }
     }
 
+    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
+    pub enum Event {
+        ThirdModuleEnum,
+    }
+
     impl<Ctx: Context, OtherGeneric: ModuleThreeStorable> Module
         for ThirdTestStruct<Ctx, OtherGeneric>
     {
         type Context = Ctx;
         type Config = ();
         type CallMessage = OtherGeneric;
-        type Event = ();
+        type Event = Event;
 
         fn genesis(
             &self,

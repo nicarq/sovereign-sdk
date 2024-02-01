@@ -34,7 +34,12 @@ pub trait Module {
     type CallMessage: Debug + BorshSerialize + BorshDeserialize;
 
     /// Module defined event resulting from a call method.
-    type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;
+    type Event: Debug
+        + BorshSerialize
+        + BorshDeserialize
+        + 'static
+        + core::marker::Send
+        + serde::Serialize;
 
     /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
     fn genesis(

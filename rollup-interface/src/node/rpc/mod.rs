@@ -190,6 +190,13 @@ pub enum ItemOrHash<T> {
     Full(T),
 }
 
+/// An RPC response for the module specific event
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct EventResponse {
+    /// A value representing the the module event serialized as json
+    pub module_event: serde_json::Value,
+}
+
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
@@ -221,7 +228,7 @@ pub trait LedgerRpcProvider {
     ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
 
     /// Get events by id. The IDs need not be ordered.
-    fn get_events(
+    fn get_events<E: borsh::BorshDeserialize + Into<EventResponse>>(
         &self,
         event_ids: &[EventIdentifier],
     ) -> Result<Vec<Option<Event>>, anyhow::Error>;
@@ -262,7 +269,10 @@ pub trait LedgerRpcProvider {
     ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>;
 
     /// Get a single event by number.
-    fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error>;
+    fn get_event_by_number<E: borsh::BorshDeserialize + Into<EventResponse>>(
+        &self,
+        number: u64,
+    ) -> Result<Option<serde_json::Value>, anyhow::Error>;
 
     /// Get a single tx by number.
     fn get_tx_by_number<T: DeserializeOwned>(

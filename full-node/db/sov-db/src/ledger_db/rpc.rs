@@ -138,7 +138,7 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(out)
     }
 
-    fn get_events(
+    fn get_events<E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::EventResponse>>(
         &self,
         event_ids: &[EventIdentifier],
     ) -> Result<Vec<Option<Event>>, anyhow::Error> {
@@ -208,9 +208,32 @@ impl LedgerRpcProvider for LedgerDB {
             .map(|mut slots| slots.pop().unwrap_or(None))
     }
 
-    fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error> {
-        self.get_events(&[EventIdentifier::Number(number)])
-            .map(|mut events| events.pop().unwrap_or(None))
+    fn get_event_by_number<
+        E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::EventResponse>,
+    >(
+        &self,
+        number: u64,
+    ) -> Result<Option<serde_json::Value>, anyhow::Error> {
+        self.get_events::<E>(&[EventIdentifier::Number(number)])
+            .map(|mut events| {
+                events
+                    .pop()
+                    .flatten()
+                    .map(|serialized_event| {
+                        match E::deserialize(&mut serialized_event.value().inner().as_slice()) {
+                            // serde_json::to_value is from the custom serialize impl which
+                            // matches for the specific event
+                            // and then converts that event to json value, instead of the outer RuntimeEvent
+                            Ok(event) => {
+                                let event_response: sov_rollup_interface::rpc::EventResponse =
+                                    event.into();
+                                Some(event_response.module_event)
+                            }
+                            Err(_) => None,
+                        }
+                    })
+                    .unwrap_or(None)
+            })
     }
 
     fn get_tx_by_number<T: DeserializeOwned>(
