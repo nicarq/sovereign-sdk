@@ -34,6 +34,9 @@ pub use revm::primitives::SpecId;
 
 #[cfg(feature = "experimental")]
 mod event;
+#[cfg(feature = "native")]
+#[cfg(feature = "experimental")]
+mod helpers;
 
 #[cfg(feature = "experimental")]
 mod experimental {
@@ -51,7 +54,9 @@ mod experimental {
     use crate::EvmConfig;
 
     // Gas per transaction not creating a contract.
+    #[cfg(feature = "native")]
     pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
+    #[cfg(feature = "native")]
     pub(crate) const MIN_CREATE_GAS: u64 = 53_000u64;
 
     #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

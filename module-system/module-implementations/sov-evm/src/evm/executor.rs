@@ -1,8 +1,7 @@
 use std::convert::Infallible;
 
 use reth_primitives::TransactionSignedEcRecovered;
-use reth_revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
-use revm::primitives::{CfgEnv, EVMError, Env, ExecutionResult, ResultAndState, TxEnv};
+use revm::primitives::{CfgEnv, EVMError, Env, ExecutionResult};
 use revm::{self, Database, DatabaseCommit};
 
 use super::conversions::create_tx_env;
@@ -27,12 +26,13 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     evm.transact_commit()
 }
 
+#[cfg(feature = "native")]
 pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
     db: DB,
     block_env: &BlockEnv,
-    tx: TxEnv,
+    tx: revm::primitives::TxEnv,
     config_env: CfgEnv,
-) -> Result<ResultAndState, EVMError<Infallible>> {
+) -> Result<revm::primitives::ResultAndState, EVMError<Infallible>> {
     let mut evm = revm::new();
 
     let env = Env {
@@ -44,9 +44,9 @@ pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
     evm.env = env;
     evm.database(db);
 
-    let config = TracingInspectorConfig::all();
+    let config = reth_revm_inspectors::tracing::TracingInspectorConfig::all();
 
-    let mut inspector = TracingInspector::new(config);
+    let mut inspector = reth_revm_inspectors::tracing::TracingInspector::new(config);
 
     evm.inspect(&mut inspector)
 }

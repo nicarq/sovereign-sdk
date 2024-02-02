@@ -14,3 +14,4 @@ methods = ["guest-celestia", "guest-mock"]
 
 [features]
 bench = []
+experimental = []

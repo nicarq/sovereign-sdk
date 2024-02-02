@@ -1,22 +1,16 @@
-//! Implementation specific Errors for the `eth_` namespace.
+//! Implementation-specific Errors for the `eth_` namespace.
 
 use std::convert::Infallible;
 use std::time::Duration;
 
-use jsonrpsee::core::Error as RpcError;
-use jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE;
-use jsonrpsee::types::ErrorObject;
-use reth_interfaces::RethError;
 use reth_primitives::abi::decode_revert_reason;
-use reth_primitives::{Address, Bytes, U256};
-use reth_rpc_types::error::EthRpcErrorCode;
+use reth_primitives::{Address, U256};
 use reth_rpc_types::{BlockError, CallInputError};
-use revm::primitives::{EVMError, ExecutionResult, Halt, InvalidHeader, OutOfGasError};
+use revm::primitives::{EVMError, Halt, InvalidHeader};
 
 use super::pool::{
     Eip4844PoolTransactionError, InvalidPoolTransactionError, PoolError, PoolTransactionError,
 };
-use super::result::{internal_rpc_err, invalid_params_rpc_err, rpc_err, rpc_error_with_code};
 
 /// Result alias
 pub type EthResult<T> = Result<T, EthApiError>;
@@ -64,8 +58,9 @@ pub enum EthApiError {
     #[error("account {0:?} has both 'state' and 'stateDiff'")]
     BothStateAndStateDiffInOverride(Address),
     /// Other internal error
+    #[cfg(feature = "native")]
     #[error(transparent)]
-    Internal(RethError),
+    Internal(reth_interfaces::RethError),
     /// Error related to signing
     #[error(transparent)]
     Signing(#[from] SignError),
@@ -103,7 +98,8 @@ pub enum EthApiError {
     CallInputError(#[from] CallInputError),
 }
 
-impl From<EthApiError> for ErrorObject<'static> {
+#[cfg(feature = "native")]
+impl From<EthApiError> for jsonrpsee::types::ErrorObject<'static> {
     fn from(error: EthApiError) -> Self {
         match error {
             EthApiError::FailedToDecodeSignedTransaction
@@ -122,18 +118,23 @@ impl From<EthApiError> for ErrorObject<'static> {
             | EthApiError::Internal(_)
             | EthApiError::TransactionNotFound => internal_rpc_err(error.to_string()),
             EthApiError::UnknownBlockNumber | EthApiError::UnknownBlockOrTxIndex => {
-                rpc_error_with_code(EthRpcErrorCode::ResourceNotFound.code(), error.to_string())
+                rpc_error_with_code(
+                    reth_rpc_types::error::EthRpcErrorCode::ResourceNotFound.code(),
+                    error.to_string(),
+                )
             }
-            EthApiError::UnknownSafeOrFinalizedBlock => {
-                rpc_error_with_code(EthRpcErrorCode::UnknownBlock.code(), error.to_string())
-            }
+            EthApiError::UnknownSafeOrFinalizedBlock => rpc_error_with_code(
+                reth_rpc_types::error::EthRpcErrorCode::UnknownBlock.code(),
+                error.to_string(),
+            ),
             EthApiError::Unsupported(msg) => internal_rpc_err(msg),
             EthApiError::InternalJsTracerError(msg) => internal_rpc_err(msg),
             EthApiError::InvalidParams(msg) => invalid_params_rpc_err(msg),
             EthApiError::InvalidRewardPercentiles => internal_rpc_err(error.to_string()),
-            err @ EthApiError::ExecutionTimedOut(_) => {
-                rpc_error_with_code(CALL_EXECUTION_FAILED_CODE, err.to_string())
-            }
+            err @ EthApiError::ExecutionTimedOut(_) => rpc_error_with_code(
+                jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE,
+                err.to_string(),
+            ),
             err @ EthApiError::InternalTracingError => internal_rpc_err(err.to_string()),
             err @ EthApiError::InternalEthError => internal_rpc_err(err.to_string()),
             err @ EthApiError::CallInputError(_) => invalid_params_rpc_err(err.to_string()),
@@ -141,21 +142,24 @@ impl From<EthApiError> for ErrorObject<'static> {
     }
 }
 
-impl From<EthApiError> for RpcError {
+#[cfg(feature = "native")]
+impl From<EthApiError> for jsonrpsee::core::Error {
     fn from(error: EthApiError) -> Self {
-        RpcError::Call(error.into())
+        jsonrpsee::core::Error::Call(error.into())
     }
 }
 
-impl From<RethError> for EthApiError {
-    fn from(error: RethError) -> Self {
+#[cfg(feature = "native")]
+impl From<reth_interfaces::RethError> for EthApiError {
+    fn from(error: reth_interfaces::RethError) -> Self {
         match error {
-            RethError::Provider(err) => err.into(),
+            reth_interfaces::RethError::Provider(err) => err.into(),
             err => EthApiError::Internal(err),
         }
     }
 }
 
+#[cfg(feature = "native")]
 impl From<reth_interfaces::provider::ProviderError> for EthApiError {
     fn from(error: reth_interfaces::provider::ProviderError) -> Self {
         use reth_interfaces::provider::ProviderError;
@@ -183,7 +187,7 @@ impl From<EVMError<Infallible>> for EthApiError {
                 EthApiError::ExcessBlobGasNotSet
             }
             EVMError::Database(_) => {
-                EthApiError::Internal(RethError::Custom("Database error".into()))
+                panic!("Infallible error triggered")
             }
         }
     }
@@ -200,7 +204,7 @@ impl From<EVMError<Infallible>> for EthApiError {
 ///
 /// ## Nomenclature
 ///
-/// This type is explicitly modeled after geth's error variants and uses
+/// This type is explicitly modelled after geth's error variants and uses
 ///   `fee cap` for `max_fee_per_gas`
 ///   `tip` for `max_priority_fee_per_gas`
 #[derive(thiserror::Error, Debug)]
@@ -212,11 +216,11 @@ pub enum RpcInvalidTransactionError {
     /// local chain.
     #[error("nonce too high")]
     NonceTooHigh,
-    /// Returned if the nonce of a transaction is too high
-    /// Incrementing the nonce would lead to invalid state (overflow)
+    /// Returned if the nonce of a transaction is too high.
+    /// Incrementing the nonce would lead to invalid state (overflow).
     #[error("nonce has max value")]
     NonceMaxValue,
-    /// thrown if the transaction sender doesn't have enough funds for a transfer
+    /// Thrown if the transaction sender doesn't have enough funds for a transfer.
     #[error("insufficient funds for transfer")]
     InsufficientFundsForTransfer,
     /// thrown if creation transaction provides the init code bigger than init code size limit.
@@ -263,7 +267,7 @@ pub enum RpcInvalidTransactionError {
     /// As BasicOutOfGas but thrown when gas exhausts during precompiled contract execution.
     #[error("Out of gas: gas exhausts during precompiled contract execution: {0:?}")]
     PrecompileOutOfGas(U256),
-    /// revm's Type cast error, U256 casts down to a u64 with overflow
+    /// revm's Type cast error, U256 casts down to an u64 with overflow
     #[error("Out of gas: revm's Type cast error, U256 casts down to a u64 with overflow {0:?}")]
     InvalidOperandOutOfGas(U256),
     /// Thrown if executing a transaction failed during estimate/call
@@ -281,12 +285,12 @@ pub enum RpcInvalidTransactionError {
     /// The transitions is before Berlin and has access list
     #[error("Transactions before Berlin should not have access list")]
     AccessListNotSupported,
-    /// `max_fee_per_blob_gas` is not supported for blocks before the Cancun hardfork.
-    #[error("max_fee_per_blob_gas is not supported for blocks before the Cancun hardfork.")]
+    /// `max_fee_per_blob_gas` is not supported for blocks before the Cancun hard fork.
+    #[error("max_fee_per_blob_gas is not supported for blocks before the Cancun hard fork.")]
     MaxFeePerBlobGasNotSupported,
     /// `blob_hashes`/`blob_versioned_hashes` is not supported for blocks before the Cancun
     /// hardfork.
-    #[error("blob_versioned_hashes is not supported for blocks before the Cancun hardfork.")]
+    #[error("blob_versioned_hashes is not supported for blocks before the Cancun hard fork.")]
     BlobVersionedHashesNotSupported,
     /// Block `blob_gas_price` is greater than tx-specified `max_fee_per_blob_gas` after Cancun.
     #[error("max fee per blob gas less than block blob gas fee")]
@@ -305,15 +309,20 @@ pub enum RpcInvalidTransactionError {
     BlobTransactionIsCreate,
 }
 
+#[cfg(feature = "native")]
 impl RpcInvalidTransactionError {
     /// Returns the rpc error code for this error.
     fn error_code(&self) -> i32 {
         match self {
             RpcInvalidTransactionError::InvalidChainId
             | RpcInvalidTransactionError::GasTooLow
-            | RpcInvalidTransactionError::GasTooHigh => EthRpcErrorCode::InvalidInput.code(),
-            RpcInvalidTransactionError::Revert(_) => EthRpcErrorCode::ExecutionError.code(),
-            _ => EthRpcErrorCode::TransactionRejected.code(),
+            | RpcInvalidTransactionError::GasTooHigh => {
+                reth_rpc_types::error::EthRpcErrorCode::InvalidInput.code()
+            }
+            RpcInvalidTransactionError::Revert(_) => {
+                reth_rpc_types::error::EthRpcErrorCode::ExecutionError.code()
+            }
+            _ => reth_rpc_types::error::EthRpcErrorCode::TransactionRejected.code(),
         }
     }
 
@@ -329,21 +338,30 @@ impl RpcInvalidTransactionError {
     }
 
     /// Converts the out of gas error
-    pub(crate) fn out_of_gas(reason: OutOfGasError, gas_limit: u64) -> Self {
+    pub(crate) fn out_of_gas(reason: revm::primitives::OutOfGasError, gas_limit: u64) -> Self {
         let gas_limit = U256::from(gas_limit);
         match reason {
-            OutOfGasError::BasicOutOfGas => RpcInvalidTransactionError::BasicOutOfGas(gas_limit),
-            OutOfGasError::Memory => RpcInvalidTransactionError::MemoryOutOfGas(gas_limit),
-            OutOfGasError::Precompile => RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit),
-            OutOfGasError::InvalidOperand => {
+            revm::primitives::OutOfGasError::BasicOutOfGas => {
+                RpcInvalidTransactionError::BasicOutOfGas(gas_limit)
+            }
+            revm::primitives::OutOfGasError::Memory => {
+                RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
+            }
+            revm::primitives::OutOfGasError::Precompile => {
+                RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit)
+            }
+            revm::primitives::OutOfGasError::InvalidOperand => {
                 RpcInvalidTransactionError::InvalidOperandOutOfGas(gas_limit)
             }
-            OutOfGasError::MemoryLimit => RpcInvalidTransactionError::MemoryOutOfGas(gas_limit),
+            revm::primitives::OutOfGasError::MemoryLimit => {
+                RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
+            }
         }
     }
 }
 
-impl From<RpcInvalidTransactionError> for ErrorObject<'static> {
+#[cfg(feature = "native")]
+impl From<RpcInvalidTransactionError> for jsonrpsee::types::ErrorObject<'static> {
     fn from(err: RpcInvalidTransactionError) -> Self {
         match err {
             RpcInvalidTransactionError::Revert(revert) => {
@@ -477,8 +495,9 @@ impl RevertError {
         }
     }
 
+    #[cfg(feature = "native")]
     fn error_code(&self) -> i32 {
-        EthRpcErrorCode::ExecutionError.code()
+        reth_rpc_types::error::EthRpcErrorCode::ExecutionError.code()
     }
 }
 
@@ -534,7 +553,8 @@ pub enum RpcPoolError {
     Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
-impl From<RpcPoolError> for ErrorObject<'static> {
+#[cfg(feature = "native")]
+impl From<RpcPoolError> for jsonrpsee::types::ErrorObject<'static> {
     fn from(error: RpcPoolError) -> Self {
         match error {
             RpcPoolError::Invalid(err) => err.into(),
@@ -605,18 +625,61 @@ pub enum SignError {
     NoChainId,
 }
 
+#[cfg(feature = "native")]
 /// Converts the evm [ExecutionResult] into a result where `Ok` variant is the output bytes if it is
 /// [ExecutionResult::Success].
-pub(crate) fn ensure_success(result: ExecutionResult) -> EthResult<Bytes> {
+pub(crate) fn ensure_success(
+    result: revm::primitives::ExecutionResult,
+) -> EthResult<reth_primitives::Bytes> {
     match result {
-        ExecutionResult::Success { output, .. } => Ok(output.into_data().into()),
-        ExecutionResult::Revert { output, .. } => {
+        revm::primitives::ExecutionResult::Success { output, .. } => Ok(output.into_data().into()),
+        revm::primitives::ExecutionResult::Revert { output, .. } => {
             Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
         }
-        ExecutionResult::Halt { reason, gas_used } => {
+        revm::primitives::ExecutionResult::Halt { reason, gas_used } => {
             Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
         }
     }
+}
+
+#[cfg(feature = "native")]
+/// Constructs an invalid params JSON-RPC error.
+pub(crate) fn invalid_params_rpc_err(
+    msg: impl Into<String>,
+) -> jsonrpsee::types::error::ErrorObject<'static> {
+    rpc_err(jsonrpsee::types::error::INVALID_PARAMS_CODE, msg, None)
+}
+
+#[cfg(feature = "native")]
+/// Constructs an internal JSON-RPC error.
+fn internal_rpc_err(msg: impl Into<String>) -> jsonrpsee::types::error::ErrorObject<'static> {
+    rpc_err(jsonrpsee::types::error::INTERNAL_ERROR_CODE, msg, None)
+}
+
+#[cfg(feature = "native")]
+/// Constructs an internal JSON-RPC error with code and message
+fn rpc_error_with_code(
+    code: i32,
+    msg: impl Into<String>,
+) -> jsonrpsee::types::error::ErrorObject<'static> {
+    rpc_err(code, msg, None)
+}
+
+#[cfg(feature = "native")]
+/// Constructs a JSON-RPC error, consisting of `code`, `message` and optional `data`.
+fn rpc_err(
+    code: i32,
+    msg: impl Into<String>,
+    data: Option<&[u8]>,
+) -> jsonrpsee::types::error::ErrorObject<'static> {
+    jsonrpsee::types::error::ErrorObject::owned(
+        code,
+        msg.into(),
+        data.map(|data| {
+            jsonrpsee::core::to_json_raw_value(&format!("0x{}", hex::encode(data)))
+                .expect("serializing String does fail")
+        }),
+    )
 }
 
 #[cfg(test)]

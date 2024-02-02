@@ -16,9 +16,10 @@ use tracing::debug;
 use crate::call::get_cfg_env;
 use crate::error::rpc::{ensure_success, RevertError, RpcInvalidTransactionError};
 use crate::evm::db::EvmDb;
+use crate::evm::executor;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
-use crate::evm::{executor, prepare_call_env};
 use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
+use crate::helpers::prepare_call_env;
 use crate::{EthApiError, Evm};
 
 #[rpc_gen(client, server)]
@@ -147,7 +148,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         address: reth_primitives::Address,
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U256> {
+    ) -> RpcResult<U256> {
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
 
@@ -171,10 +172,10 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     pub fn get_storage_at(
         &self,
         address: reth_primitives::Address,
-        index: reth_primitives::U256,
+        index: U256,
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U256> {
+    ) -> RpcResult<U256> {
         debug!("EVM module JSON-RPC request to `eth_getStorageAt`");
 
         // TODO: Implement block_number once we have archival state #951
@@ -196,7 +197,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         address: reth_primitives::Address,
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U64> {
+    ) -> RpcResult<U64> {
         // TODO: Implement block_number once we have archival state #882
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/882
 
@@ -375,10 +376,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
 
     /// Handler for: `eth_blockNumber`
     #[rpc_method(name = "eth_blockNumber")]
-    pub fn block_number(
-        &self,
-        working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U256> {
+    pub fn block_number(&self, working_set: &mut WorkingSet<C>) -> RpcResult<U256> {
         debug!("EVM module JSON-RPC request to `eth_blockNumber`");
 
         Ok(U256::from(
@@ -396,9 +394,8 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         request: reth_rpc_types::CallRequest,
         block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U64> {
+    ) -> RpcResult<U64> {
         debug!("EVM module JSON-RPC request to `eth_estimateGas`");
-
         let mut block_env = match block_number {
             Some(ref block_number) if block_number == "pending" => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
@@ -454,7 +451,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             let allowance = (account.balance - tx_env.value) / tx_env.gas_price;
 
             if highest_gas_limit > allowance {
-                // cap the highest gas limit by max gas caller can afford with given gas price
+                // cap the highest gas limit by max gas caller can afford with a given gas price
                 highest_gas_limit = allowance;
             }
         }
@@ -472,7 +469,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         // again
         if let Err(EVMError::Transaction(InvalidTransaction::CallerGasLimitMoreThanBlock)) = result
         {
-            // if price or limit was included in the request then we can execute the request
+            // if price or limit was included in the request, then we can execute the request
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas.is_some() || request_gas_price.is_some() {
                 let evm_db = self.get_db(working_set);
@@ -487,7 +484,8 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
                     return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
                 }
                 ExecutionResult::Revert { output, .. } => {
-                    // if price or limit was included in the request then we can execute the request
+                    // if price or limit was included in the request,
+                    // then we can execute the request
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas.is_some() || request_gas_price.is_some() {
                         let evm_db = self.get_db(working_set);
@@ -502,9 +500,10 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         };
 
         // at this point we know the call succeeded but want to find the _best_ (lowest) gas the
-        // transaction succeeds with. we  find this by doing a binary search over the
+        // transaction succeeds with.
+        // we find this by doing a binary search over the
         // possible range NOTE: this is the gas the transaction used, which is less than the
-        // transaction requires to succeed
+        // transaction requires succeeding
         let gas_used = result.gas_used();
         // the lowest value is capped by the gas it takes for a transfer
         let mut lowest_gas_limit = if tx_env.transact_to.is_create() {
@@ -696,7 +695,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     let res = executor::inspect(db, &block_env, tx_env, cfg_env).unwrap();
     match res.result {
         ExecutionResult::Success { .. } => {
-            // transaction succeeded by manually increasing the gas limit to
+            // a transaction succeeded by manually increasing the gas limit to
             // highest, which means the caller lacks funds to pay for the tx
             RpcInvalidTransactionError::BasicOutOfGas(U256::from(req_gas_limit)).into()
         }
@@ -708,7 +707,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     }
 }
 
-fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
+fn convert_u256_to_u64(u256: U256) -> Result<u64, TryFromSliceError> {
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 8] = bytes[24..].try_into()?;
     Ok(u64::from_be_bytes(bytes))
