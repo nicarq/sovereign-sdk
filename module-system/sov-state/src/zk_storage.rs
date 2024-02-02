@@ -135,3 +135,18 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         unimplemented!("Needs simplification in JellyfishMerkleTree: https://github.com/Sovereign-Labs/sovereign-sdk/issues/362")
     }
 }
+
+#[cfg(feature = "native")]
+impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
+    fn get_with_proof(&self, _key: StorageKey) -> StorageProof<Self::Proof> {
+        unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
+    }
+
+    fn get_root_hash(&self, _version: jmt::Version) -> anyhow::Result<jmt::RootHash> {
+        unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
+    }
+
+    fn version(&self) -> u64 {
+        unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
+    }
+}

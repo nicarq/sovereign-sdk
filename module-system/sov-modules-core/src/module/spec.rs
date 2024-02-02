@@ -48,7 +48,12 @@ pub trait Spec {
     type Address: RollupAddress + BorshSerialize + BorshDeserialize;
 
     /// Authenticated state storage used by the rollup. Typically some variant of a merkle-patricia trie.
+    #[cfg(not(feature = "native"))]
     type Storage: Storage + Send + Sync;
+
+    /// Authenticated state storage used by the rollup. Typically some variant of a merkle-patricia trie.
+    #[cfg(feature = "native")]
+    type Storage: Storage + crate::NativeStorage + Send + Sync;
 
     /// The public key used for digital signatures
     #[cfg(feature = "native")]
