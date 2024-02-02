@@ -9,8 +9,8 @@ use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U8};
 use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{TransactTo, TxEnv};
 
-use crate::evm::prepare_call_env;
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
+use crate::helpers::prepare_call_env;
 use crate::primitive_types::{Block, BlockEnv};
 
 #[tokio::test]

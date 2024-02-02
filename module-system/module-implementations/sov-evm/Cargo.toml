@@ -15,14 +15,14 @@ publish = false
 [dependencies]
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
-sov-chain-state = { path = "../sov-chain-state", version = "0.3"}
+sov-chain-state = { path = "../sov-chain-state", version = "0.3" }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 bytes = { workspace = true }
 schemars = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
+serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true }
@@ -47,7 +47,7 @@ revm = { workspace = true, features = [
     "optional_no_base_fee",
 ] }
 reth-primitives = { workspace = true }
-reth-interfaces = { workspace = true }
+reth-interfaces = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
 reth-revm-inspectors = { workspace = true, features = [] }
@@ -65,14 +65,15 @@ sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 [features]
 default = []
 native = [
-    "serde",
     "serde_json",
     "jsonrpsee",
     "schemars",
     "clap",
     "sov-state/native",
     "sov-modules-api/native",
+    "reth-interfaces",
 ]
-experimental = ["native"]
-serde = ["dep:serde"]
-smart_contracts = ["experimental"]
+serde = []
+experimental = []
+# For testing smart contract
+smart_contracts = ["native", "experimental"]

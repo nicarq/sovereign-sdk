@@ -26,7 +26,7 @@ where
         self.head
             .set(&parent_block, versioned_working_set.get_ws_mut());
 
-        let current_tansition = self
+        let current_transition = self
             .chain_state
             .get_in_progress_transition(versioned_working_set)
             .expect("There should always be a transition in progress");
@@ -43,7 +43,7 @@ where
             // WARNING: `prevrandao`` value is predictable up to [`DEFERRED_SLOTS_COUNT`] in advance,
             // Users should follow the same best practice that they would on Ethereum and use future randomness.
             // See: https://eips.ethereum.org/EIPS/eip-4399#tips-for-application-developers
-            prevrandao: H256(current_tansition.block_hash().clone().into()),
+            prevrandao: H256(current_transition.block_hash().clone().into()),
             basefee: parent_block
                 .header
                 .next_block_base_fee(cfg.base_fee_params)
@@ -137,25 +137,28 @@ where
 
         self.head.set(&block, working_set);
 
-        let mut accessory_state = working_set.accessory_state();
-        self.pending_head.set(&block, &mut accessory_state);
-
-        let mut tx_index = start_tx_index;
-        for PendingTransaction {
-            transaction,
-            receipt,
-        } in &pending_transactions
+        #[cfg(feature = "native")]
         {
-            self.transactions.push(transaction, &mut accessory_state);
-            self.receipts.push(receipt, &mut accessory_state);
+            let mut accessory_state = working_set.accessory_state();
+            self.pending_head.set(&block, &mut accessory_state);
 
-            self.transaction_hashes.set(
-                &transaction.signed_transaction.hash,
-                &tx_index,
-                &mut accessory_state,
-            );
+            let mut tx_index = start_tx_index;
+            for PendingTransaction {
+                transaction,
+                receipt,
+            } in &pending_transactions
+            {
+                self.transactions.push(transaction, &mut accessory_state);
+                self.receipts.push(receipt, &mut accessory_state);
 
-            tx_index += 1
+                self.transaction_hashes.set(
+                    &transaction.signed_transaction.hash,
+                    &tx_index,
+                    &mut accessory_state,
+                );
+
+                tx_index += 1
+            }
         }
 
         self.pending_transactions.clear(working_set);

@@ -73,6 +73,7 @@ native = [
     "sov-mock-da/native",
     "sov-modules-stf-blueprint/native",
     "sov-soft-confirmations-kernel/native",
+    "sov-evm/native",
     "clap",
     "serde",
     "jsonrpsee",

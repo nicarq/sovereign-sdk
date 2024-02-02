@@ -30,7 +30,8 @@ pub trait StateValueCodec<V> {
         self.try_decode_value(bytes)
             .map_err(|err| {
                 format!(
-                    "Failed to decode value 0x{}, error: {:?}",
+                    "Failed to decode {:?} value 0x{}, error: {:?}",
+                    core::any::type_name::<V>(),
                     hex::encode(bytes),
                     err
                 )

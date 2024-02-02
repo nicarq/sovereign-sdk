@@ -171,8 +171,11 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         };
 
         self.head.set(&block, working_set);
-        self.pending_head
-            .set(&block, &mut working_set.accessory_state());
+        #[cfg(feature = "native")]
+        {
+            self.pending_head
+                .set(&block, &mut working_set.accessory_state());
+        }
 
         Ok(())
     }

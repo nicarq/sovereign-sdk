@@ -131,7 +131,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<C, Da> {
         #[allow(unused_variables)] root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
         #[allow(unused_variables)] accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) {
-        #[cfg(feature = "experimental")]
+        #[cfg(all(feature = "experimental", feature = "native"))]
         self.evm.finalize_hook(root_hash, accessory_working_set);
     }
 }

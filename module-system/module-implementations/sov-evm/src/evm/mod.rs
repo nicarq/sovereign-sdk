@@ -15,7 +15,6 @@ pub(crate) mod primitive_types;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use call::prepare_call_env;
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;
 
