@@ -1,8 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(all(target_os = "zkvm", feature = "bench"))]
+use risc0_cycle_macros::cycle_tracker;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::digest::Digest;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
 use tracing::debug;
 
 use crate::transaction::Transaction;

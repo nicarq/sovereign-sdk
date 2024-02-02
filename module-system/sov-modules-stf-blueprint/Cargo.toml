@@ -23,8 +23,7 @@ sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-state = { path = "../sov-state", version = "0.3" }
 sov-modules-core = { path = "../sov-modules-core", version = "0.3" }
 sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
-sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
-sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", version = "0.3", optional = true }
+risc0-cycle-macros = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev="0110643f00b", optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["server"], optional = true }
@@ -32,7 +31,7 @@ sov-chain-state = { path = "../module-implementations/sov-chain-state" }
 sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 
 [features]
-bench = ["sov-zk-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
+bench = ["risc0-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
 default = []
 native = ["sov-state/native", "sov-modules-api/native", "jsonrpsee", "sov-chain-state/native", "sov-blob-storage/native"]
 test-utils = []

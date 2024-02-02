@@ -3,8 +3,6 @@
 - sov-mock-zkvm
 - sov-schema-db
 - sov-db
-- sov-zk-cycle-macros
-- sov-zk-cycle-utils
 - sov-modules-core
 - sov-state
 - sov-prover-storage-manager

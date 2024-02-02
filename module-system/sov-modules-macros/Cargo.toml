@@ -31,6 +31,8 @@ sov-rollup-interface = { path = "../../rollup-interface" }
 sov-state = { path = "../sov-state" }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-modules-macros = { path = ".", features = ["native"] }
+risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
+risc0-zkvm-platform = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }

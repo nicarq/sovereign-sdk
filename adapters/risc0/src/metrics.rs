@@ -40,7 +40,7 @@ fn deserialize_custom(serialized: Bytes) -> Result<(String, u64), anyhow::Error>
 /// A custom callback for extracting metrics from the Risc0 zkvm.
 ///
 /// When the "bench" feature is enabled, this callback is registered as a syscall
-/// in the Risc0 VM and invoked whenever a function annotated with the [`sov-zk-cycle-utils::cycle_tracker`]
+/// in the Risc0 VM and invoked whenever a function annotated with the [`risc0-cycle-utils::cycle_tracker`]
 /// macro is invoked.
 pub fn metrics_callback(input: Bytes) -> Result<Bytes, anyhow::Error> {
     let met_tuple = deserialize_custom(input)?;
