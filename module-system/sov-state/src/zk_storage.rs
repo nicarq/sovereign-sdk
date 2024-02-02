@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use jmt::KeyHash;
+#[cfg(all(target_os = "zkvm", feature = "bench"))]
+use risc0_cycle_macros::cycle_tracker;
 use sov_modules_core::{
     OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
 
 use crate::MerkleProofSpec;
 

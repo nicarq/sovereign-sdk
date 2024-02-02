@@ -20,8 +20,6 @@ members = [
     "full-node/sov-stf-runner",
     "full-node/sov-prover-storage-manager",
     # Utils
-    "utils/zk-cycle-macros",
-    "utils/zk-cycle-utils",
     "utils/bashtestmd",
     "utils/rng-da-service",
     # Module System

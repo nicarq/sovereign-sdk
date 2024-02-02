@@ -1,10 +1,10 @@
+#[cfg(all(target_os = "zkvm", feature = "bench"))]
+use risc0_cycle_macros::cycle_tracker;
+#[cfg(all(target_os = "zkvm", feature = "bench"))]
+use risc0_cycle_utils::print_cycle_count;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{Context, WorkingSet};
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_utils::print_cycle_count;
 
 use crate::{SequencerOutcome, SequencerRegistry};
 

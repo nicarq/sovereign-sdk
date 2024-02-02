@@ -24,7 +24,7 @@ fn add_benchmarking_callbacks(env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder
 
 #[cfg(feature = "bench")]
 fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
-    use sov_zk_cycle_utils::{cycle_count_callback, get_syscall_name, get_syscall_name_cycles};
+    use risc0_cycle_utils::{cycle_count_callback, get_syscall_name, get_syscall_name_cycles};
 
     use crate::metrics::metrics_callback;
 

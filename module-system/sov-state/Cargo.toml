@@ -29,7 +29,7 @@ jmt = { workspace = true }
 hex = { workspace = true }
 sha2 = { workspace = true }
 
-sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
+risc0-cycle-macros = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev="0110643f00b", optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 
@@ -44,6 +44,6 @@ arbitrary = [
     "dep:proptest-derive",
     "sov-modules-core/arbitrary",
 ]
-bench = ["sov-zk-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
+bench = ["risc0-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
 default = []
 native = ["sov-db"]

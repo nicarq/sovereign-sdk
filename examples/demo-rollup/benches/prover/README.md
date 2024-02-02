@@ -15,7 +15,7 @@ $ cargo bench --features bench --bench prover_bench
 ## Methodology
 
 - We have `cycle_tracker` macro defined which can be used to annotate a function in zk that we want to measure the cycles for
-- The `cycle_tracker` macro is defined at `sovereign-sdk/zk-cycle-util`
+- The `cycle_tracker` macro is defined at `https://github.com/Sovereign-Labs/risc0-cycle-macros/tree/main/crates/utils`
 
 ```rust
     #[cfg_attr(all(target_os = "zkvm", feature="bench"), cycle_tracker)]

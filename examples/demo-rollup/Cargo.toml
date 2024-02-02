@@ -56,7 +56,7 @@ sov-mock-da = { path = "../../adapters/mock-da" }
 sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = ["smart_contracts"] }
 sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module", features = ["native"] }
-sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros" }
+sov-modules-macros = {path = "../../module-system/sov-modules-macros"}
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
 humantime = "2.1"
 
@@ -94,7 +94,7 @@ experimental = ["default", "sov-ethereum/experimental", "reth-primitives", "demo
 #experimental = ["default", "sov-ethereum/experimental", "reth-primitives", "demo-stf/experimental", "sov-ethereum/local", "secp256k1", "risc0/experimental"]
 
 
-bench = ["hex", "sov-risc0-adapter/bench", "sov-zk-cycle-macros/bench", "risc0/bench"]
+bench = ["hex", "sov-risc0-adapter/bench", "risc0/bench"]
 offchain = ["demo-stf/offchain"]
 
 [[bench]]

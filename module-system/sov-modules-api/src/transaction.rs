@@ -1,12 +1,12 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(all(target_os = "zkvm", feature = "bench"))]
+use risc0_cycle_macros::cycle_tracker;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_core::PrivateKey;
 use sov_modules_core::{Context, GasUnit, Signature};
 use sov_modules_macros::config_constant;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
 
 const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
 

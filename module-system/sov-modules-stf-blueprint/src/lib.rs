@@ -7,6 +7,8 @@ mod stf_blueprint;
 #[cfg(feature = "test-utils")]
 mod utils;
 
+#[cfg(all(target_os = "zkvm", feature = "bench"))]
+use risc0_cycle_macros::cycle_tracker;
 pub use sov_modules_api::batch::Batch;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
@@ -22,8 +24,6 @@ use sov_modules_core::VersionedWorkingSet;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_state::Storage;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
 

@@ -26,10 +26,10 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
-sov-zk-cycle-macros = { path = "../../../utils/zk-cycle-macros", version = "0.3", optional = true }
+risc0-cycle-macros = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev="0110643f00b", optional = true }
+risc0-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev="0110643f00b", optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
-sov-zk-cycle-utils = { path = "../../../utils/zk-cycle-utils", version = "0.3", optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
@@ -38,7 +38,7 @@ sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 [features]
-bench = ["sov-zk-cycle-macros/bench", "risc0-zkvm", "risc0-zkvm-platform", "sov-zk-cycle-utils"]
+bench = ["risc0-cycle-macros", "risc0-cycle-utils", "risc0-zkvm", "risc0-zkvm-platform"]
 default = []
 arbitrary = ["dep:arbitrary", "dep:proptest", "dep:proptest-derive"]
 native = [
