@@ -8,7 +8,7 @@ use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
-use tracing::log::debug;
+use tracing::debug;
 
 #[cfg(test)]
 mod test_rpc;
@@ -76,10 +76,7 @@ async fn new_rollup_with_celestia_da(
     rollup_config_path: &str,
     prover_config: RollupProverConfig,
 ) -> Result<Rollup<CelestiaDemoRollup>, anyhow::Error> {
-    debug!(
-        "Starting celestia rollup with config {}",
-        rollup_config_path
-    );
+    debug!(config_path = rollup_config_path, "Starting Celestia rollup");
 
     let rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
         from_toml_path(rollup_config_path).context("Failed to read rollup configuration")?;
@@ -108,7 +105,7 @@ async fn new_rollup_with_mock_da(
     rollup_config_path: &str,
     prover_config: RollupProverConfig,
 ) -> Result<Rollup<MockDemoRollup>, anyhow::Error> {
-    debug!("Starting mock rollup with config {}", rollup_config_path);
+    debug!(config_path = rollup_config_path, "Starting mock rollup");
 
     let rollup_config: RollupConfig<MockDaConfig> =
         from_toml_path(rollup_config_path).context("Failed to read rollup configuration")?;

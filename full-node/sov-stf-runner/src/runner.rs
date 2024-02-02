@@ -154,7 +154,7 @@ where
 
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
-                debug!("Chain is already initialized. Skipping initialization.");
+                debug!("Chain is already initialized; skipping initialization");
                 state_root
             }
             InitVariant::Genesis {
@@ -162,8 +162,8 @@ where
                 genesis_params: params,
             } => {
                 info!(
-                    "No history detected. Initializing chain on block_header={:?}...",
-                    block_header
+                    ?block_header,
+                    "No history detected. Initializing chain on the block header..."
                 );
                 let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header)?;
                 ledger_db.replace_db(ledger_state)?;
@@ -176,8 +176,8 @@ where
                 )?;
                 storage_manager.finalize(&block_header)?;
                 info!(
-                    "Chain initialization is done. Genesis root: 0x{}",
-                    hex::encode(genesis_root.as_ref()),
+                    genesis_root = hex::encode(genesis_root.as_ref()),
+                    "Chain initialization is done"
                 );
                 genesis_root
             }
@@ -225,7 +225,7 @@ where
                 .unwrap();
 
             let bound_address = server.local_addr().unwrap();
-            info!("Starting RPC server at {} ", &bound_address);
+            info!(%bound_address, "Starting RPC server");
             let _server_handle = server.start(methods);
 
             if let Some(channel) = channel {
@@ -255,10 +255,7 @@ where
                     target_da_height,
                 } = sync_state.status()
                 {
-                    info!(
-                        "Sync in progress. Current height: {}, target height: {}",
-                        current_da_height, target_da_height
-                    );
+                    info!(current_da_height, target_da_height, "Sync in progress");
                 }
                 interval.tick().await;
             }
@@ -280,7 +277,7 @@ where
 
         let mut agg_block_hashes = Vec::default();
         loop {
-            debug!("Requesting DA block for height={}", da_height);
+            debug!(da_height, "Requesting DA block for given height");
             let mut filtered_block = self.da_service.get_block_at(da_height).await?;
 
             // Checking if reorg happened or not.
@@ -298,22 +295,22 @@ where
                 da_height = new_height;
                 filtered_block = new_block;
                 self.state_root = pre_state_root;
-                info!("Resuming execution on height={}", da_height);
+                info!(da_height, "Resuming execution at fork point's height");
             }
             let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
 
             info!(
-                "Extracted {} relevant blobs at height {}: {:?}",
-                blobs.len(),
+                blobs_count = blobs.len(),
                 da_height,
-                blobs
+                blobs = ?blobs
                     .iter()
                     .map(|b| format!(
                         "sequencer={} blob_hash=0x{}",
                         b.sender(),
                         hex::encode(b.hash())
                     ))
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>(),
+                "Extracted relevant blobs"
             );
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
@@ -390,8 +387,8 @@ where
             let last_finalized = self.da_service.get_last_finalized_block_header().await?;
             // For safety we finalize blocks one by one
             info!(
-                "Last finalized header height is {}, ",
-                last_finalized.height()
+                last_finalized_height = last_finalized.height(),
+                "Got the last finalized header height"
             );
 
             let slot_number = self.ledger_db.get_next_items_numbers().slot_number;
@@ -403,6 +400,7 @@ where
 
             // Checking all seen blocks, in case if there was delay in getting last finalized header.
             while let Some(earliest_seen_state_transition_info) = seen_state_transition.front() {
+                // LOGTODO
                 debug!(
                     "Checking seen header height={}",
                     earliest_seen_state_transition_info
@@ -414,6 +412,7 @@ where
                     .height()
                     <= last_finalized.height()
                 {
+                    // LOGTODO
                     debug!(
                         "Finalizing seen header height={}",
                         earliest_seen_state_transition_info

@@ -14,6 +14,15 @@ use crate::zk::{ValidityCondition, Zkvm};
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
 pub mod fuzzing;
 
+/// Type alias for the output type of [`StateTransitionFunction::apply_slot`].
+pub type ApplySlotOutput<Vm, Da, Stf> = SlotResult<
+    <Stf as StateTransitionFunction<Vm, Da>>::StateRoot,
+    <Stf as StateTransitionFunction<Vm, Da>>::ChangeSet,
+    <Stf as StateTransitionFunction<Vm, Da>>::BatchReceiptContents,
+    <Stf as StateTransitionFunction<Vm, Da>>::TxReceiptContents,
+    <Stf as StateTransitionFunction<Vm, Da>>::Witness,
+>;
+
 /// The configuration of a full node of the rollup which creates zk proofs.
 pub struct ProverConfig;
 /// The configuration used to initialize the "Verifier" of the state transition function
@@ -157,13 +166,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         blobs: I,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
-    >
+    ) -> ApplySlotOutput<Vm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
 }

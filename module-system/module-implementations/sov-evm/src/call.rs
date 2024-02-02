@@ -55,9 +55,9 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
                 let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
                 let gas_used = result.gas_used();
                 tracing::debug!(
-                    "EVM transaction with hash={} has been successfully executed, gas used: {}",
-                    evm_tx_recovered.hash(),
-                    gas_used
+                    hash = hex::encode(evm_tx_recovered.hash()),
+                    gas_used,
+                    "EVM transaction has been successfully executed"
                 );
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -74,9 +74,9 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
             Err(err) => {
                 tracing::debug!(
-                    "EVM transaction with hash={} has been reverted {}",
-                    evm_tx_recovered.hash(),
-                    err
+                    tx_hash = hex::encode(evm_tx_recovered.hash()),
+                    error = ?err,
+                    "EVM transaction has been reverted"
                 );
                 return match err {
                     EVMError::Transaction(_) => {

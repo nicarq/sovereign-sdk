@@ -124,9 +124,9 @@ where
         current_block_hash: Da::SlotHash,
     ) -> anyhow::Result<()> {
         tracing::debug!(
-            "Finalizing block by pair prev_hash={:?}; current_hash={:?}",
-            prev_block_hash,
-            current_block_hash
+            ?prev_block_hash,
+            ?current_block_hash,
+            "Finalizing block by pair"
         );
         // Check if this is the oldest block
         if self
@@ -188,11 +188,7 @@ where
             // TODO: This should be addressed in the future.
             // Ideally non saved back snapshots should be discarded
             let has_been_discarded = cache_containers.discard_snapshot(&snapshot_id);
-            tracing::debug!(
-                "Discarding snapshot={}, was present {}",
-                snapshot_id,
-                has_been_discarded
-            );
+            tracing::debug!(snapshot_id, ?has_been_discarded, "Discarding the snapshot");
             to_discard.extend(child_block_hashes);
         }
 
@@ -223,7 +219,7 @@ where
         &mut self,
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
-        tracing::trace!("Requested native storage for block {:?} ", block_header);
+        tracing::trace!(?block_header, "Requested native storage for block");
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
         assert_ne!(
@@ -266,9 +262,9 @@ where
             }
         };
         tracing::debug!(
-            "Requested native storage for block {:?}, giving snapshot id={}",
-            block_header,
-            new_snapshot_id
+            ?block_header,
+            ?new_snapshot_id,
+            "Requested the native storage given block and snapshot ID"
         );
 
         self.get_storage_with_snapshot_id(new_snapshot_id)
@@ -298,10 +294,10 @@ where
         self.latest_snapshot_id += 1;
         let new_snapshot_id = self.latest_snapshot_id;
         tracing::debug!(
-            "Creating storage after block {:?}, giving snapshot id={}, parent snapshot id={}",
-            &block_header,
+            ?block_header,
             new_snapshot_id,
             parent_snapshot_id,
+            "Creating a new storage snapshot"
         );
         {
             let mut snapshot_id_to_parent = self.snapshot_id_to_parent.write().unwrap();
@@ -338,11 +334,7 @@ where
         }
         let (state_change_set, accessory_change_set) = stf_change_set.freeze()?;
         let snapshot_id = state_change_set.id();
-        tracing::debug!(
-            "Saving ChangeSet id={} for block {:?}",
-            snapshot_id,
-            block_header
-        );
+        tracing::debug!(snapshot_id, ?block_header, "Saving the ChangeSet");
         if snapshot_id != accessory_change_set.id() {
             anyhow::bail!(
                 "State id={} and accessory id={} are not matching.",
@@ -366,8 +358,8 @@ where
 
         if self.dangled_snapshots.remove(&snapshot_id) {
             tracing::debug!(
-                "Discarded reference to '__finalized__' snapshot={}",
-                snapshot_id
+                snapshot_id,
+                "Discarded reference to '__finalized__' snapshot"
             );
             return Ok(());
         }
@@ -397,7 +389,7 @@ where
     }
 
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
-        tracing::debug!("Finalizing block: {:?}", block_header);
+        tracing::debug!(?block_header, "Finalizing block");
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
         self.finalize_by_hash_pair(prev_block_hash, current_block_hash)

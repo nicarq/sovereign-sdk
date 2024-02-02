@@ -114,7 +114,7 @@ impl DB {
     }
 
     fn log_construct(name: &'static str, inner: rocksdb::DB) -> DB {
-        info!(rocksdb_name = name, "Opened RocksDB.");
+        info!(rocksdb_name = name, "Opened RocksDB");
         DB { name, inner }
     }
 

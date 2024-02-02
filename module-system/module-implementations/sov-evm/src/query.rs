@@ -11,7 +11,7 @@ use revm::primitives::{
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{DaSpec, WorkingSet};
-use tracing::info;
+use tracing::debug;
 
 use crate::call::get_cfg_env;
 use crate::error::rpc::{ensure_success, RevertError, RpcInvalidTransactionError};
@@ -26,7 +26,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     /// Handler for `net_version`
     #[rpc_method(name = "net_version")]
     pub fn net_version(&self, working_set: &mut WorkingSet<C>) -> RpcResult<String> {
-        info!("evm module: net_version");
+        debug!("EVM module JSON-RPC request to `net_version`");
 
         // Network ID is the same as chain ID for most networks
         let chain_id = self
@@ -47,7 +47,10 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
                 .expect("EVM config must be set at genesis")
                 .chain_id,
         );
-        info!("evm module: eth_chainId() -> {}", chain_id);
+        debug!(
+            chain_id = chain_id.as_u64(),
+            "EVM module JSON-RPC request to `eth_chainId`"
+        );
 
         Ok(Some(chain_id))
     }
@@ -60,7 +63,10 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         details: Option<bool>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
-        info!("evm module: eth_getBlockByHash {}", block_hash);
+        debug!(
+            ?block_hash,
+            "EVM module JSON-RPC request to `eth_getBlockByHash`"
+        );
 
         let block_number_hex = self
             .block_hashes
@@ -79,7 +85,10 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         details: Option<bool>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
-        info!("evm module: eth_getBlockByNumber {:?}", block_number);
+        debug!(
+            block_number,
+            "EVM module JSON-RPC request to `eth_getBlockByNumber`"
+        );
 
         let block = self.get_sealed_block_by_number(block_number, working_set);
 
@@ -148,7 +157,11 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             .map(|account| account.info.balance)
             .unwrap_or_default();
 
-        info!("evm module: eth_getBalance({}) -> {}", address, balance);
+        debug!(
+            %address,
+            %balance,
+            "EVM module JSON-RPC request to `eth_getBalance`"
+        );
 
         Ok(balance)
     }
@@ -162,7 +175,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
-        info!("evm module: eth_getStorageAt");
+        debug!("EVM module JSON-RPC request to `eth_getStorageAt`");
 
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
@@ -193,10 +206,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             .map(|account| account.info.nonce)
             .unwrap_or_default();
 
-        info!(
-            "evm module: eth_getTransactionCount({}) -> {}",
-            address, nonce
-        );
+        debug!(%address, nonce, "EVM module JSON-RPC request to `eth_getTransactionCount`");
 
         Ok(nonce.into())
     }
@@ -209,7 +219,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
-        info!("evm module: eth_getCode");
+        debug!("EVM module JSON-RPC request to `eth_getCode`");
 
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
@@ -230,7 +240,8 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         &self,
         _working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_rpc_types::FeeHistory> {
-        info!("evm module: eth_feeHistory");
+        debug!("EVM module JSON-RPC request to `eth_feeHistory`");
+
         Ok(reth_rpc_types::FeeHistory {
             base_fee_per_gas: Default::default(),
             gas_used_ratio: Default::default(),
@@ -275,10 +286,11 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
                 U256::from(tx_number.unwrap() - block.transactions.start),
             )
         });
-        tracing::info!(
-            "evm module: eth_getTransactionByHash({}) -> {:?}",
-            hash,
-            transaction
+
+        debug!(
+            %hash,
+            ?transaction,
+            "EVM module JSON-RPC request to `eth_getTransactionByHash`"
         );
 
         Ok(transaction)
@@ -292,7 +304,10 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         hash: reth_primitives::H256,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
-        info!("evm module: eth_getTransactionReceipt");
+        debug!(
+            %hash,
+            "EVM module JSON-RPC request to `eth_getTransactionReceipt`"
+        );
 
         let mut accessory_state = working_set.accessory_state();
 
@@ -331,7 +346,8 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
-        info!("evm module: eth_call");
+        debug!("EVM module JSON-RPC request to `eth_call`");
+
         let block_env = match block_number {
             Some(ref block_number) if block_number == "pending" => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
@@ -363,14 +379,13 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         &self,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
-        info!("evm module: eth_blockNumber");
+        debug!("EVM module JSON-RPC request to `eth_blockNumber`");
 
-        let block_number = U256::from(
+        Ok(U256::from(
             self.blocks
                 .len(&mut working_set.accessory_state())
                 .saturating_sub(1),
-        );
-        Ok(block_number)
+        ))
     }
 
     /// Handler for: `eth_estimateGas`
@@ -382,7 +397,8 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
-        info!("evm module: eth_estimateGas");
+        debug!("EVM module JSON-RPC request to `eth_estimateGas`");
+
         let mut block_env = match block_number {
             Some(ref block_number) if block_number == "pending" => {
                 self.block_env.get(working_set).unwrap_or_default().clone()

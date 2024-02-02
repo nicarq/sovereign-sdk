@@ -227,7 +227,7 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
         KernelStateValue<u64>: StateValueAccessor<u64, BorshCodec, T>,
         T: StateReaderAndWriter,
     {
-        tracing::debug!("Setting next visible slot number to {}", value);
+        tracing::debug!(slot_number = value, "Setting next visible slot number");
         self.next_visible_slot_number.set(value, working_set)
     }
 

@@ -228,7 +228,7 @@ fn do_deferred_blob_test(
             }
             current_virtual_slot = next_virtual_slot;
         }
-        debug!("Expected batches: {:?}", &batches);
+        debug!(?batches, "Computed the expected batches");
         batches.into_iter()
     };
 

@@ -103,6 +103,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub(crate) fn apply_batch(
         &self,
@@ -110,7 +111,7 @@ where
         mut batch: BatchWithId,
         sender: &Da::Address,
     ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
-        debug!("Applying batch from sequencer: 0x{}", hex::encode(sender));
+        debug!(sequencer = hex::encode(sender), "Applying a batch");
 
         let mut batch_workspace = checkpoint.to_revertable();
 
@@ -317,9 +318,9 @@ where
                 Ok(_) => TxEffect::Successful,
                 Err(e) => {
                     error!(
-                        "Tx 0x{} was reverted error: {}",
-                        hex::encode(raw_tx_hash),
-                        e
+                        tx_hash = hex::encode(raw_tx_hash),
+                        error = ?e,
+                        "Transaction was reverted"
                     );
                     // The transaction causing invalid state transition is reverted
                     // but we don't slash and we continue processing remaining transactions.
@@ -328,10 +329,10 @@ where
                 }
             };
             debug!(
-                "Tx 0x{} effect: {:?}, sequencer reward: {}",
-                hex::encode(raw_tx_hash),
-                tx_effect,
-                gas_reward
+                tx_hash = hex::encode(raw_tx_hash),
+                ?tx_effect,
+                gas_reward,
+                "Tx was successfully dispatched"
             );
 
             let gas_used = batch_workspace.gas_used().to_vec();

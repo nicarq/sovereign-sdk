@@ -339,10 +339,11 @@ pub(crate) fn pfb_from_iter(data: impl Buf, pfb_len: usize) -> Result<MsgPayForB
 
 fn next_pfb(mut data: &mut BlobRefIterator) -> Result<(MsgPayForBlobs, TxPosition), BoxError> {
     let (start_idx, start_offset) = data.current_position();
-    let (len, len_of_len) = read_varint(&mut data).context("failed decoding varint")?;
+    let (len, prefix_len) = read_varint(&mut data).context("failed decoding varint")?;
     debug!(
-        "Decoding wrapped PFB of length {}. Stripped {} bytes of prefix metadata",
-        len, len_of_len
+        len_in_bytes = len,
+        prefix_len_in_bytes = prefix_len,
+        "Decoding wrapped PFB after stripping prefix metdata",
     );
 
     let current_share_idx = data.current_position().0;

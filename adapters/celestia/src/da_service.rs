@@ -118,9 +118,9 @@ impl DaService for CelestiaService {
         let rollup_namespace = self.rollup_batch_namespace;
 
         // Fetch the header and relevant shares via RPC
-        debug!("Fetching header at height: {}...", height);
+        debug!(height, "Fetching header at height...");
         let header = client.header_get_by_height(height).await?;
-        trace!(header_result = ?header);
+        trace!(?header, height, "Got the header");
 
         // Fetch the rollup namespace shares, etx data and extended data square
         debug!("Fetching rollup data...");
@@ -173,7 +173,7 @@ impl DaService for CelestiaService {
         for blob_ref in block.rollup_data.blobs() {
             let commitment = Commitment::from_shares(self.rollup_batch_namespace, blob_ref.0)
                 .expect("blob must be valid");
-            info!("Blob: {:?}", commitment);
+            info!(?commitment, "Extracing blob");
             let sender = block
                 .relevant_pfbs
                 .get(&commitment.0[..])
@@ -211,13 +211,13 @@ impl DaService for CelestiaService {
 
     #[instrument(skip_all, err)]
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
-        debug!("Sending {} bytes of raw data to Celestia.", blob.len());
+        debug!(bytes_count = blob.len(), "Sending raw data to Celestia");
 
         let gas_limit = get_gas_limit_for_bytes(blob.len()) as u64;
         let fee = gas_limit * GAS_PRICE as u64;
 
         let blob = JsonBlob::new(self.rollup_batch_namespace, blob.to_vec())?;
-        info!("Submitting: {:?}", blob.commitment);
+        info!(?blob.commitment, "Submitting a blob");
 
         let height = self
             .client
@@ -229,10 +229,7 @@ impl DaService for CelestiaService {
                 },
             )
             .await?;
-        info!(
-            "Blob has been submitted to Celestia. block-height={}",
-            height,
-        );
+        info!(height, "Blob has been submitted to Celestia");
         Ok(())
     }
 

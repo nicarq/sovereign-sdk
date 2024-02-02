@@ -42,7 +42,7 @@ impl SimpleClient {
             .http_client
             .request("sequencer_publishBatch", batch)
             .await?;
-        info!("publish batch response: {:?}", response);
+        info!(?response, "Got a response from `sequencer_publishBatch`");
         Ok(())
     }
 
@@ -64,7 +64,7 @@ impl SimpleClient {
                         .http_client
                         .request("sequencer_publishBatch", chunk.to_vec())
                         .await?;
-                    info!("publish batch response for chunk: {:?}", response);
+                    info!(?response, "Got a response from `sequencer_publishBatch`");
                 }
             }
             None => {
@@ -72,7 +72,7 @@ impl SimpleClient {
                     .http_client
                     .request("sequencer_publishBatch", serialized_txs)
                     .await?;
-                info!("publish batch response: {:?}", response);
+                info!(?response, "Got a response from `sequencer_publishBatch`");
             }
         }
 
