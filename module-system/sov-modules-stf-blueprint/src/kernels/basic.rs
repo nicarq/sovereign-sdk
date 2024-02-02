@@ -10,6 +10,7 @@ use sov_state::storage::kernel_state::BootstrapWorkingSet;
 use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
+#[derive(Clone)]
 pub struct BasicKernel<C: Context, Da: DaSpec> {
     pub(crate) chain_state: ChainState<C, Da>,
     pub(crate) blob_storage: BlobStorage<C, Da>,
