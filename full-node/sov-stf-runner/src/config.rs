@@ -59,8 +59,11 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
         let mut file = File::open(path)?;
         file.read_to_string(&mut contents)?;
     }
-    tracing::debug!("Config file size: {} bytes", contents.len());
-    tracing::trace!("Config file contents: {}", &contents);
+    tracing::debug!(
+        size_in_bytes = contents.len(),
+        contents,
+        "Parsing config file"
+    );
 
     let result: R = toml::from_str(&contents)?;
 

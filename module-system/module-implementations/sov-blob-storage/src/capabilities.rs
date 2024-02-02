@@ -5,7 +5,7 @@ use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::runtime::capabilities::BatchSelector;
 use sov_modules_api::{BlobReaderTrait, Context, DaSpec, KernelWorkingSet, WorkingSet};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use crate::{
     BlobStorage, PreferredBatch, PreferredBatchWithId, SequenceNumber, DEFERRED_SLOTS_COUNT,
@@ -14,9 +14,9 @@ use crate::{
 impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub(crate) fn log_discarded_blob(&self, b: &Da::BlobTransaction) {
         info!(
-            "Blob hash=0x{} from sender {} is going to be discarded",
-            hex::encode(b.hash()),
-            b.sender()
+            blob_hash = hex::encode(b.hash()),
+            sender = hex::encode(b.sender()),
+            "Discarding blob"
         );
     }
 
@@ -194,6 +194,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     //   Step 3: Find number of virtual slots to advance. Retrieve all stored (non-preferred) blobs from those slots. These become our blobs
     //   Step 4: Deserialize all blobs into batches. Return (Batch, Sender)
     /// Select the blobs to execute this slot based on the preferred sequencer and set the next virtual_height
+    #[tracing::instrument(skip_all)]
     pub fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,
         current_blobs: I,
@@ -276,9 +277,9 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
             };
             batches_to_process.push((first_batch, preferred_sender.clone()));
             tracing::debug!(
-                "Processing preferred batch with sequence number {}. Requestd slots to advance: {}",
-                preferred_batch.inner.sequence_number,
-                preferred_batch.inner.virtual_slots_to_advance
+                seq_number = preferred_batch.inner.sequence_number,
+                slots_to_advance = preferred_batch.inner.virtual_slots_to_advance,
+                "Requested to advance slots"
             );
 
             if preferred_batch.inner.virtual_slots_to_advance as u64 > max_slots_to_advance {
@@ -304,9 +305,9 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
             }
         };
         tracing::debug!(
-            "Advancing virtual slot by {} slots. Current real slot: {}",
             num_slots_to_advance,
-            working_set.current_slot()
+            current_real_slot = working_set.current_slot(),
+            "Advancing virtual slot number"
         );
 
         // Load all the necessary batches from storage
@@ -407,15 +408,12 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
             // if the blob is malformed, slash the sequencer
             Err(e) => {
                 warn!(
-                    "Unable to deserialize blob with hash 0x{} as a valid batch. Slashing sender {}",
-                    hex::encode(blob.hash()), blob.sender()
+                    blob_hash = hex::encode(blob.hash()),
+                    slashed_sender = hex::encode(blob.sender()),
+                    deserialization_error = ?e,
+                    "Unable to deserialize blob; slashing sender"
                 );
-                debug!(
-                    "The error returned from deserialization was: `{}`. Blob 0x{} had the following contents: {:?}",
-                    e,
-                    hex::encode(blob.hash()),
-                    blob.verified_data()
-                );
+
                 self.sequencer_registry
                     .slash_sequencer(&blob.sender(), working_set);
                 None

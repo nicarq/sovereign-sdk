@@ -5,7 +5,7 @@ use sov_mock_da::{
 use sov_mock_zkvm::MockZkvm;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
-use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
 use sov_state::{
@@ -85,6 +85,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         HashStf::<Cond>::save_from_hasher(hasher, genesis_state, &ArrayWitness::default())
     }
 
+    #[tracing::instrument(name = "HashStf::apply_slot", skip_all)]
     fn apply_slot<'a, I>(
         &self,
         pre_state_root: &Self::StateRoot,
@@ -93,20 +94,11 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
         blobs: I,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
-    >
+    ) -> ApplySlotOutput<Vm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        tracing::debug!(
-            "Applying slot in HashStf at height={}",
-            slot_header.height()
-        );
+        tracing::debug!("Getting the root hash...");
 
         let storage_root_hash = pre_state.get_root_hash(slot_header.height()).unwrap();
         assert_eq!(
@@ -119,10 +111,10 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
         let hash_key = HashStf::<Cond>::hash_key();
         let existing_cache = pre_state.get(&hash_key, None, &witness).unwrap();
-        tracing::debug!(
-            "HashStf provided_state_root={:?}, saved={:?}",
-            pre_state_root,
-            existing_cache.value()
+        tracing::trace!(
+            pre_state_root = hex::encode(pre_state_root),
+            existing_cache = hex::encode(existing_cache.value()),
+            "Fetched existing cache value from pre_state"
         );
         hasher.update(existing_cache.value());
 

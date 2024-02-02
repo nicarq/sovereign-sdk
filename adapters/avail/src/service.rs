@@ -181,7 +181,7 @@ impl DaService for DaProvider {
             self.polling_interval,
         )
         .await?;
-        info!("Appdata: {:?}", appdata);
+        info!(?appdata, "Received Appdata");
 
         let hash = match { node_client.rpc().block_hash(Some(height.into())).await? } {
             Some(i) => i,
@@ -278,7 +278,10 @@ impl DaService for DaProvider {
             .sign_and_submit_then_watch(&data_transfer, &self.signer, extrinsic_params)
             .await?;
 
-        info!("Transaction submitted: {:#?}", h.extrinsic_hash());
+        info!(
+            hash = hex::encode(h.extrinsic_hash()),
+            "Transaction submitted"
+        );
 
         Ok(())
     }

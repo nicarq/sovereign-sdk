@@ -153,7 +153,7 @@ pub mod experimental {
                 "Build and submit ETH batch request has been received",
             );
             let batch = self.build_batch(messages, min_blob_size)?;
-            tracing::debug!(transactions = batch.len(), "Batch have been built",);
+            tracing::debug!(transactions_count = batch.len(), "Batch have been built");
 
             self.submit_batch(batch)
                 .await

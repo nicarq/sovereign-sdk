@@ -4,7 +4,9 @@ use std::marker::PhantomData;
 
 use sha2::Digest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
-use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    ApplySlotOutput, BatchReceipt, SlotResult, StateTransitionFunction,
+};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 
 /// An implementation of the [`StateTransitionFunction`]
@@ -63,13 +65,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
         blobs: I,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
-    >
+    ) -> ApplySlotOutput<Vm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {

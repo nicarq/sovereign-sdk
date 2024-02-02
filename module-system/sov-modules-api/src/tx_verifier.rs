@@ -48,7 +48,7 @@ pub fn verify_txs_stateless<C: Context>(
     raw_txs: Vec<RawTx>,
 ) -> anyhow::Result<Vec<TransactionAndRawHash<C>>> {
     let mut txs = Vec::with_capacity(raw_txs.len());
-    debug!("Verifying {} transactions", raw_txs.len());
+    debug!(txs_num = raw_txs.len(), "Verifying transactions");
     for raw_tx in raw_txs {
         let raw_tx_hash = raw_tx.hash::<C>();
         let tx = raw_tx.deserialize()?;

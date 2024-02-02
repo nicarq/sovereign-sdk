@@ -87,7 +87,7 @@ where
     }
 
     async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<()> {
-        info!("Accepting tx: 0x{}", hex::encode(&tx));
+        info!(tx = hex::encode(&tx), "Accepting transactiontx");
         let mut batch_builder = self.batch_builder.lock().await;
         let tx_hash = batch_builder.accept_tx(tx)?;
         self.tx_status_notifier.notify(tx_hash, TxStatus::Submitted);

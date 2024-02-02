@@ -20,12 +20,12 @@ use sov_modules_api::{
 };
 use sov_modules_core::VersionedWorkingSet;
 pub use sov_rollup_interface::stf::BatchReceipt;
-use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
-use tracing::info;
+use tracing::{debug, info};
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -265,13 +265,7 @@ where
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         blobs: I,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
-    >
+    ) -> ApplySlotOutput<Vm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
@@ -303,19 +297,19 @@ where
             checkpoint = checkpoint_after_blob;
             let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
             info!(
-                "blob #{} from sequencer {} with blob_hash 0x{} has been applied with #{} transactions, sequencer outcome {:?}",
                 blob_idx,
-                &sender,
-                hex::encode(batch_receipt.batch_hash),
-                batch_receipt.tx_receipts.len(),
-                batch_receipt.inner
+                blob_hash = hex::encode(batch_receipt.batch_hash),
+                %sender,
+                num_txs = batch_receipt.tx_receipts.len(),
+                sequencer_outcome = ?batch_receipt.inner,
+                "Applied blob and got the sequencer outcome"
             );
             for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-                info!(
-                    "tx #{} hash: 0x{} result {:?}",
-                    i,
-                    hex::encode(tx_receipt.tx_hash),
-                    tx_receipt.receipt
+                debug!(
+                    tx_idx = i,
+                    tx_hash = hex::encode(tx_receipt.tx_hash),
+                    receipt = ?tx_receipt.receipt,
+                    "Tx receipt"
                 );
             }
             batch_receipts.push(batch_receipt);
