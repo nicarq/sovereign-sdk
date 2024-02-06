@@ -145,8 +145,4 @@ impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
     fn get_root_hash(&self, _version: jmt::Version) -> anyhow::Result<jmt::RootHash> {
         unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
-
-    fn version(&self) -> u64 {
-        unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
-    }
 }
