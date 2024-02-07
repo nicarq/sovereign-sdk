@@ -208,6 +208,9 @@ pub trait Storage: Clone {
     /// State update that will be committed to the database.
     type StateUpdate;
 
+    /// Collections of all the writes that have been made on top of this instance of the storage;
+    type ChangeSet;
+
     /// Returns the value corresponding to the key or None if key is absent.
     fn get(
         &self,
@@ -277,6 +280,9 @@ pub trait Storage: Clone {
     /// Indicates if storage is empty or not.
     /// Useful during initialization.
     fn is_empty(&self) -> bool;
+
+    /// Converts the storage into a change set.
+    fn to_change_set(self) -> Self::ChangeSet;
 }
 
 /// Used only in tests.

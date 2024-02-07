@@ -92,6 +92,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
     type Root = jmt::RootHash;
     type StateUpdate = ();
+    type ChangeSet = ();
 
     fn get(
         &self,
@@ -134,6 +135,8 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     fn is_empty(&self) -> bool {
         unimplemented!("Needs simplification in JellyfishMerkleTree: https://github.com/Sovereign-Labs/sovereign-sdk/issues/362")
     }
+
+    fn to_change_set(self) -> Self::ChangeSet {}
 }
 
 #[cfg(feature = "native")]

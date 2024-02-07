@@ -3,13 +3,14 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
 use sov_state::{
-    ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverStorage, Storage,
+    ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverChangeSet,
+    ProverStorage, Storage,
 };
 
 pub type S = DefaultStorageSpec;
@@ -35,7 +36,7 @@ impl<Cond> HashStf<Cond> {
         hasher: sha2::Sha256,
         storage: ProverStorage<S>,
         witness: &ArrayWitness,
-    ) -> ([u8; 32], ProverStorage<S>) {
+    ) -> ([u8; 32], ProverChangeSet) {
         let result = hasher.finalize();
 
         let hash_key = HashStf::<Cond>::hash_key();
@@ -58,7 +59,7 @@ impl<Cond> HashStf<Cond> {
             root_hash[i] = byte;
         }
 
-        (root_hash, storage)
+        (root_hash, storage.to_change_set())
     }
 }
 
@@ -68,7 +69,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     type StateRoot = [u8; 32];
     type GenesisParams = Vec<u8>;
     type PreState = ProverStorage<S>;
-    type ChangeSet = ProverStorage<S>;
+    type ChangeSet = ProverChangeSet;
     type TxReceiptContents = ();
     type BatchReceiptContents = [u8; 32];
     type Witness = ArrayWitness;
@@ -189,15 +190,17 @@ pub fn get_result_from_blocks(
 ) -> ([u8; 32], Option<<ProverStorage<S> as Storage>::Root>) {
     let tmpdir = tempfile::tempdir().unwrap();
 
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
 
     let stf = HashStf::<MockValidityCond>::new();
 
-    let (genesis_state_root, mut storage) =
+    let (genesis_state_root, change_set) =
         <HashStf<MockValidityCond> as StateTransitionFunction<
             MockZkvm<MockValidityCond>,
             MockDaSpec,
         >>::init_chain(&stf, storage, genesis_params.to_vec());
+    storage_manager.commit(change_set);
 
     let mut state_root = genesis_state_root;
 
@@ -206,6 +209,7 @@ pub fn get_result_from_blocks(
     for block in blocks {
         let mut blobs = block.blobs.clone();
 
+        let storage = storage_manager.create_storage();
         let result = <HashStf<MockValidityCond> as StateTransitionFunction<
             MockZkvm<MockValidityCond>,
             MockDaSpec,
@@ -220,9 +224,10 @@ pub fn get_result_from_blocks(
         );
 
         state_root = result.state_root;
-        storage = result.change_set;
+        storage_manager.commit(result.change_set);
     }
 
+    let storage = storage_manager.create_storage();
     let root_hash = storage.get_root_hash(l as u64).ok();
     (state_root, root_hash)
 }

@@ -117,7 +117,11 @@ fn setup_storage(
         stf_state.commit(&state_update, &OrderedReadsAndWrites::default());
 
         storage_manager
-            .save_change_set(&block_header, stf_state, ledger_state.into())
+            .save_change_set(
+                &block_header,
+                stf_state.to_change_set(),
+                ledger_state.into(),
+            )
             .unwrap();
 
         if h > fork_len {

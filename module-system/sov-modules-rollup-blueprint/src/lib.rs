@@ -47,7 +47,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type StorageManager: HierarchicalStorageManager<
         Self::DaSpec,
         StfState = <Self::NativeContext as Spec>::Storage,
-        StfChangeSet = <Self::NativeContext as Spec>::Storage,
+        StfChangeSet = <<<Self as RollupBlueprint>::NativeContext as Spec>::Storage as Storage>::ChangeSet,
         LedgerState = CacheDb,
         LedgerChangeSet = ChangeSet,
     >;

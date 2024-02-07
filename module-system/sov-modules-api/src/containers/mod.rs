@@ -97,7 +97,7 @@ mod test {
                 }
             }
             storage_manager
-                .save_change_set(&header, prover_storage, ledger_state.into())
+                .save_change_set(&header, prover_storage.to_change_set(), ledger_state.into())
                 .unwrap();
             storage_manager.finalize(&header).unwrap();
         }
@@ -144,14 +144,15 @@ mod test {
             let header = MockBlockHeader::default();
             let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
             assert!(prover_storage.is_empty());
-            let mut storage: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
-            storage.set(&key, value.clone());
-            let (cache, witness) = storage.checkpoint().freeze();
+            let mut working_set: WorkingSet<DefaultContext> =
+                WorkingSet::new(prover_storage.clone());
+            working_set.set(&key, value.clone());
+            let (cache, witness) = working_set.checkpoint().freeze();
             prover_storage
                 .validate_and_commit(cache, &witness)
                 .expect("storage is valid");
             storage_manager
-                .save_change_set(&header, prover_storage, ledger_state.into())
+                .save_change_set(&header, prover_storage.to_change_set(), ledger_state.into())
                 .unwrap();
             storage_manager.finalize(&header).unwrap();
         }

@@ -32,9 +32,9 @@ fn test_demo_values_in_db() {
         let (stf_state, ledger_state) = storage_manager
             .create_state_for(genesis_block.header())
             .unwrap();
-        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+        let (genesis_root, stf_change_set) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+            .save_change_set(genesis_block.header(), stf_change_set, ledger_state.into())
             .unwrap();
 
         let priv_key = read_private_key::<DefaultContext>().private_key;
@@ -125,7 +125,7 @@ fn test_demo_values_in_cache() {
     );
     let mut blobs = [blob];
     let block_1 = genesis_block.next_mock();
-    let (stf_state, _ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
+    let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
 
     let apply_block_result = stf.apply_slot(
         &genesis_root,
@@ -148,7 +148,20 @@ fn test_demo_values_in_cache() {
     assert!(has_tx_events(&apply_blob_outcome),);
 
     let runtime = &mut Runtime::<DefaultContext, MockDaSpec>::default();
-    let mut working_set = WorkingSet::new(apply_block_result.change_set);
+
+    storage_manager
+        .save_change_set(
+            block_1.header(),
+            apply_block_result.change_set,
+            ledger_state.into(),
+        )
+        .unwrap();
+
+    let (stf_storage, _) = storage_manager
+        .create_state_after(block_1.header())
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(stf_storage);
 
     let resp = runtime
         .bank
@@ -216,7 +229,8 @@ fn test_demo_values_not_in_db() {
     }
 
     // Generate a new storage instance,
-    // values are missing because change set from apply slot wasn't saved back to storage manager
+    // values are missing because change set from `apply_slot`
+    // wasn't saved back to the storage manager
     {
         let runtime = &mut Runtime::<C, MockDaSpec>::default();
         let (stf_state, _ledger_state) =
