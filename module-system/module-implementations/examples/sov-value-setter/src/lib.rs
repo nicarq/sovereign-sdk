@@ -8,11 +8,11 @@ mod tests;
 
 mod event;
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 pub use call::*;
 pub use genesis::*;
 #[cfg(feature = "native")]
-pub use query::*;
+pub use rpc::*;
 use sov_modules_api::{Error, ModuleInfo, WorkingSet};
 
 use crate::event::Event;

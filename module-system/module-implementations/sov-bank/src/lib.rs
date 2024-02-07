@@ -4,9 +4,9 @@ mod call;
 mod genesis;
 mod hooks;
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 #[cfg(feature = "native")]
-pub use query::*;
+pub use rpc::*;
 mod token;
 /// Util functions for bank
 pub mod utils;

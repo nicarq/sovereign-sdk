@@ -20,7 +20,7 @@ mod utils;
 
 /// The query interface with the module
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;

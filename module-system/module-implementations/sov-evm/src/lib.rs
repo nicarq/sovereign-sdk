@@ -12,10 +12,10 @@ mod hooks;
 pub use {call::*, error::rpc::*, evm::*, genesis::*};
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
-mod query;
+mod rpc;
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
-pub use query::*;
+pub use rpc::*;
 #[cfg(feature = "experimental")]
 mod signer;
 #[cfg(feature = "experimental")]

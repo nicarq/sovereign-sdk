@@ -12,9 +12,9 @@ use collection::*;
 mod nft;
 use nft::*;
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 #[cfg(feature = "native")]
-pub use query::*;
+pub use rpc::*;
 use sov_modules_api::{CallResponse, Context, Error, Module, ModuleInfo, StateMap, WorkingSet};
 mod event;
 mod offchain;

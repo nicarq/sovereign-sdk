@@ -69,8 +69,7 @@ pub mod my_module {
         }
     }
 
-    pub mod query {
-
+    pub mod rpc {
         use super::*;
         use crate::my_module::QueryModule;
 
@@ -93,7 +92,7 @@ pub mod my_module {
     }
 }
 
-use my_module::query::{QueryModuleRpcImpl, QueryModuleRpcServer};
+use my_module::rpc::{QueryModuleRpcImpl, QueryModuleRpcServer};
 
 #[expose_rpc]
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]

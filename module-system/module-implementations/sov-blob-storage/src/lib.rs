@@ -4,11 +4,11 @@
 mod capabilities;
 
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
-pub use query::*;
+pub use rpc::*;
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
 use sov_modules_api::batch::BatchWithId;

@@ -36,7 +36,7 @@ which is boilerplate that can be customized to easily build modules.
     ├── call.rs
     ├── genesis.rs
     ├── lib.rs
-    ├── query.rs
+    ├── rpc.rs
     └── tests.rs
 ```
 

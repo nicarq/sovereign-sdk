@@ -5,7 +5,7 @@ use sov_modules_api::{
 };
 use sov_prover_storage_manager::new_orphan_storage;
 
-use crate::query::{self, Response};
+use crate::rpc::{self, Response};
 use crate::{call, AccountConfig, Accounts};
 
 type C = DefaultContext;
@@ -30,7 +30,7 @@ fn test_config_account() {
 
     assert_eq!(
         query_response,
-        query::Response::AccountExists {
+        rpc::Response::AccountExists {
             addr: AddressBech32::from(&init_pub_key_addr),
             nonce: 0
         }
@@ -62,7 +62,7 @@ fn test_update_account() {
 
         assert_eq!(
             query_response,
-            query::Response::AccountExists {
+            rpc::Response::AccountExists {
                 addr: AddressBech32::try_from(sender_addr.as_ref()).unwrap(),
                 nonce: 0
             }
@@ -85,14 +85,14 @@ fn test_update_account() {
         // Account corresponding to the old public key does not exist
         let query_response = accounts.get_account(sender, working_set).unwrap();
 
-        assert_eq!(query_response, query::Response::AccountEmpty);
+        assert_eq!(query_response, rpc::Response::AccountEmpty);
 
         // New account with the new public key and an old address is created.
         let query_response = accounts.get_account(new_pub_key, working_set).unwrap();
 
         assert_eq!(
             query_response,
-            query::Response::AccountExists {
+            rpc::Response::AccountExists {
                 addr: AddressBech32::try_from(sender_addr.as_ref()).unwrap(),
                 nonce: 0
             }
