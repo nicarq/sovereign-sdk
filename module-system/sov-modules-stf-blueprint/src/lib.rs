@@ -209,7 +209,7 @@ where
     type GenesisParams =
         GenesisParams<<RT as Genesis>::Config, <K as Kernel<C, Da>>::GenesisConfig>;
     type PreState = C::Storage;
-    type ChangeSet = C::Storage;
+    type ChangeSet = <C::Storage as Storage>::ChangeSet;
 
     type TxReceiptContents = TxEffect;
 
@@ -254,7 +254,7 @@ where
         // TODO: Commit is fine
         pre_state.commit(&state_update, &accessory_log);
 
-        (genesis_hash, pre_state)
+        (genesis_hash, pre_state.to_change_set())
     }
 
     fn apply_slot<'a, I>(
@@ -318,7 +318,7 @@ where
         let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
         SlotResult {
             state_root,
-            change_set: storage,
+            change_set: storage.to_change_set(),
             batch_receipts,
             witness,
         }

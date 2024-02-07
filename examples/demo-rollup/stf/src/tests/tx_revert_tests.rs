@@ -22,7 +22,7 @@ use crate::tests::da_simulation::{
 };
 use crate::tests::StfBlueprintTest;
 
-// Assume there was proper address and we converted it to bytes already.
+// Assume there was a proper address and we converted it to bytes already.
 const SEQUENCER_DA_ADDRESS: [u8; 32] = [1; 32];
 
 #[test]
@@ -59,8 +59,7 @@ fn test_tx_revert() {
         );
         let mut blobs = [blob];
 
-        let (stf_state, _ledger_state) =
-            storage_manager.create_state_for(block_1.header()).unwrap();
+        let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             stf_state,
@@ -88,7 +87,17 @@ fn test_tx_revert() {
         assert_eq!(txn_receipts[1].receipt, TxEffect::Successful);
         assert_eq!(txn_receipts[2].receipt, TxEffect::Reverted);
 
-        apply_block_result.change_set
+        storage_manager
+            .save_change_set(
+                block_1.header(),
+                apply_block_result.change_set,
+                ledger_state.into(),
+            )
+            .unwrap();
+        let (storage, _) = storage_manager
+            .create_state_after(block_1.header())
+            .unwrap();
+        storage
     };
 
     // Checks on storage after execution
@@ -114,7 +123,7 @@ fn test_tx_revert() {
                 &mut working_set,
             )
             .unwrap();
-        // Sequencer is not excluded from list of allowed!
+        // Sequencer is not excluded from the list of allowed!
         assert_eq!(Some(sequencer_rollup_address), resp.address);
 
         let nonce = match runtime
@@ -130,7 +139,7 @@ fn test_tx_revert() {
         // 0 -> 1
         // 1 -> 2
         // 2 -> 3
-        // minter account should have its nonce increased for 3 transactions
+        // The minter account should have its nonce increased for 3 transactions
         assert_eq!(3, nonce);
     }
 }
@@ -165,8 +174,7 @@ fn test_tx_bad_signature() {
         let blob_sender = blob.sender();
         let mut blobs = [blob];
 
-        let (stf_state, _ledger_state) =
-            storage_manager.create_state_for(block_1.header()).unwrap();
+        let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             stf_state,
@@ -190,7 +198,17 @@ fn test_tx_bad_signature() {
 
         // The batch receipt contains no events.
         assert!(!has_tx_events(&apply_blob_outcome));
-        apply_block_result.change_set
+        storage_manager
+            .save_change_set(
+                block_1.header(),
+                apply_block_result.change_set,
+                ledger_state.into(),
+            )
+            .unwrap();
+        let (storage, _) = storage_manager
+            .create_state_after(block_1.header())
+            .unwrap();
+        storage
     };
 
     {
@@ -251,11 +269,12 @@ fn test_tx_bad_nonce() {
         // Bad nonce means that the transaction has to be reverted
         assert_eq!(tx_receipts[0].receipt, TxEffect::Reverted);
 
-        // We don't expect the sequencer to be slashed for a bad nonce
-        // The reason for this is that in cases such as based sequencing, the sequencer can
-        // still post under the assumption that the nonce is valid (It doesn't know other sequencers
-        // are also doing this) so it needs to be rewarded.
-        // We're asserting that here to track if the logic changes
+        // We don't expect the sequencer to be slashed for a bad nonce.
+        // In cases such as based sequencing, the sequencer can
+        // still post under the assumption that the nonce is valid.
+        // It doesn't know other sequencers are also doing this.
+        // So it needs to be rewarded.
+        // We're asserting that here to track if the logic changes.
         assert_eq!(
             apply_block_result.batch_receipts[0].inner,
             SequencerOutcome::Rewarded(0)
@@ -282,8 +301,14 @@ fn test_tx_bad_serialization() {
             .create_state_for(genesis_block.header())
             .unwrap();
         let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+        storage_manager
+            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+            .unwrap();
 
         let balance = {
+            let (stf_state, _) = storage_manager
+                .create_state_after(genesis_block.header())
+                .unwrap();
             let runtime: RuntimeTest = Runtime::default();
             let mut working_set = WorkingSet::new(stf_state.clone());
 
@@ -300,9 +325,6 @@ fn test_tx_bad_serialization() {
                 )
                 .unwrap()
         };
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
-            .unwrap();
         (genesis_root, balance)
     };
 
@@ -318,7 +340,7 @@ fn test_tx_bad_serialization() {
         let blob_sender = blob.sender();
         let mut blobs = [blob];
 
-        let (storage, _) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let (storage, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             storage,
@@ -342,7 +364,17 @@ fn test_tx_bad_serialization() {
 
         // The batch receipt contains no events.
         assert!(!has_tx_events(&apply_blob_outcome));
-        apply_block_result.change_set
+        storage_manager
+            .save_change_set(
+                block_1.header(),
+                apply_block_result.change_set,
+                ledger_state.into(),
+            )
+            .unwrap();
+        let (storage, _) = storage_manager
+            .create_state_after(block_1.header())
+            .unwrap();
+        storage
     };
 
     {
@@ -410,7 +442,14 @@ fn test_tx_max_gas_price() {
         let (stf_state, ledger_state) = storage_manager
             .create_state_for(genesis_block.header())
             .unwrap();
-        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+        let (genesis_root, stf_change_set) = stf.init_chain(stf_state, config);
+        storage_manager
+            .save_change_set(genesis_block.header(), stf_change_set, ledger_state.into())
+            .unwrap();
+
+        let (stf_state, _ledger_state) =
+            storage_manager.create_state_for(block_1.header()).unwrap();
+
         let mut working_set = WorkingSet::new(stf_state.clone());
 
         let mut gas_price_state = stf
@@ -428,13 +467,6 @@ fn test_tx_max_gas_price() {
         let (rw, witnesses) = working_set.checkpoint().freeze();
         stf_state.validate_and_commit(rw, &witnesses).unwrap();
 
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
-            .unwrap();
-
-        let (stf_state, _ledger_state) =
-            storage_manager.create_state_for(block_1.header()).unwrap();
-
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             stf_state,
@@ -447,7 +479,10 @@ fn test_tx_max_gas_price() {
         let txn_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
-        assert_eq!(apply_block_result.batch_receipts[0].gas_price, gas_price);
-        assert_eq!(txn_receipts[0].receipt, outcome);
+        assert_eq!(
+            gas_price.to_vec(),
+            apply_block_result.batch_receipts[0].gas_price
+        );
+        assert_eq!(outcome, txn_receipts[0].receipt);
     }
 }

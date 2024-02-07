@@ -17,7 +17,7 @@ pub mod jmt {
 }
 
 #[cfg(feature = "native")]
-pub use prover_storage::ProverStorage;
+pub use prover_storage::{ProverChangeSet, ProverStorage};
 pub use zk_storage::ZkStorage;
 
 pub mod config;

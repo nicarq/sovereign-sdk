@@ -34,16 +34,6 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
-    /// Converts it to pair of readonly [`ChangeSet`]s
-    /// First is from [`StateDB`]
-    /// Second is from [`NativeDB`]
-    pub fn freeze(self) -> anyhow::Result<(ChangeSet, ChangeSet)> {
-        let ProverStorage { db, native_db, .. } = self;
-        let state_db_snapshot = db.freeze()?;
-        let native_db_snapshot = native_db.freeze()?;
-        Ok((state_db_snapshot, native_db_snapshot))
-    }
-
     fn read_value(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version());
         match self
@@ -54,6 +44,29 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             // It is ok to panic here, we assume the db is available and consistent.
             Err(e) => panic!("Unable to read value from db: {e}"),
         }
+    }
+}
+
+/// Changeset extracted from [`ProverStorage`]
+pub struct ProverChangeSet {
+    /// [`ChangeSet`] associated with provable state updates.
+    pub state_change_set: ChangeSet,
+    /// [`ChangeSet`] associated with non-provable accessory updates.
+    pub accessory_change_set: ChangeSet,
+}
+
+impl<S: MerkleProofSpec> TryFrom<ProverStorage<S>> for ProverChangeSet {
+    type Error = anyhow::Error;
+
+    fn try_from(prover_storage: ProverStorage<S>) -> Result<Self, Self::Error> {
+        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/122
+        let ProverStorage { db, native_db, .. } = prover_storage;
+        let state_change_set = db.freeze()?;
+        let accessory_change_set = native_db.freeze()?;
+        Ok(ProverChangeSet {
+            state_change_set,
+            accessory_change_set,
+        })
     }
 }
 
@@ -68,6 +81,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
     type Root = jmt::RootHash;
     type StateUpdate = ProverStateUpdate;
+    type ChangeSet = ProverChangeSet;
 
     fn get(
         &self,
@@ -204,6 +218,12 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     // Based on assumption `validate_and_commit` increments version.
     fn is_empty(&self) -> bool {
         self.db.get_next_version() <= 1
+    }
+
+    fn to_change_set(self) -> Self::ChangeSet {
+        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/122
+        ProverChangeSet::try_from(self)
+            .expect("Failed to convert, another RC must exists somewhere")
     }
 }
 

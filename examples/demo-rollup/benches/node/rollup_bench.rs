@@ -49,8 +49,9 @@ fn rollup_bench(_bench: &mut Criterion) {
     let mut storage_manager =
         ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
             .expect("ProverStorage initialization failed");
+    let block_0 = MockBlockHeader::from_height(0);
     let (stf_state, ledger_state) = storage_manager
-        .create_state_for(&MockBlockHeader::from_height(0))
+        .create_state_for(&block_0)
         .expect("Getting genesis storage failed");
 
     let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
@@ -64,12 +65,11 @@ fn rollup_bench(_bench: &mut Criterion) {
     >::new();
 
     let demo_genesis_config = {
-        let integ_test_conf_dir: &Path = "../../test-data/genesis/integration-tests".as_ref();
+        let tests_path: &Path = "../../test-data/genesis/integration-tests".as_ref();
         let rt_params =
-            get_genesis_config::<DefaultContext, _>(&GenesisPaths::from_dir(integ_test_conf_dir))
-                .unwrap();
+            get_genesis_config::<DefaultContext, _>(&GenesisPaths::from_dir(tests_path)).unwrap();
 
-        let chain_state = read_json_file(integ_test_conf_dir.join("chain_state.json")).unwrap();
+        let chain_state = read_json_file(tests_path.join("chain_state.json")).unwrap();
         let kernel_params = BasicKernelGenesisConfig { chain_state };
         GenesisParams {
             runtime: rt_params,
@@ -77,7 +77,11 @@ fn rollup_bench(_bench: &mut Criterion) {
         }
     };
 
-    let (mut current_root, stf_state) = stf.init_chain(stf_state, demo_genesis_config);
+    let (mut current_root, stf_change_set) = stf.init_chain(stf_state, demo_genesis_config);
+
+    storage_manager
+        .save_change_set(&block_0, stf_change_set, ledger_db.clone_change_set())
+        .unwrap();
 
     // data generation
     let mut blobs = vec![];
@@ -94,6 +98,7 @@ fn rollup_bench(_bench: &mut Criterion) {
         blobs.push(blob_txs.clone());
     }
 
+    let (stf_storage, _) = storage_manager.create_state_after(&block_0).unwrap();
     let mut height = 0u64;
     c.bench_function("rollup main loop", |b| {
         b.iter(|| {
@@ -102,7 +107,7 @@ fn rollup_bench(_bench: &mut Criterion) {
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
             let apply_block_result = stf.apply_slot(
                 &current_root,
-                stf_state.clone(),
+                stf_storage.clone(),
                 Default::default(),
                 &filtered_block.header,
                 &filtered_block.validity_cond,

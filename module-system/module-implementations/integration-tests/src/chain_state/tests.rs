@@ -6,7 +6,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{GasUnit, KernelWorkingSet, WorkingSet};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -20,10 +20,11 @@ type C = DefaultContext;
 /// and the state transitions are correctly stored and updated.
 #[test]
 fn test_simple_value_setter_with_chain_state() {
-    // Build an stf blueprint with the module configurations
+    // Build a STF blueprint with the module configurations
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
 
     let stf = StfBlueprint::<
         C,
@@ -46,7 +47,7 @@ fn test_simple_value_setter_with_chain_state() {
     const SALT: u64 = 0;
 
     // Genesis
-    let (init_root_hash, storage) = stf.init_chain(
+    let (init_root_hash, stf_change_set) = stf.init_chain(
         storage,
         create_chain_state_genesis_config::<C, MockDaSpec>(
             admin_pub_key,
@@ -58,6 +59,8 @@ fn test_simple_value_setter_with_chain_state() {
             INIT_BALANCE,
         ),
     );
+    storage_manager.commit(stf_change_set);
+    let storage = storage_manager.create_storage();
 
     let blob = new_test_blob_from_batch(
         BatchWithId {
@@ -86,7 +89,7 @@ fn test_simple_value_setter_with_chain_state() {
         let kernel_working_set = KernelWorkingSet::uninitialized(&mut init_working_set);
 
         let new_height_storage = {
-            // Check the slot number before apply slot
+            // Check the slot number before `apply_slot`
             kernel_working_set.current_slot()
         };
 
@@ -95,7 +98,7 @@ fn test_simple_value_setter_with_chain_state() {
 
     let SlotResult {
         state_root: new_root_hash,
-        change_set: storage,
+        change_set,
         batch_receipts,
         ..
     } = stf.apply_slot(
@@ -106,6 +109,7 @@ fn test_simple_value_setter_with_chain_state() {
         &slot_data.validity_cond,
         &mut [blob.clone()],
     );
+    storage_manager.commit(change_set);
 
     {
         assert_eq!(1, batch_receipts.len());
@@ -117,7 +121,8 @@ fn test_simple_value_setter_with_chain_state() {
         );
 
         // Computes the new working set after slot application
-        let mut working_set = WorkingSet::new(storage.clone());
+        let storage = storage_manager.create_storage();
+        let mut working_set = WorkingSet::new(storage);
 
         let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.chain_state();
 
@@ -163,6 +168,7 @@ fn test_simple_value_setter_with_chain_state() {
         blobs: Default::default(),
     };
 
+    let storage = storage_manager.create_storage();
     let result = stf.apply_slot(
         &new_root_hash,
         storage,
@@ -171,6 +177,7 @@ fn test_simple_value_setter_with_chain_state() {
         &new_slot_data.validity_cond,
         &mut [blob],
     );
+    storage_manager.commit(result.change_set);
 
     #[cfg(test)]
     {
@@ -182,8 +189,9 @@ fn test_simple_value_setter_with_chain_state() {
             "Sequencer execution should have succeeded but failed "
         );
 
+        let storage = storage_manager.create_storage();
         // Computes the new working set after slot application
-        let mut working_set = WorkingSet::new(result.change_set);
+        let mut working_set = WorkingSet::new(storage);
 
         let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.chain_state();
 
