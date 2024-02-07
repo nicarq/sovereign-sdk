@@ -2,10 +2,10 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 
 #[cfg(feature = "native")]
-pub use query::*;
+pub use rpc::*;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
     AccessoryStateValue, CallResponse, Context, Error, Module, ModuleInfo, StateValue, WorkingSet,

@@ -7,9 +7,9 @@ mod genesis;
 mod hooks;
 pub use genesis::*;
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 #[cfg(feature = "native")]
-pub use query::*;
+pub use rpc::*;
 mod event;
 #[cfg(test)]
 mod tests;

@@ -11,12 +11,12 @@ mod event;
 mod genesis;
 mod hooks;
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
 pub use genesis::*;
 #[cfg(feature = "native")]
-pub use query::*;
+pub use rpc::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins};
 use sov_modules_api::prelude::*;

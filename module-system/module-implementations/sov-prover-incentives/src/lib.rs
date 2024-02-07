@@ -8,13 +8,13 @@ mod genesis;
 mod tests;
 
 #[cfg(feature = "native")]
-mod query;
+mod rpc;
 
 pub use call::*;
 pub use genesis::*;
 /// The response type used by RPC queries.
 #[cfg(feature = "native")]
-pub use query::*;
+pub use rpc::*;
 use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet, Zkvm};
 use sov_state::codec::BcsCodec;
 

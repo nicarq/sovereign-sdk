@@ -4,7 +4,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::ZkStorage;
 
 use super::{Event, ValueSetter};
-use crate::{call, query, ValueSetterConfig};
+use crate::{call, rpc, ValueSetterConfig};
 
 #[test]
 fn test_value_setter() {
@@ -57,7 +57,7 @@ fn test_value_setter_helper<C: Context>(
         let query_response = module.query_value(working_set).unwrap();
 
         assert_eq!(
-            query::Response {
+            rpc::Response {
                 value: Some(new_value)
             },
             query_response
