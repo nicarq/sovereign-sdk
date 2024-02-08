@@ -7,7 +7,7 @@ mod gas;
 pub use gas::GasPriceState;
 #[cfg(test)]
 mod tests;
-use sov_modules_api::StateReaderAndWriter;
+use sov_modules_api::{StateAccessor, StateReaderAndWriter};
 
 mod genesis;
 pub use genesis::*;
@@ -241,7 +241,7 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
     /// Return the genesis hash of the module.
     pub fn get_genesis_hash(
         &self,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut impl StateAccessor,
     ) -> Option<<C::Storage as Storage>::Root> {
         self.genesis_hash.get(working_set)
     }
@@ -258,14 +258,17 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
     pub fn get_historical_transitions(
         &self,
         transition_num: TransitionHeight,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut impl StateAccessor,
     ) -> Option<StateTransitionId<C, Da>> {
         self.historical_transitions
             .get(&transition_num, working_set)
     }
 
     /// Returns the parameters used for the gas price computation.
-    pub fn get_gas_price_state(&self, working_set: &mut WorkingSet<C>) -> Option<GasPriceState<C>> {
+    pub fn get_gas_price_state(
+        &self,
+        working_set: &mut impl StateAccessor,
+    ) -> Option<GasPriceState<C>> {
         self.gas_price_state.get(working_set)
     }
 

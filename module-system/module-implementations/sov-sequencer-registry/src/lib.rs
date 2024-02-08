@@ -20,7 +20,10 @@ pub use rpc::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, Context, Error, ModuleInfo, StateMap, StateValue, WorkingSet};
+use sov_modules_api::{
+    CallResponse, Context, Error, ModuleInfo, StateAccessor, StateCheckpoint, StateMap, StateValue,
+    WorkingSet,
+};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
@@ -74,7 +77,15 @@ pub struct SequencerRegistry<C: Context, Da: sov_modules_api::DaSpec> {
 /// Result of applying a blob, from sequencer's point of view.
 pub enum SequencerOutcome<Da: sov_modules_api::DaSpec> {
     /// The blob was applied successfully and the operation is concluded.
-    Completed,
+    Rewarded {
+        /// The number of tokens to award
+        amount: u64,
+    },
+    /// The sequencer incurred a net penalty as a result of invalid (but not provably malicious) trabsactions.
+    Penalized {
+        /// The number of tokens to confiscate
+        amount: u64,
+    },
     /// The blob was *not* applied successfully. The sequencer has been slashed
     /// as a result of the invalid blob.
     Slashed {
@@ -121,7 +132,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequen
 
 impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
     /// Returns the configured amount of [Coins] to lock.
-    pub fn get_coins_to_lock(&self, working_set: &mut WorkingSet<C>) -> Coins<C> {
+    pub fn get_coins_to_lock(&self, working_set: &mut impl StateAccessor) -> Coins<C> {
         self.coins_to_lock.get(working_set).expect(
             "The coins to lock is set and genesis and must always be available. This is a bug!",
         )
@@ -173,8 +184,22 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
     ///
     /// Read about [`SequencerConfig::is_preferred_sequencer`] to learn about
     /// preferred sequencers.
-    pub fn get_preferred_sequencer(&self, working_set: &mut WorkingSet<C>) -> Option<Da::Address> {
+    pub fn get_preferred_sequencer(
+        &self,
+        working_set: &mut impl StateAccessor,
+    ) -> Option<Da::Address> {
         self.preferred_sequencer.get(working_set)
+    }
+
+    /// Resolve a DA address to a rollup address.
+    pub fn resolve_da_address(
+        &self,
+        address: &Da::Address,
+        working_set: &mut impl StateAccessor,
+    ) -> Option<C::Address> {
+        self.allowed_sequencers
+            .get(address, working_set)
+            .map(|s| s.rollup_address)
     }
 
     /// Returns the rollup address of the preferred sequencer, or [`None`] it wasn't set.
@@ -183,7 +208,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
     /// preferred sequencers.
     pub fn get_preferred_sequencer_rollup_address(
         &self,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut impl StateAccessor,
     ) -> Option<C::Address> {
         self.preferred_sequencer.get(working_set).map(|da_addr| {
             self.allowed_sequencers
@@ -211,7 +236,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
     pub fn set_coins_amount_to_lock(
         &self,
         amount: Amount,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         let mut coins_to_lock = self.get_coins_to_lock(working_set);
 
@@ -222,13 +247,23 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
     }
 
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
-    pub fn is_sender_allowed(&self, sender: &Da::Address, working_set: &mut WorkingSet<C>) -> bool {
+    pub fn is_sender_allowed(
+        &self,
+        sender: &Da::Address,
+        working_set: &mut impl StateAccessor,
+    ) -> bool {
         let balance = match self.allowed_sequencers.get(sender, working_set) {
             Some(a) => a.balance,
             None => return false,
         };
 
-        let amount = self.get_coins_to_lock(working_set).amount;
+        let amount = self
+            .coins_to_lock
+            .get(working_set)
+            .expect(
+                "The coins to lock is set and genesis and must always be available. This is a bug!",
+            )
+            .amount;
         if balance < amount {
             return false;
         }
@@ -248,7 +283,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
     }
 
     /// Slash the sequencer with the given address.
-    pub fn slash_sequencer(&self, da_address: &Da::Address, working_set: &mut WorkingSet<C>) {
+    pub fn slash_sequencer(&self, da_address: &Da::Address, working_set: &mut StateCheckpoint<C>) {
         self.delete(da_address, working_set);
     }
 }

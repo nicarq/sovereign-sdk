@@ -54,9 +54,7 @@ fn test_update_account() {
 
     // Test new account creation
     {
-        accounts
-            .create_default_account(&sender, working_set)
-            .unwrap();
+        let _ = accounts.get_or_create_default(&sender, working_set);
 
         let query_response = accounts.get_account(sender.clone(), working_set).unwrap();
 
@@ -110,17 +108,13 @@ fn test_update_account_fails() {
     let sequencer = DefaultPrivateKey::generate().pub_key();
     let sender_context_1 = C::new(sender_1.to_address(), sequencer.to_address(), 1);
 
-    accounts
-        .create_default_account(&sender_1, working_set)
-        .unwrap();
+    let _ = accounts.get_or_create_default(&sender_1, working_set);
 
     let priv_key = DefaultPrivateKey::generate();
     let sender_2 = priv_key.pub_key();
     let sig_2 = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
 
-    accounts
-        .create_default_account(&sender_2, working_set)
-        .unwrap();
+    let _ = accounts.get_or_create_default(&sender_2, working_set);
 
     // The new public key already exists and the call fails.
     assert!(accounts
@@ -144,9 +138,7 @@ fn test_get_account_after_pub_key_update() {
     let sequencer_addr = sequencer.to_address::<<C as Spec>::Address>();
     let sender_context_1 = C::new(sender_1_addr, sequencer_addr, 1);
 
-    accounts
-        .create_default_account(&sender_1, working_set)
-        .unwrap();
+    let _ = accounts.get_or_create_default(&sender_1, working_set);
 
     let priv_key = DefaultPrivateKey::generate();
     let new_pub_key = priv_key.pub_key();

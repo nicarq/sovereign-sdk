@@ -2,7 +2,7 @@ use jsonrpsee::core::RpcResult;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::digest::Digest;
-use sov_modules_api::{Address, DaSpec, Module, Spec, WorkingSet};
+use sov_modules_api::{Address, DaSpec, Module, Spec, StateAccessor, WorkingSet};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 
 pub type C = DefaultContext;
@@ -44,14 +44,14 @@ impl TestSequencer {
     #[allow(dead_code)]
     pub fn query_balance_via_bank(
         &self,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut impl StateAccessor,
     ) -> RpcResult<sov_bank::BalanceResponse> {
-        self.bank.balance_of(
-            None,
+        let amount = self.bank.get_balance_of(
             self.sequencer_config.seq_rollup_address,
             self.sequencer_config.coins_to_lock.token_address,
             working_set,
-        )
+        );
+        Ok(sov_bank::BalanceResponse { amount })
     }
 
     #[allow(dead_code)]
@@ -81,7 +81,7 @@ impl TestSequencer {
     pub fn query_if_sequencer_is_allowed(
         &self,
         user_address: &<Da as DaSpec>::Address,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut impl StateAccessor,
     ) -> bool {
         self.registry.is_sender_allowed(user_address, working_set)
     }

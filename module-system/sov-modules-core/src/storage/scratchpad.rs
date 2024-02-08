@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use core::any::Any;
 use core::{fmt, mem};
 
-pub use kernel_state::{KernelWorkingSet, VersionedWorkingSet};
+pub use kernel_state::{KernelWorkingSet, VersionedStateReadWriter};
 use sov_rollup_interface::maybestd::collections::HashMap;
 
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
@@ -272,7 +272,6 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
 pub struct StateCheckpoint<C: Context> {
     delta: Delta<C::Storage>,
     accessory_delta: AccessoryDelta<C::Storage>,
-    gas_meter: GasMeter<C::GasUnit>,
 }
 
 impl<C: Context> StateCheckpoint<C> {
@@ -282,7 +281,25 @@ impl<C: Context> StateCheckpoint<C> {
         Self {
             delta: Delta::new(inner.clone(), None),
             accessory_delta: AccessoryDelta::new(inner, None),
-            gas_meter: GasMeter::default(),
+        }
+    }
+
+    /// Returns a handler for the accessory state (non-JMT state).
+    ///
+    /// You can use this method when calling getters and setters on accessory
+    /// state containers, like AccessoryStateMap.
+    pub fn accessory_state(&mut self) -> AccessoryStateCheckpoint<C> {
+        AccessoryStateCheckpoint { checkpoint: self }
+    }
+
+    /// Returns a handler for the kernel state (priveleged jmt state)
+    ///
+    /// You can use this method when calling getters and setters on accessory
+    /// state containers, like KernelStateMap.
+    pub fn versioned_state(&mut self, context: &C) -> VersionedStateReadWriter<Self> {
+        VersionedStateReadWriter {
+            ws: self,
+            slot_num: context.visible_slot_number(),
         }
     }
 
@@ -295,17 +312,16 @@ impl<C: Context> StateCheckpoint<C> {
         Self {
             delta: Delta::with_witness(inner.clone(), witness, None),
             accessory_delta: AccessoryDelta::new(inner, None),
-            gas_meter: GasMeter::default(),
         }
     }
 
     /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
-    pub fn to_revertable(self) -> WorkingSet<C> {
+    pub fn to_revertable(self, gas_meter: GasMeter<C::GasUnit>) -> WorkingSet<C> {
         WorkingSet {
             delta: RevertableWriter::new(self.delta, None),
             accessory_delta: RevertableWriter::new(self.accessory_delta, None),
             events: Default::default(),
-            gas_meter: self.gas_meter,
+            gas_meter,
             archival_working_set: None,
             archival_accessory_working_set: None,
         }
@@ -333,6 +349,20 @@ impl<C: Context> StateCheckpoint<C> {
     /// the data extracted with [`StateCheckpoint::freeze`].
     pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
         self.accessory_delta.freeze()
+    }
+}
+
+impl<C: Context> StateReaderAndWriter for StateCheckpoint<C> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        self.delta.get(key)
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        self.delta.set(key, value)
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        self.delta.delete(key)
     }
 }
 
@@ -401,7 +431,7 @@ impl<C: Context> WorkingSet<C> {
     /// The witness value is set to [`Default::default`]. Use
     /// [`WorkingSet::with_witness`] to set a custom witness value.
     pub fn new(inner: <C as Spec>::Storage) -> Self {
-        StateCheckpoint::new(inner).to_revertable()
+        StateCheckpoint::new(inner).to_revertable(Default::default())
     }
 
     /// Returns a handler for the accessory state (non-JMT state).
@@ -438,8 +468,8 @@ impl<C: Context> WorkingSet<C> {
     ///
     /// You can use this method when calling getters and setters on accessory
     /// state containers, like KernelStateMap.
-    pub fn versioned_state(&mut self, context: &C) -> VersionedWorkingSet<C> {
-        VersionedWorkingSet {
+    pub fn versioned_state(&mut self, context: &C) -> VersionedStateReadWriter<Self> {
+        VersionedStateReadWriter {
             ws: self,
             slot_num: context.visible_slot_number(),
         }
@@ -449,8 +479,8 @@ impl<C: Context> WorkingSet<C> {
     ///
     /// You can use this method when calling getters and setters on accessory
     /// state containers, like KernelStateMap.
-    pub fn genesis_versioned_state(&mut self) -> VersionedWorkingSet<C> {
-        VersionedWorkingSet {
+    pub fn genesis_versioned_state(&mut self) -> VersionedStateReadWriter<Self> {
+        VersionedStateReadWriter {
             ws: self,
             slot_num: 0,
         }
@@ -462,28 +492,33 @@ impl<C: Context> WorkingSet<C> {
         inner: <C as Spec>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
     ) -> Self {
-        StateCheckpoint::with_witness(inner, witness).to_revertable()
+        StateCheckpoint::with_witness(inner, witness).to_revertable(Default::default())
     }
 
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
     /// committing the changes to the underlying [`Storage`] via
     /// [`StateCheckpoint::freeze`].
-    pub fn checkpoint(self) -> StateCheckpoint<C> {
-        StateCheckpoint {
-            delta: self.delta.commit(),
-            accessory_delta: self.accessory_delta.commit(),
-            gas_meter: self.gas_meter,
-        }
+    pub fn checkpoint(self) -> (StateCheckpoint<C>, GasMeter<C::GasUnit>, Vec<TypedEvent>) {
+        (
+            StateCheckpoint {
+                delta: self.delta.commit(),
+                accessory_delta: self.accessory_delta.commit(),
+            },
+            self.gas_meter,
+            self.events,
+        )
     }
 
     /// Reverts the most recent changes to this [`WorkingSet`], returning a pristine
     /// [`StateCheckpoint`] instance.
-    pub fn revert(self) -> StateCheckpoint<C> {
-        StateCheckpoint {
-            delta: self.delta.revert(),
-            accessory_delta: self.accessory_delta.revert(),
-            gas_meter: self.gas_meter,
-        }
+    pub fn revert(self) -> (StateCheckpoint<C>, GasMeter<C::GasUnit>) {
+        (
+            StateCheckpoint {
+                delta: self.delta.revert(),
+                accessory_delta: self.accessory_delta.revert(),
+            },
+            self.gas_meter,
+        )
     }
 
     /// Adds a typed event to the working set.
@@ -611,6 +646,30 @@ impl<'a, C: Context> StateReaderAndWriter for AccessoryWorkingSet<'a, C> {
     }
 }
 
+/// A wrapper over [`WorkingSet`] that only allows access to the accessory
+/// state (non-JMT state).
+pub struct AccessoryStateCheckpoint<'a, C: Context> {
+    checkpoint: &'a mut StateCheckpoint<C>,
+}
+
+impl<'a, C: Context> StateReaderAndWriter for AccessoryStateCheckpoint<'a, C> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        if !cfg!(feature = "native") {
+            None
+        } else {
+            self.checkpoint.accessory_delta.get(key)
+        }
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        self.checkpoint.accessory_delta.set(key, value)
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        self.checkpoint.accessory_delta.delete(key)
+    }
+}
+
 /// Module for archival state
 pub mod archival_state {
     use super::*;
@@ -695,64 +754,66 @@ pub mod kernel_state {
         fn current_version(&self) -> u64;
     }
 
-    impl<'a, C: Context> VersionReader for VersionedWorkingSet<'a, C> {
+    impl<'a, S: StateReaderAndWriter> VersionReader for VersionedStateReadWriter<'a, S> {
         fn current_version(&self) -> u64 {
             self.slot_num
         }
     }
 
     /// A wrapper over [`WorkingSet`] that allows access to kernel values
-    pub struct VersionedWorkingSet<'a, C: Context> {
-        pub(super) ws: &'a mut WorkingSet<C>,
+    pub struct VersionedStateReadWriter<'a, S> {
+        pub(super) ws: &'a mut S,
         pub(super) slot_num: u64,
     }
 
-    impl<'a, C: Context> VersionedWorkingSet<'a, C> {
-        /// Instantiates a [`VersionedWorkingSet`] from a kernel working set.
+    impl<'a, C: Context> VersionedStateReadWriter<'a, StateCheckpoint<C>> {
+        /// Instantiates a [`VersionedStateReadWriter`] from a kernel working set.
         /// Sets the `slot_num` to the virtual slot number of the kernel.
-        pub fn from_kernel_ws_virtual<Da: DaSpec>(
+        pub fn from_kernel_ws_virtual(
             kernel_ws: KernelWorkingSet<'a, C>,
-        ) -> VersionedWorkingSet<'a, C> {
-            VersionedWorkingSet {
+        ) -> VersionedStateReadWriter<'a, StateCheckpoint<C>> {
+            VersionedStateReadWriter {
                 ws: kernel_ws.inner,
                 slot_num: kernel_ws.virtual_slot_num,
             }
         }
+    }
 
+    impl<'a, S> VersionedStateReadWriter<'a, S> {
         /// Returns the working slot number
         pub fn slot_num(&self) -> u64 {
             self.slot_num
         }
 
         /// Returns a reference to the inner working set
-        pub fn get_ws(&self) -> &WorkingSet<C> {
+        pub fn get_ws(&self) -> &S {
             self.ws
         }
 
         /// Returns a mutable reference to the inner working set
-        pub fn get_ws_mut(&mut self) -> &mut WorkingSet<C> {
+        pub fn get_ws_mut(&mut self) -> &mut S {
             self.ws
         }
     }
 
-    impl<'a, C: Context> StateReaderAndWriter for VersionedWorkingSet<'a, C> {
+    impl<'a, S: StateReaderAndWriter> StateReaderAndWriter for VersionedStateReadWriter<'a, S> {
         fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-            self.ws.delta.get(key)
+            self.ws.get(key)
         }
 
         fn set(&mut self, key: &StorageKey, value: StorageValue) {
-            self.ws.delta.set(key, value)
+            self.ws.set(key, value)
         }
 
         fn delete(&mut self, key: &StorageKey) {
-            self.ws.delta.delete(key)
+            self.ws.delete(key)
         }
     }
 
     /// A special wrapper over [`WorkingSet`] that allows access to kernel values to bootstrap the kernel working set
     pub struct BootstrapWorkingSet<'a, C: Context> {
         /// The inner working set
-        pub(crate) inner: &'a mut WorkingSet<C>,
+        pub(crate) inner: &'a mut StateCheckpoint<C>,
     }
 
     impl<'a, C: Context> StateReaderAndWriter for BootstrapWorkingSet<'a, C> {
@@ -772,7 +833,7 @@ pub mod kernel_state {
     /// A wrapper over [`WorkingSet`] that allows access to kernel values
     pub struct KernelWorkingSet<'a, C: Context> {
         /// The inner working set
-        pub inner: &'a mut WorkingSet<C>,
+        pub inner: &'a mut StateCheckpoint<C>,
         /// The actual current slot number
         pub(super) true_slot_num: u64,
         /// The slot number visible to user-space modules
@@ -787,14 +848,14 @@ pub mod kernel_state {
 
     impl<'a, C: Context> KernelWorkingSet<'a, C> {
         /// This private method instantiates a bootstrap working set to initialize a kernel
-        fn get_bootstrap(inner: &'a mut WorkingSet<C>) -> BootstrapWorkingSet<'a, C> {
+        fn get_bootstrap(inner: &'a mut StateCheckpoint<C>) -> BootstrapWorkingSet<'a, C> {
             BootstrapWorkingSet { inner }
         }
 
         /// Build a new kernel working set from the associated kernel
         pub fn from_kernel<K: Kernel<C, Da>, Da: DaSpec>(
             kernel: &K,
-            ws: &'a mut WorkingSet<C>,
+            ws: &'a mut StateCheckpoint<C>,
         ) -> Self {
             let mut bootstrapper = KernelWorkingSet::get_bootstrap(ws);
             let true_slot_num = kernel.true_slot_number(&mut bootstrapper);
@@ -808,7 +869,7 @@ pub mod kernel_state {
 
         /// Returns a kernel working set with its heights intiialized to 0.
         /// This is intended to be used for genesis setup only.
-        pub fn uninitialized(ws: &'a mut WorkingSet<C>) -> Self {
+        pub fn uninitialized(ws: &'a mut StateCheckpoint<C>) -> Self {
             Self {
                 inner: ws,
                 true_slot_num: 0,
@@ -878,13 +939,10 @@ where
         }
     }
 
+    /// Commit all items from `RevertableWriter` returning the inner storage.
     fn commit(mut self) -> T {
         for (k, v) in self.writes.into_iter() {
-            if let Some(v) = v {
-                self.inner.set(&k.into(), v.into());
-            } else {
-                self.inner.delete(&k.into());
-            }
+            Self::commit_entry(&mut self.inner, k, v);
         }
 
         self.inner
@@ -892,6 +950,14 @@ where
 
     fn revert(self) -> T {
         self.inner
+    }
+
+    fn commit_entry(inner: &mut T, key: CacheKey, value: Option<CacheValue>) {
+        if let Some(value) = value {
+            inner.set(&key.into(), value.into());
+        } else {
+            inner.delete(&key.into());
+        }
     }
 }
 

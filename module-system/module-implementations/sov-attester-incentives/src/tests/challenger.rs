@@ -4,13 +4,13 @@ use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkvm};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, WorkingSet};
+use sov_modules_core::GasMeter;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::zk::StateTransition;
 
 use crate::call::{AttesterIncentiveErrors, SlashingReason};
 use crate::tests::helpers::{
-    commit_get_new_working_set, execution_simulation, setup, BOND_AMOUNT, INITIAL_BOND_AMOUNT,
-    INIT_HEIGHT,
+    execution_simulation, setup, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
 };
 
 /// Test that given an invalid transition, a challenger can successfully challenge it and get rewarded
@@ -18,16 +18,17 @@ use crate::tests::helpers::{
 fn test_valid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::new(storage.clone());
-    let (module, token_address, attester_address, challenger_address, sequencer) =
-        setup(&mut working_set);
-
-    let (_, working_set) = commit_get_new_working_set(&storage, working_set);
+    let working_set = WorkingSet::new(storage.clone());
+    let (module, token_address, attester_address, challenger_address, sequencer, working_set) =
+        setup(working_set);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
-    let (mut exec_vars, mut working_set) =
-        execution_simulation(3, &module, &storage, attester_address, working_set);
+    let state_checkpoint = working_set.checkpoint().0;
+    let (mut exec_vars, state_checkpoint) =
+        execution_simulation(3, &module, &storage, attester_address, state_checkpoint);
+
+    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
 
     let _ = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();
@@ -169,16 +170,16 @@ fn invalid_proof_helper(
 fn test_invalid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::new(storage.clone());
-    let (module, _token_address, attester_address, challenger_address, sequencer) =
-        setup(&mut working_set);
-
-    let (_, working_set) = commit_get_new_working_set(&storage, working_set);
+    let working_set = WorkingSet::new(storage.clone());
+    let (module, _token_address, attester_address, challenger_address, sequencer, working_set) =
+        setup(working_set);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
-    let (mut exec_vars, mut working_set) =
-        execution_simulation(3, &module, &storage, attester_address, working_set);
+    let state_checkpoint = working_set.checkpoint().0;
+    let (mut exec_vars, state_checkpoint) =
+        execution_simulation(3, &module, &storage, attester_address, state_checkpoint);
+    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
 
     let _ = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();

@@ -2,8 +2,9 @@ use sov_chain_state::{ChainState, ChainStateConfig, StateTransitionId, Transitio
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::da::{BlockHeaderTrait, Time};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Context, GasUnit, KernelModule, KernelWorkingSet, WorkingSet};
+use sov_modules_api::{Context, GasUnit, KernelModule, KernelWorkingSet};
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
+use sov_modules_core::StateCheckpoint;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::Storage;
 
@@ -16,7 +17,7 @@ fn test_simple_chain_state() {
     let tmpdir = tempfile::tempdir().unwrap();
 
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::new(storage.clone());
+    let mut state_checkpoint = StateCheckpoint::new(storage.clone());
 
     let chain_state = ChainState::<DefaultContext, MockDaSpec>::default();
     let initial_gas_price = [2000, 2000];
@@ -34,22 +35,22 @@ fn test_simple_chain_state() {
     chain_state
         .genesis_unchecked(
             &config,
-            &mut KernelWorkingSet::uninitialized(&mut working_set),
+            &mut KernelWorkingSet::uninitialized(&mut state_checkpoint),
         )
         .unwrap();
-    let (reads_writes, witness) = working_set.checkpoint().freeze();
+    let (reads_writes, witness) = state_checkpoint.freeze();
     let genesis_root = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
     // Computes the initial, post genesis, working set
-    let mut base_working_set = WorkingSet::new(storage.clone());
+    let mut base_checkpoint = StateCheckpoint::new(storage.clone());
 
     // Check the slot number before any changes to the state.
     let mock_kernel: MockKernel<DefaultContext, MockDaSpec> = MockKernel::new(0, 0);
     let initial_height = chain_state.true_slot_number(&mut KernelWorkingSet::from_kernel(
         &mock_kernel,
-        &mut base_working_set,
+        &mut base_checkpoint,
     ));
-    let mut working_set = KernelWorkingSet::from_kernel(&mock_kernel, &mut base_working_set);
+    let mut working_set = KernelWorkingSet::from_kernel(&mock_kernel, &mut base_checkpoint);
 
     assert_eq!(initial_height, 0, "The initial height was not computed");
     assert_eq!(
@@ -76,7 +77,7 @@ fn test_simple_chain_state() {
         &genesis_root,
         &mut working_set,
     );
-    chain_state.end_slot_hook(&mut working_set);
+    chain_state.end_slot_hook(&Default::default(), &mut working_set);
 
     // Check that the root hash has been stored correctly
     let stored_root = chain_state.get_genesis_hash(working_set.inner).unwrap();
@@ -117,11 +118,11 @@ fn test_simple_chain_state() {
     );
 
     // We now commit the new state (which updates the root hash)
-    let (reads_writes, witness) = base_working_set.checkpoint().freeze();
+    let (reads_writes, witness) = base_checkpoint.freeze();
     let new_root_hash = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
     // Computes the new working set
-    let mut base_working_set = WorkingSet::new(storage);
+    let mut base_working_set = StateCheckpoint::new(storage);
     let mut working_set = KernelWorkingSet::from_kernel(&mock_kernel, &mut base_working_set);
 
     // And we simulate a new slot application by calling the `begin_slot` hook.
@@ -142,7 +143,7 @@ fn test_simple_chain_state() {
         &new_root_hash,
         &mut working_set,
     );
-    chain_state.end_slot_hook(&mut working_set);
+    chain_state.end_slot_hook(&Default::default(), &mut working_set);
 
     // Check that the slot number has been updated correctly
     let new_height_storage = chain_state.true_slot_number(&mut working_set);
@@ -230,7 +231,7 @@ fn test_simple_chain_state() {
         &new_root_hash,
         &mut working_set,
     );
-    chain_state.end_slot_hook(&mut working_set);
+    chain_state.end_slot_hook(&Default::default(), &mut working_set);
 
     // Check that the slot number has been updated correctly
     let new_height_storage = chain_state.true_slot_number(&mut working_set);

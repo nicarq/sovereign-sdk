@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::{Context, Prefix, StateCodec, StateKeyCodec, StateValueCodec, WorkingSet};
+use sov_modules_core::{Prefix, StateValueCodec};
 use sov_state::codec::BorshCodec;
 
-use super::traits::{StateValueAccessor, StateVecAccessor, StateVecPrivateAccessor};
 use crate::containers::{StateMap, StateValue};
 
 /// A growable array of values stored as JMT-backed state.
@@ -18,9 +17,9 @@ use crate::containers::{StateMap, StateValue};
 )]
 pub struct StateVec<V, Codec = BorshCodec> {
     _phantom: PhantomData<V>,
-    prefix: Prefix,
-    len_value: StateValue<usize, Codec>,
-    elems: StateMap<usize, V, Codec>,
+    pub(crate) prefix: Prefix,
+    pub(crate) len_value: StateValue<usize, Codec>,
+    pub(crate) elems: StateMap<usize, V, Codec>,
 }
 
 impl<V, Codec: Clone> StateVec<V, Codec> {
@@ -49,43 +48,6 @@ where
     /// [`StateValueCodec`] (i.e. [`BorshCodec`]).
     pub fn new(prefix: Prefix) -> Self {
         Self::with_codec(prefix, BorshCodec)
-    }
-}
-
-impl<V, Codec, C> StateVecPrivateAccessor<V, Codec, WorkingSet<C>> for StateVec<V, Codec>
-where
-    Codec: StateCodec + Clone,
-    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
-    Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
-{
-    type ElemsMap = StateMap<usize, V, Codec>;
-
-    type LenValue = StateValue<usize, Codec>;
-
-    fn set_len(&self, length: usize, working_set: &mut WorkingSet<C>) {
-        self.len_value.set(&length, working_set);
-    }
-
-    fn elems(&self) -> &Self::ElemsMap {
-        &self.elems
-    }
-
-    fn len_value(&self) -> &Self::LenValue {
-        &self.len_value
-    }
-}
-
-impl<V, Codec, C> StateVecAccessor<V, Codec, WorkingSet<C>> for StateVec<V, Codec>
-where
-    Codec: StateCodec + Clone,
-    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
-    Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
-{
-    /// Returns the prefix used when this [`StateVec`] was created.
-    fn prefix(&self) -> &Prefix {
-        &self.prefix
     }
 }
 

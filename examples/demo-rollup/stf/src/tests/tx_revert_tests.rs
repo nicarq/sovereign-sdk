@@ -267,18 +267,18 @@ fn test_tx_bad_nonce() {
         assert_eq!(1, apply_block_result.batch_receipts.len());
         let tx_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();
         // Bad nonce means that the transaction has to be reverted
-        assert_eq!(tx_receipts[0].receipt, TxEffect::Reverted);
+        assert_eq!(tx_receipts[0].receipt, TxEffect::Duplicate);
 
-        // We don't expect the sequencer to be slashed for a bad nonce.
-        // In cases such as based sequencing, the sequencer can
-        // still post under the assumption that the nonce is valid.
-        // It doesn't know other sequencers are also doing this.
-        // So it needs to be rewarded.
-        // We're asserting that here to track if the logic changes.
-        assert_eq!(
-            apply_block_result.batch_receipts[0].inner,
-            SequencerOutcome::Rewarded(0)
-        );
+        // We don't slash the sequencer for a bad nonce, since the nonce change might have
+        // happened while the transaction was in-flight. However, we do *penalize* the sequencer
+        // in this case.
+        // We're asserting that here to track if the logic changes
+        let sequencer_outcome = apply_block_result.batch_receipts[0].inner.clone();
+        match sequencer_outcome {
+            SequencerOutcome::Rewarded(amount) => assert_eq!(amount, 0), // If the gas price is zero, the sequencer might not be rewarded or penalized.
+            SequencerOutcome::Penalized(amount) => assert!(amount > 0),
+            _ => panic!("Sequencer should have been penalized"),
+        }
     }
 }
 
@@ -310,7 +310,7 @@ fn test_tx_bad_serialization() {
                 .create_state_after(genesis_block.header())
                 .unwrap();
             let runtime: RuntimeTest = Runtime::default();
-            let mut working_set = WorkingSet::new(stf_state.clone());
+            let mut working_set = WorkingSet::<DefaultContext>::new(stf_state.clone());
 
             let coins = runtime
                 .sequencer_registry
@@ -419,7 +419,7 @@ fn test_tx_max_gas_price() {
     // max gas price check
     let gas_price = [1000, 1000];
     let tx_max_price = [500, 500];
-    let outcome = TxEffect::Skipped;
+    let outcome = TxEffect::InsufficientBaseGas;
     run_test(gas_price, tx_max_price, outcome);
 
     fn run_test(gas_price: [u64; 2], tx_max_price: [u64; 2], outcome: TxEffect) {
@@ -464,7 +464,7 @@ fn test_tx_max_gas_price() {
             .chain_state()
             .set_gas_price_state(&gas_price_state, &mut working_set);
 
-        let (rw, witnesses) = working_set.checkpoint().freeze();
+        let (rw, witnesses) = working_set.checkpoint().0.freeze();
         stf_state.validate_and_commit(rw, &witnesses).unwrap();
 
         let apply_block_result = stf.apply_slot(

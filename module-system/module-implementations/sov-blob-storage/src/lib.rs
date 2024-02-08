@@ -15,8 +15,8 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
-    KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, StateMap, StateMapAccessor,
-    WorkingSet,
+    KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, StateCheckpoint, StateMap,
+    StateMapAccessor,
 };
 use sov_state::codec::BcsCodec;
 
@@ -63,7 +63,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
         &self,
         slot_number: TransitionHeight,
         batches: &Vec<(BatchWithId, Da::Address)>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut StateCheckpoint<C>,
     ) {
         self.deferred_blobs.set(&slot_number, batches, working_set);
     }
@@ -72,17 +72,17 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
     /// Returned blobs are removed from the storage
     pub fn take_blobs_for_slot_number(
         &self,
-        slot_number: TransitionHeight,
-        working_set: &mut WorkingSet<C>,
+        slot_height: TransitionHeight,
+        working_set: &mut StateCheckpoint<C>,
     ) -> Vec<(BatchWithId, Da::Address)> {
         self.deferred_blobs
-            .remove(&slot_number, working_set)
+            .remove(&slot_height, working_set)
             .unwrap_or_default()
     }
 
     pub(crate) fn get_preferred_sequencer(
         &self,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut StateCheckpoint<C>,
     ) -> Option<Da::Address> {
         self.sequencer_registry.get_preferred_sequencer(working_set)
     }

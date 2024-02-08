@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, Module, StateMapAccessor, WorkingSet};
+use sov_modules_api::{CallResponse, Module, StateAccessor, StateMapAccessor, WorkingSet};
 
 use crate::event::Event;
 use crate::{Amount, Bank, Coins, Token};
@@ -235,7 +235,7 @@ impl<C: sov_modules_api::Context> Bank<C> {
         from: &C::Address,
         to: &C::Address,
         coins: Coins<C>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut impl StateAccessor,
     ) -> Result<CallResponse> {
         let context_logger = || {
             format!(
@@ -260,7 +260,7 @@ impl<C: sov_modules_api::Context> Bank<C> {
         &self,
         user_address: C::Address,
         token_address: C::Address,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut impl StateAccessor,
     ) -> Option<u64> {
         self.tokens
             .get(&token_address, working_set)

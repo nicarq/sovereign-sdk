@@ -4,7 +4,7 @@ use borsh::BorshDeserialize;
 use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::runtime::capabilities::BatchSelector;
-use sov_modules_api::{BlobReaderTrait, Context, DaSpec, KernelWorkingSet, WorkingSet};
+use sov_modules_api::{BlobReaderTrait, Context, DaSpec, KernelWorkingSet, StateCheckpoint};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -24,7 +24,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub(crate) fn blob_is_allowed(
         &self,
         b: &Da::BlobTransaction,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut StateCheckpoint<C>,
     ) -> bool {
         // TODO(@vlopes11): Add gas check
         self.sequencer_registry
@@ -32,7 +32,11 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     }
 
     /// Slash a particular sequencer.
-    pub(crate) fn slash_sequencer(&self, sender: &Da::Address, working_set: &mut WorkingSet<C>) {
+    pub(crate) fn slash_sequencer(
+        &self,
+        sender: &Da::Address,
+        working_set: &mut StateCheckpoint<C>,
+    ) {
         self.sequencer_registry.slash_sequencer(sender, working_set)
     }
 
@@ -43,7 +47,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
         preferred_batch: PreferredBatch,
         next_sequence_number: SequenceNumber,
         blob: &Da::BlobTransaction,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut StateCheckpoint<C>,
     ) -> Option<PreferredBatchWithId> {
         match preferred_batch.sequence_number.cmp(&next_sequence_number) {
             Ordering::Equal => {
@@ -400,7 +404,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub(crate) fn deserialize_or_slash_sender<B: BorshDeserialize>(
         &self,
         blob: &mut Da::BlobTransaction,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut StateCheckpoint<C>,
     ) -> Option<B> {
         let batch = self.deserialize_batch::<B>(blob);
         match batch {

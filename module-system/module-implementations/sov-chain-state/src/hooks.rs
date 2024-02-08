@@ -1,21 +1,21 @@
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::FinalizeHook;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryWorkingSet, Context, GasUnit, Spec};
+use sov_modules_api::{AccessoryStateCheckpoint, Context, GasUnit, Spec};
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
 
 use crate::{ChainState, StateTransitionId, TransitionInProgress};
 
 impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
-    /// Update the chain state at the beginning of the slot
+    /// Update the chain state at the beginning of the slot. Compute the next gas price
     pub fn begin_slot_hook(
         &self,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
         working_set: &mut KernelWorkingSet<C>,
-    ) {
+    ) -> C::GasUnit {
         if self.genesis_hash.get(working_set.inner).is_none() {
             // The genesis hash is not set, hence this is the
             // first transition right after the genesis block
@@ -42,7 +42,8 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
             };
 
             let slot_number = self.true_slot_number(working_set);
-            self.store_state_transition(slot_number, transition, working_set.inner);
+            self.historical_transitions
+                .set(&slot_number, &transition, working_set.inner);
         }
 
         // Since we increment the true slot number, we have to update the working set.
@@ -67,16 +68,17 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
             },
             working_set,
         );
+        gas_price_state.price
     }
 
     /// Update the chain state at the end of each slot, if necessary
-    pub fn end_slot_hook(&self, working_set: &mut KernelWorkingSet<C>) {
+    pub fn end_slot_hook(&self, gas_used: &C::GasUnit, working_set: &mut KernelWorkingSet<C>) {
         let mut in_progress_transition = self
             .in_progress_transition
             .get_current(working_set)
             .expect("There should always be a transition in progress");
 
-        in_progress_transition.gas_used = working_set.inner.gas_used().clone();
+        in_progress_transition.gas_used = gas_used.clone();
         self.in_progress_transition
             .set_current(&in_progress_transition, working_set);
     }
@@ -88,7 +90,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook for ChainState<C, Da>
     fn finalize_hook(
         &self,
         _root_hash: &<C::Storage as Storage>::Root,
-        _accesorry_working_set: &mut AccessoryWorkingSet<C>,
+        _accesorry_working_set: &mut AccessoryStateCheckpoint<C>,
     ) {
     }
 }

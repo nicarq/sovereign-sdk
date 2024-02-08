@@ -21,7 +21,7 @@ fn test_value_setter() {
         test_value_setter_helper(context, &config, &mut working_set);
     }
 
-    let (_, witness) = working_set.checkpoint().freeze();
+    let (_, witness) = working_set.checkpoint().0.freeze();
 
     // Test Zk-Context
     {

@@ -10,7 +10,7 @@ use sov_state::codec::BorshCodec;
 
 /// A `versioned` value stored in kernel state. The semantics of this type are different
 /// depending on the priveleges of the accessor. For a standard ("user space") interaction
-/// via a `VersionedWorkingSet`, only one version of this value is accessible. Inside the kernel,
+/// via a `VersionedStateReadWriter`, only one version of this value is accessible. Inside the kernel,
 /// (where access is mediated by a [`KernelWorkingSet`]), all versions of this value are accessible.
 ///
 /// Under the hood, a versioned value is implemented as a map from a slot number to a value. From the kernel, any
@@ -276,7 +276,7 @@ mod as_kernel_map {
 mod tests {
     use sov_mock_da::MockDaSpec;
     use sov_modules_core::capabilities::mocks::MockKernel;
-    use sov_modules_core::{Address, Context, KernelWorkingSet, Prefix, WorkingSet};
+    use sov_modules_core::{Address, Context, KernelWorkingSet, Prefix, StateCheckpoint};
     use sov_prover_storage_manager::new_orphan_storage;
 
     use crate::default_context::DefaultContext;
@@ -286,7 +286,7 @@ mod tests {
         use crate::StateValueAccessor;
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage);
+        let mut working_set = StateCheckpoint::new(storage);
 
         let prefix = Prefix::new(b"test".to_vec());
         let value = VersionedStateValue::<u64>::new(prefix.clone());
@@ -321,7 +321,7 @@ mod tests {
     fn test_kernel_state_value_as_map() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage);
+        let mut working_set = StateCheckpoint::new(storage);
 
         let prefix = Prefix::new(b"test".to_vec());
         let value = VersionedStateValue::<u64>::new(prefix.clone());

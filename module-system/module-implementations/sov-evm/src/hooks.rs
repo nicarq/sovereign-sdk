@@ -1,6 +1,8 @@
 use reth_primitives::{Bloom, Bytes, H256, U256};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryWorkingSet, DaSpec, Spec, VersionedWorkingSet, WorkingSet};
+use sov_modules_api::{
+    AccessoryStateCheckpoint, DaSpec, Spec, StateCheckpoint, VersionedStateReadWriter,
+};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
@@ -15,7 +17,7 @@ where
     pub fn begin_slot_hook(
         &self,
         pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
-        versioned_working_set: &mut VersionedWorkingSet<C>,
+        versioned_working_set: &mut VersionedStateReadWriter<StateCheckpoint<C>>,
     ) {
         let mut parent_block = self
             .head
@@ -56,7 +58,7 @@ where
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
-    pub fn end_slot_hook(&self, working_set: &mut WorkingSet<C>) {
+    pub fn end_slot_hook(&self, working_set: &mut StateCheckpoint<C>) {
         let cfg = self.cfg.get(working_set).unwrap_or_default();
 
         let block_env = self
@@ -172,7 +174,7 @@ where
     pub fn finalize_hook(
         &self,
         root_hash: &<<C as Spec>::Storage as Storage>::Root,
-        accessory_working_set: &mut AccessoryWorkingSet<C>,
+        accessory_working_set: &mut AccessoryStateCheckpoint<C>,
     ) {
         let expected_block_number = self.blocks.len(accessory_working_set) as u64;
 

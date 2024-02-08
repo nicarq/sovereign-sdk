@@ -78,7 +78,7 @@ pub trait GasUnit:
                 let base_price = *base_price as i64;
 
                 // avoid undeterministic behavior of floating pointers
-                let elasticity = target / maximum_elasticity;
+                let elasticity = (target / maximum_elasticity).max(1);
                 let factor = elasticity.saturating_add(used).saturating_sub(target);
                 let value = base_price.saturating_mul(factor);
                 let value = (value / elasticity) as u64;
@@ -256,15 +256,32 @@ where
     /// Deducts the provided gas unit from the remaining funds, computing the scalar value of the
     /// funds from the price of the instance.
     pub fn charge_gas(&mut self, gas: &GU) -> Result<()> {
-        self.gas_used.combine(gas);
-
-        let gas = gas.value(&self.gas_price);
+        // Check that there's enough gas to cover the cost before mutating the gas_used counter.
+        // This ensures that in the corner case where...
+        //  - User wants to do expensive operation
+        //  - User does not have enough gas left
+        // ... the check fails and the user does not lose any gas - which is what we want
+        // since the operation won't be performed.
+        //
+        // This also ensures that the `gas_used` stays in sync with the `remaining_funds` counter.
+        let funds_to_charge = gas.value(&self.gas_price);
         self.remaining_funds = self
             .remaining_funds
-            .checked_sub(gas)
+            .checked_sub(funds_to_charge)
             .ok_or_else(|| anyhow::anyhow!("Not enough gas"))?;
 
+        self.gas_used.combine(gas);
+
         Ok(())
+    }
+
+    /// Returns a gas meter which does not charge for gas.
+    pub fn unmetered() -> Self {
+        Self {
+            remaining_funds: u64::MAX,
+            gas_price: GU::ZEROED,
+            gas_used: GU::ZEROED,
+        }
     }
 }
 

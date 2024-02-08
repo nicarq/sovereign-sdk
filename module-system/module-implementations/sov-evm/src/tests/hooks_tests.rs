@@ -4,7 +4,10 @@ use reth_primitives::{
     Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, EMPTY_OMMER_ROOT,
     H256, KECCAK_EMPTY, U256,
 };
-use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet};
+use sov_modules_api::{
+    KernelWorkingSet, StateCheckpoint, StateMapAccessor, StateValueAccessor, StateVecAccessor,
+    VersionedStateReadWriter,
+};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use super::genesis_tests::{setup, TEST_CONFIG};
@@ -22,10 +25,13 @@ lazy_static! {
 #[test]
 fn begin_slot_hook_creates_pending_block() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&TEST_CONFIG, &mut working_set);
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut working_set);
-    let pending_block = evm.block_env.get(working_set.get_ws_mut()).unwrap();
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
+    let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    temp_kernel.update_virtual_height(1);
+    let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
+    let pending_block = evm.block_env.get(&mut state_checkpoint).unwrap();
     assert_eq!(
         pending_block,
         BlockEnv {
@@ -42,25 +48,28 @@ fn begin_slot_hook_creates_pending_block() {
 #[test]
 fn end_slot_hook_sets_head() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&TEST_CONFIG, &mut working_set);
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut working_set);
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
+    let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    temp_kernel.update_virtual_height(1);
+    let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
 
     evm.pending_transactions.push(
         &create_pending_transaction(H256::from([1u8; 32]), 1),
-        working_set.get_ws_mut(),
+        &mut state_checkpoint,
     );
 
     evm.pending_transactions.push(
         &create_pending_transaction(H256::from([2u8; 32]), 2),
-        working_set.get_ws_mut(),
+        &mut state_checkpoint,
     );
 
-    evm.end_slot_hook(working_set.get_ws_mut());
-    let head = evm.head.get(working_set.get_ws_mut()).unwrap();
+    evm.end_slot_hook(&mut state_checkpoint);
+    let head = evm.head.get(&mut state_checkpoint).unwrap();
     let pending_head = evm
         .pending_head
-        .get(&mut working_set.get_ws_mut().accessory_state())
+        .get(&mut state_checkpoint.accessory_state())
         .unwrap();
 
     assert_eq!(head, pending_head);
@@ -103,52 +112,53 @@ fn end_slot_hook_sets_head() {
 #[test]
 fn end_slot_hook_moves_transactions_and_receipts() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&TEST_CONFIG, &mut working_set);
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut working_set);
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
+    let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    temp_kernel.update_virtual_height(1);
+    let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
 
     let tx1 = create_pending_transaction(H256::from([1u8; 32]), 1);
-    evm.pending_transactions
-        .push(&tx1, working_set.get_ws_mut());
+    evm.pending_transactions.push(&tx1, &mut state_checkpoint);
 
     let tx2 = create_pending_transaction(H256::from([2u8; 32]), 2);
-    evm.pending_transactions
-        .push(&tx2, working_set.get_ws_mut());
+    evm.pending_transactions.push(&tx2, &mut state_checkpoint);
 
-    evm.end_slot_hook(working_set.get_ws_mut());
+    evm.end_slot_hook(&mut state_checkpoint);
 
     let tx1_hash = tx1.transaction.signed_transaction.hash;
     let tx2_hash = tx2.transaction.signed_transaction.hash;
 
     assert_eq!(
         evm.transactions
-            .iter(&mut working_set.get_ws_mut().accessory_state())
+            .iter(&mut state_checkpoint.accessory_state())
             .collect::<Vec<_>>(),
         [tx1.transaction, tx2.transaction]
     );
 
     assert_eq!(
         evm.receipts
-            .iter(&mut working_set.get_ws_mut().accessory_state())
+            .iter(&mut state_checkpoint.accessory_state())
             .collect::<Vec<_>>(),
         [tx1.receipt, tx2.receipt]
     );
 
     assert_eq!(
         evm.transaction_hashes
-            .get(&tx1_hash, &mut working_set.get_ws_mut().accessory_state())
+            .get(&tx1_hash, &mut state_checkpoint.accessory_state())
             .unwrap(),
         0
     );
 
     assert_eq!(
         evm.transaction_hashes
-            .get(&tx2_hash, &mut working_set.get_ws_mut().accessory_state())
+            .get(&tx2_hash, &mut state_checkpoint.accessory_state())
             .unwrap(),
         1
     );
 
-    assert_eq!(evm.pending_transactions.len(working_set.get_ws_mut()), 0);
+    assert_eq!(evm.pending_transactions.len(&mut state_checkpoint), 0);
 }
 
 fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
@@ -189,29 +199,36 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
 #[test]
 fn finalize_hook_creates_final_block() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&TEST_CONFIG, &mut working_set);
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
     let p = [10u8; 32].into();
-    evm.begin_slot_hook(&p, &mut working_set);
+    let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    temp_kernel.update_virtual_height(1);
+    let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
+    evm.begin_slot_hook(&p, &mut versioned_ws);
     evm.pending_transactions.push(
         &create_pending_transaction(H256::from([1u8; 32]), 1),
-        working_set.get_ws_mut(),
+        &mut state_checkpoint,
     );
     evm.pending_transactions.push(
         &create_pending_transaction(H256::from([2u8; 32]), 2),
-        working_set.get_ws_mut(),
+        &mut state_checkpoint,
     );
-    evm.end_slot_hook(working_set.get_ws_mut());
+    evm.end_slot_hook(&mut state_checkpoint);
 
     let root_hash = [99u8; 32].into();
 
-    let mut accessory_state = working_set.get_ws_mut().accessory_state();
+    let mut accessory_state = state_checkpoint.accessory_state();
     evm.finalize_hook(&root_hash, &mut accessory_state);
     assert_eq!(evm.blocks.len(&mut accessory_state), 2);
 
-    evm.begin_slot_hook(&root_hash, &mut working_set);
+    let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    temp_kernel.update_virtual_height(1); // Because we haven't invoked the chain-state hooks, re-use the block number
+    let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
 
-    let mut accessory_state = working_set.get_ws_mut().accessory_state();
+    evm.begin_slot_hook(&root_hash, &mut versioned_ws);
+
+    let mut accessory_state = state_checkpoint.accessory_state();
 
     let parent_block = evm.blocks.get(0usize, &mut accessory_state).unwrap();
     let parent_hash = parent_block.header.hash;

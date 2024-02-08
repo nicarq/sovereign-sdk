@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use sov_modules_core::{
-    AccessoryWorkingSet, Context, Prefix, StateCodec, StateKeyCodec, StateValueCodec,
+    AccessoryStateCheckpoint, AccessoryWorkingSet, Context, Prefix, StateCodec, StateKeyCodec,
+    StateValueCodec,
 };
 use sov_state::codec::BorshCodec;
 
@@ -51,7 +52,6 @@ where
     type ElemsMap = AccessoryStateMap<usize, V, Codec>;
 
     type LenValue = AccessoryStateValue<usize, Codec>;
-
     fn set_len(&self, length: usize, working_set: &mut AccessoryWorkingSet<'a, C>) {
         self.len_value.set(&length, working_set);
     }
@@ -64,8 +64,46 @@ where
         &self.len_value
     }
 }
-
 impl<'a, V, Codec, C> StateVecAccessor<V, Codec, AccessoryWorkingSet<'a, C>>
+    for AccessoryStateVec<V, Codec>
+where
+    Codec: StateCodec + Clone,
+    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
+    Codec::KeyCodec: StateKeyCodec<usize>,
+    C: Context,
+{
+    /// Returns the prefix used when this vector was created.
+    fn prefix(&self) -> &Prefix {
+        &self.prefix
+    }
+}
+
+impl<'a, V, Codec, C> StateVecPrivateAccessor<V, Codec, AccessoryStateCheckpoint<'a, C>>
+    for AccessoryStateVec<V, Codec>
+where
+    Codec: StateCodec + Clone,
+    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
+    Codec::KeyCodec: StateKeyCodec<usize>,
+    C: Context,
+{
+    type ElemsMap = AccessoryStateMap<usize, V, Codec>;
+
+    type LenValue = AccessoryStateValue<usize, Codec>;
+
+    fn set_len(&self, length: usize, working_set: &mut AccessoryStateCheckpoint<'a, C>) {
+        self.len_value.set(&length, working_set);
+    }
+
+    fn elems(&self) -> &Self::ElemsMap {
+        &self.elems
+    }
+
+    fn len_value(&self) -> &Self::LenValue {
+        &self.len_value
+    }
+}
+
+impl<'a, V, Codec, C> StateVecAccessor<V, Codec, AccessoryStateCheckpoint<'a, C>>
     for AccessoryStateVec<V, Codec>
 where
     Codec: StateCodec + Clone,

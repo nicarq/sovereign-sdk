@@ -1,67 +1,90 @@
-use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, PublicKey, StateAccessor, StateCheckpoint, StateMapAccessor};
 
 use crate::{Account, Accounts};
 
-/// The computed addresses of a pre-dispatch tx hook.
-pub struct AccountsTxHook<C: Context> {
-    /// The tx sender address
-    pub sender: C::Address,
-    /// The sequencer address
-    pub sequencer: C::Address,
-}
-
 impl<C: Context> Accounts<C> {
-    fn get_or_create_default(
+    /// Unconditionally fetches the address associated with the provided public key. If the account
+    /// did not previously exist, the default public key is returned but no new account is created.
+    pub fn get_address(
         &self,
         pubkey: &C::PublicKey,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<Account<C>> {
+        working_set: &mut StateCheckpoint<C>,
+    ) -> C::Address {
         self.accounts
             .get(pubkey, working_set)
-            .map(Ok)
-            .unwrap_or_else(|| self.create_default_account(pubkey, working_set))
+            .map(|a| a.addr)
+            .unwrap_or(pubkey.to_address())
     }
-}
 
-impl<C: Context> TxHooks for Accounts<C> {
-    type Context = C;
-    type PreArg = C::PublicKey;
-    type PreResult = AccountsTxHook<C>;
+    pub(crate) fn get_or_create_default(
+        &self,
+        pub_key: &C::PublicKey,
+        working_set: &mut impl StateAccessor,
+    ) -> Account<C>
+where {
+        if let Some(acct) = self.accounts.get(pub_key, working_set) {
+            acct
+        } else {
+            let default_address: C::Address = pub_key.to_address();
 
-    fn pre_dispatch_tx_hook(
+            let new_account = Account {
+                addr: default_address.clone(),
+                nonce: 0,
+            };
+
+            self.accounts.set(pub_key, &new_account, working_set);
+
+            self.public_keys.set(&default_address, pub_key, working_set);
+            new_account
+        }
+    }
+
+    /// Checks that a transaction is not a duplicate
+    // TODO(@preston-evans98): Enforce that this is read-only
+    pub fn check_uniqueness(
         &self,
         tx: &Transaction<C>,
-        working_set: &mut WorkingSet<C>,
-        sequencer: &C::PublicKey,
-    ) -> anyhow::Result<AccountsTxHook<C>> {
-        let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
-        let sequencer = self.get_or_create_default(sequencer, working_set)?;
+        _context: &C,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    ) -> Result<(), anyhow::Error> {
+        // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
+        // This will require a change to the account state layout
+        let sender_nonce = self
+            .accounts
+            .get(tx.pub_key(), state_checkpoint)
+            .map(|a| a.nonce)
+            .unwrap_or(0);
         let tx_nonce = tx.nonce();
 
         anyhow::ensure!(
-            sender.nonce == tx_nonce,
+            sender_nonce == tx_nonce,
             "Tx bad nonce, expected: {}, but found: {}",
             tx_nonce,
-            sender.nonce
+            sender_nonce
         );
-
-        Ok(AccountsTxHook {
-            sender: sender.addr,
-            sequencer: sequencer.addr,
-        })
+        Ok(())
     }
 
-    fn post_dispatch_tx_hook(
+    /// Marks a transaction as attempted, ensuring that future attempts at execution will fail
+    pub fn mark_tx_attempted(
         &self,
-        tx: &Transaction<Self::Context>,
-        _ctx: &C,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
-        let mut account = self.accounts.get_or_err(tx.pub_key(), working_set)?;
+        tx: &Transaction<C>,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    ) {
+        // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
+        // This will require a change to the account state layout
+        let mut account = self.get_or_create_default(tx.pub_key(), state_checkpoint);
         account.nonce += 1;
-        self.accounts.set(tx.pub_key(), &account, working_set);
-        Ok(())
+        self.accounts.set(tx.pub_key(), &account, state_checkpoint);
+    }
+
+    /// Resolve the sender public key to an address
+    pub fn resolve_sender_address(
+        &self,
+        tx: &Transaction<C>,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    ) -> C::Address {
+        self.get_address(tx.pub_key(), state_checkpoint)
     }
 }

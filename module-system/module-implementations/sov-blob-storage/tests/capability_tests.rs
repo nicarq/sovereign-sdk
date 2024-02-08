@@ -13,7 +13,7 @@ use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHo
 use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, KernelWorkingSet,
-    MessageCodec, Module, Spec, WorkingSet,
+    MessageCodec, Module, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -158,8 +158,8 @@ fn do_deferred_blob_test(
     let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(true);
 
     // Define the kernel
-    let mut working_set = WorkingSet::new(current_storage.clone());
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut working_set);
+    let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     let test_kernel = SoftConfirmationsKernel::<C, Da>::default();
     test_kernel
         .genesis(
@@ -258,10 +258,10 @@ fn do_deferred_blob_test(
             &slot_data.header,
             &slot_data.validity_cond,
             &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
-            &mut working_set,
+            &mut state_checkpoint,
         );
 
-        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
 
         let batches_to_execute = test_kernel
             .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
@@ -423,8 +423,8 @@ fn test_recovery_mode() {
     let (current_storage, runtime, genesis_root) = TestRuntime::pre_initialized(true);
 
     // Define the kernel
-    let mut working_set = WorkingSet::new(current_storage.clone());
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut working_set);
+    let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     let test_kernel = SoftConfirmationsKernel::<C, Da>::default();
     test_kernel
         .genesis(
@@ -469,9 +469,9 @@ fn test_recovery_mode() {
             &slot_data.header,
             &slot_data.validity_cond,
             &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
-            &mut working_set,
+            &mut state_checkpoint,
         );
-        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
             .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
             .unwrap();
@@ -482,7 +482,7 @@ fn test_recovery_mode() {
     {
         runtime
             .sequencer_registry
-            .slash_sequencer(&PREFERRED_SEQUENCER_DA, &mut working_set);
+            .slash_sequencer(&PREFERRED_SEQUENCER_DA, &mut state_checkpoint);
     }
 
     // Ensure that the virtual slot advances two-at a time until it catches up
@@ -502,9 +502,9 @@ fn test_recovery_mode() {
             &slot_data.header,
             &slot_data.validity_cond,
             &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
-            &mut working_set,
+            &mut state_checkpoint,
         );
-        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
             .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
             .unwrap();
@@ -536,10 +536,10 @@ fn test_recovery_mode() {
 #[test]
 fn test_blobs_from_non_registered_sequencers_are_not_saved() {
     let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(true);
-    let mut working_set = WorkingSet::new(current_storage.clone());
+    let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
 
     // Define the kernel
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut working_set);
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     let test_kernel = BasicKernel::<C, Da>::default();
     test_kernel
         .genesis(
@@ -584,10 +584,10 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
             &slot_data.header,
             &slot_data.validity_cond,
             &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
-            &mut working_set,
+            &mut state_checkpoint,
         );
 
-        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
             .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
             .unwrap();
@@ -603,10 +603,10 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
 #[test]
 fn test_based_sequencing() {
     let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(false);
-    let mut working_set = WorkingSet::new(current_storage.clone());
+    let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
 
     // Define the kernel
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut working_set);
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     let test_kernel = BasicKernel::<C, Da>::default();
     test_kernel
         .genesis(
@@ -656,9 +656,9 @@ fn test_based_sequencing() {
         &slot_1_data.header,
         &slot_1_data.validity_cond,
         &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
-        &mut working_set,
+        &mut state_checkpoint,
     );
-    kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+    kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
     let mut execute_in_slot_1 = test_kernel
         .get_batches_for_this_slot(&mut slot_1_data.blobs, &mut kernel_working_set)
         .unwrap();
@@ -688,9 +688,9 @@ fn test_based_sequencing() {
         &slot_2_data.header,
         &slot_2_data.validity_cond,
         &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
-        &mut working_set,
+        &mut state_checkpoint,
     );
-    kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+    kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
     let execute_in_slot_2 = test_kernel
         .get_batches_for_this_slot(&mut slot_2_data.blobs, &mut kernel_working_set)
         .unwrap();
@@ -790,7 +790,7 @@ impl TestRuntime<DefaultContext, MockDaSpec> {
             )
             .unwrap();
 
-        let (reads_writes, witness) = working_set.checkpoint().freeze();
+        let (reads_writes, witness) = working_set.checkpoint().0.freeze();
         let genesis_root = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
         // let root = storage.validate_and_commit()

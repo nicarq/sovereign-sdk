@@ -1,5 +1,6 @@
 use sov_modules_core::{
-    AccessoryWorkingSet, Context, Spec, Storage, VersionedWorkingSet, WorkingSet,
+    AccessoryStateCheckpoint, Context, Spec, StateCheckpoint, Storage, VersionedStateReadWriter,
+    WorkingSet,
 };
 use sov_rollup_interface::da::DaSpec;
 
@@ -13,16 +14,13 @@ use crate::transaction::Transaction;
 /// setup procedures and define post-execution routines.
 pub trait TxHooks {
     type Context: Context;
-    type PreArg;
-    type PreResult;
 
     /// Runs just before a transaction is dispatched to an appropriate module.
     fn pre_dispatch_tx_hook(
         &self,
         tx: &Transaction<Self::Context>,
         working_set: &mut WorkingSet<Self::Context>,
-        arg: &Self::PreArg,
-    ) -> anyhow::Result<Self::PreResult>;
+    ) -> anyhow::Result<()>;
 
     /// Runs after the tx is dispatched to an appropriate module.
     /// IF this hook returns error rollup panics
@@ -47,7 +45,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
         &self,
         batch: &mut BatchWithId,
         sender: &Da::Address,
-        working_set: &mut WorkingSet<Self::Context>,
+        state_checkpoint: &mut StateCheckpoint<Self::Context>,
     ) -> anyhow::Result<()>;
 
     /// Executes at the end of apply_blob and rewards or slashed the sequencer
@@ -55,8 +53,8 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     fn end_batch_hook(
         &self,
         result: Self::BatchResult,
-        working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
+        state_checkpoint: &mut StateCheckpoint<Self::Context>,
+    );
 }
 
 /// Type alias that contains the height of a given transition
@@ -69,10 +67,10 @@ pub trait SlotHooks {
     fn begin_slot_hook(
         &self,
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        working_set: &mut VersionedWorkingSet<Self::Context>,
+        working_set: &mut VersionedStateReadWriter<StateCheckpoint<Self::Context>>,
     );
 
-    fn end_slot_hook(&self, working_set: &mut WorkingSet<Self::Context>);
+    fn end_slot_hook(&self, working_set: &mut StateCheckpoint<Self::Context>);
 }
 
 pub trait FinalizeHook {
@@ -81,6 +79,6 @@ pub trait FinalizeHook {
     fn finalize_hook(
         &self,
         root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        accessory_working_set: &mut AccessoryWorkingSet<Self::Context>,
+        accessory_working_set: &mut AccessoryStateCheckpoint<Self::Context>,
     );
 }

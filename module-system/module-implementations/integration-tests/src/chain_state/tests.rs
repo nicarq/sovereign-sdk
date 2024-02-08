@@ -3,7 +3,7 @@ use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash, MockValidity
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{GasUnit, KernelWorkingSet, WorkingSet};
+use sov_modules_api::{GasUnit, KernelWorkingSet, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
 use sov_prover_storage_manager::SimpleStorageManager;
@@ -83,7 +83,7 @@ fn test_simple_value_setter_with_chain_state() {
     };
 
     {
-        let mut init_working_set = WorkingSet::<C>::new(storage.clone());
+        let mut init_working_set = StateCheckpoint::<C>::new(storage.clone());
 
         // Computes the initial kernel working set
         let kernel_working_set = KernelWorkingSet::uninitialized(&mut init_working_set);
@@ -122,17 +122,20 @@ fn test_simple_value_setter_with_chain_state() {
 
         // Computes the new working set after slot application
         let storage = storage_manager.create_storage();
-        let mut working_set = WorkingSet::new(storage);
+        let mut state_checkpoint = StateCheckpoint::new(storage.clone());
 
         let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.chain_state();
 
         // Check that the root hash has been stored correctly
-        let stored_root = chain_state_ref.get_genesis_hash(&mut working_set).unwrap();
+        let stored_root = chain_state_ref
+            .get_genesis_hash(&mut state_checkpoint)
+            .unwrap();
 
         assert_eq!(stored_root, init_root_hash, "Root hashes don't match");
 
         // Check the slot number
-        let mut kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+        let mut kernel_working_set =
+            KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let new_height_storage = kernel_working_set.current_slot();
 
         assert_eq!(new_height_storage, 1, "The new height did not update");
@@ -201,7 +204,9 @@ fn test_simple_value_setter_with_chain_state() {
         assert_eq!(stored_root, init_root_hash, "Root hashes don't match");
 
         // Check the slot number
-        let mut kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut working_set);
+        let mut state_checkpoint = working_set.checkpoint().0;
+        let mut kernel_working_set =
+            KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let new_height_storage = chain_state_ref.true_slot_number(&mut kernel_working_set);
         assert_eq!(new_height_storage, 2, "The new height did not update");
 
@@ -222,6 +227,7 @@ fn test_simple_value_setter_with_chain_state() {
         );
     }
 
+    // TODO(@theochap):
     // To fix
     // let last_tx_stored: StateTransitionId<C, MockDaSpec> = chain_state_ref
     //     .get_historical_transitions(1, &mut working_set)

@@ -3,7 +3,7 @@ use sov_bank::Amount;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, WorkingSet};
+use sov_modules_api::{CallResponse, StateAccessor, WorkingSet};
 
 use crate::{AllowedSequencer, SequencerRegistry};
 
@@ -92,7 +92,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> SequencerRegistry
         Ok(CallResponse::default())
     }
 
-    pub(crate) fn delete(&self, da_address: &Da::Address, working_set: &mut WorkingSet<C>) {
+    pub(crate) fn delete(&self, da_address: &Da::Address, working_set: &mut impl StateAccessor) {
         self.allowed_sequencers.delete(da_address, working_set);
 
         if let Some(preferred_sequencer) = self.preferred_sequencer.get(working_set) {

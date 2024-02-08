@@ -1,9 +1,9 @@
 use core::str::FromStr;
 
-use sov_modules_api::hooks::TxHooks;
+use anyhow::bail;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, GasUnit, WorkingSet};
+use sov_modules_api::{Context, GasMeter, ModuleInfo, StateCheckpoint};
 
 use crate::{Bank, Coins};
 
@@ -29,79 +29,64 @@ pub struct BankTxHook<C: Context> {
     pub sequencer: C::Address,
 }
 
-impl<C: Context> TxHooks for Bank<C> {
-    type Context = C;
-    type PreArg = BankTxHook<C>;
-    type PreResult = ();
-
-    fn pre_dispatch_tx_hook(
+impl<C: Context> Bank<C> {
+    /// Reserve the gas for a transaction.
+    pub fn reserve_gas(
         &self,
         tx: &Transaction<C>,
-        working_set: &mut WorkingSet<C>,
-        hook: &BankTxHook<C>,
-    ) -> anyhow::Result<()> {
-        let BankTxHook { sender, sequencer } = hook;
-
-        // Charge the base tx gas cost
-        let gas_fixed_cost = tx.gas_fixed_cost();
-        if working_set.charge_gas(&gas_fixed_cost).is_err() {
-            let amount = gas_fixed_cost.value(working_set.gas_price());
-            let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
-                .map_err(|_| anyhow::anyhow!("failed to parse gas token address"))?;
-            let coins = Coins {
-                amount,
-                token_address,
-            };
-
-            // If the sender's account balance is insufficient to cover the base global cost, the
-            // transaction execution should be halted and the deficiency should be deducted from
-            // the sequencer's account. It is expected that a sequencer would have adequate funds,
-            // as the staked amount ought to be sufficient for executing any transaction count they
-            // choose. However, if a sequencer lacks sufficient staked funds, it indicates a
-            // critical design flaw in the sequencer registry.
-            self.burn(coins, sequencer, working_set).expect("Unrecoverable error: the sequencer doesn't have enough funds to pay for the transaction base cost.");
-
-            anyhow::bail!(
-                "Transaction sender doesn't have enough funds to pay for the transaction base cost"
-            );
+        gas_price: &C::GasUnit,
+        payer: &C::Address,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    ) -> Result<GasMeter<C::GasUnit>, anyhow::Error> {
+        // TODO(@vlopes11) - this calulation diverges from EIP 1559
+        if tx
+            .max_gas_price()
+            .map(|max_gas_price| max_gas_price < gas_price)
+            .unwrap_or(false)
+        {
+            bail!("The maximum gas price ({:?}) was insufficient to cover the current price ({:?}) for ", tx.max_gas_price(), gas_price)
         }
-
         let amount = tx.gas_limit().saturating_add(tx.gas_tip());
         if amount > 0 {
             let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
                 .map_err(|_| anyhow::anyhow!("failed to parse gas token address"))?;
-            let from = sender;
-            let to = sequencer;
+            let from = payer;
+            let to = self.address();
             let coins = Coins {
                 amount,
                 token_address,
             };
-            self.transfer_from(from, to, coins, working_set)?;
+            // TODO(@preston-evans98) - in zk mode, this transfer should be earmarked for the prover
+            self.transfer_from(from, to, coins, state_checkpoint)?;
         }
+        // TODO(@vlopes11) - fix confusion between available tokens and gas limit
+        let gas_meter = GasMeter::new(tx.gas_limit(), gas_price.clone());
 
-        Ok(())
+        Ok(gas_meter)
     }
 
-    fn post_dispatch_tx_hook(
+    /// Refunds any remaining gas to the payer after the transaction is processed.
+    pub fn refund_remaining_gas(
         &self,
-        _tx: &Transaction<Self::Context>,
-        ctx: &C,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
-        let amount = working_set.gas_remaining_funds();
+        _tx: &Transaction<C>,
+        gas_meter: &sov_modules_api::GasMeter<C::GasUnit>,
+        payer: &C::Address,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    ) {
+        let amount = gas_meter.remaining_funds();
 
         if amount > 0 {
             let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
-                .map_err(|_| anyhow::anyhow!("failed to parse gas token address"))?;
-            let from = ctx.sequencer();
-            let to = ctx.sender();
+                .map_err(|_| "The rollup is misconfigured: the gas token address is invalid")
+                .expect("failed to parse gas token address");
+            let from = self.address();
+            let to = payer;
             let coins = Coins {
                 amount,
                 token_address,
             };
-            self.transfer_from(from, to, coins, working_set)?;
+            self.transfer_from(from, to, coins, state_checkpoint)
+                .expect("Refunding unspent gas is infallible");
         }
-
-        Ok(())
     }
 }
