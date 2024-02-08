@@ -15,26 +15,19 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 #[cfg(feature = "mocks")]
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
+use sov_modules_api::transaction::Transaction;
 pub use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet,
-    RuntimeEventProcessor, Spec, StateCheckpoint, Zkvm,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, Genesis,
+    KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, Zkvm,
 };
-use sov_modules_core::VersionedWorkingSet;
+use sov_modules_core::capabilities::{ContextResolver, GasEnforcer, TransactionDeduplicator};
+use sov_modules_core::VersionedStateReadWriter;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_state::Storage;
 pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
-
-/// The tx hook for a blueprint runtime
-pub struct RuntimeTxHook<C: Context> {
-    /// Height to initialize the context
-    pub height: u64,
-    /// Sequencer public key
-    pub sequencer: C::PublicKey,
-}
-
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
@@ -42,7 +35,7 @@ pub struct RuntimeTxHook<C: Context> {
 pub trait Runtime<C: Context, Da: DaSpec>:
     DispatchCall<Context = C>
     + Genesis<Context = C, Config = Self::GenesisConfig>
-    + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
+    + TxHooks<Context = C>
     + SlotHooks<Context = C>
     + FinalizeHook<Context = C>
     + ApplyBatchHooks<
@@ -53,6 +46,9 @@ pub trait Runtime<C: Context, Da: DaSpec>:
         >,
     > + Default
     + RuntimeEventProcessor
+    + GasEnforcer<C, Da, Tx = Transaction<C>>
+    + TransactionDeduplicator<C, Da, Tx = Transaction<C>>
+    + ContextResolver<C, Da, Tx = Transaction<C>>
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
@@ -77,19 +73,24 @@ pub trait Runtime<C: Context, Da: DaSpec>:
 /// The receipts of all the transactions in a batch.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TxEffect {
-    /// Batch was reverted.
+    /// The transaction was reverted during execution
     Reverted,
     /// Batch was processed successfully.
     Successful,
-    /// Batch was skipped.
-    Skipped,
+    /// The transaction was not applied because it did not purchase the minimum required gas.
+    /// In this case, the sequencer should be charged the base gas fee.
+    InsufficientBaseGas,
+    /// The transaction was not applied because it was a duplicate
+    Duplicate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 /// Represents the different outcomes that can occur for a sequencer after batch processing.
 pub enum SequencerOutcome<A: BasicAddress> {
-    /// Sequencer receives reward amount in defined token and can withdraw its deposit
+    /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
     Rewarded(u64),
+    /// Sequencer was penalized (on net) for including invalid (but not provably malicious) transactions
+    Penalized(u64),
     /// Sequencer loses its deposit and receives no reward
     Slashed {
         /// Reason why sequencer was slashed.
@@ -132,49 +133,46 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_slot(
         &self,
-        state_checkpoint: StateCheckpoint<C>,
+        state_checkpoint: &mut StateCheckpoint<C>,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<C::Storage as Storage>::Root,
-    ) -> StateCheckpoint<C> {
-        let mut working_set = state_checkpoint.to_revertable();
-
+    ) -> C::GasUnit {
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
-        self.kernel.begin_slot_hook(
+        let gas_price = self.kernel.begin_slot_hook(
             slot_header,
             validity_condition,
             pre_state_root,
-            &mut working_set,
+            state_checkpoint,
         );
 
-        // We build and pass down the VersionedWorkingSet to the [`begin_slot_hook`] method to have access to context
+        // We build and pass down the VersionedStateReadWriter to the [`begin_slot_hook`] method to have access to context
         // aware information.
-        let kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut working_set);
+        let kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, state_checkpoint);
         let mut versioned_working_set =
-            VersionedWorkingSet::from_kernel_ws_virtual::<Da>(kernel_working_set);
+            VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);
 
         self.runtime
             .begin_slot_hook(pre_state_root, &mut versioned_working_set);
 
-        working_set.checkpoint()
+        gas_price
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn end_slot(
         &self,
         storage: C::Storage,
-        checkpoint: StateCheckpoint<C>,
+        gas_used: &C::GasUnit,
+        mut checkpoint: StateCheckpoint<C>,
     ) -> (
         <<C as Spec>::Storage as Storage>::Root,
         <<C as Spec>::Storage as Storage>::Witness,
         C::Storage,
     ) {
         // Run end_slot_hook
-        let mut working_set = checkpoint.to_revertable();
-        self.runtime.end_slot_hook(&mut working_set);
-        // Save checkpoint
-        let mut checkpoint = working_set.checkpoint();
+        self.runtime.end_slot_hook(&mut checkpoint);
+        self.kernel.end_slot_hook(gas_used, &mut checkpoint);
 
         let (cache_log, witness) = checkpoint.freeze();
 
@@ -182,12 +180,9 @@ where
             .compute_state_update(cache_log, &witness)
             .expect("jellyfish merkle tree update must succeed");
 
-        let mut working_set = checkpoint.to_revertable();
-
         self.runtime
-            .finalize_hook(&root_hash, &mut working_set.accessory_state());
+            .finalize_hook(&root_hash, &mut checkpoint.accessory_state());
 
-        let mut checkpoint = working_set.checkpoint();
         let accessory_log = checkpoint.freeze_non_provable();
 
         storage.commit(&state_update, &accessory_log);
@@ -224,31 +219,34 @@ where
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
-        let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
-        let mut startup_ws = KernelWorkingSet::uninitialized(&mut working_set);
+        // TODO(@preston-evans98): Get rid of the Clone here by making pre-state read only.
+        let mut state_checkpoint = StateCheckpoint::new(pre_state.clone());
+        let mut startup_ws = KernelWorkingSet::uninitialized(&mut state_checkpoint);
 
         // Important! The kernel *must* be initialized before the runtime, since runtime
         // module authors are allowed to depend on the kernel.
         self.kernel
             .genesis(&params.kernel, &mut startup_ws)
             .expect("Kernel initialization must succeed");
+        let mut working_set = state_checkpoint.to_revertable(Default::default());
         self.runtime
             .genesis(&params.runtime, &mut working_set)
             .expect("Runtime initialization must succeed");
 
-        let mut checkpoint = working_set.checkpoint();
+        let mut checkpoint = working_set.checkpoint().0;
         let (log, witness) = checkpoint.freeze();
 
         let (genesis_hash, state_update) = pre_state
             .compute_state_update(log, &witness)
             .expect("Storage update must succeed");
 
-        let mut working_set = checkpoint.to_revertable();
-
         self.runtime
-            .finalize_hook(&genesis_hash, &mut working_set.accessory_state());
+            .finalize_hook(&genesis_hash, &mut checkpoint.accessory_state());
 
-        let accessory_log = working_set.checkpoint().freeze_non_provable();
+        let accessory_log = checkpoint.freeze_non_provable();
+        // HACK: Drop the old checkpoint to ensure that it's RC is not active during commit.
+        // This will be resolved as part of https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/132
+        drop(checkpoint);
 
         // TODO: Commit here for now, but probably this can be done outside of STF
         // TODO: Commit is fine
@@ -269,32 +267,35 @@ where
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
-        let checkpoint =
-            self.begin_slot(checkpoint, slot_header, validity_condition, pre_state_root);
+        let mut checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+        let gas_price = self.begin_slot(
+            &mut checkpoint,
+            slot_header,
+            validity_condition,
+            pre_state_root,
+        );
 
-        // Initialize batch workspace
-        let mut batch_workspace = checkpoint.to_revertable();
-        let mut kernel_working_set =
-            KernelWorkingSet::from_kernel(&self.kernel, &mut batch_workspace);
+        let mut kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut checkpoint);
+        let visible_height = kernel_working_set.virtual_slot();
         let selected_batches = self
             .kernel
             .get_batches_for_this_slot(blobs, &mut kernel_working_set)
             .expect("blob selection must succeed, probably serialization failed");
 
         info!(
-            "Selected {} batch(es) for execution in current slot",
-            selected_batches.len()
+            "Selected {} batch(es) for execution in current slot. Virtual slot: {}. True slot: {}",
+            selected_batches.len(),
+            visible_height,
+            kernel_working_set.current_slot()
         );
-
-        let mut checkpoint = batch_workspace.checkpoint();
 
         let mut batch_receipts = vec![];
 
+        let mut total_gas = C::GasUnit::ZEROED;
         for (blob_idx, (batch, sender)) in selected_batches.into_iter().enumerate() {
-            let (apply_blob_result, checkpoint_after_blob) =
-                self.apply_batch(checkpoint, batch, &sender);
-            checkpoint = checkpoint_after_blob;
+            let (apply_blob_result, next_checkpoint, gas_used) =
+                self.apply_batch(checkpoint, batch, &sender, &gas_price, visible_height);
+            checkpoint = next_checkpoint;
             let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
             info!(
                 blob_idx,
@@ -302,6 +303,7 @@ where
                 %sender,
                 num_txs = batch_receipt.tx_receipts.len(),
                 sequencer_outcome = ?batch_receipt.inner,
+                ?gas_used,
                 "Applied blob and got the sequencer outcome"
             );
             for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
@@ -313,9 +315,10 @@ where
                 );
             }
             batch_receipts.push(batch_receipt);
+            total_gas.combine(&gas_used);
         }
 
-        let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
+        let (state_root, witness, storage) = self.end_slot(pre_state, &total_gas, checkpoint);
         SlotResult {
             state_root,
             change_set: storage.to_change_set(),

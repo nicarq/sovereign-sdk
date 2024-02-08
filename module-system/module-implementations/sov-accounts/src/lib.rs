@@ -14,7 +14,6 @@ mod event;
 #[cfg(test)]
 mod tests;
 pub use call::{CallMessage, UPDATE_ACCOUNT_MSG};
-pub use hooks::AccountsTxHook;
 use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
 
 use crate::event::Event;

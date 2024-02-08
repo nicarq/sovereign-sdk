@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use sov_modules_core::{
-    AccessoryWorkingSet, Context, Prefix, StateCodec, StateKeyCodec, StateValueCodec,
+    AccessoryStateCheckpoint, AccessoryWorkingSet, Context, Prefix, StateCodec, StateKeyCodec,
+    StateValueCodec,
 };
 use sov_state::codec::BorshCodec;
 
@@ -72,6 +73,24 @@ where
     }
 }
 
+impl<'a, K, V, Codec, C> StateMapAccessor<K, V, Codec, AccessoryStateCheckpoint<'a, C>>
+    for AccessoryStateMap<K, V, Codec>
+where
+    Codec: StateCodec,
+    Codec::KeyCodec: StateKeyCodec<K>,
+    Codec::ValueCodec: StateValueCodec<V>,
+    C: Context,
+{
+    /// Returns the prefix used when this [`AccessoryStateMap`] was created.
+    fn prefix(&self) -> &Prefix {
+        &self.prefix
+    }
+
+    fn codec(&self) -> &Codec {
+        &self.codec
+    }
+}
+
 #[cfg(feature = "arbitrary")]
 impl<'a, K, V, Codec> AccessoryStateMap<K, V, Codec>
 where
@@ -86,7 +105,7 @@ where
     /// See the [`arbitrary`] crate for more information.
     pub fn arbitrary_working_set<C>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut AccessoryWorkingSet<C>,
+        working_set: &mut AccessoryStateCheckpoint<C>,
     ) -> arbitrary::Result<Self>
     where
         C: Context,

@@ -3,7 +3,8 @@ use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Context, Module, StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet,
+    Context, GasMeter, KernelWorkingSet, Module, StateCheckpoint, StateMapAccessor,
+    StateValueAccessor, StateVecAccessor, VersionedStateReadWriter,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -33,8 +34,8 @@ fn call_test() {
     };
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&evm_config, &mut working_set);
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&evm_config, state_checkpoint);
 
     let contract_addr: Address = Address::from_slice(
         hex::decode("819c5497b157177315e1204f52e588b393771719")
@@ -42,9 +43,13 @@ fn call_test() {
             .as_slice(),
     );
 
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut working_set);
+    let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    temp_kernel.update_virtual_height(1);
+    let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
+    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
 
     let set_arg = 999;
+    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -55,24 +60,25 @@ fn call_test() {
             set_arg_message(contract_addr, &dev_signer, 1, set_arg),
         ];
         for tx in messages {
-            evm.call(tx, &context, working_set.get_ws_mut()).unwrap();
+            evm.call(tx, &context, &mut working_set).unwrap();
         }
     }
-    evm.end_slot_hook(working_set.get_ws_mut());
+    let mut state_checkpoint = working_set.checkpoint().0;
+    evm.end_slot_hook(&mut state_checkpoint);
 
     let db_account = evm
         .accounts
-        .get(&contract_addr, working_set.get_ws_mut())
+        .get(&contract_addr, &mut state_checkpoint)
         .unwrap();
     let storage_value = db_account
         .storage
-        .get(&U256::ZERO, working_set.get_ws_mut())
+        .get(&U256::ZERO, &mut state_checkpoint)
         .unwrap();
 
     assert_eq!(U256::from(set_arg), storage_value);
     assert_eq!(
         evm.receipts
-            .iter(&mut working_set.get_ws_mut().accessory_state())
+            .iter(&mut state_checkpoint.accessory_state())
             .collect::<Vec<_>>(),
         [
             Receipt {
@@ -106,29 +112,33 @@ fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
     let binding = EvmConfig::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut versioned_ws) = setup(&binding, &mut working_set);
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&binding, state_checkpoint);
+    let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    temp_kernel.update_virtual_height(1);
+    let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
 
     evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
-    let working_set = versioned_ws.get_ws_mut();
+    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
         let context = C::new(sender_address, sequencer_address, 1);
         let message = create_contract_message(&dev_signer, 0);
-        evm.call(message, &context, working_set).unwrap();
+        evm.call(message, &context, &mut working_set).unwrap();
     }
 
     // assert no pending transaction
-    let pending_txs = evm.pending_transactions.iter(working_set);
+    let pending_txs = evm.pending_transactions.iter(&mut working_set);
     assert_eq!(pending_txs.len(), 0);
 
-    evm.end_slot_hook(working_set);
+    let state_checkpoint = &mut working_set.checkpoint().0;
+    evm.end_slot_hook(state_checkpoint);
 
     // Assert block does not have any transaction
     let block = evm
         .pending_head
-        .get(&mut working_set.accessory_state())
+        .get(&mut state_checkpoint.accessory_state())
         .unwrap();
     assert_eq!(block.transactions.start, 0);
     assert_eq!(block.transactions.end, 0);

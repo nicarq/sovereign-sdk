@@ -9,6 +9,7 @@ use sov_modules_api::{
     Address, Genesis, KernelModule, KernelWorkingSet, Spec, ValidityConditionChecker, WorkingSet,
 };
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
+use sov_modules_core::{GasMeter, StateCheckpoint};
 use sov_rollup_interface::da::Time;
 use sov_state::jmt::{RootHash, SparseMerkleProof};
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
@@ -27,17 +28,17 @@ pub const INIT_HEIGHT: u64 = 0;
 
 /// Consumes and commit the existing working set on the underlying storage
 /// `storage` must be the underlying storage defined on the working set for this method to work.
-pub(crate) fn commit_get_new_working_set(
+pub(crate) fn commit_get_new_state_checkpoint(
     storage: &ProverStorage<DefaultStorageSpec>,
-    working_set: WorkingSet<C>,
-) -> (RootHash, WorkingSet<C>) {
-    let (reads_writes, witness) = working_set.checkpoint().freeze();
+    mut checkpoint: StateCheckpoint<C>,
+) -> (RootHash, StateCheckpoint<C>) {
+    let (reads_writes, witness) = checkpoint.freeze();
 
     let prev_root = storage
         .validate_and_commit(reads_writes, &witness)
         .expect("Should be able to commit");
 
-    (prev_root, WorkingSet::new(storage.clone()))
+    (prev_root, StateCheckpoint::new(storage.clone()))
 }
 
 pub(crate) fn create_bank_config_with_token(
@@ -76,7 +77,7 @@ pub(crate) fn create_bank_config_with_token(
 /// Returns the prover incentives module and the attester and challenger's addresses.
 #[allow(clippy::type_complexity)]
 pub(crate) fn setup(
-    working_set: &mut WorkingSet<C>,
+    mut working_set: WorkingSet<C>,
 ) -> (
     AttesterIncentives<
         C,
@@ -88,12 +89,13 @@ pub(crate) fn setup(
     Address,
     Address,
     Address,
+    WorkingSet<C>,
 ) {
     // Initialize bank
     let (bank_config, mut addresses) =
         create_bank_config_with_token(TOKEN_NAME.to_string(), SALT, 3, INITIAL_BOND_AMOUNT);
     let bank = sov_bank::Bank::<C>::default();
-    bank.genesis(&bank_config, working_set)
+    bank.genesis(&bank_config, &mut working_set)
         .expect("bank genesis must succeed");
 
     let attester_address = addresses.pop().unwrap();
@@ -112,14 +114,16 @@ pub(crate) fn setup(
         minimum_gas_price: [0, 0],
     };
 
+    let mut state_checkpoint = working_set.checkpoint().0;
     let chain_state = sov_chain_state::ChainState::<C, MockDaSpec>::default();
     chain_state
         .genesis_unchecked(
             &chain_state_config,
-            &mut KernelWorkingSet::uninitialized(working_set),
+            &mut KernelWorkingSet::uninitialized(&mut state_checkpoint),
         )
         .expect("Chain state genesis must succeed");
 
+    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     // initialize prover incentives
     let module = AttesterIncentives::<
         C,
@@ -142,7 +146,7 @@ pub(crate) fn setup(
     };
 
     module
-        .genesis(&config, working_set)
+        .genesis(&config, &mut working_set)
         .expect("prover incentives genesis must succeed");
 
     (
@@ -151,6 +155,7 @@ pub(crate) fn setup(
         attester_address,
         challenger_address,
         sequencer,
+        working_set,
     )
 }
 
@@ -166,18 +171,18 @@ pub(crate) fn execution_simulation<Checker: ValidityConditionChecker<MockValidit
     module: &AttesterIncentives<C, MockZkvm<MockValidityCond>, MockDaSpec, Checker>,
     storage: &ProverStorage<DefaultStorageSpec>,
     attester_address: <C as Spec>::Address,
-    mut working_set: WorkingSet<C>,
+    mut state_checkpoint: StateCheckpoint<C>,
 ) -> (
     // Vector of the successive state roots with associated bonding proofs
     Vec<ExecutionSimulationVars>,
-    WorkingSet<C>,
+    StateCheckpoint<C>,
 ) {
     let mut ret_exec_vars = Vec::<ExecutionSimulationVars>::new();
 
     for i in 0..rounds {
         // Commit the working set
-        let (root_hash, w_set) = commit_get_new_working_set(storage, working_set);
-        working_set = w_set;
+        let (root_hash, w_set) = commit_get_new_state_checkpoint(storage, state_checkpoint);
+        state_checkpoint = w_set;
 
         let bond_proof = storage.get_with_proof(module.get_attester_storage_key(attester_address));
 
@@ -202,9 +207,9 @@ pub(crate) fn execution_simulation<Checker: ValidityConditionChecker<MockValidit
             &slot_data.header,
             &slot_data.validity_cond,
             &root_hash,
-            &mut KernelWorkingSet::from_kernel(&kernel, &mut working_set),
+            &mut KernelWorkingSet::from_kernel(&kernel, &mut state_checkpoint),
         );
     }
 
-    (ret_exec_vars, working_set)
+    (ret_exec_vars, state_checkpoint)
 }

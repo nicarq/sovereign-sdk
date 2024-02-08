@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, DaSpec, GasUnit, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, DaSpec, GasUnit, StateAccessor, StateMap, StateMapAccessor};
 use sov_state::codec::BcsCodec;
 
 use crate::{StateTransitionId, TransitionHeight};
@@ -33,21 +33,17 @@ impl<C: Context> GasPriceState<C> {
     /// heights.
     ///
     /// For additional information, check [GasUnit::elastic_price].
-    pub fn update<
-        Da: DaSpec,
-        H: StateMapAccessor<TransitionHeight, StateTransitionId<C, Da>, BcsCodec, WorkingSet<C>>,
-    >(
+    pub fn update<Da: DaSpec>(
         mut self,
         height: TransitionHeight,
-        historical_transitions: &H,
-        working_set: &mut WorkingSet<C>,
+        historical_transitions: &StateMap<TransitionHeight, StateTransitionId<C, Da>, BcsCodec>,
+        state_checkpoint: &mut impl StateAccessor,
     ) -> Option<Self> {
         let genesis_height = 0;
         let parent_height = height.saturating_sub(1);
 
         // on genesis, fetch the initial gas price
         if parent_height == genesis_height {
-            working_set.set_gas_price(self.price.clone());
             return Some(self);
         }
 
@@ -56,18 +52,19 @@ impl<C: Context> GasPriceState<C> {
             .max(genesis_height + 1);
         let height_count = height.saturating_sub(height_from);
 
+        // TODO(@vlopes11): Update this calculation to be based on proof latency
         let mut gas_target = C::GasUnit::ZEROED;
         let mut transition = None;
         for h in height_from..height {
-            let history = historical_transitions.get(&h, working_set)?;
+            let history = historical_transitions.get(&h, state_checkpoint)?;
             gas_target.combine(&history.gas_used);
             transition.replace(history);
         }
         gas_target.scalar_division(height_count);
 
         // there was no gas consumed on the past blocks; preserve the price
+        // TODO(@vlopes11): Shouldn't we drop the price by the maximum amount in this case?
         if gas_target == C::GasUnit::ZEROED {
-            working_set.set_gas_price(self.price.clone());
             return Some(self);
         }
 
@@ -79,8 +76,6 @@ impl<C: Context> GasPriceState<C> {
             &self.minimum_price,
         );
 
-        working_set.set_gas_price(self.price.clone());
-
         Some(self)
     }
 }
@@ -89,9 +84,10 @@ impl<C: Context> GasPriceState<C> {
 mod tests {
     use sov_mock_da::{MockDaSpec, MockValidityCond};
     use sov_modules_api::default_context::DefaultContext;
-    use sov_modules_api::StateMap;
-    use sov_modules_core::Prefix;
+    use sov_modules_api::{StateMap, WorkingSet};
+    use sov_modules_core::{Prefix, StateCheckpoint};
     use sov_prover_storage_manager::new_orphan_storage;
+    use sov_state::{DefaultStorageSpec, ProverStorage};
 
     use super::*;
 
@@ -269,8 +265,8 @@ mod tests {
     #[test]
     fn analysis_will_consider_only_blocks_depth() {
         let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let ws = &mut W::new(storage);
+        let storage: ProverStorage<DefaultStorageSpec> = new_orphan_storage(tmpdir.path()).unwrap();
+        let ws = &mut StateCheckpoint::<DefaultContext>::new(storage);
         let prefix = Prefix::new(b"test".to_vec());
         let ht = &M::with_codec(prefix, BcsCodec);
 

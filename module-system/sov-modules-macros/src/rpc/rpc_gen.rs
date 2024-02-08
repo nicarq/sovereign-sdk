@@ -2,12 +2,7 @@ use std::str::FromStr;
 
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
-use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
-use syn::{
-    parenthesized, Attribute, FnArg, ImplItem, Meta, MetaList, PatType, Path, PathSegment,
-    Signature,
-};
+use syn::{Attribute, FnArg, ImplItem, Meta, MetaList, PatType, Path, PathSegment, Signature};
 
 /// Returns an attribute with the name `rpc_method` replaced with `method`, and the index
 /// into the argument array where the attribute was found.
@@ -363,14 +358,4 @@ pub(crate) fn rpc_gen(
     };
 
     build_rpc_trait(attrs, type_name.clone(), input)
-}
-
-struct TypeList(pub Punctuated<syn::Type, syn::token::Comma>);
-
-impl Parse for TypeList {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let content;
-        parenthesized!(content in input);
-        Ok(TypeList(content.parse_terminated(syn::Type::parse)?))
-    }
 }

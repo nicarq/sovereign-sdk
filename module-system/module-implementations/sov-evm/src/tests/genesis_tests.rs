@@ -11,7 +11,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    DaSpec, GasUnit, KernelModule, KernelWorkingSet, Module, VersionedWorkingSet, WorkingSet,
+    DaSpec, GasMeter, GasUnit, KernelModule, KernelWorkingSet, Module, StateCheckpoint,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -59,17 +59,18 @@ lazy_static! {
 #[test]
 fn genesis_data() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&TEST_CONFIG, &mut working_set);
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
 
     let account = &TEST_CONFIG.data[0];
 
     let db_account = evm
         .accounts
-        .get(&account.address, working_set.get_ws_mut())
+        .get(&account.address, &mut state_checkpoint)
         .unwrap();
 
-    let evm_db = evm.get_db(working_set.get_ws_mut());
+    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let evm_db = evm.get_db(&mut working_set);
 
     assert_eq!(
         db_account,
@@ -88,10 +89,10 @@ fn genesis_data() {
 #[test]
 fn genesis_cfg() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&TEST_CONFIG, &mut working_set);
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
 
-    let cfg = evm.cfg.get(working_set.get_ws_mut()).unwrap();
+    let cfg = evm.cfg.get(&mut state_checkpoint).unwrap();
     assert_eq!(
         cfg,
         EvmChainConfig {
@@ -110,13 +111,13 @@ fn genesis_cfg() {
 #[should_panic(expected = "EVM spec must start from block 0")]
 fn genesis_cfg_missing_specs() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     setup(
         &EvmConfig {
             spec: vec![(5, SpecId::BERLIN)].into_iter().collect(),
             ..Default::default()
         },
-        &mut working_set,
+        state_checkpoint,
     );
 }
 
@@ -125,10 +126,10 @@ fn genesis_empty_spec_defaults_to_shanghai() {
     let mut config = TEST_CONFIG.clone();
     config.spec.clear();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&config, &mut working_set);
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&config, state_checkpoint);
 
-    let cfg = evm.cfg.get(working_set.get_ws_mut()).unwrap();
+    let cfg = evm.cfg.get(&mut state_checkpoint).unwrap();
     assert_eq!(cfg.spec, vec![(0, SpecId::SHANGHAI)]);
 }
 
@@ -136,22 +137,22 @@ fn genesis_empty_spec_defaults_to_shanghai() {
 #[should_panic(expected = "Cancun is not supported")]
 fn genesis_cfg_cancun() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     setup(
         &EvmConfig {
             spec: vec![(0, SpecId::CANCUN)].into_iter().collect(),
             ..Default::default()
         },
-        &mut working_set,
+        state_checkpoint,
     );
 }
 
 #[test]
 fn genesis_block() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&TEST_CONFIG, &mut working_set);
-    let mut accessory_state = working_set.get_ws_mut().accessory_state();
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
+    let mut accessory_state = state_checkpoint.accessory_state();
 
     let block_number = evm
         .block_hashes
@@ -203,9 +204,9 @@ fn genesis_block() {
 #[test]
 fn genesis_head() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (evm, mut working_set) = setup(&TEST_CONFIG, &mut working_set);
-    let head = evm.head.get(working_set.get_ws_mut()).unwrap();
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
+    let head = evm.head.get(&mut state_checkpoint).unwrap();
 
     assert_eq!(
         head,
@@ -237,11 +238,11 @@ fn genesis_head() {
     );
 }
 
-pub(crate) fn setup<'b>(
+pub(crate) fn setup(
     evm_config: &EvmConfig,
-    working_set: &'b mut WorkingSet<C>,
-) -> (Evm<C, MockDaSpec>, VersionedWorkingSet<'b, DefaultContext>) {
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(working_set);
+    mut state_checkpoint: StateCheckpoint<C>,
+) -> (Evm<C, MockDaSpec>, StateCheckpoint<C>) {
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
 
     // We now need to initialize a chain_state module as well. Since in this test suite we don't care about testing the chain state
     // we can just use the default values. We will initialize the first block hash value with a default one.
@@ -260,7 +261,10 @@ pub(crate) fn setup<'b>(
         .unwrap();
 
     let evm = Evm::<C, MockDaSpec>::default();
-    evm.genesis(evm_config, kernel_working_set.inner).unwrap();
+    let mut genesis_ws = state_checkpoint.to_revertable(GasMeter::unmetered());
+    evm.genesis(evm_config, &mut genesis_ws).unwrap();
+    let mut state_checkpoint = genesis_ws.checkpoint().0;
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     evm.finalize_hook(
         &[10u8; 32].into(),
         &mut kernel_working_set.inner.accessory_state(),
@@ -278,12 +282,5 @@ pub(crate) fn setup<'b>(
         &mut kernel_working_set,
     );
 
-    // The begin slot hook only updates the true height. We need to update the virtual height manually here
-    kernel_working_set.update_virtual_height(kernel_working_set.current_slot());
-
-    // We want to return a versioned working set with the new state update
-    (
-        evm,
-        VersionedWorkingSet::from_kernel_ws_virtual::<MockDaSpec>(kernel_working_set),
-    )
+    (evm, state_checkpoint)
 }

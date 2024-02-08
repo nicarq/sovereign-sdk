@@ -16,9 +16,9 @@ impl Operation {
         db: C::Storage,
     ) -> StateCheckpoint<C> {
         match self {
-            Operation::Merge => working_set.checkpoint(),
+            Operation::Merge => working_set.checkpoint().0,
             Operation::Finalize => {
-                let (cache_log, witness) = working_set.checkpoint().freeze();
+                let (cache_log, witness) = working_set.checkpoint().0.freeze();
 
                 db.validate_and_commit(cache_log, &witness)
                     .expect("JMT update is valid");
@@ -36,7 +36,9 @@ struct StorageOperation {
 impl StorageOperation {
     fn execute<C: Context>(&self, mut working_set: WorkingSet<C>, db: C::Storage) -> WorkingSet<C> {
         for op in self.operations.iter() {
-            working_set = op.execute(working_set, db.clone()).to_revertable()
+            working_set = op
+                .execute(working_set, db.clone())
+                .to_revertable(Default::default())
         }
         working_set
     }
@@ -177,7 +179,7 @@ fn test_witness_round_trip() {
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
-        let (cache_log, witness) = working_set.checkpoint().freeze();
+        let (cache_log, witness) = working_set.checkpoint().0.freeze();
 
         let _ = storage
             .validate_and_commit(cache_log, &witness)
@@ -192,7 +194,7 @@ fn test_witness_round_trip() {
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
-        let (cache_log, witness) = working_set.checkpoint().freeze();
+        let (cache_log, witness) = working_set.checkpoint().0.freeze();
 
         let _ = storage
             .validate_and_commit(cache_log, &witness)

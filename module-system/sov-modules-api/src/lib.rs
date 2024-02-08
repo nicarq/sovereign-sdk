@@ -34,11 +34,11 @@ pub use clap;
 #[cfg(feature = "native")]
 pub use sov_modules_core::PrivateKey;
 pub use sov_modules_core::{
-    archival_state, runtime, AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context,
-    DispatchCall, EncodeCall, GasUnit, Genesis, KernelModule, KernelWorkingSet, Module,
-    ModuleCallJsonSchema, ModuleError, ModuleError as Error, ModuleInfo, ModulePrefix, PublicKey,
-    RuntimeEventProcessor, Signature, Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent,
-    VersionedWorkingSet, WorkingSet,
+    archival_state, runtime, AccessoryStateCheckpoint, AccessoryWorkingSet, Address, AddressBech32,
+    CallResponse, Context, DispatchCall, EncodeCall, GasMeter, GasUnit, Genesis, KernelModule,
+    KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError, ModuleError as Error, ModuleInfo,
+    ModulePrefix, PublicKey, RuntimeEventProcessor, Signature, Spec, StateCheckpoint,
+    StateReaderAndWriter, TypedEvent, VersionedStateReadWriter, WorkingSet,
 };
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;

@@ -274,15 +274,15 @@ fn commit(working_set: WorkingSet<DefaultContext>, storage: ProverStorage<Defaul
     // Save checkpoint
     let mut checkpoint = working_set.checkpoint();
 
-    let (cache_log, witness) = checkpoint.freeze();
+    let (cache_log, witness) = checkpoint.0.freeze();
 
     let (_, authenticated_node_batch) = storage
         .compute_state_update(cache_log, &witness)
         .expect("jellyfish merkle tree update must succeed");
 
-    let working_set = checkpoint.to_revertable();
+    let working_set = checkpoint.0.to_revertable(Default::default());
 
-    let accessory_log = working_set.checkpoint().freeze_non_provable();
+    let accessory_log = working_set.checkpoint().0.freeze_non_provable();
 
     storage.commit(&authenticated_node_batch, &accessory_log);
 }

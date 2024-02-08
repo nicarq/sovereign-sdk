@@ -9,7 +9,7 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::kernel_state::BootstrapWorkingSet;
-use crate::{Context, KernelWorkingSet, Spec, Storage, WorkingSet};
+use crate::{Context, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, Storage, WorkingSet};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
@@ -38,16 +38,20 @@ pub trait Kernel<C: Context, Da: DaSpec>: BatchSelector<Da, Context = C> + Defau
 
 /// Hooks allowing the kernel to get access to the DA layer state
 pub trait KernelSlotHooks<C: Context, Da: DaSpec>: Kernel<C, Da> {
-    /// Called at the beginning of a slot
+    /// Called at the beginning of a slot. Computes the gas price for the slot
     fn begin_slot_hook(
         &self,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        working_set: &mut WorkingSet<Self::Context>,
-    );
+        working_set: &mut StateCheckpoint<Self::Context>,
+    ) -> C::GasUnit;
     /// Called at the end of a slot
-    fn end_slot_hook(&self, working_set: &mut WorkingSet<Self::Context>);
+    fn end_slot_hook(
+        &self,
+        gas_used: &C::GasUnit,
+        working_set: &mut StateCheckpoint<Self::Context>,
+    );
 }
 
 /// BatchSelector decides which batches to process in a current slot.
@@ -71,6 +75,66 @@ pub trait BatchSelector<Da: DaSpec> {
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
 }
 
+/// Enforces gas limits and penalties for transactions.
+pub trait GasEnforcer<C: Context, Da: DaSpec> {
+    /// The transaction type that the gas enforcer knows how to parse
+    type Tx;
+    /// Reserves enough gas for the transaction to be processed, if possible.
+    #[allow(clippy::result_large_err)]
+    fn try_reserve_gas(
+        &self,
+        tx: &Self::Tx,
+        context: &C,
+        gas_price: &C::GasUnit,
+        state_checkpoint: StateCheckpoint<C>,
+    ) -> Result<WorkingSet<C>, StateCheckpoint<C>>;
+
+    /// Refunds any remaining gas to the payer after the transaction is processed.
+    fn refund_remaining_gas(
+        &self,
+        tx: &Self::Tx,
+        context: &C,
+        gas_meter: &GasMeter<C::GasUnit>,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    );
+}
+
+/// Deduplicates transactions to prevent double-spending.
+pub trait TransactionDeduplicator<C: Context, Da: DaSpec> {
+    /// The transaction type that the deduplicator knows how to parse.
+    type Tx;
+    /// Prevents duplicate transactions from running.
+    fn check_uniqueness(
+        &self,
+        tx: &Self::Tx,
+        context: &C,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    ) -> Result<(), anyhow::Error>;
+
+    /// Marks a transaction as having been executed, preventing it from executing again.
+    fn mark_tx_attempted(
+        &self,
+        tx: &Self::Tx,
+        sequencer: &Da::Address,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    );
+}
+
+/// Resolves the context for a transaction.
+pub trait ContextResolver<C: Context, Da: DaSpec> {
+    /// The transaction type that the resolver knows how to parse.
+    type Tx;
+    /// Resolves the context for a transaction.
+    // TODO(@preston-evans98): This should be a read-only method
+    fn resolve_context(
+        &self,
+        tx: &Self::Tx,
+        sequencer: &Da::Address,
+        height: u64,
+        state_checkpoint: &mut StateCheckpoint<C>,
+    ) -> C;
+}
+
 #[cfg(feature = "mocks")]
 pub mod mocks {
     //! Mocks for the rollup capabilities module
@@ -79,7 +143,7 @@ pub mod mocks {
 
     use super::{BatchSelector, Kernel};
     use crate::capabilities::BootstrapWorkingSet;
-    use crate::{Context, KernelWorkingSet, WorkingSet};
+    use crate::{Context, KernelWorkingSet, StateCheckpoint};
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, derivative::Derivative)]
@@ -103,7 +167,7 @@ pub mod mocks {
         }
 
         /// The genesis working set
-        pub fn genesis_ws(ws: &mut WorkingSet<C>) -> KernelWorkingSet<'_, C> {
+        pub fn genesis_ws(ws: &mut StateCheckpoint<C>) -> KernelWorkingSet<'_, C> {
             let kernel = Self::new(0, 0);
             let ws = KernelWorkingSet::from_kernel(&kernel, ws);
             ws

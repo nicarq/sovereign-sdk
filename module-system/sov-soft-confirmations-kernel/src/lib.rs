@@ -84,16 +84,20 @@ impl<C: Context, Da: DaSpec> KernelSlotHooks<C, Da> for SoftConfirmationsKernel<
         slot_header: &<Da as DaSpec>::BlockHeader,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Context as sov_modules_api::Spec>::Storage as Storage>::Root,
-        working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
-    ) {
-        let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, working_set);
+        state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Context>,
+    ) -> C::GasUnit {
+        let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
         self.chain_state
-            .begin_slot_hook(slot_header, validity_condition, pre_state_root, &mut ws);
+            .begin_slot_hook(slot_header, validity_condition, pre_state_root, &mut ws)
     }
 
-    fn end_slot_hook(&self, working_set: &mut sov_modules_api::WorkingSet<Self::Context>) {
-        let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, working_set);
-        self.chain_state.end_slot_hook(&mut ws);
+    fn end_slot_hook(
+        &self,
+        gas_used: &C::GasUnit,
+        state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Context>,
+    ) {
+        let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
+        self.chain_state.end_slot_hook(gas_used, &mut ws);
     }
 }
 

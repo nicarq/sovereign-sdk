@@ -16,8 +16,8 @@ pub use accessory_vec::AccessoryStateVec;
 pub use kernel_value::KernelStateValue;
 pub use map::StateMap;
 pub use traits::{
-    StateMapAccessor, StateMapError, StateValueAccessor, StateValueError, StateVecAccessor,
-    StateVecError,
+    StateAccessor, StateMapAccessor, StateMapError, StateValueAccessor, StateValueError,
+    StateVecAccessor, StateVecError,
 };
 pub use value::StateValue;
 pub use vec::StateVec;
@@ -86,7 +86,7 @@ mod test {
                         WorkingSet::new(prover_storage.clone());
 
                     working_set.set(&test.key, test.value.clone());
-                    let (cache, witness) = working_set.checkpoint().freeze();
+                    let (cache, witness) = working_set.checkpoint().0.freeze();
                     prover_storage
                         .validate_and_commit(cache, &witness)
                         .expect("storage is valid");
@@ -144,10 +144,9 @@ mod test {
             let header = MockBlockHeader::default();
             let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
             assert!(prover_storage.is_empty());
-            let mut working_set: WorkingSet<DefaultContext> =
-                WorkingSet::new(prover_storage.clone());
-            working_set.set(&key, value.clone());
-            let (cache, witness) = working_set.checkpoint().freeze();
+            let mut storage: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+            storage.set(&key, value.clone());
+            let (cache, witness) = storage.checkpoint().0.freeze();
             prover_storage
                 .validate_and_commit(cache, &witness)
                 .expect("storage is valid");

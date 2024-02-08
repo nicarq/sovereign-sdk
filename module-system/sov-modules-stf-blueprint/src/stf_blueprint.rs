@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use borsh::BorshSerialize;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
@@ -11,12 +12,12 @@ use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, Event, TransactionReceipt};
 use tracing::{debug, error};
 
-use crate::{Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
+use crate::{Runtime, SequencerOutcome, SlashingReason, TxEffect};
 
 type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
 
 #[allow(type_alias_bounds)]
-type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
+pub(crate) type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
     <Da::BlobTransaction as BlobReaderTrait>::Address,
 >;
@@ -45,6 +46,15 @@ pub(crate) enum ApplyBatchError<A: BasicAddress> {
         reason: SlashingReason,
         sequencer_da_address: A,
     },
+}
+
+/// The mode in which a transaction executes
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ExecutionMode {
+    /// Normal transaction execution, used while validating/syncing the chain
+    Normal,
+    /// Speculative execution, used during block building
+    Speculative,
 }
 
 impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome<A>, TxEffect> {
@@ -107,18 +117,18 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub(crate) fn apply_batch(
         &self,
-        checkpoint: StateCheckpoint<C>,
+        mut checkpoint: StateCheckpoint<C>,
         mut batch: BatchWithId,
         sender: &Da::Address,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
+        gas_price: &C::GasUnit,
+        height: u64,
+    ) -> (ApplyBatch<Da>, StateCheckpoint<C>, C::GasUnit) {
         debug!(sequencer = hex::encode(sender), "Applying a batch");
-
-        let mut batch_workspace = checkpoint.to_revertable();
 
         // ApplyBlobHook: begin
         if let Err(e) = self
             .runtime
-            .begin_batch_hook(&mut batch, sender, &mut batch_workspace)
+            .begin_batch_hook(&mut batch, sender, &mut checkpoint)
         {
             error!(
                 "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer: {}",
@@ -127,40 +137,24 @@ where
 
             return (
                 Err(ApplyBatchError::Ignored(batch.id)),
-                batch_workspace.revert(),
+                checkpoint,
+                C::GasUnit::ZEROED,
             );
         }
 
-        // Write changes from begin_blob_hook
-        batch_workspace = batch_workspace.checkpoint().to_revertable();
-
-        // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
-        let _ = self.convert_to_runtime_events(&mut batch_workspace);
         let batch_id = batch.id;
 
         let (txs, messages) = match self.pre_process_batch(batch) {
             Ok((txs, messages)) => (txs, messages),
             Err(reason) => {
                 // Explicitly revert on slashing, even though nothing has changed in pre_process.
-                let mut batch_workspace = batch_workspace.checkpoint().to_revertable();
                 let sequencer_da_address = sender;
                 let sequencer_outcome = SequencerOutcome::Slashed {
                     reason,
                     sequencer_da_address: sequencer_da_address.clone(),
                 };
-                let checkpoint = match self
-                    .runtime
-                    .end_batch_hook(sequencer_outcome, &mut batch_workspace)
-                {
-                    Ok(()) => {
-                        // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-                        batch_workspace.checkpoint()
-                    }
-                    Err(e) => {
-                        error!("End blob hook failed: {}", e);
-                        batch_workspace.revert()
-                    }
-                };
+                self.runtime
+                    .end_batch_hook(sequencer_outcome, &mut checkpoint);
 
                 return (
                     Err(ApplyBatchError::Slashed {
@@ -169,6 +163,7 @@ where
                         sequencer_da_address: sequencer_da_address.clone(),
                     }),
                     checkpoint,
+                    C::GasUnit::ZEROED,
                 );
             }
         };
@@ -180,38 +175,39 @@ where
             "Error in preprocessing batch, there should be same number of txs and messages"
         );
 
-        let mut sequencer_reward = 0u64;
-        let gas_price = batch_workspace.gas_price().to_vec();
+        let mut sequencer_reward = 0;
 
         let mut tx_receipts = Vec::with_capacity(txs.len());
 
-        let mut batch_workspace = self.apply_txs(
+        let (mut checkpoint, gas_used) = self.apply_txs(
             txs,
             messages,
             &mut tx_receipts,
-            batch_workspace,
+            checkpoint,
+            sender,
             &mut sequencer_reward,
+            gas_price,
+            height,
         );
 
-        // TODO: calculate the amount based of gas and fees
-        let sequencer_outcome = SequencerOutcome::Rewarded(sequencer_reward);
-
-        if let Err(e) = self
-            .runtime
-            .end_batch_hook(sequencer_outcome.clone(), &mut batch_workspace)
-        {
-            // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-            error!("Failed on `end_blob_hook`: {}", e);
+        let sequencer_outcome = if sequencer_reward >= 0 {
+            SequencerOutcome::Rewarded(sequencer_reward.unsigned_abs())
+        } else {
+            SequencerOutcome::Penalized(sequencer_reward.unsigned_abs())
         };
+
+        self.runtime
+            .end_batch_hook(sequencer_outcome.clone(), &mut checkpoint);
 
         (
             Ok(BatchReceipt {
                 batch_hash: batch_id,
                 tx_receipts,
                 inner: sequencer_outcome,
-                gas_price,
+                gas_price: gas_price.to_vec(),
             }),
-            batch_workspace.checkpoint(),
+            checkpoint,
+            gas_used,
         )
     }
 
@@ -236,125 +232,217 @@ where
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[allow(clippy::too_many_arguments)]
     fn apply_txs(
         &self,
         txs: Vec<TransactionAndRawHash<C>>,
         messages: Vec<<RT as DispatchCall>::Decodable>,
         tx_receipts: &mut Vec<TransactionReceipt<TxEffect>>,
-        mut batch_workspace: WorkingSet<C>,
-        sequencer_reward: &mut u64,
-    ) -> WorkingSet<C> {
-        // Dispatching transactions
-        for ((tx, raw_tx_hash), msg) in txs
-            .into_iter()
-            .map(|tx| tx.split())
-            .zip(messages.into_iter())
-        {
-            if let Some(max) = tx.max_gas_price() {
-                if max < batch_workspace.gas_price() {
-                    let gas_used = batch_workspace.gas_used().to_vec();
-                    let receipt = TransactionReceipt {
-                        tx_hash: raw_tx_hash,
-                        body_to_save: None,
-                        events: self.convert_to_runtime_events(&mut batch_workspace),
-                        receipt: TxEffect::Skipped,
-                        gas_used,
-                    };
-
-                    tx_receipts.push(receipt);
-                    continue;
-                }
-            }
-
-            // Update the working set gas meter with the available funds
-            let gas_limit = tx.gas_limit();
-            let gas_tip = tx.gas_tip();
-            batch_workspace.set_gas_funds(gas_limit);
-
-            // Pre dispatch hook
-            // TODO set the sequencer pubkey
-            let hook = RuntimeTxHook {
-                height: 1,
-                sequencer: tx.pub_key().clone(),
-            };
-            let ctx = match self
-                .runtime
-                .pre_dispatch_tx_hook(&tx, &mut batch_workspace, &hook)
-            {
-                Ok(verified_tx) => verified_tx,
-                Err(e) => {
-                    // Don't revert any state changes made by the pre_dispatch_hook even if the Tx is rejected.
-                    // For example nonce for the relevant account is incremented.
-                    error!("Stateful verification error - the sequencer included an invalid transaction: {}", e);
-                    let gas_used = batch_workspace.gas_used().to_vec();
-                    let receipt = TransactionReceipt {
-                        tx_hash: raw_tx_hash,
-                        body_to_save: None,
-                        events: self.convert_to_runtime_events(&mut batch_workspace),
-                        receipt: TxEffect::Reverted,
-                        gas_used,
-                    };
-
-                    tx_receipts.push(receipt);
-                    continue;
-                }
-            };
-
-            // Commit changes after pre_dispatch_tx_hook
-            batch_workspace = batch_workspace.checkpoint().to_revertable();
-
-            let tx_result = self.runtime.dispatch_call(msg, &mut batch_workspace, &ctx);
-
-            let remaining_gas = batch_workspace.gas_remaining_funds();
-            let gas_reward = gas_limit
-                .saturating_add(gas_tip)
-                .saturating_sub(remaining_gas);
-
-            *sequencer_reward = sequencer_reward.saturating_add(gas_reward);
-
-            let events: Vec<_> = self.convert_to_runtime_events(&mut batch_workspace);
-
-            let tx_effect = match tx_result {
-                Ok(_) => TxEffect::Successful,
-                Err(e) => {
-                    error!(
-                        tx_hash = hex::encode(raw_tx_hash),
-                        error = ?e,
-                        "Transaction was reverted"
-                    );
-                    // The transaction causing invalid state transition is reverted
-                    // but we don't slash and we continue processing remaining transactions.
-                    batch_workspace = batch_workspace.revert().to_revertable();
-                    TxEffect::Reverted
-                }
-            };
-            debug!(
-                tx_hash = hex::encode(raw_tx_hash),
-                ?tx_effect,
-                gas_reward,
-                "Tx was successfully dispatched"
+        mut batch_workspace: StateCheckpoint<C>,
+        sequencer: &Da::Address,
+        sequencer_reward: &mut i64,
+        gas_price: &C::GasUnit,
+        height: u64,
+    ) -> (StateCheckpoint<C>, C::GasUnit) {
+        let mut gas_used = C::GasUnit::ZEROED;
+        for (tx, msg) in txs.into_iter().zip(messages.into_iter()) {
+            let (next_workspace, receipt) = self.apply_tx(
+                tx,
+                msg,
+                batch_workspace,
+                sequencer,
+                sequencer_reward,
+                ExecutionMode::Normal,
+                gas_price,
+                height,
             );
-
-            let gas_used = batch_workspace.gas_used().to_vec();
-            let receipt = TransactionReceipt {
-                tx_hash: raw_tx_hash,
-                body_to_save: None,
-                events,
-                receipt: tx_effect,
-                gas_used,
-            };
-
+            batch_workspace = next_workspace;
+            gas_used.combine(&C::GasUnit::from_slice(&receipt.gas_used));
             tx_receipts.push(receipt);
-            // We commit after events have been extracted into receipt.
-            batch_workspace = batch_workspace.checkpoint().to_revertable();
-
-            // TODO: `panic` will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-            self.runtime
-                .post_dispatch_tx_hook(&tx, &ctx, &mut batch_workspace)
-                .expect("inconsistent state: error in post_dispatch_tx_hook");
         }
 
-        batch_workspace
+        (batch_workspace, gas_used)
+    }
+
+    /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
+    /// 1. After the pre-dispatch hook. This ensures that the gas charges are paid even if the transaction fails later during execution
+    /// 2. After the post-dispatch hook. This ensures that the transaction can be reverted by the post-dispatch hook if desired.
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[allow(clippy::too_many_arguments)]
+    fn apply_tx(
+        &self,
+        tx: TransactionAndRawHash<C>,
+        message: <RT as DispatchCall>::Decodable,
+        mut state_checkpoint: StateCheckpoint<C>,
+        sequencer: &Da::Address,
+        sequencer_reward: &mut i64,
+        execution_mode: ExecutionMode,
+        gas_price: &C::GasUnit,
+        height: u64,
+    ) -> (StateCheckpoint<C>, TransactionReceipt<TxEffect>) {
+        let (tx, raw_tx_hash) = tx.split();
+        let ctx = self
+            .runtime
+            .resolve_context(&tx, sequencer, height, &mut state_checkpoint);
+
+        // Check that the transaction isn't a duplicate
+        if let Err(e) = self
+            .runtime
+            .check_uniqueness(&tx, &ctx, &mut state_checkpoint)
+        {
+            error!(
+                "Tx 0x{} was rejected by the 'check_uniqueness' hook: {}",
+                hex::encode(raw_tx_hash),
+                e
+            );
+            if execution_mode != ExecutionMode::Speculative {
+                *sequencer_reward = sequencer_reward.saturating_sub(
+                    tx.gas_fixed_cost()
+                        .value(gas_price)
+                        .try_into()
+                        .unwrap_or(i64::MAX),
+                );
+            }
+
+            return (
+                state_checkpoint,
+                TransactionReceipt {
+                    tx_hash: raw_tx_hash,
+                    body_to_save: None,
+                    events: vec![],
+                    receipt: TxEffect::Duplicate,
+                    gas_used: tx.gas_fixed_cost().to_vec(),
+                },
+            );
+        }
+
+        let mut working_set =
+            match self
+                .runtime
+                .try_reserve_gas(&tx, &ctx, gas_price, state_checkpoint)
+            {
+                Ok(working_set) => working_set,
+                Err(checkpoint) => {
+                    error!(
+                        "Tx 0x{} was rejected by the 'try_reserve_gas' hook.",
+                        hex::encode(raw_tx_hash),
+                    );
+                    if execution_mode != ExecutionMode::Speculative {
+                        *sequencer_reward = sequencer_reward.saturating_sub(
+                            tx.gas_fixed_cost()
+                                .value(gas_price)
+                                .try_into()
+                                .unwrap_or(i64::MAX),
+                        );
+                    }
+                    return (
+                        checkpoint,
+                        TransactionReceipt {
+                            tx_hash: raw_tx_hash,
+                            body_to_save: None,
+                            events: vec![],
+                            receipt: TxEffect::InsufficientBaseGas,
+                            gas_used: tx.gas_fixed_cost().to_vec(),
+                        },
+                    );
+                }
+            };
+        let initial_funds = working_set.gas_remaining_funds();
+
+        let tx_result = self.attempt_tx(&tx, message, &mut working_set, &ctx);
+        let (mut checkpoint, receipt, mut gas_meter) = match tx_result {
+            Ok(_) => {
+                let (checkpoint, gas_meter, events) = working_set.checkpoint();
+
+                (
+                    checkpoint,
+                    TransactionReceipt {
+                        tx_hash: raw_tx_hash,
+                        body_to_save: None,
+                        events: self.convert_to_runtime_events(events),
+                        receipt: TxEffect::Successful,
+                        gas_used: gas_meter.gas_used().to_vec(),
+                    },
+                    gas_meter,
+                )
+            }
+            Err(e) => {
+                error!(
+                    "Tx 0x{} was reverted error: {}",
+                    hex::encode(raw_tx_hash),
+                    e
+                );
+                // The transaction causing invalid state transition is reverted
+                // but we don't slash and we continue processing remaining transactions.
+                // working_set.revert_in_place();
+                let (checkpoint, gas_meter) = working_set.revert();
+
+                (
+                    checkpoint,
+                    TransactionReceipt {
+                        tx_hash: raw_tx_hash,
+                        body_to_save: None,
+                        events: vec![], // As in Ethereum, reverted transactions don't emit events
+                        receipt: TxEffect::Reverted,
+                        gas_used: gas_meter.gas_used().to_vec(),
+                    },
+                    gas_meter,
+                )
+            }
+        };
+
+        // If the transaction failed in speculative mode, we act as though it never happened.
+        if execution_mode == ExecutionMode::Speculative && receipt.receipt != TxEffect::Successful {
+            tracing::info!(
+                "Tx 0x{} was unsucessful: {:?}. Undoing all effects.",
+                hex::encode(raw_tx_hash),
+                receipt.receipt
+            );
+            gas_meter.set_gas_funds(initial_funds);
+            self.runtime
+                .refund_remaining_gas(&tx, &ctx, &gas_meter, &mut checkpoint);
+            return (checkpoint, receipt);
+        }
+
+        self.runtime
+            .mark_tx_attempted(&tx, sequencer, &mut checkpoint);
+
+        self.runtime
+            .refund_remaining_gas(&tx, &ctx, &gas_meter, &mut checkpoint);
+
+        // TODO(@vlopes11): Calculate tip based on usage
+        let gas_reward = tx.gas_tip().try_into().unwrap_or(i64::MAX);
+        *sequencer_reward = sequencer_reward.saturating_add(gas_reward);
+        debug!(
+            "Tx 0x{} effect: {:?}, sequencer reward: {}",
+            hex::encode(raw_tx_hash),
+            receipt.receipt,
+            gas_reward
+        );
+
+        (checkpoint, receipt)
+    }
+
+    /// A helper function which executes the transaction, returning an error if it should revert
+    fn attempt_tx(
+        &self,
+        tx: &Transaction<C>,
+        message: <RT as DispatchCall>::Decodable,
+        working_set: &mut WorkingSet<C>,
+        ctx: &C,
+    ) -> Result<(), anyhow::Error> {
+        working_set.charge_gas(&tx.gas_fixed_cost())?;
+        // TODO(@preston-evans98): Consider moving this before the gas resolution.
+        // Also consider whether this needs to be fallible
+
+        self.runtime.pre_dispatch_tx_hook(tx, working_set)?;
+
+        self.runtime
+            .dispatch_call(message, working_set, ctx)
+            .map_err(Into::<anyhow::Error>::into)?;
+        self.runtime.post_dispatch_tx_hook(tx, ctx, working_set)?;
+
+        Ok(())
     }
 
     // Stateless verification of transaction, such as signature check
@@ -394,9 +482,11 @@ where
     }
 
     // Helper function to take typed events and perform a conversion to the storable Events (
-    fn convert_to_runtime_events(&self, workspace: &mut WorkingSet<C>) -> Vec<Event> {
-        workspace
-            .take_events()
+    pub(crate) fn convert_to_runtime_events(
+        &self,
+        events: Vec<sov_modules_core::TypedEvent>,
+    ) -> Vec<Event> {
+        events
             .into_iter()
             .map(|typed_event| {
                 // This seems to be needed because doing `&typed_event.event_key().to_vec()`

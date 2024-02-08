@@ -3986,6 +3986,7 @@ dependencies = [
  "sov-test-utils",
  "sov-value-setter",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
