@@ -43,7 +43,14 @@ sha2 = { workspace = true }
 
 
 [features]
-arbitrary = ["dep:arbitrary", "dep:proptest", "dep:proptest-derive", "dep:tempfile"]
+arbitrary = [
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"dep:tempfile",
+	"sov-rollup-interface/arbitrary",
+	"sov-schema-db/arbitrary",
+]
 
 [[bench]]
 name = "state_db_single_snapshot"

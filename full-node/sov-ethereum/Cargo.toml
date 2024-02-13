@@ -40,5 +40,11 @@ proptest = { workspace = true }
 [features]
 default = []
 local = []
-experimental = ["demo-stf/experimental", "sov-evm/experimental", "local"]
-native = ["demo-stf/native", "sov-evm/native"]
+experimental = [ "demo-stf/experimental", "local", "sov-evm/experimental" ]
+native = [
+	"demo-stf/native",
+	"sov-accounts/native",
+	"sov-evm/native",
+	"sov-modules-api/native",
+	"sov-rollup-interface/native",
+]

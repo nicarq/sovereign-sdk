@@ -36,15 +36,15 @@ sp-core = { version = "21", optional = true }
 hex = { workspace = true }
 
 [features]
-default = ["native"]
+default = [ "native" ]
 native = [
-    "dep:tokio",
-    "dep:codec",
-    "dep:reqwest",
-    "dep:avail-subxt",
-    "dep:subxt",
-    "dep:futures",
-    "dep:sp-keyring",
-    "dep:sp-core",
-    "sov-rollup-interface/native",
+	"dep:avail-subxt",
+	"dep:codec",
+	"dep:futures",
+	"dep:reqwest",
+	"dep:sp-core",
+	"dep:sp-keyring",
+	"dep:subxt",
+	"dep:tokio",
+	"sov-rollup-interface/native",
 ]

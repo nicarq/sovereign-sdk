@@ -8,6 +8,9 @@ license = { workspace = true }
 homepage = "sovereign.xyz"
 publish = false
 
+[features]
+native = [ "sov-mock-da/native", "sov-rollup-interface/native" ]
+
 [dependencies]
 anyhow = { workspace = true }
 serde = { workspace = true }

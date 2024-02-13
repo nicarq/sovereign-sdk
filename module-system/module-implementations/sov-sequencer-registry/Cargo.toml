@@ -38,18 +38,41 @@ sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 [features]
-bench = ["risc0-cycle-macros", "risc0-cycle-utils", "risc0-zkvm", "risc0-zkvm-platform"]
-default = []
-arbitrary = ["dep:arbitrary", "dep:proptest", "dep:proptest-derive"]
-native = [
-    "serde",
-    "serde_json",
-    "jsonrpsee",
-    "schemars",
-    "clap",
-    "sov-state/native",
-    "sov-modules-api/native",
-    # This:
-    "sov-bank/native",
+bench = [
+	"risc0-cycle-macros",
+	"risc0-cycle-macros?/bench",
+	"risc0-cycle-utils",
+	"risc0-zkvm",
+	"risc0-zkvm-platform",
+	"sov-modules-api/bench",
+	"sov-sequencer-registry/bench",
+	"sov-state/bench",
 ]
-serde = []
+default = []
+arbitrary = [
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"sov-modules-api/arbitrary",
+	"sov-sequencer-registry/arbitrary",
+	"sov-state/arbitrary",
+]
+native = [
+	"clap",
+	"jsonrpsee",
+	"risc0-cycle-utils?/native",
+	"schemars",
+	"serde",
+	"serde_json",
+	# This:
+	"sov-bank/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-sequencer-registry/native",
+	"sov-state/native",
+]
+serde = [
+	"sov-bank/serde",
+	"sov-modules-api/serde",
+	"sov-sequencer-registry/serde",
+]

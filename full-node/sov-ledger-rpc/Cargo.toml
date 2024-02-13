@@ -34,6 +34,6 @@ sov-mock-da = { path = "../../adapters/mock-da", features = ["native"], version 
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"], version = "0.3" }
 
 [features]
-default = ["client", "server"]
-server = ["anyhow", "futures", "jsonrpsee/server", "sov-modules-api"]
-client = ["jsonrpsee/client", "jsonrpsee/macros"]
+default = [ "client", "server" ]
+server = [ "anyhow", "futures", "jsonrpsee/server", "sov-modules-api" ]
+client = [ "jsonrpsee/client", "jsonrpsee/macros" ]

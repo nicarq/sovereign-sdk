@@ -19,9 +19,17 @@ serde = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 
 [dev-dependencies]
+sov-accessory-state = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 [features]
 default = []
-native = ["serde", "sov-modules-api/native", "dep:jsonrpsee"]
+native = [
+	"dep:jsonrpsee",
+	"serde",
+	"sov-accessory-state/native",
+	"sov-modules-api/native",
+	"sov-state/native",
+]
+serde = [ "dep:serde", "sov-accessory-state/serde", "sov-modules-api/serde" ]

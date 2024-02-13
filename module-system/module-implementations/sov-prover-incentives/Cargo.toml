@@ -35,4 +35,12 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 
 [features]
 default = []
-native = ["serde_json", "schemars", "sov-state/native", "sov-modules-api/native"]
+native = [
+	"schemars",
+	"serde_json",
+	"sov-bank/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-prover-incentives/native",
+	"sov-state/native",
+]

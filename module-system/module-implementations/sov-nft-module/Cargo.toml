@@ -37,7 +37,16 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 
 [features]
 default = []
-offchain = ["postgres", "tokio", "tracing"]
-native = ["serde", "serde_json", "jsonrpsee", "schemars", "sov-state/native", "sov-modules-api/native", ]
-serde = []
-test = ["native"]
+offchain = [ "postgres", "sov-nft-module/offchain", "tokio", "tracing" ]
+native = [
+	"jsonrpsee",
+	"schemars",
+	"serde",
+	"serde_json",
+	"sov-modules-api/native",
+	"sov-modules-macros/native",
+	"sov-nft-module/native",
+	"sov-state/native",
+]
+serde = [ "sov-modules-api/serde", "sov-nft-module/serde" ]
+test = [ "native" ]

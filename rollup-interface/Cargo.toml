@@ -10,9 +10,7 @@ repository = { workspace = true }
 version = { workspace = true }
 readme = "README.md"
 resolver = "2"
-exclude = [
-    "specs/assets/*",
-]
+exclude = ["specs/assets/*"]
 
 
 [dependencies]
@@ -39,17 +37,26 @@ proptest = { workspace = true }
 proptest-derive = { workspace = true }
 
 [features]
-default = ["std"]
-native = ["std", "tokio", "futures"]
-fuzzing = ["proptest", "proptest-derive", "sha2", "std"]
+default = [ "std" ]
+native = [ "futures", "std", "tokio" ]
+arbitrary = [ "proptest", "proptest-derive", "sha2", "std" ]
 std = [
-    "anyhow/default",
-    "borsh/default",
-    "borsh/bytes",
-    "bytes",
-    "digest/default",
-    "hex/default",
-    "serde/default",
-    "sha2?/default",
-    "thiserror"
+	"anyhow/default",
+	"anyhow/std",
+	"borsh/bytes",
+	"borsh/default",
+	"borsh/std",
+	"bytes",
+	"digest/default",
+	"digest/std",
+	"futures?/std",
+	"hex/default",
+	"hex/std",
+	"proptest?/std",
+	"serde/default",
+	"serde/std",
+	"serde_json/std",
+	"sha2?/default",
+	"sha2?/std",
+	"thiserror",
 ]

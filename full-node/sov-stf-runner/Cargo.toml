@@ -53,15 +53,25 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 [features]
 default = []
-mock = ["native"]
+mock = [ "native" ]
 native = [
-    "sov-db",
-    "jsonrpsee",
-    "toml",
-    "tokio",
-    "tracing",
-    "futures",
-    "async-trait",
-    "rayon",
-    "thiserror",
+	"async-trait",
+	"futures",
+	"jsonrpsee",
+	"rayon",
+	"sov-accounts/native",
+	"sov-bank/native",
+	"sov-celestia-adapter/native",
+	"sov-db",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-modules-stf-blueprint/native",
+	"sov-rollup-interface/native",
+	"sov-sequencer-registry/native",
+	"sov-state/native",
+	"sov-stf-runner/native",
+	"thiserror",
+	"tokio",
+	"toml",
+	"tracing",
 ]

@@ -36,12 +36,21 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 [features]
 default = []
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "sov-state/arbitrary",
-    "sov-modules-api/arbitrary",
-    "sov-state/arbitrary"
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"sov-accounts/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-state/arbitrary",
 ]
-native = ["serde", "serde_json", "jsonrpsee", "schemars", "clap", "sov-state/native", "sov-modules-api/native"]
-serde = []
+native = [
+	"clap",
+	"jsonrpsee",
+	"schemars",
+	"serde",
+	"serde_json",
+	"sov-accounts/native",
+	"sov-modules-api/native",
+	"sov-state/native",
+]
+serde = [ "sov-accounts/serde", "sov-modules-api/serde" ]

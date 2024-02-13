@@ -44,33 +44,50 @@ sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manage
 
 
 [features]
-default = ["std"]
+default = [ "std" ]
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "proptest/default",
-    "std",
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"proptest/default",
+	"sov-modules-api/arbitrary",
+	"sov-modules-core/arbitrary",
+	"sov-rollup-interface/arbitrary",
+	"sov-state/arbitrary",
+	"std",
 ]
-native = []
+native = [
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-modules-core/native",
+	"sov-rollup-interface/native",
+	"sov-state/native",
+]
 std = [
-    "anyhow/default",
-    "bech32/default",
-    "borsh/default",
-    "derive_more/default",
-    "digest/default",
-    "hex/default",
-    "jmt",
-    "schemars",
-    "serde/default",
-    "sha2/default",
-    "sov-rollup-interface/default",
-    "sync",
-    "thiserror",
+	"anyhow/default",
+	"anyhow/std",
+	"bech32/default",
+	"bech32/std",
+	"borsh/default",
+	"borsh/std",
+	"derive_more/default",
+	"digest/default",
+	"digest/std",
+	"hex/default",
+	"hex/std",
+	"jmt",
+	"proptest?/std",
+	"schemars",
+	"serde/default",
+	"serde/std",
+	"serde_json/std",
+	"sha2/default",
+	"sha2/std",
+	"sov-rollup-interface/default",
+	"sov-rollup-interface/std",
+	"sync",
+	"thiserror",
 ]
-serde = []
-sync = [
-    "borsh/rc",
-    "serde/rc",
-]
+serde = [ "hex/serde", "sov-modules-api/serde", "sov-modules-core/serde" ]
+sync = [ "borsh/rc", "serde/rc" ]
 mocks = []

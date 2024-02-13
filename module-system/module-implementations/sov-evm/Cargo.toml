@@ -65,15 +65,25 @@ sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 [features]
 default = []
 native = [
-    "serde_json",
-    "jsonrpsee",
-    "schemars",
-    "clap",
-    "sov-state/native",
-    "sov-modules-api/native",
-    "reth-interfaces",
+	"clap",
+	"jsonrpsee",
+	"reth-interfaces",
+	"schemars",
+	"serde_json",
+	"sov-chain-state/native",
+	"sov-evm/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-state/native",
 ]
-serde = []
-experimental = []
+serde = [
+	"bytes/serde",
+	"hex/serde",
+	"revm/serde",
+	"secp256k1/serde",
+	"sov-evm/serde",
+	"sov-modules-api/serde",
+]
+experimental = [ "sov-evm/experimental" ]
 # For testing smart contract
-smart_contracts = ["native", "experimental"]
+smart_contracts = [ "experimental", "native" ]

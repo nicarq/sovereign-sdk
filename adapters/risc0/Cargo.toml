@@ -27,8 +27,14 @@ sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 
 [features]
 default = []
-native = ["risc0-zkvm/prove", "dep:risc0-zkp", "dep:risc0-circuit-rv32im"]
-bench = ["once_cell", "parking_lot","native","risc0-cycle-utils/native"]
+native = [
+	"dep:risc0-circuit-rv32im",
+	"dep:risc0-zkp",
+	"risc0-cycle-utils/native",
+	"risc0-zkvm/prove",
+	"sov-rollup-interface/native",
+]
+bench = [ "native", "once_cell", "parking_lot", "risc0-cycle-utils/native" ]
 
 [[test]]
 name = "native"
