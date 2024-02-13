@@ -67,7 +67,6 @@ native = [
 	"clap",
 	"demo-stf/native",
 	"jsonrpsee",
-	"serde",
 	"sov-accounts/native",
 	"sov-bank/native",
 	"sov-blob-storage/native",
@@ -86,17 +85,4 @@ native = [
 	"sov-value-setter/native",
 	"tokio",
 	"toml",
-]
-serde = [
-	"demo-stf/serde",
-	"hex/serde",
-	"rand/serde",
-	"secp256k1?/serde",
-	"sov-accounts/serde",
-	"sov-bank/serde",
-	"sov-evm?/serde",
-	"sov-modules-api/serde",
-	"sov-nft-module/serde",
-	"sov-sequencer-registry/serde",
-	"sov-value-setter/serde",
 ]

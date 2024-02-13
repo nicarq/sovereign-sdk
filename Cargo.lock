@@ -6023,7 +6023,6 @@ dependencies = [
  "libc",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
- "serde",
 ]
 
 [[package]]
@@ -6535,8 +6534,6 @@ dependencies = [
  "auto_impl",
  "revm-interpreter",
  "revm-precompile",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -6547,7 +6544,6 @@ dependencies = [
  "derive_more",
  "enumn",
  "revm-primitives",
- "serde",
  "sha3",
 ]
 
@@ -7558,7 +7554,6 @@ version = "1.0.113"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69801b70b1c3dac963ecb03a364ba0ceda9cf60c71cfe475e99864759c8b8a79"
 dependencies = [
- "indexmap 2.2.3",
  "itoa",
  "ryu",
  "serde",
@@ -8751,6 +8746,7 @@ dependencies = [
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-state",
+ "sov-vec-setter",
  "tempfile",
  "thiserror",
 ]

@@ -42,7 +42,8 @@ impl From<&SealedBlock> for BlockEnv {
     }
 }
 
-/// RLP encoded evm transaction.
+/// [RLP](https://ethereum.org/developers/docs/data-structures-and-encoding/rlp)
+/// encoded EVM transaction.
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -53,7 +54,7 @@ impl From<&SealedBlock> for BlockEnv {
     serde::Deserialize,
 )]
 pub struct RlpEvmTransaction {
-    /// Rlp data.
+    /// RLP data.
     pub rlp: Vec<u8>,
 }
 

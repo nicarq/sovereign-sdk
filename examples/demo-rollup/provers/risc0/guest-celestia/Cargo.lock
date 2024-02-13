@@ -933,11 +933,15 @@ version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26b01e40b772d54cf6c6d721c1d1abd0647a0106a12ecaa1c186273392a69533"
 dependencies = [
+ "futures-channel",
  "futures-core",
+ "futures-io",
  "futures-sink",
  "futures-task",
+ "memchr",
  "pin-project-lite",
  "pin-utils",
+ "slab",
 ]
 
 [[package]]
@@ -2027,6 +2031,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
 
 [[package]]
+name = "slab"
+version = "0.4.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "smol_str"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2176,6 +2189,7 @@ dependencies = [
  "digest 0.10.7",
  "hex",
  "jmt",
+ "proptest",
  "schemars",
  "serde",
  "sha2 0.10.8",
@@ -2193,7 +2207,6 @@ dependencies = [
  "quote",
  "schemars",
  "serde_json",
- "sov-modules-core",
  "syn 1.0.109",
 ]
 
@@ -2250,7 +2263,9 @@ dependencies = [
  "borsh 0.10.3",
  "bytes",
  "digest 0.10.7",
+ "futures",
  "hex",
+ "proptest",
  "serde",
  "serde_json",
  "sha2 0.10.8",

@@ -16,12 +16,15 @@ pub const UPDATE_ACCOUNT_MSG: [u8; 32] = [1; 32];
         rename = "CallMessage"
     )
 )]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 pub enum CallMessage<C: Context> {
     /// Updates a public key for the corresponding Account.
     /// The sender must be in possession of the new key.

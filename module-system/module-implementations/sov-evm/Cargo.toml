@@ -76,14 +76,6 @@ native = [
 	"sov-modules-api/native",
 	"sov-state/native",
 ]
-serde = [
-	"bytes/serde",
-	"hex/serde",
-	"revm/serde",
-	"secp256k1/serde",
-	"sov-evm/serde",
-	"sov-modules-api/serde",
-]
 experimental = [ "sov-evm/experimental" ]
 # For testing smart contract
 smart_contracts = [ "experimental", "native" ]

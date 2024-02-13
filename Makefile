@@ -25,6 +25,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo risczero install
 	cargo install zepter
 	rustup target add thumbv6m-none-eabi
+	rustup target add wasm32-unknown-unknown
 
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest

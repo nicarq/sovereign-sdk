@@ -204,10 +204,7 @@ pub fn rpc_gen(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn handle_macro_error(result: Result<proc_macro::TokenStream, syn::Error>) -> TokenStream {
-    match result {
-        Ok(ok) => ok,
-        Err(err) => err.to_compile_error().into(),
-    }
+    result.unwrap_or_else(|err| err.to_compile_error().into())
 }
 
 #[cfg(feature = "native")]
@@ -252,14 +249,13 @@ pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
 /// use std::fmt;
 /// use sov_modules_api::Context;
 ///#[cfg(feature = "native")]
-///#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+///#[derive(schemars::JsonSchema)]
 ///#[schemars(bound = "C::Address: ::schemars::JsonSchema", rename = "UserAddress")]
-///#[serde(transparent)]
-///#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Clone, Debug, PartialEq, Eq, Hash)]
+///#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 ///pub struct UserAddress<C: Context>(C::Address);
 ///
 ///#[cfg(not(feature = "native"))]
-///#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Clone, Debug, PartialEq, Eq, Hash)]
+///#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 ///pub struct UserAddress<C: Context>(C::Address);
 ///
 ///impl<C: Context> UserAddress<C> {

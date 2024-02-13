@@ -223,8 +223,7 @@ impl TryFrom<&[u8]> for DefaultPublicKey {
 }
 
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DefaultSignature {
     #[cfg_attr(
         feature = "native",
@@ -307,30 +306,33 @@ impl FromStr for DefaultSignature {
     }
 }
 
-#[test]
-#[cfg(feature = "native")]
-fn test_privatekey_serde_bincode() {
-    use self::private_key::DefaultPrivateKey;
-    use crate::PrivateKey;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let key_pair = DefaultPrivateKey::generate();
-    let serialized = bincode::serialize(&key_pair).expect("Serialization to vec is infallible");
-    let output = bincode::deserialize::<DefaultPrivateKey>(&serialized)
-        .expect("SigningKey is serialized correctly");
+    #[test]
+    fn test_privatekey_serde_bincode() {
+        use self::private_key::DefaultPrivateKey;
+        use crate::PrivateKey;
 
-    assert_eq!(key_pair.as_hex(), output.as_hex());
-}
+        let key_pair = DefaultPrivateKey::generate();
+        let serialized = bincode::serialize(&key_pair).expect("Serialization to vec is infallible");
+        let output = bincode::deserialize::<DefaultPrivateKey>(&serialized)
+            .expect("SigningKey is serialized correctly");
 
-#[test]
-#[cfg(feature = "native")]
-fn test_privatekey_serde_json() {
-    use self::private_key::DefaultPrivateKey;
-    use crate::PrivateKey;
+        assert_eq!(key_pair.as_hex(), output.as_hex());
+    }
 
-    let key_pair = DefaultPrivateKey::generate();
-    let serialized = serde_json::to_vec(&key_pair).expect("Serialization to vec is infallible");
-    let output = serde_json::from_slice::<DefaultPrivateKey>(&serialized)
-        .expect("Keypair is serialized correctly");
+    #[test]
+    fn test_privatekey_serde_json() {
+        use self::private_key::DefaultPrivateKey;
+        use crate::PrivateKey;
 
-    assert_eq!(key_pair.as_hex(), output.as_hex());
+        let key_pair = DefaultPrivateKey::generate();
+        let serialized = serde_json::to_vec(&key_pair).expect("Serialization to vec is infallible");
+        let output = serde_json::from_slice::<DefaultPrivateKey>(&serialized)
+            .expect("Keypair is serialized correctly");
+
+        assert_eq!(key_pair.as_hex(), output.as_hex());
+    }
 }

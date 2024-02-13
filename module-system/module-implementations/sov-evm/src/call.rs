@@ -11,14 +11,16 @@ use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::experimental::PendingTransaction;
 use crate::Evm;
 
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
-
 /// EVM call message.
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
+)]
 pub struct CallMessage {
     /// RLP encoded transaction.
     pub tx: RlpEvmTransaction,

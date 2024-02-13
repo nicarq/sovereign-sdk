@@ -9,16 +9,14 @@ pub fn address_type_helper(input: DeriveInput) -> Result<TokenStream, syn::Error
 
     let expanded = quote! {
         #[cfg(feature = "native")]
-        #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+        #[derive(schemars::JsonSchema)]
         #[schemars(bound = "C::Address: ::schemars::JsonSchema", rename = #name_str)]
-        #[serde(transparent)]
-        #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
         #(#attrs)*
         pub struct #name<C: Context>(C::Address);
 
         #[cfg(not(feature = "native"))]
-        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-        #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
         #(#attrs)*
         pub struct #name<C: Context>(C::Address);
 

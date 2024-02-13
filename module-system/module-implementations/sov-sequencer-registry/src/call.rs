@@ -11,15 +11,18 @@ use crate::{AllowedSequencer, SequencerRegistry};
 /// the `sov-sequencer-registry` module.
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema), derive(CliWalletArg))]
 #[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
-#[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
-#[derive(Debug, PartialEq, Clone, borsh::BorshSerialize, borsh::BorshDeserialize)]
+#[derive(
+    Debug,
+    PartialEq,
+    Clone,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub enum CallMessage {
     /// Add a new sequencer to the sequencer registry.
     Register {

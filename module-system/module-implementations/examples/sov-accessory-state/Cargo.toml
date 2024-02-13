@@ -15,7 +15,7 @@ resolver = "2"
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 sov-modules-api = { path = "../../../sov-modules-api" }
 sov-state = { path = "../../../sov-state" }
-serde = { workspace = true, optional = true }
+serde = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 
 [dev-dependencies]
@@ -27,9 +27,7 @@ sov-prover-storage-manager = { path = "../../../../full-node/sov-prover-storage-
 default = []
 native = [
 	"dep:jsonrpsee",
-	"serde",
 	"sov-accessory-state/native",
 	"sov-modules-api/native",
 	"sov-state/native",
 ]
-serde = [ "dep:serde", "sov-accessory-state/serde", "sov-modules-api/serde" ]

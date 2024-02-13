@@ -62,7 +62,6 @@ native = [
 	"jsonrpsee",
 	"risc0-cycle-utils?/native",
 	"schemars",
-	"serde",
 	"serde_json",
 	# This:
 	"sov-bank/native",
@@ -70,9 +69,4 @@ native = [
 	"sov-modules-api/native",
 	"sov-sequencer-registry/native",
 	"sov-state/native",
-]
-serde = [
-	"sov-bank/serde",
-	"sov-modules-api/serde",
-	"sov-sequencer-registry/serde",
 ]

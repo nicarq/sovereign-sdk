@@ -36,12 +36,10 @@ native = [
 	"clap",
 	"jsonrpsee",
 	"schemars",
-	"serde",
 	"serde_json",
 	"sov-bank/native",
 	"sov-modules-api/native",
 	"sov-state/native",
 ]
 cli = [ "native" ]
-serde = [ "sov-bank/serde", "sov-modules-api/serde" ]
 test-utils = []
