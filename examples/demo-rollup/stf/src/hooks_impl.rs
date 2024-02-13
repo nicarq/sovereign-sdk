@@ -65,11 +65,7 @@ impl<C: Context, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<C, Da> {
                 reason,
                 sequencer_da_address,
             } => {
-                info!(
-                    sequencer_da_address = hex::encode(&sequencer_da_address),
-                    ?reason,
-                    "Slashing sequencer"
-                );
+                info!(%sequencer_da_address, ?reason, "Slashing sequencer");
                 <SequencerRegistry<C, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
                     &self.sequencer_registry,
                     sov_sequencer_registry::SequencerOutcome::Slashed {
