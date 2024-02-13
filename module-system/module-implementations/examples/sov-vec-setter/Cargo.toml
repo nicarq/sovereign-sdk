@@ -16,6 +16,7 @@ publish = false
 tempfile = { workspace = true }
 sov-modules-api = { path = "../../../sov-modules-api", features = ["native", "macros"] }
 sov-prover-storage-manager = { path = "../../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-vec-setter = { path = ".", features = ["native"] }
 
 [dependencies]
 anyhow = { workspace = true }
@@ -30,7 +31,7 @@ jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], 
 clap = { workspace = true, optional = true }
 
 [features]
-default = [ "native" ]
+default = []
 native = [
 	"clap",
 	"jsonrpsee",
@@ -38,4 +39,5 @@ native = [
 	"serde_json",
 	"sov-modules-api/native",
 	"sov-state/native",
+	"sov-vec-setter/native",
 ]

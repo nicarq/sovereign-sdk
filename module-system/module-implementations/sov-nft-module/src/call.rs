@@ -5,18 +5,21 @@ use crate::address::UserAddress;
 use crate::offchain::{update_collection, update_nft};
 use crate::{Collection, CollectionAddress, Nft, NftIdentifier, NonFungibleToken, TokenId};
 
+/// A transaction handled by the NFT module. Mints, Transfers, or Burns an NFT by id
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
     schemars(bound = "C::Address: ::schemars::JsonSchema", rename = "CallMessage")
 )]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
-/// A transaction handled by the NFT module. Mints, Transfers, or Burns an NFT by id
 pub enum CallMessage<C: Context> {
     /// Create a new collection
     CreateCollection {

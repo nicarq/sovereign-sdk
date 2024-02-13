@@ -88,6 +88,5 @@ std = [
 	"sync",
 	"thiserror",
 ]
-serde = [ "hex/serde", "sov-modules-api/serde", "sov-modules-core/serde" ]
 sync = [ "borsh/rc", "serde/rc" ]
 mocks = []

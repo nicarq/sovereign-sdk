@@ -60,11 +60,9 @@ sov-modules-macros = { path = "../../module-system/sov-modules-macros" }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
 humantime = "2.1"
 
-borsh = { workspace = true }
+hex = { workspace = true }
 bincode = { workspace = true }
 sha2 = { workspace = true }
-hex = { workspace = true }
-serde_json = { workspace = true }
 tempfile = { workspace = true }
 proptest = { workspace = true }
 tokio = { workspace = true }

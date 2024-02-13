@@ -73,7 +73,7 @@ pub trait Spec {
     /// The hasher preferred by the rollup, such as Sha256 or Poseidon.
     type Hasher: Digest<OutputSize = U32>;
 
-    /// The digital signature scheme used by the rollup
+    /// The digital signature scheme used by the rollup.
     #[cfg(all(feature = "native", feature = "std"))]
     type Signature: Signature<PublicKey = Self::PublicKey>
         + alloc::str::FromStr<Err = anyhow::Error>
@@ -81,12 +81,14 @@ pub trait Spec {
         + for<'a> serde::Deserialize<'a>
         + schemars::JsonSchema;
 
-    /// The digital signature scheme used by the rollup
-    #[cfg(all(not(all(feature = "native", feature = "std")), not(feature = "serde")))]
-    type Signature: Signature<PublicKey = Self::PublicKey>;
+    /// The digital signature scheme used by the rollup.
+    #[cfg(all(feature = "native", not(feature = "std")))]
+    type Signature: Signature<PublicKey = Self::PublicKey>
+        + serde::Serialize
+        + for<'a> serde::Deserialize<'a>;
 
-    /// The digital signature scheme used by the rollup
-    #[cfg(all(not(all(feature = "native", feature = "std")), feature = "serde"))]
+    /// The digital signature scheme used by the rollup.
+    #[cfg(not(all(feature = "native", feature = "std")))]
     type Signature: Signature<PublicKey = Self::PublicKey>
         + serde::Serialize
         + for<'a> serde::Deserialize<'a>;

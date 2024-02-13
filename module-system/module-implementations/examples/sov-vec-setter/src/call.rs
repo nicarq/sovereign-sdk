@@ -11,14 +11,16 @@ use super::VecSetter;
 use crate::event::Event;
 
 /// This enumeration represents the available call messages for interacting with the `sov-vec-setter` module.
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize),
-    derive(CliWalletArg),
-    derive(schemars::JsonSchema)
+#[cfg_attr(feature = "native", derive(CliWalletArg), derive(schemars::JsonSchema))]
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 pub enum CallMessage {
     /// value to push
     PushValue(u32),

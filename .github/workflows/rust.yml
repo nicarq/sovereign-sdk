@@ -144,13 +144,13 @@ jobs:
       - name: Install Rust Bare Metal
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.75
           target: thumbv6m-none-eabi
           override: true
       - name: Install Rust WASM
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.75
           target: wasm32-unknown-unknown
           override: true
       - name: cargo install cargo-hack

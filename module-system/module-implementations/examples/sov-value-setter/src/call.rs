@@ -12,12 +12,15 @@ use crate::event::Event;
 
 /// This enumeration represents the available call messages for interacting with the `sov-value-setter` module.
 #[cfg_attr(feature = "native", derive(CliWalletArg), derive(schemars::JsonSchema))]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 pub enum CallMessage {
     /// value to set
     SetValue(

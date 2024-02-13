@@ -33,20 +33,16 @@ sov-test-utils = { path = "../../sov-test-utils" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 
-
-
 [features]
 default = []
 offchain = [ "postgres", "sov-nft-module/offchain", "tokio", "tracing" ]
 native = [
 	"jsonrpsee",
 	"schemars",
-	"serde",
 	"serde_json",
 	"sov-modules-api/native",
 	"sov-modules-macros/native",
 	"sov-nft-module/native",
 	"sov-state/native",
 ]
-serde = [ "sov-modules-api/serde", "sov-nft-module/serde" ]
 test = [ "native" ]
