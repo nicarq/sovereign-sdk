@@ -34,4 +34,12 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 [features]
 default = []
 test-utils = []
-native = ["serde_json", "jsonrpsee", "sov-state/native", "sov-modules-api/native"]
+native = [
+	"jsonrpsee",
+	"serde_json",
+	"sov-chain-state/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-modules-core/native",
+	"sov-state/native",
+]

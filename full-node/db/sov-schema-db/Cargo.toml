@@ -32,5 +32,5 @@ proptest = { workspace = true, features = ["alloc", "std"] }
 
 [features]
 default = []
-test-utils = ["dep:byteorder"]
-arbitrary = ["dep:proptest", "dep:proptest-derive"]
+test-utils = [ "dep:byteorder" ]
+arbitrary = [ "dep:proptest", "dep:proptest-derive", "sov-schema-db/arbitrary" ]

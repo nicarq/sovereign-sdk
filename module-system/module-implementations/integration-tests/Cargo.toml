@@ -40,4 +40,15 @@ sov-bank = {path = "../sov-bank"}
 
 [features]
 default = []
-native = []
+native = [
+	"integration-tests/native",
+	"sov-bank/native",
+	"sov-chain-state/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-modules-stf-blueprint/native",
+	"sov-rollup-interface/native",
+	"sov-sequencer-registry/native",
+	"sov-state/native",
+	"sov-value-setter/native",
+]

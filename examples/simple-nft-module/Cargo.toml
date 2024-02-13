@@ -31,5 +31,14 @@ sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manage
 
 [features]
 default = []
-native = ["sov-state/native", "sov-modules-api/native", "jsonrpsee", "schemars", "serde_json", "clap"]
-test = ["native"]
+native = [
+	"clap",
+	"jsonrpsee",
+	"schemars",
+	"serde_json",
+	"simple-nft-module/native",
+	"sov-modules-api/native",
+	"sov-rollup-interface/native",
+	"sov-state/native",
+]
+test = [ "native" ]

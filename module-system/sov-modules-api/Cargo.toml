@@ -53,27 +53,49 @@ sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manage
 
 [features]
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "proptest/default",
-    "sov-state/arbitrary",
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"proptest/default",
+	"sov-db/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-modules-core/arbitrary",
+	"sov-rollup-interface/arbitrary",
+	"sov-state/arbitrary",
 ]
-bench = ["risc0-zkvm", "risc0-zkvm-platform", "risc0-cycle-macros"]
-default = ["macros"]
+bench = [
+	"risc0-cycle-macros",
+	"risc0-cycle-macros?/bench",
+	"risc0-zkvm",
+	"risc0-zkvm-platform",
+	"sov-modules-api/bench",
+	"sov-state/bench",
+]
+default = [ "macros" ]
 native = [
-    "serde_json",
-    "rand",
-    "schemars",
-    "serde",
-    "ed25519-dalek/default",
-    "ed25519-dalek/rand_core",
-    "clap",
-    "jsonrpsee",
-    "macros",
-    "sov-modules-core/native",
-    "sov-modules-macros/native",
-    "sov-state/native",
+	"clap",
+	"ed25519-dalek/default",
+	"ed25519-dalek/rand_core",
+	"jsonrpsee",
+	"macros",
+	"rand",
+	"schemars",
+	"serde",
+	"serde_json",
+	"sov-bank/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-modules-core/native",
+	"sov-modules-macros/native",
+	"sov-rollup-interface/native",
+	"sov-state/native",
 ]
-macros = ["sov-modules-macros"]
-serde = ["sov-modules-core/serde"]
+macros = [ "sov-modules-macros" ]
+serde = [
+	"ed25519-dalek/serde",
+	"hex/serde",
+	"rand?/serde",
+	"sov-bank/serde",
+	"sov-modules-api/serde",
+	"sov-modules-core/serde",
+]

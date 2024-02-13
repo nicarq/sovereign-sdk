@@ -31,7 +31,22 @@ sov-chain-state = { path = "../module-implementations/sov-chain-state" }
 sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 
 [features]
-bench = ["risc0-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
+bench = [
+	"risc0-cycle-macros",
+	"risc0-cycle-macros?/bench",
+	"risc0-zkvm",
+	"risc0-zkvm-platform",
+	"sov-modules-api/bench",
+	"sov-state/bench",
+]
 default = []
-native = ["sov-state/native", "sov-modules-api/native", "jsonrpsee", "sov-chain-state/native", "sov-blob-storage/native"]
+native = [
+	"jsonrpsee",
+	"sov-blob-storage/native",
+	"sov-chain-state/native",
+	"sov-modules-api/native",
+	"sov-modules-core/native",
+	"sov-rollup-interface/native",
+	"sov-state/native",
+]
 test-utils = []

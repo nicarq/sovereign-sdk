@@ -11,7 +11,7 @@ use crate::da::DaSpec;
 use crate::maybestd::vec::Vec;
 use crate::zk::{ValidityCondition, Zkvm};
 
-#[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
+#[cfg(any(all(test, feature = "sha2"), feature = "arbitrary"))]
 pub mod fuzzing;
 
 /// Type alias for the output type of [`StateTransitionFunction::apply_slot`].
@@ -173,7 +173,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
 
 /// A key-value pair representing a change to the rollup state
 #[derive(Debug, Clone, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "fuzzing"), derive(proptest_derive::Arbitrary))]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
 pub struct Event {
     key: EventKey,
     value: EventValue,
@@ -213,7 +213,7 @@ impl Event {
     Serialize,
     Deserialize,
 )]
-#[cfg_attr(any(test, feature = "fuzzing"), derive(proptest_derive::Arbitrary))]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
 pub struct EventKey(Vec<u8>);
 
 impl EventKey {
@@ -230,7 +230,7 @@ impl EventKey {
 
 /// The value of an event. This is a wrapper around a `Vec<u8>`.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "fuzzing"), derive(proptest_derive::Arbitrary))]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
 pub struct EventValue(Vec<u8>);
 
 impl EventValue {

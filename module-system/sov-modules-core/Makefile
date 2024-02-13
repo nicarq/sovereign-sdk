@@ -6,9 +6,9 @@ help: ## Display this help message
 check-no-std: ## Checks that project compiles without std
 	# check bare metal
 	cargo hack check --feature-powerset \
-		--exclude-features default,arbitrary,std,sync \
+		--exclude-features default,native,arbitrary,std,sync \
 		--target thumbv6m-none-eabi
 	# check wasm32
 	cargo hack check --feature-powerset \
-		--exclude-features default,arbitrary,std \
+		--exclude-features default,native,arbitrary,std \
 		--target wasm32-unknown-unknown

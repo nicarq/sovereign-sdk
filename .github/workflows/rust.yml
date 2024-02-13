@@ -103,6 +103,10 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust
         run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+      - name: cargo install zepter
+        uses: taiki-e/install-action@v2
+        with:
+          tool: zepter@1
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:

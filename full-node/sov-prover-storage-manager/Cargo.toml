@@ -36,6 +36,4 @@ harness = false
 
 [features]
 default = []
-test-utils = [
-    "sov-schema-db/test-utils",
-]
+test-utils = [ "sov-schema-db/test-utils" ]

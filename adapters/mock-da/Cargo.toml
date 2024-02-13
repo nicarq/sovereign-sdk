@@ -33,7 +33,8 @@ sov-mock-da = { path = ".", features = ["native"] }
 [features]
 default = []
 native = [
-    "dep:tokio",
-    "dep:futures",
-    "sov-rollup-interface/native"
+	"dep:futures",
+	"dep:tokio",
+	"sov-mock-da/native",
+	"sov-rollup-interface/native",
 ]

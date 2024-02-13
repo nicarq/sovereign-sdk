@@ -43,4 +43,18 @@ sov-soft-confirmations-kernel = { path = "../../sov-soft-confirmations-kernel", 
 
 [features]
 default = []
-native = ["jsonrpsee", "schemars", "serde_json", "sov-modules-api/native", "sov-state/native", "sov-sequencer-registry/native", "clap"]
+native = [
+	"clap",
+	"jsonrpsee",
+	"schemars",
+	"serde_json",
+	"sov-bank/native",
+	"sov-blob-storage/native",
+	"sov-chain-state/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-modules-stf-blueprint/native",
+	"sov-sequencer-registry/native",
+	"sov-soft-confirmations-kernel/native",
+	"sov-state/native",
+]
