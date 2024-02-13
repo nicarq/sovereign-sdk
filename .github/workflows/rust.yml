@@ -72,14 +72,19 @@ jobs:
       # update this list!
       - check
       - check_no_std
+      - prover_bench_check
+      - bench_check
+      - rollup_bench_check
+      - doctests
       - hack
       - nextest
-      - test
+      - doctests
       - coverage
       - check-licenses
       - cargo-doc-artifact
       - deploy-github-pages
       - check-demo-rollup-table-of-contents
+      - check-demo-rollup-bash-commands-mock-da
       - check-demo-rollup-bash-commands
       - validate-packages-to-publish-yml
     steps:
@@ -304,6 +309,7 @@ jobs:
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       - name: cargo hack
         run: make check-features
+
   nextest:
     name: nextest
     runs-on: buildjet-4vcpu-ubuntu-2204
@@ -333,8 +339,9 @@ jobs:
           cache-provider: "buildjet"
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
       - run: cargo nextest run --workspace --all-features
-  test:
-    name: test
+
+  doctests:
+    name: doctests
     runs-on: buildjet-4vcpu-ubuntu-2204
     timeout-minutes: 60
     steps:
@@ -363,6 +370,7 @@ jobs:
       # separately.
       # TODO: https://github.com/nextest-rs/nextest/issues/16
       - run: cargo test --workspace --doc --all-features
+
   coverage:
     name: coverage
     runs-on: buildjet-8vcpu-ubuntu-2204
@@ -405,6 +413,7 @@ jobs:
         with:
           # When retry is implemented, we can enable it again: https://github.com/codecov/codecov-action/issues/926
           fail_ci_if_error: false
+
   check-licenses:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -512,6 +521,7 @@ jobs:
         run: cargo run --bin bashtestmd -- --input examples/demo-rollup/README_CELESTIA.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
       - run: chmod +x demo-rollup-readme.sh && ./demo-rollup-readme.sh
+
   check-demo-rollup-bash-commands-mock-da:
     runs-on: buildjet-4vcpu-ubuntu-2204
     needs: nextest
