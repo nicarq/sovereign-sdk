@@ -16,13 +16,8 @@ borsh = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { workspace = true, optional = true }
-toml = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
-tokio = { workspace = true, optional = true }
-hex = { workspace = true }
 tracing = { workspace = true }
-reth-primitives = { workspace = true, optional = true }
-secp256k1 = { workspace = true, optional = true }
 
 sov-stf-runner = { path = "../../../full-node/sov-stf-runner" }
 sov-rollup-interface = { path = "../../../rollup-interface" }
@@ -57,12 +52,7 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 [features]
 default = []
 offchain = [ "demo-stf/offchain", "sov-nft-module/offchain" ]
-experimental = [
-	"demo-stf/experimental",
-	"reth-primitives",
-	"secp256k1",
-	"sov-evm/experimental",
-]
+experimental = [ "demo-stf/experimental", "sov-evm/experimental" ]
 native = [
 	"clap",
 	"demo-stf/native",
@@ -83,6 +73,4 @@ native = [
 	"sov-state/native",
 	"sov-stf-runner/native",
 	"sov-value-setter/native",
-	"tokio",
-	"toml",
 ]
