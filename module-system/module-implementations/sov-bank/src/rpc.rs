@@ -3,7 +3,7 @@ use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::WorkingSet;
 
-use crate::{Amount, Bank};
+use crate::{get_token_address, Amount, Bank};
 
 /// Structure returned by the `balance_of` rpc method.
 #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
@@ -53,5 +53,17 @@ impl<C: sov_modules_api::Context> Bank<C> {
         Ok(TotalSupplyResponse {
             amount: self.get_total_supply_of(&token_address, working_set),
         })
+    }
+
+    #[rpc_method(name = "tokenAddress")]
+    /// RPC method that returns the token address for a given token name, sender, and salt.
+    pub fn token_address(
+        &self,
+        token_name: String,
+        sender: C::Address,
+        salt: u64,
+        _working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<C::Address> {
+        Ok(get_token_address::<C>(&token_name, &sender, salt))
     }
 }

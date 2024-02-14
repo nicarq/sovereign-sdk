@@ -31,7 +31,7 @@ fn burn_deployed_tokens() {
     let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<C>(&token_name, minter_address.as_ref(), salt);
+    let token_address = get_token_address::<C>(&token_name, &minter_address, salt);
 
     // ---
     // Deploying token
@@ -155,7 +155,7 @@ fn burn_deployed_tokens() {
 
     // ---
     // Try to burn non existing token
-    let token_address = get_token_address::<C>("NotRealToken2", minter_address.as_ref(), salt);
+    let token_address = get_token_address::<C>("NotRealToken2", &minter_address, salt);
     let burn_message = CallMessage::Burn {
         coins: Coins {
             amount: 1,

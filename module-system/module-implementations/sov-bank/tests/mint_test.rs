@@ -25,7 +25,7 @@ fn mint_token() {
     let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<C>(&token_name, minter_address.as_ref(), salt);
+    let token_address = get_token_address::<C>(&token_name, &minter_address, salt);
 
     // ---
     // Deploying token
@@ -120,7 +120,7 @@ fn mint_token() {
     let salt = 0;
     let token_name = "Token_New".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<C>(&token_name, minter_address.as_ref(), salt);
+    let token_address = get_token_address::<C>(&token_name, &minter_address, salt);
     let authorized_minter_address_1 = generate_address::<C>("authorized_minter_1");
     let authorized_minter_address_2 = generate_address::<C>("authorized_minter_2");
     let sequencer_address = generate_address::<C>("sequencer");

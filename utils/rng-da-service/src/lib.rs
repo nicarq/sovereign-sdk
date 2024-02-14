@@ -179,7 +179,7 @@ impl DaVerifier for RngDaVerifier {
 pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
     let token_name = "sov-test-token";
     let (sa, pk) = sender_address_with_pkey();
-    let token_address = sov_bank::get_token_address::<DefaultContext>(token_name, sa.as_ref(), 11);
+    let token_address = sov_bank::get_token_address::<DefaultContext>(token_name, &sa, 11);
     let mut message_vec = vec![];
     for i in 1..(n + 1) {
         let priv_key = DefaultPrivateKey::generate();

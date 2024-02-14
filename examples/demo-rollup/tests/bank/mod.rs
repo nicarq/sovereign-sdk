@@ -120,19 +120,26 @@ async fn build_transfer_token_tx(
 }
 
 async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error> {
+    let port = rpc_address.port();
+    let client = SimpleClient::new("localhost", port).await?;
+
     let key = DefaultPrivateKey::generate();
     let user_address: <DefaultContext as Spec>::Address = key.to_address();
 
-    let token_address = sov_bank::get_token_address::<DefaultContext>(
-        TOKEN_NAME,
-        user_address.as_ref(),
+    let token_address =
+        sov_bank::get_token_address::<DefaultContext>(TOKEN_NAME, &user_address, TOKEN_SALT);
+
+    let token_address_response = sov_bank::BankRpcClient::<DefaultContext>::token_address(
+        client.http(),
+        TOKEN_NAME.to_owned(),
+        user_address,
         TOKEN_SALT,
-    );
+    )
+    .await?;
+
+    assert_eq!(token_address, token_address_response);
 
     let tx = build_create_token_tx(&key, 0).await;
-
-    let port = rpc_address.port();
-    let client = SimpleClient::new("localhost", port).await?;
 
     let mut slot_processed_subscription: Subscription<u64> = client
         .ws()

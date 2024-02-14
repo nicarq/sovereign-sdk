@@ -5,11 +5,11 @@ use crate::genesis::DEPLOYER;
 /// Derives token address from `token_name`, `sender` and `salt`.
 pub fn get_token_address<C: sov_modules_api::Context>(
     token_name: &str,
-    sender: &[u8],
+    sender: &C::Address,
     salt: u64,
 ) -> C::Address {
     let mut hasher = C::Hasher::new();
-    hasher.update(sender);
+    hasher.update(sender.as_ref());
     hasher.update(token_name.as_bytes());
     hasher.update(salt.to_le_bytes());
 
@@ -22,7 +22,11 @@ pub fn get_genesis_token_address<C: sov_modules_api::Context>(
     token_name: &str,
     salt: u64,
 ) -> C::Address {
-    get_token_address::<C>(token_name, &DEPLOYER, salt)
+    get_token_address::<C>(
+        token_name,
+        &C::Address::try_from(&DEPLOYER).expect("Illegal token deployer"),
+        salt,
+    )
 }
 
 #[cfg(feature = "test-utils")]

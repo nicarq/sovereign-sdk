@@ -12,7 +12,7 @@ use crate::{Bank, Coins};
 //
 // ```rust
 // let token_name = "sov-gas-token";
-// let deployer = DEPLOYER;
+// let deployer = DEPLOYER_ADDRESS;
 // let salt = 0;
 // let computed = super::get_token_address::<DefaultContext>(token_name, &deployer, salt);
 // ```

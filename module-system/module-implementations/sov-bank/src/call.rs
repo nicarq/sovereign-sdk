@@ -84,7 +84,7 @@ impl<C: sov_modules_api::Context> Bank<C> {
             &token_name,
             &[(minter_address, initial_balance)],
             &authorized_minters,
-            context.sender().as_ref(),
+            context.sender(),
             salt,
             self.tokens.prefix(),
             working_set,
