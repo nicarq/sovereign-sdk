@@ -20,7 +20,6 @@ members = [
     "full-node/sov-stf-runner",
     "full-node/sov-prover-storage-manager",
     # Utils
-    "utils/bashtestmd",
     "utils/rng-da-service",
     # Module System
     "module-system/sov-cli",
