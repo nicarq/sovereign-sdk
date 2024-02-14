@@ -23,7 +23,7 @@ sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-state = { path = "../sov-state", version = "0.3" }
 sov-modules-core = { path = "../sov-modules-core", version = "0.3" }
 sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
-risc0-cycle-macros = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev="0110643f00b", optional = true }
+risc0-cycle-macros = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["server"], optional = true }

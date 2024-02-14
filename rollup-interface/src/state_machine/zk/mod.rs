@@ -60,11 +60,11 @@ pub trait Zkvm: Send + Sync {
     type Error: Debug;
 
     /// Interpret a sequence of a bytes as a proof and attempt to verify it against the code commitment.
-    /// If the proof is valid, return a reference to the public outputs of the proof.
-    fn verify<'a>(
-        serialized_proof: &'a [u8],
+    /// If the proof is valid, return a public outputs of the proof.
+    fn verify(
+        serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Same as [`verify`](Zkvm::verify), except that instead of returning the output
     /// as a serialized array, it returns a state transition structure.

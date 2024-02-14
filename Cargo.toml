@@ -102,11 +102,14 @@ tempfile = "3.8"
 tokio = { version = "1", features = ["full"] }
 lazy_static = "1.4.0"
 num_cpus = "1.0"
-risc0-zkvm = { version = "0.19", default-features = false }
-risc0-zkvm-platform = { version = "0.19" }
-risc0-zkp = "0.19"
-risc0-circuit-rv32im = "0.19"
-risc0-build = "0.19"
+risc0-zkvm = { version = "0.20", default-features = false }
+risc0-zkvm-platform = { version = "0.20" }
+risc0-zkp = "0.20"
+risc0-circuit-rv32im = "0.20"
+risc0-build = "0.20"
+
+risc0-cycle-macros = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "98948b8ee0e3edffcee7f3bd95a9d93c5c0941af" }
+risc0-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "98948b8ee0e3edffcee7f3bd95a9d93c5c0941af" }
 
 # EVM dependencies
 ethereum-types = "0.14.1"
@@ -128,12 +131,6 @@ revm = { git = "https://github.com/bluealloy/revm", rev = "516f62cc", default-fe
 
 secp256k1 = { version = "0.27.0", default-features = false, features = ["global-context", "rand-std", "recovery"] }
 
-[patch.crates-io]
-# Uncomment to apply the v0.19 build script download issue hotfix.
-risc0-circuit-recursion = { git = "https://github.com/neysofu/risc0-hotfixes", rev = "v0.19.2-hotfix" }
-risc0-zkvm = { git = "https://github.com/neysofu/risc0-hotfixes", rev = "v0.19.2-hotfix" }
-risc0-zkvm-platform = { git = "https://github.com/neysofu/risc0-hotfixes", rev = "v0.19.2-hotfix" }
-risc0-circuit-rv32im = { git = "https://github.com/neysofu/risc0-hotfixes", rev = "v0.19.2-hotfix" }
 
 [patch.'https://github.com/eigerco/celestia-node-rs.git']
 # Uncomment to apply local changes

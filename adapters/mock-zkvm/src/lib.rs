@@ -102,7 +102,7 @@ impl<ValidityCond> MockZkvm<ValidityCond> {
 
     /// Simulates zk proof generation.
     pub fn make_proof(&self) {
-        // We notify the worket thread.
+        // We notify the worker thread.
         self.worker_thread_notifier.notify();
     }
 }
@@ -112,17 +112,17 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkv
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        serialized_proof: &'a [u8],
+    fn verify(
+        serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         let proof = MockProof::decode(serialized_proof)?;
         anyhow::ensure!(
             proof.program_id.matches(code_commitment),
             "Proof failed to verify against requested code commitment"
         );
         anyhow::ensure!(proof.is_valid, "Proof is not valid");
-        Ok(proof.log)
+        Ok(proof.log.to_vec())
     }
 
     fn verify_and_extract_output<
@@ -133,7 +133,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkv
         code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(bincode::deserialize(output)?)
+        Ok(bincode::deserialize(&output)?)
     }
 }
 
@@ -172,10 +172,10 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        _serialized_proof: &'a [u8],
+    fn verify(
+        _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         unimplemented!()
     }
 
