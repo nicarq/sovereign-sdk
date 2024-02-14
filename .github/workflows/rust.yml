@@ -513,12 +513,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust
         run: rustup show
+      - name: Install Bashtestmd
+        uses: taiki-e/install-action@v2
+        with:
+          tool: bashtestmd@0.4
       - uses: Swatinem/rust-cache@v2
         with:
           cache-provider: "buildjet"
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
       - name: Compile README.md to Bash
-        run: cargo run --bin bashtestmd -- --input examples/demo-rollup/README_CELESTIA.md --output demo-rollup-readme.sh --tag test-ci
+        run: bashtestmd --input examples/demo-rollup/README_CELESTIA.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
       - run: chmod +x demo-rollup-readme.sh && ./demo-rollup-readme.sh
 
@@ -542,6 +546,10 @@ jobs:
         run: cargo risczero install --version v2024-02-08.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Bashtestmd
+        uses: taiki-e/install-action@v2
+        with:
+          tool: bashtestmd@0.4
       - name: Install Rust
         run: rustup show
       - uses: Swatinem/rust-cache@v2
@@ -549,7 +557,7 @@ jobs:
           cache-provider: "buildjet"
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
       - name: Compile README.md to Bash
-        run: cargo run --bin bashtestmd -- --input examples/demo-rollup/README.md --output demo-rollup-readme.sh --tag test-ci
+        run: bashtestmd --input examples/demo-rollup/README.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
       - run: chmod +x demo-rollup-readme.sh && ./demo-rollup-readme.sh
 
