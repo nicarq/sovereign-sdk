@@ -86,7 +86,7 @@ impl Risc0Guest {
 
     /// Constructs a new Risc0 Guest with the provided hints.
     ///
-    /// This function is only available outside of Risc0's environment.
+    /// This function is only available outside Risc0's environment.
     #[cfg(not(target_os = "zkvm"))]
     pub fn with_hints(hints: Vec<u32>) -> Self {
         Self {
@@ -98,7 +98,7 @@ impl Risc0Guest {
 
 #[cfg(not(target_os = "zkvm"))]
 impl ZkvmGuest for Risc0Guest {
-    fn read_from_host<T: serde::de::DeserializeOwned>(&self) -> T {
+    fn read_from_host<T: DeserializeOwned>(&self) -> T {
         let mut hints = self.hints.lock().unwrap();
         let mut hints = hints.deref_mut();
         T::deserialize(&mut Deserializer::new(&mut hints)).unwrap()
@@ -116,10 +116,10 @@ impl Zkvm for Risc0Guest {
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        _serialized_proof: &'a [u8],
+    fn verify(
+        _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         // Implement this method once risc0 supports recursion: issue #633
         todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
     }

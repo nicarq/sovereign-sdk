@@ -1,6 +1,6 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
-use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Receipt, Session};
+use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, Receipt, Session};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
@@ -54,7 +54,7 @@ impl<'a> Risc0Host<'a> {
             .build()
             .unwrap();
         let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
-        Ok(executor.run()?)
+        executor.run()
     }
     /// Run a computation in the zkvm and generate a receipt.
     pub fn run(&mut self) -> anyhow::Result<Receipt> {
@@ -71,7 +71,7 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         // space to reserve. This is in no way guaranteed to be exact, but
         // usually the in-memory size and serialized data size are quite close.
         //
-        // Note: this is just an optimization to avoid frequent reallocations,
+        // Note: this is just an optimization to avoid frequent reallocation,
         // it's not actually required.
         self.env
             .reserve(std::mem::size_of::<T>() / std::mem::size_of::<u32>());
@@ -103,10 +103,10 @@ impl<'host> Zkvm for Risc0Host<'host> {
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        serialized_proof: &'a [u8],
+    fn verify(
+        serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         verify_from_slice(serialized_proof, code_commitment)
     }
 
@@ -118,7 +118,7 @@ impl<'host> Zkvm for Risc0Host<'host> {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(output)?)
+        Ok(risc0_zkvm::serde::from_slice(&output)?)
     }
 }
 
@@ -130,10 +130,10 @@ impl Zkvm for Risc0Verifier {
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        serialized_proof: &'a [u8],
+    fn verify(
+        serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         verify_from_slice(serialized_proof, code_commitment)
     }
 
@@ -145,28 +145,15 @@ impl Zkvm for Risc0Verifier {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(output)?)
+        Ok(risc0_zkvm::serde::from_slice(&output)?)
     }
 }
 
-fn verify_from_slice<'a>(
-    serialized_proof: &'a [u8],
+fn verify_from_slice(
+    serialized_proof: &[u8],
     code_commitment: &Risc0MethodId,
-) -> Result<&'a [u8], anyhow::Error> {
-    let Risc0Proof::<'a> {
-        receipt, journal, ..
-    } = bincode::deserialize(serialized_proof)?;
-
-    receipt.verify(code_commitment.0, journal)?;
-    Ok(journal)
-}
-
-/// A convenience type which contains the same data a Risc0 [`Receipt`] but borrows the journal
-/// data. This allows us to avoid one unnecessary copy during proof verification.
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Risc0Proof<'a> {
-    /// The cryptographic data certifying the execution of the program.
-    pub receipt: InnerReceipt,
-    /// The public outputs produced by the program execution.
-    pub journal: &'a [u8],
+) -> Result<Vec<u8>, anyhow::Error> {
+    let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+    receipt.verify(code_commitment.0)?;
+    Ok(receipt.journal.bytes)
 }

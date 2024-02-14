@@ -26,8 +26,8 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
-risc0-cycle-macros = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev="0110643f00b", optional = true }
-risc0-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev="0110643f00b", optional = true }
+risc0-cycle-macros = { workspace = true, optional = true }
+risc0-cycle-utils = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 
