@@ -25,7 +25,7 @@ fn freeze_token() {
     let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<C>(&token_name, minter_address.as_ref(), salt);
+    let token_address = get_token_address::<C>(&token_name, &minter_address, salt);
 
     // ---
     // Deploying token
@@ -74,7 +74,7 @@ fn freeze_token() {
     // create a second token
     let token_name_2 = "Token2".to_owned();
     let initial_balance = 100;
-    let token_address_2 = get_token_address::<C>(&token_name_2, minter_address.as_ref(), salt);
+    let token_address_2 = get_token_address::<C>(&token_name_2, &minter_address, salt);
 
     // ---
     // Deploying second token

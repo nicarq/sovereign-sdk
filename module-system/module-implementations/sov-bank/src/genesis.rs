@@ -29,7 +29,7 @@ pub struct TokenConfig<C: sov_modules_api::Context> {
     pub salt: u64,
 }
 
-/// The address of the deployment node. For now, set to [0; 32]
+/// The address of the token deployer. For now, set to [0; 32]
 pub(crate) const DEPLOYER: [u8; 32] = [0; 32];
 
 impl<C: sov_modules_api::Context> Bank<C> {
@@ -47,7 +47,7 @@ impl<C: sov_modules_api::Context> Bank<C> {
                 &token_config.token_name,
                 &token_config.address_and_balances,
                 &token_config.authorized_minters,
-                &DEPLOYER,
+                &C::Address::try_from(&DEPLOYER)?,
                 token_config.salt,
                 parent_prefix,
                 working_set,

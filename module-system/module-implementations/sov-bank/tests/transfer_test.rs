@@ -128,7 +128,7 @@ fn transfer_initial_token() {
     {
         let salt = 13;
         let token_name = "NonExistingToken".to_owned();
-        let token_address = get_token_address::<C>(&token_name, sender_address.as_ref(), salt);
+        let token_address = get_token_address::<C>(&token_name, &sender_address, salt);
 
         let transfer_message = CallMessage::Transfer {
             to: receiver_address,
@@ -272,7 +272,7 @@ fn transfer_deployed_token() {
     let salt = 10;
     let token_name = "Token1".to_owned();
     let initial_balance = 1000;
-    let token_address = get_token_address::<C>(&token_name, sender_address.as_ref(), salt);
+    let token_address = get_token_address::<C>(&token_name, &sender_address, salt);
 
     assert_ne!(sender_address, receiver_address);
 

@@ -244,7 +244,7 @@ impl<C: sov_modules_api::Context> Token<C> {
         token_name: &str,
         address_and_balances: &[(C::Address, u64)],
         authorized_minters: &[C::Address],
-        sender: &[u8],
+        sender: &C::Address,
         salt: u64,
         parent_prefix: &Prefix,
         working_set: &mut WorkingSet<C>,

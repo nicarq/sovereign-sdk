@@ -44,7 +44,7 @@ pub fn get_default_token_address() -> <DefaultContext as Spec>::Address {
     let minter_address = minter_key.default_address();
     let salt = DEFAULT_SALT;
     let token_name = DEFAULT_TOKEN_NAME.to_owned();
-    get_token_address::<DefaultContext>(&token_name, minter_address.as_ref(), salt)
+    get_token_address::<DefaultContext>(&token_name, &minter_address, salt)
 }
 
 pub fn get_default_private_key() -> DefaultPrivateKey {
@@ -73,7 +73,7 @@ impl Default for BankMessageGenerator<DefaultContext> {
                 receiver_address: generate_address::<DefaultContext>("just_receiver"),
                 token_address: get_token_address::<DefaultContext>(
                     &token_name,
-                    minter_address.as_ref(),
+                    &minter_address,
                     salt,
                 ),
             }]),
@@ -108,7 +108,7 @@ impl BankMessageGenerator<DefaultContext> {
     ) -> Self {
         let sa = sender_pk.default_address();
         let token_address =
-            sov_bank::get_token_address::<DefaultContext>(token_name.as_str(), sa.as_ref(), salt);
+            sov_bank::get_token_address::<DefaultContext>(token_name.as_str(), &sa, salt);
 
         let mut transfer_txs = vec![];
         for _ in 1..(n + 1) {
@@ -184,7 +184,7 @@ impl BankMessageGenerator<DefaultContext> {
                     receiver_address: generate_address::<DefaultContext>("just_receiver"),
                     token_address: get_token_address::<DefaultContext>(
                         &token_name,
-                        minter_address.as_ref(),
+                        &minter_address,
                         salt,
                     ),
                 },
@@ -195,7 +195,7 @@ impl BankMessageGenerator<DefaultContext> {
                     receiver_address: generate_address::<DefaultContext>("just_receiver"),
                     token_address: get_token_address::<DefaultContext>(
                         &token_name,
-                        minter_address.as_ref(),
+                        &minter_address,
                         salt,
                     ),
                 },
