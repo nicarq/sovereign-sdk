@@ -1,7 +1,5 @@
 extern crate criterion;
 
-use std::sync::Arc;
-
 use criterion::measurement::WallTime;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkGroup, BenchmarkId, Criterion,
@@ -12,7 +10,7 @@ use rand::{Rng, SeedableRng};
 use sov_mock_da::MockBlockHeader;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_state::storage::{CacheKey, CacheValue, StorageKey};
+use sov_state::storage::{SlotKey, SlotValue};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 
 type Da = sov_mock_da::MockDaSpec;
@@ -69,7 +67,7 @@ fn setup_storage(
         let new_keys = generate_random_bytes(&mut rng, num_new_writes, &old_writes);
         let new_values = generate_random_bytes(&mut rng, num_new_writes, &[]);
 
-        let mut ordered_writes: Vec<(CacheKey, Option<CacheValue>)> =
+        let mut ordered_writes: Vec<(SlotKey, Option<SlotValue>)> =
             Vec::with_capacity(num_new_writes);
 
         if !old_writes.is_empty() {
@@ -84,12 +82,8 @@ fn setup_storage(
                 .zip(old_values.into_iter())
             {
                 ordered_writes.push((
-                    CacheKey {
-                        key: Arc::new(key.clone()),
-                    },
-                    Some(CacheValue {
-                        value: Arc::new(value),
-                    }),
+                    SlotKey::from_bytes(key.clone()),
+                    Some(SlotValue::from(value)),
                 ));
             }
         }
@@ -97,12 +91,7 @@ fn setup_storage(
         // New writes
         for (key, value) in new_keys.into_iter().zip(new_values.into_iter()) {
             old_writes.push(key.clone());
-            ordered_writes.push((
-                CacheKey { key: Arc::new(key) },
-                Some(CacheValue {
-                    value: Arc::new(value),
-                }),
-            ));
+            ordered_writes.push((SlotKey::from_bytes(key), Some(SlotValue::from(value))));
         }
 
         let state_operations = OrderedReadsAndWrites {
@@ -162,10 +151,8 @@ fn bench_random_read(
     );
     let block = MockBlockHeader::from_height(rollup_height + 1);
     let storage = storage_manager.create_state_for(&block).unwrap();
-    let cache_key = CacheKey {
-        key: Arc::new(random_key),
-    };
-    let storage_key = StorageKey::from(cache_key);
+    let cache_key = SlotKey::from_bytes(random_key);
+    let storage_key = cache_key;
     let id = format!(
         "random/new_writes={}/old_writes={}/height=",
         num_new_writes, num_new_writes,
@@ -206,10 +193,8 @@ fn bench_not_found_read(
     );
     let block = MockBlockHeader::from_height(rollup_height + 1);
     let storage = storage_manager.create_state_for(&block).unwrap();
-    let cache_key = CacheKey {
-        key: Arc::new(non_existing_key),
-    };
-    let storage_key = StorageKey::from(cache_key);
+    let cache_key = SlotKey::from_bytes(non_existing_key);
+    let storage_key = cache_key;
     let id = format!(
         "not_found/new_writes={}/old_writes={}/height",
         num_new_writes, num_old_writes,

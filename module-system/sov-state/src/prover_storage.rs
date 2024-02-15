@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
@@ -7,8 +6,7 @@ use sov_db::native_db::NativeDB;
 use sov_db::schema::ChangeSet;
 use sov_db::state_db::StateDB;
 use sov_modules_core::{
-    CacheKey, NativeStorage, OrderedReadsAndWrites, Storage, StorageKey, StorageProof,
-    StorageValue, Witness,
+    NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, Storage, StorageProof, Witness,
 };
 
 use crate::config::Config;
@@ -34,7 +32,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
-    fn read_value(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
+    fn read_value(&self, key: &SlotKey, version: Option<Version>) -> Option<SlotValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version());
         match self
             .db
@@ -72,7 +70,7 @@ impl<S: MerkleProofSpec> TryFrom<ProverStorage<S>> for ProverChangeSet {
 
 pub struct ProverStateUpdate {
     pub(crate) node_batch: NodeBatch,
-    pub key_preimages: Vec<(KeyHash, CacheKey)>,
+    pub key_preimages: Vec<(KeyHash, SlotKey)>,
 }
 
 impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
@@ -85,17 +83,17 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 
     fn get(
         &self,
-        key: &StorageKey,
+        key: &SlotKey,
         version: Option<Version>,
         witness: &Self::Witness,
-    ) -> Option<StorageValue> {
+    ) -> Option<SlotValue> {
         let val = self.read_value(key, version);
         witness.add_hint(val.clone());
         val
     }
 
     #[cfg(feature = "native")]
-    fn get_accessory(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
+    fn get_accessory(&self, key: &SlotKey, version: Option<Version>) -> Option<SlotValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version() - 1);
         self.native_db
             .get_value_option(key.as_ref(), version_to_use)
@@ -131,10 +129,10 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints
         for (key, read_value) in state_accesses.ordered_reads {
-            let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
+            let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
             // TODO: Switch to the batch read API once it becomes available
             let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
-            if result.as_ref() != read_value.as_ref().map(|f| f.value.as_ref()) {
+            if result.as_ref().cloned() != read_value.as_ref().map(|v| v.value().to_vec()) {
                 anyhow::bail!("Bug! Incorrect value read from jmt");
             }
             witness.add_hint(proof);
@@ -147,12 +145,9 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
             .ordered_writes
             .into_iter()
             .map(|(key, value)| {
-                let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
+                let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
                 key_preimages.push((key_hash, key));
-                (
-                    key_hash,
-                    value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone())),
-                )
+                (key_hash, value.map(|v| v.value().to_vec()))
             });
 
         let next_version = self.db.get_next_version();
@@ -179,16 +174,15 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
                 state_update
                     .key_preimages
                     .iter()
-                    .map(|(key_hash, key)| (*key_hash, key.key.as_ref())),
+                    .map(|(key_hash, key)| (*key_hash, key.key_ref())),
             )
             .expect("Preimage put must succeed");
 
         self.native_db
             .set_values(
-                accessory_writes
-                    .ordered_writes
-                    .iter()
-                    .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
+                accessory_writes.ordered_writes.iter().map(|(k, v_opt)| {
+                    (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))
+                }),
                 latest_version,
             )
             .expect("native db write must succeed");
@@ -207,7 +201,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     fn open_proof(
         state_root: Self::Root,
         state_proof: StorageProof<Self::Proof>,
-    ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error> {
+    ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error> {
         let StorageProof { key, value, proof } = state_proof;
         let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
 
@@ -228,7 +222,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 }
 
 impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
-    fn get_with_proof(&self, key: StorageKey) -> StorageProof<Self::Proof> {
+    fn get_with_proof(&self, key: SlotKey) -> StorageProof<Self::Proof> {
         let merkle = JellyfishMerkleTree::<StateDB, S::Hasher>::new(&self.db);
         let (val_opt, proof) = merkle
             .get_with_proof(
@@ -238,7 +232,7 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
             .unwrap();
         StorageProof {
             key,
-            value: val_opt.map(StorageValue::from),
+            value: val_opt.map(SlotValue::from),
             proof,
         }
     }

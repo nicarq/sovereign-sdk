@@ -64,7 +64,7 @@ pub trait Storage: Clone {
     fn with_config(config: Self::RuntimeConfig) -> Result<Self, anyhow::Error>;
 
     /// Returns the value corresponding to the key or None if key is absent.
-    fn get(&self, key: StorageKey, witness: &Self::Witness) -> Option<StorageValue>;
+    fn get(&self, key: SlotKey, witness: &Self::Witness) -> Option<SlotValue>;
 
     /// Validate all of the storage accesses in a particular cache log,
     /// returning the new state root after applying all writes

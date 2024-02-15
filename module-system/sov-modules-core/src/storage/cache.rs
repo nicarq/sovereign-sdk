@@ -1,42 +1,12 @@
 //! Cache key/value definitions
 
 use alloc::vec::Vec;
-use core::fmt;
 
 use sov_rollup_interface::maybestd::collections::hash_map::Entry;
 use sov_rollup_interface::maybestd::collections::HashMap;
-use sov_rollup_interface::maybestd::RefCount;
 
 use crate::common::{MergeError, ReadError};
-use crate::storage::{Storage, StorageKey, StorageValue};
-
-/// A key for a cache set.
-#[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd, Ord)]
-pub struct CacheKey {
-    /// The key of the cache entry.
-    pub key: RefCount<Vec<u8>>,
-}
-
-impl fmt::Display for CacheKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO revisit how we display keys
-        write!(f, "{:?}", self.key)
-    }
-}
-
-/// A value stored in the cache.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct CacheValue {
-    /// The value of the cache entry.
-    pub value: RefCount<Vec<u8>>,
-}
-
-impl fmt::Display for CacheValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO revisit how we display values
-        write!(f, "{:?}", self.value)
-    }
-}
+use crate::storage::{SlotKey, SlotValue, Storage};
 
 /// `Access` represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
@@ -47,16 +17,16 @@ impl fmt::Display for CacheValue {
 /// 4. A write is retained unless it is followed by another write.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub(crate) enum Access {
-    Read(Option<CacheValue>),
+    Read(Option<SlotValue>),
     ReadThenWrite {
-        original: Option<CacheValue>,
-        modified: Option<CacheValue>,
+        original: Option<SlotValue>,
+        modified: Option<SlotValue>,
     },
-    Write(Option<CacheValue>),
+    Write(Option<SlotValue>),
 }
 
 impl Access {
-    pub fn last_value(&self) -> &Option<CacheValue> {
+    pub fn last_value(&self) -> &Option<SlotValue> {
         match self {
             Access::Read(value) => value,
             Access::ReadThenWrite { modified, .. } => modified,
@@ -64,7 +34,7 @@ impl Access {
         }
     }
 
-    pub fn write_value(&mut self, new_value: Option<CacheValue>) {
+    pub fn write_value(&mut self, new_value: Option<SlotValue>) {
         match self {
             // If we've already read this slot, turn it into a readThenWrite access
             Access::Read(original) => {
@@ -217,7 +187,7 @@ impl Access {
 ///     ValueExists::Yes(Some(value))
 pub enum ValueExists {
     /// The key exists in the cache.
-    Yes(Option<CacheValue>),
+    Yes(Option<SlotValue>),
     /// The key does not exist in the cache.
     No,
 }
@@ -227,7 +197,7 @@ pub enum ValueExists {
 /// changed temporarily and then reset to its original value
 #[derive(Default)]
 pub struct CacheLog {
-    log: HashMap<CacheKey, Access>,
+    log: HashMap<SlotKey, Access>,
 }
 
 impl CacheLog {
@@ -241,7 +211,7 @@ impl CacheLog {
 
 impl CacheLog {
     /// Returns the owned set of key/value pairs of the cache.
-    pub fn take_writes(self) -> Vec<(CacheKey, Option<CacheValue>)> {
+    pub fn take_writes(self) -> Vec<(SlotKey, Option<SlotValue>)> {
         self.log
             .into_iter()
             .filter_map(|(k, v)| match v {
@@ -253,7 +223,7 @@ impl CacheLog {
     }
 
     /// Returns a value corresponding to the key.
-    pub fn get_value(&self, key: &CacheKey) -> ValueExists {
+    pub fn get_value(&self, key: &SlotKey) -> ValueExists {
         match self.log.get(key) {
             Some(value) => ValueExists::Yes(value.last_value().clone()),
             None => ValueExists::No,
@@ -262,7 +232,7 @@ impl CacheLog {
 
     /// The first read for a given key is inserted in the cache. For an existing cache entry
     /// checks if reads are consistent with previous reads/writes.
-    pub fn add_read(&mut self, key: CacheKey, value: Option<CacheValue>) -> Result<(), ReadError> {
+    pub fn add_read(&mut self, key: SlotKey, value: Option<SlotValue>) -> Result<(), ReadError> {
         match self.log.entry(key) {
             Entry::Occupied(existing) => {
                 let last_value = existing.get().last_value().clone();
@@ -283,7 +253,7 @@ impl CacheLog {
     }
 
     /// Adds a write entry to the cache.
-    pub fn add_write(&mut self, key: CacheKey, value: Option<CacheValue>) {
+    pub fn add_write(&mut self, key: SlotKey, value: Option<SlotValue>) {
         match self.log.entry(key) {
             Entry::Occupied(mut existing) => {
                 existing.get_mut().write_value(value);
@@ -331,7 +301,7 @@ impl CacheLog {
         })
     }
 
-    fn merge_left_with_filter_map<F: FnMut((CacheKey, Access)) -> Option<(CacheKey, Access)>>(
+    fn merge_left_with_filter_map<F: FnMut((SlotKey, Access)) -> Option<(SlotKey, Access)>>(
         &mut self,
         rhs: Self,
         filter: F,
@@ -366,7 +336,7 @@ pub struct StorageInternalCache {
     /// Transaction cache.
     pub tx_cache: CacheLog,
     /// Ordered reads and writes.
-    pub ordered_db_reads: Vec<(CacheKey, Option<CacheValue>)>,
+    pub ordered_db_reads: Vec<(SlotKey, Option<SlotValue>)>,
     /// Version for versioned usage with cache
     pub version: Option<u64>,
 }
@@ -383,10 +353,10 @@ impl StorageInternalCache {
     /// Gets a value from the cache or reads it from the provided `ValueReader`.
     pub fn get_or_fetch<S: Storage>(
         &mut self,
-        key: &StorageKey,
+        key: &SlotKey,
         value_reader: &S,
         witness: &S::Witness,
-    ) -> Option<StorageValue> {
+    ) -> Option<SlotValue> {
         let cache_key = key.to_cache_key_version(self.version);
         let cache_value = self.get_value_from_cache(&cache_key);
 
@@ -395,34 +365,33 @@ impl StorageInternalCache {
             // If the value does not exist in the cache, then fetch it from an external source.
             ValueExists::No => {
                 let storage_value = value_reader.get(key, self.version, witness);
-                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
 
-                self.add_read(cache_key, cache_value);
+                self.add_read(cache_key, storage_value.clone());
                 storage_value
             }
         }
     }
 
     /// Gets a keyed value from the cache, returning a wrapper on whether it exists.
-    pub fn try_get(&self, key: &StorageKey) -> ValueExists {
+    pub fn try_get(&self, key: &SlotKey) -> ValueExists {
         let cache_key = key.to_cache_key_version(self.version);
         self.get_value_from_cache(&cache_key)
     }
 
     /// Replaces the keyed value on the storage.
-    pub fn set(&mut self, key: &StorageKey, value: StorageValue) {
+    pub fn set(&mut self, key: &SlotKey, value: SlotValue) {
         let cache_key = key.to_cache_key_version(self.version);
-        let cache_value = value.into_cache_value();
+        let cache_value = value;
         self.tx_cache.add_write(cache_key, Some(cache_value));
     }
 
     /// Deletes a keyed value from the cache.
-    pub fn delete(&mut self, key: &StorageKey) {
+    pub fn delete(&mut self, key: &SlotKey) {
         let cache_key = key.to_cache_key_version(self.version);
         self.tx_cache.add_write(cache_key, None);
     }
 
-    fn get_value_from_cache(&self, cache_key: &CacheKey) -> ValueExists {
+    fn get_value_from_cache(&self, cache_key: &SlotKey) -> ValueExists {
         self.tx_cache.get_value(cache_key)
     }
 
@@ -441,7 +410,7 @@ impl StorageInternalCache {
         self.tx_cache.merge_writes_left(rhs.tx_cache)
     }
 
-    fn add_read(&mut self, key: CacheKey, value: Option<CacheValue>) {
+    fn add_read(&mut self, key: SlotKey, value: Option<SlotValue>) {
         self.tx_cache
             .add_read(key.clone(), value.clone())
             // It is ok to panic here, we must guarantee that the cache is consistent.
@@ -455,9 +424,9 @@ impl StorageInternalCache {
 #[derive(Debug, Default)]
 pub struct OrderedReadsAndWrites {
     /// Ordered reads.
-    pub ordered_reads: Vec<(CacheKey, Option<CacheValue>)>,
+    pub ordered_reads: Vec<(SlotKey, Option<SlotValue>)>,
     /// Ordered writes.
-    pub ordered_writes: Vec<(CacheKey, Option<CacheValue>)>,
+    pub ordered_writes: Vec<(SlotKey, Option<SlotValue>)>,
 }
 
 impl From<StorageInternalCache> for OrderedReadsAndWrites {
@@ -479,20 +448,20 @@ mod tests {
 
     use super::*;
 
-    pub fn create_key(key: u8) -> CacheKey {
-        CacheKey {
+    pub fn create_key(key: u8) -> SlotKey {
+        SlotKey {
             key: RefCount::new(alloc::vec![key]),
         }
     }
 
-    pub fn create_value(v: u8) -> Option<CacheValue> {
-        Some(CacheValue {
+    pub fn create_value(v: u8) -> Option<SlotValue> {
+        Some(SlotValue {
             value: RefCount::new(alloc::vec![v]),
         })
     }
 
     impl ValueExists {
-        fn get(self) -> Option<CacheValue> {
+        fn get(self) -> Option<SlotValue> {
             match self {
                 ValueExists::Yes(value) => value,
                 ValueExists::No => unreachable!(),
@@ -530,12 +499,12 @@ mod tests {
 
     #[derive(PartialEq, Eq, Clone, Debug)]
     pub(crate) struct CacheEntry {
-        key: CacheKey,
-        value: Option<CacheValue>,
+        key: SlotKey,
+        value: Option<SlotValue>,
     }
 
     impl CacheEntry {
-        fn new(key: CacheKey, value: Option<CacheValue>) -> Self {
+        fn new(key: SlotKey, value: Option<SlotValue>) -> Self {
             Self { key, value }
         }
     }

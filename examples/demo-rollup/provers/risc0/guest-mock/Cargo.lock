@@ -983,9 +983,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh 0.10.3",
- "hex",
- "reth-primitives",
- "secp256k1",
  "serde",
  "serde_json",
  "sov-accounts",
@@ -3258,7 +3255,6 @@ dependencies = [
  "serde",
  "sha2",
  "sov-rollup-interface",
- "tracing",
 ]
 
 [[package]]

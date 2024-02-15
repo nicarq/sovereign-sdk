@@ -209,7 +209,7 @@ mod as_kernel_map {
             self.get(key, working_set).ok_or_else(|| {
                 crate::StateMapError::MissingValue(
                     self.prefix().clone(),
-                    sov_modules_core::StorageKey::new(
+                    sov_modules_core::SlotKey::new(
                         self.prefix(),
                         key,
                         StateMapAccessor::<u64, V, Codec, KernelWorkingSet<'a, C>>::codec(self)
@@ -247,7 +247,7 @@ mod as_kernel_map {
             self.remove(key, working_set).ok_or_else(|| {
                 crate::StateMapError::MissingValue(
                     self.prefix().clone(),
-                    sov_modules_core::StorageKey::new(
+                    sov_modules_core::SlotKey::new(
                         self.prefix(),
                         key,
                         StateMapAccessor::<u64, V, Codec, KernelWorkingSet<'a, C>>::codec(self)

@@ -12,21 +12,21 @@ use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::{GasMeter, Prefix};
 use crate::module::{Context, Spec};
 use crate::storage::{
-    CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
-    StateValueCodec, Storage, StorageInternalCache, StorageKey, StorageProof, StorageValue,
+    EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, StateCodec,
+    StateValueCodec, Storage, StorageInternalCache, StorageProof,
 };
 use crate::Version;
 
 /// A storage reader and writer
 pub trait StateReaderAndWriter {
     /// Get a value from the storage.
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue>;
+    fn get(&mut self, key: &SlotKey) -> Option<SlotValue>;
 
     /// Replaces a storage value.
-    fn set(&mut self, key: &StorageKey, value: StorageValue);
+    fn set(&mut self, key: &SlotKey, value: SlotValue);
 
     /// Deletes a storage value.
-    fn delete(&mut self, key: &StorageKey);
+    fn delete(&mut self, key: &SlotKey);
 
     /// Replaces a storage value with the provided prefix, using the provided codec.
     fn set_value<Q, K, V, Codec>(
@@ -41,25 +41,25 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = StorageKey::new(prefix, storage_key, codec.key_codec());
-        let storage_value = StorageValue::new(value, codec.value_codec());
+        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
+        let storage_value = SlotValue::new(value, codec.value_codec());
         self.set(&storage_key, storage_value);
     }
 
     /// Replaces a storage value with a singleton prefix. For more information, check
-    /// [StorageKey::singleton].
+    /// [SlotKey::singleton].
     fn set_singleton<V, Codec>(&mut self, prefix: &Prefix, value: &V, codec: &Codec)
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = StorageKey::singleton(prefix);
-        let storage_value = StorageValue::new(value, codec.value_codec());
+        let storage_key = SlotKey::singleton(prefix);
+        let storage_value = SlotValue::new(value, codec.value_codec());
         self.set(&storage_key, storage_value);
     }
 
     /// Get a decoded value from the storage.
-    fn get_decoded<V, Codec>(&mut self, storage_key: &StorageKey, codec: &Codec) -> Option<V>
+    fn get_decoded<V, Codec>(&mut self, storage_key: &SlotKey, codec: &Codec) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
@@ -86,17 +86,17 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = StorageKey::new(prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
         self.get_decoded(&storage_key, codec)
     }
 
-    /// Get a singleton value from the storage. For more information, check [StorageKey::singleton].
+    /// Get a singleton value from the storage. For more information, check [SlotKey::singleton].
     fn get_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = StorageKey::singleton(prefix);
+        let storage_key = SlotKey::singleton(prefix);
         self.get_decoded(&storage_key, codec)
     }
 
@@ -113,19 +113,19 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = StorageKey::new(prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
         let storage_value = self.get_decoded(&storage_key, codec)?;
         self.delete(&storage_key);
         Some(storage_value)
     }
 
-    /// Removes a singleton from the storage. For more information, check [StorageKey::singleton].
+    /// Removes a singleton from the storage. For more information, check [SlotKey::singleton].
     fn remove_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = StorageKey::singleton(prefix);
+        let storage_key = SlotKey::singleton(prefix);
         let storage_value = self.get_decoded(&storage_key, codec)?;
         self.delete(&storage_key);
         Some(storage_value)
@@ -138,13 +138,13 @@ pub trait StateReaderAndWriter {
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
     {
-        let storage_key = StorageKey::new(prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
         self.delete(&storage_key);
     }
 
-    /// Deletes a singleton from the storage. For more information, check [StorageKey::singleton].
+    /// Deletes a singleton from the storage. For more information, check [SlotKey::singleton].
     fn delete_singleton(&mut self, prefix: &Prefix) {
-        let storage_key = StorageKey::singleton(prefix);
+        let storage_key = SlotKey::singleton(prefix);
         self.delete(&storage_key);
     }
 }
@@ -188,24 +188,24 @@ impl<S: Storage> fmt::Debug for Delta<S> {
 }
 
 impl<S: Storage> StateReaderAndWriter for Delta<S> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         self.cache.get_or_fetch(key, &self.inner, &self.witness)
     }
 
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+    fn set(&mut self, key: &SlotKey, value: SlotValue) {
         self.cache.set(key, value)
     }
 
-    fn delete(&mut self, key: &StorageKey) {
+    fn delete(&mut self, key: &SlotKey) {
         self.cache.delete(key)
     }
 }
 
-// type RevertableWrites = HashMap<CacheKey, Option<CacheValue>>;
+// type RevertableWrites = HashMap<SlotKey, Option<SlotValue>>;
 
 #[derive(Default)]
 struct RevertableWrites {
-    pub cache: HashMap<CacheKey, Option<CacheValue>>,
+    pub cache: HashMap<SlotKey, Option<SlotValue>>,
     pub version: Option<u64>,
 }
 
@@ -242,7 +242,7 @@ impl<S: Storage> AccessoryDelta<S> {
 }
 
 impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         let cache_key = key.to_cache_key_version(self.writes.version);
         if let Some(value) = self.writes.cache.get(&cache_key) {
             return value.clone().map(Into::into);
@@ -250,14 +250,13 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
         self.storage.get_accessory(key, self.writes.version)
     }
 
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        self.writes.cache.insert(
-            key.to_cache_key_version(self.writes.version),
-            Some(value.into_cache_value()),
-        );
+    fn set(&mut self, key: &SlotKey, value: SlotValue) {
+        self.writes
+            .cache
+            .insert(key.to_cache_key_version(self.writes.version), Some(value));
     }
 
-    fn delete(&mut self, key: &StorageKey) {
+    fn delete(&mut self, key: &SlotKey) {
         self.writes
             .cache
             .insert(key.to_cache_key_version(self.writes.version), None);
@@ -353,15 +352,15 @@ impl<C: Context> StateCheckpoint<C> {
 }
 
 impl<C: Context> StateReaderAndWriter for StateCheckpoint<C> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         self.delta.get(key)
     }
 
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+    fn set(&mut self, key: &SlotKey, value: SlotValue) {
         self.delta.set(key, value)
     }
 
-    fn delete(&mut self, key: &StorageKey) {
+    fn delete(&mut self, key: &SlotKey) {
         self.delta.delete(key)
     }
 }
@@ -578,10 +577,7 @@ impl<C: Context> WorkingSet<C> {
     }
 
     /// Fetches given value and provides a proof of it presence/absence.
-    pub fn get_with_proof(
-        &mut self,
-        key: StorageKey,
-    ) -> StorageProof<<C::Storage as Storage>::Proof>
+    pub fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<<C::Storage as Storage>::Proof>
     where
         C::Storage: NativeStorage,
     {
@@ -591,21 +587,21 @@ impl<C: Context> WorkingSet<C> {
 }
 
 impl<C: Context> StateReaderAndWriter for WorkingSet<C> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         match &mut self.archival_working_set {
             None => self.delta.get(key),
             Some(ref mut archival_working_set) => archival_working_set.get(key),
         }
     }
 
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+    fn set(&mut self, key: &SlotKey, value: SlotValue) {
         match &mut self.archival_working_set {
             None => self.delta.set(key, value),
             Some(ref mut archival_working_set) => archival_working_set.set(key, value),
         }
     }
 
-    fn delete(&mut self, key: &StorageKey) {
+    fn delete(&mut self, key: &SlotKey) {
         match &mut self.archival_working_set {
             None => self.delta.delete(key),
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
@@ -620,7 +616,7 @@ pub struct AccessoryWorkingSet<'a, C: Context> {
 }
 
 impl<'a, C: Context> StateReaderAndWriter for AccessoryWorkingSet<'a, C> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if !cfg!(feature = "native") {
             None
         } else {
@@ -631,14 +627,14 @@ impl<'a, C: Context> StateReaderAndWriter for AccessoryWorkingSet<'a, C> {
         }
     }
 
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+    fn set(&mut self, key: &SlotKey, value: SlotValue) {
         match &mut self.ws.archival_accessory_working_set {
             None => self.ws.accessory_delta.set(key, value),
             Some(ref mut archival_working_set) => archival_working_set.set(key, value),
         }
     }
 
-    fn delete(&mut self, key: &StorageKey) {
+    fn delete(&mut self, key: &SlotKey) {
         match &mut self.ws.archival_accessory_working_set {
             None => self.ws.accessory_delta.delete(key),
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
@@ -653,7 +649,7 @@ pub struct AccessoryStateCheckpoint<'a, C: Context> {
 }
 
 impl<'a, C: Context> StateReaderAndWriter for AccessoryStateCheckpoint<'a, C> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if !cfg!(feature = "native") {
             None
         } else {
@@ -661,11 +657,11 @@ impl<'a, C: Context> StateReaderAndWriter for AccessoryStateCheckpoint<'a, C> {
         }
     }
 
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+    fn set(&mut self, key: &SlotKey, value: SlotValue) {
         self.checkpoint.accessory_delta.set(key, value)
     }
 
-    fn delete(&mut self, key: &StorageKey) {
+    fn delete(&mut self, key: &SlotKey) {
         self.checkpoint.accessory_delta.delete(key)
     }
 }
@@ -709,21 +705,21 @@ pub mod archival_state {
     }
 
     impl<C: Context> StateReaderAndWriter for ArchivalJmtWorkingSet<C> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.delta.get(key)
         }
 
-        fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.delta.set(key, value)
         }
 
-        fn delete(&mut self, key: &StorageKey) {
+        fn delete(&mut self, key: &SlotKey) {
             self.delta.delete(key)
         }
     }
 
     impl<C: Context> StateReaderAndWriter for ArchivalAccessoryWorkingSet<C> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             if !cfg!(feature = "native") {
                 None
             } else {
@@ -731,11 +727,11 @@ pub mod archival_state {
             }
         }
 
-        fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.delta.set(key, value)
         }
 
-        fn delete(&mut self, key: &StorageKey) {
+        fn delete(&mut self, key: &SlotKey) {
             self.delta.delete(key)
         }
     }
@@ -797,15 +793,15 @@ pub mod kernel_state {
     }
 
     impl<'a, S: StateReaderAndWriter> StateReaderAndWriter for VersionedStateReadWriter<'a, S> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.ws.get(key)
         }
 
-        fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.ws.set(key, value)
         }
 
-        fn delete(&mut self, key: &StorageKey) {
+        fn delete(&mut self, key: &SlotKey) {
             self.ws.delete(key)
         }
     }
@@ -817,15 +813,15 @@ pub mod kernel_state {
     }
 
     impl<'a, C: Context> StateReaderAndWriter for BootstrapWorkingSet<'a, C> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.inner.delta.get(key)
         }
 
-        fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.inner.delta.set(key, value)
         }
 
-        fn delete(&mut self, key: &StorageKey) {
+        fn delete(&mut self, key: &SlotKey) {
             self.inner.delta.delete(key)
         }
     }
@@ -899,15 +895,15 @@ pub mod kernel_state {
     }
 
     impl<'a, C: Context> StateReaderAndWriter for KernelWorkingSet<'a, C> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.inner.delta.get(key)
         }
 
-        fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.inner.delta.set(key, value)
         }
 
-        fn delete(&mut self, key: &StorageKey) {
+        fn delete(&mut self, key: &SlotKey) {
             self.inner.delta.delete(key)
         }
     }
@@ -915,7 +911,7 @@ pub mod kernel_state {
 
 struct RevertableWriter<T> {
     inner: T,
-    writes: HashMap<CacheKey, Option<CacheValue>>,
+    writes: HashMap<SlotKey, Option<SlotValue>>,
     version: Option<u64>,
 }
 
@@ -952,17 +948,17 @@ where
         self.inner
     }
 
-    fn commit_entry(inner: &mut T, key: CacheKey, value: Option<CacheValue>) {
+    fn commit_entry(inner: &mut T, key: SlotKey, value: Option<SlotValue>) {
         if let Some(value) = value {
-            inner.set(&key.into(), value.into());
+            inner.set(&key, value);
         } else {
-            inner.delete(&key.into());
+            inner.delete(&key);
         }
     }
 }
 
 impl<T: StateReaderAndWriter> StateReaderAndWriter for RevertableWriter<T> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if let Some(value) = self.writes.get(&key.to_cache_key_version(self.version)) {
             value.as_ref().cloned().map(Into::into)
         } else {
@@ -970,14 +966,12 @@ impl<T: StateReaderAndWriter> StateReaderAndWriter for RevertableWriter<T> {
         }
     }
 
-    fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        self.writes.insert(
-            key.to_cache_key_version(self.version),
-            Some(value.into_cache_value()),
-        );
+    fn set(&mut self, key: &SlotKey, value: SlotValue) {
+        self.writes
+            .insert(key.to_cache_key_version(self.version), Some(value));
     }
 
-    fn delete(&mut self, key: &StorageKey) {
+    fn delete(&mut self, key: &SlotKey) {
         self.writes
             .insert(key.to_cache_key_version(self.version), None);
     }

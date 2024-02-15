@@ -1,6 +1,6 @@
 use sov_modules_core::{
-    EncodeKeyLike, Prefix, StateCodec, StateKeyCodec, StateReaderAndWriter, StateValueCodec,
-    StorageKey,
+    EncodeKeyLike, Prefix, SlotKey, StateCodec, StateKeyCodec, StateReaderAndWriter,
+    StateValueCodec,
 };
 use thiserror::Error;
 
@@ -9,7 +9,7 @@ use thiserror::Error;
 pub enum StateMapError {
     /// Value not found.
     #[error("Value not found for prefix: {0} and: storage key {1}")]
-    MissingValue(Prefix, StorageKey),
+    MissingValue(Prefix, SlotKey),
 }
 
 /// Allows a type to access a map from keys to values in state.
@@ -92,7 +92,7 @@ where
         self.get(key, working_set).ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
-                StorageKey::new(self.prefix(), key, self.codec().key_codec()),
+                SlotKey::new(self.prefix(), key, self.codec().key_codec()),
             )
         })
     }
@@ -123,7 +123,7 @@ where
         self.remove(key, working_set).ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
-                StorageKey::new(self.prefix(), key, self.codec().key_codec()),
+                SlotKey::new(self.prefix(), key, self.codec().key_codec()),
             )
         })
     }

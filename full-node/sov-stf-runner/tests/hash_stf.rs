@@ -7,7 +7,7 @@ use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
-use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
+use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
 use sov_state::{
     ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverChangeSet,
     ProverStorage, Storage,
@@ -27,9 +27,9 @@ impl<Cond> HashStf<Cond> {
         }
     }
 
-    fn hash_key() -> StorageKey {
+    fn hash_key() -> SlotKey {
         let prefix = Prefix::new(b"root".to_vec());
-        StorageKey::singleton(&prefix)
+        SlotKey::singleton(&prefix)
     }
 
     fn save_from_hasher(
@@ -40,11 +40,11 @@ impl<Cond> HashStf<Cond> {
         let result = hasher.finalize();
 
         let hash_key = HashStf::<Cond>::hash_key();
-        let hash_value = StorageValue::from(result.as_slice().to_vec());
+        let hash_value = SlotValue::from(result.as_slice().to_vec());
 
         let ordered_reads_writes = OrderedReadsAndWrites {
             ordered_reads: Vec::default(),
-            ordered_writes: vec![(hash_key.to_cache_key(), Some(hash_value.into_cache_value()))],
+            ordered_writes: vec![(hash_key, Some(hash_value))],
         };
 
         let (jmt_root_hash, state_update) = storage

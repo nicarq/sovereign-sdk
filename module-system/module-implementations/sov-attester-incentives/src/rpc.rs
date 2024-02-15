@@ -1,7 +1,7 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{Spec, StateMapAccessor, ValidityConditionChecker, WorkingSet};
-use sov_state::storage::{NativeStorage, Storage, StorageKey, StorageProof};
+use sov_state::storage::{NativeStorage, SlotKey, Storage, StorageProof};
 
 use super::AttesterIncentives;
 use crate::call::Role;
@@ -45,10 +45,10 @@ where
     }
 
     /// Gives storage key for given address
-    pub fn get_attester_storage_key(&self, address: C::Address) -> StorageKey {
+    pub fn get_attester_storage_key(&self, address: C::Address) -> SlotKey {
         let prefix = self.bonded_attesters.prefix();
         let codec = self.bonded_attesters.codec();
-        StorageKey::new(prefix, &address, codec)
+        SlotKey::new(prefix, &address, codec)
     }
 
     /// Used by attesters to get a proof that they were bonded before starting to produce attestations.
