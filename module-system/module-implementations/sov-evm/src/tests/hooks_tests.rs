@@ -1,8 +1,7 @@
-use lazy_static::lazy_static;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
-    Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, EMPTY_OMMER_ROOT,
-    H256, KECCAK_EMPTY, U256,
+    Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
+    EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
 use sov_modules_api::{
     KernelWorkingSet, StateCheckpoint, StateMapAccessor, StateValueAccessor, StateVecAccessor,
@@ -17,10 +16,7 @@ use crate::evm::primitive_types::{
 use crate::experimental::PendingTransaction;
 use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH};
 
-lazy_static! {
-    // To fix: Used to be [5u8; 32]. Now we take the hash of the pre-state-root, ie: [10u8; 32]
-    pub(crate) static ref DA_ROOT_HASH: H256 = H256::from([10u8; 32]);
-}
+pub(crate) const DA_ROOT_HASH: B256 = B256::new([10u8; 32]);
 
 #[test]
 fn begin_slot_hook_creates_pending_block() {
@@ -36,9 +32,9 @@ fn begin_slot_hook_creates_pending_block() {
         pending_block,
         BlockEnv {
             number: 1,
-            coinbase: *BENEFICIARY,
+            coinbase: BENEFICIARY,
             timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta,
-            prevrandao: *DA_ROOT_HASH,
+            prevrandao: DA_ROOT_HASH,
             basefee: 62u64,
             gas_limit: TEST_CONFIG.block_gas_limit,
         }
@@ -56,12 +52,12 @@ fn end_slot_hook_sets_head() {
     evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
 
     evm.pending_transactions.push(
-        &create_pending_transaction(H256::from([1u8; 32]), 1),
+        &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut state_checkpoint,
     );
 
     evm.pending_transactions.push(
-        &create_pending_transaction(H256::from([2u8; 32]), 2),
+        &create_pending_transaction(B256::from([2u8; 32]), 2),
         &mut state_checkpoint,
     );
 
@@ -80,13 +76,13 @@ fn end_slot_hook_sets_head() {
                 // TODO: temp parent hash until: https://github.com/Sovereign-Labs/sovereign-sdk/issues/876
                 parent_hash: GENESIS_HASH,
 
-                ommers_hash: EMPTY_OMMER_ROOT,
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
                 beneficiary: TEST_CONFIG.coinbase,
                 state_root: KECCAK_EMPTY,
-                transactions_root: H256(hex!(
+                transactions_root: B256::from(hex!(
                     "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
                 )),
-                receipts_root: H256(hex!(
+                receipts_root: B256::from(hex!(
                     "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
                 )),
                 withdrawals_root: None,
@@ -96,7 +92,7 @@ fn end_slot_hook_sets_head() {
                 gas_limit: TEST_CONFIG.block_gas_limit,
                 gas_used: 200u64,
                 timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta,
-                mix_hash: *DA_ROOT_HASH,
+                mix_hash: DA_ROOT_HASH,
                 nonce: 0,
                 base_fee_per_gas: Some(62u64),
                 extra_data: Bytes::default(),
@@ -119,10 +115,10 @@ fn end_slot_hook_moves_transactions_and_receipts() {
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
     evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
 
-    let tx1 = create_pending_transaction(H256::from([1u8; 32]), 1);
+    let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
     evm.pending_transactions.push(&tx1, &mut state_checkpoint);
 
-    let tx2 = create_pending_transaction(H256::from([2u8; 32]), 2);
+    let tx2 = create_pending_transaction(B256::from([2u8; 32]), 2);
     evm.pending_transactions.push(&tx2, &mut state_checkpoint);
 
     evm.end_slot_hook(&mut state_checkpoint);
@@ -161,7 +157,7 @@ fn end_slot_hook_moves_transactions_and_receipts() {
     assert_eq!(evm.pending_transactions.len(&mut state_checkpoint), 0);
 }
 
-fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
+fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
     PendingTransaction {
         transaction: TransactionSignedAndRecovered {
             signer: Address::from([1u8; 20]),
@@ -175,7 +171,7 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
                     max_fee_per_gas: 2000u64 as u128,
                     max_priority_fee_per_gas: 3000u64 as u128,
                     to: reth_primitives::TransactionKind::Call(Address::from([3u8; 20])),
-                    value: 4000u64 as u128,
+                    value: U256::from(4000u64).into(),
                     access_list: reth_primitives::AccessList::default(),
                     input: Bytes::from([4u8; 20]),
                 }),
@@ -207,11 +203,11 @@ fn finalize_hook_creates_final_block() {
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
     evm.begin_slot_hook(&p, &mut versioned_ws);
     evm.pending_transactions.push(
-        &create_pending_transaction(H256::from([1u8; 32]), 1),
+        &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut state_checkpoint,
     );
     evm.pending_transactions.push(
-        &create_pending_transaction(H256::from([2u8; 32]), 2),
+        &create_pending_transaction(B256::from([2u8; 32]), 2),
         &mut state_checkpoint,
     );
     evm.end_slot_hook(&mut state_checkpoint);
@@ -231,22 +227,22 @@ fn finalize_hook_creates_final_block() {
     let mut accessory_state = state_checkpoint.accessory_state();
 
     let parent_block = evm.blocks.get(0usize, &mut accessory_state).unwrap();
-    let parent_hash = parent_block.header.hash;
+    let parent_hash = parent_block.header.hash();
     let block = evm.blocks.get(1usize, &mut accessory_state).unwrap();
 
     assert_eq!(
         block,
         SealedBlock {
-            header: SealedHeader {
-                header: Header {
+            header: SealedHeader::new(
+                Header {
                     parent_hash,
-                    ommers_hash: EMPTY_OMMER_ROOT,
+                    ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: TEST_CONFIG.coinbase,
-                    state_root: H256::from(root_hash.0),
-                    transactions_root: H256(hex!(
+                    state_root: B256::from(root_hash.0),
+                    transactions_root: B256::from(hex!(
                         "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
                     )),
-                    receipts_root: H256(hex!(
+                    receipts_root: B256::from(hex!(
                         "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
                     )),
                     withdrawals_root: None,
@@ -256,7 +252,7 @@ fn finalize_hook_creates_final_block() {
                     gas_limit: 30000000,
                     gas_used: 200,
                     timestamp: 52,
-                    mix_hash: *DA_ROOT_HASH,
+                    mix_hash: DA_ROOT_HASH,
                     nonce: 0,
                     base_fee_per_gas: Some(62),
                     extra_data: Bytes::default(),
@@ -264,18 +260,18 @@ fn finalize_hook_creates_final_block() {
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
                 },
-                hash: H256(hex!(
+                B256::from(hex!(
                     // This hash changes because the header is different
                     "29be93851c5baf9039ec6f792328f107dd93f40e20772d0beb9bd925adeebe3f"
                 )),
-            },
+            ),
             transactions: 0..2
         }
     );
 
     assert_eq!(
         evm.block_hashes
-            .get(&block.header.hash, &mut accessory_state)
+            .get(&block.header.hash(), &mut accessory_state)
             .unwrap(),
         1u64
     );

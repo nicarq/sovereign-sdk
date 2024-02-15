@@ -1,6 +1,6 @@
 use anyhow::Result;
-use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered, H160, H256};
-use revm::primitives::{CfgEnv, EVMError, Log, SpecId};
+use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered};
+use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, DaSpec, WorkingSet};
 
@@ -9,7 +9,7 @@ use crate::evm::executor::{self};
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::experimental::PendingTransaction;
-use crate::Evm;
+use crate::{Evm, SpecId};
 
 /// EVM call message.
 #[derive(
@@ -40,7 +40,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             .expect("Pending block must be set");
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env = get_cfg_env(&block_env, cfg, None);
+        let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
         let result = executor::execute_tx(evm_db, &block_env, &evm_tx_recovered, cfg_env);
@@ -109,19 +109,19 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     }
 }
 
-/// Get cfg env for a given block number
+/// builds CfgEnvWithHandlerCfg
 /// Returns correct config depending on spec for given block number
-/// Copies context dependent values from template_cfg or default if not provided
-pub(crate) fn get_cfg_env(
+// Copies context-dependent values from template_cfg or default if not provided
+pub(crate) fn get_cfg_env_with_handler(
     block_env: &BlockEnv,
     cfg: EvmChainConfig,
     template_cfg: Option<CfgEnv>,
-) -> CfgEnv {
+) -> CfgEnvWithHandlerCfg {
     let mut cfg_env = template_cfg.unwrap_or_default();
     cfg_env.chain_id = cfg.chain_id;
-    cfg_env.spec_id = get_spec_id(cfg.spec, block_env.number);
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
-    cfg_env
+    let spec_id = get_spec_id(cfg.spec, block_env.number);
+    CfgEnvWithHandlerCfg::new(cfg_env, revm::primitives::HandlerCfg { spec_id })
 }
 
 /// Get spec id for a given block number
@@ -146,8 +146,8 @@ pub(crate) fn get_spec_id(spec: Vec<(u64, SpecId)>, block_number: u64) -> SpecId
 /// By copying the code, we can avoid depending on the whole crate.
 pub fn into_reth_log(log: Log) -> RethLog {
     RethLog {
-        address: H160(log.address.0),
-        topics: log.topics.into_iter().map(|h| H256(h.0)).collect(),
-        data: log.data.into(),
+        address: Address(log.address.0),
+        topics: log.topics().to_vec(),
+        data: log.data.data,
     }
 }

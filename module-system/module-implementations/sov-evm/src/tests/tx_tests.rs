@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-use ethereum_types::U64;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{Bytes, Eip1559TransactionRequest};
 use ethers_core::utils::rlp::Rlp;
 use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U8};
-use reth_rpc_types::{CallInput, CallRequest};
+use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U64, U8};
+use reth_rpc_types::request::TransactionInput;
+use reth_rpc_types::TransactionRequest;
 use revm::primitives::{TransactTo, TxEnv};
 
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
@@ -55,11 +55,7 @@ fn tx_conversion() {
     let signer = Address::random();
     let tx = TransactionSignedAndRecovered {
         signer,
-        signed_transaction: reth_primitives::TransactionSigned {
-            hash: Default::default(),
-            signature: Default::default(),
-            transaction: Default::default(),
-        },
+        signed_transaction: reth_primitives::TransactionSigned::default(),
         block_number: 5u64,
     };
 
@@ -73,7 +69,7 @@ fn tx_conversion() {
 fn prepare_call_env_conversion() {
     let from = Address::random();
     let to = Address::random();
-    let request = CallRequest {
+    let request = TransactionRequest {
         from: Some(from),
         to: Some(to),
         gas_price: Some(U256::from(100u64)),
@@ -81,13 +77,14 @@ fn prepare_call_env_conversion() {
         max_priority_fee_per_gas: None,
         gas: Some(U256::from(200u64)),
         value: Some(U256::from(300u64)),
-        input: CallInput::default(),
+        input: TransactionInput::default(),
         nonce: Some(U64::from(1u64)),
         chain_id: Some(U64::from(1u64)),
         access_list: None,
         transaction_type: Some(U8::from(2u8)),
-        blob_versioned_hashes: vec![],
+        blob_versioned_hashes: Default::default(),
         max_fee_per_blob_gas: None,
+        ..Default::default()
     };
 
     let block_env = BlockEnv::default();

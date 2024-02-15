@@ -40,8 +40,7 @@ mod helpers;
 
 #[cfg(feature = "experimental")]
 mod experimental {
-
-    use reth_primitives::Address;
+    use revm::primitives::Address;
     use sov_modules_api::{DaSpec, Error, ModuleInfo, WorkingSet};
     use sov_state::codec::BcsCodec;
 
@@ -81,7 +80,7 @@ mod experimental {
         /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
         #[state]
         pub(crate) code:
-            sov_modules_api::StateMap<reth_primitives::H256, reth_primitives::Bytes, BcsCodec>,
+            sov_modules_api::StateMap<revm::primitives::B256, reth_primitives::Bytes, BcsCodec>,
 
         /// Chain configuration. This field is set in genesis.
         #[state]
@@ -112,10 +111,10 @@ mod experimental {
         #[state]
         pub(crate) blocks: sov_modules_api::AccessoryStateVec<SealedBlock, BcsCodec>,
 
-        /// Used only by the RPC: block_hash => block_number mapping,
+        /// Used only by the RPC: block_hash => block_number mapping.
         #[state]
         pub(crate) block_hashes:
-            sov_modules_api::AccessoryStateMap<reth_primitives::H256, u64, BcsCodec>,
+            sov_modules_api::AccessoryStateMap<revm::primitives::B256, u64, BcsCodec>,
 
         /// Used only by the RPC: List of processed transactions.
         #[state]
@@ -125,7 +124,7 @@ mod experimental {
         /// Used only by the RPC: transaction_hash => transaction_index mapping.
         #[state]
         pub(crate) transaction_hashes:
-            sov_modules_api::AccessoryStateMap<reth_primitives::H256, u64, BcsCodec>,
+            sov_modules_api::AccessoryStateMap<revm::primitives::B256, u64, BcsCodec>,
 
         /// Used only by the RPC: Receipts.
         #[state]

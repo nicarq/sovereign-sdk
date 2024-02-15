@@ -35,23 +35,28 @@ tracing = { workspace = true }
 derive_more = { workspace = true, default-features = true }
 lazy_static = "1.4.0"
 
+secp256k1 = { workspace = true }
 
-ethereum-types = { workspace = true }
-ethers-core = { workspace = true }
-ethers-contract = { workspace = true }
-ethers-signers = { workspace = true }
-
+alloy-sol-types = { version = "0.6" }
 revm = { workspace = true, features = [
     "optional_block_gas_limit",
     "optional_eip3607",
     "optional_no_base_fee",
+    "std",
+    "secp256k1"
 ] }
 reth-primitives = { workspace = true }
-reth-interfaces = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
-reth-revm-inspectors = { workspace = true, features = [] }
-secp256k1 = { workspace = true }
+reth-interfaces = { workspace = true, optional = true }
+reth-revm = { workspace = true, optional = true }
+
+# For test-utils
+ethereum-types = { workspace = true, optional = true }
+ethers-core = { workspace = true, optional = true }
+ethers-contract = { workspace = true, optional = true }
+ethers-signers = { workspace = true, optional = true }
+
 
 [dev-dependencies]
 sov-evm = { path = ".", features = ["smart_contracts"] }
@@ -68,6 +73,9 @@ native = [
 	"clap",
 	"jsonrpsee",
 	"reth-interfaces",
+	"reth-revm",
+	# Optional for speed up in native mode
+	# "revm/asm-keccak"
 	"schemars",
 	"serde_json",
 	"sov-chain-state/native",
@@ -78,4 +86,11 @@ native = [
 ]
 experimental = [ "sov-evm/experimental" ]
 # For testing smart contract
-smart_contracts = [ "experimental", "native" ]
+smart_contracts = [
+	"ethereum-types",
+	"ethers-contract",
+	"ethers-core",
+	"ethers-signers",
+	"experimental",
+	"native",
+]

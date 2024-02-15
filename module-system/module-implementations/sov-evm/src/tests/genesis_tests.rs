@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
-    Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, EMPTY_OMMER_ROOT, H256,
+    Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH,
 };
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_chain_state::{ChainState, ChainStateConfig};
@@ -34,7 +34,7 @@ lazy_static! {
             .into_iter()
             .collect(),
         chain_id: 1000,
-        block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+        block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
         block_timestamp_delta: 2,
         genesis_timestamp: 50,
         coinbase: Address::from([3u8; 20]),
@@ -44,21 +44,20 @@ lazy_static! {
     };
 }
 
-pub(crate) const GENESIS_HASH: H256 = H256(hex!(
+pub(crate) const GENESIS_HASH: B256 = B256::new(hex!(
     "3441c3084e43183a53aabbbe3e94512bb3db4aca826af8f23b38f0613811571d"
 ));
 
-pub(crate) const GENESIS_STATE_ROOT: H256 = H256(hex!(
+pub(crate) const GENESIS_STATE_ROOT: B256 = B256::new(hex!(
     "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
 ));
 
-lazy_static! {
-    pub(crate) static ref BENEFICIARY: Address = Address::from([3u8; 20]);
-}
+pub(crate) static BENEFICIARY: Address = Address::new([3u8; 20]);
 
 #[test]
 fn genesis_data() {
     let tmpdir = tempfile::tempdir().unwrap();
+
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
 
@@ -98,7 +97,7 @@ fn genesis_cfg() {
         EvmChainConfig {
             spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)],
             chain_id: 1000,
-            block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+            block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
             block_timestamp_delta: 2,
             coinbase: Address::from([3u8; 20]),
             limit_contract_code_size: Some(5000),
@@ -150,6 +149,7 @@ fn genesis_cfg_cancun() {
 #[test]
 fn genesis_block() {
     let tmpdir = tempfile::tempdir().unwrap();
+
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
     let mut accessory_state = state_checkpoint.accessory_state();
@@ -166,39 +166,37 @@ fn genesis_block() {
 
     assert_eq!(block_number, 0);
 
-    assert_eq!(
-        block,
-        SealedBlock {
-            header: SealedHeader {
-                header: Header {
-                    parent_hash: H256::default(),
-                    state_root: H256(hex!(
-                        "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
-                    )),
-                    transactions_root: EMPTY_TRANSACTIONS,
-                    receipts_root: EMPTY_RECEIPTS,
-                    logs_bloom: Bloom::default(),
-                    difficulty: U256::ZERO,
-                    number: 0,
-                    gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
-                    gas_used: 0,
-                    timestamp: 50,
-                    extra_data: Bytes::default(),
-                    mix_hash: H256::default(),
-                    nonce: 0,
-                    base_fee_per_gas: Some(70),
-                    ommers_hash: EMPTY_OMMER_ROOT,
-                    beneficiary: *BENEFICIARY,
-                    withdrawals_root: None,
-                    blob_gas_used: None,
-                    excess_blob_gas: None,
-                    parent_beacon_block_root: None,
-                },
-                hash: GENESIS_HASH
-            },
-            transactions: (0u64..0u64),
-        }
-    );
+    let expected_header = Header {
+        parent_hash: B256::default(),
+        state_root: B256::from_slice(&hex!(
+            "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+        )),
+        transactions_root: EMPTY_TRANSACTIONS,
+        receipts_root: EMPTY_RECEIPTS,
+        logs_bloom: Bloom::default(),
+        difficulty: U256::ZERO,
+        number: 0,
+        gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
+        gas_used: 0,
+        timestamp: 50,
+        extra_data: Bytes::default(),
+        mix_hash: B256::default(),
+        nonce: 0,
+        base_fee_per_gas: Some(70),
+        ommers_hash: EMPTY_OMMER_ROOT_HASH,
+        beneficiary: BENEFICIARY,
+        withdrawals_root: None,
+        blob_gas_used: None,
+        excess_blob_gas: None,
+        parent_beacon_block_root: None,
+    };
+
+    let expected_block = SealedBlock {
+        header: SealedHeader::new(expected_header, GENESIS_HASH),
+        transactions: 0u64..0u64,
+    };
+
+    assert_eq!(expected_block, block);
 }
 
 #[test]
@@ -212,7 +210,7 @@ fn genesis_head() {
         head,
         Block {
             header: Header {
-                parent_hash: H256::default(),
+                parent_hash: B256::default(),
                 state_root: GENESIS_STATE_ROOT,
                 transactions_root: EMPTY_TRANSACTIONS,
                 receipts_root: EMPTY_RECEIPTS,
@@ -223,17 +221,17 @@ fn genesis_head() {
                 gas_used: 0,
                 timestamp: 50,
                 extra_data: Bytes::default(),
-                mix_hash: H256::default(),
+                mix_hash: B256::default(),
                 nonce: 0,
                 base_fee_per_gas: Some(70),
-                ommers_hash: EMPTY_OMMER_ROOT,
-                beneficiary: *BENEFICIARY,
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: BENEFICIARY,
                 withdrawals_root: None,
                 blob_gas_used: None,
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
             },
-            transactions: (0u64..0u64),
+            transactions: 0u64..0u64,
         }
     );
 }
@@ -242,9 +240,8 @@ pub(crate) fn setup(
     evm_config: &EvmConfig,
     mut state_checkpoint: StateCheckpoint<C>,
 ) -> (Evm<C, MockDaSpec>, StateCheckpoint<C>) {
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint); // We now need to initialize a chain_state module as well. Since in this test suite we don't care about testing the chain state
 
-    // We now need to initialize a chain_state module as well. Since in this test suite we don't care about testing the chain state
     // we can just use the default values. We will initialize the first block hash value with a default one.
     let chain_state = ChainState::<C, MockDaSpec>::default();
     chain_state

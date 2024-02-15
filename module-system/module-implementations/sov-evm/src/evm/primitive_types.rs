@@ -1,7 +1,7 @@
 use std::ops::Range;
 
-use reth_primitives::{Address, Header, SealedHeader, TransactionSigned, H256};
-use revm::primitives::EVMError;
+use reth_primitives::{Header, SealedHeader, TransactionSigned, TransactionSignedEcRecovered};
+use revm::primitives::{Address, EVMError, B256};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct BlockEnv {
@@ -9,7 +9,7 @@ pub(crate) struct BlockEnv {
     pub(crate) coinbase: Address,
     pub(crate) timestamp: u64,
     /// Prevrandao is used after Paris (aka TheMerge) instead of the difficulty value.
-    pub(crate) prevrandao: H256,
+    pub(crate) prevrandao: B256,
     /// basefee is added in EIP1559 London upgrade
     pub(crate) basefee: u64,
     pub(crate) gas_limit: u64,
@@ -42,8 +42,7 @@ impl From<&SealedBlock> for BlockEnv {
     }
 }
 
-/// [RLP](https://ethereum.org/developers/docs/data-structures-and-encoding/rlp)
-/// encoded EVM transaction.
+/// RLP encoded evm transaction.
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -54,7 +53,7 @@ impl From<&SealedBlock> for BlockEnv {
     serde::Deserialize,
 )]
 pub struct RlpEvmTransaction {
-    /// RLP data.
+    /// Rlp data.
     pub rlp: Vec<u8>,
 }
 
@@ -101,4 +100,13 @@ pub(crate) struct Receipt {
     pub(crate) gas_used: u64,
     pub(crate) log_index_start: u64,
     pub(crate) error: Option<EVMError<u8>>,
+}
+
+impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {
+    fn from(value: TransactionSignedAndRecovered) -> Self {
+        TransactionSignedEcRecovered::from_signed_transaction(
+            value.signed_transaction,
+            value.signer,
+        )
+    }
 }

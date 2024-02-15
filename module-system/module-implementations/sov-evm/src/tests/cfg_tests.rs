@@ -1,8 +1,9 @@
-use revm::primitives::{CfgEnv, SpecId};
+use revm::primitives::{CfgEnv, HandlerCfg, SpecId};
 
-use crate::call::{get_cfg_env, get_spec_id};
-use crate::evm::primitive_types::BlockEnv;
+use crate::call::get_cfg_env_with_handler;
 use crate::evm::EvmChainConfig;
+use crate::get_spec_id;
+use crate::primitive_types::BlockEnv;
 
 #[test]
 fn cfg_test() {
@@ -21,15 +22,20 @@ fn cfg_test() {
     template_cfg_env.chain_id = 2;
     template_cfg_env.disable_base_fee = true;
 
-    let cfg_env = get_cfg_env(&block_env, cfg, Some(template_cfg_env));
+    let cfg_env_with_hanlder = get_cfg_env_with_handler(&block_env, cfg, Some(template_cfg_env));
 
     let mut expected_cfg_env = CfgEnv::default();
     expected_cfg_env.chain_id = 1;
     expected_cfg_env.disable_base_fee = true;
-    expected_cfg_env.spec_id = SpecId::SHANGHAI;
     expected_cfg_env.limit_contract_code_size = Some(100);
 
-    assert_eq!(cfg_env, expected_cfg_env,);
+    assert_eq!(expected_cfg_env, cfg_env_with_hanlder.cfg_env);
+
+    let expected_handler_cfg = HandlerCfg {
+        spec_id: SpecId::SHANGHAI,
+    };
+
+    assert_eq!(expected_handler_cfg, cfg_env_with_hanlder.handler_cfg);
 }
 
 #[test]
@@ -38,6 +44,7 @@ fn spec_id_lookup() {
         (0, SpecId::CONSTANTINOPLE),
         (10, SpecId::BERLIN),
         (20, SpecId::LONDON),
+        (30, SpecId::CANCUN),
     ];
 
     assert_eq!(get_spec_id(spec.clone(), 0), SpecId::CONSTANTINOPLE);
@@ -45,5 +52,8 @@ fn spec_id_lookup() {
     assert_eq!(get_spec_id(spec.clone(), 10), SpecId::BERLIN);
     assert_eq!(get_spec_id(spec.clone(), 15), SpecId::BERLIN);
     assert_eq!(get_spec_id(spec.clone(), 20), SpecId::LONDON);
-    assert_eq!(get_spec_id(spec, 25), SpecId::LONDON);
+    assert_eq!(get_spec_id(spec.clone(), 25), SpecId::LONDON);
+    assert_eq!(get_spec_id(spec.clone(), 29), SpecId::LONDON);
+    assert_eq!(get_spec_id(spec.clone(), 30), SpecId::CANCUN);
+    assert_eq!(get_spec_id(spec.clone(), 35), SpecId::CANCUN);
 }

@@ -1,8 +1,7 @@
-use reth_primitives::{Bloom, Bytes, H256, U256};
+use reth_primitives::{Bloom, Bytes};
+use revm::primitives::{B256, U256};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{
-    AccessoryStateCheckpoint, DaSpec, Spec, StateCheckpoint, VersionedStateReadWriter,
-};
+use sov_modules_api::{AccessoryStateCheckpoint, DaSpec, Spec, StateCheckpoint};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
@@ -17,14 +16,14 @@ where
     pub fn begin_slot_hook(
         &self,
         pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
-        versioned_working_set: &mut VersionedStateReadWriter<StateCheckpoint<C>>,
+        versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<C>>,
     ) {
         let mut parent_block = self
             .head
             .get(versioned_working_set.get_ws_mut())
             .expect("Head block should always be set");
 
-        parent_block.header.state_root = H256(pre_state_root.clone().into());
+        parent_block.header.state_root = B256::from_slice(pre_state_root.as_ref());
         self.head
             .set(&parent_block, versioned_working_set.get_ws_mut());
 
@@ -45,7 +44,9 @@ where
             // WARNING: `prevrandao`` value is predictable up to [`DEFERRED_SLOTS_COUNT`] in advance,
             // Users should follow the same best practice that they would on Ethereum and use future randomness.
             // See: https://eips.ethereum.org/EIPS/eip-4399#tips-for-application-developers
-            prevrandao: H256(current_transition.block_hash().clone().into()),
+            prevrandao: B256::from(<<Da as DaSpec>::SlotHash as Into<[u8; 32]>>::into(
+                current_transition.block_hash().clone(),
+            )),
             basefee: parent_block
                 .header
                 .next_block_base_fee(cfg.base_fee_params)
@@ -101,10 +102,10 @@ where
             .collect();
 
         let header = reth_primitives::Header {
-            parent_hash: parent_block.header.hash,
+            parent_hash: parent_block.header.hash(),
             timestamp: block_env.timestamp,
             number: block_env.number,
-            ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT,
+            ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_slot_hook
             state_root: reth_primitives::constants::KECCAK_EMPTY,
@@ -115,7 +116,7 @@ where
             withdrawals_root: None,
             logs_bloom: receipts
                 .iter()
-                .fold(Bloom::zero(), |bloom, r| bloom | r.bloom),
+                .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom),
             difficulty: U256::ZERO,
             gas_limit: block_env.gas_limit,
             gas_used,
@@ -201,7 +202,7 @@ where
 
         self.blocks.push(&sealed_block, accessory_working_set);
         self.block_hashes.set(
-            &sealed_block.header.hash,
+            &sealed_block.header.hash(),
             &sealed_block.header.number,
             accessory_working_set,
         );

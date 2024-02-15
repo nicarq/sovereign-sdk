@@ -1,19 +1,19 @@
 use std::array::TryFromSliceError;
 
-use ethereum_types::U64;
 use jsonrpsee::core::RpcResult;
-use reth_primitives::contract::create_address;
-use reth_primitives::TransactionKind::{Call, Create};
-use reth_primitives::{TransactionSignedEcRecovered, U128, U256};
+use reth_primitives::{TransactionKind, TransactionSignedEcRecovered, U128, U64};
+use reth_rpc_types_compat::block::from_primitive_with_hash;
+use reth_rpc_types_compat::transaction::from_recovered_with_block_context;
 use revm::primitives::{
-    EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
+    Address, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, B256,
+    KECCAK_EMPTY, U256,
 };
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{DaSpec, WorkingSet};
 use tracing::debug;
 
-use crate::call::get_cfg_env;
+use crate::call::get_cfg_env_with_handler;
 use crate::error::rpc::{ensure_success, RevertError, RpcInvalidTransactionError};
 use crate::evm::db::EvmDb;
 use crate::evm::executor;
@@ -42,25 +42,23 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     /// Handler for: `eth_chainId`
     #[rpc_method(name = "eth_chainId")]
     pub fn chain_id(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Option<U64>> {
-        let chain_id = reth_primitives::U64::from(
-            self.cfg
-                .get(working_set)
-                .expect("EVM config must be set at genesis")
-                .chain_id,
-        );
+        let chain_id = self
+            .cfg
+            .get(working_set)
+            .expect("EVM config must be set at genesis")
+            .chain_id;
         debug!(
-            chain_id = chain_id.as_u64(),
+            chain_id = chain_id,
             "EVM module JSON-RPC request to `eth_chainId`"
         );
-
-        Ok(Some(chain_id))
+        Ok(Some(U64::from(chain_id)))
     }
 
     /// Handler for `eth_getBlockByHash`
     #[rpc_method(name = "eth_getBlockByHash")]
     pub fn get_block_by_hash(
         &self,
-        block_hash: reth_primitives::H256,
+        block_hash: B256,
         details: Option<bool>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
@@ -94,7 +92,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         let block = self.get_sealed_block_by_number(block_number, working_set);
 
         // Build rpc header response
-        let header = reth_rpc_types::Header::from_primitive_with_hash(block.header.clone());
+        let header = from_primitive_with_hash(block.header.clone());
 
         // Collect transactions with ids from db
         let transactions_with_ids = block.transactions.clone().map(|id| {
@@ -110,9 +108,9 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             Some(true) => reth_rpc_types::BlockTransactions::Full(
                 transactions_with_ids
                     .map(|(id, tx)| {
-                        reth_rpc_types_compat::from_recovered_with_block_context(
+                        from_recovered_with_block_context(
                             tx.clone().into(),
-                            block.header.hash,
+                            block.header.hash(),
                             block.header.number,
                             block.header.base_fee_per_gas,
                             U256::from(id - block.transactions.start),
@@ -132,10 +130,11 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         let block = reth_rpc_types::Block {
             header,
             total_difficulty,
-            uncles: Default::default(),
             transactions,
+            uncles: Default::default(),
             size: Default::default(),
             withdrawals: Default::default(),
+            other: Default::default(),
         };
 
         Ok(Some(block.into()))
@@ -145,7 +144,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     #[rpc_method(name = "eth_getBalance")]
     pub fn get_balance(
         &self,
-        address: reth_primitives::Address,
+        address: Address,
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<U256> {
@@ -171,7 +170,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     #[rpc_method(name = "eth_getStorageAt")]
     pub fn get_storage_at(
         &self,
-        address: reth_primitives::Address,
+        address: Address,
         index: U256,
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
@@ -194,7 +193,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     #[rpc_method(name = "eth_getTransactionCount")]
     pub fn get_transaction_count(
         &self,
-        address: reth_primitives::Address,
+        address: Address,
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<U64> {
@@ -209,14 +208,14 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
 
         debug!(%address, nonce, "EVM module JSON-RPC request to `eth_getTransactionCount`");
 
-        Ok(nonce.into())
+        Ok(U64::from(nonce))
     }
 
     /// Handler for: `eth_getCode`
     #[rpc_method(name = "eth_getCode")]
     pub fn get_code(
         &self,
-        address: reth_primitives::Address,
+        address: Address,
         _block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
@@ -248,6 +247,9 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             gas_used_ratio: Default::default(),
             oldest_block: Default::default(),
             reward: Default::default(),
+            blob_gas_used_ratio: Default::default(),
+            // EIP-4844 related
+            base_fee_per_blob_gas: Default::default(),
         })
     }
 
@@ -256,7 +258,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     #[rpc_method(name = "eth_getTransactionByHash")]
     pub fn get_transaction_by_hash(
         &self,
-        hash: reth_primitives::H256,
+        hash: B256,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         let mut accessory_state = working_set.accessory_state();
@@ -267,21 +269,21 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             let tx = self
                 .transactions
                 .get(number as usize, &mut accessory_state)
-                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",                
-                hash,
-                number,
-                self.transactions.len(&mut accessory_state)));
+                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
+                                          hash,
+                                          number,
+                                          self.transactions.len(&mut accessory_state)));
 
             let block = self
                 .blocks
                 .get(tx.block_number as usize, &mut accessory_state)
                 .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
-                    tx.block_number,
-                    tx.signed_transaction.hash));
+                                          tx.block_number,
+                                          tx.signed_transaction.hash));
 
-            reth_rpc_types_compat::from_recovered_with_block_context(
+            from_recovered_with_block_context(
                 tx.into(),
-                block.header.hash,
+                block.header.hash(),
                 block.header.number,
                 block.header.base_fee_per_gas,
                 U256::from(tx_number.unwrap() - block.transactions.start),
@@ -302,7 +304,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     #[rpc_method(name = "eth_getTransactionReceipt")]
     pub fn get_transaction_receipt(
         &self,
-        hash: reth_primitives::H256,
+        hash: B256,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
         debug!(
@@ -341,7 +343,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     #[rpc_method(name = "eth_call")]
     pub fn get_call(
         &self,
-        request: reth_rpc_types::CallRequest,
+        request: reth_rpc_types::TransactionRequest,
         block_number: Option<String>,
         _state_overrides: Option<reth_rpc_types::state::StateOverride>,
         _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
@@ -362,7 +364,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
 
         let cfg = self.cfg.get(working_set).unwrap_or_default();
-        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        let cfg_env = get_cfg_env_with_handler(&block_env, cfg, Some(get_cfg_env_template()));
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
 
@@ -391,7 +393,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
     #[rpc_method(name = "eth_estimateGas")]
     pub fn eth_estimate_gas(
         &self,
-        request: reth_rpc_types::CallRequest,
+        request: reth_rpc_types::TransactionRequest,
         block_number: Option<String>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<U64> {
@@ -409,7 +411,8 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
 
         let cfg = self.cfg.get(working_set).unwrap_or_default();
-        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        let cfg_env_with_handler =
+            get_cfg_env_with_handler(&block_env, cfg, Some(get_cfg_env_template()));
 
         let request_gas = request.gas;
         let request_gas_price = request.gas_price;
@@ -425,7 +428,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             .map(|account| account.info)
             .unwrap_or_default();
 
-        // if the request is a simple transfer we can optimize
+        // if the request is a simple transfer, can we optimize?
         if tx_env.data.is_empty() {
             if let TransactTo::Call(to) = tx_env.transact_to {
                 let to_account = self
@@ -463,7 +466,12 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         let evm_db = self.get_db(working_set);
 
         // execute the call without writing to db
-        let result = executor::inspect(evm_db, &block_env, tx_env.clone(), cfg_env.clone());
+        let result = executor::inspect(
+            evm_db,
+            &block_env,
+            tx_env.clone(),
+            cfg_env_with_handler.clone(),
+        );
 
         // Exceptional case: init used too much gas, we need to increase the gas limit and try
         // again
@@ -473,7 +481,9 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas.is_some() || request_gas_price.is_some() {
                 let evm_db = self.get_db(working_set);
-                return Err(map_out_of_gas_err(block_env, tx_env, cfg_env, evm_db).into());
+                return Err(
+                    map_out_of_gas_err(block_env, tx_env, cfg_env_with_handler, evm_db).into(),
+                );
             }
         }
 
@@ -489,17 +499,23 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas.is_some() || request_gas_price.is_some() {
                         let evm_db = self.get_db(working_set);
-                        Err(map_out_of_gas_err(block_env, tx_env, cfg_env, evm_db).into())
+                        Err(
+                            map_out_of_gas_err(block_env, tx_env, cfg_env_with_handler, evm_db)
+                                .into(),
+                        )
                     } else {
                         // the transaction did revert
-                        Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
+                        Err(
+                            RpcInvalidTransactionError::Revert(RevertError::new(output.into()))
+                                .into(),
+                        )
                     };
                 }
             },
             Err(err) => return Err(EthApiError::from(err).into()),
         };
 
-        // at this point we know the call succeeded but want to find the _best_ (lowest) gas the
+        // at this point, we know the call succeeded but want to find the _best_ (lowest) gas the
         // transaction succeeds with.
         // we find this by doing a binary search over the
         // possible range NOTE: this is the gas the transaction used, which is less than the
@@ -523,7 +539,12 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             tx_env.gas_limit = mid_gas_limit;
 
             let evm_db = self.get_db(working_set);
-            let result = executor::inspect(evm_db, &block_env, tx_env.clone(), cfg_env.clone());
+            let result = executor::inspect(
+                evm_db,
+                &block_env,
+                tx_env.clone(),
+                cfg_env_with_handler.clone(),
+            );
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
             // again
@@ -550,7 +571,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
                     }
                     ExecutionResult::Halt { reason, .. } => {
                         match reason {
-                            Halt::OutOfGas(_) => {
+                            HaltReason::OutOfGas(_) => {
                                 // increase the lowest gas limit
                                 lowest_gas_limit = mid_gas_limit;
                             }
@@ -611,8 +632,6 @@ fn get_cfg_env_template() -> revm::primitives::CfgEnv {
     cfg_env.disable_eip3607 = true;
     cfg_env.disable_base_fee = true;
     cfg_env.chain_id = 0;
-    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    cfg_env.spec_id = revm::primitives::SpecId::SHANGHAI;
     cfg_env.perf_analyse_created_bytecodes = revm::primitives::AnalysisKind::Analyse;
     cfg_env.limit_contract_code_size = None;
     cfg_env
@@ -630,7 +649,7 @@ pub(crate) fn build_rpc_receipt(
 
     let transaction_hash = Some(transaction.hash);
     let transaction_index = tx_number - block.transactions.start;
-    let block_hash = Some(block.header.hash);
+    let block_hash = Some(block.header.hash());
     let block_number = Some(U256::from(block.header.number));
 
     reth_rpc_types::TransactionReceipt {
@@ -640,8 +659,8 @@ pub(crate) fn build_rpc_receipt(
         block_number,
         from: transaction.signer(),
         to: match transaction_kind {
-            Create => None,
-            Call(addr) => Some(*addr),
+            TransactionKind::Create => None,
+            TransactionKind::Call(addr) => Some(*addr),
         },
         cumulative_gas_used: U256::from(receipt.receipt.cumulative_gas_used),
         gas_used: Some(U256::from(receipt.gas_used)),
@@ -650,8 +669,8 @@ pub(crate) fn build_rpc_receipt(
         blob_gas_used: None,
         blob_gas_price: None,
         contract_address: match transaction_kind {
-            Create => Some(create_address(transaction.signer(), transaction.nonce())),
-            Call(_) => None,
+            TransactionKind::Create => Some(transaction.signer().create(transaction.nonce())),
+            TransactionKind::Call(_) => None,
         },
         effective_gas_price: U128::from(
             transaction.effective_gas_price(block.header.base_fee_per_gas),
@@ -681,18 +700,20 @@ pub(crate) fn build_rpc_receipt(
                 removed: false,
             })
             .collect(),
+        // TODO: can we put actual value
+        other: Default::default(),
     }
 }
 
 fn map_out_of_gas_err<C: sov_modules_api::Context>(
     block_env: BlockEnv,
     mut tx_env: revm::primitives::TxEnv,
-    cfg_env: revm::primitives::CfgEnv,
+    cfg_env_with_handler: revm::primitives::CfgEnvWithHandlerCfg,
     db: EvmDb<'_, C>,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
-    let res = executor::inspect(db, &block_env, tx_env, cfg_env).unwrap();
+    let res = executor::inspect(db, &block_env, tx_env, cfg_env_with_handler).unwrap();
     match res.result {
         ExecutionResult::Success { .. } => {
             // a transaction succeeded by manually increasing the gas limit to
@@ -701,7 +722,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         }
         ExecutionResult::Revert { output, .. } => {
             // reverted again after bumping the limit
-            RpcInvalidTransactionError::Revert(RevertError::new(output)).into()
+            RpcInvalidTransactionError::Revert(RevertError::new(output.into())).into()
         }
         ExecutionResult::Halt { reason, .. } => RpcInvalidTransactionError::EvmHalt(reason).into(),
     }

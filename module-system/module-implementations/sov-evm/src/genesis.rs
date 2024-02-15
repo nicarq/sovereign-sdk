@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
-use reth_primitives::{Address, Bloom, Bytes, EMPTY_OMMER_ROOT, H256, KECCAK_EMPTY, U256};
-use revm::primitives::SpecId;
+use reth_primitives::{Bloom, Bytes, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
+use revm::primitives::{Address, SpecId, B256, U256};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{DaSpec, WorkingSet};
 
@@ -20,7 +20,7 @@ pub struct AccountData {
     /// Account balance.
     pub balance: U256,
     /// Code hash.
-    pub code_hash: H256,
+    pub code_hash: B256,
     /// Smart contract code.
     pub code: Bytes,
     /// Account nonce.
@@ -29,7 +29,7 @@ pub struct AccountData {
 
 impl AccountData {
     /// Empty code hash.
-    pub fn empty_code() -> H256 {
+    pub fn empty_code() -> B256 {
         KECCAK_EMPTY
     }
 
@@ -48,7 +48,7 @@ pub struct EvmConfig {
     pub chain_id: u64,
     /// Limits size of contract code size.
     pub limit_contract_code_size: Option<usize>,
-    /// List of EVM hardforks by block number
+    /// List of EVM hard forks by block number
     pub spec: HashMap<u64, SpecId>,
     /// Coinbase where all the fees go
     pub coinbase: Address,
@@ -71,7 +71,7 @@ impl Default for EvmConfig {
             chain_id: 1,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-            coinbase: Address::zero(),
+            coinbase: Address::ZERO,
             starting_base_fee: reth_primitives::constants::MIN_PROTOCOL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             block_timestamp_delta: reth_primitives::constants::SLOT_DURATION.as_secs(),
@@ -138,8 +138,8 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         self.cfg.set(&chain_cfg, working_set);
 
         let header = reth_primitives::Header {
-            parent_hash: H256::default(),
-            ommers_hash: EMPTY_OMMER_ROOT,
+            parent_hash: B256::default(),
+            ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: config.coinbase,
             // This will be set in finalize_hook or in the next begin_slot_hook
             state_root: KECCAK_EMPTY,
@@ -152,7 +152,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
             gas_limit: config.block_gas_limit,
             gas_used: 0,
             timestamp: config.genesis_timestamp,
-            mix_hash: H256::default(),
+            mix_hash: B256::default(),
             nonce: 0,
             base_fee_per_gas: Some(config.starting_base_fee),
             extra_data: Bytes::default(),

@@ -1,4 +1,4 @@
-use revm::primitives::{Account, HashMap, B160};
+use revm::primitives::{Account, Address, HashMap};
 use revm::DatabaseCommit;
 use sov_modules_api::StateMapAccessor;
 
@@ -6,7 +6,7 @@ use super::db::EvmDb;
 use super::DbAccount;
 
 impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
-    fn commit(&mut self, changes: HashMap<B160, Account>) {
+    fn commit(&mut self, changes: HashMap<Address, Account>) {
         for (address, account) in changes {
             // TODO figure out what to do when account is destroyed.
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
@@ -26,11 +26,8 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             if let Some(ref code) = account_info.code {
                 if !code.is_empty() {
                     // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
-                    self.code.set(
-                        &account_info.code_hash,
-                        &code.bytecode.as_ref().into(),
-                        self.working_set,
-                    );
+                    self.code
+                        .set(&account_info.code_hash, &code.bytecode, self.working_set);
                 }
             }
 

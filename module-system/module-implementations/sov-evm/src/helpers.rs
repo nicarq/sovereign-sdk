@@ -1,6 +1,5 @@
-use reth_primitives::{AccessList, H256, U256};
-use reth_rpc_types::CallRequest;
-use revm::primitives::{TransactTo, TxEnv};
+use reth_rpc_types::TransactionRequest;
+use revm::primitives::{TransactTo, TxEnv, B256, U256};
 
 use crate::evm::error::rpc::{EthApiError, EthResult, RpcInvalidTransactionError};
 use crate::evm::primitive_types::BlockEnv;
@@ -43,7 +42,7 @@ impl CallFees {
         call_max_fee: Option<U256>,
         call_priority_fee: Option<U256>,
         block_base_fee: U256,
-        blob_versioned_hashes: Option<&[H256]>,
+        blob_versioned_hashes: Option<&[B256]>,
         max_fee_per_blob_gas: Option<U256>,
         block_blob_fee: Option<U256>,
     ) -> EthResult<CallFees> {
@@ -125,8 +124,11 @@ impl CallFees {
 
 // https://github.com/paradigmxyz/reth/blob/d8677b4146f77c7c82d659c59b79b38caca78778/crates/rpc/rpc/src/eth/revm_utils.rs#L201
 // it is `pub(crate)` only for tests
-pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> EthResult<TxEnv> {
-    let CallRequest {
+pub(crate) fn prepare_call_env(
+    block_env: &BlockEnv,
+    request: TransactionRequest,
+) -> EthResult<TxEnv> {
+    let TransactionRequest {
         from,
         to,
         gas_price,
@@ -175,12 +177,9 @@ pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> Et
         gas_priority_fee: max_priority_fee_per_gas,
         transact_to: to.map(TransactTo::Call).unwrap_or_else(TransactTo::create),
         value: value.unwrap_or_default(),
-        data: input
-            .try_into_unique_input()?
-            .map(|data| data.0)
-            .unwrap_or_default(),
-        chain_id: chain_id.map(|c| c.as_u64()),
-        access_list: access_list.map(AccessList::flattened).unwrap_or_default(),
+        data: input.try_into_unique_input()?.unwrap_or_default(),
+        chain_id: chain_id.map(|c| c.to()),
+        access_list: access_list.map(|x| x.flattened()).unwrap_or_default(),
         // EIP-4844 related fields
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         blob_hashes: vec![],
