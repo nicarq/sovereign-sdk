@@ -1,16 +1,17 @@
-/// Sample Event
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-)]
+/// Bank Event
+#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "native", derive(serde::Serialize, serde::Deserialize))]
 pub enum Event<C: sov_modules_api::Context> {
     /// Event for Token Creation
-    TokenCreated { token_address: C::Address },
+    TokenCreated {
+        /// The address of the token that has been created
+        token_address: C::Address,
+    },
     /// Event for Token Transfer
-    TokenTransferred { token_address: C::Address },
+    TokenTransferred {
+        /// The address of the token that was transferred
+        token_address: C::Address,
+        /// The quantity of the token that was transferred
+        amount: u64,
+    },
 }

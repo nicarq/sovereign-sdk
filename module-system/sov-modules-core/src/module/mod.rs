@@ -34,12 +34,7 @@ pub trait Module {
     type CallMessage: Debug + BorshSerialize + BorshDeserialize;
 
     /// Module defined event resulting from a call method.
-    type Event: Debug
-        + BorshSerialize
-        + BorshDeserialize
-        + 'static
-        + core::marker::Send
-        + serde::Serialize;
+    type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;
 
     /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
     fn genesis(
@@ -69,20 +64,6 @@ pub trait Module {
     ) -> anyhow::Result<()> {
         working_set.charge_gas(gas)
     }
-
-    /// Emit event
-    fn emit_event(
-        &self,
-        working_set: &mut WorkingSet<Self::Context>,
-        event_key: &str,
-        event: Self::Event,
-    ) {
-        #[allow(unused_variables)]
-        let _ = || (&working_set, &event_key, &event);
-        if cfg!(feature = "native") {
-            working_set.add_event(event_key, event);
-        }
-    }
 }
 
 /// A [`Module`] that has a well-defined and known [JSON
@@ -110,6 +91,42 @@ pub trait ModuleInfo {
 
     /// Returns addresses of all the other modules this module is dependent on
     fn dependencies(&self) -> Vec<&<Self::Context as Spec>::Address>;
+}
+
+/// Event Emitter trait for a blanket implementation
+pub trait EventEmitter {
+    /// Execution context.
+    type Context: Context;
+    /// Module defined event resulting from a call method.
+    type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;
+
+    /// Emit event
+    fn emit_event(
+        &self,
+        working_set: &mut WorkingSet<Self::Context>,
+        event_key: &str,
+        event: Self::Event,
+    );
+}
+
+impl<T> EventEmitter for T
+where
+    T: ModuleInfo + Module,
+{
+    type Context = <T as ModuleInfo>::Context;
+    type Event = <T as Module>::Event;
+    fn emit_event(
+        &self,
+        working_set: &mut WorkingSet<Self::Context>,
+        event_key: &str,
+        event: Self::Event,
+    ) {
+        #[allow(unused_variables)]
+        let _ = || (&working_set, &event_key, &event);
+        if cfg!(feature = "native") {
+            working_set.add_event(event_key, self.address(), event);
+        }
+    }
 }
 
 /// A trait that specifies how a runtime should encode the data for each module

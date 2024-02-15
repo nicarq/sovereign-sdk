@@ -4,7 +4,7 @@ use anyhow::Result;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, Module, WorkingSet};
+use sov_modules_api::{CallResponse, EventEmitter, WorkingSet};
 use thiserror::Error;
 
 use super::VecSetter;

@@ -755,7 +755,6 @@ dependencies = [
  "anyhow",
  "borsh 0.10.3",
  "serde",
- "serde_json",
  "sov-accounts",
  "sov-bank",
  "sov-blob-storage",

@@ -21,7 +21,6 @@
   - [Start the Rollup Full Node](#start-the-rollup-full-node)
   - [Sanity Check: Creating a Token](#sanity-check-creating-a-token)
   - [How to Submit Transactions](#how-to-submit-transactions)
-  - [How to Submit Transactions](#how-to-submit-transactions-1)
     - [1. Build `sov-cli`](#1-build-sov-cli)
     - [2. Generate the Transaction](#2-generate-the-transaction)
     - [Submit the Transaction(s)](#submit-the-transactions)
@@ -86,8 +85,19 @@ After switching to a new terminal tab, let's submit our first transaction by cre
 $ make test-create-token
 ```
 
-### How to Submit Transactions
-The `make test-create-token` command above was useful to test if everything is running correctly. Now let's get a better understanding of how to create and submit a transaction
+Once a batch is submitted the output should also contain the transaction hashes that have been submitted. For example -
+```text
+Your batch was submitted to the sequencer for publication. Response: "Submitted 1 transactions"
+0: 66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17
+```
+
+The transaction hash can be used to query the RPC endpoint to fetch events belonging to the transaction, which should in this case have the TokenCreated Event
+```sh,test-ci
+$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
+{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%   
+```
+
+We can see the TokenCreated event which contains the address of the token created - `sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72`
 
 ### How to Submit Transactions
 The `make test-create-token` command above was useful to test if everything is running correctly. Now let's get a better understanding of how to create and submit a transaction.

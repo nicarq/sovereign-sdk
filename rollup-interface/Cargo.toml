@@ -21,7 +21,7 @@ bytes = { workspace = true, optional = true, default-features = true }
 digest = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
@@ -35,10 +35,11 @@ proptest-derive = { workspace = true, optional = true }
 [dev-dependencies]
 proptest = { workspace = true }
 proptest-derive = { workspace = true }
+serde_json = { workspace = true }
 
 [features]
 default = [ "std" ]
-native = [ "futures", "std", "tokio" ]
+native = [ "futures", "serde_json", "std", "tokio" ]
 arbitrary = [ "proptest", "proptest-derive", "sha2", "std" ]
 std = [
 	"anyhow/default",

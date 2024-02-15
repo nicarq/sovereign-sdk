@@ -16,7 +16,11 @@ pub fn register_rpc<RT, C, Da>(
     sequencer: C::Address,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
 where
-    RT: RuntimeTrait<C, <Da as DaService>::Spec> + Send + Sync + 'static,
+    RT: RuntimeTrait<C, <Da as DaService>::Spec>
+        + Send
+        + Sync
+        + 'static
+        + sov_modules_api::RuntimeEventDisplay,
     C: Context,
     Da: DaService + Clone,
     Da::TransactionId: Clone + serde::Serialize + Send + Sync,
@@ -30,7 +34,7 @@ where
             LedgerDB,
             SequencerOutcome<<C as Spec>::Address>,
             TxEffect,
-            <RT as ::sov_modules_api::RuntimeEventProcessor>::RuntimeEvent,
+            <RT as ::sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
         >(ledger_db.clone())?)?;
     }
 

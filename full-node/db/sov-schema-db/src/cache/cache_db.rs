@@ -19,6 +19,16 @@ pub struct CacheDb {
     db: ReadOnlyLock<CacheContainer>,
 }
 
+/// Response for a paginated query which also includes the "next" key to pass
+#[derive(Debug)]
+pub struct PaginatedResponse<S: Schema> {
+    /// A vector of storage keys and their values
+    pub key_value: Vec<(S::Key, S::Value)>,
+    /// Key indicating the first key after the final pair from key_value.
+    /// Meant to be passed in in subsequent queries
+    pub next: Option<S::Key>,
+}
+
 impl CacheDb {
     /// Create new [`CacheDb`] pointing to given [`CacheContainer`]
     pub fn new(id: SnapshotId, cache_container: ReadOnlyLock<CacheContainer>) -> Self {
@@ -148,6 +158,52 @@ impl CacheDb {
             return Ok(Some((key, value)));
         }
         Ok(None)
+    }
+
+    /// Get `n` keys >= `seek_key`
+    pub fn get_n_from_first_match<S: Schema>(
+        &self,
+        seek_key: &impl SeekKeyEncoder<S>,
+        n: usize,
+    ) -> anyhow::Result<PaginatedResponse<S>> {
+        let seek_key = seek_key.encode_seek_key()?;
+        let range = seek_key..;
+        let change_set = self
+            .local_cache
+            .lock()
+            .expect("Local cache lock must not be poisoned");
+        let local_cache_iter = change_set.iter_range::<S>(range.clone());
+
+        let parent = self
+            .db
+            .read()
+            .expect("Parent snapshots lock must not be poisoned");
+        let parent_iter = parent.iter_range::<S>(change_set.id(), range)?;
+
+        let mut combined_iter: CacheDbIter<'_, _, _> = CacheDbIter {
+            local_cache_iter: local_cache_iter.peekable(),
+            parent_iter: parent_iter.peekable(),
+            direction: ScanDirection::Forward,
+        };
+
+        let results: Vec<(S::Key, S::Value)> = combined_iter
+            .by_ref()
+            .filter_map(|(key_bytes, value_bytes)| {
+                let key = S::Key::decode_key(&key_bytes).ok()?;
+                let value = S::Value::decode_value(&value_bytes).ok()?;
+                Some((key, value))
+            })
+            .take(n)
+            .collect();
+
+        let next_start_key: Option<S::Key> = combined_iter
+            .next()
+            .and_then(|(key_bytes, _)| S::Key::decode_key(&key_bytes).ok());
+
+        Ok(PaginatedResponse {
+            key_value: results,
+            next: next_start_key,
+        })
     }
 
     /// Get a clone of internal ChangeSet

@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anyhow::Result;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, Module, WorkingSet};
+use sov_modules_api::{CallResponse, EventEmitter, WorkingSet};
 use thiserror::Error;
 
 use crate::event::Event;

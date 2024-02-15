@@ -10,7 +10,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_accounts::AccountsRpcClient;
 use sov_bank::{BalanceResponse, BankRpcClient};
-use sov_modules_api::clap;
+use sov_modules_api::{clap, Spec};
+use sov_rollup_interface::digest::Digest;
 
 use crate::wallet_state::{AddressEntry, KeyIdentifier, WalletState};
 use crate::workflows::keys::load_key;
@@ -153,7 +154,7 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                 let txs = wallet_state.take_signed_transactions(&private_key, nonce);
 
                 let response: String = client
-                    .request("sequencer_publishBatch", txs)
+                    .request("sequencer_publishBatch", txs.clone())
                     .await
                     .context("Unable to publish batch")?;
 
@@ -162,6 +163,10 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                     "Your batch was submitted to the sequencer for publication. Response: {:?}",
                     response
                 );
+                // Print transaction hashes from the batch
+                for (i, t) in txs.iter().enumerate() {
+                    println!("{}: {}", i, hex::encode(<C as Spec>::Hasher::digest(t)));
+                }
             }
         }
         Ok(())

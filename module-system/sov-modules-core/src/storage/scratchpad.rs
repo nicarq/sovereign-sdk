@@ -374,17 +374,24 @@ impl<C: Context> StateReaderAndWriter for StateCheckpoint<C> {
 /// - `event_key`: A vector of bytes representinexamples/simple-nft-module/README.mdg the unique key of the event.
 /// - `type_id`: The type identifier of the event, using [`core::any::TypeId`].
 /// - `boxed_event`: The event encapsulated in a box, implementing [`core::any::Any`] and [`core::marker::Send`].
-pub struct TypedEvent {
+#[derive(Debug)]
+pub struct TypedEvent<C: Context> {
     event_key: Vec<u8>,
+    module_address: <C as Spec>::Address,
     type_id: core::any::TypeId,
     boxed_event: alloc::boxed::Box<dyn core::any::Any + core::marker::Send>,
 }
 
-impl TypedEvent {
+impl<C: Context> TypedEvent<C> {
     /// Created a Typed Event
-    pub fn new<E: 'static + core::marker::Send>(event_key: &str, event: E) -> Self {
+    pub fn new<E: 'static + core::marker::Send>(
+        event_key: &str,
+        module_address: <C as Spec>::Address,
+        event: E,
+    ) -> Self {
         TypedEvent {
             event_key: event_key.as_bytes().to_vec(),
+            module_address,
             type_id: event.type_id(),
             boxed_event: Box::new(event),
         }
@@ -409,6 +416,11 @@ impl TypedEvent {
     pub fn event_key(&self) -> &[u8] {
         &self.event_key
     }
+
+    /// Function to peek at the module address
+    pub fn module_address(&self) -> &<C as Spec>::Address {
+        &self.module_address
+    }
 }
 
 /// This structure contains the read-write set and the events collected during the execution of a transaction.
@@ -418,7 +430,7 @@ impl TypedEvent {
 pub struct WorkingSet<C: Context> {
     delta: RevertableWriter<Delta<C::Storage>>,
     accessory_delta: RevertableWriter<AccessoryDelta<C::Storage>>,
-    events: Vec<TypedEvent>,
+    events: Vec<TypedEvent<C>>,
     gas_meter: GasMeter<C::GasUnit>,
     archival_working_set: Option<ArchivalJmtWorkingSet<C>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
@@ -497,7 +509,7 @@ impl<C: Context> WorkingSet<C> {
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
     /// committing the changes to the underlying [`Storage`] via
     /// [`StateCheckpoint::freeze`].
-    pub fn checkpoint(self) -> (StateCheckpoint<C>, GasMeter<C::GasUnit>, Vec<TypedEvent>) {
+    pub fn checkpoint(self) -> (StateCheckpoint<C>, GasMeter<C::GasUnit>, Vec<TypedEvent<C>>) {
         (
             StateCheckpoint {
                 delta: self.delta.commit(),
@@ -521,17 +533,23 @@ impl<C: Context> WorkingSet<C> {
     }
 
     /// Adds a typed event to the working set.
-    pub fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
-        self.events.push(TypedEvent::new(event_key, event));
+    pub fn add_event<E: 'static + core::marker::Send>(
+        &mut self,
+        event_key: &str,
+        module_address: &<C as Spec>::Address,
+        event: E,
+    ) {
+        self.events
+            .push(TypedEvent::new(event_key, module_address.clone(), event));
     }
 
     /// Extracts all typed events from this working set.
-    pub fn take_events(&mut self) -> Vec<TypedEvent> {
+    pub fn take_events(&mut self) -> Vec<TypedEvent<C>> {
         core::mem::take(&mut self.events)
     }
 
     /// Extracts a typed event at index `index`
-    pub fn take_event(&mut self, index: usize) -> Option<TypedEvent> {
+    pub fn take_event(&mut self, index: usize) -> Option<TypedEvent<C>> {
         if index < self.events.len() {
             Some(self.events.remove(index))
         } else {
@@ -541,7 +559,7 @@ impl<C: Context> WorkingSet<C> {
 
     /// Returns an immutable map of all typed events that have been previously
     /// written to this working set.
-    pub fn events(&self) -> &[TypedEvent] {
+    pub fn events(&self) -> &[TypedEvent<C>] {
         &self.events
     }
 

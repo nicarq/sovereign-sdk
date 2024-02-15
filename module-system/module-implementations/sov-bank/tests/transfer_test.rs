@@ -53,7 +53,6 @@ fn transfer_initial_token() {
     assert_eq!(Some(initial_balance), sender_balance_before);
     assert_eq!(sender_balance_before, receiver_balance_before);
     let sender_context = C::new(sender_address, sequencer_address, 1);
-
     // Transfer happy test
     {
         let transfer_message = CallMessage::Transfer {
@@ -66,7 +65,8 @@ fn transfer_initial_token() {
 
         bank.call(transfer_message, &sender_context, &mut working_set)
             .expect("Transfer call failed");
-        assert!(working_set.events().is_empty());
+        // 1 event for transfer, since creation and initial balance is part of genesis
+        assert_eq!(working_set.events().len(), 1);
 
         let sender_balance_after = query_user_balance(sender_address, &mut working_set);
         let receiver_balance_after = query_user_balance(receiver_address, &mut working_set);
@@ -92,7 +92,6 @@ fn transfer_initial_token() {
                 token_address,
             },
         };
-
         let result = bank.call(transfer_message, &sender_context, &mut working_set);
         assert!(result.is_err());
         let Error::ModuleError(err) = result.err().unwrap();
@@ -210,7 +209,7 @@ fn transfer_initial_token() {
         assert_eq!(receiver_balance_before, receiver_balance_after);
     }
 
-    // Receiver does not exist
+    // Receiver does not exist (this should succeed)
     {
         let unknown_receiver = generate_address::<C>("non_existing_receiver");
 
@@ -227,13 +226,13 @@ fn transfer_initial_token() {
 
         bank.call(transfer_message, &sender_context, &mut working_set)
             .expect("Transfer call failed");
-        assert!(working_set.events().is_empty());
-
+        // Num transfer events should be 2
+        assert_eq!(working_set.events().len(), 2);
         let receiver_balance_after = query_user_balance(unknown_receiver, &mut working_set);
         assert_eq!(Some(1), receiver_balance_after)
     }
 
-    // Sender equals receiver
+    // Sender equals receiver (this call should succeed)
     {
         let total_supply_before = query_total_supply(&mut working_set);
         let sender_balance_before = query_user_balance(sender_address, &mut working_set);
@@ -246,9 +245,10 @@ fn transfer_initial_token() {
                 token_address,
             },
         };
-        bank.call(transfer_message, &sender_context, &mut working_set)
-            .expect("Transfer call failed");
-        assert!(working_set.events().is_empty());
+        let resp = bank.call(transfer_message, &sender_context, &mut working_set);
+        assert!(resp.is_ok());
+        // Num transfers should still be 3 since the sender = receiver case should succeed
+        assert_eq!(working_set.events().len(), 3);
 
         let sender_balance_after = query_user_balance(sender_address, &mut working_set);
         assert_eq!(sender_balance_before, sender_balance_after);
@@ -328,7 +328,8 @@ fn transfer_deployed_token() {
 
     bank.call(transfer_message, &sender_context, &mut working_set)
         .expect("Transfer call failed");
-    assert_eq!(working_set.events().len(), 1);
+    // Transfer token event should be present (along with create)
+    assert_eq!(working_set.events().len(), 2);
 
     let sender_balance_after = query_user_balance(sender_address, &mut working_set);
     let receiver_balance_after = query_user_balance(receiver_address, &mut working_set);

@@ -1,17 +1,23 @@
+use std::str::FromStr;
+
+use anyhow::{Context, Error};
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
+use sov_modules_core::common::AddressBech32;
 use sov_rollup_interface::rpc::{
-    BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,
-    LedgerRpcProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset,
-    TxIdentifier, TxResponse,
+    BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, EventResponse, ItemOrHash,
+    LedgerRpcProvider, PaginatedEventResponse, QueryMode, SlotIdAndOffset, SlotIdentifier,
+    SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
-use sov_rollup_interface::stf::Event;
+use sov_rollup_interface::stf::EventKey;
 use tokio::sync::broadcast::Receiver;
 
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByNumber, SlotByHash, SlotByNumber, TxByHash, TxByNumber,
+    BatchByHash, BatchByNumber, EventByKey, EventByModuleAddress, EventByNumber, SlotByHash,
+    SlotByNumber, TxByHash, TxByNumber,
 };
 use crate::schema::types::{
-    BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
+    BatchNumber, EventNumber, ModuleAddress, SlotNumber, StoredBatch, StoredSlot, TxNumber,
 };
 
 /// The maximum number of slots that can be requested in a single RPC range query
@@ -24,6 +30,20 @@ const MAX_TRANSACTIONS_PER_REQUEST: u64 = 100;
 const MAX_EVENTS_PER_REQUEST: u64 = 500;
 
 use super::LedgerDB;
+
+fn event_match_helper(
+    scanned_key: &EventKey,
+    provided_key: &str,
+    scanned_address: &[u8],
+    provided_address: &Option<Vec<u8>>,
+) -> bool {
+    let event_key_match = scanned_key.inner().as_slice() == provided_key.as_bytes();
+    let module_address_match = match provided_address {
+        Some(addr) => addr.as_slice() == scanned_address,
+        None => true, // If module_address is not provided, always true
+    };
+    event_key_match && module_address_match
+}
 
 impl LedgerRpcProvider for LedgerDB {
     fn get_head<B: DeserializeOwned, T: DeserializeOwned>(
@@ -138,10 +158,10 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(out)
     }
 
-    fn get_events<E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::EventResponse>>(
+    fn get_events<E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
         &self,
         event_ids: &[EventIdentifier],
-    ) -> Result<Vec<Option<Event>>, anyhow::Error> {
+    ) -> Result<Vec<Option<EventResponse>>, anyhow::Error> {
         anyhow::ensure!(
             event_ids.len() <= MAX_EVENTS_PER_REQUEST as usize,
             "requested too many events. Requested: {}. Max: {}",
@@ -154,7 +174,32 @@ impl LedgerRpcProvider for LedgerDB {
         for id in event_ids {
             let num = self.resolve_event_identifier(id)?;
             out.push(match num {
-                Some(num) => self.db.read::<EventByNumber>(&num)?,
+                Some(num) => {
+                    self.db
+                        .read::<EventByNumber>(&num)?
+                        .map(|serialized_event| {
+                            match E::deserialize(&mut serialized_event.value().inner().as_slice()) {
+                                // serde_json::to_value is from the custom serialize impl which
+                                // matches for the specific event
+                                // and then converts that event to json value, instead of the outer RuntimeEvent
+                                Ok(event) => {
+                                    let module_event: sov_rollup_interface::rpc::Event =
+                                        event.into();
+                                    Some(EventResponse {
+                                        event_value: module_event.event_value,
+                                        module_name: module_event.module_name,
+                                        module_address: AddressBech32::try_from_slice(
+                                            serialized_event.module_address().inner().as_slice(),
+                                        )
+                                        .unwrap()
+                                        .to_string(),
+                                    })
+                                }
+                                Err(_) => None,
+                            }
+                        })
+                        .unwrap_or(None)
+                }
                 None => None,
             })
         }
@@ -208,32 +253,202 @@ impl LedgerRpcProvider for LedgerDB {
             .map(|mut slots| slots.pop().unwrap_or(None))
     }
 
-    fn get_event_by_number<
-        E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::EventResponse>,
-    >(
+    fn get_event_by_number<E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
         &self,
         number: u64,
-    ) -> Result<Option<serde_json::Value>, anyhow::Error> {
+    ) -> Result<Option<EventResponse>, anyhow::Error> {
         self.get_events::<E>(&[EventIdentifier::Number(number)])
-            .map(|mut events| {
-                events
-                    .pop()
-                    .flatten()
-                    .map(|serialized_event| {
-                        match E::deserialize(&mut serialized_event.value().inner().as_slice()) {
-                            // serde_json::to_value is from the custom serialize impl which
-                            // matches for the specific event
-                            // and then converts that event to json value, instead of the outer RuntimeEvent
-                            Ok(event) => {
-                                let event_response: sov_rollup_interface::rpc::EventResponse =
-                                    event.into();
-                                Some(event_response.module_event)
-                            }
-                            Err(_) => None,
-                        }
+            .map(|mut events| events.pop().flatten())
+    }
+
+    fn get_events_by_key<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+        &self,
+        event_key: &str,
+        module_address: Option<&str>,
+        num_events: usize,
+        next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, Error> {
+        let module_address_vec = module_address
+            .map(|bech32_string| {
+                AddressBech32::from_str(bech32_string)
+                    .context("Failed to parse address from string")
+                    .and_then(|addr| {
+                        addr.try_to_vec()
+                            .context("Failed to convert bech32 address to bytes")
                     })
-                    .unwrap_or(None)
             })
+            .transpose()?
+            .unwrap_or(vec![]);
+
+        let scan_key_start = match next {
+            Some(start_key) => {
+                let key_bytes = hex::decode(start_key)?;
+                let composite_key: (EventKey, Vec<u8>, TxNumber, EventNumber) =
+                    BorshDeserialize::try_from_slice(&key_bytes)?;
+                composite_key
+            }
+            None => (
+                EventKey::new(event_key.as_bytes()),
+                module_address_vec.clone(),
+                TxNumber(0u64),
+                EventNumber(0u64),
+            ),
+        };
+
+        let paginated_query_response = self
+            .db
+            .get_n_from_first_match::<EventByKey>(&scan_key_start, num_events)?;
+
+        let (event_keys, next_key) = (
+            paginated_query_response.key_value,
+            paginated_query_response.next,
+        );
+        let event_keys: Vec<((EventKey, ModuleAddress, TxNumber, EventNumber), ())> = event_keys
+            .into_iter()
+            .filter(|((e_key, m_address, _, _), _)| {
+                event_match_helper(
+                    e_key,
+                    event_key,
+                    m_address,
+                    &module_address.map(|_| module_address_vec.clone()),
+                )
+            })
+            .collect();
+
+        let event_ids: Vec<EventIdentifier> = event_keys
+            .into_iter()
+            .map(|(k, _)| EventIdentifier::Number(k.3 .0))
+            .collect();
+        let events_response: Vec<EventResponse> = self
+            .get_events::<E>(&event_ids)?
+            .into_iter()
+            .flatten()
+            .collect();
+        let next = next_key
+            .map(|next_key| next_key.try_to_vec().map(hex::encode))
+            .transpose()?;
+        Ok(PaginatedEventResponse {
+            events_response,
+            next,
+        })
+    }
+
+    fn get_events_by_module_address<
+        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
+    >(
+        &self,
+        module_address: &str,
+        num_events: usize,
+        next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, Error> {
+        let module_address_vec = AddressBech32::from_str(module_address)
+            .context("Could not convert provided string to bech32")
+            .and_then(|x| {
+                x.try_to_vec()
+                    .context("Could not convert bech32 address to bytes")
+            })?;
+
+        let scan_key_start = match next {
+            Some(start_key) => {
+                let key_bytes = hex::decode(start_key)?;
+                let composite_key: (Vec<u8>, TxNumber, EventNumber) =
+                    BorshDeserialize::try_from_slice(&key_bytes)?;
+                composite_key
+            }
+            None => (
+                module_address_vec.clone(),
+                TxNumber(0u64),
+                EventNumber(0u64),
+            ),
+        };
+
+        let paginated_query_response = self
+            .db
+            .get_n_from_first_match::<EventByModuleAddress>(&scan_key_start, num_events)?;
+
+        let (event_keys, next_key) = (
+            paginated_query_response.key_value,
+            paginated_query_response.next,
+        );
+
+        let event_keys: Vec<((ModuleAddress, TxNumber, EventNumber), ())> = event_keys
+            .into_iter()
+            .filter(|((m_address, _, _), _)| m_address.as_slice() == module_address_vec.as_slice())
+            .collect();
+
+        let event_ids: Vec<EventIdentifier> = event_keys
+            .into_iter()
+            .map(|(k, _)| EventIdentifier::Number(k.2 .0))
+            .collect();
+
+        let events_response: Vec<EventResponse> = self
+            .get_events::<E>(&event_ids)?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        let next = next_key
+            .map(|next_key| next_key.try_to_vec().map(hex::encode))
+            .transpose()?;
+
+        Ok(PaginatedEventResponse {
+            events_response,
+            next,
+        })
+    }
+
+    fn get_events_by_slot_range_key<
+        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
+    >(
+        &self,
+        _event_key: Option<&str>,
+        _module_address: Option<&str>,
+        _slot_height_start: usize,
+        _slot_height_end: usize,
+        _num_events: usize,
+        _next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, Error> {
+        todo!()
+    }
+
+    fn get_events_by_txn_hash<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+        &self,
+        txn_hash: &str,
+    ) -> Result<Vec<EventResponse>, Error> {
+        let tx_vec = hex::decode(txn_hash)?;
+        if tx_vec.len() != 32 {
+            anyhow::bail!("Provided string does not match expected length of 32");
+        }
+        let mut tx_bytes = [0u8; 32];
+        tx_bytes.copy_from_slice(&tx_vec);
+        let tid = self
+            .db
+            .read::<TxByHash>(&tx_bytes)
+            .with_context(|| format!("Failed to query txn with hash: {}", txn_hash))?
+            .with_context(|| format!("Txn with hash: {} does not exist in storage", txn_hash))?;
+        let stored_txn = self
+            .db
+            .read::<TxByNumber>(&tid)
+            .with_context(|| format!("Failed to query txn num: {} from storage", tid.0))?
+            .with_context(|| format!("Txn num: {} does not exist in storage", tid.0))?;
+        // Can't map over stored_txn.events because no Step trait, so doing this manually
+        // TODO: can we implement the Step trait
+        // let event_ids: Vec<EventIdentifier> =
+        //     stored_txn.events.map(EventIdentifier::Number).collect();
+
+        let mut event_ids = Vec::new();
+        let EventNumber(start) = stored_txn.events.start;
+        let EventNumber(end) = stored_txn.events.end;
+        for number in start..end {
+            event_ids.push(EventIdentifier::Number(number));
+        }
+
+        let events_response: Vec<EventResponse> = self
+            .get_events::<E>(&event_ids)?
+            .into_iter()
+            .flatten()
+            .collect();
+        Ok(events_response)
     }
 
     fn get_tx_by_number<T: DeserializeOwned>(

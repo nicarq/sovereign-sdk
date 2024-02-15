@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, Module, StateAccessor, StateMapAccessor, WorkingSet};
+use sov_modules_api::{CallResponse, EventEmitter, StateAccessor, StateMapAccessor, WorkingSet};
 
 use crate::event::Event;
 use crate::{Amount, Bank, Coins, Token};
@@ -117,7 +117,20 @@ impl<C: sov_modules_api::Context> Bank<C> {
         context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
-        self.transfer_from(context.sender(), &to, coins, working_set)
+        self.transfer_from(context.sender(), &to, coins.clone(), working_set)
+            .map(|response| {
+                // TODO: move this back into the body of transfer_from once we create a trait for StateAccessor + EventEmitter
+                // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/168
+                self.emit_event(
+                    working_set,
+                    "token_transfer",
+                    Event::TokenTransferred {
+                        token_address: coins.token_address,
+                        amount: coins.amount,
+                    },
+                );
+                response
+            })
     }
 
     /// Burns the set of `coins`.
