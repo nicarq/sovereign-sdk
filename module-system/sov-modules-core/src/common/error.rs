@@ -2,7 +2,7 @@
 
 use alloc::string::String;
 
-use crate::storage::CacheValue;
+use crate::SlotValue;
 
 /// Representation of a signature verification error.
 #[derive(Debug)]
@@ -71,9 +71,9 @@ pub enum MergeError {
     )]
     ReadThenRead {
         /// Left-read associated cache value.
-        left: Option<CacheValue>,
+        left: Option<SlotValue>,
         /// Right-read associated cache value.
-        right: Option<CacheValue>,
+        right: Option<SlotValue>,
     },
     /// A read operation is inconsistent with the previous write operation.
     #[cfg_attr(
@@ -82,9 +82,9 @@ pub enum MergeError {
     )]
     WriteThenRead {
         /// The associated write operation.
-        write: Option<CacheValue>,
+        write: Option<SlotValue>,
         /// The associated read operation.
-        read: Option<CacheValue>,
+        read: Option<SlotValue>,
     },
 }
 
@@ -113,9 +113,9 @@ pub enum ReadError {
     )]
     InconsistentRead {
         /// Expected value.
-        expected: Option<CacheValue>,
+        expected: Option<SlotValue>,
         /// Found value.
-        found: Option<CacheValue>,
+        found: Option<SlotValue>,
     },
 }
 

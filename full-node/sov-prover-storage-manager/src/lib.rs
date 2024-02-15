@@ -486,7 +486,6 @@ mod tests {
 
     use sov_mock_da::{MockBlockHeader, MockHash};
     use sov_rollup_interface::da::Time;
-    use sov_state::storage::{CacheKey, CacheValue};
     use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 
     use super::*;
@@ -884,12 +883,12 @@ mod tests {
         validate_internal_consistency(&storage_manager);
         let check_storage_after_values = || {
             assert_eq!(
-                Some(value_from(4).into()),
-                stf_state_after.get(&key_from(3).into(), None, &witness)
+                Some(value_from(4)),
+                stf_state_after.get(&key_from(3), None, &witness)
             );
             assert_eq!(
-                Some(value_from(60).into()),
-                stf_state_after.get_accessory(&key_from(50).into(), None)
+                Some(value_from(60)),
+                stf_state_after.get_accessory(&key_from(50), None)
             );
         };
         check_storage_after_values();
@@ -927,22 +926,23 @@ mod tests {
 
     // ------------
     // More sophisticated tests
+    use sov_state::storage::{SlotKey, SlotValue};
 
-    fn key_from(value: u64) -> CacheKey {
+    fn key_from(value: u64) -> SlotKey {
         let x = value.to_be_bytes().to_vec();
-        CacheKey { key: Arc::new(x) }
+        SlotKey::from_bytes(x)
     }
 
-    fn value_from(value: u64) -> CacheValue {
+    fn value_from(value: u64) -> SlotValue {
         let x = value.to_be_bytes().to_vec();
-        CacheValue { value: Arc::new(x) }
+        SlotValue::from(x)
     }
 
-    fn write_op(key: u64, value: u64) -> (CacheKey, Option<CacheValue>) {
+    fn write_op(key: u64, value: u64) -> (SlotKey, Option<SlotValue>) {
         (key_from(key), Some(value_from(value)))
     }
 
-    fn delete_op(key: u64) -> (CacheKey, Option<CacheValue>) {
+    fn delete_op(key: u64) -> (SlotKey, Option<SlotValue>) {
         (key_from(key), None)
     }
 
@@ -1091,20 +1091,20 @@ mod tests {
         storage_manager.finalize(&block_b).unwrap();
 
         assert_eq!(
-            Some(value_from(2).into()),
-            stf_state_c.get(&key_from(1).into(), None, &witness)
+            Some(value_from(2)),
+            stf_state_c.get(&key_from(1), None, &witness)
         );
         assert_eq!(
-            Some(value_from(4).into()),
-            stf_state_c.get(&key_from(3).into(), None, &witness)
+            Some(value_from(4)),
+            stf_state_c.get(&key_from(3), None, &witness)
         );
         assert_eq!(
-            Some(value_from(40).into()),
-            stf_state_c.get_accessory(&key_from(30).into(), None)
+            Some(value_from(40)),
+            stf_state_c.get_accessory(&key_from(30), None)
         );
         assert_eq!(
-            Some(value_from(60).into()),
-            stf_state_c.get_accessory(&key_from(50).into(), None)
+            Some(value_from(60)),
+            stf_state_c.get_accessory(&key_from(50), None)
         );
 
         // Finalize C now
@@ -1394,65 +1394,65 @@ mod tests {
         let (stf_state_k, ledger_state_k) = storage_manager.create_state_for(&block_k).unwrap();
 
         let assert_main_fork = || {
-            assert_eq!(None, stf_state_e.get(&key_from(1).into(), None, &witness));
-            assert_eq!(None, stf_state_e.get(&key_from(2).into(), None, &witness));
+            assert_eq!(None, stf_state_e.get(&key_from(1), None, &witness));
+            assert_eq!(None, stf_state_e.get(&key_from(2), None, &witness));
             assert_eq!(
-                Some(value_from(6).into()),
-                stf_state_e.get(&key_from(3).into(), None, &witness)
+                Some(value_from(6)),
+                stf_state_e.get(&key_from(3), None, &witness)
             );
             assert_eq!(
-                Some(value_from(5).into()),
-                stf_state_e.get(&key_from(4).into(), None, &witness)
+                Some(value_from(5)),
+                stf_state_e.get(&key_from(4), None, &witness)
             );
             assert_eq!(
-                Some(value_from(60).into()),
-                stf_state_e.get_accessory(&key_from(1).into(), None)
+                Some(value_from(60)),
+                stf_state_e.get_accessory(&key_from(1), None)
             );
-            assert_eq!(None, stf_state_e.get_accessory(&key_from(2).into(), None));
+            assert_eq!(None, stf_state_e.get_accessory(&key_from(2), None));
             assert_eq!(
-                Some(value_from(50).into()),
-                stf_state_e.get_accessory(&key_from(3).into(), None)
+                Some(value_from(50)),
+                stf_state_e.get_accessory(&key_from(3), None)
             );
         };
         // Storage M
         let assert_storage_m = || {
             assert_eq!(
-                Some(value_from(10).into()),
-                stf_state_m.get(&key_from(1).into(), None, &witness)
+                Some(value_from(10)),
+                stf_state_m.get(&key_from(1), None, &witness)
             );
-            assert_eq!(None, stf_state_m.get(&key_from(2).into(), None, &witness));
+            assert_eq!(None, stf_state_m.get(&key_from(2), None, &witness));
             assert_eq!(
-                Some(value_from(2).into()),
-                stf_state_m.get(&key_from(3).into(), None, &witness)
+                Some(value_from(2)),
+                stf_state_m.get(&key_from(3), None, &witness)
             );
-            assert_eq!(None, stf_state_m.get(&key_from(4).into(), None, &witness));
-            assert_eq!(None, stf_state_m.get_accessory(&key_from(1).into(), None));
-            assert_eq!(None, stf_state_m.get_accessory(&key_from(2).into(), None));
+            assert_eq!(None, stf_state_m.get(&key_from(4), None, &witness));
+            assert_eq!(None, stf_state_m.get_accessory(&key_from(1), None));
+            assert_eq!(None, stf_state_m.get_accessory(&key_from(2), None));
             assert_eq!(
-                Some(value_from(50).into()),
-                stf_state_m.get_accessory(&key_from(3).into(), None)
+                Some(value_from(50)),
+                stf_state_m.get_accessory(&key_from(3), None)
             );
         };
         // Storage H
         let assert_storage_h = || {
             assert_eq!(
-                Some(value_from(8).into()),
-                stf_state_h.get(&key_from(1).into(), None, &witness)
+                Some(value_from(8)),
+                stf_state_h.get(&key_from(1), None, &witness)
             );
-            assert_eq!(None, stf_state_h.get(&key_from(2).into(), None, &witness));
+            assert_eq!(None, stf_state_h.get(&key_from(2), None, &witness));
             assert_eq!(
-                Some(value_from(2).into()),
-                stf_state_h.get(&key_from(3).into(), None, &witness)
+                Some(value_from(2)),
+                stf_state_h.get(&key_from(3), None, &witness)
             );
-            assert_eq!(None, stf_state_h.get(&key_from(4).into(), None, &witness));
-            assert_eq!(None, stf_state_h.get_accessory(&key_from(1).into(), None));
+            assert_eq!(None, stf_state_h.get(&key_from(4), None, &witness));
+            assert_eq!(None, stf_state_h.get_accessory(&key_from(1), None));
             assert_eq!(
-                Some(value_from(9).into()),
-                stf_state_h.get_accessory(&key_from(2).into(), None)
+                Some(value_from(9)),
+                stf_state_h.get_accessory(&key_from(2), None)
             );
             assert_eq!(
-                Some(value_from(50).into()),
-                stf_state_h.get_accessory(&key_from(3).into(), None)
+                Some(value_from(50)),
+                stf_state_h.get_accessory(&key_from(3), None)
             );
         };
         assert_main_fork();
@@ -1460,17 +1460,17 @@ mod tests {
         assert_storage_h();
         // Storage K
         assert_eq!(
-            Some(value_from(7).into()),
-            stf_state_k.get(&key_from(1).into(), None, &witness)
+            Some(value_from(7)),
+            stf_state_k.get(&key_from(1), None, &witness)
         );
-        assert_eq!(None, stf_state_k.get(&key_from(2).into(), None, &witness));
-        assert_eq!(None, stf_state_k.get(&key_from(3).into(), None, &witness));
-        assert_eq!(None, stf_state_k.get(&key_from(4).into(), None, &witness));
-        assert_eq!(None, stf_state_k.get_accessory(&key_from(1).into(), None));
-        assert_eq!(None, stf_state_k.get_accessory(&key_from(2).into(), None));
+        assert_eq!(None, stf_state_k.get(&key_from(2), None, &witness));
+        assert_eq!(None, stf_state_k.get(&key_from(3), None, &witness));
+        assert_eq!(None, stf_state_k.get(&key_from(4), None, &witness));
+        assert_eq!(None, stf_state_k.get_accessory(&key_from(1), None));
+        assert_eq!(None, stf_state_k.get_accessory(&key_from(2), None));
         assert_eq!(
-            Some(value_from(70).into()),
-            stf_state_k.get_accessory(&key_from(3).into(), None)
+            Some(value_from(70)),
+            stf_state_k.get_accessory(&key_from(3), None)
         );
         validate_internal_consistency(&storage_manager);
         storage_manager
@@ -1514,12 +1514,12 @@ mod tests {
             .create_state_for(&new_block_after_e)
             .unwrap();
         assert_eq!(
-            Some(value_from(6).into()),
-            storage_last.get(&key_from(3).into(), None, &witness)
+            Some(value_from(6)),
+            storage_last.get(&key_from(3), None, &witness)
         );
         assert_eq!(
-            Some(value_from(50).into()),
-            storage_last.get_accessory(&key_from(3).into(), None)
+            Some(value_from(50)),
+            storage_last.get_accessory(&key_from(3), None)
         );
     }
 
@@ -1544,13 +1544,13 @@ mod tests {
         let witness = ArrayWitness::default();
         for x in height * 10..((height + 1) * 10) {
             if x % 2 == 0 {
-                let state_value = stf_state.get(&key_from(x).into(), None, &witness);
-                assert_eq!(Some(value_from(x).into()), state_value);
-                assert_eq!(None, stf_state.get_accessory(&key_from(x).into(), None));
+                let state_value = stf_state.get(&key_from(x), None, &witness);
+                assert_eq!(Some(value_from(x)), state_value);
+                assert_eq!(None, stf_state.get_accessory(&key_from(x), None));
             } else {
-                assert_eq!(None, stf_state.get(&key_from(x).into(), None, &witness));
-                let accessory_value = stf_state.get_accessory(&key_from(x).into(), None);
-                assert_eq!(Some(value_from(x).into()), accessory_value);
+                assert_eq!(None, stf_state.get(&key_from(x), None, &witness));
+                let accessory_value = stf_state.get_accessory(&key_from(x), None);
+                assert_eq!(Some(value_from(x)), accessory_value);
             }
         }
     }
@@ -1639,20 +1639,20 @@ mod tests {
             check_storage_for_height(0, &stf_state);
             check_storage_for_height(1, &stf_state);
             assert_eq!(
-                Some(value_from(100).into()),
-                stf_state.get(&key_from(30_000_000).into(), None, &witness)
+                Some(value_from(100)),
+                stf_state.get(&key_from(30_000_000), None, &witness)
             );
             assert_eq!(
-                Some(value_from(200).into()),
-                stf_state.get(&key_from(40_000_000).into(), None, &witness)
+                Some(value_from(200)),
+                stf_state.get(&key_from(40_000_000), None, &witness)
             );
             assert_eq!(
-                Some(value_from(300).into()),
-                stf_state.get_accessory(&key_from(50_000_000).into(), None)
+                Some(value_from(300)),
+                stf_state.get_accessory(&key_from(50_000_000), None)
             );
             assert_eq!(
-                Some(value_from(400).into()),
-                stf_state.get_accessory(&key_from(60_000_000).into(), None)
+                Some(value_from(400)),
+                stf_state.get_accessory(&key_from(60_000_000), None)
             );
         };
 

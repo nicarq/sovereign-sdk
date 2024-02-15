@@ -1,12 +1,9 @@
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use jmt::KeyHash;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use sov_modules_core::{
-    OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
-};
+use sov_modules_core::{OrderedReadsAndWrites, SlotKey, SlotValue, Storage, StorageProof, Witness};
 
 use crate::MerkleProofSpec;
 
@@ -37,7 +34,7 @@ fn jmt_verify_existence<S: MerkleProofSpec>(
 ) -> Result<(), anyhow::Error> {
     // For each value that's been read from the tree, verify the provided smt proof
     for (key, read_value) in &state_accesses.ordered_reads {
-        let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
+        let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
         // TODO: Switch to the batch read API once it becomes available
         let proof: jmt::proof::SparseMerkleProof<S::Hasher> = witness.get_hint();
 
@@ -45,7 +42,7 @@ fn jmt_verify_existence<S: MerkleProofSpec>(
             Some(val) => proof.verify_existence(
                 jmt::RootHash(prev_state_root),
                 key_hash,
-                val.value.as_ref(),
+                val.value().as_ref(),
             )?,
             None => proof.verify_nonexistence(jmt::RootHash(prev_state_root), key_hash)?,
         }
@@ -65,11 +62,8 @@ fn jmt_verify_update<S: MerkleProofSpec>(
         .ordered_writes
         .into_iter()
         .map(|(key, value)| {
-            let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
-            (
-                key_hash,
-                value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone())),
-            )
+            let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
+            (key_hash, value.map(|v| v.value().to_vec()))
         })
         .collect::<Vec<_>>();
 
@@ -96,10 +90,10 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
 
     fn get(
         &self,
-        _key: &StorageKey,
+        _key: &SlotKey,
         _version: Option<u64>,
         witness: &Self::Witness,
-    ) -> Option<StorageValue> {
+    ) -> Option<SlotValue> {
         witness.get_hint()
     }
 
@@ -124,7 +118,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     fn open_proof(
         state_root: Self::Root,
         state_proof: StorageProof<Self::Proof>,
-    ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error> {
+    ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error> {
         let StorageProof { key, value, proof } = state_proof;
         let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
 
@@ -141,7 +135,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
 
 #[cfg(feature = "native")]
 impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
-    fn get_with_proof(&self, _key: StorageKey) -> StorageProof<Self::Proof> {
+    fn get_with_proof(&self, _key: SlotKey) -> StorageProof<Self::Proof> {
         unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 

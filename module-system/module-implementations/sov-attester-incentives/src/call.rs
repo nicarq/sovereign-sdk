@@ -12,7 +12,7 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::{
     CallResponse, DaSpec, Module, Spec, StateTransition, ValidityConditionChecker, WorkingSet,
 };
-use sov_state::storage::{Storage, StorageKey, StorageProof, StorageValue};
+use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use thiserror::Error;
 
 use crate::{AttesterIncentives, Event, UnbondingInfo};
@@ -224,14 +224,14 @@ where
         state_root: <C::Storage as Storage>::Root,
         proof: StorageProof<<C::Storage as Storage>::Proof>,
         expected_key: &C::Address,
-    ) -> Result<Option<StorageValue>, anyhow::Error> {
+    ) -> Result<Option<SlotValue>, anyhow::Error> {
         let (storage_key, storage_value) = C::Storage::open_proof(state_root, proof)?;
         let prefix = self.bonded_attesters.prefix();
         let codec = self.bonded_attesters.codec();
 
         // We have to check that the storage key is the same as the external key
         ensure!(
-            storage_key == StorageKey::new(prefix, expected_key, codec),
+            storage_key == SlotKey::new(prefix, expected_key, codec),
             "The storage key from the proof doesn't match the expected storage key."
         );
 

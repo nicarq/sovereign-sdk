@@ -6,10 +6,7 @@ use core::fmt;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_rollup_interface::maybestd::RefCount;
-
-use crate::common::{AlignedVec, Prefix, Version, Witness};
-
+use sov_rollup_interface::maybestd::{vec, RefCount};
 mod cache;
 mod codec;
 mod scratchpad;
@@ -18,72 +15,63 @@ pub use cache::*;
 pub use codec::*;
 pub use scratchpad::*;
 
+use crate::{AlignedVec, Prefix, Witness};
+
+type Version = u64;
+
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "sync",
     derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
 )]
-pub struct StorageKey {
+pub struct SlotKey {
     key: RefCount<Vec<u8>>,
 }
 
-impl From<CacheKey> for StorageKey {
-    fn from(cache_key: CacheKey) -> Self {
-        Self { key: cache_key.key }
-    }
-}
-
-impl StorageKey {
+impl SlotKey {
     /// Returns a new [`RefCount`] reference to the bytes of this key.
     pub fn key(&self) -> RefCount<Vec<u8>> {
         self.key.clone()
     }
 
-    /// Converts this key into a [`CacheKey`] via cloning.
-    pub fn to_cache_key(&self) -> CacheKey {
-        CacheKey {
-            key: self.key.clone(),
-        }
+    /// Returns a new [`RefCount`] reference to the bytes of this key.
+    pub fn key_ref(&self) -> &Vec<u8> {
+        self.key.as_ref()
     }
 
-    /// Converts this key into a [`CacheKey`] via cloning.
-    pub fn to_cache_key_version(&self, version: Option<u64>) -> CacheKey {
+    /// Converts this key into a [`SlotKey`] via cloning.
+    pub fn to_cache_key_version(&self, version: Option<u64>) -> SlotKey {
         match version {
-            None => CacheKey {
+            None => SlotKey {
                 key: self.key.clone(),
             },
             Some(v) => {
                 let mut bytes = v.to_be_bytes().to_vec();
                 bytes.extend((*self.key).clone());
-                CacheKey {
+                SlotKey {
                     key: RefCount::new(bytes),
                 }
             }
         }
     }
-
-    /// Converts this key into a [`CacheKey`].
-    pub fn into_cache_key(self) -> CacheKey {
-        CacheKey { key: self.key }
-    }
 }
 
-impl AsRef<Vec<u8>> for StorageKey {
+impl AsRef<Vec<u8>> for SlotKey {
     fn as_ref(&self) -> &Vec<u8> {
         &self.key
     }
 }
 
-impl fmt::Display for StorageKey {
+impl fmt::Display for SlotKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:x?}", hex::encode(self.key().as_ref()))
     }
 }
 
-impl StorageKey {
-    /// Creates a new [`StorageKey`] that combines a prefix and a key.
+impl SlotKey {
+    /// Creates a new [`SlotKey`] that combines a prefix and a key.
     pub fn new<K, Q, KC>(prefix: &Prefix, key: &Q, codec: &KC) -> Self
     where
         KC: EncodeKeyLike<Q, K>,
@@ -102,7 +90,14 @@ impl StorageKey {
         }
     }
 
-    /// Creates a new [`StorageKey`] that combines a prefix and a key.
+    /// Build a storage key from raw bytes
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        Self {
+            key: RefCount::new(bytes),
+        }
+    }
+
+    /// Creates a new [`SlotKey`] that combines a prefix and a key.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
             key: RefCount::new(prefix.as_aligned_vec().clone().into_inner()),
@@ -117,19 +112,11 @@ impl StorageKey {
     feature = "sync",
     derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
 )]
-pub struct StorageValue {
+pub struct SlotValue {
     value: RefCount<Vec<u8>>,
 }
 
-impl From<CacheValue> for StorageValue {
-    fn from(cache_value: CacheValue) -> Self {
-        Self {
-            value: cache_value.value,
-        }
-    }
-}
-
-impl From<Vec<u8>> for StorageValue {
+impl From<Vec<u8>> for SlotValue {
     fn from(value: Vec<u8>) -> Self {
         Self {
             value: RefCount::new(value),
@@ -137,7 +124,7 @@ impl From<Vec<u8>> for StorageValue {
     }
 }
 
-impl StorageValue {
+impl SlotValue {
     /// Create a new storage value by serializing the input with the given codec.
     pub fn new<V, VC>(value: &V, codec: &VC) -> Self
     where
@@ -154,9 +141,10 @@ impl StorageValue {
         &self.value
     }
 
-    /// Convert this value into a [`CacheValue`].
-    pub fn into_cache_value(self) -> CacheValue {
-        CacheValue { value: self.value }
+    /// Returns the value as a vector of bytes.
+    pub fn value_as_vec(self) -> Vec<u8> {
+        RefCount::<vec::Vec<u8>>::try_unwrap(self.value)
+            .expect("Impossible to unwrap the storage value")
     }
 }
 
@@ -168,9 +156,9 @@ impl StorageValue {
 /// A proof that a particular storage key has a particular value, or is absent.
 pub struct StorageProof<P> {
     /// The key which is proven
-    pub key: StorageKey,
+    pub key: SlotKey,
     /// The value, if any, which is proven
-    pub value: Option<StorageValue>,
+    pub value: Option<SlotValue>,
     /// The cryptographic proof
     pub proof: P,
 }
@@ -214,10 +202,10 @@ pub trait Storage: Clone {
     /// Returns the value corresponding to the key or None if key is absent.
     fn get(
         &self,
-        key: &StorageKey,
+        key: &SlotKey,
         version: Option<Version>,
         witness: &Self::Witness,
-    ) -> Option<StorageValue>;
+    ) -> Option<SlotValue>;
 
     /// Returns the value corresponding to the key or None if key is absent.
     ///
@@ -226,7 +214,7 @@ pub trait Storage: Clone {
     /// execution environments** (i.e. outside of the zmVM) **SHOULD** override
     /// this method to return a value. This is because accessory state **MUST
     /// NOT** be readable from within the zmVM.
-    fn get_accessory(&self, _key: &StorageKey, _version: Option<Version>) -> Option<StorageValue> {
+    fn get_accessory(&self, _key: &SlotKey, _version: Option<Version>) -> Option<SlotValue> {
         None
     }
 
@@ -275,7 +263,7 @@ pub trait Storage: Clone {
     fn open_proof(
         state_root: Self::Root,
         proof: StorageProof<Self::Proof>,
-    ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error>;
+    ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error>;
 
     /// Indicates if storage is empty or not.
     /// Useful during initialization.
@@ -286,7 +274,7 @@ pub trait Storage: Clone {
 }
 
 /// Used only in tests.
-impl From<&str> for StorageKey {
+impl From<&str> for SlotKey {
     fn from(key: &str) -> Self {
         Self {
             key: RefCount::new(key.as_bytes().to_vec()),
@@ -295,7 +283,7 @@ impl From<&str> for StorageKey {
 }
 
 /// Used only in tests.
-impl From<&str> for StorageValue {
+impl From<&str> for SlotValue {
     fn from(value: &str) -> Self {
         Self {
             value: RefCount::new(value.as_bytes().to_vec()),
@@ -308,7 +296,7 @@ impl From<&str> for StorageValue {
 pub trait NativeStorage: Storage {
     /// Returns the value corresponding to the key or None if key is absent and a proof to
     /// get the value.
-    fn get_with_proof(&self, key: StorageKey) -> StorageProof<Self::Proof>;
+    fn get_with_proof(&self, key: SlotKey) -> StorageProof<Self::Proof>;
 
     /// Get the root hash of the tree at the requested version
     fn get_root_hash(&self, version: Version) -> Result<Self::Root, anyhow::Error>;
