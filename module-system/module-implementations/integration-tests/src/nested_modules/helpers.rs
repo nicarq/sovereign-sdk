@@ -1,4 +1,4 @@
-use sov_modules_api::{Context, ModuleInfo, StateMap, StateValue, WorkingSet};
+use sov_modules_api::{Context, EventEmitter, ModuleInfo, StateMap, StateValue, WorkingSet};
 
 #[derive(
     borsh::BorshDeserialize,

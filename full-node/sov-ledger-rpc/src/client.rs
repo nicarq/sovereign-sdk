@@ -7,7 +7,6 @@ use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
     BatchIdentifier, EventIdentifier, QueryMode, SlotIdentifier, TxIdentifier,
 };
-use sov_rollup_interface::stf::Event;
 
 use crate::HexHash;
 
@@ -55,7 +54,33 @@ where
 
     /// Gets a list of events by ID. The IDs need not be ordered.
     #[method(name = "getEvents")]
-    async fn get_events(&self, event_ids: Vec<EventIdentifier>) -> RpcResult<Vec<Option<Event>>>;
+    async fn get_events(
+        &self,
+        event_ids: Vec<EventIdentifier>,
+    ) -> RpcResult<Vec<Option<serde_json::Value>>>;
+
+    /// Gets a single event by number.
+    #[method(name = "getEventByNumber")]
+    async fn get_event_by_number(&self, number: u64) -> RpcResult<Option<serde_json::Value>>;
+
+    /// Gets a single event by number.
+    #[method(name = "getEventsByKey")]
+    async fn get_events_by_key(
+        &self,
+        key: &str,
+        module_address: Option<&str>,
+        num_events: u64,
+        next: Option<&str>,
+    ) -> RpcResult<Option<serde_json::Value>>;
+
+    /// Gets a single event by number.
+    #[method(name = "getEventsByModuleAddress")]
+    async fn get_events_by_module_address(
+        &self,
+        module_address: &str,
+        num_events: u64,
+        next: Option<&str>,
+    ) -> RpcResult<Option<serde_json::Value>>;
 
     /// Gets a single slot by hash.
     #[method(name = "getSlotByHash")]
@@ -96,10 +121,6 @@ where
         number: u64,
         query_mode: QueryMode,
     ) -> RpcResult<Option<Batch>>;
-
-    /// Gets a single event by number.
-    #[method(name = "getEventByNumber")]
-    async fn get_event_by_number(&self, number: u64) -> RpcResult<Option<Event>>;
 
     /// Gets a single tx by number.
     #[method(name = "getTransactionByNumber")]

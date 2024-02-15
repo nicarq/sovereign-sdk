@@ -11,7 +11,7 @@ use sov_ledger_rpc::server::rpc_module;
 use sov_ledger_rpc::HexHash;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::Event;
+use sov_modules_api::SerializedEvent;
 use sov_rollup_interface::rpc::{
     BatchResponse, EventIdentifier, QueryMode, SlotResponse, TxIdAndOffset, TxIdentifier,
     TxResponse,
@@ -25,7 +25,13 @@ async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
         CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
     let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
     let ledger_db = LedgerDB::with_cache_db(cache_db).unwrap();
-    let rpc_module = rpc_module::<LedgerDB, u32, u32, <Runtime<DefaultContext, MockDaSpec> as sov_modules_api::RuntimeEventProcessor>::RuntimeEvent>(ledger_db).unwrap();
+    let rpc_module = rpc_module::<
+        LedgerDB,
+        u32,
+        u32,
+        <Runtime<DefaultContext, MockDaSpec> as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
+    >(ledger_db)
+    .unwrap();
 
     let server = jsonrpsee::server::ServerBuilder::default()
         .build("127.0.0.1:0")
@@ -163,15 +169,15 @@ async fn get_events_patterns() {
         .await
         .unwrap();
     rpc_client
-        .request::<Vec<Option<Event>>, _>("ledger_getEvents", vec![vec![2]])
+        .request::<Vec<Option<SerializedEvent>>, _>("ledger_getEvents", vec![vec![2]])
         .await
         .unwrap();
     rpc_client
-        .request::<Vec<Option<Event>>, _>("ledger_getEvents", vec![2])
+        .request::<Vec<Option<SerializedEvent>>, _>("ledger_getEvents", vec![2])
         .await
         .unwrap();
     rpc_client
-        .request::<Vec<Option<Event>>, _>(
+        .request::<Vec<Option<SerializedEvent>>, _>(
             "ledger_getEvents",
             vec![EventIdentifier::TxIdAndOffset(TxIdAndOffset {
                 tx_id: TxIdentifier::Number(1),

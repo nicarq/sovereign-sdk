@@ -4,7 +4,7 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::Coins;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, Module, WorkingSet};
+use sov_modules_api::{CallResponse, EventEmitter, WorkingSet};
 
 use crate::{Event, ProverIncentives};
 

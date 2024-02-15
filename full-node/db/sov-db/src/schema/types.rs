@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{BatchResponse, TxIdentifier, TxResponse};
-use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
+use sov_rollup_interface::stf::{EventKey, SerializedEvent, TransactionReceipt};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -52,6 +52,9 @@ pub type DbHash = [u8; 32];
 /// The "value" half of a key/value pair from the JMT
 pub type JmtValue = Option<Vec<u8>>;
 pub(crate) type StateKey = Vec<u8>;
+
+/// Type alias for `Vec<u8>`
+pub type ModuleAddress = Vec<u8>;
 
 /// The on-disk format of a slot. Specifies the batches contained in the slot
 /// and the hash of the da block. TODO(@preston-evans98): add any additional data
@@ -122,7 +125,7 @@ impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
 pub fn split_tx_for_storage<R: Serialize>(
     tx: TransactionReceipt<R>,
     event_offset: u64,
-) -> (StoredTransaction, Vec<Event>) {
+) -> (StoredTransaction, Vec<SerializedEvent>) {
     let event_range = EventNumber(event_offset)..EventNumber(event_offset + tx.events.len() as u64);
     let tx_for_storage = StoredTransaction {
         hash: tx.tx_hash,

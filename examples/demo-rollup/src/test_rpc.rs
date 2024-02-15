@@ -13,7 +13,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
-use sov_rollup_interface::stf::{BatchReceipt, Event, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, SerializedEvent, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 #[cfg(test)]
@@ -144,8 +144,16 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
                     tx_hash: ::sha2::Sha256::digest(b"tx2"),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
-                        Event::new("event1_key".as_bytes(), "event1_value".as_bytes()),
-                        Event::new("event2_key".as_bytes(), "event2_value".as_bytes()),
+                        SerializedEvent::new(
+                            "event1_key".as_bytes(),
+                            &[],
+                            "event1_value".as_bytes(),
+                        ),
+                        SerializedEvent::new(
+                            "event2_key".as_bytes(),
+                            &[],
+                            "event2_value".as_bytes(),
+                        ),
                     ],
                     receipt: 1,
                     gas_used: vec![2, 3],
@@ -270,27 +278,6 @@ fn test_get_batches() {
     regular_test_helper(payload, &expected);
 
     let payload = jsonrpc_req!("ledger_getBatches", [[0], "Compact"]);
-    let expected = jsonrpc_result!([null]);
-    regular_test_helper(payload, &expected);
-}
-
-#[test]
-fn test_get_events() {
-    let payload = jsonrpc_req!("ledger_getEvents", [1]);
-    let expected = jsonrpc_result!([{
-        "key": "event1_key".as_bytes(),
-        "value":  "event1_value".as_bytes()
-    }]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getEvents", [2]);
-    let expected = jsonrpc_result!([{
-        "key": "event2_key".as_bytes(),
-        "value":  "event2_value".as_bytes()
-    }]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getEvents", [3]);
     let expected = jsonrpc_result!([null]);
     regular_test_helper(payload, &expected);
 }
@@ -555,43 +542,5 @@ proptest!(
         let expected = jsonrpc_result!([null]);
         test_helper(vec![TestExpect{payload, expected}], slots);
 
-    }
-
-    #[test]
-    fn proptest_get_events((slots, tx_id_to_event_range, _total_num_batches) in arb_slots(10, 10), random_event_num in 1..10000){
-        let mut curr_tx_num = 1;
-
-        let random_event_num_usize = usize::try_from(random_event_num).unwrap();
-
-        for slot in &slots {
-            for batch in slot.batch_receipts(){
-                for tx in &batch.tx_receipts{
-                    let (start_event_range, end_event_range) = tx_id_to_event_range.get(&curr_tx_num).unwrap();
-                    if *start_event_range > random_event_num_usize {
-                        break;
-                    }
-
-                    if random_event_num_usize < *end_event_range {
-                        let event_index = random_event_num_usize - *start_event_range;
-                        let event: &Event = tx.events.get(event_index).unwrap();
-                        let event_json = json!(event);
-
-                        test_helper(vec![TestExpect{
-                            payload:
-                            jsonrpc_req!("ledger_getEvents", [random_event_num_usize]),
-                            expected:
-                            jsonrpc_result!([event_json])}]
-                            , slots);
-
-                        return Ok(());
-                    }
-                    curr_tx_num += 1;
-                }
-            }
-        }
-
-        let payload = jsonrpc_req!("ledger_getEvents", [random_event_num]);
-        let expected = jsonrpc_result!([null]);
-        test_helper(vec![TestExpect{payload, expected}], slots);
     }
 );

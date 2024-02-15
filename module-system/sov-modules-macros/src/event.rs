@@ -2,7 +2,6 @@ use proc_macro2::Span;
 use syn::DeriveInput;
 
 use super::common::{get_generics_type_param, StructDef, StructFieldExtractor};
-use crate::common::get_serialization_attrs;
 
 pub(crate) const EVENT: &str = "Event";
 
@@ -38,7 +37,11 @@ impl EventMacro {
         &self,
         input: DeriveInput,
     ) -> Result<proc_macro::TokenStream, syn::Error> {
-        let serialization_methods = get_serialization_attrs(&input)?;
+        let serialization_methods = vec![
+            quote::quote! { borsh::BorshSerialize },
+            quote::quote! { borsh::BorshDeserialize },
+        ];
+
         let DeriveInput {
             data,
             ident,
@@ -82,8 +85,8 @@ impl EventMacro {
             impl #impl_generics ::sov_modules_api::RuntimeEventProcessor for #ident_name #type_generics {
                 type RuntimeEvent = #event_enum_name #type_generics;
 
-                fn convert_to_runtime_event(
-                    event: ::sov_modules_api::TypedEvent
+                fn convert_to_runtime_event<Co: ::sov_modules_api::Context>(
+                    event: ::sov_modules_api::TypedEvent<Co>
                 ) -> Option<Self::RuntimeEvent> {
                     match event.type_id() {
                         #(#event_cases)*
@@ -93,26 +96,42 @@ impl EventMacro {
             }
         };
 
+        let impl_runtime_event_display = if cfg!(feature = "native") {
+            quote::quote! {
+                #[cfg(feature = "native")]
+                impl #impl_generics ::sov_modules_api::RuntimeEventDisplay for #ident_name #type_generics #where_clause {
+                    type RuntimeEvent = #event_enum_name #type_generics;
+                }
+            }
+        } else {
+            quote::quote! {}
+        };
+
         let from_event_cases = struct_def.fields.iter().map(|field| {
             let variant_name = &field.ident;
 
             quote::quote! {
                 #event_enum_name::#variant_name(ref event) => {
                     let event_data = serde_json::to_value(event).unwrap_or_default();
-                    let json_value = serde_json::json!({ stringify!(#variant_name): event_data });
-                    sov_rollup_interface::rpc::EventResponse { module_event: json_value }
+                    sov_rollup_interface::rpc::Event {
+                        module_name: stringify!(#variant_name).to_string(),
+                        event_value: event_data }
                 }
             }
         });
 
-        let impl_from = quote::quote! {
-            impl #impl_generics From<#event_enum_name #type_generics> for sov_rollup_interface::rpc::EventResponse {
-                fn from(event: #event_enum_name #type_generics) -> Self {
-                    match event {
-                        #(#from_event_cases),*
+        let impl_from = if cfg!(feature = "native") {
+            quote::quote! {
+                impl #impl_generics From<#event_enum_name #type_generics> for sov_rollup_interface::rpc::Event {
+                    fn from(event: #event_enum_name #type_generics) -> Self {
+                        match event {
+                            #(#from_event_cases),*
+                        }
                     }
                 }
             }
+        } else {
+            quote::quote! {}
         };
 
         Ok(quote::quote! {
@@ -120,6 +139,8 @@ impl EventMacro {
             #event_enum
 
             #impl_runtime_event_processor
+
+            #impl_runtime_event_display
 
             #impl_from
 

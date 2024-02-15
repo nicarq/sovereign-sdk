@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use borsh::BorshSerialize;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::Transaction;
@@ -9,7 +8,7 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
 };
 use sov_modules_core::WorkingSet;
-use sov_rollup_interface::stf::{BatchReceipt, Event, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, SerializedEvent, TransactionReceipt};
 use tracing::{debug, error};
 
 use crate::{Runtime, SequencerOutcome, SlashingReason, TxEffect};
@@ -21,8 +20,12 @@ pub(crate) type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
     <Da::BlobTransaction as BlobReaderTrait>::Address,
 >;
+#[cfg(feature = "native")]
+use borsh::BorshSerialize;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
+#[cfg(feature = "native")]
+use sov_modules_core::AddressBech32;
 
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
@@ -482,10 +485,11 @@ where
     }
 
     // Helper function to take typed events and perform a conversion to the storable Events (
+    #[cfg(feature = "native")]
     pub(crate) fn convert_to_runtime_events(
         &self,
-        events: Vec<sov_modules_core::TypedEvent>,
-    ) -> Vec<Event> {
+        events: Vec<sov_modules_core::TypedEvent<C>>,
+    ) -> Vec<SerializedEvent> {
         events
             .into_iter()
             .map(|typed_event| {
@@ -495,16 +499,21 @@ where
                 // (probably due to the borrow and move in the same statement)
                 // https://github.com/rust-lang/rust-clippy/issues/12098
                 let key = typed_event.event_key().to_vec();
-                Event::new(
+                SerializedEvent::new(
                     &key,
-                    &<RT as ::sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event(
-                        typed_event,
-                    )
-                    .expect("Unknown event type")
-                    .try_to_vec()
-                    .expect("unable to serialize event"),
+                    &(Into::<AddressBech32>::into(typed_event.module_address().clone()).try_to_vec().unwrap()),
+                    &<RT as ::sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event::<C>(
+                        typed_event, ).expect("Unknown event type").try_to_vec().expect("unable to serialize event"),
                 )
             })
             .collect()
+    }
+
+    #[cfg(not(feature = "native"))]
+    fn convert_to_runtime_events(
+        &self,
+        _events: Vec<sov_modules_core::TypedEvent<C>>,
+    ) -> Vec<SerializedEvent> {
+        Vec::new() // Return an empty vector
     }
 }

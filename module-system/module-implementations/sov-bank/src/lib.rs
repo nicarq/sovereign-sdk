@@ -20,7 +20,9 @@ pub use token::{Amount, Coins};
 /// Methods to get a token address.
 pub use utils::{get_genesis_token_address, get_token_address};
 
-mod event;
+/// Event definition from module exported
+/// This can be useful for deserialization from RPC and similar cases
+pub mod event;
 use crate::event::Event;
 
 /// Gas configuration for the bank module

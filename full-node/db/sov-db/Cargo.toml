@@ -18,6 +18,7 @@ resolver = "2"
 jmt = { workspace = true }
 sov-schema-db = { path = "../sov-schema-db", version = "0.3" }
 sov-rollup-interface = { path = "../../../rollup-interface", version = "0.3", features = ["native"] }
+sov-modules-core = { path = "../../../module-system/sov-modules-core", version = "0.3", features = ["native"] }
 
 # External
 anyhow = { workspace = true, default-features = true }
@@ -31,7 +32,7 @@ tempfile = { workspace = true, optional = true }
 rocksdb = { workspace = true }
 bincode = { workspace = true }
 tokio = { workspace = true }
-serde_json ={ workspace = true }
+hex = { workspace = true}
 
 [dev-dependencies]
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
@@ -48,6 +49,7 @@ arbitrary = [
 	"dep:proptest",
 	"dep:proptest-derive",
 	"dep:tempfile",
+	"sov-modules-core/arbitrary",
 	"sov-rollup-interface/arbitrary",
 	"sov-schema-db/arbitrary",
 ]

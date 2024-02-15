@@ -10,7 +10,7 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    CallResponse, DaSpec, Module, Spec, StateTransition, ValidityConditionChecker, WorkingSet,
+    CallResponse, DaSpec, EventEmitter, Spec, StateTransition, ValidityConditionChecker, WorkingSet,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use thiserror::Error;

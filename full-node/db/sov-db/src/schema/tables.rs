@@ -29,13 +29,13 @@ use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
-use sov_rollup_interface::stf::{Event, EventKey};
+use sov_rollup_interface::stf::{EventKey, SerializedEvent};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, SlotNumber,
-    StateKey, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
+    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, ModuleAddress,
+    SlotNumber, StateKey, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -57,6 +57,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     TxByNumber::table_name(),
     EventByKey::table_name(),
     EventByNumber::table_name(),
+    EventByModuleAddress::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -240,12 +241,17 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// The primary store for event data
-    (EventByNumber) EventNumber => Event
+    (EventByNumber) EventNumber => SerializedEvent
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// A "secondary index" for event data by key
-    (EventByKey) (EventKey, TxNumber, EventNumber) => ()
+    (EventByKey) (EventKey, ModuleAddress, TxNumber, EventNumber) => ()
+);
+
+define_table_with_seek_key_codec!(
+    /// A "tertiary index" for event data by module
+    (EventByModuleAddress) (ModuleAddress, TxNumber, EventNumber) => ()
 );
 
 define_table_without_codec!(

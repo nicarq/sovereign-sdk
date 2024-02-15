@@ -1,12 +1,12 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
 #[cfg(feature = "native")]
+use borsh::BorshDeserialize;
+#[cfg(feature = "native")]
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::maybestd::vec::Vec;
-#[cfg(feature = "native")]
-use crate::stf::Event;
 use crate::stf::EventKey;
 
 /// A struct containing enough information to uniquely specify single batch.
@@ -191,10 +191,35 @@ pub enum ItemOrHash<T> {
 }
 
 /// An RPC response for the module specific event
+#[cfg(feature = "native")]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct EventResponse {
     /// A value representing the the module event serialized as json
-    pub module_event: serde_json::Value,
+    pub event_value: serde_json::Value,
+    /// Module name that the event belongs to
+    pub module_name: String,
+    /// Module name that the event belongs to
+    pub module_address: String,
+}
+
+/// An RPC response for the module specific event
+#[cfg(feature = "native")]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct PaginatedEventResponse {
+    /// A value representing the the module event serialized as json
+    pub events_response: Vec<EventResponse>,
+    /// Module name that the event belongs to
+    pub next: Option<String>,
+}
+
+/// Module specific event
+#[cfg(feature = "native")]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct Event {
+    /// A value representing the the module event serialized as json
+    pub event_value: serde_json::Value,
+    /// Module name that the event belongs to
+    pub module_name: String,
 }
 
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
@@ -228,10 +253,10 @@ pub trait LedgerRpcProvider {
     ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
 
     /// Get events by id. The IDs need not be ordered.
-    fn get_events<E: borsh::BorshDeserialize + Into<EventResponse>>(
+    fn get_events<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         event_ids: &[EventIdentifier],
-    ) -> Result<Vec<Option<Event>>, anyhow::Error>;
+    ) -> Result<Vec<Option<EventResponse>>, anyhow::Error>;
 
     /// Get a single slot by hash.
     fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
@@ -269,10 +294,44 @@ pub trait LedgerRpcProvider {
     ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>;
 
     /// Get a single event by number.
-    fn get_event_by_number<E: borsh::BorshDeserialize + Into<EventResponse>>(
+    fn get_event_by_number<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         number: u64,
-    ) -> Result<Option<serde_json::Value>, anyhow::Error>;
+    ) -> Result<Option<EventResponse>, anyhow::Error>;
+
+    /// Get events by key.
+    fn get_events_by_key<E: borsh::BorshDeserialize + Into<Event>>(
+        &self,
+        event_key: &str,
+        module_address: Option<&str>,
+        num_events: usize,
+        next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, anyhow::Error>;
+
+    /// Get events by module address
+    fn get_events_by_module_address<E: borsh::BorshDeserialize + Into<Event>>(
+        &self,
+        module_address: &str,
+        num_events: usize,
+        next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, anyhow::Error>;
+
+    /// Get events by a range of slots and key.
+    fn get_events_by_slot_range_key<E: BorshDeserialize + Into<Event>>(
+        &self,
+        event_key: Option<&str>,
+        module_address: Option<&str>,
+        slot_height_start: usize,
+        slot_height_end: usize,
+        num_events: usize,
+        next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, anyhow::Error>;
+
+    /// Get events by transaction_id, module address (optional).
+    fn get_events_by_txn_hash<E: borsh::BorshDeserialize + Into<Event>>(
+        &self,
+        txn_hash: &str,
+    ) -> Result<Vec<EventResponse>, anyhow::Error>;
 
     /// Get a single tx by number.
     fn get_tx_by_number<T: DeserializeOwned>(

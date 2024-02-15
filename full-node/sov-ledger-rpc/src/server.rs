@@ -48,7 +48,7 @@ where
     T: LedgerRpcProvider + Send + Sync + 'static,
     B: serde::Serialize + DeserializeOwned + Clone + 'static,
     Tx: serde::Serialize + DeserializeOwned + Clone + 'static,
-    E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::EventResponse>,
+    E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
 {
     let mut rpc = RpcModule::new(ledger);
 
@@ -128,6 +128,27 @@ where
         let args: u64 = params.one()?;
         ledger
             .get_event_by_number::<E>(args)
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
+
+    rpc.register_method("ledger_getEventsByTxnHash", move |params, ledger| {
+        let args: &str = params.one()?;
+        ledger
+            .get_events_by_txn_hash::<E>(args)
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
+
+    rpc.register_method("ledger_getEventsByKey", move |params, ledger| {
+        let params: (&str, Option<&str>, usize, Option<&str>) = params.parse()?;
+        ledger
+            .get_events_by_key::<E>(params.0, params.1, params.2, params.3)
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
+
+    rpc.register_method("ledger_getEventsByModuleAddress", move |params, ledger| {
+        let params: (&str, usize, Option<&str>) = params.parse()?;
+        ledger
+            .get_events_by_module_address::<E>(params.0, params.1, params.2)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 
