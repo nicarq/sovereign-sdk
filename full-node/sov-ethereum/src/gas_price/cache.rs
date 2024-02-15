@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use reth_primitives::H256;
+use reth_primitives::B256;
 use reth_rpc_types::{Block, Rich};
 use schnellru::{ByLength, LruMap};
 use sov_evm::EthResult;
@@ -8,7 +8,7 @@ use sov_modules_api::{DaSpec, WorkingSet};
 
 /// Block cache for gas oracle
 pub struct BlockCache<C: sov_modules_api::Context, Da: DaSpec> {
-    cache: Mutex<LruMap<H256, Rich<Block>, ByLength>>,
+    cache: Mutex<LruMap<B256, Rich<Block>, ByLength>>,
     provider: sov_evm::Evm<C, Da>,
 }
 
@@ -23,7 +23,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> BlockCache<C, Da> {
     /// Gets block from cache or from provider
     pub fn get_block(
         &self,
-        block_hash: H256,
+        block_hash: B256,
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<Rich<Block>>> {
         // Check if block is in cache
@@ -38,7 +38,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> BlockCache<C, Da> {
             .get_block_by_hash(block_hash, Some(true), working_set)
             .unwrap_or(None);
 
-        // Add block to cache if it exists
+        // Add a block to cache if it exists
         if let Some(block) = &block {
             cache.insert(block_hash, block.clone());
         }

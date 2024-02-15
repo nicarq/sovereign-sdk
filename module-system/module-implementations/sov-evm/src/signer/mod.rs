@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use reth_primitives::{sign_message, Address, Transaction, TransactionSigned, H256};
+use reth_primitives::{sign_message, TransactionSigned};
+use reth_rpc_types::TypedTransactionRequest;
+use reth_rpc_types_compat::transaction::to_primitive_transaction;
+use revm::primitives::{Address, B256};
 use secp256k1::{PublicKey, SecretKey};
 
 /// Ethereum transaction signer.
@@ -14,14 +17,17 @@ pub enum SignError {
     /// Error occurred while trying to sign data.
     #[error("Could not sign")]
     CouldNotSign,
-    /// Signer for requested account not found.
+    /// Signer for a requested account is not found.
     #[error("Unknown account")]
     NoAccount,
-    /// TypedData has invalid format.
+    /// TypedData has an invalid format.
     #[error("Given typed data is not valid")]
     TypedData,
-    /// No chainid
-    #[error("No chainid")]
+    /// Invalid transaction request in `sign_transaction`.
+    #[error("invalid transaction request")]
+    InvalidTransactionRequest,
+    /// No chain id
+    #[error("No chain id")]
     NoChainId,
 }
 
@@ -43,13 +49,15 @@ impl DevSigner {
     /// Signs an ethereum transaction.
     pub fn sign_transaction(
         &self,
-        transaction: Transaction,
+        request: TypedTransactionRequest,
         address: Address,
     ) -> Result<TransactionSigned, SignError> {
+        let transaction =
+            to_primitive_transaction(request).ok_or(SignError::InvalidTransactionRequest)?;
         let tx_signature_hash = transaction.signature_hash();
         let signer = self.signers.get(&address).ok_or(SignError::NoAccount)?;
 
-        let signature = sign_message(H256::from_slice(signer.as_ref()), tx_signature_hash)
+        let signature = sign_message(B256::from_slice(signer.as_ref()), tx_signature_hash)
             .map_err(|_| SignError::CouldNotSign)?;
 
         Ok(TransactionSigned::from_transaction_and_signature(

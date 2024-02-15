@@ -1,5 +1,6 @@
-use reth_primitives::{Address, BaseFeeParams, H256, U256};
+use reth_primitives::BaseFeeParams;
 use revm::primitives::specification::SpecId;
+use revm::primitives::{Address, B256, U256};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::StateMap;
 use sov_state::Prefix;
@@ -22,7 +23,7 @@ use sov_state::codec::BcsCodec;
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone, Default)]
 pub(crate) struct AccountInfo {
     pub(crate) balance: U256,
-    pub(crate) code_hash: H256,
+    pub(crate) code_hash: B256,
     pub(crate) nonce: u64,
 }
 
@@ -56,7 +57,7 @@ impl DbAccount {
 
     fn create_storage_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
         let mut prefix = parent_prefix.as_aligned_vec().clone().into_inner();
-        prefix.extend_from_slice(&address.0);
+        prefix.extend_from_slice(address.as_slice());
         Prefix::new(prefix)
     }
 }
@@ -72,7 +73,7 @@ pub struct EvmChainConfig {
     /// By default it is 0x6000 (~25kb).
     pub limit_contract_code_size: Option<usize>,
 
-    /// List of EVM hardforks by block number
+    /// List of EVM hard forks by block number
     pub spec: Vec<(u64, SpecId)>,
 
     /// Coinbase where all the fees go
@@ -94,7 +95,7 @@ impl Default for EvmChainConfig {
             chain_id: 1,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)],
-            coinbase: Address::zero(),
+            coinbase: Address::ZERO,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             block_timestamp_delta: 1,
             base_fee_params: BaseFeeParams::ethereum(),

@@ -118,17 +118,20 @@ ethers-providers = { version = "=2.0.10", default-features = false }
 ethers-signers = { version = "=2.0.10", default-features = false }
 ethers-middleware = { version = "=2.0.10", default-features = false }
 
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa", default-features = false }
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
-reth-revm-inspectors = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa", default-features = false }
+# https://github.com/paradigmxyz/reth/tree/c0655fed8915490f82d4acf8900a16a10554cbfb
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed8915490f82d4acf8900a16a10554cbfb", default-features = false }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed8915490f82d4acf8900a16a10554cbfb" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed8915490f82d4acf8900a16a10554cbfb" }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed8915490f82d4acf8900a16a10554cbfb" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed8915490f82d4acf8900a16a10554cbfb" }
 
-revm = { git = "https://github.com/bluealloy/revm", rev = "516f62cc", default-features = false }
-# TODO: Double check if needed to be here, after upgrade of reth and revm
-#revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "516f62cc", default-features = false }
+alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", rev = "a4453d4" }
 
-secp256k1 = { version = "0.27.0", default-features = false, features = ["global-context", "rand-std", "recovery"] }
+# Matches reth dependency. Using exact revision for matching our tightly coupled usage of both reth and revm crates
+revm = { git = "https://github.com/bluealloy/revm", rev = "d6bd0109e5b5c37505fe25017b8ca5c2ea5ae6ca", default-features = false, features = ["serde"] }
+# Used just to be safe about breaking changes
+revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "d6bd0109e5b5c37505fe25017b8ca5c2ea5ae6ca", default-features = false }
+secp256k1 = { version = "0.27", default-features = false, features = ["global-context", "rand-std", "recovery"] }
 
 
 [patch.'https://github.com/eigerco/celestia-node-rs.git']

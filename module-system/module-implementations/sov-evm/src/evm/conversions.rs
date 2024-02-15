@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use reth_primitives::{
     Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
 };
@@ -6,7 +5,7 @@ use revm::primitives::{
     AccountInfo as ReVmAccountInfo, BlockEnv as ReVmBlockEnv, CreateScheme, TransactTo, TxEnv, U256,
 };
 
-use super::primitive_types::{BlockEnv, RlpEvmTransaction, TransactionSignedAndRecovered};
+use super::primitive_types::{BlockEnv, RlpEvmTransaction};
 use super::AccountInfo;
 use crate::error::rpc::EthApiError;
 
@@ -60,8 +59,8 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
         gas_price: U256::from(tx.effective_gas_price(None)),
         gas_priority_fee: tx.max_priority_fee_per_gas().map(U256::from),
         transact_to: to,
-        value: U256::from(tx.value()),
-        data: Bytes::from(tx.input().to_vec()),
+        value: tx.value().into(),
+        data: tx.input().clone(),
         chain_id: tx.chain_id(),
         nonce: Some(tx.nonce()),
         // TODO handle access list
@@ -82,7 +81,7 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
             return Err(EthApiError::EmptyRawTransactionData);
         }
 
-        let transaction = TransactionSigned::decode_enveloped(data)
+        let transaction = TransactionSigned::decode_enveloped(&mut data.as_ref())
             .map_err(|_| EthApiError::FailedToDecodeSignedTransaction)?;
 
         Ok(transaction.into())
@@ -100,14 +99,5 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedEcRecovered {
             .ok_or(EthApiError::FailedToDecodeSignedTransaction)?;
 
         Ok(tx)
-    }
-}
-
-impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {
-    fn from(value: TransactionSignedAndRecovered) -> Self {
-        TransactionSignedEcRecovered::from_signed_transaction(
-            value.signed_transaction,
-            value.signer,
-        )
     }
 }

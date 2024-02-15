@@ -4,7 +4,7 @@
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
 use reth_primitives::constants::GWEI_TO_WEI;
-use reth_primitives::{H256, U256, U64};
+use reth_primitives::{B256, U256, U64};
 use reth_rpc_types::BlockTransactions;
 use serde::{Deserialize, Serialize};
 use sov_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
@@ -22,6 +22,8 @@ pub const DEFAULT_MAX_PRICE: U256 = U256::from_limbs([500_000_000_000u64, 0, 0, 
 
 /// The default minimum gas price, under which the sample will be ignored
 pub const DEFAULT_IGNORE_PRICE: U256 = U256::from_limbs([2u64, 0, 0, 0]);
+
+const EIP_1559_TX_TYPE: U64 = U64::from_limbs([2]);
 
 /// Settings for the gas price oracle configured by node operators
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -64,7 +66,7 @@ impl Default for GasPriceOracleConfig {
 }
 
 impl GasPriceOracleConfig {
-    /// Creating a new gpo config with blocks, ignoreprice, maxprice and percentile
+    /// Creating a new gpo config with blocks, ignore_price, max_price and percentile
     pub fn new(
         blocks: Option<u32>,
         ignore_price: Option<u64>,
@@ -202,10 +204,10 @@ impl<C: sov_modules_api::Context, Da: DaSpec> GasPriceOracle<C, Da> {
     /// This method also returns the parent hash for the given block.
     async fn get_block_values(
         &self,
-        block_hash: H256,
+        block_hash: B256,
         limit: usize,
         working_set: &mut WorkingSet<C>,
-    ) -> EthResult<Option<(H256, Vec<U256>)>> {
+    ) -> EthResult<Option<(B256, Vec<U256>)>> {
         // check the cache (this will hit the disk if the block is not cached)
         let block = match self.cache.get_block(block_hash, working_set)? {
             Some(block) => block,
@@ -260,7 +262,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> GasPriceOracle<C, Da> {
 #[derive(Debug, Clone)]
 pub struct GasPriceOracleResult {
     /// The block hash that the oracle used to calculate the price
-    pub block_hash: H256,
+    pub block_hash: B256,
     /// The price that the oracle calculated
     pub price: U256,
 }
@@ -268,7 +270,7 @@ pub struct GasPriceOracleResult {
 impl Default for GasPriceOracleResult {
     fn default() -> Self {
         Self {
-            block_hash: H256::zero(),
+            block_hash: B256::ZERO,
             price: U256::from(GWEI_TO_WEI),
         }
     }
@@ -280,13 +282,13 @@ fn effective_gas_tip(
     base_fee: Option<U256>,
 ) -> Option<U256> {
     let priority_fee_or_price = U256::from(match transaction.transaction_type {
-        Some(U64([2])) => transaction.max_priority_fee_per_gas.unwrap(),
+        Some(EIP_1559_TX_TYPE) => transaction.max_priority_fee_per_gas.unwrap(),
         _ => transaction.gas_price.unwrap(),
     });
 
     if let Some(base_fee) = base_fee {
         let max_fee_per_gas = U256::from(match transaction.transaction_type {
-            Some(U64([2])) => transaction.max_fee_per_gas.unwrap(),
+            Some(EIP_1559_TX_TYPE) => transaction.max_fee_per_gas.unwrap(),
             _ => transaction.gas_price.unwrap(),
         });
 

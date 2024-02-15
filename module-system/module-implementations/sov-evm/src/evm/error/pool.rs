@@ -1,6 +1,7 @@
 //! Transaction pool errors
 
-use reth_primitives::{Address, BlobTransactionValidationError, InvalidTransactionError, TxHash};
+use reth_primitives::{BlobTransactionValidationError, InvalidTransactionError, TxHash};
+use revm::primitives::Address;
 
 /// A trait for additional errors that can be thrown by the transaction pool.
 ///

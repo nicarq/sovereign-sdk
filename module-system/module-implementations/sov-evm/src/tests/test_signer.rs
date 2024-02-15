@@ -1,9 +1,8 @@
 use ethers_core::rand::rngs::StdRng;
 use ethers_core::rand::SeedableRng;
-use reth_primitives::{
-    Address, Bytes as RethBytes, Transaction as RethTransaction, TransactionKind,
-    TxEip1559 as RethTxEip1559,
-};
+use reth_primitives::{Address, Bytes as RethBytes, TransactionKind, U256, U64};
+use reth_rpc_types::transaction::EIP1559TransactionRequest;
+use reth_rpc_types::TypedTransactionRequest;
 use secp256k1::{PublicKey, SecretKey};
 
 use crate::evm::RlpEvmTransaction;
@@ -26,7 +25,7 @@ impl TestSigner {
         }
     }
 
-    /// Creates a new signer with random private key.
+    /// Creates a new signer with a random private key.
     pub(crate) fn new_random() -> Self {
         let mut rng = StdRng::seed_from_u64(22);
         let secret_key = SecretKey::new(&mut rng);
@@ -41,21 +40,26 @@ impl TestSigner {
     /// Signs default Eip1559 transaction with to, data and nonce overridden.
     pub(crate) fn sign_default_transaction(
         &self,
-        to: TransactionKind,
+        kind: TransactionKind,
         data: Vec<u8>,
         nonce: u64,
     ) -> Result<RlpEvmTransaction, SignError> {
-        let reth_tx = RethTxEip1559 {
-            to,
-            input: RethBytes::from(data),
-            nonce,
+        let reth_tx = EIP1559TransactionRequest {
             chain_id: 1,
-            gas_limit: 1_000_000u64,
-            max_fee_per_gas: u128::from(reth_primitives::constants::MIN_PROTOCOL_BASE_FEE * 2),
-            ..Default::default()
+            nonce: U64::from(nonce),
+            max_priority_fee_per_gas: Default::default(),
+            max_fee_per_gas: U256::from(reth_primitives::constants::MIN_PROTOCOL_BASE_FEE * 2),
+            gas_limit: U256::from(1_000_000u64),
+            kind: match kind {
+                TransactionKind::Create => reth_rpc_types::TransactionKind::Create,
+                TransactionKind::Call(addr) => reth_rpc_types::TransactionKind::Call(addr),
+            },
+            value: Default::default(),
+            input: RethBytes::from(data),
+            access_list: Default::default(),
         };
 
-        let reth_tx = RethTransaction::Eip1559(reth_tx);
+        let reth_tx = TypedTransactionRequest::EIP1559(reth_tx);
         let signed = self.signer.sign_transaction(reth_tx, self.address)?;
 
         Ok(RlpEvmTransaction {
