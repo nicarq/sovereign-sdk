@@ -10,8 +10,8 @@ fn test_config_serialization() {
         current_time: time,
         gas_price_blocks_depth: 10,
         gas_price_maximum_elasticity: 5,
-        initial_gas_price: [2, 2],
-        minimum_gas_price: [1, 1],
+        initial_gas_price: [2, 2].into(),
+        minimum_gas_price: [1, 1].into(),
     };
 
     let data = r#"

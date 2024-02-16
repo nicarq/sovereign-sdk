@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, DaSpec, GasUnit, StateAccessor, StateMap, StateMapAccessor};
+use sov_modules_api::{Context, DaSpec, Gas, GasArray, StateAccessor, StateMap, StateMapAccessor};
 use sov_state::codec::BcsCodec;
 
 use crate::{StateTransitionId, TransitionHeight};
@@ -19,10 +19,10 @@ pub struct GasPriceState<C: Context> {
     pub maximum_elasticity: i64,
 
     /// The current gas price.
-    pub price: C::GasUnit,
+    pub price: <C::Gas as Gas>::Price,
 
     /// The minimum price computed for a block execution.
-    pub minimum_price: C::GasUnit,
+    pub minimum_price: <C::Gas as Gas>::Price,
 }
 
 impl<C: Context> GasPriceState<C> {
@@ -32,7 +32,7 @@ impl<C: Context> GasPriceState<C> {
     /// Will return `None` if the `historical_transitions` doesn't contain one of the queried
     /// heights.
     ///
-    /// For additional information, check [GasUnit::elastic_price].
+    /// For additional information, check [Gas::elastic_price].
     pub fn update<Da: DaSpec>(
         mut self,
         height: TransitionHeight,
@@ -53,7 +53,7 @@ impl<C: Context> GasPriceState<C> {
         let height_count = height.saturating_sub(height_from);
 
         // TODO(@vlopes11): Update this calculation to be based on proof latency
-        let mut gas_target = C::GasUnit::ZEROED;
+        let mut gas_target = C::Gas::zero();
         let mut transition = None;
         for h in height_from..height {
             let history = historical_transitions.get(&h, state_checkpoint)?;
@@ -64,11 +64,11 @@ impl<C: Context> GasPriceState<C> {
 
         // there was no gas consumed on the past blocks; preserve the price
         // TODO(@vlopes11): Shouldn't we drop the price by the maximum amount in this case?
-        if gas_target == C::GasUnit::ZEROED {
+        if gas_target == C::Gas::zero() {
             return Some(self);
         }
 
-        self.price = C::GasUnit::elastic_price(
+        self.price = C::Gas::elastic_price(
             self.maximum_elasticity,
             &gas_target,
             &transition?.gas_used,
@@ -84,7 +84,7 @@ impl<C: Context> GasPriceState<C> {
 mod tests {
     use sov_mock_da::{MockDaSpec, MockValidityCond};
     use sov_modules_api::default_context::DefaultContext;
-    use sov_modules_api::{StateMap, WorkingSet};
+    use sov_modules_api::{GasPrice, StateMap, WorkingSet};
     use sov_modules_core::{Prefix, StateCheckpoint};
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -108,14 +108,14 @@ mod tests {
         let expected = DefaultGasPriceState {
             blocks_depth: 10,
             maximum_elasticity: 1,
-            price: [5, 7],
-            minimum_price: [2, 3],
+            price: [5, 7].into(),
+            minimum_price: [2, 3].into(),
         };
         let state = DefaultGasPriceState {
             blocks_depth: 10,
             maximum_elasticity: 1,
-            price: [5, 7],
-            minimum_price: [2, 3],
+            price: [5, 7].into(),
+            minimum_price: [2, 3].into(),
         }
         .update(height, ht, ws)
         .unwrap();
@@ -140,14 +140,14 @@ mod tests {
         let expected = DefaultGasPriceState {
             blocks_depth: 10,
             maximum_elasticity: 1,
-            price: [5, 7],
-            minimum_price: [2, 3],
+            price: [5, 7].into(),
+            minimum_price: [2, 3].into(),
         };
         let state = DefaultGasPriceState {
             blocks_depth: 10,
             maximum_elasticity: 1,
-            price: [5, 7],
-            minimum_price: [2, 3],
+            price: [5, 7].into(),
+            minimum_price: [2, 3].into(),
         }
         .update(height, ht, ws)
         .unwrap();
@@ -168,9 +168,9 @@ mod tests {
         let ht = &M::with_codec(prefix, BcsCodec);
 
         let height = 2;
-        let price = [5, 7];
-        let original_price = [0, 0];
-        let used = [1000, 2000];
+        let price: GasPrice<2> = [5, 7].into();
+        let original_price = [0, 0].into();
+        let used = [1000, 2000].into();
 
         ht.set(
             &1,
@@ -187,14 +187,14 @@ mod tests {
         let expected = DefaultGasPriceState {
             blocks_depth: 10,
             maximum_elasticity: 1,
-            price,
-            minimum_price: [2, 3],
+            price: price.clone(),
+            minimum_price: [2, 3].into(),
         };
         let state = DefaultGasPriceState {
             blocks_depth: 10,
             maximum_elasticity: 1,
             price,
-            minimum_price: [2, 3],
+            minimum_price: [2, 3].into(),
         }
         .update(height, ht, ws)
         .unwrap();
@@ -222,8 +222,8 @@ mod tests {
                 [1; 32].into(),
                 [2; 32].into(),
                 MockValidityCond { is_valid: true },
-                [5, 7],
-                [1000, 1000],
+                [5, 7].into(),
+                [1000, 1000].into(),
             ),
             ws,
         );
@@ -234,8 +234,8 @@ mod tests {
                 [1; 32].into(),
                 [2; 32].into(),
                 MockValidityCond { is_valid: true },
-                [7, 11],
-                [2000, 2000],
+                [7, 11].into(),
+                [2000, 2000].into(),
             ),
             ws,
         );
@@ -243,14 +243,14 @@ mod tests {
         let expected = DefaultGasPriceState {
             blocks_depth: 10,
             maximum_elasticity: 1,
-            price: [17, 22],
-            minimum_price: [2, 3],
+            price: [17, 22].into(),
+            minimum_price: [2, 3].into(),
         };
         let state = DefaultGasPriceState {
             blocks_depth: 10,
             maximum_elasticity: 1,
-            price: [13, 17],
-            minimum_price: [2, 3],
+            price: [13, 17].into(),
+            minimum_price: [2, 3].into(),
         }
         .update(height, ht, ws)
         .unwrap();
@@ -278,8 +278,8 @@ mod tests {
                 [1; 32].into(),
                 [2; 32].into(),
                 MockValidityCond { is_valid: true },
-                [5, 7],
-                [1000, 1000],
+                [5, 7].into(),
+                [1000, 1000].into(),
             ),
             ws,
         );
@@ -290,8 +290,8 @@ mod tests {
                 [1; 32].into(),
                 [2; 32].into(),
                 MockValidityCond { is_valid: true },
-                [7, 11],
-                [2000, 2000],
+                [7, 11].into(),
+                [2000, 2000].into(),
             ),
             ws,
         );
@@ -302,8 +302,8 @@ mod tests {
                 [1; 32].into(),
                 [2; 32].into(),
                 MockValidityCond { is_valid: true },
-                [7, 11],
-                [1500, 1500],
+                [7, 11].into(),
+                [1500, 1500].into(),
             ),
             ws,
         );
@@ -311,14 +311,14 @@ mod tests {
         let expected = DefaultGasPriceState {
             blocks_depth: 2,
             maximum_elasticity: 1,
-            price: [11, 14],
-            minimum_price: [2, 3],
+            price: [11, 14].into(),
+            minimum_price: [2, 3].into(),
         };
         let state = DefaultGasPriceState {
             blocks_depth: 2,
             maximum_elasticity: 1,
-            price: [13, 17],
-            minimum_price: [2, 3],
+            price: [13, 17].into(),
+            minimum_price: [2, 3].into(),
         }
         .update(height, ht, ws)
         .unwrap();

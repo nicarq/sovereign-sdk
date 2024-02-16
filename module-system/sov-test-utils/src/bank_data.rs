@@ -5,7 +5,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, EncodeCall, Module, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{Context, EncodeCall, Gas, GasPrice, Module, PrivateKey, PublicKey, Spec};
 
 use crate::{Message, MessageGenerator};
 
@@ -36,7 +36,7 @@ const DEFAULT_PVT_KEY: &str = "236e80cb222c4ed0431b093b3ac53e6aa7a2273fe1f4351cd
 const DEFAULT_CHAIN_ID: u64 = 0;
 const DEFAULT_GAS_TIP: u64 = 0;
 const DEFAULT_GAS_LIMIT: u64 = 0;
-const DEFAULT_MAX_GAS_PRICE: Option<[u64; 2]> = None;
+const DEFAULT_MAX_GAS_PRICE: Option<GasPrice<2>> = None;
 const DEFAULT_INIT_BALANCE: u64 = 1000000;
 
 pub fn get_default_token_address() -> <DefaultContext as Spec>::Address {
@@ -271,7 +271,7 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<C::GasUnit>,
+        max_gas_price: Option<<C::Gas as Gas>::Price>,
         nonce: u64,
         _is_last: bool,
     ) -> sov_modules_api::transaction::Transaction<C> {
@@ -352,7 +352,7 @@ impl MessageGenerator for BadSerializationBankCallMessages {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<DefaultContext as Context>::GasUnit>,
+        max_gas_price: Option<<<DefaultContext as Context>::Gas as Gas>::Price>,
         nonce: u64,
         is_last: bool,
     ) -> Transaction<DefaultContext> {
@@ -424,7 +424,7 @@ impl MessageGenerator for BadSignatureBankCallMessages {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<DefaultContext as Context>::GasUnit>,
+        max_gas_price: Option<<<DefaultContext as Context>::Gas as Gas>::Price>,
         nonce: u64,
         is_last: bool,
     ) -> Transaction<DefaultContext> {
@@ -437,7 +437,7 @@ impl MessageGenerator for BadSignatureBankCallMessages {
                 chain_id,
                 gas_tip,
                 gas_limit,
-                max_gas_price,
+                max_gas_price.clone(),
                 nonce,
             );
             Transaction::new(
@@ -513,7 +513,7 @@ impl MessageGenerator for BadNonceBankCallMessages {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<DefaultContext as Context>::GasUnit>,
+        max_gas_price: Option<<<DefaultContext as Context>::Gas as Gas>::Price>,
         _nonce: u64,
         _is_last: bool,
     ) -> Transaction<DefaultContext> {

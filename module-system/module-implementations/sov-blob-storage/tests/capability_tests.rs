@@ -12,7 +12,7 @@ use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
-    Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, KernelWorkingSet,
+    Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasArray, GasPrice, KernelWorkingSet,
     MessageCodec, Module, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
@@ -167,8 +167,8 @@ fn do_deferred_blob_test(
                     current_time: Default::default(),
                     gas_price_blocks_depth: 0,
                     gas_price_maximum_elasticity: 0,
-                    initial_gas_price: GasUnit::ZEROED,
-                    minimum_gas_price: GasUnit::ZEROED,
+                    initial_gas_price: GasPrice::ZEROED,
+                    minimum_gas_price: GasPrice::ZEROED,
                 },
             },
             &mut kernel_working_set,
@@ -432,8 +432,8 @@ fn test_recovery_mode() {
                     current_time: Default::default(),
                     gas_price_blocks_depth: 0,
                     gas_price_maximum_elasticity: 0,
-                    initial_gas_price: GasUnit::ZEROED,
-                    minimum_gas_price: GasUnit::ZEROED,
+                    initial_gas_price: GasPrice::ZEROED,
+                    minimum_gas_price: GasPrice::ZEROED,
                 },
             },
             &mut kernel_working_set,
@@ -547,8 +547,8 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
                     current_time: Default::default(),
                     gas_price_blocks_depth: 0,
                     gas_price_maximum_elasticity: 0,
-                    initial_gas_price: GasUnit::ZEROED,
-                    minimum_gas_price: GasUnit::ZEROED,
+                    initial_gas_price: GasPrice::ZEROED,
+                    minimum_gas_price: GasPrice::ZEROED,
                 },
             },
             &mut kernel_working_set,
@@ -614,8 +614,8 @@ fn test_based_sequencing() {
                     current_time: Default::default(),
                     gas_price_blocks_depth: 0,
                     gas_price_maximum_elasticity: 0,
-                    initial_gas_price: GasUnit::ZEROED,
-                    minimum_gas_price: GasUnit::ZEROED,
+                    initial_gas_price: GasPrice::ZEROED,
+                    minimum_gas_price: GasPrice::ZEROED,
                 },
             },
             &mut kernel_working_set,

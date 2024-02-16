@@ -110,8 +110,8 @@ pub(crate) fn setup(
         current_time: Default::default(),
         gas_price_blocks_depth: 10,
         gas_price_maximum_elasticity: 1,
-        initial_gas_price: [0, 0],
-        minimum_gas_price: [0, 0],
+        initial_gas_price: [0, 0].into(),
+        minimum_gas_price: [0, 0].into(),
     };
 
     let mut state_checkpoint = working_set.checkpoint().0;

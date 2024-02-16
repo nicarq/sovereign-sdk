@@ -9,7 +9,7 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::kernel_state::BootstrapWorkingSet;
-use crate::{Context, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, Storage, WorkingSet};
+use crate::{Context, Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, Storage, WorkingSet};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
@@ -45,13 +45,9 @@ pub trait KernelSlotHooks<C: Context, Da: DaSpec>: Kernel<C, Da> {
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
         working_set: &mut StateCheckpoint<Self::Context>,
-    ) -> C::GasUnit;
+    ) -> <C::Gas as Gas>::Price;
     /// Called at the end of a slot
-    fn end_slot_hook(
-        &self,
-        gas_used: &C::GasUnit,
-        working_set: &mut StateCheckpoint<Self::Context>,
-    );
+    fn end_slot_hook(&self, gas_used: &C::Gas, working_set: &mut StateCheckpoint<Self::Context>);
 }
 
 /// BatchSelector decides which batches to process in a current slot.
@@ -85,7 +81,7 @@ pub trait GasEnforcer<C: Context, Da: DaSpec> {
         &self,
         tx: &Self::Tx,
         context: &C,
-        gas_price: &C::GasUnit,
+        gas_price: &<C::Gas as Gas>::Price,
         state_checkpoint: StateCheckpoint<C>,
     ) -> Result<WorkingSet<C>, StateCheckpoint<C>>;
 
@@ -94,7 +90,7 @@ pub trait GasEnforcer<C: Context, Da: DaSpec> {
         &self,
         tx: &Self::Tx,
         context: &C,
-        gas_meter: &GasMeter<C::GasUnit>,
+        gas_meter: &GasMeter<C::Gas>,
         state_checkpoint: &mut StateCheckpoint<C>,
     );
 }

@@ -7,7 +7,7 @@ use digest::typenum::U32;
 use digest::Digest;
 use sov_rollup_interface::RollupAddress;
 
-use crate::common::{GasUnit, PublicKey, Signature, Witness};
+use crate::common::{Gas, PublicKey, Signature, Witness};
 use crate::storage::Storage;
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
@@ -106,7 +106,7 @@ pub trait Spec {
 /// can easily update their cryptography to conform to the needs of different zk-proof systems.
 pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     /// Gas unit for the gas price computation.
-    type GasUnit: GasUnit;
+    type Gas: Gas;
 
     /// Sender of the transaction.
     fn sender(&self) -> &Self::Address;

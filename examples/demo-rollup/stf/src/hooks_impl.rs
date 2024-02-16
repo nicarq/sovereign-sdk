@@ -4,7 +4,7 @@ use sov_modules_api::runtime::capabilities::{
     ContextResolver, GasEnforcer, TransactionDeduplicator,
 };
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{AccessoryStateCheckpoint, Context, Spec, StateCheckpoint, WorkingSet};
+use sov_modules_api::{AccessoryStateCheckpoint, Context, Gas, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_sequencer_registry::SequencerRegistry;
@@ -133,7 +133,7 @@ impl<C: Context, Da: DaSpec> GasEnforcer<C, Da> for Runtime<C, Da> {
         &self,
         tx: &Self::Tx,
         context: &C,
-        gas_price: &C::GasUnit,
+        gas_price: &<C::Gas as Gas>::Price,
         mut state_checkpoint: StateCheckpoint<C>,
     ) -> Result<WorkingSet<C>, StateCheckpoint<C>> {
         match self
@@ -153,7 +153,7 @@ impl<C: Context, Da: DaSpec> GasEnforcer<C, Da> for Runtime<C, Da> {
         &self,
         tx: &Self::Tx,
         context: &C,
-        gas_meter: &sov_modules_api::GasMeter<C::GasUnit>,
+        gas_meter: &sov_modules_api::GasMeter<C::Gas>,
         state_checkpoint: &mut StateCheckpoint<C>,
     ) {
         self.bank

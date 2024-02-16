@@ -4,7 +4,7 @@ use crate::{ChainState, TransitionInProgress};
 
 impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
     /// Overrides the gas used for a transition
-    pub fn override_gas_used(&mut self, gas_used: C::GasUnit) {
+    pub fn override_gas_used(&mut self, gas_used: C::Gas) {
         self.gas_used = gas_used;
     }
 }

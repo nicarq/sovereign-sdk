@@ -15,7 +15,7 @@ use crate::storage::{
     EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, StateCodec,
     StateValueCodec, Storage, StorageInternalCache, StorageProof,
 };
-use crate::Version;
+use crate::{Gas, Version};
 
 /// A storage reader and writer
 pub trait StateReaderAndWriter {
@@ -315,7 +315,7 @@ impl<C: Context> StateCheckpoint<C> {
     }
 
     /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
-    pub fn to_revertable(self, gas_meter: GasMeter<C::GasUnit>) -> WorkingSet<C> {
+    pub fn to_revertable(self, gas_meter: GasMeter<C::Gas>) -> WorkingSet<C> {
         WorkingSet {
             delta: RevertableWriter::new(self.delta, None),
             accessory_delta: RevertableWriter::new(self.accessory_delta, None),
@@ -431,7 +431,7 @@ pub struct WorkingSet<C: Context> {
     delta: RevertableWriter<Delta<C::Storage>>,
     accessory_delta: RevertableWriter<AccessoryDelta<C::Storage>>,
     events: Vec<TypedEvent<C>>,
-    gas_meter: GasMeter<C::GasUnit>,
+    gas_meter: GasMeter<C::Gas>,
     archival_working_set: Option<ArchivalJmtWorkingSet<C>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
 }
@@ -509,7 +509,7 @@ impl<C: Context> WorkingSet<C> {
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
     /// committing the changes to the underlying [`Storage`] via
     /// [`StateCheckpoint::freeze`].
-    pub fn checkpoint(self) -> (StateCheckpoint<C>, GasMeter<C::GasUnit>, Vec<TypedEvent<C>>) {
+    pub fn checkpoint(self) -> (StateCheckpoint<C>, GasMeter<C::Gas>, Vec<TypedEvent<C>>) {
         (
             StateCheckpoint {
                 delta: self.delta.commit(),
@@ -522,7 +522,7 @@ impl<C: Context> WorkingSet<C> {
 
     /// Reverts the most recent changes to this [`WorkingSet`], returning a pristine
     /// [`StateCheckpoint`] instance.
-    pub fn revert(self) -> (StateCheckpoint<C>, GasMeter<C::GasUnit>) {
+    pub fn revert(self) -> (StateCheckpoint<C>, GasMeter<C::Gas>) {
         (
             StateCheckpoint {
                 delta: self.delta.revert(),
@@ -574,23 +574,23 @@ impl<C: Context> WorkingSet<C> {
     }
 
     /// Overrides the current gas price for transaction execution.
-    pub fn set_gas_price(&mut self, gas_price: C::GasUnit) {
+    pub fn set_gas_price(&mut self, gas_price: <C::Gas as Gas>::Price) {
         self.gas_meter.set_gas_price(gas_price);
     }
 
     /// Attempts to charge the provided gas unit from the gas meter, using the internal price to
     /// compute the scalar value.
-    pub fn charge_gas(&mut self, gas: &C::GasUnit) -> anyhow::Result<()> {
+    pub fn charge_gas(&mut self, gas: &C::Gas) -> anyhow::Result<()> {
         self.gas_meter.charge_gas(gas)
     }
 
     /// Returns the gas price.
-    pub const fn gas_price(&self) -> &C::GasUnit {
+    pub const fn gas_price(&self) -> &<C::Gas as Gas>::Price {
         self.gas_meter.gas_price()
     }
 
     /// Returns the total gas incurred.
-    pub const fn gas_used(&self) -> &C::GasUnit {
+    pub const fn gas_used(&self) -> &C::Gas {
         self.gas_meter.gas_used()
     }
 

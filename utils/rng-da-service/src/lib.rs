@@ -12,14 +12,14 @@ use sov_mock_da::{
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Address, AddressBech32, EncodeCall, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{Address, AddressBech32, EncodeCall, GasPrice, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 
 const DEFAULT_CHAIN_ID: u64 = 0;
 const DEFAULT_GAS_TIP: u64 = 0;
 const DEFAULT_GAS_LIMIT: u64 = 0;
-const DEFAULT_MAX_GAS_PRICE: Option<[u64; 2]> = None;
+const DEFAULT_MAX_GAS_PRICE: Option<GasPrice<2>> = None;
 
 pub fn sender_address_with_pkey() -> (Address, DefaultPrivateKey) {
     // TODO: maybe generate address and private key randomly, instead of

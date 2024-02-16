@@ -6,7 +6,7 @@ use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::Transaction;
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{Context, DaSpec, Module, RollupAddress, Spec};
+use sov_modules_api::{Context, DaSpec, Gas, Module, RollupAddress, Spec};
 use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
 
 pub mod bank_data;
@@ -47,7 +47,7 @@ pub struct Message<C: Context, Mod: Module> {
     /// The gas limit for the transaction execution.
     pub gas_limit: u64,
     /// The maximum gas price for the transaction execution.
-    pub max_gas_price: Option<C::GasUnit>,
+    pub max_gas_price: Option<<C::Gas as Gas>::Price>,
     /// The message nonce.
     pub nonce: u64,
 }
@@ -59,7 +59,7 @@ impl<C: Context, Mod: Module> Message<C, Mod> {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<C::GasUnit>,
+        max_gas_price: Option<<C::Gas as Gas>::Price>,
         nonce: u64,
     ) -> Self {
         Self {
@@ -100,7 +100,7 @@ pub trait MessageGenerator {
         // The gas limit for the transaction execution
         gas_limit: u64,
         // The maximum gas price for the transaction execution
-        max_gas_price: Option<<Self::Context as Context>::GasUnit>,
+        max_gas_price: Option<<<Self::Context as Context>::Gas as Gas>::Price>,
         // The message nonce
         nonce: u64,
         // A boolean that indicates whether this message is the last one to be sent.
@@ -136,7 +136,7 @@ pub trait MessageGenerator {
     /// Creates a vector of raw transactions from the module.
     fn create_raw_txs_with_maximum_gas_price<Encoder: EncodeCall<Self::Module>>(
         &self,
-        max_gas_price: <Self::Context as Context>::GasUnit,
+        max_gas_price: <<Self::Context as Context>::Gas as Gas>::Price,
     ) -> Vec<RawTx> {
         let mut messages_iter = self.create_messages().into_iter().peekable();
         let mut serialized_messages = Vec::default();

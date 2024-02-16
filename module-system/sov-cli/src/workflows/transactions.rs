@@ -8,7 +8,7 @@ use serde::Serialize;
 use sov_modules_api::clap::{self, Subcommand};
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg};
 use sov_modules_api::transaction::UnsignedTransaction;
-use sov_modules_api::{CliWallet, GasUnit};
+use sov_modules_api::{CliWallet, GasArray};
 
 use crate::wallet_state::WalletState;
 
@@ -138,7 +138,7 @@ where
             .try_into()
             .map_err(Into::<anyhow::Error>::into)?;
 
-        let max_gas_price = max_gas_price.map(|m| C::GasUnit::from_slice(&m));
+        let max_gas_price = max_gas_price.map(|m| GasArray::from_slice(&m));
 
         let tx = UnsignedTransaction::new(tx, chain_id, gas_tip, gas_limit, max_gas_price);
 

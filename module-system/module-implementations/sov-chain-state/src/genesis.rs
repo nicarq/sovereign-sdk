@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::{Context, KernelWorkingSet, StateValueAccessor};
+use sov_modules_api::{Context, Gas, KernelWorkingSet, StateValueAccessor};
 
 use crate::{ChainState, GasPriceState};
 
@@ -17,9 +17,9 @@ pub struct ChainStateConfig<C: Context> {
     /// variations in used gas distances from the average target price.
     pub gas_price_maximum_elasticity: i64,
     /// The initial gas price for the genesis block.
-    pub initial_gas_price: C::GasUnit,
+    pub initial_gas_price: <C::Gas as Gas>::Price,
     /// The minimum gas price allowed from the state computation.
-    pub minimum_gas_price: C::GasUnit,
+    pub minimum_gas_price: <C::Gas as Gas>::Price,
 }
 
 impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {

@@ -2,7 +2,7 @@ use sov_chain_state::{ChainState, ChainStateConfig, StateTransitionId, Transitio
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::da::{BlockHeaderTrait, Time};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Context, GasUnit, KernelModule, KernelWorkingSet};
+use sov_modules_api::{Context, Gas, GasPrice, GasUnit, KernelModule, KernelWorkingSet};
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::StateCheckpoint;
 use sov_prover_storage_manager::new_orphan_storage;
@@ -20,15 +20,15 @@ fn test_simple_chain_state() {
     let mut state_checkpoint = StateCheckpoint::new(storage.clone());
 
     let chain_state = ChainState::<DefaultContext, MockDaSpec>::default();
-    let initial_gas_price = [2000, 2000];
+    let initial_gas_price: GasPrice<2> = [2000, 2000].into();
     let gas_price_maximum_elasticity = 1;
-    let minimum_gas_price = [1, 1];
+    let minimum_gas_price: GasPrice<2> = [1, 1].into();
     let config = ChainStateConfig {
         current_time: Default::default(),
         gas_price_blocks_depth: 10,
         gas_price_maximum_elasticity,
-        initial_gas_price,
-        minimum_gas_price,
+        initial_gas_price: initial_gas_price.clone(),
+        minimum_gas_price: minimum_gas_price.clone(),
     };
 
     // Genesis, initialize and then commit the state
@@ -77,7 +77,7 @@ fn test_simple_chain_state() {
         &genesis_root,
         &mut working_set,
     );
-    chain_state.end_slot_hook(&Default::default(), &mut working_set);
+    chain_state.end_slot_hook(&Gas::zero(), &mut working_set);
 
     // Check that the root hash has been stored correctly
     let stored_root = chain_state.get_genesis_hash(working_set.inner).unwrap();
@@ -103,8 +103,8 @@ fn test_simple_chain_state() {
         .get_in_progress_transition(&mut working_set)
         .unwrap();
 
-    let expected_gas_price = initial_gas_price;
-    let expected_gas_used = [0, 0];
+    let expected_gas_price = initial_gas_price.clone();
+    let expected_gas_used = [0, 0].into();
 
     assert_eq!(
         new_tx_in_progress,
@@ -143,7 +143,7 @@ fn test_simple_chain_state() {
         &new_root_hash,
         &mut working_set,
     );
-    chain_state.end_slot_hook(&Default::default(), &mut working_set);
+    chain_state.end_slot_hook(&Gas::zero(), &mut working_set);
 
     // Check that the slot number has been updated correctly
     let new_height_storage = chain_state.true_slot_number(&mut working_set);
@@ -164,16 +164,16 @@ fn test_simple_chain_state() {
         .unwrap();
 
     // no gas was consumed
-    let expected_gas_price = initial_gas_price;
-    let expected_gas_used = [0, 0];
+    let expected_gas_price = initial_gas_price.clone();
+    let expected_gas_used: GasUnit<2> = [0, 0].into();
 
     assert_eq!(
         new_tx_in_progress,
         TransitionInProgress::<DefaultContext, MockDaSpec>::new(
             [2; 32].into(),
             MockValidityCond { is_valid: false },
-            expected_gas_price,
-            expected_gas_used,
+            expected_gas_price.clone(),
+            expected_gas_used.clone(),
         ),
         "The new transition has not been correctly stored"
     );
@@ -186,8 +186,8 @@ fn test_simple_chain_state() {
         [1; 32].into(),
         new_root_hash,
         MockValidityCond { is_valid: true },
-        expected_gas_price,
-        expected_gas_used,
+        expected_gas_price.clone(),
+        expected_gas_used.clone(),
     );
 
     assert_eq!(
@@ -204,14 +204,14 @@ fn test_simple_chain_state() {
 
     // override the gas used of the current block so the elasticity of the price can be tested for
     // the next block
-    let gas_used = [10000, 10000];
+    let gas_used: GasUnit<2> = [10000, 10000].into();
     // the expected target is the average consumption of the previous two blocks, that are [0, 0]
     // and [10000, 10000]
-    let expected_gas_target = [5000, 5000];
+    let expected_gas_target = [5000, 5000].into();
     let mut transition = chain_state
         .get_in_progress_transition(&mut working_set)
         .expect("the transition was performed");
-    transition.override_gas_used(gas_used);
+    transition.override_gas_used(gas_used.clone());
     chain_state.override_in_progress_transition(transition, &mut working_set);
 
     let new_slot_data = MockBlock {
@@ -231,7 +231,7 @@ fn test_simple_chain_state() {
         &new_root_hash,
         &mut working_set,
     );
-    chain_state.end_slot_hook(&Default::default(), &mut working_set);
+    chain_state.end_slot_hook(&Gas::zero(), &mut working_set);
 
     // Check that the slot number has been updated correctly
     let new_height_storage = chain_state.true_slot_number(&mut working_set);
@@ -248,10 +248,10 @@ fn test_simple_chain_state() {
         .unwrap();
 
     // gas price should sharply increase due to very high emulated demand
-    let new_gas_price = *new_tx_in_progress.gas_price();
+    let new_gas_price = new_tx_in_progress.gas_price().clone();
     assert!(new_gas_price > initial_gas_price);
 
-    let expected_gas_price = <DefaultContext as Context>::GasUnit::elastic_price(
+    let expected_gas_price = <DefaultContext as Context>::Gas::elastic_price(
         gas_price_maximum_elasticity,
         &expected_gas_target,
         &gas_used,

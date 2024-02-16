@@ -2,7 +2,7 @@ use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{PrivateKey, WorkingSet};
+use sov_modules_api::{GasArray, GasPrice, PrivateKey, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::services::da::SlotData;
@@ -411,18 +411,18 @@ fn test_tx_max_gas_price() {
     //  - The maximum gas price is respected
 
     // sanity check
-    let gas_price = [1000, 1000];
-    let tx_max_price = [1500, 1500];
+    let gas_price = [1000, 1000].into();
+    let tx_max_price = [1500, 1500].into();
     let outcome = TxEffect::Successful;
     run_test(gas_price, tx_max_price, outcome);
 
     // max gas price check
-    let gas_price = [1000, 1000];
-    let tx_max_price = [500, 500];
+    let gas_price = [1000, 1000].into();
+    let tx_max_price = [500, 500].into();
     let outcome = TxEffect::InsufficientBaseGas;
     run_test(gas_price, tx_max_price, outcome);
 
-    fn run_test(gas_price: [u64; 2], tx_max_price: [u64; 2], outcome: TxEffect) {
+    fn run_test(gas_price: GasPrice<2>, tx_max_price: GasPrice<2>, outcome: TxEffect) {
         let tempdir = tempfile::tempdir().unwrap();
         let config = get_genesis_config_for_tests();
         let genesis_block = MockBlock::default();
@@ -458,7 +458,7 @@ fn test_tx_max_gas_price() {
             .get_gas_price_state(&mut working_set)
             .expect("the gas state must exist from genesis");
 
-        gas_price_state.price = gas_price;
+        gas_price_state.price = gas_price.clone();
 
         stf.kernel()
             .chain_state()

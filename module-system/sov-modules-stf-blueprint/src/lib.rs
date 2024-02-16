@@ -18,7 +18,7 @@ use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::Transaction;
 pub use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, Genesis,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Gas, GasArray, Genesis,
     KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, Zkvm,
 };
 use sov_modules_core::capabilities::{ContextResolver, GasEnforcer, TransactionDeduplicator};
@@ -137,7 +137,7 @@ where
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<C::Storage as Storage>::Root,
-    ) -> C::GasUnit {
+    ) -> <C::Gas as Gas>::Price {
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
         let gas_price = self.kernel.begin_slot_hook(
@@ -163,7 +163,7 @@ where
     fn end_slot(
         &self,
         storage: C::Storage,
-        gas_used: &C::GasUnit,
+        gas_used: &C::Gas,
         mut checkpoint: StateCheckpoint<C>,
     ) -> (
         <<C as Spec>::Storage as Storage>::Root,
@@ -291,7 +291,7 @@ where
 
         let mut batch_receipts = vec![];
 
-        let mut total_gas = C::GasUnit::ZEROED;
+        let mut total_gas = C::Gas::zero();
         for (blob_idx, (batch, sender)) in selected_batches.into_iter().enumerate() {
             let (apply_blob_result, next_checkpoint, gas_used) =
                 self.apply_batch(checkpoint, batch, &sender, &gas_price, visible_height);
