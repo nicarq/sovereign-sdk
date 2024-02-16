@@ -26,7 +26,6 @@ use sov_test_utils::new_test_blob_from_batch;
 use tracing::{debug, info};
 
 type C = DefaultContext;
-type B = MockBlob;
 type Da = MockDaSpec;
 
 const LOCKED_AMOUNT: u64 = 200;
@@ -76,7 +75,7 @@ fn make_blobs(
                 SequencerInfo::Preferred {
                     slots_to_advance,
                     sequence_number,
-                } => B::new(
+                } => MockBlob::new(
                     PreferredBatch {
                         txs: vec![RawTx {
                             data: vec![*blob_num],
@@ -122,8 +121,8 @@ fn make_blobs_by_slot(
         .collect()
 }
 
-fn make_blob(tx_data: Vec<u8>, sender: MockAddress, id: [u8; 32]) -> B {
-    B::new(
+fn make_blob(tx_data: Vec<u8>, sender: MockAddress, id: [u8; 32]) -> MockBlob {
+    MockBlob::new(
         Batch {
             txs: vec![RawTx { data: tx_data }],
         }

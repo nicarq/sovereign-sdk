@@ -233,12 +233,12 @@ impl DaService for CelestiaService {
         Ok(())
     }
 
-    async fn send_aggregated_zk_proof(&self, aggregated_proof: &[u8]) -> Result<u64, Self::Error> {
+    async fn send_aggregated_zk_proof(&self, aggregated_proof: &[u8]) -> Result<(), Self::Error> {
         let gas_limit = get_gas_limit_for_bytes(aggregated_proof.len()) as u64;
         let fee = gas_limit * GAS_PRICE as u64;
         let blob = JsonBlob::new(self.rollup_proof_namespace, aggregated_proof.to_vec())?;
 
-        let height = self
+        let _height = self
             .client
             .blob_submit(
                 &[blob],
@@ -249,7 +249,7 @@ impl DaService for CelestiaService {
             )
             .await?;
 
-        Ok(height)
+        Ok(())
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {

@@ -13,6 +13,18 @@ use sov_rollup_interface::Bytes;
 use crate::utils::hash_to_array;
 use crate::validity_condition::MockValidityCond;
 
+/// Serialized transactions blob.
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct TxBlob(pub(crate) Vec<u8>);
+
+/// Serialized proofs blob.
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct ProofBlob(pub(crate) Vec<Vec<u8>>);
+
+/// Serialized aggregated proof.
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Proof(pub(crate) Vec<u8>);
+
 /// A mock hash digest.
 #[derive(
     Clone,
@@ -177,51 +189,38 @@ pub struct MockDaVerifier {}
 pub struct MockBlob {
     pub(crate) address: MockAddress,
     pub(crate) hash: [u8; 32],
-    /// Actual data from the blob. Public for testing purposes.
-    pub data: CountedBufReader<Bytes>,
-    // Data for the aggregated ZK proof.
-    pub(crate) zk_proofs_data: Vec<u8>,
+    pub(crate) tx_blob: CountedBufReader<Bytes>,
+    pub(crate) proof_blob: Vec<u8>,
 }
 
 impl MockBlob {
     /// Creates a new mock blob with the given data, claiming to have been published by the provided address.
-    pub fn new(data: Vec<u8>, address: MockAddress, hash: [u8; 32]) -> Self {
+    pub fn new(tx_blob: Vec<u8>, address: MockAddress, hash: [u8; 32]) -> Self {
         Self {
             address,
-            data: CountedBufReader::new(Bytes::from(data)),
-            zk_proofs_data: Default::default(),
+            tx_blob: CountedBufReader::new(Bytes::from(tx_blob)),
+            proof_blob: Default::default(),
             hash,
         }
     }
 
     /// Build new blob, but calculates hash from input data
-    pub fn new_with_hash(data: Vec<u8>, zk_proof: Vec<u8>, address: MockAddress) -> Self {
-        let mut data_hash = hash_to_array(&data).to_vec();
-        let proof_hash = hash_to_array(&zk_proof);
+    pub fn new_with_hash(tx_blob: Vec<u8>, proof_blob: Vec<u8>, address: MockAddress) -> Self {
+        let mut data_hash = hash_to_array(&tx_blob).to_vec();
+        let proof_hash = hash_to_array(&proof_blob);
         data_hash.extend_from_slice(&proof_hash);
         let blob_hash = hash_to_array(&data_hash);
         Self {
             address,
-            data: CountedBufReader::new(Bytes::from(data)),
-            zk_proofs_data: zk_proof,
+            tx_blob: CountedBufReader::new(Bytes::from(tx_blob)),
+            proof_blob,
             hash: blob_hash,
         }
     }
 
-    /// Creates a new mock blob with the given data and an aggregated zkp proof,
-    /// claiming to have been published by the provided address.
-    pub fn new_with_zkp_proof(
-        data: Vec<u8>,
-        zk_proofs_data: Vec<u8>,
-        address: MockAddress,
-        hash: [u8; 32],
-    ) -> Self {
-        Self {
-            address,
-            hash,
-            data: CountedBufReader::new(Bytes::from(data)),
-            zk_proofs_data,
-        }
+    /// Creates blob of transactions.
+    pub fn advance(&mut self) {
+        self.tx_blob.advance(self.tx_blob.total_len());
     }
 }
 
