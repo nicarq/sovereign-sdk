@@ -3,17 +3,18 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use borsh::{BorshDeserialize, BorshSerialize};
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use tokio::sync::{broadcast, RwLock, RwLockWriteGuard};
+use tokio::sync::{broadcast, Mutex, RwLock, RwLockWriteGuard};
 use tokio::time;
 
 use crate::types::{default_wait_attempts, MockAddress, MockBlob, MockBlock, MockDaVerifier};
 use crate::utils::hash_to_array;
 use crate::verifier::MockDaSpec;
-use crate::{MockBlockHeader, MockDaConfig, MockHash, MockValidityCond};
+use crate::{MockBlockHeader, MockDaConfig, MockHash, MockValidityCond, Proof, ProofBlob, TxBlob};
 
 const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
     prev_hash: MockHash([0; 32]),
@@ -73,6 +74,7 @@ impl PlannedFork {
 #[derive(Clone)]
 pub struct MockDaService {
     sequencer_da_address: MockAddress,
+    aggregated_proof_buffer: Arc<Mutex<VecDeque<Proof>>>,
     blocks: Arc<RwLock<VecDeque<MockBlock>>>,
     /// How many blocks should be submitted, before block is finalized. 0 means instant finality.
     blocks_to_finality: u32,
@@ -94,7 +96,8 @@ impl MockDaService {
 
         Self {
             sequencer_da_address,
-            blocks: Arc::new(Default::default()),
+            aggregated_proof_buffer: Default::default(),
+            blocks: Default::default(),
             blocks_to_finality: 0,
             finalized_header_sender: tx,
             wait_attempts: default_wait_attempts(),
@@ -152,7 +155,7 @@ impl MockDaService {
     /// Rewrites existing non finalized blocks with given blocks
     /// New blobs will be added **after** specified height,
     /// meaning that first blob will be in the block of height + 1.
-    pub async fn fork_at(&self, height: u64, blobs: &[Vec<u8>]) -> anyhow::Result<()> {
+    pub async fn fork_at(&self, height: u64, tx_blobs: &[Vec<u8>]) -> anyhow::Result<()> {
         let mut blocks = self.blocks.write().await;
         let last_finalized_height = self.get_last_finalized_height(&blocks).await;
         if last_finalized_height > height {
@@ -163,8 +166,9 @@ impl MockDaService {
             );
         }
         blocks.retain(|b| b.header().height <= height);
-        for blob in blobs {
-            let _ = self.add_blob(blob, Default::default(), &mut blocks).await?;
+        for blob in tx_blobs {
+            let blob = self.make_blob(TxBlob(blob.to_vec()), ProofBlob(Vec::new()));
+            let _ = self.add_block(blob, &mut blocks)?;
         }
 
         Ok(())
@@ -198,12 +202,15 @@ impl MockDaService {
             .unwrap_or_default() as u64
     }
 
-    async fn add_blob(
-        &self,
-        blob: &[u8],
-        zkp_proof: Vec<u8>,
-        blocks: &mut RwLockWriteGuard<'_, VecDeque<MockBlock>>,
-    ) -> anyhow::Result<u64> {
+    fn make_blob(&self, tx_blob: TxBlob, proof_blob: ProofBlob) -> MockBlob {
+        MockBlob::new_with_hash(
+            tx_blob.0,
+            proof_blob.try_to_vec().unwrap(),
+            self.sequencer_da_address,
+        )
+    }
+
+    fn make_new_block(&self, blob: MockBlob, blocks: &mut VecDeque<MockBlock>) -> MockBlock {
         let prev = blocks
             .iter()
             .last()
@@ -212,20 +219,26 @@ impl MockDaService {
 
         let height = prev.height() + 1;
 
-        // Hash only from single blob
-        let blob = MockBlob::new_with_hash(blob.to_vec(), zkp_proof, self.sequencer_da_address);
         let block_hash = block_hash(height, blob.hash, prev.hash().into());
+
         let header = MockBlockHeader {
             prev_hash: prev.hash(),
             hash: block_hash,
             height,
             time: Time::now(),
         };
-        let block = MockBlock {
+
+        MockBlock {
             header,
             validity_cond: Default::default(),
             blobs: vec![blob],
-        };
+        }
+    }
+
+    fn add_block(&self, blob: MockBlob, blocks: &mut VecDeque<MockBlock>) -> anyhow::Result<u64> {
+        let block = self.make_new_block(blob, blocks);
+
+        let height = block.header.height;
         blocks.push_back(block);
 
         // Enough blocks to finalize block
@@ -346,27 +359,41 @@ impl DaService for MockDaService {
     }
 
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
+        let mut proof_blob = Vec::new();
+        let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
+
+        while let Some(proof) = proof_buffer.pop_front() {
+            proof_blob.push(proof.0)
+        }
+
         let mut blocks = self.blocks.write().await;
-        let _ = self.add_blob(blob, Default::default(), &mut blocks).await?;
+        let blob = self.make_blob(TxBlob(blob.to_vec()), ProofBlob(proof_blob));
+        let _ = self.add_block(blob, &mut blocks)?;
         Ok(())
     }
 
-    async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
-        let mut blocks = self.blocks.write().await;
-        self.add_blob(Default::default(), proof.to_vec(), &mut blocks)
-            .await
+    /// Sends aggregated proof to the MockDA. The submitted proof is internally buffered and will be included on the MockDA
+    /// alongside the next batch of transactions (after calling the `send_transaction` function).
+    async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<(), Self::Error> {
+        let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
+        proof_buffer.push_back(Proof(proof.to_vec()));
+        Ok(())
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         let blobs = self.get_block_at(height).await?.blobs;
-        Ok(blobs.into_iter().map(|b| b.zk_proofs_data).collect())
+        Ok(blobs
+            .into_iter()
+            .flat_map(|b| ProofBlob::try_from_slice(&b.proof_blob).unwrap().0)
+            .collect())
     }
 }
 
 fn block_hash(height: u64, blob_hash: [u8; 32], prev_hash: [u8; 32]) -> MockHash {
     let mut block_to_hash = height.to_be_bytes().to_vec();
-    block_to_hash.extend_from_slice(&blob_hash[..]);
-    block_to_hash.extend_from_slice(&prev_hash[..]);
+
+    block_to_hash.extend_from_slice(&blob_hash);
+    block_to_hash.extend_from_slice(&prev_hash);
 
     MockHash::from(hash_to_array(&block_to_hash))
 }
@@ -582,10 +609,24 @@ mod tests {
     async fn test_zk_submission() -> Result<(), anyhow::Error> {
         let da = MockDaService::new(MockAddress::new([1; 32]));
         let aggregated_proof_data = vec![1, 2, 3];
-        let height = da.send_aggregated_zk_proof(&aggregated_proof_data).await?;
-        let proofs = da.get_aggregated_proofs_at(height).await?;
+        da.send_aggregated_zk_proof(&aggregated_proof_data).await?;
 
+        let tx_data = vec![1];
+        da.send_transaction(&tx_data).await?;
+
+        let proofs = da.get_aggregated_proofs_at(1).await?;
         assert_eq!(vec![aggregated_proof_data], proofs);
+
+        for i in 2..5 {
+            let aggregated_proof_data = vec![i];
+            da.send_aggregated_zk_proof(&aggregated_proof_data).await?;
+        }
+        let tx_data = vec![1];
+        da.send_transaction(&tx_data).await?;
+
+        let proofs = da.get_aggregated_proofs_at(2).await?;
+        assert_eq!(vec![vec![2], vec![3], vec![4]], proofs);
+
         Ok(())
     }
 
