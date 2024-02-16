@@ -52,13 +52,13 @@ Here is an example `constants.json` file:
 
 ```json
 {
-    "gas": {
-        "create_token": 4,
-        "transfer": 5,
-        "burn": 2,
-        "mint": 2,
-        "freeze": 1
-    }
+  "gas": {
+    "create_token": 4,
+    "transfer": 5,
+    "burn": 2,
+    "mint": 2,
+    "freeze": 1
+  }
 }
 ```
 
@@ -66,7 +66,7 @@ The `ModuleInfo` macro will look for a `gas` field inside the JSON, that must be
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BankGasConfig<GU: GasUnit> {
+pub struct BankGasConfig<GU: Gas> {
     pub create_token: GU,
     pub transfer: GU,
     pub burn: GU,
@@ -75,20 +75,20 @@ pub struct BankGasConfig<GU: GasUnit> {
 }
 ```
 
-The `GasUnit` generic type will be defined by the runtime `Context`. For `DefaultContext`, we use `TupleGasUnit<2>` - that is, a gas unit with a two dimensions. The same setup is defined for `ZkDefaultContext`. Here is an example of a `constants.json` file, specific to the `Bank` module:
+The `Gas` generic type will be defined by the runtime `Context`. For `DefaultContext`, we use `GasUnit<2>` - that is, a gas unit with a two dimensions. The same setup is defined for `ZkDefaultContext`. Here is an example of a `constants.json` file, specific to the `Bank` module:
 
 ```json
 {
-    "gas": {
-        "comment": "this field will be ignored, as there is a matching module field",
-        "Bank": {
-            "create_token": [4, 19],
-            "transfer": [5, 25],
-            "burn": [2, 7],
-            "mint": [2, 6],
-            "freeze": [1, 4]
-        }
+  "gas": {
+    "comment": "this field will be ignored, as there is a matching module field",
+    "Bank": {
+      "create_token": [4, 19],
+      "transfer": [5, 25],
+      "burn": [2, 7],
+      "mint": [2, 6],
+      "freeze": [1, 4]
     }
+  }
 }
 ```
 
@@ -141,7 +141,7 @@ pub struct Bank<C: sov_modules_api::Context> {
 
     /// The gas configuration of the sov-bank module.
     #[gas]
-    pub(crate) gas: BankGasConfig<C::GasUnit>,
+    pub(crate) gas: BankGasConfig<C::Gas>,
 
     /// A mapping of addresses to tokens in the bank.
     #[state]
@@ -300,7 +300,7 @@ pub trait Context: Spec + Clone + Debug + PartialEq {
 }
 ```
 
-Modules are expected to be generic over the `Context` type. If a module is generic over multiple type parameters, then the type bound over `Context` is always on the *first* of those type parameters. The `Context` trait gives them a convenient handle to access all of the cryptographic operations
+Modules are expected to be generic over the `Context` type. If a module is generic over multiple type parameters, then the type bound over `Context` is always on the _first_ of those type parameters. The `Context` trait gives them a convenient handle to access all of the cryptographic operations
 defined by a `Spec`, while also making it easy for the Module System to pass in authenticated transaction-specific information which
 would not otherwise be available to a module. Currently, a `Context` is only required to contain the `sender` (signer) of the transaction,
 but this trait might be extended in the future.
@@ -329,14 +329,13 @@ about this distinction.
 
 For more information on `Context` and `Spec`, and to see some example implementations, check out the [`sov_modules_api`](./sov-modules-api/) docs.
 
-
 ### Module CallMessage and `schemars::JsonSchema`.
+
 Like in the `bank` module the `CallMessage` can be parameterized by `C::Context`. To ensure a smooth wallet experience, we need the `CallMessage` to implement `schemars::JsonSchema` trait. However, simply adding `derive(schemars::JsonSchema)` to the `CallMessage` definition results in the following error:
 
 ```
 the trait JsonSchema is not implemented for C
 ```
-
 
 The reason for this issue is that the standard derive mechanism for `JsonSchema` cannot determine the correct trait bounds for the `Context`. To resolve this, we need to provide the following hint:
 

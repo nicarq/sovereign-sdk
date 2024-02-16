@@ -4,7 +4,7 @@ use sov_bank::{
 };
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, GasUnit, Module, WorkingSet};
+use sov_modules_api::{Context, Gas, GasArray, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use tempfile::TempDir;
 
@@ -62,7 +62,7 @@ fn constants_price_is_charged_correctly() {
     // compute the expected gas cost, based on the json constants
     let bank = Bank::<C>::default();
     let config = bank.gas_config();
-    let gas_price = <C as Context>::GasUnit::from_slice(&[native_price, zk_price]);
+    let gas_price = <<C as Context>::Gas as Gas>::Price::from_slice(&[native_price, zk_price]);
     let gas_used = config.create_token.value(&gas_price);
 
     assert_eq!(
@@ -181,11 +181,11 @@ impl BankGasTestCase {
 
     pub fn override_gas_config(mut self) -> Self {
         self.bank.override_gas_config(BankGasConfig {
-            create_token: [CREATE_TOKEN_NATIVE_COST, CREATE_TOKEN_ZK_COST],
-            transfer: Default::default(),
-            burn: Default::default(),
-            mint: Default::default(),
-            freeze: Default::default(),
+            create_token: [CREATE_TOKEN_NATIVE_COST, CREATE_TOKEN_ZK_COST].into(),
+            transfer: Gas::zero(),
+            burn: Gas::zero(),
+            mint: Gas::zero(),
+            freeze: Gas::zero(),
         });
         self
     }
@@ -213,7 +213,7 @@ impl BankGasTestCase {
         } = self;
 
         ws.set_gas_funds(gas_limit);
-        ws.set_gas_price([native_price, zk_price]);
+        ws.set_gas_price([native_price, zk_price].into());
         bank.call(message, &ctx, &mut ws)?;
 
         // can unlock storage dir

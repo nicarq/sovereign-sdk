@@ -37,10 +37,11 @@ pub use sov_modules_core::PrivateKey;
 pub use sov_modules_core::RuntimeEventDisplay;
 pub use sov_modules_core::{
     archival_state, runtime, AccessoryStateCheckpoint, AccessoryWorkingSet, Address, AddressBech32,
-    CallResponse, Context, DispatchCall, EncodeCall, EventEmitter, GasMeter, GasUnit, Genesis,
-    KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
-    ModuleError as Error, ModuleInfo, ModulePrefix, PublicKey, RuntimeEventProcessor, Signature,
-    Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent, VersionedStateReadWriter, WorkingSet,
+    CallResponse, Context, DispatchCall, EncodeCall, EventEmitter, Gas, GasArray, GasMeter,
+    GasPrice, GasUnit, Genesis, KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema,
+    ModuleError, ModuleError as Error, ModuleInfo, ModulePrefix, PublicKey, RuntimeEventProcessor,
+    Signature, Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent, VersionedStateReadWriter,
+    WorkingSet,
 };
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;

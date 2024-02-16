@@ -6,6 +6,7 @@ use sov_chain_state::ChainState;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, KernelModule, KernelWorkingSet};
+use sov_modules_core::Gas;
 use sov_state::storage::kernel_state::BootstrapWorkingSet;
 use sov_state::Storage;
 
@@ -88,7 +89,7 @@ impl<C: Context, Da: DaSpec> KernelSlotHooks<C, Da> for BasicKernel<C, Da> {
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Context as sov_modules_api::Spec>::Storage as Storage>::Root,
         state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Context>,
-    ) -> C::GasUnit {
+    ) -> <C::Gas as Gas>::Price {
         let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
         self.chain_state
             .begin_slot_hook(slot_header, validity_condition, pre_state_root, &mut ws)
@@ -96,7 +97,7 @@ impl<C: Context, Da: DaSpec> KernelSlotHooks<C, Da> for BasicKernel<C, Da> {
 
     fn end_slot_hook(
         &self,
-        gas_used: &C::GasUnit,
+        gas_used: &C::Gas,
         state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Context>,
     ) {
         let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);

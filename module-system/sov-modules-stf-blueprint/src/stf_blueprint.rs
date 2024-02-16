@@ -5,7 +5,7 @@ use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Gas, GasArray, StateCheckpoint,
 };
 use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, SerializedEvent, TransactionReceipt};
@@ -123,9 +123,9 @@ where
         mut checkpoint: StateCheckpoint<C>,
         mut batch: BatchWithId,
         sender: &Da::Address,
-        gas_price: &C::GasUnit,
+        gas_price: &<C::Gas as Gas>::Price,
         height: u64,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<C>, C::GasUnit) {
+    ) -> (ApplyBatch<Da>, StateCheckpoint<C>, C::Gas) {
         debug!(sequencer = hex::encode(sender), "Applying a batch");
 
         // ApplyBlobHook: begin
@@ -141,7 +141,7 @@ where
             return (
                 Err(ApplyBatchError::Ignored(batch.id)),
                 checkpoint,
-                C::GasUnit::ZEROED,
+                C::Gas::zero(),
             );
         }
 
@@ -166,7 +166,7 @@ where
                         sequencer_da_address: sequencer_da_address.clone(),
                     }),
                     checkpoint,
-                    C::GasUnit::ZEROED,
+                    C::Gas::zero(),
                 );
             }
         };
@@ -244,10 +244,10 @@ where
         mut batch_workspace: StateCheckpoint<C>,
         sequencer: &Da::Address,
         sequencer_reward: &mut i64,
-        gas_price: &C::GasUnit,
+        gas_price: &<C::Gas as Gas>::Price,
         height: u64,
-    ) -> (StateCheckpoint<C>, C::GasUnit) {
-        let mut gas_used = C::GasUnit::ZEROED;
+    ) -> (StateCheckpoint<C>, C::Gas) {
+        let mut gas_used = C::Gas::zero();
         for (tx, msg) in txs.into_iter().zip(messages.into_iter()) {
             let (next_workspace, receipt) = self.apply_tx(
                 tx,
@@ -260,7 +260,7 @@ where
                 height,
             );
             batch_workspace = next_workspace;
-            gas_used.combine(&C::GasUnit::from_slice(&receipt.gas_used));
+            gas_used.combine(&C::Gas::from_slice(&receipt.gas_used));
             tx_receipts.push(receipt);
         }
 
@@ -280,7 +280,7 @@ where
         sequencer: &Da::Address,
         sequencer_reward: &mut i64,
         execution_mode: ExecutionMode,
-        gas_price: &C::GasUnit,
+        gas_price: &<C::Gas as Gas>::Price,
         height: u64,
     ) -> (StateCheckpoint<C>, TransactionReceipt<TxEffect>) {
         let (tx, raw_tx_hash) = tx.split();

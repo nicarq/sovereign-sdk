@@ -2,7 +2,7 @@ use std::vec;
 
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::PrivateKey;
+use sov_modules_api::{Gas, PrivateKey};
 use sov_value_setter::ValueSetter;
 
 use super::*;
@@ -74,7 +74,7 @@ impl<C: Context> MessageGenerator for ValueSetterMessages<C> {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<C::GasUnit>,
+        max_gas_price: Option<<C::Gas as Gas>::Price>,
         nonce: u64,
         _is_last: bool,
     ) -> Transaction<C> {

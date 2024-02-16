@@ -10,8 +10,8 @@ use sov_modules_api::runtime::capabilities::{
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    AccessoryStateCheckpoint, Context, DaSpec, DispatchCall, Event, GasUnit, Genesis, MessageCodec,
-    PublicKey, Spec, StateCheckpoint, WorkingSet,
+    AccessoryStateCheckpoint, Context, DaSpec, DispatchCall, Event, Gas, GasArray, Genesis,
+    MessageCodec, PublicKey, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime, SequencerOutcome};
@@ -58,8 +58,8 @@ pub(crate) fn create_chain_state_genesis_config<C: Context, Da: DaSpec>(
                 current_time: Default::default(),
                 gas_price_blocks_depth: 10,
                 gas_price_maximum_elasticity: 1,
-                initial_gas_price: GasUnit::ZEROED,
-                minimum_gas_price: GasUnit::ZEROED,
+                initial_gas_price: <<C::Gas as Gas>::Price as GasArray>::ZEROED,
+                minimum_gas_price: <<C::Gas as Gas>::Price as GasArray>::ZEROED,
             },
         };
     GenesisParams {
@@ -160,7 +160,7 @@ impl<C: Context, Da: DaSpec> GasEnforcer<C, Da> for TestRuntime<C, Da> {
         &self,
         tx: &Self::Tx,
         context: &C,
-        gas_price: &C::GasUnit,
+        gas_price: &<C::Gas as Gas>::Price,
         mut state_checkpoint: StateCheckpoint<C>,
     ) -> Result<WorkingSet<C>, StateCheckpoint<C>> {
         match self
@@ -180,7 +180,7 @@ impl<C: Context, Da: DaSpec> GasEnforcer<C, Da> for TestRuntime<C, Da> {
         &self,
         tx: &Self::Tx,
         context: &C,
-        gas_meter: &sov_modules_api::GasMeter<C::GasUnit>,
+        gas_meter: &sov_modules_api::GasMeter<C::Gas>,
         state_checkpoint: &mut StateCheckpoint<C>,
     ) {
         self.bank

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::Context;
+use sov_modules_api::{Context, Gas};
 use sov_modules_stf_blueprint::RawTx;
 use sov_test_utils::bank_data::{
     BadNonceBankCallMessages, BadSerializationBankCallMessages, BadSignatureBankCallMessages,
@@ -34,7 +34,7 @@ pub fn simulate_da(value_setter_admin: DefaultPrivateKey) -> Vec<RawTx> {
 
 pub fn simulate_da_with_max_gas_price(
     value_setter_admin: DefaultPrivateKey,
-    max_gas_price: <DefaultContext as Context>::GasUnit,
+    max_gas_price: <<DefaultContext as Context>::Gas as Gas>::Price,
 ) -> Vec<RawTx> {
     let mut messages = Vec::default();
 

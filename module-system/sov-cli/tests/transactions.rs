@@ -84,8 +84,13 @@ fn transaction_is_serialized_correctly() {
     let gas_tip = 0;
     let gas_limit = 0;
     let max_gas_price = None;
-    let unsigned_tx =
-        UnsignedTransaction::new(runtime_call, chain_id, gas_tip, gas_limit, max_gas_price);
+    let unsigned_tx = UnsignedTransaction::new(
+        runtime_call,
+        chain_id,
+        gas_tip,
+        gas_limit,
+        max_gas_price.clone(),
+    );
 
     wallet_state.unsent_transactions.push(unsigned_tx);
 
@@ -101,7 +106,7 @@ fn transaction_is_serialized_correctly() {
             chain_id,
             gas_tip,
             gas_limit,
-            max_gas_price,
+            max_gas_price.clone(),
             initial_nonce + i as u64,
         );
 

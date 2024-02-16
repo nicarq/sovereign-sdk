@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_core::PrivateKey;
-use sov_modules_core::{Context, GasUnit, Signature};
+use sov_modules_core::{Context, Gas, GasArray, Signature};
 use sov_modules_macros::config_constant;
 
 const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
@@ -21,7 +21,7 @@ pub struct Transaction<C: Context> {
     chain_id: u64,
     gas_tip: u64,
     gas_limit: u64,
-    max_gas_price: Option<C::GasUnit>,
+    max_gas_price: Option<<C::Gas as Gas>::Price>,
     nonce: u64,
 }
 
@@ -41,7 +41,7 @@ where
     /// The gas limit for the transaction execution
     pub gas_limit: u64,
     /// The maximum gas price in which this transaction will be executed
-    pub max_gas_price: Option<C::GasUnit>,
+    pub max_gas_price: Option<<C::Gas as Gas>::Price>,
 }
 
 impl<C: Context> Transaction<C> {
@@ -73,19 +73,19 @@ impl<C: Context> Transaction<C> {
         self.gas_limit
     }
 
-    pub const fn max_gas_price(&self) -> Option<&C::GasUnit> {
+    pub const fn max_gas_price(&self) -> Option<&<C::Gas as Gas>::Price> {
         self.max_gas_price.as_ref()
     }
 
-    pub fn gas_fixed_cost(&self) -> C::GasUnit {
+    pub fn gas_fixed_cost(&self) -> C::Gas {
         #[config_constant]
         const GAS_TX_FIXED_COST: &[u64];
 
         #[config_constant]
         const GAS_TX_COST_PER_BYTE: &[u64];
 
-        let gas_tx_fixed_cost = C::GasUnit::from_slice(GAS_TX_FIXED_COST);
-        let mut gas_tx_cost = C::GasUnit::from_slice(GAS_TX_COST_PER_BYTE);
+        let gas_tx_fixed_cost = C::Gas::from_slice(GAS_TX_FIXED_COST);
+        let mut gas_tx_cost = C::Gas::from_slice(GAS_TX_COST_PER_BYTE);
 
         gas_tx_cost.scalar_product(self.runtime_msg.len() as u64);
         gas_tx_cost.combine(&gas_tx_fixed_cost);
@@ -136,7 +136,7 @@ impl<C: Context> Transaction<C> {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<C::GasUnit>,
+        max_gas_price: Option<<C::Gas as Gas>::Price>,
         nonce: u64,
     ) -> Self {
         Self {
@@ -161,7 +161,7 @@ impl<C: Context> Transaction<C> {
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<C::GasUnit>,
+        max_gas_price: Option<<C::Gas as Gas>::Price>,
         nonce: u64,
     ) -> Self {
         // Since we own the message already, try to add the serialized nonce in-place.
@@ -222,7 +222,7 @@ where
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<C::GasUnit>,
+        max_gas_price: Option<<C::Gas as Gas>::Price>,
     ) -> Self {
         Self {
             tx,

@@ -11,7 +11,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    DaSpec, GasMeter, GasUnit, KernelModule, KernelWorkingSet, Module, StateCheckpoint,
+    DaSpec, GasArray, GasMeter, GasPrice, KernelModule, KernelWorkingSet, Module, StateCheckpoint,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -250,8 +250,8 @@ pub(crate) fn setup(
                 current_time: Time::now(),
                 gas_price_blocks_depth: 0,
                 gas_price_maximum_elasticity: 0,
-                minimum_gas_price: GasUnit::ZEROED,
-                initial_gas_price: GasUnit::ZEROED,
+                minimum_gas_price: GasPrice::ZEROED,
+                initial_gas_price: GasPrice::ZEROED,
             },
             &mut kernel_working_set,
         )

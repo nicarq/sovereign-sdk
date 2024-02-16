@@ -3,7 +3,7 @@ use core::str::FromStr;
 use anyhow::bail;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, GasMeter, ModuleInfo, StateCheckpoint};
+use sov_modules_api::{Context, Gas, GasMeter, ModuleInfo, StateCheckpoint};
 
 use crate::{Bank, Coins};
 
@@ -34,10 +34,10 @@ impl<C: Context> Bank<C> {
     pub fn reserve_gas(
         &self,
         tx: &Transaction<C>,
-        gas_price: &C::GasUnit,
+        gas_price: &<C::Gas as Gas>::Price,
         payer: &C::Address,
         state_checkpoint: &mut StateCheckpoint<C>,
-    ) -> Result<GasMeter<C::GasUnit>, anyhow::Error> {
+    ) -> Result<GasMeter<C::Gas>, anyhow::Error> {
         // TODO(@vlopes11) - this calulation diverges from EIP 1559
         if tx
             .max_gas_price()
@@ -69,7 +69,7 @@ impl<C: Context> Bank<C> {
     pub fn refund_remaining_gas(
         &self,
         _tx: &Transaction<C>,
-        gas_meter: &sov_modules_api::GasMeter<C::GasUnit>,
+        gas_meter: &sov_modules_api::GasMeter<C::Gas>,
         payer: &C::Address,
         state_checkpoint: &mut StateCheckpoint<C>,
     ) {

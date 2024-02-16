@@ -13,7 +13,7 @@ pub mod utils;
 pub use call::*;
 pub use genesis::*;
 pub use hooks::BankTxHook;
-use sov_modules_api::{CallResponse, Error, GasUnit, ModuleInfo, WorkingSet};
+use sov_modules_api::{CallResponse, Error, Gas, ModuleInfo, WorkingSet};
 use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, Coins};
@@ -27,7 +27,7 @@ use crate::event::Event;
 
 /// Gas configuration for the bank module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BankGasConfig<GU: GasUnit> {
+pub struct BankGasConfig<GU: Gas> {
     /// Gas price multiplier for the create token operation
     pub create_token: GU,
 
@@ -57,7 +57,7 @@ pub struct Bank<C: sov_modules_api::Context> {
 
     /// The gas configuration of the sov-bank module.
     #[gas]
-    pub(crate) gas: BankGasConfig<C::GasUnit>,
+    pub(crate) gas: BankGasConfig<C::Gas>,
 
     /// A mapping of addresses to tokens in the sov-bank.
     #[state]

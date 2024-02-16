@@ -60,7 +60,7 @@ pub trait Module {
     fn charge_gas(
         &self,
         working_set: &mut WorkingSet<Self::Context>,
-        gas: &<Self::Context as Context>::GasUnit,
+        gas: &<Self::Context as Context>::Gas,
     ) -> anyhow::Result<()> {
         working_set.charge_gas(gas)
     }

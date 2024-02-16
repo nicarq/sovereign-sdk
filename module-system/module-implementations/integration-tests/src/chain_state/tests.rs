@@ -3,7 +3,7 @@ use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash, MockValidity
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{GasUnit, KernelWorkingSet, StateCheckpoint, WorkingSet};
+use sov_modules_api::{Gas, GasArray, GasPrice, KernelWorkingSet, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
 use sov_prover_storage_manager::SimpleStorageManager;
@@ -150,8 +150,8 @@ fn test_simple_value_setter_with_chain_state() {
             TransitionInProgress::<C, MockDaSpec>::new(
                 MockHash::from([10; 32]),
                 MockValidityCond::default(),
-                GasUnit::ZEROED,
-                GasUnit::ZEROED
+                GasPrice::ZEROED,
+                Gas::zero()
             ),
             "The new transition has not been correctly stored"
         );
@@ -220,8 +220,8 @@ fn test_simple_value_setter_with_chain_state() {
             TransitionInProgress::<C, MockDaSpec>::new(
                 [20; 32].into(),
                 MockValidityCond::default(),
-                GasUnit::ZEROED,
-                GasUnit::ZEROED
+                GasPrice::ZEROED,
+                Gas::zero()
             ),
             "The new transition has not been correctly stored"
         );
@@ -239,8 +239,8 @@ fn test_simple_value_setter_with_chain_state() {
     //         [10; 32].into(),
     //         new_root_hash,
     //         MockValidityCond::default(),
-    //         GasUnit::ZEROED,
-    //         GasUnit::ZEROED
+    //         Gas::zero(),
+    //         Gas::zero()
     //     )
     // );
 }

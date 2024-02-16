@@ -7,16 +7,16 @@ Here are the key traits defined by the crate:
 1. The `Module` trait: Defines how to initialize and change the state of a module. This is the main trait that module
    developers need to implement. The author of a module must specify:
 
-    - Configuration upon rollup deployment: This includes the `genesis()` method and the `Config` type, which determine
-      how the module is set up initially. Note that the initialization for logic for modules is identical to
-      the `Genesis` trait (described below). We blanket implement `Genesis`
-      for all `Module`s, but keep it as a separate trait since some other structs need to implement it as well.
+   - Configuration upon rollup deployment: This includes the `genesis()` method and the `Config` type, which determine
+     how the module is set up initially. Note that the initialization for logic for modules is identical to
+     the `Genesis` trait (described below). We blanket implement `Genesis`
+     for all `Module`s, but keep it as a separate trait since some other structs need to implement it as well.
 
-    - Interaction with user messages: The module must define the `call` method and the `CallMessage` type, which handle
-      user messages. These messages typically result in changes to the module's state.
+   - Interaction with user messages: The module must define the `call` method and the `CallMessage` type, which handle
+     user messages. These messages typically result in changes to the module's state.
 
-    - Gas configuration: The module may use a `GasConfig` type, annotated by `#[gas]`, that will be loaded from the 
-      constants manifest configuration.
+   - Gas configuration: The module may use a `GasConfig` type, annotated by `#[gas]`, that will be loaded from the
+     constants manifest configuration.
 
 1. The `ModuleInfo` trait: Provides additional information related to a module. This trait is automatically derived.
 
@@ -34,7 +34,7 @@ Here are the key traits defined by the crate:
 1. The `DispatchCall` trait: Defines how messages are forwarded to the appropriate module and how the call message is
    executed. The implementation of this trait can be generated automatically using a macro.
 
-1. The `GasUnit` trait: Defines how the scalar gas value is deducted from the working set. This is implemented for
+1. The `Gas` trait: Defines how the scalar gas value is deducted from the working set. This is implemented for
    `[u64; N]`, and can be customized by the user.
 
 For concrete implementations, check `sov-modules-api`.

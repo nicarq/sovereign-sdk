@@ -27,7 +27,7 @@ use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    Context, DaSpec, Error, KernelModule, KernelModuleInfo, KernelStateValue,
+    Context, DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelStateValue,
     ValidityConditionChecker, WorkingSet,
 };
 use sov_state::codec::{BcsCodec, BorshCodec};
@@ -44,8 +44,8 @@ pub struct StateTransitionId<C: Context, Da: DaSpec> {
     slot_hash: Da::SlotHash,
     post_state_root: <C::Storage as Storage>::Root,
     validity_condition: Da::ValidityCondition,
-    gas_price: C::GasUnit,
-    gas_used: C::GasUnit,
+    gas_price: <C::Gas as Gas>::Price,
+    gas_used: C::Gas,
 }
 
 impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
@@ -55,8 +55,8 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
         slot_hash: Da::SlotHash,
         post_state_root: <C::Storage as Storage>::Root,
         validity_condition: Da::ValidityCondition,
-        gas_price: C::GasUnit,
-        gas_used: C::GasUnit,
+        gas_price: <C::Gas as Gas>::Price,
+        gas_used: C::Gas,
     ) -> Self {
         Self {
             slot_hash,
@@ -90,12 +90,12 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
     }
 
     /// Returns the total gas used for the block execution
-    pub const fn gas_used(&self) -> &C::GasUnit {
+    pub const fn gas_used(&self) -> &C::Gas {
         &self.gas_used
     }
 
     /// Returns the gas price computed for the block execution
-    pub const fn gas_price(&self) -> &C::GasUnit {
+    pub const fn gas_price(&self) -> &<C::Gas as Gas>::Price {
         &self.gas_price
     }
 
@@ -118,8 +118,8 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
 pub struct TransitionInProgress<C: Context, Da: DaSpec> {
     slot_hash: Da::SlotHash,
     validity_condition: Da::ValidityCondition,
-    gas_price: C::GasUnit,
-    gas_used: C::GasUnit,
+    gas_price: <C::Gas as Gas>::Price,
+    gas_used: C::Gas,
 }
 
 impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
@@ -127,8 +127,8 @@ impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
     pub fn new(
         slot_hash: Da::SlotHash,
         validity_condition: Da::ValidityCondition,
-        gas_price: C::GasUnit,
-        gas_used: C::GasUnit,
+        gas_price: <C::Gas as Gas>::Price,
+        gas_used: C::Gas,
     ) -> Self {
         Self {
             slot_hash,
@@ -139,12 +139,12 @@ impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
     }
 
     /// Returns the gas price of the transition.
-    pub const fn gas_price(&self) -> &C::GasUnit {
+    pub const fn gas_price(&self) -> &<C::Gas as Gas>::Price {
         &self.gas_price
     }
 
     /// Returns the total gas used of the transition.
-    pub const fn gas_used(&self) -> &C::GasUnit {
+    pub const fn gas_used(&self) -> &C::Gas {
         &self.gas_used
     }
 

@@ -37,12 +37,12 @@ mod tests {
 
     impl<C: Context> Bank<C> {
         /// Returns the underlying gas config
-        pub fn gas_config(&self) -> &BankGasConfig<C::GasUnit> {
+        pub fn gas_config(&self) -> &BankGasConfig<C::Gas> {
             &self.gas
         }
 
         /// Overrides the underlying gas config
-        pub fn override_gas_config(&mut self, gas: BankGasConfig<C::GasUnit>) {
+        pub fn override_gas_config(&mut self, gas: BankGasConfig<C::Gas>) {
             self.gas = gas;
         }
     }

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use sha2::Digest;
-use sov_modules_core::{Address, Context, PublicKey, Spec, TupleGasUnit};
+use sov_modules_core::{Address, Context, GasUnit, PublicKey, Spec};
 use sov_rollup_interface::RollupAddress;
 #[cfg(feature = "native")]
 use sov_state::ProverStorage;
@@ -34,7 +34,7 @@ impl Spec for DefaultContext {
 
 #[cfg(feature = "native")]
 impl Context for DefaultContext {
-    type GasUnit = TupleGasUnit<2>;
+    type Gas = GasUnit<2>;
 
     fn sender(&self) -> &Self::Address {
         &self.sender
@@ -77,7 +77,7 @@ impl Spec for ZkDefaultContext {
 }
 
 impl Context for ZkDefaultContext {
-    type GasUnit = TupleGasUnit<2>;
+    type Gas = GasUnit<2>;
 
     fn sender(&self) -> &Self::Address {
         &self.sender
