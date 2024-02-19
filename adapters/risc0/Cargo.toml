@@ -27,6 +27,9 @@ sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 hex = { workspace = true }
 tracing = { workspace = true }
 
+[build-dependencies]
+anyhow = { workspace = true }
+
 [features]
 default = []
 native = [
