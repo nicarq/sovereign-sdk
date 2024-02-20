@@ -1,7 +1,9 @@
 mod aggregated;
+mod manager;
 mod parallel;
 pub use aggregated::{AggregatedProofData, StateTransitionInfo};
 use async_trait::async_trait;
+pub(crate) use manager::ProofManager;
 pub use parallel::ParallelProverService;
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;

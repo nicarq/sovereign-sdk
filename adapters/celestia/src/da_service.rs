@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use celestia_rpc::prelude::*;
 use celestia_types::blob::{Blob as JsonBlob, Commitment, SubmitOptions};
@@ -10,6 +12,7 @@ use futures::StreamExt;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
 use sov_rollup_interface::da::CountedBufReader;
 use sov_rollup_interface::services::da::DaService;
+use tokio::sync::Mutex;
 use tracing::{debug, info, instrument, trace};
 
 use crate::shares::Blob;
@@ -25,7 +28,8 @@ const GAS_PRICE: usize = 1;
 
 #[derive(Debug, Clone)]
 pub struct CelestiaService {
-    client: HttpClient,
+    // https://github.com/celestiaorg/celestia-node/issues/3192
+    client: Arc<Mutex<HttpClient>>,
     rollup_batch_namespace: Namespace,
     rollup_proof_namespace: Namespace,
 }
@@ -37,7 +41,7 @@ impl CelestiaService {
         rollup_proof_namespace: Namespace,
     ) -> Self {
         Self {
-            client,
+            client: Arc::new(Mutex::new(client)),
             rollup_batch_namespace,
             rollup_proof_namespace,
         }
@@ -114,7 +118,7 @@ impl DaService for CelestiaService {
 
     #[instrument(skip(self), err)]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        let client = self.client.clone();
+        let client = self.client.lock().await;
         let rollup_namespace = self.rollup_batch_namespace;
 
         // Fetch the header and relevant shares via RPC
@@ -152,6 +156,8 @@ impl DaService for CelestiaService {
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
         Ok(self
             .client
+            .lock()
+            .await
             .header_subscribe()
             .await?
             .map(|res| res.map(CelestiaHeader::from).map_err(Into::into))
@@ -161,7 +167,7 @@ impl DaService for CelestiaService {
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
-        let header = self.client.header_network_head().await?;
+        let header = self.client.lock().await.header_network_head().await?;
         Ok(CelestiaHeader::from(header))
     }
 
@@ -221,6 +227,8 @@ impl DaService for CelestiaService {
 
         let height = self
             .client
+            .lock()
+            .await
             .blob_submit(
                 &[blob],
                 SubmitOptions {
@@ -240,6 +248,8 @@ impl DaService for CelestiaService {
 
         let _height = self
             .client
+            .lock()
+            .await
             .blob_submit(
                 &[blob],
                 SubmitOptions {
@@ -255,10 +265,21 @@ impl DaService for CelestiaService {
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         let blobs = self
             .client
+            .lock()
+            .await
             .blob_get_all(height, &[self.rollup_proof_namespace])
-            .await?;
+            .await;
 
-        Ok(blobs.into_iter().map(|blob| blob.data).collect())
+        match blobs {
+            Ok(blobs) => Ok(blobs.into_iter().map(|blob| blob.data).collect()),
+            // If 'Celestia' encounters a missing blob, it returns an error instead of an "empty" result.
+            // Thus, we address this scenario here.
+            // https://github.com/celestiaorg/celestia-node/issues/3192
+            Err(e) => {
+                info!("Get aggregated proof error: {}", e);
+                Ok(Vec::default())
+            }
+        }
     }
 }
 

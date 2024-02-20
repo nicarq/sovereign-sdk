@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData};
 
@@ -8,7 +9,7 @@ pub(crate) struct BlockProof<Da: DaSpec, Root> {
 }
 
 /// Public input of an aggregated proof.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct AggregatedProofPublicInput {
     /// The initial state root of the aggregated proof.
     pub initial_state_root: Vec<u8>,
@@ -22,7 +23,7 @@ pub struct AggregatedProofPublicInput {
 
 // Additional information that is not zk proven. Can be used by clients for
 // bookkeeping purposes.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct AggregatedProofDataInfo {
     /// The initial slot height of the aggregated proof.
     pub initial_slot_number: u64,
@@ -31,7 +32,7 @@ pub struct AggregatedProofDataInfo {
 }
 
 /// Represents an aggregated proof.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct AggregatedProofData {
     pub(crate) public_input: AggregatedProofPublicInput,
     pub(crate) info: AggregatedProofDataInfo,

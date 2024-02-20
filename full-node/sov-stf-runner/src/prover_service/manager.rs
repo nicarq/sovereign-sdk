@@ -1,0 +1,87 @@
+use std::sync::Arc;
+
+use borsh::{BorshDeserialize, BorshSerialize};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::services::da::DaService;
+
+use crate::{AggregatedProofData, ProofAggregationStatus, ProverService, StateTransitionInfo};
+
+/// Manages the lifecycle of the `AggregatedProof`.
+pub(crate) struct ProofManager<Ps: ProverService> {
+    da_service: Arc<Ps::DaService>,
+    prover_service: Ps,
+}
+
+impl<Ps: ProverService> ProofManager<Ps>
+where
+    Ps::DaService: DaService<Error = anyhow::Error>,
+{
+    pub(crate) fn new(da_service: Arc<Ps::DaService>, prover_service: Ps) -> Self {
+        Self {
+            da_service,
+            prover_service,
+        }
+    }
+
+    /// Stores the `AggregatedProof` posted on DA into the database.
+    pub(crate) async fn save_aggregated_proof(&self, height: u64) -> Result<(), anyhow::Error> {
+        let aggregated_proofs = self.da_service.get_aggregated_proofs_at(height).await?;
+        for data in aggregated_proofs {
+            let _aggregated_proof_data = AggregatedProofData::try_from_slice(&data)?;
+            // TODO post the proof to DB. #175
+        }
+
+        Ok(())
+    }
+
+    /// Attempts to generate an `AggregatedProof` and then posts it to DA.
+    /// The proof is created only when there are enough of inner proofs in the `ProverService`` queue.
+    pub(crate) async fn post_aggregated_proof_to_da_when_ready(
+        &self,
+        transition_data: StateTransitionInfo<
+            Ps::StateRoot,
+            Ps::Witness,
+            <Ps::DaService as DaService>::Spec,
+        >,
+        agg_proof_hashes: &mut Vec<<<Ps::DaService as DaService>::Spec as DaSpec>::SlotHash>,
+    ) -> Result<(), anyhow::Error> {
+        let header_hash = transition_data.da_block_header().hash();
+        agg_proof_hashes.push(header_hash.clone());
+
+        self.prover_service
+            .submit_state_transition_info(transition_data)
+            .await;
+
+        self.prover_service
+            .prove(header_hash.clone())
+            .await
+            // TODO handle back pressure: If provers are too slow we panic.
+            .expect("The proof creation should succeed");
+
+        if agg_proof_hashes.len() >= self.prover_service.aggregated_proof_block_jump() {
+            loop {
+                let status = self
+                    .prover_service
+                    .create_aggregated_proof(agg_proof_hashes.as_slice())
+                    .await;
+
+                match status {
+                    Ok(ProofAggregationStatus::Success(agg_proof_data)) => {
+                        agg_proof_hashes.clear();
+
+                        let data = agg_proof_data.try_to_vec()?;
+                        self.da_service.send_aggregated_zk_proof(&data).await?;
+                        return Ok(());
+                    }
+                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
+                    Ok(ProofAggregationStatus::ProofGenerationInProgress) => {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    }
+                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
+                    Err(e) => panic!("{:?}", e),
+                }
+            }
+        }
+        Ok(())
+    }
+}
