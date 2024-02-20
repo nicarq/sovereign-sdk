@@ -14,7 +14,7 @@ use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::{ProofAggregationStatus, ProverService, RunnerConfig, StateTransitionInfo};
+use crate::{ProofManager, ProverService, RunnerConfig, StateTransitionInfo};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -37,7 +37,7 @@ where
     ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
-    prover_service: Ps,
+    proof_manager: ProofManager<Ps>,
     sync_state: Arc<DaSyncState>,
 }
 
@@ -190,17 +190,18 @@ where
         let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
         let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
 
+        let da_service = Arc::new(da_service);
         Ok(Self {
             start_height,
             da_polling_interval_ms: runner_config.da_polling_interval_ms,
-            da_service: Arc::new(da_service),
+            da_service: da_service.clone(),
             stf,
             storage_manager,
             rpc_storage,
             ledger_db,
             state_root: prev_state_root,
             listen_address,
-            prover_service,
+            proof_manager: ProofManager::new(da_service, prover_service),
             sync_state: Arc::new(DaSyncState {
                 current_da_height: AtomicU64::new(start_height),
                 target_da_height: AtomicU64::new(std::u64::MAX),
@@ -297,6 +298,7 @@ where
                 self.state_root = pre_state_root;
                 info!(da_height, "Resuming execution at fork point's height");
             }
+
             let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
 
             info!(
@@ -314,10 +316,11 @@ where
             );
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+            let filtered_block_header = filtered_block.header();
 
             let (stf_pre_state, ledger_state) = self
                 .storage_manager
-                .create_state_for(filtered_block.header())?;
+                .create_state_for(filtered_block_header)?;
 
             self.ledger_db.replace_db(ledger_state)?;
 
@@ -325,7 +328,7 @@ where
                 &self.state_root,
                 stf_pre_state,
                 Default::default(),
-                filtered_block.header(),
+                filtered_block_header,
                 &filtered_block.validity_condition(),
                 &mut blobs,
             );
@@ -344,7 +347,7 @@ where
                     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
                     initial_state_root: self.state_root.clone(),
                     final_state_root: slot_result.state_root.clone(),
-                    da_block_header: filtered_block.header().clone(),
+                    da_block_header: filtered_block_header.clone(),
                     inclusion_proof,
                     completeness_proof,
                     blobs,
@@ -364,120 +367,97 @@ where
             // Save data back to StorageManager
             let ledger_change_set = self.ledger_db.clone_change_set();
             self.storage_manager.save_change_set(
-                filtered_block.header(),
+                filtered_block_header,
                 slot_result.change_set,
                 ledger_change_set,
             )?;
 
-            // Update RPC storage
-            {
-                let (new_rpc_storage, _) = self
-                    .storage_manager
-                    .create_state_after(filtered_block.header())?;
-                let mut rpc_storage = self
-                    .rpc_storage
-                    .write()
-                    .expect("RPC Storage RwLock poisoned");
-                *rpc_storage = new_rpc_storage;
-            }
+            self.update_rpc_storage(filtered_block_header)?;
 
             // ----------------
             // Finalization. Done after seen block for proper handling of instant finality
             // Can be moved to another thread to improve throughput
             let last_finalized = self.da_service.get_last_finalized_block_header().await?;
             // For safety we finalize blocks one by one
-            info!(
-                last_finalized_height = last_finalized.height(),
-                "Got the last finalized header height"
-            );
+
+            let last_finalized_height = last_finalized.height();
 
             let slot_number = self.ledger_db.get_next_items_numbers().slot_number;
-
             seen_state_transition.push_back(StateTransitionInfo {
                 data: transition_data,
                 slot_number,
             });
 
-            // Checking all seen blocks, in case if there was delay in getting last finalized header.
-            while let Some(earliest_seen_state_transition_info) = seen_state_transition.front() {
-                // LOGTODO
+            self.finalize(
+                &mut seen_state_transition,
+                &mut agg_block_hashes,
+                last_finalized_height,
+            )
+            .await?;
+        }
+    }
+
+    async fn finalize(
+        &mut self,
+        seen_state_transition: &mut VecDeque<
+            StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>,
+        >,
+        agg_proof_hashes: &mut Vec<<Da::Spec as DaSpec>::SlotHash>,
+        last_finalized_height: u64,
+    ) -> Result<(), anyhow::Error> {
+        // Checking all seen blocks, in case if there was delay in getting last finalized header.
+        while let Some(earliest_seen_state_transition_info) = seen_state_transition.front() {
+            let height = earliest_seen_state_transition_info
+                .da_block_header()
+                .height();
+
+            self.proof_manager.save_aggregated_proof(height).await?;
+
+            debug!("Checking seen header height={}", height);
+            if height <= last_finalized_height {
                 debug!(
-                    "Checking seen header height={}",
+                    "Finalizing seen header height={}",
                     earliest_seen_state_transition_info
                         .da_block_header()
                         .height()
                 );
-                if earliest_seen_state_transition_info
-                    .da_block_header()
-                    .height()
-                    <= last_finalized.height()
-                {
-                    // LOGTODO
-                    debug!(
-                        "Finalizing seen header height={}",
-                        earliest_seen_state_transition_info
-                            .da_block_header()
-                            .height()
-                    );
-                    self.storage_manager
-                        .finalize(earliest_seen_state_transition_info.da_block_header())?;
+                self.storage_manager
+                    .finalize(earliest_seen_state_transition_info.da_block_header())?;
 
-                    let transition_data = seen_state_transition.pop_front().unwrap();
-                    agg_block_hashes.push(transition_data.da_block_header().hash());
+                let transition_data = seen_state_transition.pop_front().unwrap();
 
-                    // Create ZK proof.
-                    self.create_aggregated_proof(transition_data, &mut agg_block_hashes)
-                        .await;
+                // Post ZK proof to DA.
+                self.proof_manager
+                    .post_aggregated_proof_to_da_when_ready(transition_data, agg_proof_hashes)
+                    .await?;
 
-                    continue;
-                }
-
-                break;
+                continue;
             }
+
+            break;
         }
+        Ok(())
+    }
+
+    fn update_rpc_storage(
+        &mut self,
+        filtered_block_header: &<<Da as DaService>::Spec as DaSpec>::BlockHeader,
+    ) -> Result<(), anyhow::Error> {
+        let (new_rpc_storage, _) = self
+            .storage_manager
+            .create_state_after(filtered_block_header)?;
+        let mut rpc_storage = self
+            .rpc_storage
+            .write()
+            .expect("RPC Storage RwLock poisoned");
+        *rpc_storage = new_rpc_storage;
+
+        Ok(())
     }
 
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         &self.state_root
-    }
-
-    async fn create_aggregated_proof(
-        &self,
-        transition_data: StateTransitionInfo<Stf::StateRoot, Stf::Witness, <Da as DaService>::Spec>,
-        agg_block_hashes: &mut Vec<<Da::Spec as DaSpec>::SlotHash>,
-    ) {
-        let header_hash = transition_data.da_block_header().hash();
-
-        self.prover_service
-            .submit_state_transition_info(transition_data)
-            .await;
-        self.prover_service
-            .prove(header_hash.clone())
-            .await
-            .expect("The proof creation should succeed");
-
-        if agg_block_hashes.len() >= self.prover_service.aggregated_proof_block_jump() {
-            loop {
-                let status = self
-                    .prover_service
-                    .create_aggregated_proof(agg_block_hashes.as_slice())
-                    .await;
-
-                match status {
-                    Ok(ProofAggregationStatus::Success(_)) => {
-                        agg_block_hashes.clear();
-                        break;
-                    }
-                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
-                    Ok(ProofAggregationStatus::ProofGenerationInProgress) => {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    }
-                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
-                    Err(e) => panic!("{:?}", e),
-                }
-            }
-        }
     }
 }
 
