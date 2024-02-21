@@ -10,12 +10,12 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder};
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByModuleAddress, EventByNumber, SlotByHash,
-    SlotByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
+    BatchByHash, BatchByNumber, EventByKey, EventByModuleAddress, EventByNumber, ProofByUniqueId,
+    SlotByHash, SlotByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot,
-    StoredTransaction, TxNumber,
+    split_tx_for_storage, BatchNumber, EventNumber, ProofUniqueId, SlotNumber,
+    StoredAggregatedProof, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
 };
 
 mod rpc;
@@ -350,8 +350,21 @@ impl LedgerDB {
         }
     }
 
-    /// Get the most recent committed slot, if any
+    /// Get the most recent committed slot, if any.
     pub fn get_head_slot(&self) -> anyhow::Result<Option<(SlotNumber, StoredSlot)>> {
         self.db.get_largest::<SlotByNumber>()
+    }
+
+    /// Save the aggregated zk proof to the database.
+    pub fn save_finalized_aggregated_proof(
+        &self,
+        agg_proof: StoredAggregatedProof,
+    ) -> Result<(), anyhow::Error> {
+        let mut schema_batch = SchemaBatch::new();
+        let unique_id = 0;
+        schema_batch.put::<ProofByUniqueId>(&ProofUniqueId(unique_id), &agg_proof)?;
+
+        self.db.write_many(schema_batch)?;
+        Ok(())
     }
 }

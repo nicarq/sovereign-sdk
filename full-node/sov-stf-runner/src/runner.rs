@@ -198,10 +198,10 @@ where
             stf,
             storage_manager,
             rpc_storage,
-            ledger_db,
+            ledger_db: ledger_db.clone(),
             state_root: prev_state_root,
             listen_address,
-            proof_manager: ProofManager::new(da_service, prover_service),
+            proof_manager: ProofManager::new(da_service, prover_service, ledger_db),
             sync_state: Arc::new(DaSyncState {
                 current_da_height: AtomicU64::new(start_height),
                 target_da_height: AtomicU64::new(std::u64::MAX),

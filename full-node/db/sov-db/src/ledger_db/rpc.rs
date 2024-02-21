@@ -5,16 +5,16 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use sov_modules_core::common::AddressBech32;
 use sov_rollup_interface::rpc::{
-    BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, EventResponse, ItemOrHash,
-    LedgerRpcProvider, PaginatedEventResponse, QueryMode, SlotIdAndOffset, SlotIdentifier,
-    SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
+    AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
+    EventResponse, ItemOrHash, LedgerRpcProvider, PaginatedEventResponse, QueryMode,
+    SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::EventKey;
 use tokio::sync::broadcast::Receiver;
 
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByModuleAddress, EventByNumber, SlotByHash,
-    SlotByNumber, TxByHash, TxByNumber,
+    BatchByHash, BatchByNumber, EventByKey, EventByModuleAddress, EventByNumber, ProofByUniqueId,
+    SlotByHash, SlotByNumber, TxByHash, TxByNumber,
 };
 use crate::schema::types::{
     BatchNumber, EventNumber, ModuleAddress, SlotNumber, StoredBatch, StoredSlot, TxNumber,
@@ -508,6 +508,14 @@ impl LedgerRpcProvider for LedgerDB {
         self.get_transactions(&ids, query_mode)
     }
 
+    fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>> {
+        let agg_proof_data = self
+            .db
+            .get_largest::<ProofByUniqueId>()
+            .map(|agg_proof_op| agg_proof_op.map(|p| p.1))?;
+
+        Ok(agg_proof_data.map(|p| AggregatedProofResponse { proof: p.proof }))
+    }
     fn subscribe_slots(&self) -> Result<Receiver<u64>, anyhow::Error> {
         Ok(self.slot_subscriptions.subscribe())
     }
@@ -674,8 +682,39 @@ mod tests {
     use sov_schema_db::cache::cache_db::CacheDb;
 
     use crate::ledger_db::{LedgerDB, SlotCommit};
+    use crate::schema::types::StoredAggregatedProof;
     #[test]
     fn test_slot_subscription() {
+        let ledger_db = create_ledger();
+
+        let mut rx = ledger_db.subscribe_slots().unwrap();
+        ledger_db
+            .commit_slot(SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()))
+            .unwrap();
+
+        assert_eq!(rx.blocking_recv().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_save_aggregated_proof() {
+        let ledger_db = create_ledger();
+
+        let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap();
+        assert_eq!(None, proof_from_db);
+
+        for i in 0..10 {
+            let agg_proof = StoredAggregatedProof { proof: vec![i] };
+
+            ledger_db
+                .save_finalized_aggregated_proof(agg_proof.clone())
+                .unwrap();
+
+            let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap().unwrap();
+            assert_eq!(agg_proof.proof, proof_from_db.proof)
+        }
+    }
+
+    fn create_ledger() -> LedgerDB {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path();
         let db = LedgerDB::setup_schema_db(path).unwrap();
@@ -684,13 +723,6 @@ mod tests {
             Arc::new(RwLock::new(Default::default())).into(),
         )));
         let cache_db = CacheDb::new(0, cache_container.into());
-        let ledger_db = LedgerDB::with_cache_db(cache_db).unwrap();
-
-        let mut rx = ledger_db.subscribe_slots().unwrap();
-        ledger_db
-            .commit_slot(SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()))
-            .unwrap();
-
-        assert_eq!(rx.blocking_recv().unwrap(), 1);
+        LedgerDB::with_cache_db(cache_db).unwrap()
     }
 }
