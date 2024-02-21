@@ -1,25 +1,33 @@
 use std::sync::Arc;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
+use sov_db::ledger_db::LedgerDB;
+use sov_db::schema::types::StoredAggregatedProof;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 
-use crate::{AggregatedProofData, ProofAggregationStatus, ProverService, StateTransitionInfo};
+use crate::{ProofAggregationStatus, ProverService, StateTransitionInfo};
 
 /// Manages the lifecycle of the `AggregatedProof`.
 pub(crate) struct ProofManager<Ps: ProverService> {
     da_service: Arc<Ps::DaService>,
     prover_service: Ps,
+    ledger_db: LedgerDB,
 }
 
 impl<Ps: ProverService> ProofManager<Ps>
 where
     Ps::DaService: DaService<Error = anyhow::Error>,
 {
-    pub(crate) fn new(da_service: Arc<Ps::DaService>, prover_service: Ps) -> Self {
+    pub(crate) fn new(
+        da_service: Arc<Ps::DaService>,
+        prover_service: Ps,
+        ledger_db: LedgerDB,
+    ) -> Self {
         Self {
             da_service,
             prover_service,
+            ledger_db,
         }
     }
 
@@ -27,8 +35,8 @@ where
     pub(crate) async fn save_aggregated_proof(&self, height: u64) -> Result<(), anyhow::Error> {
         let aggregated_proofs = self.da_service.get_aggregated_proofs_at(height).await?;
         for data in aggregated_proofs {
-            let _aggregated_proof_data = AggregatedProofData::try_from_slice(&data)?;
-            // TODO post the proof to DB. #175
+            self.ledger_db
+                .save_finalized_aggregated_proof(StoredAggregatedProof { proof: data })?;
         }
 
         Ok(())
