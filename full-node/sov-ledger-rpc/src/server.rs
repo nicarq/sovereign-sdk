@@ -13,6 +13,9 @@ use crate::HexHash;
 
 const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 
+/// Type alias for `Option<(u64, u64)>` representing an optional start and end transaction range
+pub type TxnRangeParam = Option<(u64, u64)>;
+
 /// Creates a new [`RpcModule`] that exposes all JSON-RPC methods
 /// necessary to interface with the [`LedgerRpcProvider`].
 ///
@@ -139,9 +142,9 @@ where
     })?;
 
     rpc.register_method("ledger_getEventsByKey", move |params, ledger| {
-        let params: (&str, Option<&str>, usize, Option<&str>) = params.parse()?;
+        let params: (&str, Option<&str>, TxnRangeParam, usize, Option<&str>) = params.parse()?;
         ledger
-            .get_events_by_key::<E>(params.0, params.1, params.2, params.3)
+            .get_events_by_key::<E>(params.0, params.1, params.2, params.3, params.4)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 

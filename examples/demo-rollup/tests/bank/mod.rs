@@ -199,6 +199,7 @@ async fn assert_bank_transfer_events_paged(
             client.http(),
             "token_transfer",
             Some("sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"),
+            None,
             num_events_to_fetch as u64,
             next_key.as_deref(),
         )

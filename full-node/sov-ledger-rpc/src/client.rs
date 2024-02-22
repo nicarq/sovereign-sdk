@@ -69,6 +69,7 @@ where
         &self,
         key: &str,
         module_address: Option<&str>,
+        txn_num: Option<u64>,
         num_events: u64,
         next: Option<&str>,
     ) -> RpcResult<Option<serde_json::Value>>;

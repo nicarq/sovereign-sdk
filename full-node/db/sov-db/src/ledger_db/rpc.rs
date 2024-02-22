@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-use anyhow::{Context, Error};
+use anyhow::{ensure, Context, Error};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use sov_modules_core::common::AddressBech32;
@@ -9,15 +7,17 @@ use sov_rollup_interface::rpc::{
     EventResponse, ItemOrHash, LedgerRpcProvider, PaginatedEventResponse, QueryMode,
     SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
-use sov_rollup_interface::stf::EventKey;
 use tokio::sync::broadcast::Receiver;
 
+use crate::ledger_db::event_helper::{
+    get_events_by_key_helper, get_events_by_module_address_helper,
+};
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByModuleAddress, EventByNumber, ProofByUniqueId,
-    SlotByHash, SlotByNumber, TxByHash, TxByNumber,
+    BatchByHash, BatchByNumber, EventByNumber, ProofByUniqueId, SlotByHash, SlotByNumber, TxByHash,
+    TxByNumber,
 };
 use crate::schema::types::{
-    BatchNumber, EventNumber, ModuleAddress, SlotNumber, StoredBatch, StoredSlot, TxNumber,
+    BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
 };
 
 /// The maximum number of slots that can be requested in a single RPC range query
@@ -30,20 +30,6 @@ const MAX_TRANSACTIONS_PER_REQUEST: u64 = 100;
 const MAX_EVENTS_PER_REQUEST: u64 = 500;
 
 use super::LedgerDB;
-
-fn event_match_helper(
-    scanned_key: &EventKey,
-    provided_key: &str,
-    scanned_address: &[u8],
-    provided_address: &Option<Vec<u8>>,
-) -> bool {
-    let event_key_match = scanned_key.inner().as_slice() == provided_key.as_bytes();
-    let module_address_match = match provided_address {
-        Some(addr) => addr.as_slice() == scanned_address,
-        None => true, // If module_address is not provided, always true
-    };
-    event_key_match && module_address_match
-}
 
 impl LedgerRpcProvider for LedgerDB {
     fn get_head<B: DeserializeOwned, T: DeserializeOwned>(
@@ -265,72 +251,11 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         event_key: &str,
         module_address: Option<&str>,
+        txn_range: Option<(u64, u64)>,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, Error> {
-        let module_address_vec = module_address
-            .map(|bech32_string| {
-                AddressBech32::from_str(bech32_string)
-                    .context("Failed to parse address from string")
-                    .and_then(|addr| {
-                        addr.try_to_vec()
-                            .context("Failed to convert bech32 address to bytes")
-                    })
-            })
-            .transpose()?
-            .unwrap_or(vec![]);
-
-        let scan_key_start = match next {
-            Some(start_key) => {
-                let key_bytes = hex::decode(start_key)?;
-                let composite_key: (EventKey, Vec<u8>, TxNumber, EventNumber) =
-                    BorshDeserialize::try_from_slice(&key_bytes)?;
-                composite_key
-            }
-            None => (
-                EventKey::new(event_key.as_bytes()),
-                module_address_vec.clone(),
-                TxNumber(0u64),
-                EventNumber(0u64),
-            ),
-        };
-
-        let paginated_query_response = self
-            .db
-            .get_n_from_first_match::<EventByKey>(&scan_key_start, num_events)?;
-
-        let (event_keys, next_key) = (
-            paginated_query_response.key_value,
-            paginated_query_response.next,
-        );
-        let event_keys: Vec<((EventKey, ModuleAddress, TxNumber, EventNumber), ())> = event_keys
-            .into_iter()
-            .filter(|((e_key, m_address, _, _), _)| {
-                event_match_helper(
-                    e_key,
-                    event_key,
-                    m_address,
-                    &module_address.map(|_| module_address_vec.clone()),
-                )
-            })
-            .collect();
-
-        let event_ids: Vec<EventIdentifier> = event_keys
-            .into_iter()
-            .map(|(k, _)| EventIdentifier::Number(k.3 .0))
-            .collect();
-        let events_response: Vec<EventResponse> = self
-            .get_events::<E>(&event_ids)?
-            .into_iter()
-            .flatten()
-            .collect();
-        let next = next_key
-            .map(|next_key| next_key.try_to_vec().map(hex::encode))
-            .transpose()?;
-        Ok(PaginatedEventResponse {
-            events_response,
-            next,
-        })
+        get_events_by_key_helper::<E>(self, event_key, module_address, txn_range, num_events, next)
     }
 
     fn get_events_by_module_address<
@@ -341,74 +266,95 @@ impl LedgerRpcProvider for LedgerDB {
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, Error> {
-        let module_address_vec = AddressBech32::from_str(module_address)
-            .context("Could not convert provided string to bech32")
-            .and_then(|x| {
-                x.try_to_vec()
-                    .context("Could not convert bech32 address to bytes")
-            })?;
-
-        let scan_key_start = match next {
-            Some(start_key) => {
-                let key_bytes = hex::decode(start_key)?;
-                let composite_key: (Vec<u8>, TxNumber, EventNumber) =
-                    BorshDeserialize::try_from_slice(&key_bytes)?;
-                composite_key
-            }
-            None => (
-                module_address_vec.clone(),
-                TxNumber(0u64),
-                EventNumber(0u64),
-            ),
-        };
-
-        let paginated_query_response = self
-            .db
-            .get_n_from_first_match::<EventByModuleAddress>(&scan_key_start, num_events)?;
-
-        let (event_keys, next_key) = (
-            paginated_query_response.key_value,
-            paginated_query_response.next,
-        );
-
-        let event_keys: Vec<((ModuleAddress, TxNumber, EventNumber), ())> = event_keys
-            .into_iter()
-            .filter(|((m_address, _, _), _)| m_address.as_slice() == module_address_vec.as_slice())
-            .collect();
-
-        let event_ids: Vec<EventIdentifier> = event_keys
-            .into_iter()
-            .map(|(k, _)| EventIdentifier::Number(k.2 .0))
-            .collect();
-
-        let events_response: Vec<EventResponse> = self
-            .get_events::<E>(&event_ids)?
-            .into_iter()
-            .flatten()
-            .collect();
-
-        let next = next_key
-            .map(|next_key| next_key.try_to_vec().map(hex::encode))
-            .transpose()?;
-
-        Ok(PaginatedEventResponse {
-            events_response,
-            next,
-        })
+        get_events_by_module_address_helper::<E>(self, module_address, num_events, next)
     }
 
     fn get_events_by_slot_range_key<
         E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
     >(
         &self,
-        _event_key: Option<&str>,
-        _module_address: Option<&str>,
-        _slot_height_start: usize,
-        _slot_height_end: usize,
-        _num_events: usize,
-        _next: Option<&str>,
+        event_key: &str,
+        module_address: &str,
+        slot_height_start: u64,
+        slot_height_end: u64,
+        num_events: usize,
+        next: Option<&str>,
     ) -> Result<PaginatedEventResponse, Error> {
-        todo!()
+        let (txn_range, next_key) = match next {
+            None => {
+                let slots_result: Vec<StoredSlot> = [slot_height_start, slot_height_end]
+                    .into_iter()
+                    .map(|slot_num| {
+                        self.db
+                            .read::<SlotByNumber>(&SlotNumber(slot_num))
+                            .with_context(|| {
+                                format!("Failed to query slot with number: {}", slot_num)
+                            })
+                            .and_then(|slot_opt| {
+                                slot_opt.with_context(|| {
+                                    format!(
+                                        "Slot with number: {} does not exist in storage",
+                                        slot_num
+                                    )
+                                })
+                            })
+                    })
+                    .collect::<Result<Vec<StoredSlot>, _>>()?;
+
+                let batch_start_num = slots_result[0].batches.start;
+                let batch_end_num = slots_result[1].batches.end;
+
+                ensure!(batch_end_num.0 - batch_start_num.0 < MAX_BATCHES_PER_REQUEST);
+
+                let batches_result: Vec<StoredBatch> = [batch_start_num, batch_end_num]
+                    .into_iter()
+                    .map(|batch_num| {
+                        self.db
+                            .read::<BatchByNumber>(&batch_num)
+                            .with_context(|| {
+                                format!("Failed to query batch with number: {}", batch_num.0)
+                            })
+                            .and_then(|slot_opt| {
+                                slot_opt.with_context(|| {
+                                    format!(
+                                        "Batch with number: {} does not exist in storage",
+                                        batch_num.0
+                                    )
+                                })
+                            })
+                    })
+                    .collect::<Result<Vec<StoredBatch>, _>>()?;
+
+                let txn_start_num = batches_result[0].txs.start;
+                let txn_end_num = batches_result[1].txs.end;
+                ((txn_start_num.0, txn_end_num.0), None)
+            }
+            Some(wrapped_next) => {
+                let key_bytes = hex::decode(wrapped_next)?;
+                let composite_key: ((u64, u64), String) =
+                    BorshDeserialize::try_from_slice(&key_bytes)?;
+                (composite_key.0, Some(composite_key.1))
+            }
+        };
+
+        let paginated_query_response = self.get_events_by_key::<E>(
+            event_key,
+            Some(module_address),
+            Some((txn_range.0, txn_range.1)),
+            num_events,
+            next_key.as_deref(),
+        )?;
+        let (event_response, next_key) = (
+            paginated_query_response.events_response,
+            paginated_query_response.next,
+        );
+        let re_encoded_next = next_key
+            .and_then(|inner_next| (txn_range, inner_next).try_to_vec().ok().map(hex::encode));
+
+        Ok(PaginatedEventResponse {
+            events_response: event_response,
+            next: re_encoded_next,
+        })
     }
 
     fn get_events_by_txn_hash<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
@@ -426,11 +372,21 @@ impl LedgerRpcProvider for LedgerDB {
             .read::<TxByHash>(&tx_bytes)
             .with_context(|| format!("Failed to query txn with hash: {}", txn_hash))?
             .with_context(|| format!("Txn with hash: {} does not exist in storage", txn_hash))?;
+        let events_response = self
+            .get_events_by_txn_number::<E>(tid.0)
+            .with_context(|| format!("Failed to query txn with hash: {}", txn_hash))?;
+        Ok(events_response)
+    }
+
+    fn get_events_by_txn_number<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+        &self,
+        txn_num: u64,
+    ) -> Result<Vec<EventResponse>, Error> {
         let stored_txn = self
             .db
-            .read::<TxByNumber>(&tid)
-            .with_context(|| format!("Failed to query txn num: {} from storage", tid.0))?
-            .with_context(|| format!("Txn num: {} does not exist in storage", tid.0))?;
+            .read::<TxByNumber>(&TxNumber(txn_num))
+            .with_context(|| format!("Failed to query txn num: {} from storage", txn_num))?
+            .with_context(|| format!("Txn num: {} does not exist in storage", txn_num))?;
         // Can't map over stored_txn.events because no Step trait, so doing this manually
         // TODO: can we implement the Step trait
         // let event_ids: Vec<EventIdentifier> =
@@ -676,13 +632,23 @@ impl LedgerDB {
 mod tests {
     use std::sync::{Arc, RwLock};
 
+    use rand::Rng;
     use sov_mock_da::{MockBlob, MockBlock};
+    use sov_modules_api::default_context::DefaultContext;
+    use sov_modules_api::utils::generate_address;
+    use sov_modules_api::AddressBech32;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
     use sov_schema_db::cache::cache_container::CacheContainer;
     use sov_schema_db::cache::cache_db::CacheDb;
+    use sov_schema_db::SchemaBatch;
 
+    use crate::ledger_db::event_test_helper::{
+        find_event_details, generate_events, TestEvent, FIXED_EVENT_KEY, MAX_NUM_EVENTS_FIXED_KEY,
+        NUM_EVENTS_PER_TXN, NUM_MODULES, NUM_TXNS_PER_MODULE,
+    };
     use crate::ledger_db::{LedgerDB, SlotCommit};
     use crate::schema::types::StoredAggregatedProof;
+
     #[test]
     fn test_slot_subscription() {
         let ledger_db = create_ledger();
@@ -693,6 +659,260 @@ mod tests {
             .unwrap();
 
         assert_eq!(rx.blocking_recv().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_get_events() {
+        let ledger_db = create_ledger();
+        let mut schema_batch = SchemaBatch::new();
+
+        // Load events
+        let event_count = generate_events(
+            &ledger_db,
+            &mut schema_batch,
+            NUM_MODULES,
+            NUM_TXNS_PER_MODULE,
+            NUM_EVENTS_PER_TXN,
+            MAX_NUM_EVENTS_FIXED_KEY,
+        );
+
+        ledger_db.db.write_many(schema_batch).unwrap();
+
+        let mut rng = rand::thread_rng();
+
+        // get_event_by_number
+        let event_num = rng.gen_range(1..event_count) as u64;
+        let event_response = ledger_db
+            .get_event_by_number::<TestEvent>(event_num)
+            .unwrap();
+        assert!(event_response.is_some());
+        let event = event_response.unwrap();
+        let (_txn_number, module_number) = find_event_details(
+            event_num,
+            NUM_MODULES,
+            NUM_TXNS_PER_MODULE,
+            NUM_EVENTS_PER_TXN,
+        );
+        assert_eq!(event.module_name, format!("module_{}", module_number));
+        assert_eq!(event.event_value, event_num + 1);
+    }
+
+    #[test]
+    fn test_get_events_by_key() {
+        let ledger_db = create_ledger();
+        let mut schema_batch = SchemaBatch::new();
+
+        // Load events
+        let event_count = generate_events(
+            &ledger_db,
+            &mut schema_batch,
+            NUM_MODULES,
+            NUM_TXNS_PER_MODULE,
+            NUM_EVENTS_PER_TXN,
+            MAX_NUM_EVENTS_FIXED_KEY,
+        );
+
+        ledger_db.db.write_many(schema_batch).unwrap();
+
+        let mut rng = rand::thread_rng();
+
+        // single get_events_by_key
+        let event_num = rng.gen_range(MAX_NUM_EVENTS_FIXED_KEY..event_count) as u64;
+        let event_key = format!("key_{}", event_num);
+        let (_txn_number, module_number) = find_event_details(
+            event_num,
+            NUM_MODULES,
+            NUM_TXNS_PER_MODULE,
+            NUM_EVENTS_PER_TXN,
+        );
+        let expected_module_name = format!("module_{}", module_number);
+        let expected_module_address =
+            AddressBech32::from(generate_address::<DefaultContext>(&expected_module_name))
+                .to_string();
+        let event_response =
+            ledger_db.get_events_by_key::<TestEvent>(&event_key, None, None, 1, None);
+
+        assert!(event_response.is_ok());
+        let event_response = event_response.unwrap();
+        assert!(event_response.next.is_none());
+        assert_eq!(event_response.events_response.len(), 1);
+        assert_eq!(event_response.events_response[0].event_value, event_num + 1);
+        assert_eq!(
+            event_response.events_response[0].module_address,
+            expected_module_address
+        );
+    }
+
+    #[test]
+    fn test_get_events_by_key_pagination() {
+        let ledger_db = create_ledger();
+        let mut schema_batch = SchemaBatch::new();
+
+        // Load events
+        let _event_count = generate_events(
+            &ledger_db,
+            &mut schema_batch,
+            NUM_MODULES,
+            NUM_TXNS_PER_MODULE,
+            NUM_EVENTS_PER_TXN,
+            MAX_NUM_EVENTS_FIXED_KEY,
+        );
+
+        ledger_db.db.write_many(schema_batch).unwrap();
+
+        // choosing 7 because more non-standard, better for boundary cases
+        let num_events_per_page = 7;
+        // Because events with num > MAX_NUM_EVENTS_FIXED_KEY have unique keys, we test pagination for events smaller than that
+        let mut next_key = None;
+        let mut event_num = 0;
+        let mut num_events_fetched = 0;
+        loop {
+            let event_response = ledger_db
+                .get_events_by_key::<TestEvent>(
+                    FIXED_EVENT_KEY,
+                    None,
+                    None,
+                    num_events_per_page,
+                    next_key.as_deref(),
+                )
+                .unwrap();
+
+            num_events_fetched += event_response.events_response.len();
+
+            for e in &event_response.events_response {
+                // increment event_num for each event fetched
+                event_num += 1;
+                // our test data creates the value of an event to the event number + 1
+                assert_eq!(e.event_value, event_num + 1);
+                let (_, module_number) = find_event_details(
+                    event_num,
+                    NUM_MODULES,
+                    NUM_TXNS_PER_MODULE,
+                    NUM_EVENTS_PER_TXN,
+                );
+                let expected_module_name = format!("module_{}", module_number);
+                let expected_module_address =
+                    AddressBech32::from(generate_address::<DefaultContext>(&expected_module_name))
+                        .to_string();
+                assert_eq!(e.module_address, expected_module_address);
+            }
+
+            // more events remaining
+            if event_response.next.is_some() {
+                next_key = event_response.next;
+            } else {
+                // event key ends
+                // we need a different set of assertions for the final case
+                let num_events_last_page = event_response.events_response.len();
+                assert_eq!(num_events_fetched, MAX_NUM_EVENTS_FIXED_KEY);
+                assert_eq!(event_num as usize, MAX_NUM_EVENTS_FIXED_KEY);
+                assert_eq!(
+                    event_response.events_response[num_events_last_page - 1].event_value,
+                    MAX_NUM_EVENTS_FIXED_KEY + 1
+                );
+                break;
+            }
+        }
+
+        // next event after final event should have unique key
+        event_num += 1;
+        let event_key = format!("key_{}", event_num);
+        let (_txn_number, module_number) = find_event_details(
+            event_num,
+            NUM_MODULES,
+            NUM_TXNS_PER_MODULE,
+            NUM_EVENTS_PER_TXN,
+        );
+        let expected_module_name = format!("module_{}", module_number);
+        let expected_module_address =
+            AddressBech32::from(generate_address::<DefaultContext>(&expected_module_name))
+                .to_string();
+        let event_response =
+            ledger_db.get_events_by_key::<TestEvent>(&event_key, None, None, 1, None);
+
+        assert!(event_response.is_ok());
+        let event_response = event_response.unwrap();
+        assert!(event_response.next.is_none());
+        assert_eq!(event_response.events_response.len(), 1);
+        assert_eq!(event_response.events_response[0].event_value, event_num + 1);
+        assert_eq!(
+            event_response.events_response[0].module_address,
+            expected_module_address
+        );
+    }
+
+    #[test]
+    fn test_get_events_by_key_module_address() {
+        let ledger_db = create_ledger();
+        let mut schema_batch = SchemaBatch::new();
+
+        // Load events
+        let _event_count = generate_events(
+            &ledger_db,
+            &mut schema_batch,
+            NUM_MODULES,
+            NUM_TXNS_PER_MODULE,
+            NUM_EVENTS_PER_TXN,
+            MAX_NUM_EVENTS_FIXED_KEY,
+        );
+
+        ledger_db.db.write_many(schema_batch).unwrap();
+        // fetch key and by module address
+        // based on MAX_NUM_EVENTS_FIXED_KEY, key should switch to unique in the second module, so this would account for boundary as well
+        let num_events_per_page = 17;
+        let module_number = 2;
+        let module_name = format!("module_{}", module_number);
+        let module_address =
+            AddressBech32::from(generate_address::<DefaultContext>(&module_name)).to_string();
+
+        let mut next_key = None;
+        // start event number for a specific module
+        let mut event_num = (module_number - 1) * NUM_EVENTS_PER_TXN * NUM_TXNS_PER_MODULE;
+        let mut num_events_fetched = 0;
+        loop {
+            let event_response = ledger_db
+                .get_events_by_key::<TestEvent>(
+                    FIXED_EVENT_KEY,
+                    Some(&module_address),
+                    None,
+                    num_events_per_page,
+                    next_key.as_deref(),
+                )
+                .unwrap();
+
+            for e in event_response.events_response {
+                num_events_fetched += 1;
+                event_num += 1;
+                assert_eq!(e.event_value, event_num + 1);
+                assert_eq!(e.module_address, module_address);
+            }
+
+            if event_response.next.is_some() {
+                next_key = event_response.next;
+            } else {
+                break;
+            }
+        }
+
+        // number of events fetched should be MAX_NUM_EVENTS_FIXED_KEY - number of events in previous modules.
+        // since we're only fetching events for a specific module address.
+        assert_eq!(
+            num_events_fetched,
+            MAX_NUM_EVENTS_FIXED_KEY
+                - (module_number - 1) * NUM_EVENTS_PER_TXN * NUM_TXNS_PER_MODULE
+        );
+    }
+
+    fn create_ledger() -> LedgerDB {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path();
+        let db = LedgerDB::setup_schema_db(path).unwrap();
+        let cache_container = Arc::new(RwLock::new(CacheContainer::new(
+            db,
+            Arc::new(RwLock::new(Default::default())).into(),
+        )));
+        let cache_db = CacheDb::new(0, cache_container.into());
+        LedgerDB::with_cache_db(cache_db).unwrap()
     }
 
     #[test]
@@ -712,17 +932,5 @@ mod tests {
             let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap().unwrap();
             assert_eq!(agg_proof.proof, proof_from_db.proof)
         }
-    }
-
-    fn create_ledger() -> LedgerDB {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let path = temp_dir.path();
-        let db = LedgerDB::setup_schema_db(path).unwrap();
-        let cache_container = Arc::new(RwLock::new(CacheContainer::new(
-            db,
-            Arc::new(RwLock::new(Default::default())).into(),
-        )));
-        let cache_db = CacheDb::new(0, cache_container.into());
-        LedgerDB::with_cache_db(cache_db).unwrap()
     }
 }

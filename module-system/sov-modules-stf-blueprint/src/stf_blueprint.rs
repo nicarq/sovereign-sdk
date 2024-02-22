@@ -8,7 +8,7 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Gas, GasArray, StateCheckpoint,
 };
 use sov_modules_core::WorkingSet;
-use sov_rollup_interface::stf::{BatchReceipt, SerializedEvent, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error};
 
 use crate::{Runtime, SequencerOutcome, SlashingReason, TxEffect};
@@ -489,7 +489,7 @@ where
     pub(crate) fn convert_to_runtime_events(
         &self,
         events: Vec<sov_modules_core::TypedEvent<C>>,
-    ) -> Vec<SerializedEvent> {
+    ) -> Vec<StoredEvent> {
         events
             .into_iter()
             .map(|typed_event| {
@@ -499,7 +499,7 @@ where
                 // (probably due to the borrow and move in the same statement)
                 // https://github.com/rust-lang/rust-clippy/issues/12098
                 let key = typed_event.event_key().to_vec();
-                SerializedEvent::new(
+                StoredEvent::new(
                     &key,
                     &(Into::<AddressBech32>::into(typed_event.module_address().clone()).try_to_vec().unwrap()),
                     &<RT as ::sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event::<C>(
@@ -513,7 +513,7 @@ where
     fn convert_to_runtime_events(
         &self,
         _events: Vec<sov_modules_core::TypedEvent<C>>,
-    ) -> Vec<SerializedEvent> {
+    ) -> Vec<StoredEvent> {
         Vec::new() // Return an empty vector
     }
 }

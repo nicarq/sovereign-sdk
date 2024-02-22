@@ -13,7 +13,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
-use sov_rollup_interface::stf::{BatchReceipt, SerializedEvent, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 #[cfg(test)]
@@ -144,16 +144,8 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
                     tx_hash: ::sha2::Sha256::digest(b"tx2"),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
-                        SerializedEvent::new(
-                            "event1_key".as_bytes(),
-                            &[],
-                            "event1_value".as_bytes(),
-                        ),
-                        SerializedEvent::new(
-                            "event2_key".as_bytes(),
-                            &[],
-                            "event2_value".as_bytes(),
-                        ),
+                        StoredEvent::new("event1_key".as_bytes(), &[], "event1_value".as_bytes()),
+                        StoredEvent::new("event2_key".as_bytes(), &[], "event2_value".as_bytes()),
                     ],
                     receipt: 1,
                     gas_used: vec![2, 3],

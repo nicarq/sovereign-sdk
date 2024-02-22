@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, SerializedEvent};
+use sov_rollup_interface::stf::{BatchReceipt, StoredEvent};
 use sov_schema_db::cache::cache_db::CacheDb;
 use sov_schema_db::cache::change_set::ChangeSet;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder};
@@ -18,6 +18,9 @@ use crate::schema::types::{
     StoredAggregatedProof, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
 };
 
+mod event_helper;
+#[cfg(test)]
+mod event_test_helper;
 mod rpc;
 
 /// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
@@ -232,7 +235,7 @@ impl LedgerDB {
 
     fn put_event(
         &self,
-        event: &SerializedEvent,
+        event: &StoredEvent,
         event_number: &EventNumber,
         tx_number: TxNumber,
         schema_batch: &mut SchemaBatch,

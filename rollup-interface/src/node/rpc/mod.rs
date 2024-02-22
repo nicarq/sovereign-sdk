@@ -312,6 +312,7 @@ pub trait LedgerRpcProvider {
         &self,
         event_key: &str,
         module_address: Option<&str>,
+        txn_range: Option<(u64, u64)>,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, anyhow::Error>;
@@ -327,18 +328,24 @@ pub trait LedgerRpcProvider {
     /// Get events by a range of slots and key.
     fn get_events_by_slot_range_key<E: BorshDeserialize + Into<Event>>(
         &self,
-        event_key: Option<&str>,
-        module_address: Option<&str>,
-        slot_height_start: usize,
-        slot_height_end: usize,
+        event_key: &str,
+        module_address: &str,
+        slot_height_start: u64,
+        slot_height_end: u64,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, anyhow::Error>;
 
-    /// Get events by transaction_id, module address (optional).
+    /// Get events by transaction hash.
     fn get_events_by_txn_hash<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         txn_hash: &str,
+    ) -> Result<Vec<EventResponse>, anyhow::Error>;
+
+    /// Get events by transaction number.
+    fn get_events_by_txn_number<E: borsh::BorshDeserialize + Into<Event>>(
+        &self,
+        txn_num: u64,
     ) -> Result<Vec<EventResponse>, anyhow::Error>;
 
     /// Get a single tx by number.
