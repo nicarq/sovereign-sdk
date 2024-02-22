@@ -9,12 +9,15 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash, MockValidityCond,
     MOCK_SEQUENCER_DA_ADDRESS,
 };
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Address, AddressBech32, EncodeCall, GasPrice, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{
+    Address, AddressBech32, CryptoSpec, EncodeCall, GasPrice, PrivateKey, PublicKey, Spec,
+};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
+
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 const DEFAULT_CHAIN_ID: u64 = 0;
 const DEFAULT_GAS_TIP: u64 = 0;
@@ -179,13 +182,13 @@ impl DaVerifier for RngDaVerifier {
 pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
     let token_name = "sov-test-token";
     let (sa, pk) = sender_address_with_pkey();
-    let token_address = sov_bank::get_token_address::<DefaultContext>(token_name, &sa, 11);
+    let token_address = sov_bank::get_token_address::<DefaultSpec>(token_name, &sa, 11);
     let mut message_vec = vec![];
     for i in 1..(n + 1) {
         let priv_key = DefaultPrivateKey::generate();
-        let address: <DefaultContext as Spec>::Address = priv_key.pub_key().to_address();
-        let msg: sov_bank::CallMessage<DefaultContext> =
-            sov_bank::CallMessage::<DefaultContext>::Transfer {
+        let address: <DefaultSpec as Spec>::Address = priv_key.pub_key().to_address();
+        let msg: sov_bank::CallMessage<DefaultSpec> =
+            sov_bank::CallMessage::<DefaultSpec>::Transfer {
                 to: address,
                 coins: Coins {
                     amount: 1,
@@ -193,10 +196,8 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
                 },
             };
         let enc_msg =
-            <Runtime<DefaultContext, RngDaSpec> as EncodeCall<Bank<DefaultContext>>>::encode_call(
-                msg,
-            );
-        let tx = Transaction::<DefaultContext>::new_signed_tx(
+            <Runtime<DefaultSpec, RngDaSpec> as EncodeCall<Bank<DefaultSpec>>>::encode_call(msg);
+        let tx = Transaction::<DefaultSpec>::new_signed_tx(
             &pk,
             enc_msg,
             DEFAULT_CHAIN_ID,
@@ -215,8 +216,8 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
     let mut message_vec = vec![];
 
     let (minter_address, pk) = sender_address_with_pkey();
-    let msg: sov_bank::CallMessage<DefaultContext> =
-        sov_bank::CallMessage::<DefaultContext>::CreateToken {
+    let msg: sov_bank::CallMessage<DefaultSpec> =
+        sov_bank::CallMessage::<DefaultSpec>::CreateToken {
             salt: 11,
             token_name: "sov-test-token".to_string(),
             initial_balance: 100000000,
@@ -224,8 +225,8 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
             authorized_minters: vec![minter_address],
         };
     let enc_msg =
-        <Runtime<DefaultContext, RngDaSpec> as EncodeCall<Bank<DefaultContext>>>::encode_call(msg);
-    let tx = Transaction::<DefaultContext>::new_signed_tx(
+        <Runtime<DefaultSpec, RngDaSpec> as EncodeCall<Bank<DefaultSpec>>>::encode_call(msg);
+    let tx = Transaction::<DefaultSpec>::new_signed_tx(
         &pk,
         enc_msg,
         DEFAULT_CHAIN_ID,

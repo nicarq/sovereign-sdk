@@ -11,14 +11,15 @@ use sov_bank::event::Event as BankEvent;
 use sov_bank::Coins;
 use sov_ledger_rpc::client::RpcClient;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Address, PrivateKey, Spec};
+use sov_modules_api::{Address, CryptoSpec, PrivateKey, Spec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::rpc::PaginatedEventResponse;
 use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
+
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 use crate::test_helpers::start_rollup;
 
@@ -67,22 +68,22 @@ async fn bank_tx_tests(finalization_blocks: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_create_token_tx(key: &DefaultPrivateKey, nonce: u64) -> Transaction<DefaultContext> {
-    let user_address: <DefaultContext as Spec>::Address = key.to_address();
-    let msg = RuntimeCall::<DefaultContext, MockDaSpec>::bank(sov_bank::CallMessage::<
-        DefaultContext,
-    >::CreateToken {
-        salt: TOKEN_SALT,
-        token_name: TOKEN_NAME.to_string(),
-        initial_balance: 1000,
-        minter_address: user_address,
-        authorized_minters: vec![],
-    });
+fn build_create_token_tx(key: &DefaultPrivateKey, nonce: u64) -> Transaction<DefaultSpec> {
+    let user_address: <DefaultSpec as Spec>::Address = key.to_address();
+    let msg = RuntimeCall::<DefaultSpec, MockDaSpec>::bank(
+        sov_bank::CallMessage::<DefaultSpec>::CreateToken {
+            salt: TOKEN_SALT,
+            token_name: TOKEN_NAME.to_string(),
+            initial_balance: 1000,
+            minter_address: user_address,
+            authorized_minters: vec![],
+        },
+    );
     let chain_id = 0;
     let gas_tip = 0;
     let gas_limit = 0;
     let max_gas_price = None;
-    Transaction::<DefaultContext>::new_signed_tx(
+    Transaction::<DefaultSpec>::new_signed_tx(
         key,
         msg.try_to_vec().unwrap(),
         chain_id,
@@ -96,24 +97,24 @@ fn build_create_token_tx(key: &DefaultPrivateKey, nonce: u64) -> Transaction<Def
 fn build_transfer_token_tx(
     key: &DefaultPrivateKey,
     token_address: Address,
-    recipient: <DefaultContext as Spec>::Address,
+    recipient: <DefaultSpec as Spec>::Address,
     amount: u64,
     nonce: u64,
-) -> Transaction<DefaultContext> {
-    let msg = RuntimeCall::<DefaultContext, MockDaSpec>::bank(sov_bank::CallMessage::<
-        DefaultContext,
-    >::Transfer {
-        to: recipient,
-        coins: Coins {
-            amount,
-            token_address,
+) -> Transaction<DefaultSpec> {
+    let msg = RuntimeCall::<DefaultSpec, MockDaSpec>::bank(
+        sov_bank::CallMessage::<DefaultSpec>::Transfer {
+            to: recipient,
+            coins: Coins {
+                amount,
+                token_address,
+            },
         },
-    });
+    );
     let chain_id = 0;
     let gas_tip = 0;
     let gas_limit = 0;
     let max_gas_price = None;
-    Transaction::<DefaultContext>::new_signed_tx(
+    Transaction::<DefaultSpec>::new_signed_tx(
         key,
         msg.try_to_vec().unwrap(),
         chain_id,
@@ -128,9 +129,9 @@ fn build_multiple_transfers(
     amounts: &[u64],
     signer_key: &DefaultPrivateKey,
     token_address: Address,
-    recipient: <DefaultContext as Spec>::Address,
+    recipient: <DefaultSpec as Spec>::Address,
     start_nonce: u64,
-) -> Vec<Transaction<DefaultContext>> {
+) -> Vec<Transaction<DefaultSpec>> {
     let mut txs = vec![];
     let mut nonce = start_nonce;
     for amt in amounts {
@@ -148,7 +149,7 @@ fn build_multiple_transfers(
 
 async fn send_transactions_and_wait_slot(
     client: &SimpleClient,
-    transactions: Vec<Transaction<DefaultContext>>,
+    transactions: Vec<Transaction<DefaultSpec>>,
 ) -> Result<(), anyhow::Error> {
     let mut slot_subscription: Subscription<u64> = client
         .ws()
@@ -170,10 +171,10 @@ async fn assert_balance(
     client: &SimpleClient,
     assert_amount: u64,
     token_address: Address,
-    user_address: <DefaultContext as Spec>::Address,
+    user_address: <DefaultSpec as Spec>::Address,
     version: Option<u64>,
 ) -> Result<(), anyhow::Error> {
-    let balance_response = sov_bank::BankRpcClient::<DefaultContext>::balance_of(
+    let balance_response = sov_bank::BankRpcClient::<DefaultSpec>::balance_of(
         client.http(),
         version,
         user_address,
@@ -216,7 +217,7 @@ async fn assert_bank_transfer_events_paged(
                     e.module_address,
                     "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"
                 );
-                let bank_event = from_value::<BankEvent<DefaultContext>>(e.event_value.clone())
+                let bank_event = from_value::<BankEvent<DefaultSpec>>(e.event_value.clone())
                     .expect("Unable to deserialize Bank event");
                 assert_eq!(
                     bank_event,
@@ -248,7 +249,7 @@ async fn assert_bank_module_events_paged(
     client: &SimpleClient,
     num_events_to_fetch: usize,
     total_num: usize,
-    expected_enum_disc: Vec<std::mem::Discriminant<BankEvent<DefaultContext>>>,
+    expected_enum_disc: Vec<std::mem::Discriminant<BankEvent<DefaultSpec>>>,
 ) -> Result<(), anyhow::Error> {
     let mut num_fetched = 0;
     let mut next_key = None;
@@ -275,7 +276,7 @@ async fn assert_bank_module_events_paged(
                     "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"
                 );
                 let bank_event = std::mem::discriminant(
-                    &from_value::<BankEvent<DefaultContext>>(e.event_value.clone())
+                    &from_value::<BankEvent<DefaultSpec>>(e.event_value.clone())
                         .expect("Unable to deserialize Bank event"),
                 );
                 assert_eq!(bank_event, expected_enum_disc.remove(0));
@@ -302,15 +303,15 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
     let port = rpc_address.port();
     let client = SimpleClient::new("localhost", port).await?;
     let key = DefaultPrivateKey::generate();
-    let user_address: <DefaultContext as Spec>::Address = key.to_address();
+    let user_address: <DefaultSpec as Spec>::Address = key.to_address();
 
     let token_address =
-        sov_bank::get_token_address::<DefaultContext>(TOKEN_NAME, &user_address, TOKEN_SALT);
+        sov_bank::get_token_address::<DefaultSpec>(TOKEN_NAME, &user_address, TOKEN_SALT);
 
     let recipient_key = DefaultPrivateKey::generate();
-    let recipient_address: <DefaultContext as Spec>::Address = recipient_key.to_address();
+    let recipient_address: <DefaultSpec as Spec>::Address = recipient_key.to_address();
 
-    let token_address_response = sov_bank::BankRpcClient::<DefaultContext>::token_address(
+    let token_address_response = sov_bank::BankRpcClient::<DefaultSpec>::token_address(
         client.http(),
         TOKEN_NAME.to_owned(),
         user_address,
@@ -369,7 +370,7 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
         assert_eq!(map.get("module_name").unwrap(), "bank");
         // Attempt to deserialize the "body" of the bank key in the response to the Event type
         let bank_event =
-            from_value::<BankEvent<DefaultContext>>(map.get("event_value").unwrap().clone())
+            from_value::<BankEvent<DefaultSpec>>(map.get("event_value").unwrap().clone())
                 .expect("Unable to deserialize Bank event");
         // Ensure the event generated is a TokenCreated event with the correct token_address
         assert_eq!(bank_event, BankEvent::TokenCreated { token_address });

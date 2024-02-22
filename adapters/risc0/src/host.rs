@@ -1,12 +1,9 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
 use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, Receipt, Session};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ZkvmHost};
 
 use crate::guest::Risc0Guest;
-use crate::Risc0MethodId;
 
 /// A [`Risc0Host`] stores a binary to execute in the Risc0 VM, and accumulates hints to be
 /// provided to its execution.
@@ -96,64 +93,4 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
             Ok(Proof::PublicInput(data))
         }
     }
-}
-
-impl<'host> Zkvm for Risc0Host<'host> {
-    type CodeCommitment = Risc0MethodId;
-
-    type Error = anyhow::Error;
-
-    fn verify(
-        serialized_proof: &[u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
-        verify_from_slice(serialized_proof, code_commitment)
-    }
-
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
-        serialized_proof: &[u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(&output)?)
-    }
-}
-
-/// A verifier for Risc0 proofs.
-pub struct Risc0Verifier;
-
-impl Zkvm for Risc0Verifier {
-    type CodeCommitment = Risc0MethodId;
-
-    type Error = anyhow::Error;
-
-    fn verify(
-        serialized_proof: &[u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
-        verify_from_slice(serialized_proof, code_commitment)
-    }
-
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
-        serialized_proof: &[u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(&output)?)
-    }
-}
-
-fn verify_from_slice(
-    serialized_proof: &[u8],
-    code_commitment: &Risc0MethodId,
-) -> Result<Vec<u8>, anyhow::Error> {
-    let receipt: Receipt = bincode::deserialize(serialized_proof)?;
-    receipt.verify(code_commitment.0)?;
-    Ok(receipt.journal.bytes)
 }

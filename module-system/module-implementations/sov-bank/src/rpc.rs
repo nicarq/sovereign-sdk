@@ -20,16 +20,16 @@ pub struct TotalSupplyResponse {
 }
 
 #[rpc_gen(client, server, namespace = "bank")]
-impl<C: sov_modules_api::Context> Bank<C> {
+impl<S: sov_modules_api::Spec> Bank<S> {
     #[rpc_method(name = "balanceOf")]
     /// Rpc method that returns the balance of the user at the address `user_address` for the token
     /// stored at the address `token_address`.
     pub fn balance_of(
         &self,
         version: Option<u64>,
-        user_address: C::Address,
-        token_address: C::Address,
-        working_set: &mut WorkingSet<C>,
+        user_address: S::Address,
+        token_address: S::Address,
+        working_set: &mut WorkingSet<S>,
     ) -> RpcResult<BalanceResponse> {
         if let Some(v) = version {
             working_set.set_archival_version(v)
@@ -44,8 +44,8 @@ impl<C: sov_modules_api::Context> Bank<C> {
     pub fn supply_of(
         &self,
         version: Option<u64>,
-        token_address: C::Address,
-        working_set: &mut WorkingSet<C>,
+        token_address: S::Address,
+        working_set: &mut WorkingSet<S>,
     ) -> RpcResult<TotalSupplyResponse> {
         if let Some(v) = version {
             working_set.set_archival_version(v)
@@ -60,10 +60,10 @@ impl<C: sov_modules_api::Context> Bank<C> {
     pub fn token_address(
         &self,
         token_name: String,
-        sender: C::Address,
+        sender: S::Address,
         salt: u64,
-        _working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<C::Address> {
-        Ok(get_token_address::<C>(&token_name, &sender, salt))
+        _working_set: &mut WorkingSet<S>,
+    ) -> RpcResult<S::Address> {
+        Ok(get_token_address::<S>(&token_name, &sender, salt))
     }
 }

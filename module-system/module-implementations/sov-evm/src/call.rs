@@ -2,7 +2,7 @@ use anyhow::Result;
 use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered};
 use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, DaSpec, WorkingSet};
+use sov_modules_api::{CallResponse, Context, DaSpec, WorkingSet};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -26,12 +26,12 @@ pub struct CallMessage {
     pub tx: RlpEvmTransaction,
 }
 
-impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
+impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
     pub(crate) fn execute_call(
         &self,
         tx: RlpEvmTransaction,
-        _context: &C,
-        working_set: &mut WorkingSet<C>,
+        _context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
         let evm_tx_recovered: TransactionSignedEcRecovered = tx.try_into()?;
         let block_env = self
@@ -42,7 +42,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
-        let evm_db: EvmDb<'_, C> = self.get_db(working_set);
+        let evm_db: EvmDb<'_, S> = self.get_db(working_set);
         let result = executor::execute_tx(evm_db, &block_env, &evm_tx_recovered, cfg_env);
         let previous_transaction = self.pending_transactions.last(working_set);
         let previous_transaction_cumulative_gas_used = previous_transaction
@@ -121,7 +121,7 @@ pub(crate) fn get_cfg_env_with_handler(
     cfg_env.chain_id = cfg.chain_id;
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
     let spec_id = get_spec_id(cfg.spec, block_env.number);
-    CfgEnvWithHandlerCfg::new(cfg_env, revm::primitives::HandlerCfg { spec_id })
+    CfgEnvWithHandlerCfg::new(cfg_env, spec_id)
 }
 
 /// Get spec id for a given block number

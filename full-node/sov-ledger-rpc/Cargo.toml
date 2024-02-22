@@ -31,6 +31,7 @@ sov-db = { path = "../../full-node/db/sov-db" }
 tokio = { workspace = true, features = ["full"] }
 sov-ledger-rpc = { path = ".", features = ["client", "server"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"], version = "0.3"  }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]   }
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"], version = "0.3" }
 
 [features]

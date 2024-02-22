@@ -3,7 +3,7 @@ use core::str::FromStr;
 use anyhow::bail;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, Gas, GasMeter, ModuleInfo, StateCheckpoint};
+use sov_modules_api::{Gas, GasMeter, ModuleInfo, Spec, StateCheckpoint};
 
 use crate::{Bank, Coins};
 
@@ -22,22 +22,22 @@ use crate::{Bank, Coins};
 const GAS_TOKEN_ADDRESS: &'static str;
 
 /// The computed addresses of a pre-dispatch tx hook.
-pub struct BankTxHook<C: Context> {
+pub struct BankTxHook<S: Spec> {
     /// The tx sender address
-    pub sender: C::Address,
+    pub sender: S::Address,
     /// The sequencer address
-    pub sequencer: C::Address,
+    pub sequencer: S::Address,
 }
 
-impl<C: Context> Bank<C> {
+impl<S: Spec> Bank<S> {
     /// Reserve the gas for a transaction.
     pub fn reserve_gas(
         &self,
-        tx: &Transaction<C>,
-        gas_price: &<C::Gas as Gas>::Price,
-        payer: &C::Address,
-        state_checkpoint: &mut StateCheckpoint<C>,
-    ) -> Result<GasMeter<C::Gas>, anyhow::Error> {
+        tx: &Transaction<S>,
+        gas_price: &<S::Gas as Gas>::Price,
+        payer: &S::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) -> Result<GasMeter<S::Gas>, anyhow::Error> {
         // TODO(@vlopes11) - this calulation diverges from EIP 1559
         if tx
             .max_gas_price()
@@ -48,7 +48,7 @@ impl<C: Context> Bank<C> {
         }
         let amount = tx.gas_limit().saturating_add(tx.gas_tip());
         if amount > 0 {
-            let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
+            let token_address = S::Address::from_str(GAS_TOKEN_ADDRESS)
                 .map_err(|_| anyhow::anyhow!("failed to parse gas token address"))?;
             let from = payer;
             let to = self.address();
@@ -68,15 +68,15 @@ impl<C: Context> Bank<C> {
     /// Refunds any remaining gas to the payer after the transaction is processed.
     pub fn refund_remaining_gas(
         &self,
-        _tx: &Transaction<C>,
-        gas_meter: &sov_modules_api::GasMeter<C::Gas>,
-        payer: &C::Address,
-        state_checkpoint: &mut StateCheckpoint<C>,
+        _tx: &Transaction<S>,
+        gas_meter: &sov_modules_api::GasMeter<S::Gas>,
+        payer: &S::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         let amount = gas_meter.remaining_funds();
 
         if amount > 0 {
-            let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
+            let token_address = S::Address::from_str(GAS_TOKEN_ADDRESS)
                 .map_err(|_| "The rollup is misconfigured: the gas token address is invalid")
                 .expect("failed to parse gas token address");
             let from = self.address();

@@ -8,9 +8,9 @@
     PartialEq,
     Clone,
 )]
-pub enum Event<C: sov_modules_api::Context> {
+pub enum Event<S: sov_modules_api::Spec> {
     /// Event for User Slashed
-    UserSlashed { address: C::Address },
+    UserSlashed { address: S::Address },
     /// Event for a new deposit
     BondedAttester { new_deposit: u64, total_bond: u64 },
     /// Event for a new deposit
@@ -20,7 +20,7 @@ pub enum Event<C: sov_modules_api::Context> {
     /// Event for Unbonding
     UnbondedChallenger { amount_withdrawn: u64 },
     /// Event for processing a valid attestation
-    ProcessedValidAttestation { attester: C::Address },
+    ProcessedValidAttestation { attester: S::Address },
     /// Event for processing a valid proof
-    ProcessedValidProof { challenger: C::Address },
+    ProcessedValidProof { challenger: S::Address },
 }

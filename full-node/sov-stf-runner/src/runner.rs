@@ -10,7 +10,7 @@ use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmGuest, ZkvmHost};
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
@@ -25,7 +25,11 @@ where
     Da: DaService,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>,
+    Stf: StateTransitionFunction<
+        <Vm::Guest as ZkvmGuest>::Verifier,
+        Da::Spec,
+        Condition = <Da::Spec as DaSpec>::ValidityCondition,
+    >,
     Ps: ProverService,
 {
     start_height: u64,
@@ -35,7 +39,7 @@ where
     storage_manager: Sm,
     rpc_storage: Arc<RwLock<Sm::StfState>>,
     ledger_db: LedgerDB,
-    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    state_root: StateRoot<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>,
     listen_address: SocketAddr,
     proof_manager: ProofManager<Ps>,
     sync_state: Arc<DaSyncState>,
@@ -126,7 +130,7 @@ where
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = ChangeSet, LedgerState = CacheDb>,
     Stf: StateTransitionFunction<
-        Vm,
+        <Vm::Guest as ZkvmGuest>::Verifier,
         Da::Spec,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
         PreState = Sm::StfState,
@@ -147,7 +151,7 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         rpc_storage: Arc<RwLock<Sm::StfState>>,
-        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        init_variant: InitVariant<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>,
         prover_service: Ps,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
@@ -286,7 +290,7 @@ where
                 height: new_height,
                 block: new_block,
                 pre_state_root,
-            }) = has_reorg_happened::<Stf, Da, Vm>(
+            }) = has_reorg_happened::<Stf, Da, <Vm::Guest as ZkvmGuest>::Verifier>(
                 &filtered_block,
                 &mut seen_state_transition,
                 &self.da_service,
@@ -519,7 +523,7 @@ mod tests {
         MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec,
         MockValidityCond,
     };
-    use sov_mock_zkvm::MockZkvm;
+    use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
 
     use super::*;
     use crate::mock::MockStf;
@@ -527,10 +531,14 @@ mod tests {
     type Da = MockDaService;
     type Vm = MockZkvm<MockValidityCond>;
     type Stf = MockStf<MockValidityCond>;
-    type StateRoot =
-        <MockStf<MockValidityCond> as StateTransitionFunction<Vm, MockDaSpec>>::StateRoot;
-    type StfWitness =
-        <MockStf<MockValidityCond> as StateTransitionFunction<Vm, MockDaSpec>>::Witness;
+    type StateRoot = <MockStf<MockValidityCond> as StateTransitionFunction<
+        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+        MockDaSpec,
+    >>::StateRoot;
+    type StfWitness = <MockStf<MockValidityCond> as StateTransitionFunction<
+        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+        MockDaSpec,
+    >>::Witness;
 
     #[tokio::test]
     async fn test_reorg_happened_empty_seen() {
@@ -539,7 +547,7 @@ mod tests {
         > = VecDeque::new();
         let filtered_block = MockBlock::default();
         let da_service = MockDaService::new(MockAddress::new([0; 32]));
-        let result = has_reorg_happened::<Stf, Da, Vm>(
+        let result = has_reorg_happened::<Stf, Da, MockZkVerifier>(
             &filtered_block,
             &mut seen_state_transition_info,
             &da_service,
@@ -601,7 +609,7 @@ mod tests {
         }
 
         let block_head = da_service.get_block_at(last_block).await.unwrap();
-        let result = has_reorg_happened::<Stf, Da, Vm>(
+        let result = has_reorg_happened::<Stf, Da, MockZkVerifier>(
             &block_head,
             &mut seen_state_transition_info,
             &da_service,
@@ -660,7 +668,7 @@ mod tests {
         }
 
         let block_head = da_service.get_block_at(last_block).await.unwrap();
-        let result = has_reorg_happened::<Stf, Da, Vm>(
+        let result = has_reorg_happened::<Stf, Da, MockZkVerifier>(
             &block_head,
             &mut seen_state_transition_info,
             &da_service,

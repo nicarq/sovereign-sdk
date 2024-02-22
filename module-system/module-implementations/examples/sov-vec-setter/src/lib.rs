@@ -11,15 +11,15 @@ pub use call::CallMessage;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
 
 use crate::event::Event;
 
 /// Initial configuration for sov-vec-setter module.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VecSetterConfig<C: sov_modules_api::Context> {
+pub struct VecSetterConfig<S: sov_modules_api::Spec> {
     /// Admin of the module.
-    pub admin: C::Address,
+    pub admin: S::Address,
 }
 
 /// A new module:
@@ -28,10 +28,10 @@ pub struct VecSetterConfig<C: sov_modules_api::Context> {
 /// - Can contain any number of ` #[state]` or `[module]` fields
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo)]
-pub struct VecSetter<C: sov_modules_api::Context> {
+pub struct VecSetter<S: sov_modules_api::Spec> {
     /// Address of the module.
     #[address]
-    pub address: C::Address,
+    pub address: S::Address,
 
     /// Some vector kept in the state.
     #[state]
@@ -39,19 +39,19 @@ pub struct VecSetter<C: sov_modules_api::Context> {
 
     /// Holds the address of the admin user who is allowed to update the vector.
     #[state]
-    pub admin: sov_modules_api::StateValue<C::Address>,
+    pub admin: sov_modules_api::StateValue<S::Address>,
 }
 
-impl<C: sov_modules_api::Context> sov_modules_api::Module for VecSetter<C> {
-    type Context = C;
+impl<S: sov_modules_api::Spec> sov_modules_api::Module for VecSetter<S> {
+    type Spec = S;
 
-    type Config = VecSetterConfig<C>;
+    type Config = VecSetterConfig<S>;
 
     type CallMessage = call::CallMessage;
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)
     }
@@ -59,8 +59,8 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for VecSetter<C> {
     fn call(
         &self,
         msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::PushValue(new_value) => {

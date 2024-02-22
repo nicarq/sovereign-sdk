@@ -1,6 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde_json::Value;
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::AddressBech32;
 use sov_rollup_interface::rpc::Event;
@@ -8,6 +7,8 @@ use sov_rollup_interface::stf::StoredEvent;
 
 use crate::ledger_db::{LedgerDB, SchemaBatch};
 use crate::schema::types::{EventNumber, TxNumber};
+
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 pub(crate) const NUM_MODULES: usize = 3;
 pub(crate) const NUM_TXNS_PER_MODULE: usize = 10;
@@ -45,7 +46,7 @@ pub(crate) fn generate_events(
     for _ in 0..num_modules {
         module_num += 1;
         let module_name = format!("module_{}", module_num);
-        let module_address = AddressBech32::from(generate_address::<DefaultContext>(&module_name))
+        let module_address = AddressBech32::from(generate_address::<DefaultSpec>(&module_name))
             .try_to_vec()
             .unwrap();
         for _ in 0..num_txns_per_module {

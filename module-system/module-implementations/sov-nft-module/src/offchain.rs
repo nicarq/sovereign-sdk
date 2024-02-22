@@ -12,14 +12,14 @@ use crate::{Collection, Nft, OwnerAddress};
 
 /// Syncs a collection to the corresponding table "collections" in postgres
 #[offchain]
-pub fn update_collection<C: sov_modules_api::Context>(collection: &Collection<C>) {
+pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
     // Extract the necessary metadata from the collection
     let collection_name = collection.get_name();
     let creator_address = collection.get_creator();
     let frozen = collection.is_frozen();
     let metadata_url = collection.get_collection_uri();
     let supply = collection.get_supply();
-    let collection_address: CollectionAddress<C> =
+    let collection_address: CollectionAddress<S> =
         get_collection_address(collection_name, creator_address.as_ref());
     let collection_address_str = collection_address.to_string();
     let creator_address_str = creator_address.to_string();
@@ -57,7 +57,7 @@ pub fn update_collection<C: sov_modules_api::Context>(collection: &Collection<C>
 /// Additionally, this function also has logic to track the counts of NFTs held by each user
 /// in each collection.
 #[offchain]
-pub fn update_nft<C: sov_modules_api::Context>(nft: &Nft<C>, old_owner: Option<OwnerAddress<C>>) {
+pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<OwnerAddress<S>>) {
     let collection_address = nft.get_collection_address().to_string();
     let nft_id = nft.get_token_id();
     let new_owner_str = nft.get_owner().to_string();

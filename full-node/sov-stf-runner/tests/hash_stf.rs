@@ -2,7 +2,7 @@ use sha2::Digest;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_zkvm::MockZkVerifier;
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
@@ -195,11 +195,12 @@ pub fn get_result_from_blocks(
 
     let stf = HashStf::<MockValidityCond>::new();
 
-    let (genesis_state_root, change_set) =
-        <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkvm<MockValidityCond>,
-            MockDaSpec,
-        >>::init_chain(&stf, storage, genesis_params.to_vec());
+    let (genesis_state_root, change_set) = <HashStf<MockValidityCond> as StateTransitionFunction<
+        MockZkVerifier,
+        MockDaSpec,
+    >>::init_chain(
+        &stf, storage, genesis_params.to_vec()
+    );
     storage_manager.commit(change_set);
 
     let mut state_root = genesis_state_root;
@@ -211,7 +212,7 @@ pub fn get_result_from_blocks(
 
         let storage = storage_manager.create_storage();
         let result = <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkvm<MockValidityCond>,
+            MockZkVerifier,
             MockDaSpec,
         >>::apply_slot::<&mut Vec<MockBlob>>(
             &stf,

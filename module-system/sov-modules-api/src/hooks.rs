@@ -13,22 +13,22 @@ use crate::transaction::Transaction;
 /// runtime, compatible implementations are selected and utilized by the system to construct its
 /// setup procedures and define post-execution routines.
 pub trait TxHooks {
-    type Context: Context;
+    type Spec: Spec;
 
     /// Runs just before a transaction is dispatched to an appropriate module.
     fn pre_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Context>,
-        working_set: &mut WorkingSet<Self::Context>,
+        tx: &Transaction<Self::Spec>,
+        working_set: &mut WorkingSet<Self::Spec>,
     ) -> anyhow::Result<()>;
 
     /// Runs after the tx is dispatched to an appropriate module.
     /// IF this hook returns error rollup panics
     fn post_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Context>,
-        ctx: &Self::Context,
-        working_set: &mut WorkingSet<Self::Context>,
+        tx: &Transaction<Self::Spec>,
+        ctx: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<Self::Spec>,
     ) -> anyhow::Result<()>;
 }
 
@@ -36,7 +36,7 @@ pub trait TxHooks {
 /// In essence, the sequencer locks a bond at the beginning of the `StateTransitionFunction::apply_blob`,
 /// and is rewarded once a blob of transactions is processed.
 pub trait ApplyBatchHooks<Da: DaSpec> {
-    type Context: Context;
+    type Spec: Spec;
     type BatchResult;
 
     /// Runs at the beginning of apply_blob, locks the sequencer bond.
@@ -45,7 +45,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
         &self,
         batch: &mut BatchWithId,
         sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<Self::Context>,
+        state_checkpoint: &mut StateCheckpoint<Self::Spec>,
     ) -> anyhow::Result<()>;
 
     /// Executes at the end of apply_blob and rewards or slashed the sequencer
@@ -53,7 +53,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     fn end_batch_hook(
         &self,
         result: Self::BatchResult,
-        state_checkpoint: &mut StateCheckpoint<Self::Context>,
+        state_checkpoint: &mut StateCheckpoint<Self::Spec>,
     );
 }
 
@@ -62,23 +62,23 @@ pub type TransitionHeight = u64;
 
 /// Hooks that execute during the `StateTransitionFunction::begin_slot` and `end_slot` functions.
 pub trait SlotHooks {
-    type Context: Context;
+    type Spec: Spec;
 
     fn begin_slot_hook(
         &self,
-        pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        working_set: &mut VersionedStateReadWriter<StateCheckpoint<Self::Context>>,
+        pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        working_set: &mut VersionedStateReadWriter<StateCheckpoint<Self::Spec>>,
     );
 
-    fn end_slot_hook(&self, working_set: &mut StateCheckpoint<Self::Context>);
+    fn end_slot_hook(&self, working_set: &mut StateCheckpoint<Self::Spec>);
 }
 
 pub trait FinalizeHook {
-    type Context: Context;
+    type Spec: Spec;
 
     fn finalize_hook(
         &self,
-        root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        accessory_working_set: &mut AccessoryStateCheckpoint<Self::Context>,
+        root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        accessory_working_set: &mut AccessoryStateCheckpoint<Self::Spec>,
     );
 }

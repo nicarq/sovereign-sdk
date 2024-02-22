@@ -31,9 +31,9 @@ pub enum TransactionWorkflow<File: Subcommand, Json: Subcommand> {
 
 impl<File: Subcommand, Json: Subcommand> TransactionWorkflow<File, Json> {
     /// Run the transaction workflow
-    pub fn run<RT: CliWallet, C: sov_modules_api::Context, V, E1, E2, E3>(
+    pub fn run<RT: CliWallet, S: sov_modules_api::Spec, V, E1, E2, E3>(
         self,
-        wallet_state: &mut WalletState<RT::Decodable, C>,
+        wallet_state: &mut WalletState<RT::Decodable, S>,
         _app_dir: impl AsRef<Path>,
     ) -> Result<(), anyhow::Error>
     where
@@ -97,9 +97,9 @@ where
     File: Subcommand,
 {
     /// Parse from a file or a json string
-    pub fn run<RT: CliWallet, C: sov_modules_api::Context, U, E1, E2, E3>(
+    pub fn run<RT: CliWallet, S: sov_modules_api::Spec, U, E1, E2, E3>(
         self,
-        wallet_state: &mut WalletState<RT::Decodable, C>,
+        wallet_state: &mut WalletState<RT::Decodable, S>,
     ) -> Result<(), anyhow::Error>
     where
         Json: CliFrontEnd<RT> + CliTxImportArg,

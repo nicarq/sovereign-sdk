@@ -46,6 +46,7 @@ use sha2::Sha256;
 /// This type is typically found as a type parameter for [`ProverStorage`].
 #[derive(Clone)]
 pub struct DefaultStorageSpec;
+// TODO(@preston-evans98): Make this type generic over a hasher <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/188>
 
 impl MerkleProofSpec for DefaultStorageSpec {
     type Witness = ArrayWitness;

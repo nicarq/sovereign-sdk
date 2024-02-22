@@ -7,8 +7,8 @@ pub trait RuntimeEventProcessor {
         + PartialEq;
 
     /// Function that converts module specific events to a wrapped event for storage
-    fn convert_to_runtime_event<Co: crate::Context>(
-        event: crate::storage::TypedEvent<Co>,
+    fn convert_to_runtime_event<S: crate::Spec>(
+        event: crate::storage::TypedEvent<S>,
     ) -> Option<Self::RuntimeEvent>;
 }
 

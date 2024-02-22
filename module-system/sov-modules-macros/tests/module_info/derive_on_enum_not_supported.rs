@@ -1,12 +1,12 @@
 use sov_modules_api::{ModuleInfo, StateMap};
 
 #[derive(ModuleInfo)]
-enum TestStruct<C: sov_modules_api::Context> {
+enum TestStruct<S: sov_modules_api::Spec> {
     #[state]
     TestState1(StateMap<String, String>),
 
     #[state]
-    TestState2(C),
+    TestState2(S),
 }
 
 fn main() {}

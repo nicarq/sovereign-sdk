@@ -19,7 +19,6 @@ use log4rs::config::{Appender, Config, Root};
 use prettytable::Table;
 use regex::Regex;
 use risc0::MOCK_DA_ELF;
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::SlotData;
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
@@ -27,6 +26,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 #[cfg(feature = "bench")]
 use sov_risc0_adapter::metrics::GLOBAL_HASHMAP;
+use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -35,6 +35,8 @@ use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
 use tempfile::TempDir;
+
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 use crate::datagen::{generate_genesis_config, get_bench_blocks};
 
@@ -148,11 +150,11 @@ fn chain_stats(num_blocks: usize, num_blocks_with_txns: usize, num_txns: usize, 
 }
 
 type BenchSTF<'a> = StfBlueprint<
-    DefaultContext,
+    DefaultSpec,
     MockDaSpec,
-    Risc0Host<'a>,
-    Runtime<DefaultContext, MockDaSpec>,
-    BasicKernel<DefaultContext, MockDaSpec>,
+    Risc0Verifier,
+    Runtime<DefaultSpec, MockDaSpec>,
+    BasicKernel<DefaultSpec, MockDaSpec>,
 >;
 
 #[tokio::main]
@@ -196,7 +198,7 @@ async fn main() -> Result<(), anyhow::Error> {
     generate_genesis_config(genesis_conf_dir.as_str())?;
 
     let genesis_config = {
-        let rt_params = get_genesis_config::<DefaultContext, _>(&GenesisPaths::from_dir(
+        let rt_params = get_genesis_config::<DefaultSpec, _>(&GenesisPaths::from_dir(
             genesis_conf_dir.as_str(),
         ))
         .unwrap();
@@ -265,8 +267,8 @@ async fn main() -> Result<(), anyhow::Error> {
         }
 
         let data = StateTransitionData::<
-            <BenchSTF as StateTransitionFunction<Risc0Host<'_>, MockDaSpec>>::StateRoot,
-            <BenchSTF as StateTransitionFunction<Risc0Host<'_>, MockDaSpec>>::Witness,
+            <BenchSTF as StateTransitionFunction<Risc0Verifier, MockDaSpec>>::StateRoot,
+            <BenchSTF as StateTransitionFunction<Risc0Verifier, MockDaSpec>>::Witness,
             MockDaSpec,
         > {
             initial_state_root: prev_state_root,

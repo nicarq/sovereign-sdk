@@ -1,8 +1,4 @@
-use std::vec;
-
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::{Gas, PrivateKey};
+use sov_modules_api::{CryptoSpec, Gas, PrivateKey, Spec};
 use sov_value_setter::ValueSetter;
 
 use super::*;
@@ -12,36 +8,34 @@ const DEFAULT_CHAIN_ID: u64 = 0;
 const DEFAULT_GAS_TIP: u64 = 0;
 const DEFAULT_GAS_LIMIT: u64 = 0;
 
-pub struct ValueSetterMessage<C: Context> {
-    pub admin: Rc<C::PrivateKey>,
+pub struct ValueSetterMessage<S: Spec> {
+    pub admin: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     pub messages: Vec<u32>,
 }
 
-pub struct ValueSetterMessages<C: Context> {
-    pub messages: Vec<ValueSetterMessage<C>>,
+pub struct ValueSetterMessages<S: Spec> {
+    pub messages: Vec<ValueSetterMessage<S>>,
 }
 
-impl<C: Context> ValueSetterMessages<C> {
-    pub fn new(messages: Vec<ValueSetterMessage<C>>) -> Self {
+impl<S: Spec> ValueSetterMessages<S> {
+    pub fn new(messages: Vec<ValueSetterMessage<S>>) -> Self {
         Self { messages }
     }
-}
 
-impl Default for ValueSetterMessages<DefaultContext> {
-    /// This function will return a dummy value setter message containing one admin and two value setter messages.
-    fn default() -> Self {
+    /// Returns a message containing one admin and two value setter messages.
+    pub fn prepopulated() -> Self {
         Self::new(vec![ValueSetterMessage {
-            admin: Rc::new(DefaultPrivateKey::generate()),
+            admin: Rc::new(<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate()),
             messages: vec![99, 33],
         }])
     }
 }
 
-impl<C: Context> MessageGenerator for ValueSetterMessages<C> {
-    type Module = ValueSetter<C>;
-    type Context = C;
+impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
+    type Module = ValueSetter<S>;
+    type Spec = S;
 
-    fn create_messages(&self) -> Vec<Message<Self::Context, Self::Module>> {
+    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::default();
         for value_setter_message in &self.messages {
             let admin = value_setter_message.admin.clone();
@@ -69,17 +63,17 @@ impl<C: Context> MessageGenerator for ValueSetterMessages<C> {
 
     fn create_tx<Encoder: EncodeCall<Self::Module>>(
         &self,
-        sender: &C::PrivateKey,
+        sender: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
         message: <Self::Module as Module>::CallMessage,
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<C::Gas as Gas>::Price>,
+        max_gas_price: Option<<S::Gas as Gas>::Price>,
         nonce: u64,
         _is_last: bool,
-    ) -> Transaction<C> {
+    ) -> Transaction<S> {
         let message = Encoder::encode_call(message);
-        Transaction::<C>::new_signed_tx(
+        Transaction::<S>::new_signed_tx(
             sender,
             message,
             chain_id,

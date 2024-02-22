@@ -65,6 +65,7 @@ native = [
 	"sov-cli",
 	"sov-evm/native",
 	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
 	"sov-nft-module/native",

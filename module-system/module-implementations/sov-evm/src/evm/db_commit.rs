@@ -5,7 +5,7 @@ use sov_modules_api::StateMapAccessor;
 use super::db::EvmDb;
 use super::DbAccount;
 
-impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
+impl<'a, S: sov_modules_api::Spec> DatabaseCommit for EvmDb<'a, S> {
     fn commit(&mut self, changes: HashMap<Address, Account>) {
         for (address, account) in changes {
             // TODO figure out what to do when account is destroyed.

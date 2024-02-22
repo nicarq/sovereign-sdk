@@ -1,33 +1,43 @@
 use std::rc::Rc;
 
 use sov_bank::{get_token_address, Bank, CallMessage, Coins};
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, EncodeCall, Gas, GasPrice, Module, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{
+    CryptoSpec, EncodeCall, Gas, GasPrice, Module, PrivateKey as _, PublicKey, Spec,
+};
 
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier>;
+type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+type PrivateKey<S> = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 use crate::{Message, MessageGenerator};
 
-pub struct TransferData<C: Context> {
-    pub sender_pkey: Rc<C::PrivateKey>,
-    pub receiver_address: <C as Spec>::Address,
-    pub token_address: <C as Spec>::Address,
+pub struct TransferData<S: Spec> {
+    pub sender_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
+    pub receiver_address: S::Address,
+    pub token_address: S::Address,
     pub transfer_amount: u64,
 }
 
-pub struct MintData<C: Context> {
+pub struct MintData<S: Spec> {
     pub token_name: String,
     pub salt: u64,
     pub initial_balance: u64,
-    pub minter_address: <C as Spec>::Address,
-    pub minter_pkey: Rc<C::PrivateKey>,
-    pub authorized_minters: Vec<<C as Spec>::Address>,
+    pub minter_address: S::Address,
+    pub minter_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
+    pub authorized_minters: Vec<S::Address>,
 }
 
-pub struct BankMessageGenerator<C: Context> {
-    pub token_mint_txs: Vec<MintData<C>>,
-    pub transfer_txs: Vec<TransferData<C>>,
+impl<S: Spec> MintData<S> {
+    fn get_token_address(&self) -> <S as Spec>::Address {
+        get_token_address::<S>(&self.token_name, &self.minter_address, self.salt)
+    }
+}
+
+pub struct BankMessageGenerator<S: Spec> {
+    pub token_mint_txs: Vec<MintData<S>>,
+    pub transfer_txs: Vec<TransferData<S>>,
 }
 
 const DEFAULT_TOKEN_NAME: &str = "Token1";
@@ -39,19 +49,19 @@ const DEFAULT_GAS_LIMIT: u64 = 0;
 const DEFAULT_MAX_GAS_PRICE: Option<GasPrice<2>> = None;
 const DEFAULT_INIT_BALANCE: u64 = 1000000;
 
-pub fn get_default_token_address() -> <DefaultContext as Spec>::Address {
+pub fn get_default_token_address() -> <DefaultSpec as Spec>::Address {
     let minter_key = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();
     let minter_address = minter_key.default_address();
     let salt = DEFAULT_SALT;
     let token_name = DEFAULT_TOKEN_NAME.to_owned();
-    get_token_address::<DefaultContext>(&token_name, &minter_address, salt)
+    get_token_address::<DefaultSpec>(&token_name, &minter_address, salt)
 }
 
 pub fn get_default_private_key() -> DefaultPrivateKey {
     DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap()
 }
 
-impl Default for BankMessageGenerator<DefaultContext> {
+impl Default for BankMessageGenerator<DefaultSpec> {
     fn default() -> Self {
         let minter_key = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();
         let minter_address = minter_key.default_address();
@@ -70,55 +80,85 @@ impl Default for BankMessageGenerator<DefaultContext> {
             transfer_txs: Vec::from([TransferData {
                 sender_pkey: Rc::new(minter_key),
                 transfer_amount: 15,
-                receiver_address: generate_address::<DefaultContext>("just_receiver"),
-                token_address: get_token_address::<DefaultContext>(
-                    &token_name,
-                    &minter_address,
-                    salt,
-                ),
+                receiver_address: generate_address::<DefaultSpec>("just_receiver"),
+                token_address: get_token_address::<DefaultSpec>(&token_name, &minter_address, salt),
             }]),
         }
     }
 }
 
-impl BankMessageGenerator<DefaultContext> {
+impl<S: Spec> BankMessageGenerator<S> {
     /// Gets the default sender address and private key.
-    fn default_address_with_pkey() -> (<DefaultContext as Spec>::Address, DefaultPrivateKey) {
-        let pkey = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();
-        let address = pkey.default_address();
+    fn random_address_with_pkey() -> (
+        <S as Spec>::Address,
+        <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
+    ) {
+        let pkey = <<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey>::generate();
+        let address = pkey.to_address();
         (address, pkey)
     }
 
-    /// Generates random transfers between the default sender and random receivers for default token parameters.
-    pub fn default_generate_random_transfers(n: u64) -> Self {
-        Self::generate_random_transfers(
-            n,
+    /// Generates a random create token transaction for default token parameters.
+    pub fn random_create_token_generator() -> Self {
+        let (minter_address, pk) = Self::random_address_with_pkey();
+        Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
             DEFAULT_SALT,
-            DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap(),
+            pk.into(),
+            vec![minter_address],
+            DEFAULT_INIT_BALANCE,
         )
+    }
+
+    /// Create two message generators - one which creates a token, and one which generates random transfers for the token.
+    /// The token generator is returned in the first position.
+    pub fn generate_token_and_random_transfers(num_transfers: u64) -> (Self, Self) {
+        let mut generator_with_token = Self::random_create_token_generator();
+        let token_address = generator_with_token.token_mint_txs[0].get_token_address();
+        let priv_key: PrivateKey<S> =
+            Rc::make_mut(&mut generator_with_token.token_mint_txs[0].minter_pkey).clone();
+        let transfer_generator =
+            Self::generate_random_transfers(num_transfers, token_address, priv_key);
+
+        (generator_with_token, transfer_generator)
+    }
+
+    /// Generates a create token transaction.
+    pub fn generate_create_token(
+        token_name: String,
+        salt: u64,
+        minter_pkey: std::rc::Rc<<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey>,
+        authorized_minters: Vec<<S as Spec>::Address>,
+        initial_balance: u64,
+    ) -> Self {
+        Self {
+            token_mint_txs: vec![MintData {
+                token_name,
+                salt,
+                initial_balance,
+                minter_address: minter_pkey.to_address(),
+                minter_pkey,
+                authorized_minters,
+            }],
+            transfer_txs: vec![],
+        }
     }
 
     /// Generates random transfers between the default sender and random receivers.
     pub fn generate_random_transfers(
         n: u64,
-        token_name: String,
-        salt: u64,
-        sender_pk: DefaultPrivateKey,
+        token_address: <S as Spec>::Address,
+        sender_pk: PrivateKey<S>,
     ) -> Self {
-        let sa = sender_pk.default_address();
-        let token_address =
-            sov_bank::get_token_address::<DefaultContext>(token_name.as_str(), &sa, salt);
-
         let mut transfer_txs = vec![];
         for _ in 1..(n + 1) {
-            let priv_key = DefaultPrivateKey::generate();
-            let address: <DefaultContext as Spec>::Address = priv_key.pub_key().to_address();
+            let priv_key = PrivateKey::<S>::generate();
+            let address: <S as Spec>::Address = priv_key.pub_key().to_address();
 
             transfer_txs.push(TransferData {
                 sender_pkey: Rc::new(sender_pk.clone()),
                 receiver_address: address,
-                token_address,
+                token_address: token_address.clone(),
                 transfer_amount: 1,
             });
         }
@@ -127,6 +167,26 @@ impl BankMessageGenerator<DefaultContext> {
             token_mint_txs: vec![],
             transfer_txs,
         }
+    }
+}
+
+impl BankMessageGenerator<DefaultSpec> {
+    /// Gets the default sender address and private key.
+    fn default_address_with_pkey() -> (<DefaultSpec as Spec>::Address, DefaultPrivateKey) {
+        let pkey = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();
+        let address = pkey.default_address();
+        (address, pkey)
+    }
+
+    /// Generates random transfers between the default sender and random receivers for default token parameters.
+    pub fn default_generate_random_transfers(n: u64) -> Self {
+        let priv_key = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();
+        let token_address = get_token_address::<DefaultSpec>(
+            DEFAULT_TOKEN_NAME,
+            &priv_key.to_address(),
+            DEFAULT_SALT,
+        );
+        Self::generate_random_transfers(n, token_address, priv_key)
     }
 
     /// Generates a create token transaction for default token parameters.
@@ -139,27 +199,6 @@ impl BankMessageGenerator<DefaultContext> {
             vec![minter_address],
             DEFAULT_INIT_BALANCE,
         )
-    }
-
-    /// Generates a create token transaction.
-    pub fn generate_create_token(
-        token_name: String,
-        salt: u64,
-        minter_pkey: std::rc::Rc<DefaultPrivateKey>,
-        authorized_minters: Vec<<DefaultContext as Spec>::Address>,
-        initial_balance: u64,
-    ) -> Self {
-        Self {
-            token_mint_txs: vec![MintData {
-                token_name,
-                salt,
-                initial_balance,
-                minter_address: minter_pkey.default_address(),
-                minter_pkey,
-                authorized_minters,
-            }],
-            transfer_txs: vec![],
-        }
     }
 
     pub fn create_invalid_transfer() -> Self {
@@ -181,8 +220,8 @@ impl BankMessageGenerator<DefaultContext> {
                 TransferData {
                     sender_pkey: Rc::new(DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap()),
                     transfer_amount: 15,
-                    receiver_address: generate_address::<DefaultContext>("just_receiver"),
-                    token_address: get_token_address::<DefaultContext>(
+                    receiver_address: generate_address::<DefaultSpec>("just_receiver"),
+                    token_address: get_token_address::<DefaultSpec>(
                         &token_name,
                         &minter_address,
                         salt,
@@ -192,8 +231,8 @@ impl BankMessageGenerator<DefaultContext> {
                     sender_pkey: Rc::new(DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap()),
                     // invalid transfer because transfer_amount > minted supply
                     transfer_amount: 5000,
-                    receiver_address: generate_address::<DefaultContext>("just_receiver"),
-                    token_address: get_token_address::<DefaultContext>(
+                    receiver_address: generate_address::<DefaultSpec>("just_receiver"),
+                    token_address: get_token_address::<DefaultSpec>(
                         &token_name,
                         &minter_address,
                         salt,
@@ -204,7 +243,7 @@ impl BankMessageGenerator<DefaultContext> {
     }
 }
 
-pub(crate) fn mint_token_tx<C: Context>(mint_data: &MintData<C>) -> CallMessage<C> {
+pub(crate) fn mint_token_tx<S: Spec>(mint_data: &MintData<S>) -> CallMessage<S> {
     CallMessage::CreateToken {
         salt: mint_data.salt,
         token_name: mint_data.token_name.clone(),
@@ -214,7 +253,7 @@ pub(crate) fn mint_token_tx<C: Context>(mint_data: &MintData<C>) -> CallMessage<
     }
 }
 
-pub(crate) fn transfer_token_tx<C: Context>(transfer_data: &TransferData<C>) -> CallMessage<C> {
+pub(crate) fn transfer_token_tx<S: Spec>(transfer_data: &TransferData<S>) -> CallMessage<S> {
     CallMessage::Transfer {
         to: transfer_data.receiver_address.clone(),
         coins: Coins {
@@ -224,12 +263,12 @@ pub(crate) fn transfer_token_tx<C: Context>(transfer_data: &TransferData<C>) -> 
     }
 }
 
-impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
-    type Module = Bank<C>;
-    type Context = C;
+impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
+    type Module = Bank<S>;
+    type Spec = S;
 
-    fn create_messages(&self) -> Vec<Message<Self::Context, Self::Module>> {
-        let mut messages = Vec::<Message<C, Bank<C>>>::new();
+    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+        let mut messages = Vec::<Message<S, Bank<S>>>::new();
 
         let mut nonce = 0;
 
@@ -237,7 +276,7 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
             let max_gas_price = None;
             messages.push(Message::new(
                 mint_message.minter_pkey.clone(),
-                mint_token_tx::<C>(mint_message),
+                mint_token_tx::<S>(mint_message),
                 DEFAULT_CHAIN_ID,
                 DEFAULT_GAS_TIP,
                 DEFAULT_GAS_LIMIT,
@@ -251,7 +290,7 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
             let max_gas_price = None;
             messages.push(Message::new(
                 transfer_message.sender_pkey.clone(),
-                transfer_token_tx::<C>(transfer_message),
+                transfer_token_tx::<S>(transfer_message),
                 DEFAULT_CHAIN_ID,
                 DEFAULT_GAS_TIP,
                 DEFAULT_GAS_LIMIT,
@@ -266,17 +305,17 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
 
     fn create_tx<Encoder: EncodeCall<Self::Module>>(
         &self,
-        sender: &<Self::Context as Spec>::PrivateKey,
+        sender: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
         message: <Self::Module as Module>::CallMessage,
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<C::Gas as Gas>::Price>,
+        max_gas_price: Option<<S::Gas as Gas>::Price>,
         nonce: u64,
         _is_last: bool,
-    ) -> sov_modules_api::transaction::Transaction<C> {
+    ) -> sov_modules_api::transaction::Transaction<S> {
         let message = Encoder::encode_call(message);
-        Transaction::<C>::new_signed_tx(
+        Transaction::<S>::new_signed_tx(
             sender,
             message,
             chain_id,
@@ -303,11 +342,11 @@ impl Default for BadSerializationBankCallMessages {
 }
 
 impl MessageGenerator for BadSerializationBankCallMessages {
-    type Module = Bank<DefaultContext>;
-    type Context = DefaultContext;
+    type Module = Bank<Self::Spec>;
+    type Spec = DefaultSpec;
 
-    fn create_messages(&self) -> Vec<Message<Self::Context, Self::Module>> {
-        let mut messages = Vec::<Message<DefaultContext, Bank<DefaultContext>>>::new();
+    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+        let mut messages = Vec::<Message<Self::Spec, Bank<Self::Spec>>>::new();
         let minter_key = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();
         let minter_address = minter_key.default_address();
         let salt = DEFAULT_SALT;
@@ -330,7 +369,7 @@ impl MessageGenerator for BadSerializationBankCallMessages {
         messages.push(Message::new(
             Rc::new(DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap()),
             CallMessage::Transfer {
-                to: generate_address::<DefaultContext>("just_receiver"),
+                to: generate_address::<Self::Spec>("just_receiver"),
                 coins: Coins {
                     amount: 50,
                     token_address: get_default_token_address(),
@@ -348,14 +387,14 @@ impl MessageGenerator for BadSerializationBankCallMessages {
     fn create_tx<Encoder: EncodeCall<Self::Module>>(
         &self,
         sender: &DefaultPrivateKey,
-        message: <Bank<DefaultContext> as Module>::CallMessage,
+        message: <Bank<Self::Spec> as Module>::CallMessage,
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<<DefaultContext as Context>::Gas as Gas>::Price>,
+        max_gas_price: Option<<<Self::Spec as Spec>::Gas as Gas>::Price>,
         nonce: u64,
         is_last: bool,
-    ) -> Transaction<DefaultContext> {
+    ) -> Transaction<Self::Spec> {
         // just some random bytes that won't deserialize to a valid txn
         let call_data = if is_last {
             vec![1, 2, 3]
@@ -363,7 +402,7 @@ impl MessageGenerator for BadSerializationBankCallMessages {
             Encoder::encode_call(message)
         };
 
-        Transaction::<DefaultContext>::new_signed_tx(
+        Transaction::<Self::Spec>::new_signed_tx(
             sender,
             call_data,
             chain_id,
@@ -390,11 +429,11 @@ impl Default for BadSignatureBankCallMessages {
 }
 
 impl MessageGenerator for BadSignatureBankCallMessages {
-    type Module = Bank<DefaultContext>;
-    type Context = DefaultContext;
+    type Spec = DefaultSpec;
+    type Module = Bank<Self::Spec>;
 
-    fn create_messages(&self) -> Vec<Message<Self::Context, Self::Module>> {
-        let mut messages = Vec::<Message<DefaultContext, Bank<DefaultContext>>>::new();
+    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+        let mut messages = Vec::<Message<Self::Spec, Bank<Self::Spec>>>::new();
         let minter_key = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();
         let minter_address = minter_key.default_address();
         let salt = DEFAULT_SALT;
@@ -420,18 +459,18 @@ impl MessageGenerator for BadSignatureBankCallMessages {
     fn create_tx<Encoder: EncodeCall<Self::Module>>(
         &self,
         sender: &DefaultPrivateKey,
-        message: <Bank<DefaultContext> as Module>::CallMessage,
+        message: <Bank<Self::Spec> as Module>::CallMessage,
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<<DefaultContext as Context>::Gas as Gas>::Price>,
+        max_gas_price: Option<<<Self::Spec as Spec>::Gas as Gas>::Price>,
         nonce: u64,
         is_last: bool,
-    ) -> Transaction<DefaultContext> {
+    ) -> Transaction<Self::Spec> {
         let call_data = Encoder::encode_call(message);
 
         if is_last {
-            let tx = Transaction::<DefaultContext>::new_signed_tx(
+            let tx = Transaction::<Self::Spec>::new_signed_tx(
                 sender,
                 call_data.clone(),
                 chain_id,
@@ -451,7 +490,7 @@ impl MessageGenerator for BadSignatureBankCallMessages {
                 nonce,
             )
         } else {
-            Transaction::<DefaultContext>::new_signed_tx(
+            Transaction::<Self::Spec>::new_signed_tx(
                 sender,
                 call_data,
                 chain_id,
@@ -479,11 +518,11 @@ impl Default for BadNonceBankCallMessages {
 }
 
 impl MessageGenerator for BadNonceBankCallMessages {
-    type Module = Bank<DefaultContext>;
-    type Context = DefaultContext;
+    type Module = Bank<Self::Spec>;
+    type Spec = DefaultSpec;
 
-    fn create_messages(&self) -> Vec<Message<Self::Context, Self::Module>> {
-        let mut messages = Vec::<Message<DefaultContext, Bank<DefaultContext>>>::new();
+    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+        let mut messages = Vec::<Message<Self::Spec, Bank<Self::Spec>>>::new();
         let minter_key = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();
         let minter_address = minter_key.default_address();
         let salt = DEFAULT_SALT;
@@ -509,17 +548,17 @@ impl MessageGenerator for BadNonceBankCallMessages {
     fn create_tx<Encoder: EncodeCall<Self::Module>>(
         &self,
         sender: &DefaultPrivateKey,
-        message: <Bank<DefaultContext> as Module>::CallMessage,
+        message: <Bank<Self::Spec> as Module>::CallMessage,
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<<DefaultContext as Context>::Gas as Gas>::Price>,
+        max_gas_price: Option<<<Self::Spec as Spec>::Gas as Gas>::Price>,
         _nonce: u64,
         _is_last: bool,
-    ) -> Transaction<DefaultContext> {
+    ) -> Transaction<Self::Spec> {
         let message = Encoder::encode_call(message);
         // hard-coding the nonce to 1000
-        Transaction::<DefaultContext>::new_signed_tx(
+        Transaction::<Self::Spec>::new_signed_tx(
             sender,
             message,
             chain_id,

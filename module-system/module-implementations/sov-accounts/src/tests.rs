@@ -1,26 +1,25 @@
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::{
-    AddressBech32, Context, Module, PrivateKey, PublicKey, Spec, StateMapAccessor, WorkingSet,
+    AddressBech32, Context, CryptoSpec, Module, PrivateKey, PublicKey, Spec, StateMapAccessor,
+    WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::rpc::{self, Response};
 use crate::{call, AccountConfig, Accounts};
 
-type C = DefaultContext;
-
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 #[test]
 fn test_config_account() {
     let priv_key = DefaultPrivateKey::generate();
     let init_pub_key = priv_key.pub_key();
-    let init_pub_key_addr = init_pub_key.to_address::<<C as Spec>::Address>();
+    let init_pub_key_addr = init_pub_key.to_address::<<S as Spec>::Address>();
 
     let account_config = AccountConfig {
         pub_keys: vec![init_pub_key.clone()],
     };
 
-    let accounts = &mut Accounts::<C>::default();
+    let accounts = &mut Accounts::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
@@ -41,16 +40,16 @@ fn test_config_account() {
 fn test_update_account() {
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let accounts = &mut Accounts::<C>::default();
+    let accounts = &mut Accounts::<S>::default();
 
     let priv_key = DefaultPrivateKey::generate();
     let sequencer_priv_key = DefaultPrivateKey::generate();
 
     let sender = priv_key.pub_key();
     let sequencer = sequencer_priv_key.pub_key();
-    let sender_addr = sender.to_address::<<C as Spec>::Address>();
-    let sequencer_addr = sequencer.to_address::<<C as Spec>::Address>();
-    let sender_context = C::new(sender_addr, sequencer_addr, 1);
+    let sender_addr = sender.to_address::<<S as Spec>::Address>();
+    let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
+    let sender_context = Context::<S>::new(sender_addr, sequencer_addr, 1);
 
     // Test new account creation
     {
@@ -74,7 +73,7 @@ fn test_update_account() {
         let sig = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
         accounts
             .call(
-                call::CallMessage::<C>::UpdatePublicKey(new_pub_key.clone(), sig),
+                call::CallMessage::<S>::UpdatePublicKey(new_pub_key.clone(), sig),
                 &sender_context,
                 working_set,
             )
@@ -102,11 +101,11 @@ fn test_update_account() {
 fn test_update_account_fails() {
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let accounts = &mut Accounts::<C>::default();
+    let accounts = &mut Accounts::<S>::default();
 
     let sender_1 = DefaultPrivateKey::generate().pub_key();
     let sequencer = DefaultPrivateKey::generate().pub_key();
-    let sender_context_1 = C::new(sender_1.to_address(), sequencer.to_address(), 1);
+    let sender_context_1 = Context::<S>::new(sender_1.to_address(), sequencer.to_address(), 1);
 
     let _ = accounts.get_or_create_default(&sender_1, working_set);
 
@@ -119,7 +118,7 @@ fn test_update_account_fails() {
     // The new public key already exists and the call fails.
     assert!(accounts
         .call(
-            call::CallMessage::<C>::UpdatePublicKey(sender_2, sig_2),
+            call::CallMessage::<S>::UpdatePublicKey(sender_2, sig_2),
             &sender_context_1,
             working_set
         )
@@ -130,13 +129,13 @@ fn test_update_account_fails() {
 fn test_get_account_after_pub_key_update() {
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let accounts = &mut Accounts::<C>::default();
+    let accounts = &mut Accounts::<S>::default();
 
     let sender_1 = DefaultPrivateKey::generate().pub_key();
     let sequencer = DefaultPrivateKey::generate().pub_key();
-    let sender_1_addr = sender_1.to_address::<<C as Spec>::Address>();
-    let sequencer_addr = sequencer.to_address::<<C as Spec>::Address>();
-    let sender_context_1 = C::new(sender_1_addr, sequencer_addr, 1);
+    let sender_1_addr = sender_1.to_address::<<S as Spec>::Address>();
+    let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
+    let sender_context_1 = Context::<S>::new(sender_1_addr, sequencer_addr, 1);
 
     let _ = accounts.get_or_create_default(&sender_1, working_set);
 
@@ -145,7 +144,7 @@ fn test_get_account_after_pub_key_update() {
     let sig = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
     accounts
         .call(
-            call::CallMessage::<C>::UpdatePublicKey(new_pub_key.clone(), sig),
+            call::CallMessage::<S>::UpdatePublicKey(new_pub_key.clone(), sig),
             &sender_context_1,
             working_set,
         )

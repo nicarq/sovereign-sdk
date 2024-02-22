@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anyhow::Result;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, EventEmitter, WorkingSet};
+use sov_modules_api::{CallResponse, Context, EventEmitter, WorkingSet};
 use thiserror::Error;
 
 use crate::event::Event;
@@ -26,13 +26,13 @@ pub enum CallMessage {
 #[derive(Debug, Error)]
 enum SetValueError {}
 
-impl<C: sov_modules_api::Context> ExampleModule<C> {
+impl<S: sov_modules_api::Spec> ExampleModule<S> {
     /// Sets `value` field to the `new_value`
     pub(crate) fn set_value(
         &self,
         new_value: u32,
-        _context: &C,
-        working_set: &mut WorkingSet<C>,
+        _context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse> {
         self.value.set(&new_value, working_set);
         self.emit_event(working_set, "set_value", Event::Set { value: new_value });

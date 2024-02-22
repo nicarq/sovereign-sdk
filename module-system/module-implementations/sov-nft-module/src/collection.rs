@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Context as _};
-use sov_modules_api::{Context, StateMap, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, Spec, StateMap, StateMapAccessor, WorkingSet};
 
 use crate::address::CollectionAddress;
 use crate::utils::get_collection_address;
@@ -12,14 +12,14 @@ use crate::CreatorAddress;
 )]
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 /// Defines an nft collection
-pub struct Collection<C: Context> {
+pub struct Collection<S: Spec> {
     /// Name of the collection
     /// The name has to be unique in the scope of a creator. A single creator address cannot have
     /// duplicate collection names
     name: String,
     /// Address of the collection creator
     /// This is the only address that can mint new NFTs for the collection
-    creator: CreatorAddress<C>,
+    creator: CreatorAddress<S>,
     /// If a collection is frozen, then new NFTs
     /// cannot be minted and the supply is frozen
     frozen: bool,
@@ -31,13 +31,13 @@ pub struct Collection<C: Context> {
     collection_uri: String,
 }
 
-pub enum CollectionState<C: Context> {
-    Frozen(Collection<C>),
-    Mutable(MutableCollection<C>),
+pub enum CollectionState<S: Spec> {
+    Frozen(Collection<S>),
+    Mutable(MutableCollection<S>),
 }
 
-impl<C: Context> CollectionState<C> {
-    pub fn get_mutable_or_bail(&self) -> anyhow::Result<MutableCollection<C>> {
+impl<S: Spec> CollectionState<S> {
+    pub fn get_mutable_or_bail(&self) -> anyhow::Result<MutableCollection<S>> {
         match self {
             CollectionState::Frozen(collection) => bail!(
                 "Collection with name: {} , creator: {} is frozen",
@@ -49,14 +49,14 @@ impl<C: Context> CollectionState<C> {
     }
 }
 
-impl<C: Context> Collection<C> {
+impl<S: Spec> Collection<S> {
     pub fn new(
         collection_name: &str,
         collection_uri: &str,
-        collections: &StateMap<CollectionAddress<C>, Collection<C>>,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<(CollectionAddress<C>, Collection<C>)> {
+        collections: &StateMap<CollectionAddress<S>, Collection<S>>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
+    ) -> anyhow::Result<(CollectionAddress<S>, Collection<S>)> {
         let creator = context.sender();
         let collection_address = get_collection_address(collection_name, creator.as_ref());
         let collection = collections.get(&collection_address, working_set);
@@ -82,10 +82,10 @@ impl<C: Context> Collection<C> {
 
     pub fn get_owned_collection(
         collection_name: &str,
-        collections: &StateMap<CollectionAddress<C>, Collection<C>>,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<(CollectionAddress<C>, CollectionState<C>)> {
+        collections: &StateMap<CollectionAddress<S>, Collection<S>>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
+    ) -> anyhow::Result<(CollectionAddress<S>, CollectionState<S>)> {
         let creator = context.sender();
         let collection_address = get_collection_address(collection_name, creator.as_ref());
         let collection = collections.get(&collection_address, working_set);
@@ -117,7 +117,7 @@ impl<C: Context> Collection<C> {
         &self.name
     }
     #[allow(dead_code)]
-    pub fn get_creator(&self) -> &CreatorAddress<C> {
+    pub fn get_creator(&self) -> &CreatorAddress<S> {
         &self.creator
     }
     #[allow(dead_code)]
@@ -138,7 +138,7 @@ impl<C: Context> Collection<C> {
 // the members of the struct to be mutable
 #[derive(Clone)]
 /// NewType representing a mutable (or unfrozen) collection
-pub struct MutableCollection<C: Context>(Collection<C>);
+pub struct MutableCollection<S: Spec>(Collection<S>);
 
 /// Member Functions to allow controlled mutability for the Collection struct
 /// Can only freeze. Cannot unfreeze
@@ -146,8 +146,8 @@ pub struct MutableCollection<C: Context>(Collection<C>);
 /// Can increment supply. Cannot decrement
 /// Cannot modify creator address
 /// Cannot modify name
-impl<C: Context> MutableCollection<C> {
-    pub fn inner(&self) -> &Collection<C> {
+impl<S: Spec> MutableCollection<S> {
+    pub fn inner(&self) -> &Collection<S> {
         &self.0
     }
     pub fn freeze(&mut self) {

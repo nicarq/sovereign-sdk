@@ -1,26 +1,26 @@
-use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_api::{Context, Module, ModuleInfo, StateMap, WorkingSet};
+use sov_modules_api::{Context,CryptoSpec, Module, ModuleInfo, Spec, StateMap, WorkingSet};
+type ZKDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 pub mod first_test_module {
     use super::*;
 
     #[derive(ModuleInfo)]
-    pub(crate) struct FirstTestStruct<C>
+    pub(crate) struct FirstTestStruct<S>
     where
-        C: Context,
+        S: Spec,
     {
         #[address]
-        pub address: C::Address,
+        pub address: S::Address,
 
         #[state]
-        pub state_in_first_struct_1: StateMap<C::PublicKey, u32>,
+        pub state_in_first_struct_1: StateMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u32>,
 
         #[state]
         pub state_in_first_struct_2: StateMap<String, String>,
     }
 
-    impl<C: Context> Module for FirstTestStruct<C> {
-        type Context = C;
+    impl<S: Spec> Module for FirstTestStruct<S> {
+        type Spec = S;
 
         type Config = ();
 
@@ -31,8 +31,8 @@ pub mod first_test_module {
         fn call(
             &self,
             _message: Self::CallMessage,
-            _context: &Self::Context,
-            _working_set: &mut WorkingSet<Self::Context>,
+            _context: &Context<Self::Spec>,
+            _working_set: &mut WorkingSet<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
@@ -44,19 +44,19 @@ mod second_test_module {
     use sov_modules_api::Module;
 
     #[derive(ModuleInfo)]
-    pub(crate) struct SecondTestStruct<C: Context> {
+    pub(crate) struct SecondTestStruct<S: Spec> {
         #[address]
-        pub address: C::Address,
+        pub address: S::Address,
 
         #[state]
         pub state_in_second_struct_1: StateMap<String, u32>,
 
         #[module]
-        pub module_in_second_struct_1: first_test_module::FirstTestStruct<C>,
+        pub module_in_second_struct_1: first_test_module::FirstTestStruct<S>,
     }
 
-    impl<C: Context> Module for SecondTestStruct<C> {
-        type Context = C;
+    impl<S: Spec> Module for SecondTestStruct<S> {
+        type Spec = S;
 
         type Config = ();
 
@@ -67,8 +67,8 @@ mod second_test_module {
         fn call(
             &self,
             _message: Self::CallMessage,
-            _context: &Self::Context,
-            _working_set: &mut WorkingSet<Self::Context>,
+            _context: &Context<Self::Spec>,
+            _working_set: &mut WorkingSet<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
@@ -76,9 +76,8 @@ mod second_test_module {
 }
 
 fn main() {
-    type C = ZkDefaultContext;
     let second_test_struct =
-        <second_test_module::SecondTestStruct<C> as std::default::Default>::default();
+        <second_test_module::SecondTestStruct<ZKDefaultSpec> as std::default::Default>::default();
 
     let prefix2 = second_test_struct.state_in_second_struct_1.prefix();
     assert_eq!(

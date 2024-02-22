@@ -124,19 +124,19 @@ pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ## Example
 /// ```
-/// use sov_modules_api::{Context, ModuleInfo};
+/// use sov_modules_api::{Spec, ModuleInfo};
 /// use sov_modules_api::macros::rpc_gen;
 /// use jsonrpsee::core::RpcResult;
 ///
 /// #[derive(ModuleInfo)]
-/// struct MyModule<C: Context> {
+/// struct MyModule<S: Spec> {
 ///     #[address]
-///     addr: C::Address,
+///     addr: S::Address,
 ///     // ...
 /// }
 ///
 /// #[rpc_gen(client, server, namespace = "myNamespace")]
-/// impl<C: Context> MyModule<C> {
+/// impl<S: Spec> MyModule<S> {
 ///     #[rpc_method(name = "myMethod")]
 ///     fn my_method(&self, param: u32) -> RpcResult<u32> {
 ///         Ok(1)
@@ -147,25 +147,25 @@ pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// This is exactly equivalent to hand-writing
 ///
 /// ```
-/// use sov_modules_api::{Context, ModuleInfo, WorkingSet};
+/// use sov_modules_api::{Spec, ModuleInfo, WorkingSet};
 /// use sov_modules_api::macros::rpc_gen;
 /// use jsonrpsee::core::RpcResult;
 ///
 /// #[derive(ModuleInfo)]
-/// struct MyModule<C: Context> {
+/// struct MyModule<S: Spec> {
 ///     #[address]
-///     addr: C::Address,
+///     addr: S::Address,
 ///     // ...
 /// };
 ///
-/// impl<C: Context> MyModule<C> {
-///     fn my_method(&self, working_set: &mut WorkingSet<C>, param: u32) -> RpcResult<u32> {
+/// impl<S: Spec> MyModule<S> {
+///     fn my_method(&self, working_set: &mut WorkingSet<S>, param: u32) -> RpcResult<u32> {
 ///         Ok(1)
 ///     }  
 /// }
 ///
 /// #[jsonrpsee::proc_macros::rpc(client, server, namespace ="myNamespace")]
-/// pub trait MyModuleRpc<C: Context> {
+/// pub trait MyModuleRpc<S: Spec> {
 ///     #[method(name = "myMethod")]
 ///     fn my_method(&self, param: u32) ->RpcResult<u32>;
 ///
@@ -176,7 +176,7 @@ pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 ///     #[method(name = "moduleAddress")]
 ///     fn module_address(&self) -> ::jsonrpsee::core::RpcResult<String> {
-///        Ok(<MyModule<C> as ModuleInfo>::address(&<MyModule<C> as ::core::default::Default>::default()).to_string())
+///        Ok(<MyModule<S> as ModuleInfo>::address(&<MyModule<S> as ::core::default::Default>::default()).to_string())
 ///     }
 ///         
 /// }
@@ -184,12 +184,12 @@ pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// This proc macro also generates an implementation trait intended to be used by a Runtime struct. This trait
 /// is named `MyModuleRpcImpl`, and allows a Runtime to be converted into a functional RPC server
-/// by simply implementing the two required methods - `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+/// by simply implementing the two required methods - `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<S>`
 ///
 /// ```rust,ignore
-/// pub trait MyModuleRpcImpl<C: sov_modules_api::Context> {
-///     fn get_backing_impl(&self) -> &TestStruct<C>;
-///     fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>;
+/// pub trait MyModuleRpcImpl<S: sov_modules_api::Spec> {
+///     fn get_backing_impl(&self) -> &TestStruct<S>;
+///     fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<S>;
 ///     fn my_method(&self, param: u32) -> u32 {
 ///         Self::get_backing_impl(self).my_method(self, &mut Self::get_working_set(self), param)
 ///     }
@@ -238,7 +238,7 @@ pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
 /// ```
 ///use sov_modules_macros::address_type;
 ///use std::fmt;
-///use sov_modules_api::Context;
+///use sov_modules_api::Spec;
 ///#[address_type]
 ///pub struct UserAddress;
 /// ```
@@ -247,41 +247,41 @@ pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
 ///
 /// ```
 /// use std::fmt;
-/// use sov_modules_api::Context;
+/// use sov_modules_api::Spec;
 ///#[cfg(feature = "native")]
 ///#[derive(schemars::JsonSchema)]
-///#[schemars(bound = "C::Address: ::schemars::JsonSchema", rename = "UserAddress")]
+///#[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "UserAddress")]
 ///#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-///pub struct UserAddress<C: Context>(C::Address);
+///pub struct UserAddress<S: Spec>(S::Address);
 ///
 ///#[cfg(not(feature = "native"))]
 ///#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-///pub struct UserAddress<C: Context>(C::Address);
+///pub struct UserAddress<S: Spec>(S::Address);
 ///
-///impl<C: Context> UserAddress<C> {
+///impl<S: Spec> UserAddress<S> {
 ///    /// Public constructor
-///    pub fn new(address: &C::Address) -> Self {
+///    pub fn new(address: &S::Address) -> Self {
 ///        UserAddress(address.clone())
 ///    }
 ///
 ///    /// Public getter
-///    pub fn get_address(&self) -> &C::Address {
+///    pub fn get_address(&self) -> &S::Address {
 ///        &self.0
 ///    }
 ///}
 ///
-///impl<C: Context> fmt::Display for UserAddress<C>
+///impl<S: Spec> fmt::Display for UserAddress<S>
 ///where
-///    C::Address: fmt::Display,
+///    S::Address: fmt::Display,
 ///{
 ///    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 ///        write!(f, "{}", self.0)
 ///    }
 ///}
 ///
-///impl<C: Context> AsRef<[u8]> for UserAddress<C>
+///impl<S: Spec> AsRef<[u8]> for UserAddress<S>
 ///where
-///    C::Address: AsRef<[u8]>,
+///    S::Address: AsRef<[u8]>,
 ///{
 ///    fn as_ref(&self) -> &[u8] {
 ///        self.0.as_ref()

@@ -30,6 +30,7 @@ sov-state = { path = "../../sov-state" }
 [dev-dependencies]
 tempfile = { workspace = true }
 module-template = { path = ".", version = "*", features = ["native"] }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 [features]
@@ -39,6 +40,7 @@ arbitrary = [
 	"dep:proptest",
 	"dep:proptest-derive",
 	"module-template/arbitrary",
+	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-state/arbitrary",
 ]
@@ -47,6 +49,7 @@ native = [
 	"schemars",
 	"serde_json",
 	"sov-bank/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-state/native",
 ]

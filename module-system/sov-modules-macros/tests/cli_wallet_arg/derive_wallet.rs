@@ -1,10 +1,11 @@
 use clap::Parser;
 use sov_modules_api::cli::JsonStringArg;
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{CliWallet, CliWalletArg, DefaultRuntime};
 use sov_modules_api::{
-    CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleInfo, StateValue, WorkingSet
+    CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleInfo, Spec,
+    StateValue, WorkingSet,
 };
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 pub mod first_test_module {
     use super::*;
@@ -24,16 +25,16 @@ pub mod first_test_module {
     }
 
     #[derive(ModuleInfo)]
-    pub struct FirstTestStruct<C: Context> {
+    pub struct FirstTestStruct<S: Spec> {
         #[address]
-        pub address: C::Address,
+        pub address: S::Address,
 
         #[state]
         pub state_in_first_struct: StateValue<u8>,
     }
 
-    impl<C: Context> Module for FirstTestStruct<C> {
-        type Context = C;
+    impl<S: Spec> Module for FirstTestStruct<S> {
+        type Spec = S;
         type Config = ();
         type CallMessage = MyStruct;
         type Event = ();
@@ -41,7 +42,7 @@ pub mod first_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            _working_set: &mut WorkingSet<C>,
+            _working_set: &mut WorkingSet<S>,
         ) -> Result<(), Error> {
             Ok(())
         }
@@ -49,8 +50,8 @@ pub mod first_test_module {
         fn call(
             &self,
             _msg: Self::CallMessage,
-            _context: &Self::Context,
-            _working_set: &mut WorkingSet<C>,
+            _context: &Context<Self::Spec>,
+            _working_set: &mut WorkingSet<S>,
         ) -> Result<CallResponse, Error> {
             Ok(CallResponse::default())
         }
@@ -61,9 +62,9 @@ pub mod second_test_module {
     use super::*;
 
     #[derive(ModuleInfo)]
-    pub struct SecondTestStruct<Ctx: Context> {
+    pub struct SecondTestStruct<S: Spec> {
         #[address]
-        pub address: Ctx::Address,
+        pub address: S::Address,
 
         #[state]
         pub state_in_second_struct: StateValue<u8>,
@@ -83,8 +84,8 @@ pub mod second_test_module {
         Bar(u8),
     }
 
-    impl<Ctx: Context> Module for SecondTestStruct<Ctx> {
-        type Context = Ctx;
+    impl<S: Spec> Module for SecondTestStruct<S> {
+        type Spec = S;
         type Config = ();
         type CallMessage = MyEnum;
         type Event = ();
@@ -92,7 +93,7 @@ pub mod second_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            _working_set: &mut WorkingSet<Ctx>,
+            _working_set: &mut WorkingSet<S>,
         ) -> Result<(), Error> {
             Ok(())
         }
@@ -100,8 +101,8 @@ pub mod second_test_module {
         fn call(
             &self,
             _msg: Self::CallMessage,
-            _context: &Self::Context,
-            _working_set: &mut WorkingSet<Ctx>,
+            _context: &Context<Self::Spec>,
+            _working_set: &mut WorkingSet<S>,
         ) -> Result<CallResponse, Error> {
             Ok(CallResponse::default())
         }
@@ -110,9 +111,9 @@ pub mod second_test_module {
 
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime, CliWallet)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-pub struct Runtime<C: Context> {
-    pub first: first_test_module::FirstTestStruct<C>,
-    pub second: second_test_module::SecondTestStruct<C>,
+pub struct Runtime<S: Spec> {
+    pub first: first_test_module::FirstTestStruct<S>,
+    pub second: second_test_module::SecondTestStruct<S>,
 }
 
 fn main() {
@@ -120,8 +121,8 @@ fn main() {
         first_field: 1,
         str_field: "hello".to_string(),
     });
-    let foo_from_cli: RuntimeSubcommand<JsonStringArg, DefaultContext> =
-        <RuntimeSubcommand<JsonStringArg, DefaultContext>>::try_parse_from(&[
+    let foo_from_cli: RuntimeSubcommand<JsonStringArg, DefaultSpec> =
+        <RuntimeSubcommand<JsonStringArg, DefaultSpec>>::try_parse_from(&[
             "main",
             "first",
             "--json",
@@ -131,12 +132,12 @@ fn main() {
         ])
         .expect("parsing must succed")
         .into();
-    let foo_ir: RuntimeMessage<JsonStringArg, DefaultContext> = foo_from_cli.try_into().unwrap();
+    let foo_ir: RuntimeMessage<JsonStringArg, DefaultSpec> = foo_from_cli.try_into().unwrap();
     assert_eq!(expected_foo, foo_ir.try_into().unwrap());
 
     let expected_bar = RuntimeCall::second(second_test_module::MyEnum::Bar(2));
-    let bar_from_cli: RuntimeSubcommand<JsonStringArg, DefaultContext> =
-        <RuntimeSubcommand<JsonStringArg, DefaultContext>>::try_parse_from(&[
+    let bar_from_cli: RuntimeSubcommand<JsonStringArg, DefaultSpec> =
+        <RuntimeSubcommand<JsonStringArg, DefaultSpec>>::try_parse_from(&[
             "main",
             "second",
             "--json",
@@ -146,7 +147,7 @@ fn main() {
         ])
         .expect("parsing must succed")
         .into();
-    let bar_ir: RuntimeMessage<JsonStringArg, DefaultContext> = bar_from_cli.try_into().unwrap();
+    let bar_ir: RuntimeMessage<JsonStringArg, DefaultSpec> = bar_from_cli.try_into().unwrap();
 
     assert_eq!(expected_bar, bar_ir.try_into().unwrap());
 }

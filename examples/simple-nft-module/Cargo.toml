@@ -24,6 +24,7 @@ jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], 
 
 [dev-dependencies]
 sov-rollup-interface = { path = "../../rollup-interface" }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
 tempfile = { workspace = true }
 simple-nft-module = { version = "*", features = ["native"], path = "." }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
@@ -37,6 +38,7 @@ native = [
 	"schemars",
 	"serde_json",
 	"simple-nft-module/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-rollup-interface/native",
 	"sov-state/native",

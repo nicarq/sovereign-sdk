@@ -165,7 +165,7 @@ impl RpcImplBlock {
         let rpc_impl_trait = if let Some(ref working_set_type) = self.working_set_type {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
-                /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+                /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<S>`
                 pub trait #impl_trait_name #generics #where_clause {
                     /// Get a clean working set on top of the latest state
                     fn get_working_set(&self) -> #working_set_type;
@@ -175,7 +175,7 @@ impl RpcImplBlock {
         } else {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
-                /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+                /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<S>`
                 pub trait #impl_trait_name #generics #where_clause {
                     #(#impl_trait_methods)*
                 }
@@ -227,7 +227,7 @@ fn build_rpc_trait(
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let intermediate_trait_name = format_ident!("{}Rpc", type_name);
     // If the user hasn't directly provided trait bounds, override jsonrpsee's defaults
-    // with an empty bound. This prevents spurious compilation errors like `Context does not implement DeserializeOwned`
+    // with an empty bound. This prevents spurious compilation errors like `Spec does not implement DeserializeOwned`
     add_server_bounds_attr_if_missing(&mut attrs);
 
     let wrapped_attr_args = quote! {

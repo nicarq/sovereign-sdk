@@ -1,12 +1,12 @@
 use sov_chain_state::{ChainState, ChainStateConfig, StateTransitionId, TransitionInProgress};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::da::{BlockHeaderTrait, Time};
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Context, Gas, GasPrice, GasUnit, KernelModule, KernelWorkingSet};
+use sov_modules_api::{Gas, GasPrice, GasUnit, KernelModule, KernelWorkingSet, Spec};
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::StateCheckpoint;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::Storage;
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 /// This simply tests that the chain_state reacts properly with the invocation of the `begin_slot`
 /// hook. For more complete integration tests, feel free to have a look at the integration tests folder.
@@ -19,7 +19,7 @@ fn test_simple_chain_state() {
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut state_checkpoint = StateCheckpoint::new(storage.clone());
 
-    let chain_state = ChainState::<DefaultContext, MockDaSpec>::default();
+    let chain_state = ChainState::<DefaultSpec, MockDaSpec>::default();
     let initial_gas_price: GasPrice<2> = [2000, 2000].into();
     let gas_price_maximum_elasticity = 1;
     let minimum_gas_price: GasPrice<2> = [1, 1].into();
@@ -45,7 +45,7 @@ fn test_simple_chain_state() {
     let mut base_checkpoint = StateCheckpoint::new(storage.clone());
 
     // Check the slot number before any changes to the state.
-    let mock_kernel: MockKernel<DefaultContext, MockDaSpec> = MockKernel::new(0, 0);
+    let mock_kernel: MockKernel<DefaultSpec, MockDaSpec> = MockKernel::new(0, 0);
     let initial_height = chain_state.true_slot_number(&mut KernelWorkingSet::from_kernel(
         &mock_kernel,
         &mut base_checkpoint,
@@ -95,11 +95,11 @@ fn test_simple_chain_state() {
     assert_eq!(new_height_storage, 1, "The new height did not update");
 
     // Update the kernel
-    let mock_kernel: MockKernel<DefaultContext, MockDaSpec> =
+    let mock_kernel: MockKernel<DefaultSpec, MockDaSpec> =
         MockKernel::new(new_height_storage, new_height_storage);
 
     // Check that the new state transition is being stored
-    let new_tx_in_progress: TransitionInProgress<DefaultContext, MockDaSpec> = chain_state
+    let new_tx_in_progress: TransitionInProgress<DefaultSpec, MockDaSpec> = chain_state
         .get_in_progress_transition(&mut working_set)
         .unwrap();
 
@@ -108,7 +108,7 @@ fn test_simple_chain_state() {
 
     assert_eq!(
         new_tx_in_progress,
-        TransitionInProgress::<DefaultContext, MockDaSpec>::new(
+        TransitionInProgress::<DefaultSpec, MockDaSpec>::new(
             [1; 32].into(),
             MockValidityCond { is_valid: true },
             expected_gas_price,
@@ -155,11 +155,11 @@ fn test_simple_chain_state() {
     );
 
     // Update the kernel
-    let _mock_kernel: MockKernel<DefaultContext, MockDaSpec> =
+    let _mock_kernel: MockKernel<DefaultSpec, MockDaSpec> =
         MockKernel::new(new_height_storage, new_height_storage);
 
     // Check the transition in progress
-    let new_tx_in_progress: TransitionInProgress<DefaultContext, MockDaSpec> = chain_state
+    let new_tx_in_progress: TransitionInProgress<DefaultSpec, MockDaSpec> = chain_state
         .get_in_progress_transition(&mut working_set)
         .unwrap();
 
@@ -169,7 +169,7 @@ fn test_simple_chain_state() {
 
     assert_eq!(
         new_tx_in_progress,
-        TransitionInProgress::<DefaultContext, MockDaSpec>::new(
+        TransitionInProgress::<DefaultSpec, MockDaSpec>::new(
             [2; 32].into(),
             MockValidityCond { is_valid: false },
             expected_gas_price.clone(),
@@ -179,10 +179,10 @@ fn test_simple_chain_state() {
     );
 
     // Check the transition stored
-    let last_tx_stored: StateTransitionId<DefaultContext, MockDaSpec> = chain_state
+    let last_tx_stored: StateTransitionId<DefaultSpec, MockDaSpec> = chain_state
         .get_historical_transitions(1, working_set.inner)
         .unwrap();
-    let expected_tx_stored: StateTransitionId<DefaultContext, MockDaSpec> = StateTransitionId::new(
+    let expected_tx_stored: StateTransitionId<DefaultSpec, MockDaSpec> = StateTransitionId::new(
         [1; 32].into(),
         new_root_hash,
         MockValidityCond { is_valid: true },
@@ -243,7 +243,7 @@ fn test_simple_chain_state() {
     );
 
     // Check the transition in progress
-    let new_tx_in_progress: TransitionInProgress<DefaultContext, MockDaSpec> = chain_state
+    let new_tx_in_progress: TransitionInProgress<DefaultSpec, MockDaSpec> = chain_state
         .get_in_progress_transition(&mut working_set)
         .unwrap();
 
@@ -251,7 +251,7 @@ fn test_simple_chain_state() {
     let new_gas_price = new_tx_in_progress.gas_price().clone();
     assert!(new_gas_price > initial_gas_price);
 
-    let expected_gas_price = <DefaultContext as Context>::Gas::elastic_price(
+    let expected_gas_price = <DefaultSpec as Spec>::Gas::elastic_price(
         gas_price_maximum_elasticity,
         &expected_gas_target,
         &gas_used,

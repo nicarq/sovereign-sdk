@@ -8,7 +8,7 @@ pub use event::Event;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExampleModuleConfig {}
@@ -23,10 +23,10 @@ pub struct ExampleModuleConfig {}
 ///   etc.).
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo)]
-pub struct ExampleModule<C: sov_modules_api::Context> {
+pub struct ExampleModule<S: sov_modules_api::Spec> {
     /// Address of the module.
     #[address]
-    pub address: C::Address,
+    pub address: S::Address,
 
     /// Some value kept in the state.
     #[state]
@@ -34,11 +34,11 @@ pub struct ExampleModule<C: sov_modules_api::Context> {
 
     /// Reference to the Bank module.
     #[module]
-    pub(crate) _bank: sov_bank::Bank<C>,
+    pub(crate) _bank: sov_bank::Bank<S>,
 }
 
-impl<C: sov_modules_api::Context> sov_modules_api::Module for ExampleModule<C> {
-    type Context = C;
+impl<S: sov_modules_api::Spec> sov_modules_api::Module for ExampleModule<S> {
+    type Spec = S;
 
     type Config = ExampleModuleConfig;
 
@@ -46,7 +46,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for ExampleModule<C> {
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)
     }
@@ -54,8 +54,8 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for ExampleModule<C> {
     fn call(
         &self,
         msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::SetValue(new_value) => {

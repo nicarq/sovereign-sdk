@@ -9,7 +9,7 @@ use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
 use super::{ProverService, ProverServiceError};
 use crate::config::ProverServiceConfig;
@@ -23,7 +23,7 @@ pub(crate) struct Verifier<Da, Vm, V>
 where
     Da: DaService,
     Vm: ZkvmHost,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
 {
     pub(crate) da_verifier: Da::Verifier,
     pub(crate) stf_verifier: StateTransitionVerifier<V, Da::Verifier, Vm::Guest>,
@@ -36,7 +36,7 @@ where
     Witness: Serialize + DeserializeOwned,
     Da: DaService,
     Vm: ZkvmHost,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
 {
     vm: Vm,
     prover_config: Arc<RollupProverConfig>,
@@ -54,7 +54,7 @@ where
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     Vm: ZkvmHost,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
     V::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
@@ -117,7 +117,10 @@ where
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>
+        + Send
+        + Sync
+        + 'static,
     V::PreState: Clone + Send + Sync,
 {
     type StateRoot = StateRoot;

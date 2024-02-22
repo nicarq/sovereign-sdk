@@ -1,7 +1,6 @@
 use borsh::BorshSerialize;
 use sov_mock_da::{MockDaSpec, MockValidityCond, MockValidityCondChecker};
-use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkvm};
-use sov_modules_api::default_context::DefaultContext;
+use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkVerifier};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::GasMeter;
@@ -12,6 +11,7 @@ use crate::call::{AttesterIncentiveErrors, SlashingReason};
 use crate::tests::helpers::{
     execution_simulation, setup, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
 };
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 /// Test that given an invalid transition, a challenger can successfully challenge it and get rewarded
 #[test]
@@ -60,7 +60,7 @@ fn test_valid_challenge() {
         .bad_transition_pool
         .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut working_set);
 
-    let context = DefaultContext::new(challenger_address, sequencer, INIT_HEIGHT + 2);
+    let context = Context::<S>::new(challenger_address, sequencer, INIT_HEIGHT + 2);
 
     {
         let transition = StateTransition::<MockDaSpec, _> {
@@ -132,17 +132,17 @@ fn test_valid_challenge() {
 }
 
 fn invalid_proof_helper(
-    context: &DefaultContext,
+    context: &Context<S>,
     proof: &Vec<u8>,
     reason: SlashingReason,
     challenger_address: sov_modules_api::Address,
     module: &crate::AttesterIncentives<
-        DefaultContext,
-        MockZkvm<MockValidityCond>,
+        S,
+        MockZkVerifier,
         MockDaSpec,
         MockValidityCondChecker<MockValidityCond>,
     >,
-    working_set: &mut WorkingSet<DefaultContext>,
+    working_set: &mut WorkingSet<S>,
 ) {
     // Let's bond the challenger and try to publish a false challenge
     module
@@ -190,7 +190,7 @@ fn test_invalid_challenge() {
         .bad_transition_pool
         .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut working_set);
 
-    let context = DefaultContext::new(challenger_address, sequencer, INIT_HEIGHT + 2);
+    let context = Context::<S>::new(challenger_address, sequencer, INIT_HEIGHT + 2);
     let transition: StateTransition<MockDaSpec, _> = StateTransition {
         initial_state_root: initial_transition.state_root,
         slot_hash: [1; 32].into(),

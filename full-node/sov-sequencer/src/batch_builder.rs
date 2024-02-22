@@ -7,7 +7,7 @@ use anyhow::{bail, Context as ErrorContext};
 use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, DispatchCall, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{Context, CryptoSpec, DispatchCall, PublicKey, Spec, WorkingSet};
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
 use tracing::{info, warn};
 
@@ -15,21 +15,21 @@ use self::mempool::Mempool;
 use crate::TxHash;
 
 /// Transaction stored in the mempool.
-pub struct PooledTransaction<C: Context, R: DispatchCall<Context = C>> {
+pub struct PooledTransaction<S: Spec, R: DispatchCall<Spec = S>> {
     /// Raw transaction bytes.
     raw: Vec<u8>,
     /// Deserialized transaction.
-    tx: Transaction<C>,
+    tx: Transaction<S>,
     /// The decoded runtime message, cached during initial verification.
     msg: Option<R::Decodable>,
     /// Hash calculated with [`calculate_hash`].
     hash: TxHash,
 }
 
-impl<C, R> std::fmt::Debug for PooledTransaction<C, R>
+impl<S, R> std::fmt::Debug for PooledTransaction<S, R>
 where
-    C: Context,
-    R: DispatchCall<Context = C>,
+    S: Spec,
+    R: DispatchCall<Spec = S>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PooledTransaction")
@@ -39,33 +39,33 @@ where
     }
 }
 
-fn calculate_hash<C: Spec>(tx_raw: &[u8]) -> TxHash {
-    <C as Spec>::Hasher::digest(tx_raw).into()
+fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
+    <S::CryptoSpec as CryptoSpec>::Hasher::digest(tx_raw).into()
 }
 
 /// BatchBuilder that creates batches of transactions in the order they were submitted
 /// Only transactions that were successfully dispatched are included.
-pub struct FiFoStrictBatchBuilder<C: Context, R: DispatchCall<Context = C>> {
-    mempool: Mempool<C, R>,
+pub struct FiFoStrictBatchBuilder<S: Spec, R: DispatchCall<Spec = S>> {
+    mempool: Mempool<S, R>,
     mempool_max_txs_count: usize,
     runtime: R,
     max_batch_size_bytes: usize,
-    current_storage: Arc<RwLock<C::Storage>>,
-    sequencer: C::Address,
+    current_storage: Arc<RwLock<S::Storage>>,
+    sequencer: S::Address,
 }
 
-impl<C, R> FiFoStrictBatchBuilder<C, R>
+impl<S, R> FiFoStrictBatchBuilder<S, R>
 where
-    C: Context,
-    R: DispatchCall<Context = C>,
+    S: Spec,
+    R: DispatchCall<Spec = S>,
 {
     /// BatchBuilder constructor.
     pub fn new(
         max_batch_size_bytes: usize,
         mempool_max_txs_count: usize,
         runtime: R,
-        current_storage: Arc<RwLock<C::Storage>>,
-        sequencer: C::Address,
+        current_storage: Arc<RwLock<S::Storage>>,
+        sequencer: S::Address,
     ) -> Self {
         Self {
             mempool: Mempool::new(),
@@ -78,10 +78,10 @@ where
     }
 }
 
-impl<C, R> BatchBuilder for FiFoStrictBatchBuilder<C, R>
+impl<S, R> BatchBuilder for FiFoStrictBatchBuilder<S, R>
 where
-    C: Context,
-    R: DispatchCall<Context = C>,
+    S: Spec,
+    R: DispatchCall<Spec = S>,
 {
     /// Attempt to add transaction to the mempool.
     ///
@@ -101,7 +101,7 @@ where
         }
 
         // Deserialize
-        let tx = Transaction::<C>::deserialize(&mut raw.as_slice())
+        let tx = Transaction::<S>::deserialize(&mut raw.as_slice())
             .context("Failed to deserialize transaction")?;
 
         // Verify
@@ -116,7 +116,7 @@ where
             raw_tx = hex::encode(&raw),
             "Added a transaction to the mempool"
         );
-        let hash = calculate_hash::<C>(&raw);
+        let hash = calculate_hash::<S>(&raw);
         let tx = PooledTransaction {
             raw,
             tx,
@@ -168,9 +168,9 @@ where
             // Execute
             {
                 // TODO: Bug(!), because potential discrepancy. Should be resolved by https://github.com/Sovereign-Labs/sovereign-sdk/issues/434
-                let sender_address: C::Address = pooled.tx.pub_key().to_address();
+                let sender_address: S::Address = pooled.tx.pub_key().to_address();
                 // FIXME! This should use the correct height
-                let ctx = C::new(sender_address, self.sequencer.clone(), 0);
+                let ctx = Context::<S>::new(sender_address, self.sequencer.clone(), 0);
 
                 if let Err(error) = self.runtime.dispatch_call(msg, &mut working_set, &ctx) {
                     warn!(%error, tx = hex::encode(&pooled.raw), "Error during transaction dispatch");
@@ -207,13 +207,13 @@ where
 mod mempool {
     use super::*;
 
-    pub struct Mempool<C: Context, R: DispatchCall<Context = C>> {
-        txs: VecDeque<PooledTransaction<C, R>>,
+    pub struct Mempool<S: Spec, R: DispatchCall<Spec = S>> {
+        txs: VecDeque<PooledTransaction<S, R>>,
         // Makes it cheap to check if transaction is already in the mempool.
         hashes: HashSet<TxHash>,
     }
 
-    impl<C: Context, R: DispatchCall<Context = C>> Mempool<C, R> {
+    impl<S: Spec, R: DispatchCall<Spec = S>> Mempool<S, R> {
         pub fn new() -> Self {
             Self {
                 txs: VecDeque::new(),
@@ -229,14 +229,14 @@ mod mempool {
             self.hashes.contains(hash)
         }
 
-        pub fn push_back(&mut self, tx: PooledTransaction<C, R>) {
+        pub fn push_back(&mut self, tx: PooledTransaction<S, R>) {
             self.assert_invariant();
 
             self.hashes.insert(tx.hash);
             self.txs.push_back(tx);
         }
 
-        pub fn push_front(&mut self, tx: PooledTransaction<C, R>) {
+        pub fn push_front(&mut self, tx: PooledTransaction<S, R>) {
             self.assert_invariant();
 
             self.hashes.insert(tx.hash);
@@ -251,7 +251,7 @@ mod mempool {
             );
         }
 
-        pub fn pop_front(&mut self) -> Option<PooledTransaction<C, R>> {
+        pub fn pop_front(&mut self) -> Option<PooledTransaction<S, R>> {
             let tx = self.txs.pop_front();
             if let Some(tx) = &tx {
                 self.hashes.remove(&tx.hash);
@@ -266,14 +266,9 @@ mod mempool {
 mod tests {
     use borsh::BorshSerialize;
     use rand::Rng;
-    use sov_modules_api::default_context::DefaultContext;
-    use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-    use sov_modules_api::default_signature::DefaultPublicKey;
     use sov_modules_api::macros::DefaultRuntime;
     use sov_modules_api::transaction::Transaction;
-    use sov_modules_api::{
-        Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, PrivateKey,
-    };
+    use sov_modules_api::{Address, DispatchCall, EncodeCall, Genesis, MessageCodec, PrivateKey};
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::services::batch_builder::BatchBuilder;
     use sov_state::Storage;
@@ -282,12 +277,15 @@ mod tests {
 
     use super::*;
 
+    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+    type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+    type DefaultPublicKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
     const MAX_TX_POOL_SIZE: usize = 20;
-    type C = DefaultContext;
+    type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
     #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
     #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-    struct TestRuntime<T: Context> {
+    struct TestRuntime<T: Spec> {
         value_setter: sov_value_setter::ValueSetter<T>,
     }
 
@@ -300,14 +298,14 @@ mod tests {
 
     fn generate_valid_tx(private_key: &DefaultPrivateKey, value: u32) -> Vec<u8> {
         let msg = CallMessage::SetValue(value);
-        let msg = <TestRuntime<C> as EncodeCall<ValueSetter<DefaultContext>>>::encode_call(msg);
+        let msg = <TestRuntime<S> as EncodeCall<ValueSetter<DefaultSpec>>>::encode_call(msg);
         let chain_id = 0;
         let gas_tip = 0;
         let gas_limit = 0;
         let max_gas_price = None;
         let nonce = 1;
 
-        Transaction::<DefaultContext>::new_signed_tx(
+        Transaction::<DefaultSpec>::new_signed_tx(
             private_key,
             msg,
             chain_id,
@@ -336,7 +334,7 @@ mod tests {
         let max_gas_price = None;
         let nonce = 1;
 
-        Transaction::<DefaultContext>::new_signed_tx(
+        Transaction::<DefaultSpec>::new_signed_tx(
             private_key,
             msg,
             chain_id,
@@ -352,23 +350,23 @@ mod tests {
     fn create_batch_builder(
         batch_size_bytes: usize,
         tmpdir: &TempDir,
-    ) -> FiFoStrictBatchBuilder<C, TestRuntime<C>> {
+    ) -> FiFoStrictBatchBuilder<S, TestRuntime<S>> {
         let storage = Arc::new(RwLock::new(new_orphan_storage(tmpdir.path()).unwrap()));
         let sequencer = Address::from([0; 32]);
         FiFoStrictBatchBuilder::new(
             batch_size_bytes,
             MAX_TX_POOL_SIZE,
-            TestRuntime::<C>::default(),
+            TestRuntime::<S>::default(),
             storage.clone(),
             sequencer,
         )
     }
 
     fn setup_runtime(
-        batch_builder: &mut FiFoStrictBatchBuilder<C, TestRuntime<C>>,
+        batch_builder: &mut FiFoStrictBatchBuilder<S, TestRuntime<S>>,
         admin: Option<DefaultPublicKey>,
     ) {
-        let runtime = TestRuntime::<C>::default();
+        let runtime = TestRuntime::<S>::default();
         let storage = { batch_builder.current_storage.read().unwrap().clone() };
         let mut working_set = WorkingSet::new(storage.clone());
 
@@ -379,7 +377,7 @@ mod tests {
         let value_setter_config = ValueSetterConfig {
             admin: admin.to_address(),
         };
-        let config = GenesisConfig::<C>::new(value_setter_config);
+        let config = GenesisConfig::<S>::new(value_setter_config);
         runtime.genesis(&config, &mut working_set).unwrap();
         let (log, witness) = working_set.checkpoint().0.freeze();
         storage.validate_and_commit(log, &witness).unwrap();

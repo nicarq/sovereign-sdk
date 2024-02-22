@@ -35,7 +35,6 @@ clap = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true, features = [] }
 
 # The risc0 patch only applies to version 2.0.0 exactly.
-ed25519-dalek = { version = "=2.0.0", default-features = false, features = ["serde"] }
 rand = { workspace = true, optional = true }
 
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
@@ -47,6 +46,7 @@ tempfile = { workspace = true }
 sov-modules-api = { path = ".", features = ["native"] }
 sov-modules-core = { path = "../sov-modules-core", features = ["mocks"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-db = { path = "../../full-node/db/sov-db" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
@@ -58,6 +58,7 @@ arbitrary = [
 	"dep:proptest-derive",
 	"proptest/default",
 	"sov-db/arbitrary",
+	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-modules-core/arbitrary",
 	"sov-rollup-interface/arbitrary",
@@ -74,8 +75,6 @@ bench = [
 default = [ "macros" ]
 native = [
 	"clap",
-	"ed25519-dalek/default",
-	"ed25519-dalek/rand_core",
 	"jsonrpsee",
 	"macros",
 	"rand",
@@ -83,6 +82,7 @@ native = [
 	"serde_json",
 	"sov-bank/native",
 	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-core/native",
 	"sov-modules-macros/native",

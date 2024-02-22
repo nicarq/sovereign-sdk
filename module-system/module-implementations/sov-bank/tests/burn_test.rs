@@ -1,13 +1,13 @@
-use helpers::{generate_address, C};
+use helpers::generate_address;
 use sov_bank::{
     get_genesis_token_address, get_token_address, Bank, BankConfig, CallMessage, Coins,
     TotalSupplyResponse,
 };
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 use crate::helpers::create_bank_config_with_token;
 
 mod helpers;
@@ -16,22 +16,22 @@ pub type Storage = ProverStorage<DefaultStorageSpec>;
 
 #[test]
 fn burn_deployed_tokens() {
-    let bank = Bank::<C>::default();
+    let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let empty_bank_config = BankConfig::<C> { tokens: vec![] };
+    let empty_bank_config = BankConfig::<S> { tokens: vec![] };
     bank.genesis(&empty_bank_config, &mut working_set).unwrap();
 
     let sender_address = generate_address("just_sender");
     let sequencer_address = generate_address("sequencer");
-    let sender_context = C::new(sender_address, sequencer_address, 1);
+    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
     let minter_address = generate_address("minter");
-    let minter_context = C::new(minter_address, sequencer_address, 1);
+    let minter_context = Context::<S>::new(minter_address, sequencer_address, 1);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<C>(&token_name, &minter_address, salt);
+    let token_address = get_token_address::<S>(&token_name, &minter_address, salt);
 
     // ---
     // Deploying token
@@ -47,14 +47,14 @@ fn burn_deployed_tokens() {
     // Create token event should be present
     assert_eq!(working_set.events().len(), 1);
 
-    let query_total_supply = |working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
+    let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
         let total_supply: TotalSupplyResponse =
             bank.supply_of(None, token_address, working_set).unwrap();
         total_supply.amount
     };
 
     let query_user_balance =
-        |user_address: Address, working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
+        |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
             bank.get_balance_of(user_address, token_address, working_set)
         };
 
@@ -155,7 +155,7 @@ fn burn_deployed_tokens() {
 
     // ---
     // Try to burn non existing token
-    let token_address = get_token_address::<C>("NotRealToken2", &minter_address, salt);
+    let token_address = get_token_address::<S>("NotRealToken2", &minter_address, salt);
     let burn_message = CallMessage::Burn {
         coins: Coins {
             amount: 1,
@@ -192,7 +192,7 @@ fn burn_initial_tokens() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_address = get_genesis_token_address::<C>(
+    let token_address = get_genesis_token_address::<S>(
         &bank_config.tokens[0].token_name,
         bank_config.tokens[0].salt,
     );
@@ -200,7 +200,7 @@ fn burn_initial_tokens() {
     let sequencer_address = bank_config.tokens[0].address_and_balances[1].0;
 
     let query_user_balance =
-        |user_address: Address, working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
+        |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
             bank.get_balance_of(user_address, token_address, working_set)
         };
 
@@ -215,7 +215,7 @@ fn burn_initial_tokens() {
         },
     };
 
-    let context = C::new(sender_address, sequencer_address, 1);
+    let context = Context::<S>::new(sender_address, sequencer_address, 1);
     bank.call(burn_message, &context, &mut working_set)
         .expect("Failed to burn token");
     assert!(working_set.events().is_empty());

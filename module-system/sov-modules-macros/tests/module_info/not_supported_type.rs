@@ -1,9 +1,9 @@
-use sov_modules_api::{Context, ModuleInfo, StateMap};
+use sov_modules_api::{ModuleInfo, Spec, StateMap};
 
 #[derive(ModuleInfo)]
-struct TestStruct<C: Context> {
+struct TestStruct<S: Spec> {
     #[address]
-    address: C::Address,
+    address: S::Address,
 
     #[state]
     test_state1: [usize; 22],

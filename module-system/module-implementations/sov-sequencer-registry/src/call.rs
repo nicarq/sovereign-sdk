@@ -3,7 +3,7 @@ use sov_bank::Amount;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, StateAccessor, WorkingSet};
+use sov_modules_api::{CallResponse, Context, StateAccessor, WorkingSet};
 
 use crate::{AllowedSequencer, SequencerRegistry};
 
@@ -46,13 +46,13 @@ pub enum CallMessage {
     },
 }
 
-impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
+impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub(crate) fn register(
         &self,
         da_address: &Da::Address,
         amount: Amount,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<CallResponse> {
         let sequencer = context.sender();
         self.register_sequencer(da_address, sequencer, amount, working_set)?;
@@ -62,8 +62,8 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> SequencerRegistry
     pub(crate) fn exit(
         &self,
         da_address: &Da::Address,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<CallResponse> {
         let locker = &self.address;
 
@@ -118,7 +118,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> SequencerRegistry
         &self,
         sender: &Da::Address,
         amount: Amount,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<CallResponse> {
         let AllowedSequencer {
             rollup_address,

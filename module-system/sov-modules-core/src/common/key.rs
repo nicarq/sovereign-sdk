@@ -1,77 +1,94 @@
 //! Asymmetric cryptography primitive definitions
 
-use core::fmt::Debug;
-use core::hash::Hash;
-
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
-use sov_rollup_interface::RollupAddress;
 
-use crate::common::SigVerificationError;
-
-/// Signature used in the Module System.
-pub trait Signature:
-    BorshDeserialize
-    + BorshSerialize
-    + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
-    + Eq
-    + Clone
-    + Debug
-    + Send
-    + Sync
+/// A digital signature.
+#[cfg(not(all(feature = "native", feature = "std")))]
+pub trait SignatureExt:
+    sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize
 {
-    /// The public key associated with the key pair of the signature.
-    type PublicKey;
+}
 
-    /// Verifies the signature.
-    fn verify(&self, pub_key: &Self::PublicKey, msg: &[u8]) -> Result<(), SigVerificationError>;
+#[cfg(not(all(feature = "native", feature = "std")))]
+impl<S: sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize> SignatureExt
+    for S
+{
+}
+
+/// A digital signature.
+#[cfg(all(feature = "native", feature = "std"))]
+pub trait SignatureExt:
+    sov_rollup_interface::crypto::Signature
+    + BorshDeserialize
+    + BorshSerialize
+    + schemars::JsonSchema
+    + alloc::str::FromStr<Err = anyhow::Error>
+{
+}
+
+/// A digital signature.
+#[cfg(all(feature = "native", feature = "std"))]
+impl<
+        S: sov_rollup_interface::crypto::Signature
+            + BorshDeserialize
+            + BorshSerialize
+            + alloc::str::FromStr<Err = anyhow::Error>
+            + schemars::JsonSchema,
+    > SignatureExt for S
+{
 }
 
 /// PublicKey used in the Module System.
-pub trait PublicKey:
-    BorshDeserialize
+#[cfg(all(feature = "native", feature = "std"))]
+pub trait PublicKeyExt:
+    sov_rollup_interface::crypto::PublicKey
+    + BorshDeserialize
     + BorshSerialize
-    + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
-    + Eq
-    + Hash
-    + Clone
-    + Debug
-    + Send
-    + Sync
-    + Serialize
-    + for<'a> Deserialize<'a>
+    + ::schemars::JsonSchema
+    + alloc::str::FromStr<Err = anyhow::Error>
 {
-    /// Returns a representation of the public key that can be represented as a rollup address.
-    fn to_address<A: RollupAddress>(&self) -> A;
 }
 
-/// A PrivateKey used in the Module System.
+#[cfg(all(feature = "native", feature = "std"))]
+impl<
+        P: sov_rollup_interface::crypto::PublicKey
+            + BorshDeserialize
+            + BorshSerialize
+            + ::schemars::JsonSchema
+            + alloc::str::FromStr<Err = anyhow::Error>,
+    > PublicKeyExt for P
+{
+}
+
+/// PublicKey used in the Module System.
+#[cfg(not(all(feature = "native", feature = "std")))]
+pub trait PublicKeyExt:
+    sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize
+{
+}
+#[cfg(not(all(feature = "native", feature = "std")))]
+impl<P: sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize> PublicKeyExt
+    for P
+{
+}
+
+// /// A PrivateKey used in the Module System.
+// #[cfg(feature = "native")]
+// pub trait PrivateKey: sov_rollup_interface::crypto::PrivateKey {
+//     /// The public key type associated with this signature scheme.
+//     type PublicKey: PublicKey;
+
+//     type Signature: Signature<PublicKey = Self::PublicKey>;
+// }
+
+// #[cfg(feature = "native")]
+// impl<
+//         P: sov_rollup_interface::crypto::PrivateKey
+//         S: Signature<PublicKey = P::PublicKey>,
+//     > PrivateKey for P
+// {
+//     type PublicKey = P::PublicKey;
+//     type Signature = S;
+// }
 #[cfg(feature = "native")]
-pub trait PrivateKey:
-    Debug
-    + Send
-    + Sync
-    + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
-    + Serialize
-    + serde::de::DeserializeOwned
-{
-    /// The public key associated with the key pair.
-    type PublicKey: PublicKey;
-
-    /// The signature associated with the key pair.
-    type Signature: Signature<PublicKey = Self::PublicKey>;
-
-    /// Generates a new key pair, using a static entropy.
-    fn generate() -> Self;
-
-    /// Returns the public key associated with this private key.
-    fn pub_key(&self) -> Self::PublicKey;
-
-    /// Sign the provided message.
-    fn sign(&self, msg: &[u8]) -> Self::Signature;
-
-    /// Returns a representation of the public key that can be represented as a rollup address.
-    fn to_address<A: RollupAddress>(&self) -> A {
-        self.pub_key().to_address::<A>()
-    }
-}
+pub use sov_rollup_interface::crypto::PrivateKey as PrivateKeyExt;

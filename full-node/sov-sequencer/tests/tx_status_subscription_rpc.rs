@@ -3,9 +3,8 @@ use std::sync::{Arc, RwLock};
 use borsh::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::digest::Digest;
-use sov_modules_api::Spec;
+use sov_modules_api::{CryptoSpec, Spec};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -17,14 +16,13 @@ use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::MessageGenerator;
 use tempfile::TempDir;
 
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 fn new_sequencer(
     dir: &TempDir,
-) -> Sequencer<
-    FiFoStrictBatchBuilder<DefaultContext, Runtime<DefaultContext, MockDaSpec>>,
-    MockDaService,
-> {
+) -> Sequencer<FiFoStrictBatchBuilder<DefaultSpec, Runtime<DefaultSpec, MockDaSpec>>, MockDaService>
+{
     let sequencer_addr = [42u8; 32];
-    let runtime = Runtime::<DefaultContext, MockDaSpec>::default();
+    let runtime = Runtime::<DefaultSpec, MockDaSpec>::default();
 
     let storage_config = sov_state::config::Config {
         path: dir.path().to_path_buf(),
@@ -63,13 +61,13 @@ async fn subscribe() {
 
     let client = SimpleClient::new("127.0.0.1", addr.port()).await.unwrap();
 
-    let bank_generator = BankMessageGenerator::<DefaultContext>::default();
+    let bank_generator = BankMessageGenerator::<DefaultSpec>::default();
     let mut messages_iter = bank_generator.create_messages().into_iter().peekable();
     let mut txs = Vec::default();
     while let Some(message) = messages_iter.next() {
         let is_last = messages_iter.peek().is_none();
 
-        let tx = bank_generator.create_tx::<Runtime<DefaultContext, MockDaSpec>>(
+        let tx = bank_generator.create_tx::<Runtime<DefaultSpec, MockDaSpec>>(
             &message.sender_key,
             message.content,
             message.chain_id,
@@ -83,8 +81,10 @@ async fn subscribe() {
         txs.push(tx);
     }
 
-    let tx_hash: TxHash =
-        <DefaultContext as Spec>::Hasher::digest(txs[0].try_to_vec().unwrap()).into();
+    let tx_hash: TxHash = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(
+        txs[0].try_to_vec().unwrap(),
+    )
+    .into();
     let mut subscription = client
         .subscribe_to_tx_status_updates::<()>(tx_hash)
         .await

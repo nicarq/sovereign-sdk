@@ -5,7 +5,7 @@ use sov_mock_da::{
     MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier,
     MockValidityCond,
 };
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
@@ -18,8 +18,7 @@ mod hash_stf;
 
 use hash_stf::HashStf;
 
-type MockInitVariant =
-    InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
+type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaSpec>;
 
 type S = DefaultStorageSpec;
 type StorageManager = ProverStorageManager<MockDaSpec, S>;

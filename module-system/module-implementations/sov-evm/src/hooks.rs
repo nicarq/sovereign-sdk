@@ -1,22 +1,22 @@
 use reth_primitives::{Bloom, Bytes};
 use revm::primitives::{B256, U256};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryStateCheckpoint, DaSpec, Spec, StateCheckpoint};
+use sov_modules_api::{AccessoryStateCheckpoint, DaSpec, StateCheckpoint};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::experimental::PendingTransaction;
 use crate::Evm;
 
-impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da>
+impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da>
 where
-    <C::Storage as Storage>::Root: Into<[u8; 32]>,
+    <S::Storage as Storage>::Root: Into<[u8; 32]>,
 {
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
     pub fn begin_slot_hook(
         &self,
-        pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
-        versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<C>>,
+        pre_state_root: &<S::Storage as Storage>::Root,
+        versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
         let mut parent_block = self
             .head
@@ -59,7 +59,7 @@ where
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
-    pub fn end_slot_hook(&self, working_set: &mut StateCheckpoint<C>) {
+    pub fn end_slot_hook(&self, working_set: &mut StateCheckpoint<S>) {
         let cfg = self.cfg.get(working_set).unwrap_or_default();
 
         let block_env = self
@@ -174,8 +174,8 @@ where
     /// enabling block-related RPC queries.
     pub fn finalize_hook(
         &self,
-        root_hash: &<<C as Spec>::Storage as Storage>::Root,
-        accessory_working_set: &mut AccessoryStateCheckpoint<C>,
+        root_hash: &<S::Storage as Storage>::Root,
+        accessory_working_set: &mut AccessoryStateCheckpoint<S>,
     ) {
         let expected_block_number = self.blocks.len(accessory_working_set) as u64;
 

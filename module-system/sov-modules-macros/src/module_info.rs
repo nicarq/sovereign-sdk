@@ -124,7 +124,7 @@ fn impl_module_info(
         }
 
         impl #impl_generics ::sov_modules_api::ModuleInfo for #ident #type_generics #where_clause{
-            type Context = #generic_param;
+            type Spec = #generic_param;
 
             #fn_prefix
 
@@ -167,7 +167,7 @@ fn make_fn_address(
     address_ident: &proc_macro2::Ident,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     Ok(quote::quote! {
-        fn address(&self) -> &<Self::Context as ::sov_modules_api::Spec>::Address {
+        fn address(&self) -> &<Self::Spec as ::sov_modules_api::Spec>::Address {
            &self.#address_ident
         }
     })
@@ -181,7 +181,7 @@ fn make_fn_dependencies(modules: Vec<&proc_macro2::Ident>) -> proc_macro2::Token
     });
 
     quote::quote! {
-        fn dependencies(&self) -> ::std::vec::Vec<&<Self::Context as sov_modules_api::Spec>::Address> {
+        fn dependencies(&self) -> ::std::vec::Vec<&<Self::Spec as sov_modules_api::Spec>::Address> {
             ::std::vec![#(#address_tokens),*]
         }
     }

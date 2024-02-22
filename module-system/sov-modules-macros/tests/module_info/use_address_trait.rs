@@ -2,12 +2,12 @@
 
 #![allow(unused_imports)]
 
-use sov_modules_api::{Context, ModuleInfo, RollupAddress};
+use sov_modules_api::{ModuleInfo, RollupAddress, Spec};
 
 #[derive(ModuleInfo)]
-struct TestModule<C: Context> {
+struct TestModule<S: Spec> {
     #[address]
-    admin: C::Address,
+    admin: S::Address,
 }
 
 fn main() {}

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Context as _};
-use sov_modules_api::{Context, StateMap, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, Spec, StateMap, StateMapAccessor, WorkingSet};
 
 use crate::collection::Collection;
 use crate::{CollectionAddress, OwnerAddress, UserAddress};
@@ -15,7 +15,7 @@ pub type TokenId = u64;
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Clone, Debug, PartialEq, Eq, Hash)]
 /// A simple wrapper struct to mark an NFT identifier as a combination of
 /// a token id (u64) and a collection address
-pub struct NftIdentifier<C: Context>(pub TokenId, pub CollectionAddress<C>);
+pub struct NftIdentifier<S: Spec>(pub TokenId, pub CollectionAddress<S>);
 
 #[cfg_attr(
     feature = "native",
@@ -24,13 +24,13 @@ pub struct NftIdentifier<C: Context>(pub TokenId, pub CollectionAddress<C>);
 )]
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 /// Defines an nft
-pub struct Nft<C: Context> {
+pub struct Nft<S: Spec> {
     /// A token id that uniquely identifies an NFT within the scope of a (collection name, creator)
     token_id: TokenId,
     /// A collection address that uniquely identifies a collection - derived from (collection name, creator)
-    collection_address: CollectionAddress<C>,
+    collection_address: CollectionAddress<S>,
     /// Owner address of a specific token_id within a collection
-    owner: OwnerAddress<C>,
+    owner: OwnerAddress<S>,
     /// A frozen NFT cannot have its data altered and is immutable
     /// Cannot be unfrozen. token_uri cannot be modified
     frozen: bool,
@@ -40,14 +40,14 @@ pub struct Nft<C: Context> {
 
 /// NewType representing an owned NFT
 /// An owned NFT is owned by the context sender and is transferable
-pub struct OwnedNft<C: Context>(Nft<C>);
+pub struct OwnedNft<S: Spec>(Nft<S>);
 
 /// NewType representing a Mutable NFT
 /// A mutable NFT is modifiable by the creator, but only certain fields (frozen, token_uri)
-pub struct MutableNft<C: Context>(Nft<C>);
+pub struct MutableNft<S: Spec>(Nft<S>);
 
-impl<C: Context> OwnedNft<C> {
-    pub fn new(nft: Nft<C>, context: &C) -> anyhow::Result<Self> {
+impl<S: Spec> OwnedNft<S> {
+    pub fn new(nft: Nft<S>, context: &Context<S>) -> anyhow::Result<Self> {
         let sender = OwnerAddress::new(context.sender());
         if nft.owner == sender {
             Ok(OwnedNft(nft))
@@ -61,16 +61,16 @@ impl<C: Context> OwnedNft<C> {
         }
     }
 
-    pub fn inner(&self) -> &Nft<C> {
+    pub fn inner(&self) -> &Nft<S> {
         &self.0
     }
-    pub fn set_owner(&mut self, to: &UserAddress<C>) {
+    pub fn set_owner(&mut self, to: &UserAddress<S>) {
         self.0.owner = OwnerAddress::new(to.get_address())
     }
 }
 
-impl<C: Context> MutableNft<C> {
-    pub fn inner(&self) -> &Nft<C> {
+impl<S: Spec> MutableNft<S> {
+    pub fn inner(&self) -> &Nft<S> {
         &self.0
     }
 
@@ -82,15 +82,15 @@ impl<C: Context> MutableNft<C> {
     }
 }
 
-impl<C: Context> Nft<C> {
+impl<S: Spec> Nft<S> {
     pub fn new(
         token_id: TokenId,
         token_uri: &str,
-        mint_to_address: &UserAddress<C>,
+        mint_to_address: &UserAddress<S>,
         frozen: bool,
-        collection_address: &CollectionAddress<C>,
-        nfts: &StateMap<NftIdentifier<C>, Nft<C>>,
-        working_set: &mut WorkingSet<C>,
+        collection_address: &CollectionAddress<S>,
+        nfts: &StateMap<NftIdentifier<S>, Nft<S>>,
+        working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<Self> {
         if nfts
             .get(
@@ -116,11 +116,11 @@ impl<C: Context> Nft<C> {
 
     pub fn get_owned_nft(
         token_id: TokenId,
-        collection_address: &CollectionAddress<C>,
-        nfts: &StateMap<NftIdentifier<C>, Nft<C>>,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<OwnedNft<C>> {
+        collection_address: &CollectionAddress<S>,
+        nfts: &StateMap<NftIdentifier<S>, Nft<S>>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
+    ) -> anyhow::Result<OwnedNft<S>> {
         let nft_identifier = NftIdentifier(token_id, collection_address.clone());
         let nft = nfts
             .get(&nft_identifier, working_set)
@@ -137,11 +137,11 @@ impl<C: Context> Nft<C> {
     pub fn get_mutable_nft(
         token_id: TokenId,
         collection_name: &str,
-        nfts: &StateMap<NftIdentifier<C>, Nft<C>>,
-        collections: &StateMap<CollectionAddress<C>, Collection<C>>,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<(CollectionAddress<C>, MutableNft<C>)> {
+        nfts: &StateMap<NftIdentifier<S>, Nft<S>>,
+        collections: &StateMap<CollectionAddress<S>, Collection<S>>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
+    ) -> anyhow::Result<(CollectionAddress<S>, MutableNft<S>)> {
         let (collection_address, _) =
             Collection::get_owned_collection(collection_name, collections, context, working_set)?;
         let token_identifier = NftIdentifier(token_id, collection_address.clone());
@@ -174,7 +174,7 @@ impl<C: Context> Nft<C> {
         self.token_id
     }
     #[allow(dead_code)]
-    pub fn get_collection_address(&self) -> &CollectionAddress<C> {
+    pub fn get_collection_address(&self) -> &CollectionAddress<S> {
         &self.collection_address
     }
     #[allow(dead_code)]
@@ -186,7 +186,7 @@ impl<C: Context> Nft<C> {
         &self.token_uri
     }
     #[allow(dead_code)]
-    pub fn get_owner(&self) -> &OwnerAddress<C> {
+    pub fn get_owner(&self) -> &OwnerAddress<S> {
         &self.owner
     }
 }

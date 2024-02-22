@@ -9,7 +9,11 @@ homepage = "sovereign.xyz"
 publish = false
 
 [features]
-native = [ "sov-mock-da/native", "sov-rollup-interface/native" ]
+native = [
+	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
+	"sov-rollup-interface/native",
+]
 
 [dependencies]
 serde = { workspace = true }

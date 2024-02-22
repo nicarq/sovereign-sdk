@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_modules_core::{
-    AccessoryStateCheckpoint, AccessoryWorkingSet, Context, Prefix, StateCodec, StateKeyCodec,
+    AccessoryStateCheckpoint, AccessoryWorkingSet, Prefix, Spec, StateCodec, StateKeyCodec,
     StateValueCodec,
 };
 use sov_state::codec::BorshCodec;
@@ -41,18 +41,18 @@ where
     }
 }
 
-impl<'a, V, Codec, C> StateVecPrivateAccessor<V, Codec, AccessoryWorkingSet<'a, C>>
+impl<'a, V, Codec, S> StateVecPrivateAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
     for AccessoryStateVec<V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
+    S: Spec,
 {
     type ElemsMap = AccessoryStateMap<usize, V, Codec>;
 
     type LenValue = AccessoryStateValue<usize, Codec>;
-    fn set_len(&self, length: usize, working_set: &mut AccessoryWorkingSet<'a, C>) {
+    fn set_len(&self, length: usize, working_set: &mut AccessoryWorkingSet<'a, S>) {
         self.len_value.set(&length, working_set);
     }
 
@@ -64,13 +64,13 @@ where
         &self.len_value
     }
 }
-impl<'a, V, Codec, C> StateVecAccessor<V, Codec, AccessoryWorkingSet<'a, C>>
+impl<'a, V, Codec, S> StateVecAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
     for AccessoryStateVec<V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
+    S: Spec,
 {
     /// Returns the prefix used when this vector was created.
     fn prefix(&self) -> &Prefix {
@@ -78,19 +78,19 @@ where
     }
 }
 
-impl<'a, V, Codec, C> StateVecPrivateAccessor<V, Codec, AccessoryStateCheckpoint<'a, C>>
+impl<'a, V, Codec, S> StateVecPrivateAccessor<V, Codec, AccessoryStateCheckpoint<'a, S>>
     for AccessoryStateVec<V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
+    S: Spec,
 {
     type ElemsMap = AccessoryStateMap<usize, V, Codec>;
 
     type LenValue = AccessoryStateValue<usize, Codec>;
 
-    fn set_len(&self, length: usize, working_set: &mut AccessoryStateCheckpoint<'a, C>) {
+    fn set_len(&self, length: usize, working_set: &mut AccessoryStateCheckpoint<'a, S>) {
         self.len_value.set(&length, working_set);
     }
 
@@ -103,13 +103,13 @@ where
     }
 }
 
-impl<'a, V, Codec, C> StateVecAccessor<V, Codec, AccessoryStateCheckpoint<'a, C>>
+impl<'a, V, Codec, S> StateVecAccessor<V, Codec, AccessoryStateCheckpoint<'a, S>>
     for AccessoryStateVec<V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
+    S: Spec,
 {
     /// Returns the prefix used when this vector was created.
     fn prefix(&self) -> &Prefix {
@@ -149,13 +149,13 @@ mod test {
 
     use super::*;
     use crate::containers::traits::vec_tests::Testable;
-    use crate::default_context::DefaultContext;
+    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
     #[test]
     fn test_accessory_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage);
+        let mut working_set: WorkingSet<DefaultSpec> = WorkingSet::new(storage);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = AccessoryStateVec::<u32>::new(prefix);

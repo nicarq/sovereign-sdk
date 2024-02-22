@@ -1,31 +1,29 @@
-use helpers::C;
 use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
 mod helpers;
-
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 pub type Storage = ProverStorage<DefaultStorageSpec>;
 
 #[test]
 fn freeze_token() {
-    let bank = Bank::<C>::default();
+    let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let empty_bank_config = BankConfig::<C> { tokens: vec![] };
+    let empty_bank_config = BankConfig::<S> { tokens: vec![] };
     bank.genesis(&empty_bank_config, &mut working_set).unwrap();
 
-    let minter_address = generate_address::<DefaultContext>("minter");
-    let sequencer_address = generate_address::<DefaultContext>("sequencer");
-    let minter_context = C::new(minter_address, sequencer_address, 1);
+    let minter_address = generate_address::<S>("minter");
+    let sequencer_address = generate_address::<S>("sequencer");
+    let minter_context = Context::<S>::new(minter_address, sequencer_address, 1);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<C>(&token_name, &minter_address, salt);
+    let token_address = get_token_address::<S>(&token_name, &minter_address, salt);
 
     // ---
     // Deploying token
@@ -74,7 +72,7 @@ fn freeze_token() {
     // create a second token
     let token_name_2 = "Token2".to_owned();
     let initial_balance = 100;
-    let token_address_2 = get_token_address::<C>(&token_name_2, &minter_address, salt);
+    let token_address_2 = get_token_address::<S>(&token_name_2, &minter_address, salt);
 
     // ---
     // Deploying second token
@@ -92,9 +90,9 @@ fn freeze_token() {
     assert_eq!(working_set.events().len(), 2);
 
     // Try to freeze with a non authorized minter
-    let unauthorized_address = generate_address::<C>("unauthorized_address");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let unauthorized_context = C::new(unauthorized_address, sequencer_address, 1);
+    let unauthorized_address = generate_address::<S>("unauthorized_address");
+    let sequencer_address = generate_address::<S>("sequencer");
+    let unauthorized_context = Context::<S>::new(unauthorized_address, sequencer_address, 1);
     let freeze_message = CallMessage::Freeze {
         token_address: token_address_2,
     };
@@ -123,7 +121,7 @@ fn freeze_token() {
 
     // Try to mint a frozen token
     let mint_amount = 10;
-    let new_holder = generate_address::<C>("new_holder");
+    let new_holder = generate_address::<S>("new_holder");
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,
@@ -133,7 +131,7 @@ fn freeze_token() {
     };
 
     let query_total_supply =
-        |token_address: Address, working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
+        |token_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
             let total_supply: TotalSupplyResponse =
                 bank.supply_of(None, token_address, working_set).unwrap();
             total_supply.amount
@@ -181,7 +179,7 @@ fn freeze_token() {
     let query_user_balance =
         |token_address: Address,
          user_address: Address,
-         working_set: &mut WorkingSet<DefaultContext>|
+         working_set: &mut WorkingSet<S>|
          -> Option<u64> { bank.get_balance_of(user_address, token_address, working_set) };
     let bal = query_user_balance(token_address_2, minter_address, &mut working_set);
 

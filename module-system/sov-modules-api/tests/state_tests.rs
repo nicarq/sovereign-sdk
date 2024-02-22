@@ -1,8 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::*;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{ArrayWitness, DefaultStorageSpec, Prefix, Storage, ZkStorage};
+
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type Zk = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 enum Operation {
     Merge,
@@ -10,11 +12,7 @@ enum Operation {
 }
 
 impl Operation {
-    fn execute<C: Context>(
-        &self,
-        working_set: WorkingSet<C>,
-        db: C::Storage,
-    ) -> StateCheckpoint<C> {
+    fn execute<S: Spec>(&self, working_set: WorkingSet<S>, db: S::Storage) -> StateCheckpoint<S> {
         match self {
             Operation::Merge => working_set.checkpoint().0,
             Operation::Finalize => {
@@ -34,7 +32,7 @@ struct StorageOperation {
 }
 
 impl StorageOperation {
-    fn execute<C: Context>(&self, mut working_set: WorkingSet<C>, db: C::Storage) -> WorkingSet<C> {
+    fn execute<S: Spec>(&self, mut working_set: WorkingSet<S>, db: S::Storage) -> WorkingSet<S> {
         for op in self.operations.iter() {
             working_set = op
                 .execute(working_set, db.clone())
@@ -80,11 +78,7 @@ fn create_storage_operations() -> Vec<(StorageOperation, StorageOperation)> {
     ]
 }
 
-fn create_state_map(
-    key: u32,
-    value: u32,
-    working_set: &mut WorkingSet<DefaultContext>,
-) -> StateMap<u32, u32> {
+fn create_state_map(key: u32, value: u32, working_set: &mut WorkingSet<S>) -> StateMap<u32, u32> {
     let state_map = StateMap::new(Prefix::new(vec![0]));
     state_map.set(&key, &value, working_set);
     state_map
@@ -126,7 +120,7 @@ fn test_state_map_with_delete() {
     }
 }
 
-fn create_state_value(value: u32, working_set: &mut WorkingSet<DefaultContext>) -> StateValue<u32> {
+fn create_state_value(value: u32, working_set: &mut WorkingSet<S>) -> StateValue<u32> {
     let state_value = StateValue::new(Prefix::new(vec![0]));
     state_value.set(&value, working_set);
     state_value
@@ -175,7 +169,7 @@ fn test_witness_round_trip() {
     let witness: ArrayWitness = {
         let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
         // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
-        let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
+        let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
@@ -189,8 +183,7 @@ fn test_witness_round_trip() {
 
     {
         let storage = ZkStorage::<DefaultStorageSpec>::new();
-        let mut working_set: WorkingSet<ZkDefaultContext> =
-            WorkingSet::with_witness(storage.clone(), witness);
+        let mut working_set: WorkingSet<Zk> = WorkingSet::with_witness(storage.clone(), witness);
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
@@ -204,7 +197,7 @@ fn test_witness_round_trip() {
 
 fn create_state_vec<T: BorshDeserialize + BorshSerialize>(
     values: Vec<T>,
-    working_set: &mut WorkingSet<DefaultContext>,
+    working_set: &mut WorkingSet<S>,
 ) -> StateVec<T> {
     let state_vec = StateVec::new(Prefix::new(vec![0]));
     state_vec.set_all(values, working_set);

@@ -5,23 +5,23 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Context, DaSpec, ValidityConditionChecker, WorkingSet, Zkvm};
+use sov_modules_api::{DaSpec, Spec, ValidityConditionChecker, WorkingSet, Zkvm};
 use sov_state::Storage;
 
 use crate::{AttesterIncentives, Role};
 
 /// Configuration of the attester incentives module
-pub struct AttesterIncentivesConfig<C, Vm, Da, Checker>
+pub struct AttesterIncentivesConfig<S, Vm, Da, Checker>
 where
-    C: Context,
+    S: Spec,
     Vm: Zkvm,
     Da: DaSpec,
     Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
     /// The address of the token to be used for bonding.
-    pub bonding_token_address: C::Address,
+    pub bonding_token_address: S::Address,
     /// The address of the account holding the reward token supply
-    pub reward_token_supply_address: C::Address,
+    pub reward_token_supply_address: S::Address,
     /// The minimum bond for an attester.
     pub minimum_attester_bond: Amount,
     /// The minimum bond for a challenger.
@@ -29,7 +29,7 @@ where
     /// A code commitment to be used for verifying proofs
     pub commitment_to_allowed_challenge_method: Vm::CodeCommitment,
     /// A list of initial provers and their bonded amount.
-    pub initial_attesters: Vec<(C::Address, Amount)>,
+    pub initial_attesters: Vec<(S::Address, Amount)>,
     /// The finality period of the rollup (constant) in the number of DA layer slots processed.
     pub rollup_finality_period: TransitionHeight,
     /// The current maximum attested height
@@ -42,11 +42,11 @@ where
     pub(crate) phantom_data: PhantomData<Da::ValidityCondition>,
 }
 
-impl<C, Vm, S, P, Da, Checker> AttesterIncentives<C, Vm, Da, Checker>
+impl<S, Vm, Store, P, Da, Checker> AttesterIncentives<S, Vm, Da, Checker>
 where
-    C: sov_modules_api::Context<Storage = S>,
+    S: sov_modules_api::Spec<Storage = Store>,
     Vm: sov_modules_api::Zkvm,
-    S: Storage<Proof = P>,
+    Store: Storage<Proof = P>,
     P: BorshDeserialize + BorshSerialize,
     Da: sov_modules_api::DaSpec,
     Checker: ValidityConditionChecker<Da::ValidityCondition>,
@@ -54,7 +54,7 @@ where
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         anyhow::ensure!(
             !config.initial_attesters.is_empty(),

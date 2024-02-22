@@ -42,7 +42,7 @@ We are developing more robust tooling to enable seamless deployment of rollups o
 
 This demo shows how to integrate a State Transition Function (STF) with a Data Availability (DA) layer and a zkVM to create a full
 zk-rollup. The code in this repository corresponds to running a full-node of the rollup, which executes
-every transaction. 
+every transaction.
 
 By swapping out or modifying the imported state transition function, you can customize
 this example full-node to run arbitrary logic.
@@ -50,7 +50,8 @@ This particular example relies on the state transition exported by [`demo-stf`](
 understand how to build your own state transition function, check out at the docs in that package.
 
 ## Getting Started
-If you are looking for a simple rollup with minimal dependencies as a starting point, please have a look here: 
+
+If you are looking for a simple rollup with minimal dependencies as a starting point, please have a look here:
 [sov-rollup-starter](https://github.com/Sovereign-Labs/sov-rollup-starter/)
 
 ### Run a local DA layer instance
@@ -58,7 +59,7 @@ If you are looking for a simple rollup with minimal dependencies as a starting p
 1. Install Docker: <https://www.docker.com>.
 
 2. Follow [this guide](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic)
-to authorize yourself in github's container registry. (we use original celestia images which they publish in ghcr)
+   to authorize yourself in github's container registry. (we use original celestia images which they publish in ghcr)
 
 ```shell
 # this has to be ran only once, unless your token expires
@@ -159,7 +160,7 @@ use sov_bank::CallMessage::Transfer;
 use sov_bank::Coins;
 use sov_bank::Amount;
 
-pub enum CallMessage<C: sov_modules_api::Context> {
+pub enum CallMessage<S: sov_modules_api::Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
         /// Random value used to create a unique token address.
@@ -169,37 +170,37 @@ pub enum CallMessage<C: sov_modules_api::Context> {
         /// The initial balance of the new token.
         initial_balance: Amount,
         /// The address of the account that the new tokens are minted to.
-        minter_address: C::Address,
+        minter_address: S::Address,
         /// Authorized minter list.
-        authorized_minters: Vec<C::Address>,
+        authorized_minters: Vec<S::Address>,
     },
 
     /// Transfers a specified amount of tokens to the specified address.
     Transfer {
         /// The address to which the tokens will be transferred.
-        to: C::Address,
+        to: S::Address,
         /// The amount of tokens to transfer.
-        coins: Coins::<C>,
+        coins: Coins::<S>,
     },
 
     /// Burns a specified amount of tokens.
     Burn {
         /// The amount of tokens to burn.
-        coins: Coins::<C>,
+        coins: Coins::<S>,
     },
 
     /// Mints a specified amount of tokens.
     Mint {
         /// The amount of tokens to mint.
-        coins: Coins::<C>,
+        coins: Coins::<S>,
         /// Address to mint tokens to
-        minter_address: C::Address,
+        minter_address: S::Address,
     },
 
     /// Freeze a token so that the supply is frozen
     Freeze {
         /// Address of the token to be frozen
-        token_address: C::Address,
+        token_address: S::Address,
     },
 }
 ```
@@ -209,11 +210,11 @@ In the above snippet, we can see that `CallMessage` in `Bank` supports five diff
 ```rust
 use sov_bank::Coins;
 
-struct Transfer<C: sov_modules_api::Context>  {
+struct Transfer<S: sov_modules_api::Spec>  {
     /// The address to which the tokens will be transferred.
-    to: C::Address,
+    to: S::Address,
     /// The amount of tokens to transfer.
-    coins: Coins<C>,
+    coins: Coins<S>,
 }
 ```
 
@@ -364,4 +365,3 @@ The full node implements a simple loop for processing blocks. The workflow is:
 
 In this demo, we also keep a `ledger_db`, which stores information
 related to the chain's history - batches, transactions, receipts, etc.
-

@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, DaSpec, Gas, GasArray, StateAccessor, StateMap, StateMapAccessor};
+use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateAccessor, StateMap, StateMapAccessor};
 use sov_state::codec::BcsCodec;
 
 use crate::{StateTransitionId, TransitionHeight};
@@ -9,7 +9,7 @@ use crate::{StateTransitionId, TransitionHeight};
 #[derive(
     BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash,
 )]
-pub struct GasPriceState<C: Context> {
+pub struct GasPriceState<S: Spec> {
     /// The depth at which the elastic gas price will extract its average target price from the
     /// blocks.
     pub blocks_depth: u64,
@@ -19,13 +19,13 @@ pub struct GasPriceState<C: Context> {
     pub maximum_elasticity: i64,
 
     /// The current gas price.
-    pub price: <C::Gas as Gas>::Price,
+    pub price: <S::Gas as Gas>::Price,
 
     /// The minimum price computed for a block execution.
-    pub minimum_price: <C::Gas as Gas>::Price,
+    pub minimum_price: <S::Gas as Gas>::Price,
 }
 
-impl<C: Context> GasPriceState<C> {
+impl<S: Spec> GasPriceState<S> {
     /// Sets the gas price of the underlying network to the provided historical value, and adjusts
     /// the gas price for the working set accordingly.
     ///
@@ -36,7 +36,7 @@ impl<C: Context> GasPriceState<C> {
     pub fn update<Da: DaSpec>(
         mut self,
         height: TransitionHeight,
-        historical_transitions: &StateMap<TransitionHeight, StateTransitionId<C, Da>, BcsCodec>,
+        historical_transitions: &StateMap<TransitionHeight, StateTransitionId<S, Da>, BcsCodec>,
         state_checkpoint: &mut impl StateAccessor,
     ) -> Option<Self> {
         let genesis_height = 0;
@@ -53,7 +53,7 @@ impl<C: Context> GasPriceState<C> {
         let height_count = height.saturating_sub(height_from);
 
         // TODO(@vlopes11): Update this calculation to be based on proof latency
-        let mut gas_target = C::Gas::zero();
+        let mut gas_target = S::Gas::zero();
         let mut transition = None;
         for h in height_from..height {
             let history = historical_transitions.get(&h, state_checkpoint)?;
@@ -64,11 +64,11 @@ impl<C: Context> GasPriceState<C> {
 
         // there was no gas consumed on the past blocks; preserve the price
         // TODO(@vlopes11): Shouldn't we drop the price by the maximum amount in this case?
-        if gas_target == C::Gas::zero() {
+        if gas_target == S::Gas::zero() {
             return Some(self);
         }
 
-        self.price = C::Gas::elastic_price(
+        self.price = S::Gas::elastic_price(
             self.maximum_elasticity,
             &gas_target,
             &transition?.gas_used,
@@ -83,7 +83,6 @@ impl<C: Context> GasPriceState<C> {
 #[cfg(test)]
 mod tests {
     use sov_mock_da::{MockDaSpec, MockValidityCond};
-    use sov_modules_api::default_context::DefaultContext;
     use sov_modules_api::{GasPrice, StateMap, WorkingSet};
     use sov_modules_core::{Prefix, StateCheckpoint};
     use sov_prover_storage_manager::new_orphan_storage;
@@ -91,9 +90,10 @@ mod tests {
 
     use super::*;
 
-    type W = WorkingSet<DefaultContext>;
-    type M = StateMap<TransitionHeight, StateTransitionId<DefaultContext, MockDaSpec>, BcsCodec>;
-    type DefaultGasPriceState = GasPriceState<DefaultContext>;
+    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+    type W = WorkingSet<DefaultSpec>;
+    type M = StateMap<TransitionHeight, StateTransitionId<DefaultSpec, MockDaSpec>, BcsCodec>;
+    type DefaultGasPriceState = GasPriceState<DefaultSpec>;
 
     #[test]
     fn price_is_unchanged_with_genesis_blocks() {
@@ -266,7 +266,7 @@ mod tests {
     fn analysis_will_consider_only_blocks_depth() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage: ProverStorage<DefaultStorageSpec> = new_orphan_storage(tmpdir.path()).unwrap();
-        let ws = &mut StateCheckpoint::<DefaultContext>::new(storage);
+        let ws = &mut StateCheckpoint::<DefaultSpec>::new(storage);
         let prefix = Prefix::new(b"test".to_vec());
         let ht = &M::with_codec(prefix, BcsCodec);
 

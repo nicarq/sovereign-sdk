@@ -5,6 +5,7 @@ use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 mod helpers;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[test]
 fn initial_and_deployed_token() {
@@ -14,15 +15,15 @@ fn initial_and_deployed_token() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let sender_address = generate_address::<C>("sender");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let sender_context = C::new(sender_address, sequencer_address, 1);
-    let minter_address = generate_address::<C>("minter");
+    let sender_address = generate_address::<S>("sender");
+    let sequencer_address = generate_address::<S>("sequencer");
+    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
+    let minter_address = generate_address::<S>("minter");
     let initial_balance = 500;
     let token_name = "Token1".to_owned();
     let salt = 1;
-    let token_address = get_token_address::<C>(&token_name, &sender_address, salt);
-    let create_token_message = CallMessage::CreateToken::<C> {
+    let token_address = get_token_address::<S>(&token_name, &sender_address, salt);
+    let create_token_message = CallMessage::CreateToken::<S> {
         salt,
         token_name: token_name.clone(),
         initial_balance,
@@ -56,7 +57,7 @@ fn initial_and_deployed_token() {
 #[test]
 /// Currently integer overflow happens on bank genesis
 fn overflow_max_supply() {
-    let bank = Bank::<C>::default();
+    let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 

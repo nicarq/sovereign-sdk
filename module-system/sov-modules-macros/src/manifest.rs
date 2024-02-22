@@ -261,7 +261,7 @@ impl<'a> Manifest<'a> {
                 }
             };
 
-            field_values.push(quote::quote!(#k: <<<Self as ::sov_modules_api::Module>::Context as ::sov_modules_api::Context>::Gas as ::sov_modules_api::GasArray>::from_slice(&[#(#v,)*])));
+            field_values.push(quote::quote!(#k: <<<Self as ::sov_modules_api::Module>::Spec as ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[#(#v,)*])));
         }
 
         // remove generics, if any
@@ -404,7 +404,7 @@ fn parse_gas_config_works() {
     }"#;
 
     let parent = Ident::new("Foo", proc_macro2::Span::call_site());
-    let gas_config: Type = syn::parse_str("FooGasConfig<C::Gas>").unwrap();
+    let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
     let field: Ident = syn::parse_str("foo_gas_config").unwrap();
 
     let decl = Manifest::read_str(input, PathBuf::from("foo.json"), &parent)
@@ -417,8 +417,8 @@ fn parse_gas_config_works() {
         decl.to_string(),
         quote::quote!(
             let foo_gas_config = FooGasConfig {
-                complex_math_operation: <<<Self as ::sov_modules_api::Module>::Context as ::sov_modules_api::Context>::Gas as ::sov_modules_api::GasArray>::from_slice(&[1u64, 2u64, 3u64, ]),
-                some_other_operation: <<<Self as ::sov_modules_api::Module>::Context as ::sov_modules_api::Context>::Gas as ::sov_modules_api::GasArray>::from_slice(&[4u64, 5u64, 6u64, ]),
+                complex_math_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[1u64, 2u64, 3u64, ]),
+                some_other_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[4u64, 5u64, 6u64, ]),
             };
         )
         .to_string()
@@ -436,7 +436,7 @@ fn parse_gas_config_single_dimension_works() {
     }"#;
 
     let parent = Ident::new("Foo", proc_macro2::Span::call_site());
-    let gas_config: Type = syn::parse_str("FooGasConfig<C::Gas>").unwrap();
+    let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
     let field: Ident = syn::parse_str("foo_gas_config").unwrap();
 
     let decl = Manifest::read_str(input, PathBuf::from("foo.json"), &parent)
@@ -449,8 +449,8 @@ fn parse_gas_config_single_dimension_works() {
         decl.to_string(),
         quote::quote!(
             let foo_gas_config = FooGasConfig {
-                complex_math_operation: <<<Self as ::sov_modules_api::Module>::Context as ::sov_modules_api::Context>::Gas as ::sov_modules_api::GasArray>::from_slice(&[1u64, ]),
-                some_other_operation: <<<Self as ::sov_modules_api::Module>::Context as ::sov_modules_api::Context>::Gas as ::sov_modules_api::GasArray>::from_slice(&[2u64, ]),
+                complex_math_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[1u64, ]),
+                some_other_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[2u64, ]),
             };
         )
         .to_string()

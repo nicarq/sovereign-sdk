@@ -4,14 +4,14 @@ use borsh::BorshDeserialize;
 use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::runtime::capabilities::BatchSelector;
-use sov_modules_api::{BlobReaderTrait, Context, DaSpec, KernelWorkingSet, StateCheckpoint};
+use sov_modules_api::{BlobReaderTrait, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
 use tracing::{error, info, warn};
 
 use crate::{
     BlobStorage, PreferredBatch, PreferredBatchWithId, SequenceNumber, DEFERRED_SLOTS_COUNT,
 };
 
-impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
+impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     pub(crate) fn log_discarded_blob(&self, b: &Da::BlobTransaction) {
         info!(
             blob_hash = hex::encode(b.hash()),
@@ -24,7 +24,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub(crate) fn blob_is_allowed(
         &self,
         b: &Da::BlobTransaction,
-        working_set: &mut StateCheckpoint<C>,
+        working_set: &mut StateCheckpoint<S>,
     ) -> bool {
         // TODO(@vlopes11): Add gas check
         self.sequencer_registry
@@ -35,7 +35,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub(crate) fn slash_sequencer(
         &self,
         sender: &Da::Address,
-        working_set: &mut StateCheckpoint<C>,
+        working_set: &mut StateCheckpoint<S>,
     ) {
         self.sequencer_registry.slash_sequencer(sender, working_set)
     }
@@ -47,7 +47,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
         preferred_batch: PreferredBatch,
         next_sequence_number: SequenceNumber,
         blob: &Da::BlobTransaction,
-        working_set: &mut StateCheckpoint<C>,
+        working_set: &mut StateCheckpoint<S>,
     ) -> Option<PreferredBatchWithId> {
         match preferred_batch.sequence_number.cmp(&next_sequence_number) {
             Ordering::Equal => {
@@ -85,7 +85,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub fn select_blobs_in_recovery_mode<'a, 'k, I>(
         &self,
         current_blobs: I,
-        working_set: &mut KernelWorkingSet<'k, C>,
+        working_set: &mut KernelWorkingSet<'k, S>,
     ) -> Vec<(BatchWithId, Da::Address)>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
@@ -156,7 +156,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub fn select_blobs_as_based_sequencer<'a, 'k, I>(
         &self,
         current_blobs: I,
-        working_set: &mut KernelWorkingSet<'k, C>,
+        working_set: &mut KernelWorkingSet<'k, S>,
     ) -> Vec<(BatchWithId, Da::Address)>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
@@ -202,7 +202,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,
         current_blobs: I,
-        working_set: &mut KernelWorkingSet<'k, C>,
+        working_set: &mut KernelWorkingSet<'k, S>,
         preferred_sender: &Da::Address,
     ) -> Vec<(BatchWithId, Da::Address)>
     where
@@ -341,8 +341,8 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> BatchSelector<Da> for BlobStorage<C, Da> {
-    type Context = C;
+impl<S: Spec, Da: DaSpec> BatchSelector<Da> for BlobStorage<S, Da> {
+    type Spec = S;
 
     type Batch = BatchWithId;
 
@@ -353,7 +353,7 @@ impl<C: Context, Da: DaSpec> BatchSelector<Da> for BlobStorage<C, Da> {
     fn get_batches_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        working_set: &mut KernelWorkingSet<'k, C>,
+        working_set: &mut KernelWorkingSet<'k, S>,
     ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
@@ -379,7 +379,7 @@ impl<C: Context, Da: DaSpec> BatchSelector<Da> for BlobStorage<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
+impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     /// Attempt to deserialize a blob into a list of transactions.
     pub(crate) fn deserialize_batch<B: BorshDeserialize>(
         &self,
@@ -404,7 +404,7 @@ impl<C: Context, Da: DaSpec> BlobStorage<C, Da> {
     pub(crate) fn deserialize_or_slash_sender<B: BorshDeserialize>(
         &self,
         blob: &mut Da::BlobTransaction,
-        working_set: &mut StateCheckpoint<C>,
+        working_set: &mut StateCheckpoint<S>,
     ) -> Option<B> {
         let batch = self.deserialize_batch::<B>(blob);
         match batch {

@@ -4,16 +4,17 @@ use std::time::Duration;
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::PrivateKey;
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_nft_module::utils::{
     get_collection_address, get_create_collection_message, get_mint_nft_message,
     get_transfer_nft_message,
 };
 use sov_nft_module::{CallMessage, CollectionAddress};
 use sov_sequencer::utils::SimpleClient;
+
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 const COLLECTION_1: &str = "Sovereign Squirrel Syndicate";
 const COLLECTION_2: &str = "Celestial Dolphins";
@@ -36,15 +37,15 @@ const PK3: [u8; 32] = [
 
 pub fn build_transaction(
     signer: &DefaultPrivateKey,
-    message: CallMessage<DefaultContext>,
+    message: CallMessage<DefaultSpec>,
     nonce: u64,
-) -> Transaction<DefaultContext> {
-    let runtime_encoded_message = RuntimeCall::<DefaultContext, MockDaSpec>::nft(message);
+) -> Transaction<DefaultSpec> {
+    let runtime_encoded_message = RuntimeCall::<DefaultSpec, MockDaSpec>::nft(message);
     let chain_id = 0;
     let gas_tip = 0;
     let gas_limit = 0;
     let max_gas_price = None;
-    Transaction::<DefaultContext>::new_signed_tx(
+    Transaction::<DefaultSpec>::new_signed_tx(
         signer,
         runtime_encoded_message.try_to_vec().unwrap(),
         chain_id,
@@ -60,7 +61,7 @@ pub fn build_create_collection_transactions(
     start_nonce: &mut u64,
     base_uri: &str,
     collections: &[&str],
-) -> Vec<Transaction<DefaultContext>> {
+) -> Vec<Transaction<DefaultSpec>> {
     collections
         .iter()
         .map(|&collection_name| {
@@ -88,7 +89,7 @@ pub fn build_mint_transactions(
     num: usize,
     base_uri: &str,
     owner_pk: &DefaultPrivateKey,
-) -> Vec<Transaction<DefaultContext>> {
+) -> Vec<Transaction<DefaultSpec>> {
     (0..num)
         .map(|_| {
             let tx = build_transaction(
@@ -112,9 +113,9 @@ pub fn build_mint_transactions(
 pub fn build_transfer_transactions(
     signer: &DefaultPrivateKey,
     start_nonce: &mut u64,
-    collection_address: &CollectionAddress<DefaultContext>,
+    collection_address: &CollectionAddress<DefaultSpec>,
     nft_ids: Vec<u64>,
-) -> Vec<Transaction<DefaultContext>> {
+) -> Vec<Transaction<DefaultSpec>> {
     nft_ids
         .into_iter()
         .map(|nft_id| {
@@ -187,10 +188,8 @@ async fn main() {
     // TODO: remove after https://github.com/Sovereign-Labs/sovereign-sdk/issues/949 is fixed
     thread::sleep(Duration::from_millis(3000));
 
-    let collection_1_address = get_collection_address::<DefaultContext>(
-        COLLECTION_1,
-        creator_pk.default_address().as_ref(),
-    );
+    let collection_1_address =
+        get_collection_address::<DefaultSpec>(COLLECTION_1, creator_pk.default_address().as_ref());
 
     let mut owner_1_nonce = 0;
     let nft_ids_to_transfer: Vec<u64> = (1..=6).collect();

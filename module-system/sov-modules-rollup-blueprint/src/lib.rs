@@ -12,11 +12,11 @@ use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::{CacheDb, ChangeSet};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
-use sov_modules_api::{Context, DaSpec, Spec};
+use sov_modules_api::{DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
@@ -39,43 +39,43 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type Vm: ZkvmHost + Send;
 
     /// Context for Zero Knowledge environment.
-    type ZkContext: Context;
+    type ZkSpec: Spec;
     /// Context for Native environment.
-    type NativeContext: Context;
+    type NativeSpec: Spec;
 
     /// Manager for the native storage lifecycle.
     type StorageManager: HierarchicalStorageManager<
         Self::DaSpec,
-        StfState = <Self::NativeContext as Spec>::Storage,
-        StfChangeSet = <<<Self as RollupBlueprint>::NativeContext as Spec>::Storage as Storage>::ChangeSet,
+        StfState = <Self::NativeSpec as Spec>::Storage,
+        StfChangeSet = <<<Self as RollupBlueprint>::NativeSpec as Spec>::Storage as Storage>::ChangeSet,
         LedgerState = CacheDb,
         LedgerChangeSet = ChangeSet,
     >;
 
     /// Runtime for the Zero Knowledge environment.
-    type ZkRuntime: RuntimeTrait<Self::ZkContext, Self::DaSpec> + Default;
+    type ZkRuntime: RuntimeTrait<Self::ZkSpec, Self::DaSpec> + Default;
     /// Runtime for the Native environment.
-    type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
+    type NativeRuntime: RuntimeTrait<Self::NativeSpec, Self::DaSpec> + Default + Send + Sync;
 
     /// The kernel for the native environment.
-    type NativeKernel: KernelSlotHooks<Self::NativeContext, Self::DaSpec, Batch = BatchWithId>
+    type NativeKernel: KernelSlotHooks<Self::NativeSpec, Self::DaSpec, Batch = BatchWithId>
         + Default
         + Send
         + Sync;
     /// The kernel for the Zero Knowledge environment.
-    type ZkKernel: KernelSlotHooks<Self::ZkContext, Self::DaSpec, Batch = BatchWithId> + Default;
+    type ZkKernel: KernelSlotHooks<Self::ZkSpec, Self::DaSpec, Batch = BatchWithId> + Default;
 
     /// Prover service.
     type ProverService: ProverService<
-        StateRoot = <<Self::NativeContext as Spec>::Storage as Storage>::Root,
-        Witness = <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
+        StateRoot = <<Self::NativeSpec as Spec>::Storage as Storage>::Root,
+        Witness = <<Self::NativeSpec as Spec>::Storage as Storage>::Witness,
         DaService = Self::DaService,
     >;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
-        storage: Arc<RwLock<<Self::NativeContext as Spec>::Storage>>,
+        storage: Arc<RwLock<<Self::NativeSpec as Spec>::Storage>>,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
@@ -85,21 +85,21 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     fn create_genesis_config(
         &self,
         rt_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
+            Self::NativeSpec,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
+        kernel_genesis: <Self::NativeKernel as Kernel<Self::NativeSpec, Self::DaSpec>>::GenesisConfig,
         _rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> anyhow::Result<
         GenesisParams<
-            <Self::NativeRuntime as RuntimeTrait<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
-            <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
+            <Self::NativeRuntime as RuntimeTrait<Self::NativeSpec, Self::DaSpec>>::GenesisConfig,
+            <Self::NativeKernel as Kernel<Self::NativeSpec, Self::DaSpec>>::GenesisConfig,
         >,
     > {
-        let rt_genesis = <Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
-            Self::DaSpec,
-        >>::genesis_config(rt_genesis_paths)?;
+        let rt_genesis =
+            <Self::NativeRuntime as RuntimeTrait<Self::NativeSpec, Self::DaSpec>>::genesis_config(
+                rt_genesis_paths,
+            )?;
 
         Ok(GenesisParams {
             runtime: rt_genesis,
@@ -140,15 +140,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_new_rollup(
         &self,
         runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
+            Self::NativeSpec,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
+        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeSpec, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
         prover_config: RollupProverConfig,
     ) -> Result<Rollup<Self>, anyhow::Error>
     where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
+        <Self::NativeSpec as Spec>::Storage: NativeStorage,
     {
         let da_service = self.create_da_service(&rollup_config).await;
         // TODO: Double check what kind of storage needed here.
@@ -211,7 +211,13 @@ pub struct Rollup<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
     pub runner: StateTransitionRunner<
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+        StfBlueprint<
+            S::NativeSpec,
+            S::DaSpec,
+            <<S::Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+            S::NativeRuntime,
+            S::NativeKernel,
+        >,
         S::StorageManager,
         S::DaService,
         S::Vm,

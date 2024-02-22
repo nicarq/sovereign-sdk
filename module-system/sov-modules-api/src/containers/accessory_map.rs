@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_modules_core::{
-    AccessoryStateCheckpoint, AccessoryWorkingSet, Context, Prefix, StateCodec, StateKeyCodec,
+    AccessoryStateCheckpoint, AccessoryWorkingSet, Prefix, Spec, StateCodec, StateKeyCodec,
     StateValueCodec,
 };
 use sov_state::codec::BorshCodec;
@@ -55,13 +55,13 @@ impl<K, V, Codec> AccessoryStateMap<K, V, Codec> {
     }
 }
 
-impl<'a, K, V, Codec, C> StateMapAccessor<K, V, Codec, AccessoryWorkingSet<'a, C>>
+impl<'a, K, V, Codec, S> StateMapAccessor<K, V, Codec, AccessoryWorkingSet<'a, S>>
     for AccessoryStateMap<K, V, Codec>
 where
     Codec: StateCodec,
     Codec::KeyCodec: StateKeyCodec<K>,
     Codec::ValueCodec: StateValueCodec<V>,
-    C: Context,
+    S: Spec,
 {
     /// Returns the prefix used when this [`AccessoryStateMap`] was created.
     fn prefix(&self) -> &Prefix {
@@ -73,13 +73,13 @@ where
     }
 }
 
-impl<'a, K, V, Codec, C> StateMapAccessor<K, V, Codec, AccessoryStateCheckpoint<'a, C>>
+impl<'a, K, V, Codec, S> StateMapAccessor<K, V, Codec, AccessoryStateCheckpoint<'a, S>>
     for AccessoryStateMap<K, V, Codec>
 where
     Codec: StateCodec,
     Codec::KeyCodec: StateKeyCodec<K>,
     Codec::ValueCodec: StateValueCodec<V>,
-    C: Context,
+    S: Spec,
 {
     /// Returns the prefix used when this [`AccessoryStateMap`] was created.
     fn prefix(&self) -> &Prefix {
@@ -103,12 +103,12 @@ where
     /// Generates an arbitrary [`AccessoryStateMap`] instance.
     ///
     /// See the [`arbitrary`] crate for more information.
-    pub fn arbitrary_working_set<C>(
+    pub fn arbitrary_working_set<S>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut AccessoryStateCheckpoint<C>,
+        working_set: &mut AccessoryStateCheckpoint<S>,
     ) -> arbitrary::Result<Self>
     where
-        C: Context,
+        S: Spec,
     {
         use arbitrary::Arbitrary;
 

@@ -38,14 +38,10 @@ use sov_bank::{BankRpcImpl, BankRpcServer};
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
 use sov_evm::{EvmRpcImpl, EvmRpcServer};
-#[cfg(feature = "native")]
-pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::DefaultRuntime;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
-#[cfg(feature = "native")]
-use sov_modules_api::Spec;
-use sov_modules_api::{Context, DispatchCall, Event, Genesis, MessageCodec};
+use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
 #[cfg(feature = "native")]
 use sov_nft_module::{NonFungibleTokenRpcImpl, NonFungibleTokenRpcServer};
 use sov_rollup_interface::da::DaSpec;
@@ -66,38 +62,38 @@ use crate::genesis_config::GenesisPaths;
     serde::Serialize,
     serde::Deserialize
 )]
-pub struct Runtime<C: Context, Da: DaSpec> {
+pub struct Runtime<S: Spec, Da: DaSpec> {
     /// The Bank module.
-    pub bank: sov_bank::Bank<C>,
+    pub bank: sov_bank::Bank<S>,
     /// The Sequencer Registry module.
-    pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<C, Da>,
+    pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S, Da>,
     /// The Value Setter module.
-    pub value_setter: sov_value_setter::ValueSetter<C>,
+    pub value_setter: sov_value_setter::ValueSetter<S>,
     /// The Accounts module.
-    pub accounts: sov_accounts::Accounts<C>,
+    pub accounts: sov_accounts::Accounts<S>,
     /// The NFT module.
-    pub nft: sov_nft_module::NonFungibleToken<C>,
+    pub nft: sov_nft_module::NonFungibleToken<S>,
     #[cfg(feature = "experimental")]
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
-    pub evm: sov_evm::Evm<C, Da>,
+    pub evm: sov_evm::Evm<S, Da>,
 }
 
-impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for Runtime<C, Da>
+impl<S, Da> sov_modules_stf_blueprint::Runtime<S, Da> for Runtime<S, Da>
 where
-    C: Context,
+    S: Spec,
     Da: DaSpec,
 {
-    type GenesisConfig = GenesisConfig<C, Da>;
+    type GenesisConfig = GenesisConfig<S, Da>;
 
     #[cfg(feature = "native")]
     type GenesisPaths = GenesisPaths;
 
     #[cfg(feature = "native")]
     fn rpc_methods(
-        storage: std::sync::Arc<std::sync::RwLock<<C as Spec>::Storage>>,
+        storage: std::sync::Arc<std::sync::RwLock<S::Storage>>,
     ) -> jsonrpsee::RpcModule<()> {
-        get_rpc_methods::<C, Da>(storage)
+        get_rpc_methods::<S, Da>(storage)
     }
 
     #[cfg(feature = "native")]

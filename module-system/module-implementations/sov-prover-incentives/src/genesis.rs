@@ -10,25 +10,25 @@ use crate::ProverIncentives;
 /// the allowed verifier method and a set of initial provers with their
 /// bonding amount.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProverIncentivesConfig<C: sov_modules_api::Context, Vm: Zkvm> {
+pub struct ProverIncentivesConfig<S: sov_modules_api::Spec, Vm: Zkvm> {
     /// The address of the token to be used for bonding.
-    pub bonding_token_address: C::Address,
+    pub bonding_token_address: S::Address,
     /// The minimum bond for a prover.
     pub minimum_bond: u64,
     /// A code commitment to be used for verifying proofs
     pub commitment_of_allowed_verifier_method: Vm::CodeCommitment,
     /// A list of initial provers and their bonded amount.
-    pub initial_provers: Vec<(C::Address, u64)>,
+    pub initial_provers: Vec<(S::Address, u64)>,
 }
 
-impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C, Vm> {
+impl<S: sov_modules_api::Spec, Vm: sov_modules_api::Zkvm> ProverIncentives<S, Vm> {
     /// Init the [`ProverIncentives`] module using the provided `config`.
     /// Sets the minimum amount necessary to bond, the commitment to the verifier circuit
     /// the bonding token address and builds the set of initial provers.
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         anyhow::ensure!(
             !config.initial_provers.is_empty(),

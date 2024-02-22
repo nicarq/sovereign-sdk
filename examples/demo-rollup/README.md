@@ -40,9 +40,10 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## What is This?
+
 This demo shows how to integrate a State Transition Function (STF) with a Data Availability (DA) layer and a zkVM to create a full
 zk-rollup. The code in this repository corresponds to running a full-node of the rollup, which executes
-every transaction. 
+every transaction.
 
 By swapping out or modifying the imported state transition function, you can customize
 this example full-node to run arbitrary logic.
@@ -50,14 +51,16 @@ This particular example relies on the state transition exported by [`demo-stf`](
 understand how to build your own state transition function, check out at the docs in that package.
 
 ## Getting Started
-If you are looking for a simple rollup with minimal dependencies as a starting point, please have a look here: 
+
+If you are looking for a simple rollup with minimal dependencies as a starting point, please have a look here:
 [sov-rollup-starter](https://github.com/Sovereign-Labs/sov-rollup-starter/)
 
-
 ### Run a local DA layer instance
+
 This setup works with an in-memory DA that is easy to set up for testing purposes.
 
 ### Start the Rollup Full Node
+
 1. Switch to the `examples/demo-rollup` and compile the application:
 
 ```shell,test-ci
@@ -66,19 +69,22 @@ $ cargo build --bins
 ```
 
 2. Clean up the existing database.
-Makefile to simplify that process:
+   Makefile to simplify that process:
+
 ```sh,test-ci
 $ make clean-mock-rollup-db
 ```
 
-3. Now run the demo-rollup full node, as shown below. 
+3. Now run the demo-rollup full node, as shown below.
+
 ```sh,test-ci,bashtestmd:long-running
 $ cargo run
 ```
+
 Leave it running while you proceed with the rest of the demo.
 
-
 ### Sanity Check: Creating a Token
+
 After switching to a new terminal tab, let's submit our first transaction by creating a token:
 
 ```sh,test-ci
@@ -86,23 +92,27 @@ $ make test-create-token
 ```
 
 Once a batch is submitted the output should also contain the transaction hashes that have been submitted. For example -
+
 ```text
 Your batch was submitted to the sequencer for publication. Response: "Submitted 1 transactions"
 0: 66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17
 ```
 
 The transaction hash can be used to query the RPC endpoint to fetch events belonging to the transaction, which should in this case have the TokenCreated Event
+
 ```sh,test-ci
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%   
+{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%
 ```
 
 We can see the TokenCreated event which contains the address of the token created - `sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72`
 
 ### How to Submit Transactions
+
 The `make test-create-token` command above was useful to test if everything is running correctly. Now let's get a better understanding of how to create and submit a transaction.
 
 #### 1. Build `sov-cli`
+
 You'll need the `sov-cli` binary in order to create transactions. Build it with these commands:
 
 ```bash,test-ci,bashtestmd:compare-output
@@ -128,7 +138,7 @@ use sov_bank::CallMessage::Transfer;
 use sov_bank::Coins;
 use sov_bank::Amount;
 
-pub enum CallMessage<C: sov_modules_api::Context> {
+pub enum CallMessage<S: sov_modules_api::Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
         /// Random value used to create a unique token address.
@@ -138,37 +148,37 @@ pub enum CallMessage<C: sov_modules_api::Context> {
         /// The initial balance of the new token.
         initial_balance: Amount,
         /// The address of the account that the new tokens are minted to.
-        minter_address: C::Address,
+        minter_address: S::Address,
         /// Authorized minter list.
-        authorized_minters: Vec<C::Address>,
+        authorized_minters: Vec<S::Address>,
     },
 
     /// Transfers a specified amount of tokens to the specified address.
     Transfer {
         /// The address to which the tokens will be transferred.
-        to: C::Address,
+        to: S::Address,
         /// The amount of tokens to transfer.
-        coins: Coins::<C>,
+        coins: Coins::<S>,
     },
 
     /// Burns a specified amount of tokens.
     Burn {
         /// The amount of tokens to burn.
-        coins: Coins::<C>,
+        coins: Coins::<S>,
     },
 
     /// Mints a specified amount of tokens.
     Mint {
         /// The amount of tokens to mint.
-        coins: Coins::<C>,
+        coins: Coins::<S>,
         /// Address to mint tokens to
-        minter_address: C::Address,
+        minter_address: S::Address,
     },
 
     /// Freeze a token so that the supply is frozen
     Freeze {
         /// Address of the token to be frozen
-        token_address: C::Address,
+        token_address: S::Address,
     },
 }
 ```
@@ -178,11 +188,11 @@ In the above snippet, we can see that `CallMessage` in `Bank` supports five diff
 ```rust
 use sov_bank::Coins;
 
-struct Transfer<C: sov_modules_api::Context>  {
+struct Transfer<S: sov_modules_api::Spec>  {
     /// The address to which the tokens will be transferred.
-    to: C::Address,
+    to: S::Address,
     /// The amount of tokens to transfer.
-    coins: Coins<C>,
+    coins: Coins<S>,
 }
 ```
 
@@ -231,7 +241,6 @@ Options:
 
 Let's go ahead and import the transaction into the wallet
 
-
 ```bash,test-ci,bashtestmd:compare-output
 $ cargo run --bin sov-cli -- transactions import from-file bank --chain-id 0 --path ../test-data/requests/transfer.json
 Adding the following transaction to batch:
@@ -255,6 +264,7 @@ Adding the following transaction to batch:
 ```
 
 #### Submit the Transaction(s)
+
 You now have a batch with a single transaction in your wallet. If you want to submit any more transactions as part of this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
@@ -263,6 +273,7 @@ $ cargo run --bin sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2n
 ```
 
 #### Verify the Token Supply
+
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"},"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":{"amount":1000},"id":1}
@@ -388,8 +399,8 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
 This response indicates that event `1` has not been emitted yet.
 
 ## Testing with specific DA layers
-Check [here](./README_CELESTIA.md) if you want to run with dockerized local Celestia instance.
 
+Check [here](./README_CELESTIA.md) if you want to run with dockerized local Celestia instance.
 
 ## License
 

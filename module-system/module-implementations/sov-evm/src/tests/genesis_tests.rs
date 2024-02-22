@@ -8,7 +8,6 @@ use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_mock_da::{MockBlockHeader, MockDaSpec};
 use sov_modules_api::da::Time;
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
     DaSpec, GasArray, GasMeter, GasPrice, KernelModule, KernelWorkingSet, Module, StateCheckpoint,
@@ -19,7 +18,7 @@ use crate::evm::primitive_types::{Block, SealedBlock};
 use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
 use crate::{AccountData, Evm, EvmConfig};
 
-type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 lazy_static! {
     pub(crate) static ref TEST_CONFIG: EvmConfig = EvmConfig {
@@ -238,12 +237,12 @@ fn genesis_head() {
 
 pub(crate) fn setup(
     evm_config: &EvmConfig,
-    mut state_checkpoint: StateCheckpoint<C>,
-) -> (Evm<C, MockDaSpec>, StateCheckpoint<C>) {
+    mut state_checkpoint: StateCheckpoint<S>,
+) -> (Evm<S, MockDaSpec>, StateCheckpoint<S>) {
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint); // We now need to initialize a chain_state module as well. Since in this test suite we don't care about testing the chain state
 
     // we can just use the default values. We will initialize the first block hash value with a default one.
-    let chain_state = ChainState::<C, MockDaSpec>::default();
+    let chain_state = ChainState::<S, MockDaSpec>::default();
     chain_state
         .genesis_unchecked(
             &ChainStateConfig {
@@ -257,7 +256,7 @@ pub(crate) fn setup(
         )
         .unwrap();
 
-    let evm = Evm::<C, MockDaSpec>::default();
+    let evm = Evm::<S, MockDaSpec>::default();
     let mut genesis_ws = state_checkpoint.to_revertable(GasMeter::unmetered());
     evm.genesis(evm_config, &mut genesis_ws).unwrap();
     let mut state_checkpoint = genesis_ws.checkpoint().0;

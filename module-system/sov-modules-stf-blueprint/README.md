@@ -15,10 +15,10 @@ Both the `DispatchCall` and `Genesis` traits can be automatically derived (see `
 ```rust ignore
 #[derive(Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-pub struct Runtime<C: Context> {
-    accounts: accounts::Accounts<C>,
-    bank: sov_bank::Bank<C>,
-    sequencer: sequencer::Sequencer<C>,
+pub struct Runtime<S: Spec> {
+    accounts: accounts::Accounts<S>,
+    bank: sov_bank::Bank<S>,
+    sequencer: sequencer::Sequencer<S>,
     ...
     some other modules
 }

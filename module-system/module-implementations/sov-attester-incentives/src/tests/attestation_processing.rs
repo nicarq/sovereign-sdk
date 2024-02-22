@@ -1,4 +1,3 @@
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, StateMapAccessor, WorkingSet};
 use sov_modules_core::GasMeter;
@@ -8,6 +7,7 @@ use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
     execution_simulation, setup, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
 };
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 /// Start by testing the positive case where the attestations are valid
 #[test]
@@ -33,7 +33,7 @@ fn test_process_valid_attestation() {
     let (mut exec_vars, state_checkpoint) =
         execution_simulation(3, &module, &storage, attester_address, state_checkpoint);
 
-    let context = DefaultContext::new(attester_address, sequencer, 1);
+    let context = Context::<S>::new(attester_address, sequencer, 1);
 
     let transition_2 = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();
@@ -129,7 +129,7 @@ fn test_burn_on_invalid_attestation() {
     let transition_1 = exec_vars.pop().unwrap();
     let initial_transition = exec_vars.pop().unwrap();
 
-    let context = DefaultContext::new(attester_address, sequencer, 1);
+    let context = Context::<S>::new(attester_address, sequencer, 1);
 
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     // Process an invalid proof for genesis: everything is correct except the storage proof.

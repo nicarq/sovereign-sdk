@@ -1,10 +1,9 @@
-use helpers::*;
 use sov_bank::{
     get_genesis_token_address, Bank, BankConfig, BankGasConfig, CallMessage, TokenConfig,
 };
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Gas, GasArray, Module, WorkingSet};
+use sov_modules_api::{Context, Gas, GasArray, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use tempfile::TempDir;
 
@@ -13,6 +12,7 @@ mod helpers;
 const CREATE_TOKEN_NATIVE_COST: u64 = 2;
 const CREATE_TOKEN_ZK_COST: u64 = 3;
 
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 #[test]
 fn zeroed_price_wont_deduct_working_set() {
     let sender_balance = 100;
@@ -60,9 +60,9 @@ fn constants_price_is_charged_correctly() {
         .unwrap();
 
     // compute the expected gas cost, based on the json constants
-    let bank = Bank::<C>::default();
+    let bank = Bank::<S>::default();
     let config = bank.gas_config();
-    let gas_price = <<C as Context>::Gas as Gas>::Price::from_slice(&[native_price, zk_price]);
+    let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[native_price, zk_price]);
     let gas_used = config.create_token.value(&gas_price);
 
     assert_eq!(
@@ -103,10 +103,10 @@ fn very_high_gas_price_wont_panic_or_overflow() {
 
 #[allow(dead_code)]
 pub struct BankGasTestCase {
-    ws: WorkingSet<C>,
-    bank: Bank<C>,
-    ctx: C,
-    message: CallMessage<C>,
+    ws: WorkingSet<S>,
+    bank: Bank<S>,
+    ctx: Context<S>,
+    message: CallMessage<S>,
     tmpdir: TempDir,
     gas_limit: u64,
     native_price: u64,
@@ -124,14 +124,14 @@ impl BankGasTestCase {
         let salt = 0;
 
         // sanity check the token address
-        let base_token_address = get_genesis_token_address::<C>(base_token_name, salt);
+        let base_token_address = get_genesis_token_address::<S>(base_token_name, salt);
         assert_eq!(&base_token_address.to_string(), GAS_TOKEN_ADDRESS);
 
         // generate a token configuration with the provided arguments
-        let sender_address = generate_address::<C>("sender");
+        let sender_address = generate_address::<S>("sender");
         let address_and_balances = vec![(sender_address, sender_balance)];
         let authorized_minters = vec![];
-        let bank_config: BankConfig<C> = BankConfig {
+        let bank_config: BankConfig<S> = BankConfig {
             tokens: vec![TokenConfig {
                 token_name: base_token_name.to_string(),
                 address_and_balances,
@@ -142,9 +142,9 @@ impl BankGasTestCase {
 
         // create a context using the generated account as sender
         let height = 1;
-        let minter_address = generate_address::<C>("minter");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let ctx = C::new(sender_address, sequencer_address, height);
+        let minter_address = generate_address::<S>("minter");
+        let sequencer_address = generate_address::<S>("sequencer");
+        let ctx = Context::<S>::new(sender_address, sequencer_address, height);
 
         // create a bank instance
         let bank = Bank::default();
@@ -159,7 +159,7 @@ impl BankGasTestCase {
         // generate a create dummy token message
         let token_name = "dummy".to_string();
         let initial_balance = 500;
-        let message = CallMessage::CreateToken::<C> {
+        let message = CallMessage::CreateToken::<S> {
             salt,
             token_name,
             initial_balance,

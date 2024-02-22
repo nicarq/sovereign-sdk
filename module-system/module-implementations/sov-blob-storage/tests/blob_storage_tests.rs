@@ -2,12 +2,11 @@ use sov_blob_storage::BlobStorage;
 use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{KernelModule, KernelWorkingSet, StateCheckpoint};
 use sov_prover_storage_manager::new_orphan_storage;
 
-type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 type Da = MockDaSpec;
 
 #[test]
@@ -15,7 +14,7 @@ fn empty_test() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    let chain_state = ChainState::<C, Da>::default();
+    let chain_state = ChainState::<S, Da>::default();
     let initial_slot_number = 1;
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
@@ -31,7 +30,7 @@ fn empty_test() {
         )
         .unwrap();
 
-    let blob_storage = BlobStorage::<C, Da>::default();
+    let blob_storage = BlobStorage::<S, Da>::default();
 
     let blobs = blob_storage.take_blobs_for_slot_number(initial_slot_number, &mut working_set);
 
@@ -43,7 +42,7 @@ fn store_and_retrieve_standard() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    let chain_state = ChainState::<C, Da>::default();
+    let chain_state = ChainState::<S, Da>::default();
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
         gas_price_blocks_depth: 10,
@@ -58,7 +57,7 @@ fn store_and_retrieve_standard() {
         )
         .unwrap();
 
-    let blob_storage = BlobStorage::<C, Da>::default();
+    let blob_storage = BlobStorage::<S, Da>::default();
 
     assert!(blob_storage
         .take_blobs_for_slot_number(1, &mut state_checkpoint)

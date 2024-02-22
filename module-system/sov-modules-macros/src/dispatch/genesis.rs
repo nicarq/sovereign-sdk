@@ -38,10 +38,10 @@ impl GenesisMacro {
             #genesis_config
 
             impl #impl_generics sov_modules_api::Genesis for #ident #type_generics #where_clause {
-                type Context = #generic_param;
+                type Spec = #generic_param;
                 type Config = GenesisConfig #type_generics;
 
-                fn genesis(&self, config: &Self::Config, working_set: &mut sov_modules_api::WorkingSet<<Self as sov_modules_api::Genesis>::Context>) -> core::result::Result<(), sov_modules_api::Error> {
+                fn genesis(&self, config: &Self::Config, working_set: &mut sov_modules_api::WorkingSet<<Self as sov_modules_api::Genesis>::Spec>) -> core::result::Result<(), sov_modules_api::Error> {
                     #genesis_fn_body
                     Ok(())
                 }
@@ -68,7 +68,7 @@ impl GenesisMacro {
         });
 
         quote::quote! {
-                let modules: ::std::vec::Vec<(&dyn ::sov_modules_api::ModuleInfo<Context = <Self as sov_modules_api::Genesis>::Context>, usize)> = ::std::vec![#(#idents),*];
+                let modules: ::std::vec::Vec<(&dyn ::sov_modules_api::ModuleInfo<Spec = <Self as sov_modules_api::Genesis>::Spec>, usize)> = ::std::vec![#(#idents),*];
                 let sorted_modules = ::sov_modules_api::sort_values_by_modules_dependencies(modules)?;
                 for module in sorted_modules {
                      match module {

@@ -8,7 +8,22 @@ use std::sync::{Arc, Condvar, Mutex};
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{Matches, ValidityCondition};
+pub mod crypto;
+use sov_rollup_interface::zk::{CryptoSpec, Matches, ValidityCondition};
+
+use crate::crypto::{Ed25519PublicKey, Ed25519Signature};
+
+/// The cryptographic primitives provided for general purpose use.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Copy)]
+pub struct MockZkvmCryptoSpec;
+
+impl CryptoSpec for MockZkvmCryptoSpec {
+    #[cfg(feature = "native")]
+    type PrivateKey = crate::crypto::private_key::Ed25519PrivateKey;
+    type PublicKey = Ed25519PublicKey;
+    type Hasher = sha2::Sha256;
+    type Signature = Ed25519Signature;
+}
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -107,8 +122,14 @@ impl<ValidityCond> MockZkvm<ValidityCond> {
     }
 }
 
-impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkvm<ValidityCond> {
+/// The verifier for mock zk proofs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MockZkVerifier;
+
+impl sov_rollup_interface::zk::Zkvm for MockZkVerifier {
     type CodeCommitment = MockCodeCommitment;
+
+    type CryptoSpec = MockZkvmCryptoSpec;
 
     type Error = anyhow::Error;
 
@@ -167,30 +188,8 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
 /// A mock implementing the Guest.
 pub struct MockZkGuest {}
 
-impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
-    type CodeCommitment = MockCodeCommitment;
-
-    type Error = anyhow::Error;
-
-    fn verify(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
-        unimplemented!()
-    }
-
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + serde::de::DeserializeOwned,
-    >(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        unimplemented!()
-    }
-}
-
 impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
+    type Verifier = MockZkVerifier;
     fn read_from_host<T: serde::de::DeserializeOwned>(&self) -> T {
         unimplemented!()
     }

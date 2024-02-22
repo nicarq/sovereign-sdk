@@ -18,14 +18,14 @@ re-usable. A typical struct definition for a module looks something like this:
 
 ```rust
 #[derive(ModuleInfo)]
-pub struct Bank<C: sov_modules_api::Context> {
+pub struct Bank<S: sov_modules_api::Spec> {
     /// The address of the bank module.
     #[address]
-    pub(crate) address: C::Address,
+    pub(crate) address: S::Address,
 
     /// A mapping of addresses to tokens in the bank.
     #[state]
-    pub(crate) tokens: sov_state::StateMap<C::Address, Token<C>>,
+    pub(crate) tokens: sov_state::StateMap<S::Address, Token<S>>,
 }
 ```
 
@@ -110,8 +110,8 @@ In order to charge gas from the working set, the function `charge_gas` can be us
 fn call(
     &self,
     msg: Self::CallMessage,
-    context: &Self::Context,
-    working_set: &mut WorkingSet<C>,
+    context: &Context<Self::Spec>,
+    working_set: &mut WorkingSet<S>,
 ) -> Result<sov_modules_api::CallResponse, Error> {
     match msg {
         call::CallMessage::CreateToken {
@@ -134,18 +134,18 @@ The aforementioned `Bank` struct, with the gas configuration, will look like thi
 
 ```rust
 #[derive(ModuleInfo)]
-pub struct Bank<C: sov_modules_api::Context> {
+pub struct Bank<S: sov_modules_api::Spec> {
     /// The address of the bank module.
     #[address]
-    pub(crate) address: C::Address,
+    pub(crate) address: S::Address,
 
     /// The gas configuration of the sov-bank module.
     #[gas]
-    pub(crate) gas: BankGasConfig<C::Gas>,
+    pub(crate) gas: BankGasConfig<S::Gas>,
 
     /// A mapping of addresses to tokens in the bank.
     #[state]
-    pub(crate) tokens: sov_state::StateMap<C::Address, Token<C>>,
+    pub(crate) tokens: sov_state::StateMap<S::Address, Token<S>>,
 }
 ```
 
@@ -155,8 +155,8 @@ The first interface that modules expose is defined by the public methods from th
 accessible to other modules, but cannot be directly invoked by other users. A good example of this is the `bank.transfer_from` method:
 
 ```rust
-impl<C: Context> Bank<C> {
-    pub fn transfer_from(&self, from: &C::Address, to: &C::Address, coins: Coins, working_set: &mut WorkingSet<C>) {
+impl<S: Spec> Bank<S> {
+    pub fn transfer_from(&self, from: &S::Address, to: &S::Address, coins: Coins, working_set: &mut WorkingSet<S>) {
         // Implementation elided...
     }
 }
@@ -178,9 +178,9 @@ interface which is _accessible to users via on-chain transactions_, and it typic
 tells the `call` function which inner method of the module to invoke. So a typical implementation of `call` looks something like this:
 
 ```rust
-impl<C: sov_modules_api::Context> sov_modules_api::Module for Bank<C> {
+impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 	// Several definitions elided here ...
-    fn call(&self, msg: Self::CallMessage, context: &Self::Context, working_set: &mut WorkingSet<C>) {
+    fn call(&self, msg: Self::CallMessage, context: &Context<Self::Spec>, working_set: &mut WorkingSet<S>) {
         match msg {
             CallMessage::CreateToken {
                 token_name,
@@ -200,13 +200,13 @@ with the `#[rpc_gen]` macro from `sov_modules_api::macros`.
 
 ```rust
 #[rpc_gen(client, server, namespace = "bank")]
-impl<C: sov_modules_api::Context> Bank<C> {
+impl<S: sov_modules_api::Spec> Bank<S> {
     #[rpc_method(name = "balanceOf")]
     pub(crate) fn balance_of(
         &self,
-        user_address: C::Address,
-        token_address: C::Address,
-        working_set: &mut WorkingSet<C>,
+        user_address: S::Address,
+        token_address: S::Address,
+        working_set: &mut WorkingSet<S>,
     ) -> RpcResult<BalanceResponse> {
         Ok(BalanceResponse {
             amount: self.get_balance_of(user_address, token_address, working_set),
@@ -308,12 +308,12 @@ but this trait might be extended in the future.
 Putting it all together, recall that the Bank struct is defined like this.
 
 ```rust
-pub struct Bank<C: sov_modules_api::Context> {
+pub struct Bank<S: sov_modules_api::Spec> {
     /// The address of the bank module.
-    pub(crate) address: C::Address,
+    pub(crate) address: S::Address,
 
     /// A mapping of addresses to tokens in the bank.
-    pub(crate) tokens: sov_state::StateMap<C::Address, Token<C>>,
+    pub(crate) tokens: sov_state::StateMap<S::Address, Token<S>>,
 }
 ```
 
@@ -331,7 +331,7 @@ For more information on `Context` and `Spec`, and to see some example implementa
 
 ### Module CallMessage and `schemars::JsonSchema`.
 
-Like in the `bank` module the `CallMessage` can be parameterized by `C::Context`. To ensure a smooth wallet experience, we need the `CallMessage` to implement `schemars::JsonSchema` trait. However, simply adding `derive(schemars::JsonSchema)` to the `CallMessage` definition results in the following error:
+Like in the `bank` module the `CallMessage` can be parameterized by `S::Context`. To ensure a smooth wallet experience, we need the `CallMessage` to implement `schemars::JsonSchema` trait. However, simply adding `derive(schemars::JsonSchema)` to the `CallMessage` definition results in the following error:
 
 ```
 the trait JsonSchema is not implemented for C
@@ -340,9 +340,9 @@ the trait JsonSchema is not implemented for C
 The reason for this issue is that the standard derive mechanism for `JsonSchema` cannot determine the correct trait bounds for the `Context`. To resolve this, we need to provide the following hint:
 
 ```rust
-schemars(bound = "C::Address: ::schemars::JsonSchema", rename = "CallMessage")
+schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")
 ```
 
-Now, the `schemars::derive` understands that it is sufficient for only `C::Address` to implement `schemars::JsonSchema`
+Now, the `schemars::derive` understands that it is sufficient for only `S::Address` to implement `schemars::JsonSchema`
 
 If `CallMessage` in your module uses an associated type from `Context` you might need to provide a similar hint.

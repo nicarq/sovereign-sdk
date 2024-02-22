@@ -1,18 +1,18 @@
-use std::panic::catch_unwind;
-
-use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Context, ModuleInfo, StateValue, WorkingSet};
+use sov_modules_api::{ModuleInfo, Spec, StateValue, WorkingSet};
 use sov_modules_core::{StateCodec, StateKeyCodec, StateValueCodec};
 use sov_state::{DefaultStorageSpec, ZkStorage};
+use std::panic::catch_unwind;
+
+type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[derive(ModuleInfo)]
-struct TestModule<C>
+struct TestModule<S>
 where
-    C: Context,
+    S: Spec,
 {
     #[address]
-    address: C::Address,
+    address: S::Address,
 
     #[state(codec_builder = "crate::CustomCodec::new")]
     state_value: StateValue<u32, CustomCodec>,
@@ -58,10 +58,10 @@ impl<V> StateValueCodec<V> for CustomCodec {
 
 fn main() {
     let storage: ZkStorage<DefaultStorageSpec> = ZkStorage::new();
-    let module: TestModule<ZkDefaultContext> = TestModule::default();
+    let module: TestModule<ZkDefaultSpec> = TestModule::default();
 
     catch_unwind(|| {
-        let mut working_set: WorkingSet<ZkDefaultContext> = WorkingSet::new(storage);
+        let mut working_set: WorkingSet<ZkDefaultSpec> = WorkingSet::new(storage);
         module.state_value.set(&0u32, &mut working_set);
     })
     .unwrap_err();

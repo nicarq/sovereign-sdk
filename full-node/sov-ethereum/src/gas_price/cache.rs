@@ -7,13 +7,13 @@ use sov_evm::EthResult;
 use sov_modules_api::{DaSpec, WorkingSet};
 
 /// Block cache for gas oracle
-pub struct BlockCache<C: sov_modules_api::Context, Da: DaSpec> {
+pub struct BlockCache<S: sov_modules_api::Spec, Da: DaSpec> {
     cache: Mutex<LruMap<B256, Rich<Block>, ByLength>>,
-    provider: sov_evm::Evm<C, Da>,
+    provider: sov_evm::Evm<S, Da>,
 }
 
-impl<C: sov_modules_api::Context, Da: DaSpec> BlockCache<C, Da> {
-    pub fn new(max_size: u32, provider: sov_evm::Evm<C, Da>) -> Self {
+impl<S: sov_modules_api::Spec, Da: DaSpec> BlockCache<S, Da> {
+    pub fn new(max_size: u32, provider: sov_evm::Evm<S, Da>) -> Self {
         Self {
             cache: Mutex::new(LruMap::new(ByLength::new(max_size))),
             provider,
@@ -24,7 +24,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> BlockCache<C, Da> {
     pub fn get_block(
         &self,
         block_hash: B256,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> EthResult<Option<Rich<Block>>> {
         // Check if block is in cache
         let mut cache = self.cache.lock().unwrap();

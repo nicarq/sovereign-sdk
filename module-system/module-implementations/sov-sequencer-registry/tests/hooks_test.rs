@@ -7,6 +7,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::{CallMessage, SequencerOutcome, SequencerRegistry};
 
 mod helpers;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[test]
 fn begin_blob_hook_known_sequencer() {
@@ -107,7 +108,7 @@ fn end_blob_hook_success() {
         )
         .unwrap();
 
-    <SequencerRegistry<C, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
+    <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         SequencerOutcome::Rewarded { amount: 0 },
         &mut state_checkpoint,
@@ -156,7 +157,7 @@ fn end_blob_hook_slash() {
     let result = SequencerOutcome::Slashed {
         sequencer: genesis_sequencer_da_address,
     };
-    <SequencerRegistry<C, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
+    <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         result,
         &mut state_checkpoint,
@@ -174,15 +175,15 @@ fn end_blob_hook_slash() {
 
 #[test]
 fn end_blob_hook_slash_preferred_sequencer() {
-    let bank = sov_bank::Bank::<C>::default();
+    let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_address = sov_bank::get_genesis_token_address::<C>(
+    let token_address = sov_bank::get_genesis_token_address::<S>(
         &bank_config.tokens[0].token_name,
         bank_config.tokens[0].salt,
     );
 
-    let registry = SequencerRegistry::<C, Da>::default();
+    let registry = SequencerRegistry::<S, Da>::default();
     let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
 
     sequencer_config.is_preferred_sequencer = true;
@@ -226,7 +227,7 @@ fn end_blob_hook_slash_preferred_sequencer() {
     let result = SequencerOutcome::Slashed {
         sequencer: genesis_sequencer_da_address,
     };
-    <SequencerRegistry<C, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
+    <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         result,
         &mut state_checkpoint,
@@ -281,7 +282,7 @@ fn end_blob_hook_slash_unknown_sequencer() {
     let result = SequencerOutcome::Slashed {
         sequencer: sequencer_address,
     };
-    <SequencerRegistry<C, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
+    <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         result,
         &mut state_checkpoint,
@@ -368,7 +369,7 @@ fn slashed_sequencer_shouldnt_preserve_balance() {
 
     let da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = C::new(genesis_sequencer_address, reward_address, 1);
+    let sender_context = Context::<S>::new(genesis_sequencer_address, reward_address, 1);
     let deposit_message = CallMessage::Deposit {
         da_address: da_address.as_ref().to_vec(),
         amount: deposit_amount,

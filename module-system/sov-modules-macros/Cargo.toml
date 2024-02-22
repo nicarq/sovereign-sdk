@@ -32,6 +32,8 @@ sov-rollup-interface = { path = "../../rollup-interface" }
 sov-state = { path = "../sov-state" }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-modules-macros = { path = ".", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }
+# TODO(@dubbelosix): Remove these
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 risc0-zkvm-platform = { workspace = true }
 
@@ -54,6 +56,7 @@ default = []
 native = [
 	"jsonrpsee",
 	"sov-bank/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-core/native",
 	"sov-modules-macros/native",

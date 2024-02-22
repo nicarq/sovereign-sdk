@@ -4,13 +4,13 @@ use std::path::{Path, PathBuf};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_modules_api::{clap, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{clap, CryptoSpec, PrivateKey, PublicKey};
 
 use crate::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 
 #[derive(clap::Subcommand)]
 /// View and manage keys associated with this wallet
-pub enum KeyWorkflow<C: sov_modules_api::Context> {
+pub enum KeyWorkflow<S: sov_modules_api::Spec> {
     /// Generate a new key pair
     Generate {
         #[clap(short, long)]
@@ -30,7 +30,7 @@ pub enum KeyWorkflow<C: sov_modules_api::Context> {
         nickname: Option<String>,
         #[clap(short, long)]
         /// Register a different address than the one that would be derived from the private key.
-        address_override: Option<C::Address>,
+        address_override: Option<S::Address>,
         #[clap(short, long)]
         /// The path to the key file
         path: PathBuf,
@@ -41,27 +41,27 @@ pub enum KeyWorkflow<C: sov_modules_api::Context> {
     Activate {
         /// The identifier of the key to activate
         #[clap(subcommand)]
-        identifier: KeyIdentifier<C>,
+        identifier: KeyIdentifier<S>,
     },
     /// Unlink a key from the wallet
     Remove {
         /// The identifier of the key to remove
         #[clap(subcommand)]
-        identifier: KeyIdentifier<C>,
+        identifier: KeyIdentifier<S>,
     },
     /// Show a key info from the wallet
     Show {
         /// The identifier of the key to show
         #[clap(subcommand)]
-        identifier: KeyIdentifier<C>,
+        identifier: KeyIdentifier<S>,
     },
 }
 
-impl<C: sov_modules_api::Context> KeyWorkflow<C> {
+impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
     /// Run the key workflow to import, generate, activate, remove or list keys
     pub fn run<Tx>(
         self,
-        wallet_state: &mut WalletState<Tx, C>,
+        wallet_state: &mut WalletState<Tx, S>,
         app_dir: impl AsRef<Path>,
     ) -> Result<(), anyhow::Error>
     where
@@ -77,10 +77,10 @@ impl<C: sov_modules_api::Context> KeyWorkflow<C> {
                 path,
             } => {
                 // Try to load the key as a sanity check.
-                let private_key = load_key::<C>(&path)?;
+                let private_key = load_key::<S>(&path)?;
                 let public_key = private_key.pub_key();
                 let address =
-                    address_override.unwrap_or_else(|| public_key.to_address::<C::Address>());
+                    address_override.unwrap_or_else(|| public_key.to_address::<S::Address>());
                 println!("Imported key pair. address: {}", address);
                 wallet_state
                     .addresses
@@ -122,25 +122,25 @@ impl<C: sov_modules_api::Context> KeyWorkflow<C> {
 }
 
 /// Load a key from the given path
-pub fn load_key<C: sov_modules_api::Context>(
+pub fn load_key<S: sov_modules_api::Spec>(
     path: impl AsRef<Path>,
-) -> Result<C::PrivateKey, anyhow::Error> {
+) -> Result<<S::CryptoSpec as CryptoSpec>::PrivateKey, anyhow::Error> {
     let data = std::fs::read_to_string(path)?;
-    let key_and_address: PrivateKeyAndAddress<C> = serde_json::from_str(&data)?;
+    let key_and_address: PrivateKeyAndAddress<S> = serde_json::from_str(&data)?;
     Ok(key_and_address.private_key)
 }
 
 /// Generate a new key pair and save it to the wallet
-pub fn generate_and_save_key<Tx, C: sov_modules_api::Context>(
+pub fn generate_and_save_key<Tx, S: sov_modules_api::Spec>(
     nickname: Option<String>,
     app_dir: impl AsRef<Path>,
-    wallet_state: &mut WalletState<Tx, C>,
+    wallet_state: &mut WalletState<Tx, S>,
 ) -> Result<(), anyhow::Error>
 where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
 {
-    let keys = <C as Spec>::PrivateKey::generate();
-    let key_and_address = PrivateKeyAndAddress::<C>::from_key(keys);
+    let keys = <S::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let key_and_address = PrivateKeyAndAddress::<S>::from_key(keys);
     let public_key = key_and_address.private_key.pub_key();
     let address = key_and_address.address.clone();
     let key_path = app_dir.as_ref().join(format!("{}.json", address));

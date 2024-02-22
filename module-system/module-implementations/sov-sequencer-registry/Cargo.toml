@@ -35,6 +35,7 @@ risc0-zkvm-platform = { workspace = true, optional = true }
 tempfile = { workspace = true }
 sov-sequencer-registry = { path = ".", features = ["native"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 [features]
@@ -53,6 +54,7 @@ arbitrary = [
 	"dep:arbitrary",
 	"dep:proptest",
 	"dep:proptest-derive",
+	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-sequencer-registry/arbitrary",
 	"sov-state/arbitrary",
@@ -66,6 +68,7 @@ native = [
 	# This:
 	"sov-bank/native",
 	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-sequencer-registry/native",
 	"sov-state/native",

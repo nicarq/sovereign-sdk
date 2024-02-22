@@ -9,11 +9,10 @@ use demo_stf::genesis_config::{get_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_risc0_adapter::host::Risc0Verifier;
+use sov_risc0_adapter::Risc0Verifier;
 use sov_rng_da_service::{RngDaService, RngDaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -21,6 +20,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
 use tempfile::TempDir;
+
+type BenchSpec = sov_modules_api::default_spec::DefaultSpec<Risc0Verifier>;
 
 fn rollup_bench(_bench: &mut Criterion) {
     let start_height: u64 = 0u64;
@@ -57,17 +58,17 @@ fn rollup_bench(_bench: &mut Criterion) {
     let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
     let stf = StfBlueprint::<
-        DefaultContext,
+        BenchSpec,
         RngDaSpec,
         Risc0Verifier,
-        Runtime<DefaultContext, RngDaSpec>,
-        BasicKernel<DefaultContext, _>,
+        Runtime<BenchSpec, RngDaSpec>,
+        BasicKernel<BenchSpec, _>,
     >::new();
 
     let demo_genesis_config = {
         let tests_path: &Path = "../../test-data/genesis/integration-tests".as_ref();
         let rt_params =
-            get_genesis_config::<DefaultContext, _>(&GenesisPaths::from_dir(tests_path)).unwrap();
+            get_genesis_config::<BenchSpec, _>(&GenesisPaths::from_dir(tests_path)).unwrap();
 
         let chain_state = read_json_file(tests_path.join("chain_state.json")).unwrap();
         let kernel_params = BasicKernelGenesisConfig { chain_state };

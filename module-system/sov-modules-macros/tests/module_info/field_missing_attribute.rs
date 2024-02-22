@@ -1,9 +1,9 @@
-use sov_modules_api::{Context, Module, ModuleInfo, StateMap, WorkingSet};
+use sov_modules_api::{Context, Module, ModuleInfo, Spec, StateMap, WorkingSet};
 
 #[derive(ModuleInfo)]
-struct TestStruct<C: Context> {
+struct TestStruct<S: Spec> {
     #[address]
-    pub address: C::Address,
+    pub address: S::Address,
 
     test_state1: StateMap<u32, u32>,
 
@@ -11,8 +11,8 @@ struct TestStruct<C: Context> {
     test_state2: StateMap<Vec<u8>, u64>,
 }
 
-impl<C: Context> Module for TestStruct<C> {
-    type Context = C;
+impl<S: Spec> Module for TestStruct<S> {
+    type Spec = S;
 
     type Config = ();
 
@@ -23,8 +23,8 @@ impl<C: Context> Module for TestStruct<C> {
     fn call(
         &self,
         _message: Self::CallMessage,
-        _context: &Self::Context,
-        _working_set: &mut WorkingSet<Self::Context>,
+        _context: &Context<Self::Spec>,
+        _working_set: &mut WorkingSet<Self::Spec>,
     ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
         todo!()
     }

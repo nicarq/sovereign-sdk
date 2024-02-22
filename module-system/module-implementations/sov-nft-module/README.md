@@ -3,16 +3,17 @@
 The `sov-nft-module` is a plug-and-play module designed to simplify the process of creating NFT (Non-Fungible Token) applications. It's customizable and can be integrated with other modules in the Sovereign SDK.
 
 ## Table of Contents
+
 - [Core Concepts](#core-concepts)
-    - [Collection](#collection)
-    - [NFT](#nft)
+  - [Collection](#collection)
+  - [NFT](#nft)
 - [Calls](#calls)
-    - [CreateCollection](#createcollection)
-    - [UpdateCollection](#updatecollection)
-    - [FreezeCollection](#freezecollection)
-    - [MintNft](#mintnft)
-    - [UpdateNft](#updatenft)
-    - [TransferNft](#transfernft)
+  - [CreateCollection](#createcollection)
+  - [UpdateCollection](#updatecollection)
+  - [FreezeCollection](#freezecollection)
+  - [MintNft](#mintnft)
+  - [UpdateNft](#updatenft)
+  - [TransferNft](#transfernft)
 - [Usage](#usage)
   - [Setup](#setup)
   - [Sov-cli](#sov-cli)
@@ -36,12 +37,12 @@ A `Collection` represents a group of NFTs and has the following attributes:
 - `collection_uri`: A URI pointing to off-chain metadata for the collection. The structure of the metadata is developer-defined.
 
 ```rust
-use sov_modules_api::Context;
-pub struct UserAddress<C: Context>(C::Address);
+use sov_modules_api::Spec;
+pub struct UserAddress<S: Spec>(S::Address);
 
-pub struct Collection<C: Context> {
+pub struct Collection<S: Spec> {
     pub name: String,
-    pub creator: UserAddress<C>,
+    pub creator: UserAddress<S>,
     pub frozen: bool,
     pub supply: u64,
     pub collection_uri: String,
@@ -59,16 +60,16 @@ An `NFT` is a non-fungible token that has the following attributes:
 - `token_uri`: A URI pointing to off-chain metadata for the NFT.
 
 ```rust
-use sov_modules_api::Context;
+use sov_modules_api::Spec;
 
-pub struct UserAddress<C: Context>(C::Address);
-pub struct CollectionAddress<C: Context>(C::Address);
+pub struct UserAddress<S: Spec>(S::Address);
+pub struct CollectionAddress<S: Spec>(S::Address);
 pub type TokenId = u64;
 
-pub struct Nft<C: Context> {
+pub struct Nft<S: Spec> {
     pub token_id: TokenId,
-    pub collection_address: CollectionAddress<C>,
-    pub owner: UserAddress<C>,
+    pub collection_address: CollectionAddress<S>,
+    pub owner: UserAddress<S>,
     pub frozen: bool,
     pub token_uri: String,
 }
@@ -103,19 +104,19 @@ Updates the metadata URL or frozen status of an existing NFT. Uses collection na
 Transfers ownership of an NFT to another address.
 
 ```rust
-use sov_modules_api::Context;
+use sov_modules_api::Spec;
 
-pub struct UserAddress<C: Context>(C::Address);
-pub struct CollectionAddress<C: Context>(C::Address);
+pub struct UserAddress<S: Spec>(S::Address);
+pub struct CollectionAddress<S: Spec>(S::Address);
 pub type TokenId = u64;
 
-pub enum CallMessage<C: Context> {
+pub enum CallMessage<S: Spec> {
     CreateCollection { name: String, collection_uri: String },
     UpdateCollection { name: String, collection_uri: String },
     FreezeCollection { collection_name: String },
-    MintNft { collection_name: String, token_uri: String, token_id: TokenId, owner: UserAddress<C>, frozen: bool },
+    MintNft { collection_name: String, token_uri: String, token_id: TokenId, owner: UserAddress<S>, frozen: bool },
     UpdateNft { collection_name: String, token_id: TokenId, token_uri: Option<String>, frozen: Option<bool> },
-    TransferNft { collection_address: CollectionAddress<C>, token_id: u64, to: UserAddress<C> },
+    TransferNft { collection_address: CollectionAddress<S>, token_id: u64, to: UserAddress<S> },
 }
 ```
 
@@ -160,6 +161,7 @@ cargo run --bin sov-cli keys import -n nft_owner -p examples/test-data/keys/mint
 ```
 
 This imports two keys:
+
 - `nft_creator`: Used to create NFT collections and mint NFTs.
 - `nft_owner`: The owner of the minted NFTs.
 
@@ -231,17 +233,21 @@ You can perform other calls in a similar manner using the above commands as a re
 ### Queries
 
 There are 3 simple endpoints for queries to the RPC which can be customized.
-* `nft_getCollectionAddress`: This does not query state but is simply used to deterministically derive the collection address from a creator address and a collection name. It can also be run locally, but the RPC method is provided for convenience
+
+- `nft_getCollectionAddress`: This does not query state but is simply used to deterministically derive the collection address from a creator address and a collection name. It can also be run locally, but the RPC method is provided for convenience
+
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getCollectionAddress","params":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94","Test Collection"],"id":1}' http://127.0.0.1:12345
 ```
-* `nft_getCollection`: Takes a collection address and returns the collection details.
+
+- `nft_getCollection`: Takes a collection address and returns the collection details.
+
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getCollection","params":["sov1j2e3dh76nmuw4gctrqduh0wzqdny8c62z36r2q3883rknw3ky3vsk9g02a"],"id":1}' http://127.0.0.1:12345
 ```
-* `nft_getNft`: Takes the tokenId and collection address that the NFT belongs to and returns the NFT details
+
+- `nft_getNft`: Takes the tokenId and collection address that the NFT belongs to and returns the NFT details
+
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getNft","params":["sov1j2e3dh76nmuw4gctrqduh0wzqdny8c62z36r2q3883rknw3ky3vsk9g02a", 42],"id":1}' http://127.0.0.1:12345
 ```
-
-

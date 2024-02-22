@@ -4,7 +4,7 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::Coins;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, EventEmitter, WorkingSet};
+use sov_modules_api::{CallResponse, Context, EventEmitter, WorkingSet};
 
 use crate::{Event, ProverIncentives};
 
@@ -22,14 +22,14 @@ pub enum CallMessage {
     VerifyProof(Vec<u8>),
 }
 
-impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C, Vm> {
+impl<S: sov_modules_api::Spec, Vm: sov_modules_api::Zkvm> ProverIncentives<S, Vm> {
     /// A helper function for the `bond_prover` call. Also used to bond provers
     /// during genesis when no context is available.
     pub(super) fn bond_prover_helper(
         &self,
         bond_amount: u64,
-        prover: &C::Address,
-        working_set: &mut WorkingSet<C>,
+        prover: &S::Address,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
         // Transfer the bond amount from the sender to the module's address.
         // On failure, no state is changed
@@ -56,7 +56,7 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
         self.emit_event(
             working_set,
             "bond_prover_helper",
-            Event::<C>::BondedProver {
+            Event::<S>::BondedProver {
                 deposit: bond_amount,
                 total_balance,
             },
@@ -69,8 +69,8 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
     pub(crate) fn bond_prover(
         &self,
         bond_amount: u64,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse> {
         self.bond_prover_helper(bond_amount, context.sender(), working_set)
     }
@@ -78,8 +78,8 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
     /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
     pub(crate) fn unbond_prover(
         &self,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse> {
         // Get the prover's old balance.
         if let Some(old_balance) = self.bonded_provers.get(context.sender(), working_set) {
@@ -104,7 +104,7 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
             self.emit_event(
                 working_set,
                 "unbond_prover",
-                Event::<C>::UnBondedProver {
+                Event::<S>::UnBondedProver {
                     amount_withdrawn: old_balance,
                 },
             );
@@ -117,8 +117,8 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
     pub(crate) fn process_proof(
         &self,
         proof: &[u8],
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse> {
         // Get the prover's old balance.
         // Revert if they aren't bonded
@@ -154,7 +154,7 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
             self.emit_event(
                 working_set,
                 "process_valid_proof",
-                Event::<C>::ProcessedValidProof {
+                Event::<S>::ProcessedValidProof {
                     prover: context.sender().clone(),
                 },
             );
@@ -162,7 +162,7 @@ impl<C: sov_modules_api::Context, Vm: sov_modules_api::Zkvm> ProverIncentives<C,
             self.emit_event(
                 working_set,
                 "process_invalid_proof",
-                Event::<C>::ProcessedInvalidProof {
+                Event::<S>::ProcessedInvalidProof {
                     slashed_prover: context.sender().clone(),
                 },
             );

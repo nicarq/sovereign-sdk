@@ -14,14 +14,14 @@ mod hash_stf;
 
 use hash_stf::{get_result_from_blocks, HashStf, S};
 use sov_db::ledger_db::LedgerDB;
+use sov_mock_zkvm::MockZkVerifier;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ProverStorage, Storage};
 
-type MockInitVariant =
-    InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
+type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaSpec>;
 #[tokio::test]
 async fn test_simple_reorg_case() {
     let tmpdir = tempfile::tempdir().unwrap();
@@ -166,17 +166,18 @@ async fn runner_execution(
         rollup_config.prover_service,
     );
 
-    let mut runner = StateTransitionRunner::new(
-        rollup_config.runner,
-        da_service,
-        ledger_db,
-        stf,
-        storage_manager,
-        rpc_storage,
-        init_variant,
-        prover_service,
-    )
-    .unwrap();
+    let mut runner: StateTransitionRunner<_, _, _, MockZkvm<MockValidityCond>, _> =
+        StateTransitionRunner::new(
+            rollup_config.runner,
+            da_service,
+            ledger_db,
+            stf,
+            storage_manager,
+            rpc_storage,
+            init_variant,
+            prover_service,
+        )
+        .unwrap();
 
     let before = *runner.get_state_root();
     let end = runner.run_in_process().await;

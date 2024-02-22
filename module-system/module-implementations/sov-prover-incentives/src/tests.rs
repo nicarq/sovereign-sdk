@@ -1,28 +1,27 @@
-use sov_mock_da::MockValidityCond;
-use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkvm};
-use sov_modules_api::default_context::DefaultContext;
+use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkVerifier};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Address, Context, Module, Spec, WorkingSet};
+use sov_modules_api::{Address, Context, CryptoSpec, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::ProverIncentives;
 
-type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier>;
 
 const BOND_AMOUNT: u64 = 1000;
 const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
 
 /// Generates an address by hashing the provided `key`.
-pub fn generate_address(key: &str) -> <C as Spec>::Address {
-    let hash: [u8; 32] = <C as Spec>::Hasher::digest(key.as_bytes()).into();
+pub fn generate_address(key: &str) -> <S as Spec>::Address {
+    let hash: [u8; 32] =
+        <<S as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(key.as_bytes()).into();
     Address::from(hash)
 }
 
 fn create_bank_config() -> (
-    sov_bank::BankConfig<C>,
-    <C as Spec>::Address,
-    <C as Spec>::Address,
+    sov_bank::BankConfig<S>,
+    <S as Spec>::Address,
+    <S as Spec>::Address,
 ) {
     let prover_address = generate_address("prover_pub_key");
     let sequencer_address = generate_address("sequencer_pub_key");
@@ -44,25 +43,21 @@ fn create_bank_config() -> (
 }
 
 fn setup(
-    working_set: &mut WorkingSet<C>,
-) -> (
-    ProverIncentives<C, MockZkvm<MockValidityCond>>,
-    Address,
-    Address,
-) {
+    working_set: &mut WorkingSet<S>,
+) -> (ProverIncentives<S, MockZkVerifier>, Address, Address) {
     // Initialize bank
     let (bank_config, prover_address, sequencer) = create_bank_config();
-    let bank = sov_bank::Bank::<C>::default();
+    let bank = sov_bank::Bank::<S>::default();
     bank.genesis(&bank_config, working_set)
         .expect("bank genesis must succeed");
 
-    let token_address = sov_bank::get_genesis_token_address::<C>(
+    let token_address = sov_bank::get_genesis_token_address::<S>(
         &bank_config.tokens[0].token_name,
         bank_config.tokens[0].salt,
     );
 
     // initialize prover incentives
-    let module = ProverIncentives::<C, MockZkvm<MockValidityCond>>::default();
+    let module = ProverIncentives::<S, MockZkVerifier>::default();
     let config = crate::ProverIncentivesConfig {
         bonding_token_address: token_address,
         minimum_bond: BOND_AMOUNT,
@@ -92,7 +87,7 @@ fn test_burn_on_invalid_proof() {
 
     // Process an invalid proof
     {
-        let context = DefaultContext::new(prover_address, sequencer, 1);
+        let context = Context::<S>::new(prover_address, sequencer, 1);
         let proof = MockProof {
             program_id: MOCK_CODE_COMMITMENT,
             is_valid: false,
@@ -128,7 +123,7 @@ fn test_valid_proof() {
 
     // Process a valid proof
     {
-        let context = DefaultContext::new(prover_address, sequencer, 1);
+        let context = Context::<S>::new(prover_address, sequencer, 1);
         let proof = MockProof {
             program_id: MOCK_CODE_COMMITMENT,
             is_valid: true,
@@ -153,7 +148,7 @@ fn test_unbonding() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (module, prover_address, sequencer) = setup(&mut working_set);
-    let context = DefaultContext::new(prover_address, sequencer, 1);
+    let context = Context::<S>::new(prover_address, sequencer, 1);
     let token_address = module
         .bonding_token_address
         .get(&mut working_set)
@@ -204,7 +199,7 @@ fn test_prover_not_bonded() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (module, prover_address, sequencer) = setup(&mut working_set);
-    let context = DefaultContext::new(prover_address, sequencer, 1);
+    let context = Context::<S>::new(prover_address, sequencer, 1);
 
     // Unbond the prover
     module

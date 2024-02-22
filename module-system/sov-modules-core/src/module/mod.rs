@@ -25,7 +25,7 @@ pub struct CallResponse {}
 /// and how it handles user transactions (if applicable).
 pub trait Module {
     /// Execution context.
-    type Context: Context;
+    type Spec: Spec;
 
     /// Configuration for the genesis method.
     type Config;
@@ -40,7 +40,7 @@ pub trait Module {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<Self::Context>,
+        _working_set: &mut WorkingSet<Self::Spec>,
     ) -> Result<(), ModuleError> {
         Ok(())
     }
@@ -50,8 +50,8 @@ pub trait Module {
     fn call(
         &self,
         _message: Self::CallMessage,
-        _context: &Self::Context,
-        _working_set: &mut WorkingSet<Self::Context>,
+        _context: &Context<Self::Spec>,
+        _working_set: &mut WorkingSet<Self::Spec>,
     ) -> Result<CallResponse, ModuleError>;
 
     /// Attempts to charge the provided amount of gas from the working set.
@@ -59,8 +59,8 @@ pub trait Module {
     /// The scalar gas value will be computed from the price defined on the working set.
     fn charge_gas(
         &self,
-        working_set: &mut WorkingSet<Self::Context>,
-        gas: &<Self::Context as Context>::Gas,
+        working_set: &mut WorkingSet<Self::Spec>,
+        gas: &<Self::Spec as Spec>::Gas,
     ) -> anyhow::Result<()> {
         working_set.charge_gas(gas)
     }
@@ -81,29 +81,29 @@ pub trait ModuleCallJsonSchema: Module {
 /// Every module has to implement this trait.
 pub trait ModuleInfo {
     /// Execution context.
-    type Context: Context;
+    type Spec: Spec;
 
     /// Returns address of the module.
-    fn address(&self) -> &<Self::Context as Spec>::Address;
+    fn address(&self) -> &<Self::Spec as Spec>::Address;
 
     /// Returns the prefix of the module.
     fn prefix(&self) -> ModulePrefix;
 
     /// Returns addresses of all the other modules this module is dependent on
-    fn dependencies(&self) -> Vec<&<Self::Context as Spec>::Address>;
+    fn dependencies(&self) -> Vec<&<Self::Spec as Spec>::Address>;
 }
 
 /// Event Emitter trait for a blanket implementation
 pub trait EventEmitter {
     /// Execution context.
-    type Context: Context;
+    type Spec: Spec;
     /// Module defined event resulting from a call method.
     type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;
 
     /// Emit event
     fn emit_event(
         &self,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<Self::Spec>,
         event_key: &str,
         event: Self::Event,
     );
@@ -113,11 +113,11 @@ impl<T> EventEmitter for T
 where
     T: ModuleInfo + Module,
 {
-    type Context = <T as ModuleInfo>::Context;
+    type Spec = <T as ModuleInfo>::Spec;
     type Event = <T as Module>::Event;
     fn emit_event(
         &self,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<Self::Spec>,
         event_key: &str,
         event: Self::Event,
     ) {
@@ -138,7 +138,7 @@ pub trait EncodeCall<M: Module> {
 /// Methods from this trait should be called only once during the rollup deployment.
 pub trait Genesis {
     /// Execution context of the module.
-    type Context: Context;
+    type Spec: Spec;
 
     /// Initial configuration for the module.
     type Config;
@@ -147,7 +147,7 @@ pub trait Genesis {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<Self::Spec>,
     ) -> Result<(), ModuleError>;
 }
 
@@ -155,14 +155,14 @@ impl<T> Genesis for T
 where
     T: Module,
 {
-    type Context = <Self as Module>::Context;
+    type Spec = <Self as Module>::Spec;
 
     type Config = <Self as Module>::Config;
 
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<Self::Spec>,
     ) -> Result<(), ModuleError> {
         <Self as Module>::genesis(self, config, working_set)
     }

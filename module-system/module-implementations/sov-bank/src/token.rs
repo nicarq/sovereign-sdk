@@ -24,7 +24,7 @@ pub type Amount = u64;
     feature = "native",
     derive(clap::Parser),
     derive(schemars::JsonSchema),
-    schemars(bound = "C::Address: ::schemars::JsonSchema", rename = "Coins")
+    schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "Coins")
 )]
 #[derive(
     borsh::BorshDeserialize,
@@ -36,11 +36,11 @@ pub type Amount = u64;
     PartialEq,
     Eq,
 )]
-pub struct Coins<C: sov_modules_api::Context> {
+pub struct Coins<S: sov_modules_api::Spec> {
     /// An `amount` of coins stored.
     pub amount: Amount,
     /// The address where the tokens are stored.
-    pub token_address: C::Address,
+    pub token_address: S::Address,
 }
 
 /// The errors that might arise when parsing a `Coins` struct from a string.
@@ -62,7 +62,7 @@ pub enum CoinsFromStrError {
 }
 
 #[cfg(feature = "native")]
-impl<C: sov_modules_api::Context> FromStr for Coins<C> {
+impl<S: sov_modules_api::Spec> FromStr for Coins<S> {
     type Err = CoinsFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -80,7 +80,7 @@ impl<C: sov_modules_api::Context> FromStr for Coins<C> {
                     input: amount_str.into(),
                     err,
                 })?;
-        let token_address = C::Address::from_str(token_address_str).map_err(|err| {
+        let token_address = S::Address::from_str(token_address_str).map_err(|err| {
             CoinsFromStrError::InvalidTokenAddress {
                 input: token_address_str.into(),
                 err,
@@ -93,7 +93,7 @@ impl<C: sov_modules_api::Context> FromStr for Coins<C> {
         })
     }
 }
-impl<C: sov_modules_api::Context> std::fmt::Display for Coins<C> {
+impl<S: sov_modules_api::Spec> std::fmt::Display for Coins<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // implement Display for Coins
         write!(
@@ -106,30 +106,30 @@ impl<C: sov_modules_api::Context> std::fmt::Display for Coins<C> {
 
 /// This struct represents a token in the sov-bank module.
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
-pub struct Token<C: sov_modules_api::Context> {
+pub struct Token<S: sov_modules_api::Spec> {
     /// Name of the token.
     pub(crate) name: String,
     /// Total supply of the coins.
     pub(crate) total_supply: u64,
     /// Mapping from user address to user balance.
-    pub(crate) balances: sov_modules_api::StateMap<C::Address, Amount>,
+    pub(crate) balances: sov_modules_api::StateMap<S::Address, Amount>,
 
     /// Vector containing the authorized minters
     /// Empty vector indicates that the token supply is frozen
     /// Non empty vector indicates members of the vector can mint.
     /// Freezing a token requires emptying the vector
     /// NOTE: This is explicit so if a creator doesn't add themselves, then they can't mint
-    pub(crate) authorized_minters: Vec<C::Address>,
+    pub(crate) authorized_minters: Vec<S::Address>,
 }
 
-impl<C: sov_modules_api::Context> Token<C> {
+impl<S: sov_modules_api::Spec> Token<S> {
     /// Transfer the amount `amount` of tokens from the address `from` to the address `to`.
     /// First checks that there is enough token of that type stored in `from`. If so, update
     /// the balances of the `from` and `to` accounts.
     pub(crate) fn transfer(
         &self,
-        from: &C::Address,
-        to: &C::Address,
+        from: &S::Address,
+        to: &S::Address,
         amount: Amount,
         working_set: &mut impl StateAccessor,
     ) -> Result<()> {
@@ -151,9 +151,9 @@ impl<C: sov_modules_api::Context> Token<C> {
     /// if not returns an error. Otherwise, update the balances by substracting the amount burnt.
     pub(crate) fn burn(
         &mut self,
-        from: &C::Address,
+        from: &S::Address,
         amount: Amount,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         let new_balance = self.check_balance(from, amount, working_set)?;
         self.balances.set(from, &new_balance, working_set);
@@ -164,7 +164,7 @@ impl<C: sov_modules_api::Context> Token<C> {
     /// Freezing a token requires emptying the authorized_minter vector
     /// authorized_minter: Vec<Address> is used to determine if the token is frozen or not
     /// If the vector is empty when the function is called, this means the token is already frozen
-    pub(crate) fn freeze(&mut self, sender: &C::Address) -> Result<()> {
+    pub(crate) fn freeze(&mut self, sender: &S::Address) -> Result<()> {
         if self.authorized_minters.is_empty() {
             bail!("Token {} is already frozen", self.name)
         }
@@ -179,10 +179,10 @@ impl<C: sov_modules_api::Context> Token<C> {
     /// adding the minted tokens. Updates the `total_supply` of that token.
     pub(crate) fn mint(
         &mut self,
-        authorizer: &C::Address,
-        mint_to_address: &C::Address,
+        authorizer: &S::Address,
+        mint_to_address: &S::Address,
         amount: Amount,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         if self.authorized_minters.is_empty() {
             bail!("Attempt to mint frozen token {}", self.name)
@@ -208,7 +208,7 @@ impl<C: sov_modules_api::Context> Token<C> {
         Ok(())
     }
 
-    fn is_authorized_minter(&self, sender: &C::Address) -> Result<()> {
+    fn is_authorized_minter(&self, sender: &S::Address) -> Result<()> {
         if !self.authorized_minters.contains(sender) {
             bail!(
                 "Sender {} is not an authorized minter of token {}",
@@ -223,7 +223,7 @@ impl<C: sov_modules_api::Context> Token<C> {
     // Returns new balance after subtraction.
     fn check_balance(
         &self,
-        from: &C::Address,
+        from: &S::Address,
         amount: Amount,
         working_set: &mut impl StateAccessor,
     ) -> Result<Amount> {
@@ -242,15 +242,15 @@ impl<C: sov_modules_api::Context> Token<C> {
     /// Returns a tuple containing the computed `token_address` and the created `token` object.
     pub(crate) fn create(
         token_name: &str,
-        address_and_balances: &[(C::Address, u64)],
-        authorized_minters: &[C::Address],
-        sender: &C::Address,
+        address_and_balances: &[(S::Address, u64)],
+        authorized_minters: &[S::Address],
+        sender: &S::Address,
         salt: u64,
         parent_prefix: &Prefix,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<(C::Address, Self)> {
-        let token_address = super::get_token_address::<C>(token_name, sender, salt);
-        let token_prefix = prefix_from_address_with_parent::<C>(parent_prefix, &token_address);
+        working_set: &mut WorkingSet<S>,
+    ) -> Result<(S::Address, Self)> {
+        let token_address = super::get_token_address::<S>(token_name, sender, salt);
+        let token_prefix = prefix_from_address_with_parent::<S>(parent_prefix, &token_address);
         let balances = sov_modules_api::StateMap::new(token_prefix);
 
         let mut total_supply: Option<u64> = Some(0);
@@ -273,7 +273,7 @@ impl<C: sov_modules_api::Context> Token<C> {
             }
         }
 
-        let token = Token::<C> {
+        let token = Token::<S> {
             name: token_name.to_owned(),
             total_supply,
             balances,

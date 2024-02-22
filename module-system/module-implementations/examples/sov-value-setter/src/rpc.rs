@@ -14,10 +14,10 @@ pub struct Response {
 }
 
 #[rpc_gen(client, server, namespace = "valueSetter")]
-impl<C: sov_modules_api::Context> ValueSetter<C> {
+impl<S: sov_modules_api::Spec> ValueSetter<S> {
     /// Queries the state of the module.
     #[rpc_method(name = "queryValue")]
-    pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Response> {
+    pub fn query_value(&self, working_set: &mut WorkingSet<S>) -> RpcResult<Response> {
         Ok(Response {
             value: self.value.get(working_set),
         })

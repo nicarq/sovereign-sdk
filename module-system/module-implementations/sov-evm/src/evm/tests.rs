@@ -18,16 +18,16 @@ use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
 use crate::{Evm, SpecId};
 
-type C = sov_modules_api::default_context::DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[test]
 fn simple_contract_execution_sov_state() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set: WorkingSet<C> =
+    let mut working_set: WorkingSet<S> =
         WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    let evm = Evm::<C, MockDaSpec>::default();
-    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set);
+    let evm = Evm::<S, MockDaSpec>::default();
+    let evm_db: EvmDb<'_, S> = evm.get_db(&mut working_set);
 
     simple_contract_execution(evm_db);
 }
@@ -50,12 +50,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
     // We are not supporting CANCUN yet
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    let cfg_env_with_handler = CfgEnvWithHandlerCfg::new(
-        CfgEnv::default(),
-        revm::primitives::HandlerCfg {
-            spec_id: SpecId::SHANGHAI,
-        },
-    );
+    let cfg_env_with_handler = CfgEnvWithHandlerCfg::new(CfgEnv::default(), SpecId::SHANGHAI);
 
     let contract_address: Address = {
         let tx = dev_signer

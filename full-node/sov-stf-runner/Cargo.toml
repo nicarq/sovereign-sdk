@@ -45,7 +45,7 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["n
 sov-stf-runner = { path = ".", features = ["mock"] }
 
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }
 sov-prover-storage-manager = { path = "../sov-prover-storage-manager", features = ["test-utils"] }
 
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
@@ -64,6 +64,7 @@ native = [
 	"sov-celestia-adapter/native",
 	"sov-db",
 	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
 	"sov-rollup-interface/native",

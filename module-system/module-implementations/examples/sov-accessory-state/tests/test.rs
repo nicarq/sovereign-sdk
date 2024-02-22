@@ -1,11 +1,12 @@
 #![cfg(feature = "native")]
 
 use sov_accessory_state::{AccessorySetter, CallMessage};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Address, Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::Storage;
+
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[test]
 /// Check that:
@@ -16,13 +17,13 @@ fn test_accessory_value_setter() {
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set_for_state = WorkingSet::new(storage.clone());
     let mut working_set_for_accessory = WorkingSet::new(storage.clone());
-    let mut working_set_for_check: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
+    let mut working_set_for_check: WorkingSet<DefaultSpec> = WorkingSet::new(storage.clone());
 
     let admin = Address::from([1; 32]);
     let sequencer = Address::from([2; 32]);
-    let context = DefaultContext::new(admin, sequencer, 1);
+    let context = Context::<DefaultSpec>::new(admin, sequencer, 1);
 
-    let module = AccessorySetter::<DefaultContext>::default();
+    let module = AccessorySetter::<DefaultSpec>::default();
 
     module.genesis(&(), &mut working_set_for_state).unwrap();
     module

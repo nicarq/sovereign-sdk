@@ -31,6 +31,7 @@ sov-nft-module = { version = "*", features = ["native"], path = "." }
 tempfile = { workspace = true }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
 
 
 [features]
@@ -40,6 +41,7 @@ native = [
 	"jsonrpsee",
 	"schemars",
 	"serde_json",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-macros/native",
 	"sov-nft-module/native",

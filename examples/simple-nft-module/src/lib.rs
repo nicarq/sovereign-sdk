@@ -10,7 +10,7 @@ pub use genesis::*;
 mod rpc;
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_modules_api::{CallResponse, Context, Error, Module, ModuleInfo, WorkingSet};
+use sov_modules_api::{CallResponse, Context, Error, Module, ModuleInfo, Spec, WorkingSet};
 mod event;
 pub use crate::event::Event;
 
@@ -18,38 +18,38 @@ pub use crate::event::Event;
 #[derive(ModuleInfo, Clone)]
 /// Module for non-fungible tokens (NFT).
 /// Each token is represented by a unique ID.
-pub struct NonFungibleToken<C: Context> {
+pub struct NonFungibleToken<S: Spec> {
     #[address]
     /// The address of the NonFungibleToken module.
-    address: C::Address,
+    address: S::Address,
 
     #[state]
     /// Admin of the NonFungibleToken module.
-    admin: sov_modules_api::StateValue<C::Address>,
+    admin: sov_modules_api::StateValue<S::Address>,
 
     #[state]
     /// Mapping of tokens to their owners
-    owners: sov_modules_api::StateMap<u64, C::Address>,
+    owners: sov_modules_api::StateMap<u64, S::Address>,
 }
 
-impl<C: Context> Module for NonFungibleToken<C> {
-    type Context = C;
+impl<S: Spec> Module for NonFungibleToken<S> {
+    type Spec = S;
 
-    type Config = NonFungibleTokenConfig<C>;
+    type Config = NonFungibleTokenConfig<S>;
 
-    type CallMessage = CallMessage<C>;
+    type CallMessage = CallMessage<S>;
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse, Error> {
         let call_result = match msg {
             CallMessage::Mint { id } => self.mint(id, context, working_set),

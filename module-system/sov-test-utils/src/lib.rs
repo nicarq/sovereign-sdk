@@ -6,7 +6,7 @@ use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::Transaction;
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{Context, DaSpec, Gas, Module, RollupAddress, Spec};
+use sov_modules_api::{CryptoSpec, DaSpec, Gas, Module, RollupAddress, Spec};
 use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
 
 pub mod bank_data;
@@ -35,9 +35,9 @@ pub fn has_tx_events<A: RollupAddress>(
 }
 
 /// A generic message object used to create transactions.
-pub struct Message<C: Context, Mod: Module> {
+pub struct Message<S: Spec, Mod: Module> {
     /// The sender's private key.
-    pub sender_key: Rc<<C as Spec>::PrivateKey>,
+    pub sender_key: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     /// The message content.
     pub content: Mod::CallMessage,
     /// The ID of the chain.
@@ -47,19 +47,19 @@ pub struct Message<C: Context, Mod: Module> {
     /// The gas limit for the transaction execution.
     pub gas_limit: u64,
     /// The maximum gas price for the transaction execution.
-    pub max_gas_price: Option<<C::Gas as Gas>::Price>,
+    pub max_gas_price: Option<<S::Gas as Gas>::Price>,
     /// The message nonce.
     pub nonce: u64,
 }
 
-impl<C: Context, Mod: Module> Message<C, Mod> {
+impl<S: Spec, Mod: Module> Message<S, Mod> {
     fn new(
-        sender_key: Rc<<C as Spec>::PrivateKey>,
+        sender_key: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
         content: Mod::CallMessage,
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<C::Gas as Gas>::Price>,
+        max_gas_price: Option<<S::Gas as Gas>::Price>,
         nonce: u64,
     ) -> Self {
         Self {
@@ -79,18 +79,18 @@ pub trait MessageGenerator {
     /// Module where the messages originate from.
     type Module: Module;
 
-    /// Module context
-    type Context: Context;
+    /// Module spec
+    type Spec: Spec;
 
     /// Generates a list of messages originating from the module.
-    fn create_messages(&self) -> Vec<Message<Self::Context, Self::Module>>;
+    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>>;
 
     /// Creates a transaction object associated with a call message, for a given module.
     #[allow(clippy::too_many_arguments)]
     fn create_tx<Encoder: EncodeCall<Self::Module>>(
         &self,
         // Private key of the sender
-        sender: &<Self::Context as Spec>::PrivateKey,
+        sender: &<<Self::Spec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
         // The message itself
         message: <Self::Module as Module>::CallMessage,
         // The ID of the chain
@@ -100,13 +100,13 @@ pub trait MessageGenerator {
         // The gas limit for the transaction execution
         gas_limit: u64,
         // The maximum gas price for the transaction execution
-        max_gas_price: Option<<<Self::Context as Context>::Gas as Gas>::Price>,
+        max_gas_price: Option<<<Self::Spec as Spec>::Gas as Gas>::Price>,
         // The message nonce
         nonce: u64,
         // A boolean that indicates whether this message is the last one to be sent.
         // Useful to perform some operations specifically on the last message.
         is_last: bool,
-    ) -> Transaction<Self::Context>;
+    ) -> Transaction<Self::Spec>;
 
     /// Creates a vector of raw transactions from the module.
     fn create_raw_txs<Encoder: EncodeCall<Self::Module>>(&self) -> Vec<RawTx> {
@@ -136,7 +136,7 @@ pub trait MessageGenerator {
     /// Creates a vector of raw transactions from the module.
     fn create_raw_txs_with_maximum_gas_price<Encoder: EncodeCall<Self::Module>>(
         &self,
-        max_gas_price: <<Self::Context as Context>::Gas as Gas>::Price,
+        max_gas_price: <<Self::Spec as Spec>::Gas as Gas>::Price,
     ) -> Vec<RawTx> {
         let mut messages_iter = self.create_messages().into_iter().peekable();
         let mut serialized_messages = Vec::default();

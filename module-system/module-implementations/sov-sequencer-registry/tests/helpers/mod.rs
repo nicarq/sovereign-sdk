@@ -1,11 +1,10 @@
 use jsonrpsee::core::RpcResult;
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::digest::Digest;
-use sov_modules_api::{Address, DaSpec, Module, Spec, StateAccessor, WorkingSet};
+use sov_modules_api::{Address, CryptoSpec, DaSpec, Module, Spec, StateAccessor, WorkingSet};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 
-pub type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 pub type Da = MockDaSpec;
 
 pub const GENESIS_SEQUENCER_KEY: &str = "sequencer_1";
@@ -25,15 +24,15 @@ pub const INITIAL_BALANCE_LARGE: u64 = 2100;
 pub const LOCKED_AMOUNT: u64 = 200;
 
 pub struct TestSequencer {
-    pub bank: sov_bank::Bank<C>,
-    pub bank_config: sov_bank::BankConfig<C>,
+    pub bank: sov_bank::Bank<S>,
+    pub bank_config: sov_bank::BankConfig<S>,
 
-    pub registry: SequencerRegistry<C, Da>,
-    pub sequencer_config: SequencerConfig<C, Da>,
+    pub registry: SequencerRegistry<S, Da>,
+    pub sequencer_config: SequencerConfig<S, Da>,
 }
 
 impl TestSequencer {
-    pub fn genesis(&self, working_set: &mut WorkingSet<C>) {
+    pub fn genesis(&self, working_set: &mut WorkingSet<S>) {
         self.bank.genesis(&self.bank_config, working_set).unwrap();
 
         self.registry
@@ -57,8 +56,8 @@ impl TestSequencer {
     #[allow(dead_code)]
     pub fn query_balance(
         &self,
-        user_address: <DefaultContext as Spec>::Address,
-        working_set: &mut WorkingSet<C>,
+        user_address: <S as Spec>::Address,
+        working_set: &mut WorkingSet<S>,
     ) -> RpcResult<sov_bank::BalanceResponse> {
         self.bank.balance_of(
             None,
@@ -72,7 +71,7 @@ impl TestSequencer {
     pub fn query_sender_balance(
         &self,
         user_address: &<Da as DaSpec>::Address,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> Option<sov_bank::Amount> {
         self.registry.get_sender_balance(user_address, working_set)
     }
@@ -90,13 +89,13 @@ impl TestSequencer {
     pub fn set_coins_amount_to_lock(
         &self,
         amount: sov_bank::Amount,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
         self.registry.set_coins_amount_to_lock(amount, working_set)
     }
 }
 
-pub fn create_bank_config() -> (sov_bank::BankConfig<C>, <C as Spec>::Address) {
+pub fn create_bank_config() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
     let seq_address = generate_address(GENESIS_SEQUENCER_KEY);
 
     let token_config = sov_bank::TokenConfig {
@@ -120,7 +119,7 @@ pub fn create_bank_config() -> (sov_bank::BankConfig<C>, <C as Spec>::Address) {
 }
 
 #[allow(dead_code)]
-pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<C>, <C as Spec>::Address) {
+pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
     let seq_address = generate_address(GENESIS_SEQUENCER_KEY);
 
     let token_config = sov_bank::TokenConfig {
@@ -150,9 +149,9 @@ pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<C>, <C as Spe
 }
 
 pub fn create_sequencer_config(
-    seq_rollup_address: <C as Spec>::Address,
-    token_address: <C as Spec>::Address,
-) -> SequencerConfig<C, Da> {
+    seq_rollup_address: <S as Spec>::Address,
+    token_address: <S as Spec>::Address,
+) -> SequencerConfig<S, Da> {
     SequencerConfig {
         seq_rollup_address,
         seq_da_address: MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
@@ -165,15 +164,15 @@ pub fn create_sequencer_config(
 }
 
 pub fn create_test_sequencer() -> TestSequencer {
-    let bank = sov_bank::Bank::<C>::default();
+    let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_address = sov_bank::get_genesis_token_address::<C>(
+    let token_address = sov_bank::get_genesis_token_address::<S>(
         &bank_config.tokens[0].token_name,
         bank_config.tokens[0].salt,
     );
 
-    let registry = SequencerRegistry::<C, Da>::default();
+    let registry = SequencerRegistry::<S, Da>::default();
     let sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
 
     TestSequencer {
@@ -186,15 +185,15 @@ pub fn create_test_sequencer() -> TestSequencer {
 
 #[allow(dead_code)]
 pub fn create_test_sequencer_large_balance() -> TestSequencer {
-    let bank = sov_bank::Bank::<C>::default();
+    let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config_large_balance();
 
-    let token_address = sov_bank::get_genesis_token_address::<C>(
+    let token_address = sov_bank::get_genesis_token_address::<S>(
         &bank_config.tokens[0].token_name,
         bank_config.tokens[0].salt,
     );
 
-    let registry = SequencerRegistry::<C, Da>::default();
+    let registry = SequencerRegistry::<S, Da>::default();
     let sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
 
     TestSequencer {
@@ -205,7 +204,8 @@ pub fn create_test_sequencer_large_balance() -> TestSequencer {
     }
 }
 
-pub fn generate_address(key: &str) -> <C as Spec>::Address {
-    let hash: [u8; 32] = <C as Spec>::Hasher::digest(key.as_bytes()).into();
+pub fn generate_address(key: &str) -> <S as Spec>::Address {
+    let hash: [u8; 32] =
+        <<S as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(key.as_bytes()).into();
     Address::from(hash)
 }

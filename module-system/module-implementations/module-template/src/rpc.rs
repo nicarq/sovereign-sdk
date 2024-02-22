@@ -8,9 +8,9 @@ pub struct Response {
     pub value: Option<u32>,
 }
 
-impl<C: sov_modules_api::Context> ExampleModule<C> {
+impl<S: sov_modules_api::Spec> ExampleModule<S> {
     /// Queries the state of the module.
-    pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> Response {
+    pub fn query_value(&self, working_set: &mut WorkingSet<S>) -> Response {
         Response {
             value: self.value.get(working_set),
         }

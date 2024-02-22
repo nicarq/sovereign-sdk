@@ -3,7 +3,7 @@ mod value;
 mod vec;
 pub use map::{StateMapAccessor, StateMapError};
 use sov_modules_core::{
-    Context, Prefix, StateCheckpoint, StateCodec, StateKeyCodec, StateReaderAndWriter,
+    Prefix, Spec, StateCheckpoint, StateCodec, StateKeyCodec, StateReaderAndWriter,
     StateValueCodec, WorkingSet,
 };
 pub use value::{StateValueAccessor, StateValueError};
@@ -28,9 +28,9 @@ use crate::{StateMap, StateValue, StateVec};
 /// ```
 pub trait StateAccessor: StateReaderAndWriter {}
 
-impl<C: Context> StateAccessor for WorkingSet<C> {}
+impl<S: Spec> StateAccessor for WorkingSet<S> {}
 
-impl<C: Context> StateAccessor for StateCheckpoint<C> {}
+impl<S: Spec> StateAccessor for StateCheckpoint<S> {}
 
 impl<S, V, Codec> StateValueAccessor<V, Codec, S> for StateValue<V, Codec>
 where
