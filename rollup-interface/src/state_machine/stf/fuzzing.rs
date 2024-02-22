@@ -5,7 +5,7 @@ use digest::Digest;
 use proptest::prelude::{any, Arbitrary};
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use super::{BatchReceipt, SerializedEvent, TransactionReceipt};
+use super::{BatchReceipt, StoredEvent, TransactionReceipt};
 use crate::maybestd::boxed::Box;
 use crate::maybestd::vec::Vec;
 
@@ -128,7 +128,7 @@ impl<R: proptest::arbitrary::Arbitrary + 'static> proptest::arbitrary::Arbitrary
             (
                 any::<[u8; 32]>(),
                 tx_body_strategy,
-                proptest::collection::vec(any::<SerializedEvent>(), 0..args.max_events),
+                proptest::collection::vec(any::<StoredEvent>(), 0..args.max_events),
                 any::<R>(),
                 proptest::collection::vec(any::<u64>(), 0..args.gas_unit_dimensions),
             )

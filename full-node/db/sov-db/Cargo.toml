@@ -41,7 +41,8 @@ sov-prover-storage-manager = { path = "../../sov-prover-storage-manager" }
 criterion = "0.5.1"
 rand = { workspace = true }
 sha2 = { workspace = true }
-
+serde_json = { workspace = true}
+sov-modules-api = { path = "../../../module-system/sov-modules-api", version = "0.3", features = ["native"] }
 
 [features]
 arbitrary = [
@@ -49,6 +50,7 @@ arbitrary = [
 	"dep:proptest",
 	"dep:proptest-derive",
 	"dep:tempfile",
+	"sov-modules-api/arbitrary",
 	"sov-modules-core/arbitrary",
 	"sov-rollup-interface/arbitrary",
 	"sov-schema-db/arbitrary",

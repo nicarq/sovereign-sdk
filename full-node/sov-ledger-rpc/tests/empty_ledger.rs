@@ -11,7 +11,7 @@ use sov_ledger_rpc::server::rpc_module;
 use sov_ledger_rpc::HexHash;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::SerializedEvent;
+use sov_modules_api::StoredEvent;
 use sov_rollup_interface::rpc::{
     BatchResponse, EventIdentifier, QueryMode, SlotResponse, TxIdAndOffset, TxIdentifier,
     TxResponse,
@@ -169,15 +169,15 @@ async fn get_events_patterns() {
         .await
         .unwrap();
     rpc_client
-        .request::<Vec<Option<SerializedEvent>>, _>("ledger_getEvents", vec![vec![2]])
+        .request::<Vec<Option<StoredEvent>>, _>("ledger_getEvents", vec![vec![2]])
         .await
         .unwrap();
     rpc_client
-        .request::<Vec<Option<SerializedEvent>>, _>("ledger_getEvents", vec![2])
+        .request::<Vec<Option<StoredEvent>>, _>("ledger_getEvents", vec![2])
         .await
         .unwrap();
     rpc_client
-        .request::<Vec<Option<SerializedEvent>>, _>(
+        .request::<Vec<Option<StoredEvent>>, _>(
             "ledger_getEvents",
             vec![EventIdentifier::TxIdAndOffset(TxIdAndOffset {
                 tx_id: TxIdentifier::Number(1),

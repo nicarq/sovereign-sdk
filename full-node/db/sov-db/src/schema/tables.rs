@@ -29,7 +29,7 @@ use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
-use sov_rollup_interface::stf::{EventKey, SerializedEvent};
+use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
@@ -243,7 +243,7 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// The primary store for event data
-    (EventByNumber) EventNumber => SerializedEvent
+    (EventByNumber) EventNumber => StoredEvent
 );
 
 define_table_with_seek_key_codec!(

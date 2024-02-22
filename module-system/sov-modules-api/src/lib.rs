@@ -45,7 +45,7 @@ pub use sov_modules_core::{
 };
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
-pub use sov_rollup_interface::stf::SerializedEvent;
+pub use sov_rollup_interface::stf::StoredEvent;
 pub use sov_rollup_interface::zk::{
     StateTransition, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
