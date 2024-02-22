@@ -14,11 +14,10 @@ use prettytable::Table;
 use prometheus::{Histogram, HistogramOpts, Registry};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_risc0_adapter::host::Risc0Verifier;
+use sov_risc0_adapter::Risc0Verifier;
 use sov_rng_da_service::{RngDaService, RngDaSpec};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -27,6 +26,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
 use tempfile::TempDir;
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 fn print_times(
     total: Duration,
@@ -117,16 +117,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
     let stf = StfBlueprint::<
-        DefaultContext,
+        DefaultSpec,
         RngDaSpec,
         Risc0Verifier,
-        Runtime<DefaultContext, RngDaSpec>,
-        BasicKernel<DefaultContext, _>,
+        Runtime<DefaultSpec, RngDaSpec>,
+        BasicKernel<DefaultSpec, _>,
     >::new();
 
     let demo_genesis_config = {
         let integration_test_conf_dir: &Path = "../test-data/genesis/integration-tests".as_ref();
-        let rt_params = get_genesis_config::<DefaultContext, _>(&GenesisPaths::from_dir(
+        let rt_params = get_genesis_config::<DefaultSpec, _>(&GenesisPaths::from_dir(
             integration_test_conf_dir,
         ))
         .unwrap();

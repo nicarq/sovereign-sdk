@@ -2,10 +2,9 @@
 
 use libfuzzer_sys::fuzz_target;
 use sov_bank::CallMessage;
-use sov_modules_api::default_context::DefaultContext;
 
-type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 fuzz_target!(|input: &[u8]| {
-    serde_json::from_slice::<CallMessage<C>>(input).ok();
+    serde_json::from_slice::<CallMessage<S>>(input).ok();
 });

@@ -55,7 +55,7 @@ The final piece of the puzzle is your app's runtime. A runtime is just a list of
 module to your app, just add an additional field to the runtime.
 
 ```rust
-use sov_modules_api::{Genesis, DispatchCall, MessageCodec, Context};
+use sov_modules_api::{Genesis, DispatchCall, MessageCodec, Spec};
 use sov_modules_api::macros::expose_rpc;
 use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
@@ -72,15 +72,15 @@ use sov_sequencer_registry::{SequencerRegistryRpcImpl, SequencerRegistryRpcServe
 )]
 #[derive(Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-pub struct MyRuntime<C: Context, Da: DaSpec> {
+pub struct MyRuntime<S: Spec, Da: DaSpec> {
     #[allow(unused)]
-    sequencer: sov_sequencer_registry::SequencerRegistry<C, Da>,
+    sequencer: sov_sequencer_registry::SequencerRegistry<S, Da>,
 
     #[allow(unused)]
-    bank: sov_bank::Bank<C>,
+    bank: sov_bank::Bank<S>,
 
     #[allow(unused)]
-    accounts: sov_accounts::Accounts<C>,
+    accounts: sov_accounts::Accounts<S>,
 }
 ```
 
@@ -115,21 +115,21 @@ The `sequencer-registry` implements `ApplyBatchHooks` since it is responsible fo
 The implementation for `MyRuntime` is straightforward because we can leverage the existing hooks provided by `sov-accounts` and `sequencer-registry` and reuse them in our implementation.
 
 ```Rust
-impl<C: Context> TxHooks for Runtime<C> {
-    type Context = C;
+impl<S: Spec> TxHooks for Runtime<S> {
+    type Spec = S;
 
     fn pre_dispatch_tx_hook(
         &self,
-        tx: Transaction<Self::Context>,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<<Self::Context as Spec>::Address> {
+        tx: Transaction<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
+    ) -> anyhow::Result<<Self::Spec as Spec>::Address> {
         self.accounts.pre_dispatch_tx_hook(tx, working_set)
     }
 
     fn post_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Context>,
-        working_set: &mut WorkingSet<C>,
+        tx: &Transaction<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
         self.accounts.post_dispatch_tx_hook(tx, working_set)
     }
@@ -137,13 +137,13 @@ impl<C: Context> TxHooks for Runtime<C> {
 ```
 
 ```Rust
-impl<C: Context> ApplyBatchHooks for Runtime<C> {
-    type Context = C;
+impl<S: Spec> ApplyBatchHooks for Runtime<S> {
+    type Spec = S;
 
     fn lock_sequencer_bond(
         &self,
         sequencer: &[u8],
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
         self.sequencer.lock_sequencer_bond(sequencer, working_set)
     }
@@ -151,7 +151,7 @@ impl<C: Context> ApplyBatchHooks for Runtime<C> {
     fn reward_sequencer(
         &self,
         amount: u64,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
         self.sequencer.reward_sequencer(amount, working_set)
     }

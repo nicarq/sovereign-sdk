@@ -22,7 +22,7 @@ pub use rpc::*;
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
-    Context, DaSpec, Error, KernelModuleInfo, ValidityConditionChecker, WorkingSet, Zkvm,
+    Context, DaSpec, Error, KernelModuleInfo, Spec, ValidityConditionChecker, WorkingSet, Zkvm,
 };
 use sov_state::codec::BcsCodec;
 
@@ -42,16 +42,16 @@ pub struct UnbondingInfo {
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
 #[derive(KernelModuleInfo)]
-pub struct AttesterIncentives<C, Vm, Da, Checker>
+pub struct AttesterIncentives<S, Vm, Da, Checker>
 where
-    C: Context,
+    S: Spec,
     Vm: Zkvm,
     Da: DaSpec,
     Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
     /// Address of the module.
     #[address]
-    pub address: C::Address,
+    pub address: S::Address,
 
     /// The amount of time it takes to a light client to be confident
     /// that an attested state transition won't be challenged. Measured in
@@ -61,13 +61,13 @@ where
 
     /// The address of the token used for bonding provers
     #[state]
-    pub bonding_token_address: sov_modules_api::StateValue<C::Address>,
+    pub bonding_token_address: sov_modules_api::StateValue<S::Address>,
 
     /// The address of the account holding the reward token supply
     /// TODO: maybe mint the token before transferring it? The mint method is private in bank
     /// so we need a reward address that contains the supply.
     #[state]
-    pub reward_token_supply_address: sov_modules_api::StateValue<C::Address>,
+    pub reward_token_supply_address: sov_modules_api::StateValue<S::Address>,
 
     /// The code commitment to be used for verifying proofs
     #[state]
@@ -80,12 +80,12 @@ where
 
     /// The set of bonded attesters and their bonded amount.
     #[state]
-    pub bonded_attesters: sov_modules_api::StateMap<C::Address, Amount>,
+    pub bonded_attesters: sov_modules_api::StateMap<S::Address, Amount>,
 
     /// The set of unbonding attesters, and the unbonding information (ie the
     /// height of the chain where they started the unbonding and their associated bond).
     #[state]
-    pub unbonding_attesters: sov_modules_api::StateMap<C::Address, UnbondingInfo>,
+    pub unbonding_attesters: sov_modules_api::StateMap<S::Address, UnbondingInfo>,
 
     /// The current maximum attestation height
     #[state]
@@ -99,7 +99,7 @@ where
 
     /// The set of bonded challengers and their bonded amount.
     #[state]
-    pub bonded_challengers: sov_modules_api::StateMap<C::Address, Amount>,
+    pub bonded_challengers: sov_modules_api::StateMap<S::Address, Amount>,
 
     /// The minimum bond for an attester to be eligble
     #[state]
@@ -115,29 +115,29 @@ where
 
     /// Reference to the Bank module.
     #[module]
-    pub(crate) bank: sov_bank::Bank<C>,
+    pub(crate) bank: sov_bank::Bank<S>,
 
     /// Reference to the chain state module, used to check the initial hashes of the state transition.
     #[kernel_module]
-    pub(crate) chain_state: sov_chain_state::ChainState<C, Da>,
+    pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
 }
 
-impl<C, Vm, Da, Checker> sov_modules_api::Module for AttesterIncentives<C, Vm, Da, Checker>
+impl<S, Vm, Da, Checker> sov_modules_api::Module for AttesterIncentives<S, Vm, Da, Checker>
 where
-    C: sov_modules_api::Context,
+    S: sov_modules_api::Spec,
     Vm: Zkvm,
     Da: DaSpec,
     Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
-    type Context = C;
+    type Spec = S;
 
-    type Config = AttesterIncentivesConfig<C, Vm, Da, Checker>;
+    type Config = AttesterIncentivesConfig<S, Vm, Da, Checker>;
 
-    type CallMessage = call::CallMessage<C, Da>;
+    type CallMessage = call::CallMessage<S, Da>;
 
-    type Event = Event<C>;
+    type Event = Event<S>;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)
     }
@@ -145,8 +145,8 @@ where
     fn call(
         &self,
         msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::BondAttester(bond_amount) => self

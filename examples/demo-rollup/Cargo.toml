@@ -42,7 +42,8 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 sov-db = { path = "../../full-node/db/sov-db" }
 sov-ethereum = { path = "../../full-node/sov-ethereum", optional = true }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
-sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }
+sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native", "sov-modules"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native", "sov-modules"]  }
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 sov-cli = { path = "../../module-system/sov-cli" }
 clap = { workspace = true }

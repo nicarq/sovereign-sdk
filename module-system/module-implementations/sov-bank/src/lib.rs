@@ -13,7 +13,7 @@ pub mod utils;
 pub use call::*;
 pub use genesis::*;
 pub use hooks::BankTxHook;
-use sov_modules_api::{CallResponse, Error, Gas, ModuleInfo, WorkingSet};
+use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleInfo, WorkingSet};
 use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, Coins};
@@ -50,38 +50,38 @@ pub struct BankGasConfig<GU: Gas> {
 /// - Token burn.
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
-pub struct Bank<C: sov_modules_api::Context> {
+pub struct Bank<S: sov_modules_api::Spec> {
     /// The address of the sov-bank module.
     #[address]
-    pub(crate) address: C::Address,
+    pub(crate) address: S::Address,
 
     /// The gas configuration of the sov-bank module.
     #[gas]
-    pub(crate) gas: BankGasConfig<C::Gas>,
+    pub(crate) gas: BankGasConfig<S::Gas>,
 
     /// A mapping of addresses to tokens in the sov-bank.
     #[state]
-    pub(crate) tokens: sov_modules_api::StateMap<C::Address, Token<C>>,
+    pub(crate) tokens: sov_modules_api::StateMap<S::Address, Token<S>>,
 }
 
-impl<C: sov_modules_api::Context> sov_modules_api::Module for Bank<C> {
-    type Context = C;
+impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
+    type Spec = S;
 
-    type Config = BankConfig<C>;
+    type Config = BankConfig<S>;
 
-    type CallMessage = call::CallMessage<C>;
+    type CallMessage = call::CallMessage<S>;
 
-    type Event = Event<C>;
+    type Event = Event<S>;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::CreateToken {

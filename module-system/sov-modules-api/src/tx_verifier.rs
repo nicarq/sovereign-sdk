@@ -3,24 +3,25 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_cycle_macros::cycle_tracker;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::digest::Digest;
+use sov_rollup_interface::zk::CryptoSpec;
 use tracing::debug;
 
 use crate::transaction::Transaction;
-use crate::{Context, Spec};
+use crate::Spec;
 
 type RawTxHash = [u8; 32];
 
-pub struct TransactionAndRawHash<C: Context> {
-    pub(crate) tx: Transaction<C>,
+pub struct TransactionAndRawHash<S: Spec> {
+    pub(crate) tx: Transaction<S>,
     pub(crate) raw_tx_hash: RawTxHash,
 }
 
-impl<C: Context> TransactionAndRawHash<C> {
-    pub fn split(self) -> (Transaction<C>, RawTxHash) {
+impl<S: Spec> TransactionAndRawHash<S> {
+    pub fn split(self) -> (Transaction<S>, RawTxHash) {
         (self.tx, self.raw_tx_hash)
     }
 
-    pub fn as_tuple(&self) -> (&Transaction<C>, &RawTxHash) {
+    pub fn as_tuple(&self) -> (&Transaction<S>, &RawTxHash) {
         (&self.tx, &self.raw_tx_hash)
     }
 }
@@ -34,23 +35,23 @@ pub struct RawTx {
 
 impl RawTx {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn hash<C: Context>(&self) -> [u8; 32] {
-        <C as Spec>::Hasher::digest(&self.data).into()
+    fn hash<S: Spec>(&self) -> [u8; 32] {
+        <S::CryptoSpec as CryptoSpec>::Hasher::digest(&self.data).into()
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn deserialize<C: Context>(&self) -> Result<Transaction<C>, std::io::Error> {
-        Transaction::<C>::deserialize(&mut self.data.as_slice())
+    fn deserialize<S: Spec>(&self) -> Result<Transaction<S>, std::io::Error> {
+        Transaction::<S>::deserialize(&mut self.data.as_slice())
     }
 }
 
-pub fn verify_txs_stateless<C: Context>(
+pub fn verify_txs_stateless<S: Spec>(
     raw_txs: Vec<RawTx>,
-) -> anyhow::Result<Vec<TransactionAndRawHash<C>>> {
+) -> anyhow::Result<Vec<TransactionAndRawHash<S>>> {
     let mut txs = Vec::with_capacity(raw_txs.len());
     debug!(txs_num = raw_txs.len(), "Verifying transactions");
     for raw_tx in raw_txs {
-        let raw_tx_hash = raw_tx.hash::<C>();
+        let raw_tx_hash = raw_tx.hash::<S>();
         let tx = raw_tx.deserialize()?;
         tx.verify()?;
         txs.push(TransactionAndRawHash { tx, raw_tx_hash });

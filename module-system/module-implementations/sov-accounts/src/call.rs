@@ -1,5 +1,7 @@
 use anyhow::{ensure, Result};
-use sov_modules_api::{CallResponse, Context, Signature, StateMapAccessor, WorkingSet};
+use sov_modules_api::{
+    CallResponse, Context, CryptoSpec, Signature, Spec, StateMapAccessor, WorkingSet,
+};
 
 use crate::Accounts;
 
@@ -12,7 +14,7 @@ pub const UPDATE_ACCOUNT_MSG: [u8; 32] = [1; 32];
     derive(schemars::JsonSchema),
     derive(sov_modules_api::macros::CliWalletArg),
     schemars(
-        bound = "C::PublicKey: ::schemars::JsonSchema, C::Signature: ::schemars::JsonSchema",
+        bound = "<S::CryptoSpec as CryptoSpec>::PublicKey: ::schemars::JsonSchema, <S::CryptoSpec as CryptoSpec>::Signature: ::schemars::JsonSchema",
         rename = "CallMessage"
     )
 )]
@@ -25,24 +27,24 @@ pub const UPDATE_ACCOUNT_MSG: [u8; 32] = [1; 32];
     PartialEq,
     Clone,
 )]
-pub enum CallMessage<C: Context> {
+pub enum CallMessage<S: Spec> {
     /// Updates a public key for the corresponding Account.
     /// The sender must be in possession of the new key.
     UpdatePublicKey(
         /// The new public key
-        C::PublicKey,
+        <S::CryptoSpec as CryptoSpec>::PublicKey,
         /// A valid signature from the new public key
-        C::Signature,
+        <S::CryptoSpec as CryptoSpec>::Signature,
     ),
 }
 
-impl<C: Context> Accounts<C> {
+impl<S: Spec> Accounts<S> {
     pub(crate) fn update_public_key(
         &self,
-        new_pub_key: C::PublicKey,
-        signature: C::Signature,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        new_pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+        signature: <S::CryptoSpec as CryptoSpec>::Signature,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
         self.exit_if_account_exists(&new_pub_key, working_set)?;
 
@@ -67,8 +69,8 @@ impl<C: Context> Accounts<C> {
 
     fn exit_if_account_exists(
         &self,
-        new_pub_key: &C::PublicKey,
-        working_set: &mut WorkingSet<C>,
+        new_pub_key: &<S::CryptoSpec as CryptoSpec>::PublicKey,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         anyhow::ensure!(
             self.accounts.get(new_pub_key, working_set).is_none(),

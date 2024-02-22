@@ -28,7 +28,7 @@ impl ExposeRpcMacro {
 
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-        let context_type = generics
+        let spec_type = generics
             .params
             .iter()
             .find_map(|item| {
@@ -40,14 +40,14 @@ impl ExposeRpcMacro {
             })
             .ok_or(syn::Error::new_spanned(
                 &generics,
-                "a runtime must be generic over a sov_modules_api::Context to generate rpc methods",
+                "a runtime must be generic over a sov_modules_api::Spec to generate rpc methods",
             ))?;
 
         let fields = self.field_extractor.get_fields_from_struct(&data)?;
 
         let rpc_storage_struct = quote! {
             struct RpcStorage #impl_generics #where_clause {
-                storage: ::std::sync::Arc<::std::sync::RwLock<#context_type::Storage>>,
+                storage: ::std::sync::Arc<::std::sync::RwLock<#spec_type::Storage>>,
                 // Function pointers are always Send + Sync, regardless of
                 // whether the return type is. The alternative would be to
                 // `unsafe impl Send/Sync` for `RpcStorage`, but this seems
@@ -104,7 +104,7 @@ impl ExposeRpcMacro {
                 #(#attrs)*
                 impl #impl_generics #rpc_trait_ident #field_path_args for RpcStorage #ty_generics #where_clause {
                     /// Get a working set on top of the current storage
-                    fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<#context_type>
+                    fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<#spec_type>
                     {
                         let storage = {
                             let current_storage = self.storage.read().expect("Storage RwLock is poisoned").clone();
@@ -120,7 +120,7 @@ impl ExposeRpcMacro {
 
         let get_rpc_methods: proc_macro2::TokenStream = quote! {
             /// Returns a [`jsonrpsee::RpcModule`] with all the RPC methods exposed by the module
-            pub fn get_rpc_methods #impl_generics (storage: ::std::sync::Arc<::std::sync::RwLock<<#context_type as ::sov_modules_api::Spec>::Storage>>) -> ::jsonrpsee::RpcModule<()> #where_clause {
+            pub fn get_rpc_methods #impl_generics (storage: ::std::sync::Arc<::std::sync::RwLock<<#spec_type as ::sov_modules_api::Spec>::Storage>>) -> ::jsonrpsee::RpcModule<()> #where_clause {
                 let mut module = ::jsonrpsee::RpcModule::new(());
                 let r = RpcStorage:: #ty_generics  {
                     storage: storage.clone(),

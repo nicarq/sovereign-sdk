@@ -47,9 +47,9 @@ where
     /// using your chosen codec.
     ///
     /// ```
-    /// use sov_modules_api::{StateMapAccessor, Context, StateMap, WorkingSet};
+    /// use sov_modules_api::{StateMapAccessor, Spec, Context, StateMap, WorkingSet};
     ///
-    /// fn foo<C: Context>(map: StateMap<Vec<u8>, u64>, key: &[u8], ws: &mut WorkingSet<C>) -> Option<u64>
+    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: &[u8], ws: &mut WorkingSet<S>) -> Option<u64>
     /// {
     ///     // We perform the `get` with a slice, and not the `Vec`. it is so because `Vec` borrows
     ///     // `[T]`.
@@ -63,9 +63,9 @@ where
     /// maps:
     ///
     /// ```
-    /// use sov_modules_api::{StateMapAccessor, Context, StateMap, WorkingSet};
+    /// use sov_modules_api::{StateMapAccessor, Spec, Context, StateMap, WorkingSet};
     ///
-    /// fn foo<C: Context>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], ws: &mut WorkingSet<C>) -> Option<u64>
+    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], ws: &mut WorkingSet<S>) -> Option<u64>
     /// {
     ///     map.get(&key[..], ws)
     /// }

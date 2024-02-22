@@ -8,17 +8,17 @@ use sov_state::codec::BcsCodec;
 
 use super::DbAccount;
 
-pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
+pub(crate) struct EvmDb<'a, S: sov_modules_api::Spec> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
     pub(crate) code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
-    pub(crate) working_set: &'a mut WorkingSet<C>,
+    pub(crate) working_set: &'a mut WorkingSet<S>,
 }
 
-impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
+impl<'a, S: sov_modules_api::Spec> EvmDb<'a, S> {
     pub(crate) fn new(
         accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
         code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
-        working_set: &'a mut WorkingSet<C>,
+        working_set: &'a mut WorkingSet<S>,
     ) -> Self {
         Self {
             accounts,
@@ -28,7 +28,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     }
 }
 
-impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
+impl<'a, S: sov_modules_api::Spec> Database for EvmDb<'a, S> {
     type Error = Infallible;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {

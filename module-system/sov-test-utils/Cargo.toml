@@ -18,6 +18,7 @@ sov-value-setter = { path = "../module-implementations/examples/sov-value-setter
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-state = { path = "../sov-state" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 borsh = { workspace = true }

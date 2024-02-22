@@ -7,7 +7,7 @@ use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
 
 use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
@@ -78,7 +78,10 @@ where
     ) -> Result<ProofProcessingStatus, ProverServiceError>
     where
         Vm: ZkvmHost + 'static,
-        V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+        V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>
+            + Send
+            + Sync
+            + 'static,
         V::PreState: Send + Sync + 'static,
     {
         let prover_state_clone = self.prover_state.clone();
@@ -233,7 +236,10 @@ fn make_proof<V, Vm, Da>(
 where
     Da: DaService,
     Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>
+        + Send
+        + Sync
+        + 'static,
     V::PreState: Send + Sync + 'static,
 {
     match config.deref() {

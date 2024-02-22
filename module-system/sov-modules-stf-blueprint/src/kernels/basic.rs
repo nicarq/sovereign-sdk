@@ -5,19 +5,19 @@ use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
-use sov_modules_api::{Context, DaSpec, KernelModule, KernelWorkingSet};
-use sov_modules_core::Gas;
+use sov_modules_api::{DaSpec, KernelModule, KernelWorkingSet};
+use sov_modules_core::{Gas, Spec};
 use sov_state::storage::kernel_state::BootstrapWorkingSet;
 use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
 #[derive(Clone)]
-pub struct BasicKernel<C: Context, Da: DaSpec> {
-    pub(crate) chain_state: ChainState<C, Da>,
-    pub(crate) blob_storage: BlobStorage<C, Da>,
+pub struct BasicKernel<S: Spec, Da: DaSpec> {
+    pub(crate) chain_state: ChainState<S, Da>,
+    pub(crate) blob_storage: BlobStorage<S, Da>,
 }
 
-impl<C: Context, Da: DaSpec> Default for BasicKernel<C, Da> {
+impl<S: Spec, Da: DaSpec> Default for BasicKernel<S, Da> {
     fn default() -> Self {
         Self {
             chain_state: Default::default(),
@@ -33,20 +33,20 @@ pub struct BasicKernelGenesisPaths {
 }
 
 /// The genesis configuration for the basic kernel
-pub struct BasicKernelGenesisConfig<C: Context, Da: DaSpec> {
+pub struct BasicKernelGenesisConfig<S: Spec, Da: DaSpec> {
     /// The chain state genesis config
-    pub chain_state: <ChainState<C, Da> as KernelModule>::Config,
+    pub chain_state: <ChainState<S, Da> as KernelModule>::Config,
 }
 
-impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
-    fn true_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
+impl<S: Spec, Da: DaSpec> Kernel<S, Da> for BasicKernel<S, Da> {
+    fn true_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, S>) -> u64 {
         self.chain_state.true_slot_number(working_set)
     }
-    fn visible_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, C>) -> u64 {
+    fn visible_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, S>) -> u64 {
         self.chain_state.true_slot_number(working_set)
     }
 
-    type GenesisConfig = BasicKernelGenesisConfig<C, Da>;
+    type GenesisConfig = BasicKernelGenesisConfig<S, Da>;
 
     #[cfg(feature = "native")]
     type GenesisPaths = BasicKernelGenesisPaths;
@@ -54,7 +54,7 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        working_set: &mut KernelWorkingSet<'_, C>,
+        working_set: &mut KernelWorkingSet<'_, S>,
     ) -> Result<(), anyhow::Error> {
         self.chain_state
             .genesis_unchecked(&config.chain_state, working_set)?;
@@ -63,15 +63,15 @@ impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> BatchSelector<Da> for BasicKernel<C, Da> {
-    type Context = C;
+impl<S: Spec, Da: DaSpec> BatchSelector<Da> for BasicKernel<S, Da> {
+    type Spec = S;
 
     type Batch = BatchWithId;
 
     fn get_batches_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        working_set: &mut sov_modules_api::KernelWorkingSet<'k, Self::Context>,
+        working_set: &mut sov_modules_api::KernelWorkingSet<'k, Self::Spec>,
     ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
@@ -82,14 +82,14 @@ impl<C: Context, Da: DaSpec> BatchSelector<Da> for BasicKernel<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> KernelSlotHooks<C, Da> for BasicKernel<C, Da> {
+impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for BasicKernel<S, Da> {
     fn begin_slot_hook(
         &self,
         slot_header: &<Da as DaSpec>::BlockHeader,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
-        pre_state_root: &<<Self::Context as sov_modules_api::Spec>::Storage as Storage>::Root,
-        state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Context>,
-    ) -> <C::Gas as Gas>::Price {
+        pre_state_root: &<<Self::Spec as sov_modules_api::Spec>::Storage as Storage>::Root,
+        state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
+    ) -> <S::Gas as Gas>::Price {
         let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
         self.chain_state
             .begin_slot_hook(slot_header, validity_condition, pre_state_root, &mut ws)
@@ -97,8 +97,8 @@ impl<C: Context, Da: DaSpec> KernelSlotHooks<C, Da> for BasicKernel<C, Da> {
 
     fn end_slot_hook(
         &self,
-        gas_used: &C::Gas,
-        state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Context>,
+        gas_used: &S::Gas,
+        state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
     ) {
         let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
         self.chain_state.end_slot_hook(gas_used, &mut ws);

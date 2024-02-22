@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_core::{
-    AccessoryStateCheckpoint, AccessoryWorkingSet, Context, Prefix, StateCodec, StateValueCodec,
+    AccessoryStateCheckpoint, AccessoryWorkingSet, Prefix, Spec, StateCodec, StateValueCodec,
 };
 use sov_state::codec::BorshCodec;
 
@@ -50,7 +50,7 @@ impl<V, Codec> AccessoryStateValue<V, Codec> {
     }
 }
 
-impl<'a, V, Codec, C: Context> StateValueAccessor<V, Codec, AccessoryWorkingSet<'a, C>>
+impl<'a, V, Codec, S: Spec> StateValueAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
     for AccessoryStateValue<V, Codec>
 where
     Codec: StateCodec,
@@ -65,7 +65,7 @@ where
     }
 }
 
-impl<'a, V, Codec, C: Context> StateValueAccessor<V, Codec, AccessoryStateCheckpoint<'a, C>>
+impl<'a, V, Codec, S: Spec> StateValueAccessor<V, Codec, AccessoryStateCheckpoint<'a, S>>
     for AccessoryStateValue<V, Codec>
 where
     Codec: StateCodec,

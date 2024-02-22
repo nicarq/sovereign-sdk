@@ -1,27 +1,27 @@
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::FinalizeHook;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryStateCheckpoint, Context, Gas, Spec};
+use sov_modules_api::{AccessoryStateCheckpoint, Gas, Spec};
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
 
 use crate::{ChainState, StateTransitionId, TransitionInProgress};
 
-impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
+impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     /// Update the chain state at the beginning of the slot. Compute the next gas price
     pub fn begin_slot_hook(
         &self,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
-        working_set: &mut KernelWorkingSet<C>,
-    ) -> <C::Gas as Gas>::Price {
+        pre_state_root: &<S::Storage as Storage>::Root,
+        working_set: &mut KernelWorkingSet<S>,
+    ) -> <S::Gas as Gas>::Price {
         if self.genesis_hash.get(working_set.inner).is_none() {
             // The genesis hash is not set, hence this is the
             // first transition right after the genesis block
             self.genesis_hash.set(pre_state_root, working_set.inner)
         } else {
-            let transition: StateTransitionId<C, Da> = {
+            let transition: StateTransitionId<S, Da> = {
                 let TransitionInProgress {
                     slot_hash,
                     validity_condition,
@@ -64,7 +64,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
                 slot_hash: slot_header.hash(),
                 validity_condition: *validity_condition,
                 gas_price: gas_price_state.price.clone(),
-                gas_used: C::Gas::zero(),
+                gas_used: S::Gas::zero(),
             },
             working_set,
         );
@@ -72,7 +72,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
     }
 
     /// Update the chain state at the end of each slot, if necessary
-    pub fn end_slot_hook(&self, gas_used: &C::Gas, working_set: &mut KernelWorkingSet<C>) {
+    pub fn end_slot_hook(&self, gas_used: &S::Gas, working_set: &mut KernelWorkingSet<S>) {
         let mut in_progress_transition = self
             .in_progress_transition
             .get_current(working_set)
@@ -84,13 +84,13 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
     }
 }
 
-impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook for ChainState<C, Da> {
-    type Context = C;
+impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for ChainState<S, Da> {
+    type Spec = S;
 
     fn finalize_hook(
         &self,
-        _root_hash: &<C::Storage as Storage>::Root,
-        _accesorry_working_set: &mut AccessoryStateCheckpoint<C>,
+        _root_hash: &<S::Storage as Storage>::Root,
+        _accesorry_working_set: &mut AccessoryStateCheckpoint<S>,
     ) {
     }
 }

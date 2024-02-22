@@ -14,12 +14,14 @@ mod event;
 #[cfg(test)]
 mod tests;
 pub use call::{CallMessage, UPDATE_ACCOUNT_MSG};
-use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, CryptoSpec, Error, ModuleInfo, Spec, WorkingSet};
 
 use crate::event::Event;
 
-impl<C: Context> FromIterator<C::PublicKey> for AccountConfig<C> {
-    fn from_iter<T: IntoIterator<Item = C::PublicKey>>(iter: T) -> Self {
+impl<S: Spec> FromIterator<<S::CryptoSpec as CryptoSpec>::PublicKey> for AccountConfig<S> {
+    fn from_iter<T: IntoIterator<Item = <S::CryptoSpec as CryptoSpec>::PublicKey>>(
+        iter: T,
+    ) -> Self {
         Self {
             pub_keys: iter.into_iter().collect(),
         }
@@ -28,9 +30,9 @@ impl<C: Context> FromIterator<C::PublicKey> for AccountConfig<C> {
 
 /// An account on the rollup.
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Copy, Clone)]
-pub struct Account<C: Context> {
+pub struct Account<S: Spec> {
     /// The address of the account.
-    pub addr: C::Address,
+    pub addr: S::Address,
     /// The current nonce value associated with the account.
     pub nonce: u64,
 }
@@ -39,38 +41,40 @@ pub struct Account<C: Context> {
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
 #[cfg_attr(feature = "arbitrary", derive(Debug))]
-pub struct Accounts<C: Context> {
+pub struct Accounts<S: Spec> {
     /// The address of the sov-accounts module.
     #[address]
-    pub address: C::Address,
+    pub address: S::Address,
 
     /// Mapping from an account address to a corresponding public key.
     #[state]
-    pub(crate) public_keys: sov_modules_api::StateMap<C::Address, C::PublicKey>,
+    pub(crate) public_keys:
+        sov_modules_api::StateMap<S::Address, <S::CryptoSpec as CryptoSpec>::PublicKey>,
 
     /// Mapping from a public key to a corresponding account.
     #[state]
-    pub(crate) accounts: sov_modules_api::StateMap<C::PublicKey, Account<C>>,
+    pub(crate) accounts:
+        sov_modules_api::StateMap<<S::CryptoSpec as CryptoSpec>::PublicKey, Account<S>>,
 }
 
-impl<C: Context> sov_modules_api::Module for Accounts<C> {
-    type Context = C;
+impl<S: Spec> sov_modules_api::Module for Accounts<S> {
+    type Spec = S;
 
-    type Config = AccountConfig<C>;
+    type Config = AccountConfig<S>;
 
-    type CallMessage = call::CallMessage<C>;
+    type CallMessage = call::CallMessage<S>;
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::UpdatePublicKey(new_pub_key, sig) => {

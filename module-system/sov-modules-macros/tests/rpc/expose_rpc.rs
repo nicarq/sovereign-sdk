@@ -1,26 +1,26 @@
 use jsonrpsee::core::RpcResult;
-pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
-    prelude::*, CallResponse, Context, Error, Module, ModuleInfo, StateValue, WorkingSet,
+    prelude::*, CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, WorkingSet,
 };
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[derive(ModuleInfo)]
-pub struct QueryModule<C: Context> {
+pub struct QueryModule<S: Spec> {
     #[address]
-    pub address: C::Address,
+    pub address: S::Address,
 
     #[state]
     pub data: StateValue<u8>,
 }
 
-impl<C: Context> Module for QueryModule<C> {
-    type Context = C;
+impl<S: Spec> Module for QueryModule<S> {
+    type Spec = S;
     type Config = u8;
     type CallMessage = u8;
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         self.data.set(config, working_set);
         Ok(())
     }
@@ -28,8 +28,8 @@ impl<C: Context> Module for QueryModule<C> {
     fn call(
         &self,
         msg: Self::CallMessage,
-        _context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        _context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse, Error> {
         self.data.set(&msg, working_set);
         Ok(CallResponse::default())
@@ -42,9 +42,9 @@ pub struct QueryResponse {
 }
 
 #[rpc_gen(client, server, namespace = "queryModule")]
-impl<C: Context> QueryModule<C> {
+impl<S: Spec> QueryModule<S> {
     #[rpc_method(name = "queryValue")]
-    pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<QueryResponse> {
+    pub fn query_value(&self, working_set: &mut WorkingSet<S>) -> RpcResult<QueryResponse> {
         Ok(QueryResponse {
             value: self.data.get(working_set),
         })
@@ -52,8 +52,8 @@ impl<C: Context> QueryModule<C> {
 }
 
 #[expose_rpc]
-struct Runtime<C: Context> {
-    pub first: QueryModule<C>,
+struct Runtime<S: Spec> {
+    pub first: QueryModule<S>,
 }
 
 fn main() {}

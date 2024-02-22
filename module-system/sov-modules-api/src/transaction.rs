@@ -3,10 +3,12 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_cycle_macros::cycle_tracker;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "native")]
-use sov_modules_core::PrivateKey;
-use sov_modules_core::{Context, Gas, GasArray, Signature};
+use sov_modules_core::{Gas, GasArray, Spec};
 use sov_modules_macros::config_constant;
+#[cfg(feature = "native")]
+pub use sov_rollup_interface::crypto::PrivateKey;
+use sov_rollup_interface::crypto::Signature as _;
+use sov_rollup_interface::zk::CryptoSpec;
 
 const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
 
@@ -14,21 +16,21 @@ const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
 #[derive(
     Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize,
 )]
-pub struct Transaction<C: Context> {
-    signature: C::Signature,
-    pub_key: C::PublicKey,
+pub struct Transaction<S: Spec> {
+    signature: <S::CryptoSpec as CryptoSpec>::Signature,
+    pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     runtime_msg: Vec<u8>,
     chain_id: u64,
     gas_tip: u64,
     gas_limit: u64,
-    max_gas_price: Option<<C::Gas as Gas>::Price>,
+    max_gas_price: Option<<S::Gas as Gas>::Price>,
     nonce: u64,
 }
 
 /// An unsent transaction with the required data to be submitted to the DA layer
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct UnsignedTransaction<C: Context, Tx>
+pub struct UnsignedTransaction<S: Spec, Tx>
 where
     Tx: BorshSerialize + BorshDeserialize,
 {
@@ -41,15 +43,15 @@ where
     /// The gas limit for the transaction execution
     pub gas_limit: u64,
     /// The maximum gas price in which this transaction will be executed
-    pub max_gas_price: Option<<C::Gas as Gas>::Price>,
+    pub max_gas_price: Option<<S::Gas as Gas>::Price>,
 }
 
-impl<C: Context> Transaction<C> {
-    pub fn signature(&self) -> &C::Signature {
+impl<S: Spec> Transaction<S> {
+    pub fn signature(&self) -> &<S::CryptoSpec as CryptoSpec>::Signature {
         &self.signature
     }
 
-    pub fn pub_key(&self) -> &C::PublicKey {
+    pub fn pub_key(&self) -> &<S::CryptoSpec as CryptoSpec>::PublicKey {
         &self.pub_key
     }
 
@@ -73,19 +75,19 @@ impl<C: Context> Transaction<C> {
         self.gas_limit
     }
 
-    pub const fn max_gas_price(&self) -> Option<&<C::Gas as Gas>::Price> {
+    pub const fn max_gas_price(&self) -> Option<&<S::Gas as Gas>::Price> {
         self.max_gas_price.as_ref()
     }
 
-    pub fn gas_fixed_cost(&self) -> C::Gas {
+    pub fn gas_fixed_cost(&self) -> S::Gas {
         #[config_constant]
         const GAS_TX_FIXED_COST: &[u64];
 
         #[config_constant]
         const GAS_TX_COST_PER_BYTE: &[u64];
 
-        let gas_tx_fixed_cost = C::Gas::from_slice(GAS_TX_FIXED_COST);
-        let mut gas_tx_cost = C::Gas::from_slice(GAS_TX_COST_PER_BYTE);
+        let gas_tx_fixed_cost = S::Gas::from_slice(GAS_TX_FIXED_COST);
+        let mut gas_tx_cost = S::Gas::from_slice(GAS_TX_COST_PER_BYTE);
 
         gas_tx_cost.scalar_product(self.runtime_msg.len() as u64);
         gas_tx_cost.combine(&gas_tx_fixed_cost);
@@ -130,13 +132,13 @@ impl<C: Context> Transaction<C> {
     /// New transaction.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        pub_key: C::PublicKey,
+        pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         message: Vec<u8>,
-        signature: C::Signature,
+        signature: <S::CryptoSpec as CryptoSpec>::Signature,
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<C::Gas as Gas>::Price>,
+        max_gas_price: Option<<S::Gas as Gas>::Price>,
         nonce: u64,
     ) -> Self {
         Self {
@@ -153,15 +155,15 @@ impl<C: Context> Transaction<C> {
 }
 
 #[cfg(feature = "native")]
-impl<C: Context> Transaction<C> {
+impl<S: Spec> Transaction<S> {
     /// New signed transaction.
     pub fn new_signed_tx(
-        priv_key: &C::PrivateKey,
+        priv_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
         mut message: Vec<u8>,
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<C::Gas as Gas>::Price>,
+        max_gas_price: Option<<S::Gas as Gas>::Price>,
         nonce: u64,
     ) -> Self {
         // Since we own the message already, try to add the serialized nonce in-place.
@@ -213,7 +215,7 @@ impl<C: Context> Transaction<C> {
     }
 }
 
-impl<C: Context, Tx> UnsignedTransaction<C, Tx>
+impl<S: Spec, Tx> UnsignedTransaction<S, Tx>
 where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
 {
@@ -222,7 +224,7 @@ where
         chain_id: u64,
         gas_tip: u64,
         gas_limit: u64,
-        max_gas_price: Option<<C::Gas as Gas>::Price>,
+        max_gas_price: Option<<S::Gas as Gas>::Price>,
     ) -> Self {
         Self {
             tx,

@@ -1,6 +1,7 @@
 use module_template::{CallMessage, Event, ExampleModule, ExampleModuleConfig, Response};
-use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
-use sov_modules_api::{Address, Context, Module, WorkingSet};
+use sov_mock_zkvm::MockZkVerifier;
+use sov_modules_api::default_spec::{DefaultSpec, ZkDefaultSpec};
+use sov_modules_api::{Address, Context, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ZkStorage};
 
@@ -17,7 +18,7 @@ fn test_value_setter() {
     // Test Native-Context
     {
         let config = ExampleModuleConfig {};
-        let context = DefaultContext::new(admin, sequencer, 1);
+        let context = Context::<DefaultSpec<MockZkVerifier>>::new(admin, sequencer, 1);
         test_value_setter_helper(context, &config, &mut working_set);
     }
 
@@ -26,18 +27,18 @@ fn test_value_setter() {
     // Test Zk-Context
     {
         let config = ExampleModuleConfig {};
-        let zk_context = ZkDefaultContext::new(admin, sequencer, 1);
+        let zk_context = Context::<ZkDefaultSpec<MockZkVerifier>>::new(admin, sequencer, 1);
         let mut zk_working_set = WorkingSet::with_witness(ZkStorage::new(), witness);
         test_value_setter_helper(zk_context, &config, &mut zk_working_set);
     }
 }
 
-fn test_value_setter_helper<C: Context>(
-    context: C,
+fn test_value_setter_helper<S: Spec>(
+    context: Context<S>,
     config: &ExampleModuleConfig,
-    working_set: &mut WorkingSet<C>,
+    working_set: &mut WorkingSet<S>,
 ) {
-    let module = ExampleModule::<C>::default();
+    let module = ExampleModule::<S>::default();
     module.genesis(config, working_set).unwrap();
 
     let new_value = 99;

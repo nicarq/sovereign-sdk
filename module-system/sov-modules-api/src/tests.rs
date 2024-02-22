@@ -1,10 +1,13 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::{Address, PrivateKey, Signature};
+use sov_modules_core::{Address, Spec};
+use sov_rollup_interface::crypto::{PrivateKey, Signature};
+use sov_rollup_interface::zk::CryptoSpec;
 
-use crate::default_context::DefaultContext;
-use crate::default_signature::private_key::DefaultPrivateKey;
-use crate::default_signature::{DefaultPublicKey, DefaultSignature};
 use crate::ModuleInfo;
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+type DefaultPublicKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
+type DefaultSignature = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
 
 #[test]
 fn test_account_bech32m_display() {
@@ -53,9 +56,9 @@ struct Module {
 }
 
 impl crate::ModuleInfo for Module {
-    type Context = DefaultContext;
+    type Spec = DefaultSpec;
 
-    fn address(&self) -> &<Self::Context as crate::Spec>::Address {
+    fn address(&self) -> &<Self::Spec as crate::Spec>::Address {
         &self.address
     }
 
@@ -63,7 +66,7 @@ impl crate::ModuleInfo for Module {
         crate::ModulePrefix::new_module(module_path!(), "Module")
     }
 
-    fn dependencies(&self) -> Vec<&<Self::Context as crate::Spec>::Address> {
+    fn dependencies(&self) -> Vec<&<Self::Spec as crate::Spec>::Address> {
         self.dependencies.iter().collect()
     }
 }
@@ -83,7 +86,7 @@ fn test_sorting_modules() {
         dependencies: vec![module_a.address, module_b.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Context = DefaultContext>, i32)> =
+    let modules: Vec<(&dyn ModuleInfo<Spec = DefaultSpec>, i32)> =
         vec![(&module_b, 2), (&module_c, 3), (&module_a, 1)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules).unwrap();
@@ -103,7 +106,7 @@ fn test_sorting_modules_missing_module() {
         dependencies: vec![module_a_address, module_b.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Context = DefaultContext>, i32)> =
+    let modules: Vec<(&dyn ModuleInfo<Spec = DefaultSpec>, i32)> =
         vec![(&module_b, 2), (&module_c, 3)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules);
@@ -133,7 +136,7 @@ fn test_sorting_modules_cycle() {
         dependencies: vec![module_a.address, module_d.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Context = DefaultContext>, i32)> = vec![
+    let modules: Vec<(&dyn ModuleInfo<Spec = DefaultSpec>, i32)> = vec![
         (&module_b, 2),
         (&module_d, 3),
         (&module_a, 1),
@@ -162,7 +165,7 @@ fn test_sorting_modules_duplicate() {
         dependencies: vec![],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Context = DefaultContext>, u32)> =
+    let modules: Vec<(&dyn ModuleInfo<Spec = DefaultSpec>, u32)> =
         vec![(&module_b, 3), (&module_a, 1), (&module_a2, 2)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules);

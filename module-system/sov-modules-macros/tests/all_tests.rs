@@ -48,7 +48,7 @@ fn rpc_tests() {
     t.pass("tests/rpc/expose_rpc_associated_types_nested.rs");
 
     t.compile_fail("tests/rpc/expose_rpc_associated_type_not_static.rs");
-    t.compile_fail("tests/rpc/expose_rpc_first_generic_not_context.rs");
+    t.compile_fail("tests/rpc/expose_rpc_first_generic_not_spec.rs");
 }
 
 #[test]

@@ -66,12 +66,12 @@ where
     /// Returns an arbitrary [`StateMap`] instance.
     ///
     /// See the [`arbitrary`] crate for more information.
-    pub fn arbitrary_working_set<C>(
+    pub fn arbitrary_working_set<S>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut sov_modules_core::WorkingSet<C>,
+        working_set: &mut sov_modules_core::WorkingSet<S>,
     ) -> arbitrary::Result<Self>
     where
-        C: sov_modules_core::Context,
+        S: sov_modules_core::Spec,
     {
         use arbitrary::Arbitrary;
 

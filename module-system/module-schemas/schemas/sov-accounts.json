@@ -14,10 +14,10 @@
           "type": "array",
           "items": [
             {
-              "$ref": "#/definitions/DefaultPublicKey"
+              "$ref": "#/definitions/Risc0PublicKey"
             },
             {
-              "$ref": "#/definitions/DefaultSignature"
+              "$ref": "#/definitions/Risc0Signature"
             }
           ],
           "maxItems": 2,
@@ -28,7 +28,8 @@
     }
   ],
   "definitions": {
-    "DefaultPublicKey": {
+    "Risc0PublicKey": {
+      "description": "The public key of an ed25519 keypair. Wraps the optimized Risc0 fork of the ed25519-dalek crate.",
       "type": "object",
       "required": [
         "pub_key"
@@ -46,13 +47,15 @@
         }
       }
     },
-    "DefaultSignature": {
+    "Risc0Signature": {
+      "description": "An ed25519 signature. Wraps the optimized Risc0 fork of the ed25519-dalek crate.",
       "type": "object",
       "required": [
         "msg_sig"
       ],
       "properties": {
         "msg_sig": {
+          "description": "The inner signature.",
           "type": "array",
           "items": {
             "type": "integer",

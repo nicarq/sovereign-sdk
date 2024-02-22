@@ -2,19 +2,19 @@ use std::fs::File;
 use std::io::{self, Write};
 
 use sov_mock_da::verifier::MockDaSpec;
-use sov_mock_da::MockValidityCond;
-use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::default_context::DefaultContext as C;
+use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::ModuleCallJsonSchema;
 
+type S = DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+
 fn main() -> io::Result<()> {
-    store_json_schema::<sov_bank::Bank<C>>("sov-bank.json")?;
-    store_json_schema::<sov_accounts::Accounts<C>>("sov-accounts.json")?;
-    store_json_schema::<sov_value_setter::ValueSetter<C>>("sov-value-setter.json")?;
-    store_json_schema::<sov_prover_incentives::ProverIncentives<C, MockZkvm<MockValidityCond>>>(
+    store_json_schema::<sov_bank::Bank<S>>("sov-bank.json")?;
+    store_json_schema::<sov_accounts::Accounts<S>>("sov-accounts.json")?;
+    store_json_schema::<sov_value_setter::ValueSetter<S>>("sov-value-setter.json")?;
+    store_json_schema::<sov_prover_incentives::ProverIncentives<S, sov_mock_zkvm::MockZkVerifier>>(
         "sov-prover-incentives.json",
     )?;
-    store_json_schema::<sov_sequencer_registry::SequencerRegistry<C, MockDaSpec>>(
+    store_json_schema::<sov_sequencer_registry::SequencerRegistry<S, MockDaSpec>>(
         "sov-sequencer-registry.json",
     )?;
     Ok(())

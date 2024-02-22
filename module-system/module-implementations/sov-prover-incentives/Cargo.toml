@@ -15,7 +15,7 @@ resolver = "2"
 tempfile = { workspace = true }
 sov-prover-incentives = { features = ["native"], path = "." }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["native"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
@@ -40,6 +40,7 @@ native = [
 	"serde_json",
 	"sov-bank/native",
 	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-prover-incentives/native",
 	"sov-state/native",

@@ -5,7 +5,8 @@ use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Gas, GasArray, StateCheckpoint,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Gas, GasArray, Spec,
+    StateCheckpoint,
 };
 use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
@@ -30,12 +31,12 @@ use sov_modules_core::AddressBech32;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: KernelSlotHooks<C, Da>> {
+pub struct StfBlueprint<S: Spec, Da: DaSpec, Vm, RT: Runtime<S, Da>, K: KernelSlotHooks<S, Da>> {
     /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
     pub(crate) kernel: K,
-    phantom_context: PhantomData<C>,
+    phantom_context: PhantomData<S>,
     phantom_vm: PhantomData<Vm>,
     phantom_da: PhantomData<Da>,
 }
@@ -86,24 +87,24 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
     }
 }
 
-impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
+impl<S, Vm, Da, RT, K> Default for StfBlueprint<S, Da, Vm, RT, K>
 where
-    C: Context,
+    S: Spec,
     Da: DaSpec,
-    RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
+    RT: Runtime<S, Da>,
+    K: KernelSlotHooks<S, Da>,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<C, Vm, Da, RT, K> StfBlueprint<C, Da, Vm, RT, K>
+impl<S, Vm, Da, RT, K> StfBlueprint<S, Da, Vm, RT, K>
 where
-    C: Context,
+    S: Spec,
     Da: DaSpec,
-    RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
+    RT: Runtime<S, Da>,
+    K: KernelSlotHooks<S, Da>,
 {
     /// [`StfBlueprint`] constructor.
     pub fn new() -> Self {
@@ -120,12 +121,12 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub(crate) fn apply_batch(
         &self,
-        mut checkpoint: StateCheckpoint<C>,
+        mut checkpoint: StateCheckpoint<S>,
         mut batch: BatchWithId,
         sender: &Da::Address,
-        gas_price: &<C::Gas as Gas>::Price,
+        gas_price: &<S::Gas as Gas>::Price,
         height: u64,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<C>, C::Gas) {
+    ) -> (ApplyBatch<Da>, StateCheckpoint<S>, S::Gas) {
         debug!(sequencer = hex::encode(sender), "Applying a batch");
 
         // ApplyBlobHook: begin
@@ -141,7 +142,7 @@ where
             return (
                 Err(ApplyBatchError::Ignored(batch.id)),
                 checkpoint,
-                C::Gas::zero(),
+                S::Gas::zero(),
             );
         }
 
@@ -166,7 +167,7 @@ where
                         sequencer_da_address: sequencer_da_address.clone(),
                     }),
                     checkpoint,
-                    C::Gas::zero(),
+                    S::Gas::zero(),
                 );
             }
         };
@@ -221,7 +222,7 @@ where
         batch: BatchWithId,
     ) -> Result<
         (
-            Vec<TransactionAndRawHash<C>>,
+            Vec<TransactionAndRawHash<S>>,
             Vec<<RT as DispatchCall>::Decodable>,
         ),
         SlashingReason,
@@ -238,16 +239,16 @@ where
     #[allow(clippy::too_many_arguments)]
     fn apply_txs(
         &self,
-        txs: Vec<TransactionAndRawHash<C>>,
+        txs: Vec<TransactionAndRawHash<S>>,
         messages: Vec<<RT as DispatchCall>::Decodable>,
         tx_receipts: &mut Vec<TransactionReceipt<TxEffect>>,
-        mut batch_workspace: StateCheckpoint<C>,
+        mut batch_workspace: StateCheckpoint<S>,
         sequencer: &Da::Address,
         sequencer_reward: &mut i64,
-        gas_price: &<C::Gas as Gas>::Price,
+        gas_price: &<S::Gas as Gas>::Price,
         height: u64,
-    ) -> (StateCheckpoint<C>, C::Gas) {
-        let mut gas_used = C::Gas::zero();
+    ) -> (StateCheckpoint<S>, S::Gas) {
+        let mut gas_used = S::Gas::zero();
         for (tx, msg) in txs.into_iter().zip(messages.into_iter()) {
             let (next_workspace, receipt) = self.apply_tx(
                 tx,
@@ -260,7 +261,7 @@ where
                 height,
             );
             batch_workspace = next_workspace;
-            gas_used.combine(&C::Gas::from_slice(&receipt.gas_used));
+            gas_used.combine(&S::Gas::from_slice(&receipt.gas_used));
             tx_receipts.push(receipt);
         }
 
@@ -274,15 +275,15 @@ where
     #[allow(clippy::too_many_arguments)]
     fn apply_tx(
         &self,
-        tx: TransactionAndRawHash<C>,
+        tx: TransactionAndRawHash<S>,
         message: <RT as DispatchCall>::Decodable,
-        mut state_checkpoint: StateCheckpoint<C>,
+        mut state_checkpoint: StateCheckpoint<S>,
         sequencer: &Da::Address,
         sequencer_reward: &mut i64,
         execution_mode: ExecutionMode,
-        gas_price: &<C::Gas as Gas>::Price,
+        gas_price: &<S::Gas as Gas>::Price,
         height: u64,
-    ) -> (StateCheckpoint<C>, TransactionReceipt<TxEffect>) {
+    ) -> (StateCheckpoint<S>, TransactionReceipt<TxEffect>) {
         let (tx, raw_tx_hash) = tx.split();
         let ctx = self
             .runtime
@@ -429,10 +430,10 @@ where
     /// A helper function which executes the transaction, returning an error if it should revert
     fn attempt_tx(
         &self,
-        tx: &Transaction<C>,
+        tx: &Transaction<S>,
         message: <RT as DispatchCall>::Decodable,
-        working_set: &mut WorkingSet<C>,
-        ctx: &C,
+        working_set: &mut WorkingSet<S>,
+        ctx: &Context<S>,
     ) -> Result<(), anyhow::Error> {
         working_set.charge_gas(&tx.gas_fixed_cost())?;
         // TODO(@preston-evans98): Consider moving this before the gas resolution.
@@ -454,7 +455,7 @@ where
     fn verify_txs_stateless(
         &self,
         batch: BatchWithId,
-    ) -> Result<Vec<TransactionAndRawHash<C>>, SlashingReason> {
+    ) -> Result<Vec<TransactionAndRawHash<S>>, SlashingReason> {
         match verify_txs_stateless(batch.txs) {
             Ok(txs) => Ok(txs),
             Err(e) => {
@@ -469,7 +470,7 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn decode_txs(
         &self,
-        txs: &[TransactionAndRawHash<C>],
+        txs: &[TransactionAndRawHash<S>],
     ) -> Result<Vec<<RT as DispatchCall>::Decodable>, SlashingReason> {
         let mut decoded_messages = Vec::with_capacity(txs.len());
         for (tx, raw_tx_hash) in txs.iter().map(|tx| tx.as_tuple()) {
@@ -488,7 +489,7 @@ where
     #[cfg(feature = "native")]
     pub(crate) fn convert_to_runtime_events(
         &self,
-        events: Vec<sov_modules_core::TypedEvent<C>>,
+        events: Vec<sov_modules_core::TypedEvent<S>>,
     ) -> Vec<StoredEvent> {
         events
             .into_iter()
@@ -502,7 +503,7 @@ where
                 StoredEvent::new(
                     &key,
                     &(Into::<AddressBech32>::into(typed_event.module_address().clone()).try_to_vec().unwrap()),
-                    &<RT as ::sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event::<C>(
+                    &<RT as ::sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event::<S>(
                         typed_event, ).expect("Unknown event type").try_to_vec().expect("unable to serialize event"),
                 )
             })
@@ -512,7 +513,7 @@ where
     #[cfg(not(feature = "native"))]
     fn convert_to_runtime_events(
         &self,
-        _events: Vec<sov_modules_core::TypedEvent<C>>,
+        _events: Vec<sov_modules_core::TypedEvent<S>>,
     ) -> Vec<StoredEvent> {
         Vec::new() // Return an empty vector
     }

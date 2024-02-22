@@ -6,7 +6,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use serde::de::DeserializeOwned;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::Context;
+use sov_modules_api::Spec;
 use sov_rollup_interface::services::batch_builder::TxHash;
 use tracing::info;
 
@@ -47,9 +47,9 @@ impl SimpleClient {
     }
 
     /// Sends multiple transactions to the sequencer for immediate publication.
-    pub async fn send_transactions<C: Context>(
+    pub async fn send_transactions<S: Spec>(
         &self,
-        txs: Vec<Transaction<C>>,
+        txs: Vec<Transaction<S>>,
         chunk_size: Option<usize>,
     ) -> Result<(), anyhow::Error> {
         let serialized_txs: Vec<Vec<u8>> = txs

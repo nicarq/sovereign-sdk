@@ -29,6 +29,7 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 sov-bank = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
 
 [features]
 default = []
@@ -38,6 +39,7 @@ native = [
 	"schemars",
 	"serde_json",
 	"sov-bank/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-state/native",
 ]

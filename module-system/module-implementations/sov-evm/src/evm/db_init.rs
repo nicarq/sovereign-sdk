@@ -13,7 +13,7 @@ pub(crate) trait InitEvmDb {
     fn insert_code(&mut self, code_hash: B256, code: Bytes);
 }
 
-impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
+impl<'a, S: sov_modules_api::Spec> InitEvmDb for EvmDb<'a, S> {
     fn insert_account_info(&mut self, sender: Address, info: AccountInfo) {
         let parent_prefix = self.accounts.prefix();
         let db_account = DbAccount::new_with_info(parent_prefix, sender, info);

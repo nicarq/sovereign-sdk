@@ -2,10 +2,11 @@
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_mock_da::MockDaVerifier;
-use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::default_spec::ZkDefaultSpec;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
+use sov_risc0_adapter::Risc0Verifier;
 use sov_state::ZkStorage;
 
 #[cfg(feature = "bench")]
@@ -34,7 +35,7 @@ pub fn main() {
     #[cfg(feature = "bench")]
     let start_cycles = risc0_zkvm_platform::syscall::sys_cycle_count();
 
-    let stf: StfBlueprint<ZkDefaultContext, _, _, Runtime<_, _>, BasicKernel<_, _>> =
+    let stf: StfBlueprint<ZkDefaultSpec<Risc0Verifier>, _, _, Runtime<_, _>, BasicKernel<_, _>> =
         StfBlueprint::new();
 
     let stf_verifier = StfVerifier::new(stf, MockDaVerifier {});

@@ -1,5 +1,5 @@
-error[E0220]: associated type `Storage` not found for `S`
-  --> tests/rpc/expose_rpc_first_generic_not_context.rs:95:1
+error[E0220]: associated type `Storage` not found for `T`
+  --> tests/rpc/expose_rpc_first_generic_not_spec.rs:95:1
    |
 95 | #[expose_rpc]
    | ^^^^^^^^^^^^^ associated type `Storage` not found

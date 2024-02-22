@@ -27,6 +27,7 @@ sov-chain-state = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-mock-da = { path = "../../../adapters/mock-da" }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
 sov-modules-core = { path = "../../sov-modules-core", version = "0.3", features = ["mocks"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
@@ -39,6 +40,7 @@ native = [
 	"serde_json",
 	"sov-chain-state/native",
 	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-core/native",
 	"sov-state/native",

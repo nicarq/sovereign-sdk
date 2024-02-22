@@ -1,13 +1,12 @@
 use std::fmt;
 
-use sov_modules_api::Context;
 use sov_modules_macros::address_type;
 
 /// Address representing a simple user capable of owning an NFT.
 #[address_type]
 pub struct UserAddress;
 
-/// Derived Address representing an NFT collection - Derived from CreatorAddress(C::Address) and collection_name: String.
+/// Derived Address representing an NFT collection - Derived from CreatorAddress(S::Address) and collection_name: String.
 #[address_type]
 pub struct CollectionAddress;
 

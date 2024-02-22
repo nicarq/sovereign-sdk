@@ -22,35 +22,35 @@ pub use sov_modules_macros::MessageCodec;
 /// ```
 /// use std::marker::PhantomData;
 ///
-/// use sov_modules_api::{WorkingSet,Error, CallResponse, Context, Module, ModuleInfo, ModuleCallJsonSchema, StateMap};
-/// use sov_modules_api::default_context::ZkDefaultContext;
+/// use sov_modules_api::{WorkingSet, Spec, Error, CallResponse, Context, Module, ModuleInfo, ModuleCallJsonSchema, StateMap};
+/// type ZkDefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 ///
 /// #[derive(ModuleInfo, ModuleCallJsonSchema)]
-/// struct TestModule<C: Context> {
+/// struct TestModule<S: Spec> {
 ///     #[address]
-///     admin: C::Address,
+///     admin: S::Address,
 ///
 ///     #[state]
 ///     pub state_map: StateMap<String, u32>,
 /// }
 ///
-/// impl<C: Context> Module for TestModule<C> {
-///     type Context = C;
-///     type Config = PhantomData<C>;
+/// impl<S: Spec> Module for TestModule<S> {
+///     type Spec = S;
+///     type Config = PhantomData<S>;
 ///     type CallMessage = ();
 ///     type Event = ();
 ///     
 ///     fn call(
 ///        &self,
 ///        _msg: Self::CallMessage,
-///        _context: &Self::Context,
-///        _working_set: &mut WorkingSet<C>,
+///        _context: &Context<Self::Spec>,
+///        _working_set: &mut WorkingSet<S>,
 ///     ) -> Result<CallResponse, Error> {
 ///        Ok(CallResponse {})
 ///     }
 /// }
 ///
-/// println!("JSON Schema: {}", TestModule::<ZkDefaultContext>::json_schema());
+/// println!("JSON Schema: {}", TestModule::<ZkDefaultSpec>::json_schema());
 /// ```
 #[cfg(feature = "macros")]
 pub use sov_modules_macros::ModuleCallJsonSchema;
@@ -72,20 +72,20 @@ pub use sov_modules_macros::ModuleCallJsonSchema;
 /// ## Example
 ///
 /// ```
-/// use sov_modules_api::{Context, ModuleInfo, StateMap};
+/// use sov_modules_api::{Spec, ModuleInfo, StateMap};
 ///
 /// #[derive(ModuleInfo)]
-/// struct TestModule<C: Context> {
+/// struct TestModule<S: Spec> {
 ///     #[address]
-///     admin: C::Address,
+///     admin: S::Address,
 ///
 ///     #[state]
 ///     pub state_map: StateMap<String, u32>,
 /// }
 ///
 /// // You can then get the prefix of `state_map` like this:
-/// fn get_prefix<C: Context>(some_storage: C::Storage) {
-///     let test_struct = TestModule::<C>::default();
+/// fn get_prefix<S: Spec>(some_storage: S::Storage) {
+///     let test_struct = TestModule::<S>::default();
 ///     let prefix1 = test_struct.state_map.prefix();
 /// }
 /// ```
@@ -117,14 +117,13 @@ pub mod macros {
     ///
     /// ## Examples
     /// ```
-    /// use sov_modules_api::{Context, DispatchCall, MessageCodec};
-    /// use sov_modules_api::default_context::DefaultContext;
+    /// use sov_modules_api::{Spec, DispatchCall, MessageCodec};
     /// use sov_modules_api::macros::CliWallet;
     ///
     /// #[derive(DispatchCall, MessageCodec, CliWallet)]
     /// #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-    /// pub struct Runtime<C: Context> {
-    ///     pub bank: sov_bank::Bank<C>,
+    /// pub struct Runtime<S: Spec> {
+    ///     pub bank: sov_bank::Bank<S>,
     ///     // ...
     /// }
     /// ```

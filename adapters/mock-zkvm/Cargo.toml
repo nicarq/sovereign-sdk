@@ -18,3 +18,31 @@ borsh = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", optional = true }
+thiserror = { workspace = true }
+
+hex = { workspace = true }
+ed25519-dalek = { version = "2", features = ["serde"] }
+sha2 = { version = "0.10.6" }
+schemars = { workspace = true, optional = true }
+arbitrary = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = [ "sov-modules" ]
+native = [
+	"ed25519-dalek/default",
+	"ed25519-dalek/rand_core",
+	"rand",
+	"sov-modules-api?/native",
+	"sov-rollup-interface/native",
+]
+arbitrary = [
+	"dep:arbitrary",
+	"sov-modules-api?/arbitrary",
+	"sov-rollup-interface/arbitrary",
+]
+sov-modules = [ "schemars", "sov-modules-api" ]

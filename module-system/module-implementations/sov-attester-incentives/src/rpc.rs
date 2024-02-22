@@ -1,6 +1,6 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Spec, StateMapAccessor, ValidityConditionChecker, WorkingSet};
+use sov_modules_api::{StateMapAccessor, ValidityConditionChecker, WorkingSet};
 use sov_state::storage::{NativeStorage, SlotKey, Storage, StorageProof};
 
 use super::AttesterIncentives;
@@ -14,9 +14,9 @@ pub struct BondAmountResponse {
 }
 
 // TODO: implement rpc_gen macro
-impl<C, Vm, Da, Checker> AttesterIncentives<C, Vm, Da, Checker>
+impl<S, Vm, Da, Checker> AttesterIncentives<S, Vm, Da, Checker>
 where
-    C: sov_modules_api::Context,
+    S: sov_modules_api::Spec,
     Vm: sov_modules_api::Zkvm,
     Da: sov_modules_api::DaSpec,
     Checker: ValidityConditionChecker<Da::ValidityCondition>,
@@ -24,9 +24,9 @@ where
     /// Queries the state of the module.
     pub fn get_bond_amount(
         &self,
-        address: C::Address,
+        address: S::Address,
         role: Role,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> BondAmountResponse {
         match role {
             Role::Attester => BondAmountResponse {
@@ -45,7 +45,7 @@ where
     }
 
     /// Gives storage key for given address
-    pub fn get_attester_storage_key(&self, address: C::Address) -> SlotKey {
+    pub fn get_attester_storage_key(&self, address: S::Address) -> SlotKey {
         let prefix = self.bonded_attesters.prefix();
         let codec = self.bonded_attesters.codec();
         SlotKey::new(prefix, &address, codec)
@@ -56,11 +56,11 @@ where
     /// attestations for this specific amount of time.
     pub fn get_bond_proof(
         &self,
-        address: C::Address,
-        working_set: &mut WorkingSet<C>,
-    ) -> StorageProof<<C::Storage as Storage>::Proof>
+        address: S::Address,
+        working_set: &mut WorkingSet<S>,
+    ) -> StorageProof<<S::Storage as Storage>::Proof>
     where
-        C::Storage: NativeStorage,
+        S::Storage: NativeStorage,
     {
         working_set.get_with_proof(self.get_attester_storage_key(address))
     }
@@ -68,9 +68,9 @@ where
     /// TODO: Make the unbonding amount queryable:
     pub fn get_unbonding_amount(
         &self,
-        _address: C::Address,
-        _witness: &<<C as Spec>::Storage as Storage>::Witness,
-        _working_set: &mut WorkingSet<C>,
+        _address: S::Address,
+        _witness: &<S::Storage as Storage>::Witness,
+        _working_set: &mut WorkingSet<S>,
     ) -> u64 {
         todo!("Make the unbonding amount queryable: https://github.com/Sovereign-Labs/sovereign-sdk/issues/675")
     }

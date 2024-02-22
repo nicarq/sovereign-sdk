@@ -55,7 +55,7 @@ impl<'a> StructDef<'a> {
 
         quote::quote! {
             impl #impl_generics ::sov_modules_api::DispatchCall for #ident #type_generics #where_clause {
-                type Context = #generic_param;
+                type Spec = #generic_param;
                 type Decodable = #call_enum #ty_generics;
 
                 fn decode_call(mut serialized_message: &[u8]) -> ::core::result::Result<Self::Decodable, ::std::io::Error> {
@@ -74,8 +74,8 @@ impl<'a> StructDef<'a> {
                 fn dispatch_call(
                     &self,
                     decodable: Self::Decodable,
-                    working_set: &mut ::sov_modules_api::WorkingSet<Self::Context>,
-                    context: &Self::Context,
+                    working_set: &mut ::sov_modules_api::WorkingSet<Self::Spec>,
+                    context: &::sov_modules_api::Context<Self::Spec>,
                 ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::Error> {
 
                     match decodable {
@@ -84,7 +84,7 @@ impl<'a> StructDef<'a> {
 
                 }
 
-                fn module_address(&self, decodable: &Self::Decodable) -> &<Self::Context as ::sov_modules_api::Spec>::Address {
+                fn module_address(&self, decodable: &Self::Decodable) -> &<Self::Spec as ::sov_modules_api::Spec>::Address {
                     match decodable {
                         #(#match_legs_address)*
                     }

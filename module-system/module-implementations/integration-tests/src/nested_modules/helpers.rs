@@ -1,4 +1,4 @@
-use sov_modules_api::{Context, EventEmitter, ModuleInfo, StateMap, StateValue, WorkingSet};
+use sov_modules_api::{Context, EventEmitter, ModuleInfo, Spec, StateMap, StateValue, WorkingSet};
 
 #[derive(
     borsh::BorshDeserialize,
@@ -20,9 +20,9 @@ pub mod module_a {
     use super::*;
 
     #[derive(ModuleInfo)]
-    pub(crate) struct ModuleA<C: Context> {
+    pub(crate) struct ModuleA<S: Spec> {
         #[address]
-        pub address_module_a: C::Address,
+        pub address_module_a: S::Address,
 
         #[state]
         pub(crate) state_1_a: StateMap<String, String>,
@@ -31,8 +31,8 @@ pub mod module_a {
         pub(crate) state_2_a: StateValue<String>,
     }
 
-    impl<C: Context> Module for ModuleA<C> {
-        type Context = C;
+    impl<S: Spec> Module for ModuleA<S> {
+        type Spec = S;
 
         type Config = ();
 
@@ -43,15 +43,15 @@ pub mod module_a {
         fn call(
             &self,
             _message: Self::CallMessage,
-            _context: &Self::Context,
-            _working_set: &mut WorkingSet<Self::Context>,
+            _context: &Context<Self::Spec>,
+            _working_set: &mut WorkingSet<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
     }
 
-    impl<C: Context> ModuleA<C> {
-        pub fn update(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<C>) {
+    impl<S: Spec> ModuleA<S> {
+        pub fn update(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<S>) {
             self.emit_event(working_set, "modulea_update", Event::Update);
             self.state_1_a
                 .set(&key.to_owned(), &value.to_owned(), working_set);
@@ -66,19 +66,19 @@ pub mod module_b {
     use super::*;
 
     #[derive(ModuleInfo)]
-    pub(crate) struct ModuleB<C: Context> {
+    pub(crate) struct ModuleB<S: Spec> {
         #[address]
-        pub address_module_b: C::Address,
+        pub address_module_b: S::Address,
 
         #[state]
         state_1_b: StateMap<String, String>,
 
         #[module]
-        pub(crate) mod_1_a: module_a::ModuleA<C>,
+        pub(crate) mod_1_a: module_a::ModuleA<S>,
     }
 
-    impl<C: Context> Module for ModuleB<C> {
-        type Context = C;
+    impl<S: Spec> Module for ModuleB<S> {
+        type Spec = S;
 
         type Config = ();
 
@@ -89,15 +89,15 @@ pub mod module_b {
         fn call(
             &self,
             _message: Self::CallMessage,
-            _context: &Self::Context,
-            _working_set: &mut WorkingSet<Self::Context>,
+            _context: &Context<Self::Spec>,
+            _working_set: &mut WorkingSet<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
     }
 
-    impl<C: Context> ModuleB<C> {
-        pub fn update(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<C>) {
+    impl<S: Spec> ModuleB<S> {
+        pub fn update(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<S>) {
             self.emit_event(working_set, "moduleb_update", Event::Update);
             self.state_1_b
                 .set(&key.to_owned(), &value.to_owned(), working_set);
@@ -112,19 +112,19 @@ pub(crate) mod module_c {
     use super::*;
 
     #[derive(ModuleInfo)]
-    pub(crate) struct ModuleC<C: Context> {
+    pub(crate) struct ModuleC<S: Spec> {
         #[address]
-        pub address: C::Address,
+        pub address: S::Address,
 
         #[module]
-        pub(crate) mod_1_a: module_a::ModuleA<C>,
+        pub(crate) mod_1_a: module_a::ModuleA<S>,
 
         #[module]
-        mod_1_b: module_b::ModuleB<C>,
+        mod_1_b: module_b::ModuleB<S>,
     }
 
-    impl<C: Context> Module for ModuleC<C> {
-        type Context = C;
+    impl<S: Spec> Module for ModuleC<S> {
+        type Spec = S;
 
         type Config = ();
 
@@ -135,15 +135,15 @@ pub(crate) mod module_c {
         fn call(
             &self,
             _message: Self::CallMessage,
-            _context: &Self::Context,
-            _working_set: &mut WorkingSet<Self::Context>,
+            _context: &Context<Self::Spec>,
+            _working_set: &mut WorkingSet<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
     }
 
-    impl<C: Context> ModuleC<C> {
-        pub fn execute(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<C>) {
+    impl<S: Spec> ModuleC<S> {
+        pub fn execute(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<S>) {
             self.emit_event(working_set, "modulec_execute", Event::Execute);
             self.mod_1_a.update(key, value, working_set);
             self.mod_1_b.update(key, value, working_set);

@@ -7,14 +7,13 @@ use risc0_zkvm::guest::env;
 #[cfg(not(target_os = "zkvm"))]
 use risc0_zkvm::serde::{Deserializer, WordRead};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
-use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
-
-use crate::Risc0MethodId;
+use sov_rollup_interface::zk::ZkvmGuest;
 
 #[cfg(target_os = "zkvm")]
 impl ZkvmGuest for Risc0Guest {
-    fn read_from_host<T: serde::de::DeserializeOwned>(&self) -> T {
+    type Verifier = crate::Risc0Verifier;
+
+    fn read_from_host<T: DeserializeOwned>(&self) -> T {
         env::read()
     }
 
@@ -98,6 +97,8 @@ impl Risc0Guest {
 
 #[cfg(not(target_os = "zkvm"))]
 impl ZkvmGuest for Risc0Guest {
+    type Verifier = crate::Risc0Verifier;
+
     fn read_from_host<T: DeserializeOwned>(&self) -> T {
         let mut hints = self.hints.lock().unwrap();
         let mut hints = hints.deref_mut();
@@ -108,29 +109,5 @@ impl ZkvmGuest for Risc0Guest {
         self.commits.lock().unwrap().extend_from_slice(
             &risc0_zkvm::serde::to_vec(item).expect("Serialization to vec is infallible"),
         );
-    }
-}
-
-impl Zkvm for Risc0Guest {
-    type CodeCommitment = Risc0MethodId;
-
-    type Error = anyhow::Error;
-
-    fn verify(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
-        // Implement this method once risc0 supports recursion: issue #633
-        todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
-    }
-
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        todo!()
     }
 }

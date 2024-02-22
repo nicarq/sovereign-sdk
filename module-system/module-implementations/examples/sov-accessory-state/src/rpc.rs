@@ -15,11 +15,11 @@ pub struct ValueResponse {
 }
 
 #[rpc_gen(client, server, namespace = "accessorySetter")]
-impl<C: sov_modules_api::Context> AccessorySetter<C> {
+impl<S: sov_modules_api::Spec> AccessorySetter<S> {
     /// Returns the latest value set in the accessory state via
     /// [`CallMessage::SetValueAccessory`](crate::CallMessage::SetValueAccessory).
     #[rpc_method(name = "value")]
-    pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<ValueResponse> {
+    pub fn query_value(&self, working_set: &mut WorkingSet<S>) -> RpcResult<ValueResponse> {
         Ok(ValueResponse {
             value: self.accessory_value.get(&mut working_set.accessory_state()),
         })

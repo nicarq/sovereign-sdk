@@ -668,6 +668,7 @@ version = "0.5.2"
 source = "git+https://github.com/risc0/RustCrypto-crypto-bigint?tag=v0.5.2-risc0#8b30304277cfe553b51a78a0e693f48bbb059eb3"
 dependencies = [
  "getrandom",
+ "rand_core",
  "subtle",
  "zeroize",
 ]
@@ -697,6 +698,7 @@ dependencies = [
  "platforms",
  "rustc_version 0.4.0",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -882,6 +884,7 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -2158,6 +2161,9 @@ name = "signature"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
+dependencies = [
+ "rand_core",
+]
 
 [[package]]
 name = "slab"
@@ -2283,7 +2289,6 @@ dependencies = [
  "bech32",
  "borsh 0.10.3",
  "derive_more",
- "ed25519-dalek",
  "hex",
  "serde",
  "sha2 0.10.8",
@@ -2364,13 +2369,18 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "borsh 0.10.3",
  "bytemuck",
+ "crypto-bigint",
+ "ed25519-dalek",
  "hex",
  "risc0-cycle-utils",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
+ "sha2 0.10.8",
  "sov-rollup-interface",
+ "thiserror",
  "tracing",
 ]
 

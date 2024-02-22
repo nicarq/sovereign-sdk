@@ -19,10 +19,10 @@ Example usage:
 
 /// Runtime is a collection of sov modules defined in the rollup.
 #[derive(Genesis, DispatchCall, MessageCodec)]
-pub struct Runtime<C: Context> {
-    accounts: accounts::Accounts<C>,
-    bank: sov_bank::Bank<C>,
-    sequencer: sequencer::Sequencer<C>,
+pub struct Runtime<S: Spec> {
+    accounts: accounts::Accounts<S>,
+    bank: sov_bank::Bank<S>,
+    sequencer: sequencer::Sequencer<S>,
     ...
     some other modules
 }
@@ -56,7 +56,7 @@ Here is an example of a `constants.json` file:
       "transfer": [5, 5],
       "burn": [2, 2],
       "mint": [2, 2],
-      "freeze": [1, 1],
+      "freeze": [1, 1]
     }
   },
   "constants": {

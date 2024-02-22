@@ -25,7 +25,7 @@ tracing = { workspace = true }
 sov-modules-api = { path = "../../sov-modules-api", features = ["native"] }
 sov-state = { path = "../../sov-state", features = ["native"] }
 
-sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
 sov-schema-db = { path = "../../../full-node/db/sov-schema-db" }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-rollup-interface = { path = "../../../rollup-interface", features = ["native"] }
@@ -45,6 +45,7 @@ native = [
 	"sov-bank/native",
 	"sov-chain-state/native",
 	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
 	"sov-rollup-interface/native",

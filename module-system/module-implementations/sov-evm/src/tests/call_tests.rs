@@ -1,6 +1,5 @@
 use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Context, GasMeter, KernelWorkingSet, Module, StateCheckpoint, StateMapAccessor,
@@ -14,7 +13,7 @@ use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::genesis_tests::setup;
 use crate::tests::test_signer::TestSigner;
 use crate::{AccountData, EvmConfig};
-type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[test]
 fn call_test() {
@@ -51,9 +50,9 @@ fn call_test() {
     let set_arg = 999;
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     {
-        let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let sender_address = generate_address::<S>("sender");
+        let sequencer_address = generate_address::<S>("sequencer");
+        let context = Context::<S>::new(sender_address, sequencer_address, 1);
 
         let messages = vec![
             create_contract_message(&dev_signer, 0),
@@ -121,9 +120,9 @@ fn failed_transaction_test() {
     evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     {
-        let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let sender_address = generate_address::<S>("sender");
+        let sequencer_address = generate_address::<S>("sequencer");
+        let context = Context::<S>::new(sender_address, sequencer_address, 1);
         let message = create_contract_message(&dev_signer, 0);
         evm.call(message, &context, &mut working_set).unwrap();
     }

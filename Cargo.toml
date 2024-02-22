@@ -128,9 +128,9 @@ reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed891549
 alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", rev = "a4453d4" }
 
 # Matches reth dependency. Using exact revision for matching our tightly coupled usage of both reth and revm crates
-revm = { git = "https://github.com/bluealloy/revm", rev = "d6bd0109e5b5c37505fe25017b8ca5c2ea5ae6ca", default-features = false, features = ["serde"] }
+revm = { version = "5.0.0", default-features = false, features = ["serde"] }
 # Used just to be safe about breaking changes
-revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "d6bd0109e5b5c37505fe25017b8ca5c2ea5ae6ca", default-features = false }
+revm-primitives = { version = "=2.0.0", default-features = false }
 secp256k1 = { version = "0.27", default-features = false, features = ["global-context", "rand-std", "recovery"] }
 
 

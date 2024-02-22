@@ -3,18 +3,19 @@ use std::collections::VecDeque;
 
 use borsh::BorshSerialize;
 use sov_modules_api::transaction::Transaction;
+use sov_modules_api::CryptoSpec;
 
-pub struct EthBatchBuilder<C: sov_modules_api::Context> {
+pub struct EthBatchBuilder<S: sov_modules_api::Spec> {
     mempool: VecDeque<Vec<u8>>,
-    sov_tx_signer_private_key: C::PrivateKey,
+    sov_tx_signer_private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     nonce: u64,
     min_blob_size: Option<usize>,
 }
 
-impl<C: sov_modules_api::Context> EthBatchBuilder<C> {
+impl<S: sov_modules_api::Spec> EthBatchBuilder<S> {
     /// Creates a new `EthBatchBuilder`.
     pub fn new(
-        sov_tx_signer_private_key: C::PrivateKey,
+        sov_tx_signer_private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
         nonce: u64,
         min_blob_size: Option<usize>,
     ) -> Self {
@@ -40,7 +41,7 @@ impl<C: sov_modules_api::Context> EthBatchBuilder<C> {
             let gas_limit = 0;
             let max_gas_price = None;
 
-            let raw_tx = Transaction::<C>::new_signed_tx(
+            let raw_tx = Transaction::<S>::new_signed_tx(
                 &self.sov_tx_signer_private_key,
                 raw_message,
                 chain_id,

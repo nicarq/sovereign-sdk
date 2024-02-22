@@ -7,7 +7,6 @@ use sov_chain_state::ChainStateConfig;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::da::Time;
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::tx_verifier::RawTx;
@@ -25,7 +24,7 @@ use sov_state::{jmt, DefaultStorageSpec, ProverStorage, Storage};
 use sov_test_utils::new_test_blob_from_batch;
 use tracing::{debug, info};
 
-type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 type Da = MockDaSpec;
 
 const LOCKED_AMOUNT: u64 = 200;
@@ -36,10 +35,10 @@ const REGULAR_SEQUENCER_ROLLUP: Address = Address::new(*b"regular_______________
 const REGULAR_REWARD_ROLLUP: Address = Address::new(*b"regular_reward__________________");
 
 fn get_bank_config(
-    preferred_sequencer: <C as Spec>::Address,
-    regular_sequencer: <C as Spec>::Address,
-) -> sov_bank::BankConfig<C> {
-    let token_config: TokenConfig<C> = TokenConfig {
+    preferred_sequencer: <S as Spec>::Address,
+    regular_sequencer: <S as Spec>::Address,
+) -> sov_bank::BankConfig<S> {
+    let token_config: TokenConfig<S> = TokenConfig {
         token_name: "InitialToken".to_owned(),
         address_and_balances: vec![
             (preferred_sequencer, LOCKED_AMOUNT * 3),
@@ -159,7 +158,7 @@ fn do_deferred_blob_test(
     // Define the kernel
     let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
-    let test_kernel = SoftConfirmationsKernel::<C, Da>::default();
+    let test_kernel = SoftConfirmationsKernel::<S, Da>::default();
     test_kernel
         .genesis(
             &SoftConfirmationsKernelGenesisConfig {
@@ -424,7 +423,7 @@ fn test_recovery_mode() {
     // Define the kernel
     let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
-    let test_kernel = SoftConfirmationsKernel::<C, Da>::default();
+    let test_kernel = SoftConfirmationsKernel::<S, Da>::default();
     test_kernel
         .genesis(
             &SoftConfirmationsKernelGenesisConfig {
@@ -539,7 +538,7 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
 
     // Define the kernel
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
-    let test_kernel = BasicKernel::<C, Da>::default();
+    let test_kernel = BasicKernel::<S, Da>::default();
     test_kernel
         .genesis(
             &BasicKernelGenesisConfig {
@@ -606,7 +605,7 @@ fn test_based_sequencing() {
 
     // Define the kernel
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
-    let test_kernel = BasicKernel::<C, Da>::default();
+    let test_kernel = BasicKernel::<S, Da>::default();
     test_kernel
         .genesis(
             &BasicKernelGenesisConfig {
@@ -756,12 +755,12 @@ impl<B> BlobWithAppearance<B> {
 
 #[derive(sov_modules_api::Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-struct TestRuntime<C: Context, Da: DaSpec> {
-    pub bank: sov_bank::Bank<C>,
-    pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<C, Da>,
+struct TestRuntime<S: Spec, Da: DaSpec> {
+    pub bank: sov_bank::Bank<S>,
+    pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S, Da>,
 }
 
-impl TestRuntime<DefaultContext, MockDaSpec> {
+impl TestRuntime<S, MockDaSpec> {
     pub fn pre_initialized(
         with_preferred_sequencer: bool,
     ) -> (ProverStorage<DefaultStorageSpec>, Self, jmt::RootHash) {
@@ -784,7 +783,7 @@ impl TestRuntime<DefaultContext, MockDaSpec> {
             .sequencer_registry
             .call(
                 register_message,
-                &C::new(REGULAR_SEQUENCER_ROLLUP, REGULAR_REWARD_ROLLUP, 1),
+                &Context::<S>::new(REGULAR_SEQUENCER_ROLLUP, REGULAR_REWARD_ROLLUP, 1),
                 &mut working_set,
             )
             .unwrap();
@@ -796,12 +795,10 @@ impl TestRuntime<DefaultContext, MockDaSpec> {
         (storage, runtime, genesis_root)
     }
 
-    fn build_genesis_config(
-        with_preferred_sequencer: bool,
-    ) -> GenesisConfig<DefaultContext, MockDaSpec> {
+    fn build_genesis_config(with_preferred_sequencer: bool) -> GenesisConfig<S, MockDaSpec> {
         let bank_config = get_bank_config(PREFERRED_SEQUENCER_ROLLUP, REGULAR_SEQUENCER_ROLLUP);
 
-        let token_address = sov_bank::get_genesis_token_address::<C>(
+        let token_address = sov_bank::get_genesis_token_address::<S>(
             &bank_config.tokens[0].token_name,
             bank_config.tokens[0].salt,
         );

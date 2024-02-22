@@ -86,20 +86,20 @@ impl GasPriceOracleConfig {
 }
 
 /// Calculates a gas price depending on recent blocks.
-pub struct GasPriceOracle<C: sov_modules_api::Context, Da: DaSpec> {
+pub struct GasPriceOracle<S: sov_modules_api::Spec, Da: DaSpec> {
     /// The type used to get block and tx info
-    provider: Evm<C, Da>,
+    provider: Evm<S, Da>,
     /// The config for the oracle
     oracle_config: GasPriceOracleConfig,
     /// The latest calculated price and its block hash
     last_price: Mutex<GasPriceOracleResult>,
     /// Cache
-    cache: BlockCache<C, Da>,
+    cache: BlockCache<S, Da>,
 }
 
-impl<C: sov_modules_api::Context, Da: DaSpec> GasPriceOracle<C, Da> {
+impl<S: sov_modules_api::Spec, Da: DaSpec> GasPriceOracle<S, Da> {
     /// Creates and returns the [GasPriceOracle].
-    pub fn new(provider: Evm<C, Da>, mut oracle_config: GasPriceOracleConfig) -> Self {
+    pub fn new(provider: Evm<S, Da>, mut oracle_config: GasPriceOracleConfig) -> Self {
         // sanitize the percentile to be less than 100
         if oracle_config.percentile > 100 {
             warn!(prev_percentile = ?oracle_config.percentile, "Invalid configured gas price percentile, assuming 100");
@@ -112,12 +112,12 @@ impl<C: sov_modules_api::Context, Da: DaSpec> GasPriceOracle<C, Da> {
             provider: provider.clone(),
             oracle_config,
             last_price: Default::default(),
-            cache: BlockCache::<C, Da>::new(max_header_history, provider),
+            cache: BlockCache::<S, Da>::new(max_header_history, provider),
         }
     }
 
     /// Suggests a gas price estimate based on recent blocks, using the configured percentile.
-    pub async fn suggest_tip_cap(&self, working_set: &mut WorkingSet<C>) -> EthResult<U256> {
+    pub async fn suggest_tip_cap(&self, working_set: &mut WorkingSet<S>) -> EthResult<U256> {
         let header = &self
             .provider
             .get_block_by_number(None, None, working_set)
@@ -206,7 +206,7 @@ impl<C: sov_modules_api::Context, Da: DaSpec> GasPriceOracle<C, Da> {
         &self,
         block_hash: B256,
         limit: usize,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> EthResult<Option<(B256, Vec<U256>)>> {
         // check the cache (this will hit the disk if the block is not cached)
         let block = match self.cache.get_block(block_hash, working_set)? {

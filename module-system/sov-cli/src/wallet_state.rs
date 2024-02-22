@@ -8,29 +8,29 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{clap, Context, PrivateKey};
+use sov_modules_api::{clap, CryptoSpec, PrivateKey, Spec};
 
 /// A struct representing the current state of the CLI wallet
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(bound = "Ctx::Address: Serialize + DeserializeOwned, Tx: Serialize + DeserializeOwned")]
-pub struct WalletState<Tx, Ctx: sov_modules_api::Context>
+#[serde(bound = "S::Address: Serialize + DeserializeOwned, Tx: Serialize + DeserializeOwned")]
+pub struct WalletState<Tx, S: sov_modules_api::Spec>
 where
     Tx: BorshSerialize + BorshDeserialize,
 {
     /// The accumulated transactions to be submitted to the DA layer
-    pub unsent_transactions: Vec<UnsignedTransaction<Ctx, Tx>>,
+    pub unsent_transactions: Vec<UnsignedTransaction<S, Tx>>,
     /// The addresses in the wallet
-    pub addresses: AddressList<Ctx>,
+    pub addresses: AddressList<S>,
     /// The addresses in the wallet
     pub rpc_url: Option<String>,
     /// The version of the library that serialized the state.
     pub version: String,
 }
 
-impl<Tx, Ctx> Default for WalletState<Tx, Ctx>
+impl<Tx, S> Default for WalletState<Tx, S>
 where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
-    Ctx: Context,
+    S: Spec,
 {
     fn default() -> Self {
         Self {
@@ -44,10 +44,10 @@ where
     }
 }
 
-impl<Tx, Ctx> WalletState<Tx, Ctx>
+impl<Tx, S> WalletState<Tx, S>
 where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
-    Ctx: Context,
+    S: Spec,
 {
     /// Load the wallet state from the given path on disk
     pub fn load(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
@@ -114,7 +114,7 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
     /// nonce for each transaction, incrementally.
     pub fn take_signed_transactions(
         &mut self,
-        signing_key: &Ctx::PrivateKey,
+        signing_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
         nonce: u64,
     ) -> Vec<Vec<u8>> {
         mem::take(&mut self.unsent_transactions)
@@ -132,7 +132,7 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
                     },
                 )| {
                     let runtime_msg = tx.try_to_vec().unwrap();
-                    let tx = Transaction::<Ctx>::new_signed_tx(
+                    let tx = Transaction::<S>::new_signed_tx(
                         signing_key,
                         runtime_msg,
                         chain_id,
@@ -151,24 +151,24 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
 
 /// A struct representing private key and associated address
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound = "Ctx::Address: Serialize + DeserializeOwned")]
-pub struct PrivateKeyAndAddress<Ctx: sov_modules_api::Context> {
+#[serde(bound = "S::Address: Serialize + DeserializeOwned")]
+pub struct PrivateKeyAndAddress<S: sov_modules_api::Spec> {
     /// Private key of the address
-    pub private_key: Ctx::PrivateKey,
+    pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     /// Address associated from the private key
-    pub address: Ctx::Address,
+    pub address: S::Address,
 }
 
-impl<Ctx: sov_modules_api::Context> PrivateKeyAndAddress<Ctx> {
+impl<S: sov_modules_api::Spec> PrivateKeyAndAddress<S> {
     /// Returns boolean if the private key matches default address
     pub fn is_matching_to_default(&self) -> bool {
-        self.private_key.to_address::<Ctx::Address>() == self.address
+        self.private_key.to_address::<S::Address>() == self.address
     }
 
     /// Randomly generates a new private key and address
     pub fn generate() -> Self {
-        let private_key = Ctx::PrivateKey::generate();
-        let address = private_key.to_address::<Ctx::Address>();
+        let private_key = <S::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+        let address = private_key.to_address::<S::Address>();
         Self {
             private_key,
             address,
@@ -176,8 +176,8 @@ impl<Ctx: sov_modules_api::Context> PrivateKeyAndAddress<Ctx> {
     }
 
     /// Generates valid private key and address from given private key
-    pub fn from_key(private_key: Ctx::PrivateKey) -> Self {
-        let address = private_key.to_address::<Ctx::Address>();
+    pub fn from_key(private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey) -> Self {
+        let address = private_key.to_address::<S::Address>();
         Self {
             private_key,
             address,
@@ -196,13 +196,13 @@ pub struct HexPrivateAndAddress {
     pub address: String,
 }
 
-impl<Ctx: sov_modules_api::Context> TryFrom<HexPrivateAndAddress> for PrivateKeyAndAddress<Ctx> {
+impl<S: sov_modules_api::Spec> TryFrom<HexPrivateAndAddress> for PrivateKeyAndAddress<S> {
     type Error = anyhow::Error;
 
     fn try_from(value: HexPrivateAndAddress) -> Result<Self, Self::Error> {
         let private_key_bytes = hex::decode(value.hex_priv_key)?;
-        let private_key = Ctx::PrivateKey::try_from(&private_key_bytes)?;
-        let address = Ctx::Address::from_str(&value.address)?;
+        let private_key = <S::CryptoSpec as CryptoSpec>::PrivateKey::try_from(&private_key_bytes)?;
+        let address = S::Address::from_str(&value.address)?;
         Ok(PrivateKeyAndAddress {
             private_key,
             address,
@@ -212,31 +212,28 @@ impl<Ctx: sov_modules_api::Context> TryFrom<HexPrivateAndAddress> for PrivateKey
 
 /// A list of addresses associated with this wallet
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(bound = "Ctx::Address: Serialize + DeserializeOwned")]
-pub struct AddressList<Ctx: sov_modules_api::Context> {
+#[serde(bound = "S::Address: Serialize + DeserializeOwned")]
+pub struct AddressList<S: sov_modules_api::Spec> {
     /// All addresses which are known by the wallet. The active address is stored
     /// first in this array
-    addresses: Vec<AddressEntry<Ctx>>,
+    addresses: Vec<AddressEntry<S>>,
 }
 
-impl<Ctx: sov_modules_api::Context> AddressList<Ctx> {
+impl<S: sov_modules_api::Spec> AddressList<S> {
     /// Get the active address
-    pub fn default_address(&self) -> Option<&AddressEntry<Ctx>> {
+    pub fn default_address(&self) -> Option<&AddressEntry<S>> {
         self.addresses.first()
     }
 
     /// Get an address by identifier
-    pub fn get_address(
-        &mut self,
-        identifier: &KeyIdentifier<Ctx>,
-    ) -> Option<&mut AddressEntry<Ctx>> {
+    pub fn get_address(&mut self, identifier: &KeyIdentifier<S>) -> Option<&mut AddressEntry<S>> {
         self.addresses
             .iter_mut()
             .find(|entry| entry.matches(identifier))
     }
 
     /// Activate a key by identifier
-    pub fn activate(&mut self, identifier: &KeyIdentifier<Ctx>) -> Option<&AddressEntry<Ctx>> {
+    pub fn activate(&mut self, identifier: &KeyIdentifier<S>) -> Option<&AddressEntry<S>> {
         let (idx, _) = self
             .addresses
             .iter()
@@ -247,16 +244,16 @@ impl<Ctx: sov_modules_api::Context> AddressList<Ctx> {
     }
 
     /// Remove an address from the wallet by identifier
-    pub fn remove(&mut self, identifier: &KeyIdentifier<Ctx>) {
+    pub fn remove(&mut self, identifier: &KeyIdentifier<S>) {
         self.addresses.retain(|entry| !entry.matches(identifier));
     }
 
     /// Add an address to the wallet
     pub fn add(
         &mut self,
-        address: Ctx::Address,
+        address: S::Address,
         nickname: Option<String>,
-        public_key: Ctx::PublicKey,
+        public_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         location: PathBuf,
     ) {
         let entry = AddressEntry {
@@ -271,27 +268,27 @@ impl<Ctx: sov_modules_api::Context> AddressList<Ctx> {
 
 /// An entry in the address list
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(bound = "Ctx::Address: Serialize + DeserializeOwned")]
-pub struct AddressEntry<Ctx: sov_modules_api::Context> {
+#[serde(bound = "S::Address: Serialize + DeserializeOwned")]
+pub struct AddressEntry<S: sov_modules_api::Spec> {
     /// The address
-    pub address: Ctx::Address,
+    pub address: S::Address,
     /// A user-provided nickname
     pub nickname: Option<String>,
     /// The location of the private key on disk
     pub location: PathBuf,
     /// The public key associated with the address
     #[serde(with = "pubkey_hex")]
-    pub pub_key: Ctx::PublicKey,
+    pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
 }
 
-impl<Ctx: sov_modules_api::Context> AddressEntry<Ctx> {
+impl<S: sov_modules_api::Spec> AddressEntry<S> {
     /// Check if the address entry matches the given nickname
     pub fn is_nicknamed(&self, nickname: &str) -> bool {
         self.nickname.as_deref() == Some(nickname)
     }
 
     /// Check if the address entry matches the given identifier
-    pub fn matches(&self, identifier: &KeyIdentifier<Ctx>) -> bool {
+    pub fn matches(&self, identifier: &KeyIdentifier<S>) -> bool {
         match identifier {
             KeyIdentifier::ByNickname { nickname } => self.is_nicknamed(nickname),
             KeyIdentifier::ByAddress { address } => &self.address == address,
@@ -301,7 +298,7 @@ impl<Ctx: sov_modules_api::Context> AddressEntry<Ctx> {
 
 /// An identifier for a key in the wallet
 #[derive(Debug, clap::Subcommand, Clone)]
-pub enum KeyIdentifier<C: sov_modules_api::Context> {
+pub enum KeyIdentifier<S: sov_modules_api::Spec> {
     /// Select a key by nickname
     ByNickname {
         /// The nickname
@@ -310,10 +307,10 @@ pub enum KeyIdentifier<C: sov_modules_api::Context> {
     /// Select a key by its associated address
     ByAddress {
         /// The address
-        address: C::Address,
+        address: S::Address,
     },
 }
-impl<C: sov_modules_api::Context> std::fmt::Display for KeyIdentifier<C> {
+impl<S: sov_modules_api::Spec> std::fmt::Display for KeyIdentifier<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             KeyIdentifier::ByNickname { nickname } => nickname.fmt(f),
@@ -354,7 +351,7 @@ mod pubkey_hex {
         D: Deserializer<'de>,
         C: PublicKey + BorshDeserialize,
     {
-        struct HexPubkeyVisitor<C>(PhantomData<C>);
+        struct HexPubkeyVisitor<S>(PhantomData<S>);
 
         impl<'de, C: PublicKey + BorshDeserialize> Visitor<'de> for HexPubkeyVisitor<C> {
             type Value = C;
@@ -388,18 +385,17 @@ mod pubkey_hex {
 
 #[cfg(test)]
 mod tests {
-    use sov_modules_api::default_context::DefaultContext;
-
     use super::*;
 
-    type C = DefaultContext;
+    type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+
     #[test]
     fn test_private_key_and_address() {
-        let private_key_and_address = PrivateKeyAndAddress::<C>::generate();
+        let private_key_and_address = PrivateKeyAndAddress::<S>::generate();
 
         let json = serde_json::to_string_pretty(&private_key_and_address).unwrap();
 
-        let decoded: PrivateKeyAndAddress<C> = serde_json::from_str(&json).unwrap();
+        let decoded: PrivateKeyAndAddress<S> = serde_json::from_str(&json).unwrap();
 
         assert_eq!(
             private_key_and_address.private_key.pub_key(),
@@ -410,7 +406,7 @@ mod tests {
 
     #[test]
     fn test_hex_private_key_conversion() {
-        let private_key_and_address = PrivateKeyAndAddress::<C>::generate();
+        let private_key_and_address = PrivateKeyAndAddress::<S>::generate();
 
         let hex_private_key = private_key_and_address.private_key.as_hex();
         let address_string = private_key_and_address.address.to_string();
@@ -420,7 +416,7 @@ mod tests {
             address: address_string,
         };
 
-        let converted = PrivateKeyAndAddress::<C>::try_from(hex_private_key_and_address).unwrap();
+        let converted = PrivateKeyAndAddress::<S>::try_from(hex_private_key_and_address).unwrap();
 
         assert_eq!(
             private_key_and_address.private_key.pub_key(),

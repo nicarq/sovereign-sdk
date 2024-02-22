@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_modules_core::kernel_state::BootstrapWorkingSet;
-use sov_modules_core::{Context, KernelWorkingSet, Prefix, StateCodec, StateValueCodec};
+use sov_modules_core::{KernelWorkingSet, Prefix, Spec, StateCodec, StateValueCodec};
 use sov_state::codec::BorshCodec;
 
 use super::traits::StateValueAccessor;
@@ -46,12 +46,12 @@ impl<V, Codec> KernelStateValue<V, Codec> {
     }
 }
 
-impl<'a, V, Codec, C> StateValueAccessor<V, Codec, KernelWorkingSet<'a, C>>
+impl<'a, V, Codec, S> StateValueAccessor<V, Codec, KernelWorkingSet<'a, S>>
     for KernelStateValue<V, Codec>
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateValueCodec<V>,
-    C: Context,
+    S: Spec,
 {
     fn prefix(&self) -> &Prefix {
         &self.prefix
@@ -62,12 +62,12 @@ where
     }
 }
 
-impl<'a, V, Codec, C> StateValueAccessor<V, Codec, BootstrapWorkingSet<'a, C>>
+impl<'a, V, Codec, S> StateValueAccessor<V, Codec, BootstrapWorkingSet<'a, S>>
     for KernelStateValue<V, Codec>
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateValueCodec<V>,
-    C: Context,
+    S: Spec,
 {
     fn prefix(&self) -> &Prefix {
         &self.prefix

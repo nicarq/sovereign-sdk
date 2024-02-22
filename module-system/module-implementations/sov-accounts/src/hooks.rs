@@ -1,16 +1,18 @@
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, PublicKey, StateAccessor, StateCheckpoint, StateMapAccessor};
+use sov_modules_api::{
+    Context, CryptoSpec, PublicKey, Spec, StateAccessor, StateCheckpoint, StateMapAccessor,
+};
 
 use crate::{Account, Accounts};
 
-impl<C: Context> Accounts<C> {
+impl<S: Spec> Accounts<S> {
     /// Unconditionally fetches the address associated with the provided public key. If the account
     /// did not previously exist, the default public key is returned but no new account is created.
     pub fn get_address(
         &self,
-        pubkey: &C::PublicKey,
-        working_set: &mut StateCheckpoint<C>,
-    ) -> C::Address {
+        pubkey: &<S::CryptoSpec as CryptoSpec>::PublicKey,
+        working_set: &mut StateCheckpoint<S>,
+    ) -> S::Address {
         self.accounts
             .get(pubkey, working_set)
             .map(|a| a.addr)
@@ -19,14 +21,14 @@ impl<C: Context> Accounts<C> {
 
     pub(crate) fn get_or_create_default(
         &self,
-        pub_key: &C::PublicKey,
+        pub_key: &<S::CryptoSpec as CryptoSpec>::PublicKey,
         working_set: &mut impl StateAccessor,
-    ) -> Account<C>
+    ) -> Account<S>
 where {
         if let Some(acct) = self.accounts.get(pub_key, working_set) {
             acct
         } else {
-            let default_address: C::Address = pub_key.to_address();
+            let default_address: S::Address = pub_key.to_address();
 
             let new_account = Account {
                 addr: default_address.clone(),
@@ -44,9 +46,9 @@ where {
     // TODO(@preston-evans98): Enforce that this is read-only
     pub fn check_uniqueness(
         &self,
-        tx: &Transaction<C>,
-        _context: &C,
-        state_checkpoint: &mut StateCheckpoint<C>,
+        tx: &Transaction<S>,
+        _context: &Context<S>,
+        state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<(), anyhow::Error> {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
         // This will require a change to the account state layout
@@ -69,8 +71,8 @@ where {
     /// Marks a transaction as attempted, ensuring that future attempts at execution will fail
     pub fn mark_tx_attempted(
         &self,
-        tx: &Transaction<C>,
-        state_checkpoint: &mut StateCheckpoint<C>,
+        tx: &Transaction<S>,
+        state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
         // This will require a change to the account state layout
@@ -82,9 +84,9 @@ where {
     /// Resolve the sender public key to an address
     pub fn resolve_sender_address(
         &self,
-        tx: &Transaction<C>,
-        state_checkpoint: &mut StateCheckpoint<C>,
-    ) -> C::Address {
+        tx: &Transaction<S>,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) -> S::Address {
         self.get_address(tx.pub_key(), state_checkpoint)
     }
 }

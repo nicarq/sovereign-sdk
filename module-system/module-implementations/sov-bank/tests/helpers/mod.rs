@@ -1,22 +1,21 @@
 use sov_bank::{BankConfig, TokenConfig};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address as gen_address_generic;
 use sov_modules_api::Address;
 
-pub type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 // This code is not actually dead; rustc treats each test file as a separate crate
 // so this code looks unused during some of the compilations.
 #[allow(dead_code)]
 pub fn generate_address(name: &str) -> Address {
-    gen_address_generic::<C>(name)
+    gen_address_generic::<S>(name)
 }
 
 #[allow(dead_code)]
 pub fn create_bank_config_with_token(
     addresses_count: usize,
     initial_balance: u64,
-) -> BankConfig<C> {
+) -> BankConfig<S> {
     let address_and_balances = (0..addresses_count)
         .map(|i| {
             let key = format!("key_{}", i);

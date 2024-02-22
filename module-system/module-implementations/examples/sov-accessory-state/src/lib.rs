@@ -8,7 +8,8 @@ mod rpc;
 pub use rpc::*;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    AccessoryStateValue, CallResponse, Context, Error, Module, ModuleInfo, StateValue, WorkingSet,
+    AccessoryStateValue, CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue,
+    WorkingSet,
 };
 
 /// [`AccessorySetter`] is a module that stores data both *inside* the JMT and
@@ -23,10 +24,10 @@ use sov_modules_api::{
 /// it is not accessible inside the zkVM and can only be accessed with
 /// `#[cfg(feature = "native")]`.
 #[derive(ModuleInfo)]
-pub struct AccessorySetter<C: sov_modules_api::Context> {
+pub struct AccessorySetter<S: sov_modules_api::Spec> {
     /// The address of the module.
     #[address]
-    pub address: C::Address,
+    pub address: S::Address,
     /// Some arbitrary value stored in the JMT to demonstrate the difference
     /// between the JMT and accessory state.
     #[state]
@@ -45,8 +46,8 @@ pub enum CallMessage {
     SetValueAccessory(String),
 }
 
-impl<C: Context> Module for AccessorySetter<C> {
-    type Context = C;
+impl<S: Spec> Module for AccessorySetter<S> {
+    type Spec = S;
 
     type Config = ();
 
@@ -57,8 +58,8 @@ impl<C: Context> Module for AccessorySetter<C> {
     fn call(
         &self,
         msg: Self::CallMessage,
-        _context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        _context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             CallMessage::SetValueAccessory(new_value) => {

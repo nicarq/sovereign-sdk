@@ -23,13 +23,13 @@ except that the `method` annotation has been renamed to `rpc_method` to clarify 
 use sov_modules_api::macros::rpc_gen;
 
 #[rpc_gen(client, server, namespace = "bank")]
-impl<C: Context> Bank<C> {
+impl<S: Spec> Bank<S> {
     #[rpc_method(name = "balanceOf")]
     pub(crate) fn balance_of(
         &self,
-        user_address: C::Address,
-        token_address: C::Address,
-        working_set: &mut WorkingSet<C>,
+        user_address: S::Address,
+        token_address: S::Address,
+        working_set: &mut WorkingSet<S>,
     ) ->  RpcResult<BalanceResponse> {
     ...
     }
@@ -37,8 +37,8 @@ impl<C: Context> Bank<C> {
     #[rpc_method(name = "supplyOf")]
     pub(crate) fn supply_of(
         &self,
-        token_address: C::Address,
-        working_set: &mut WorkingSet<C>,
+        token_address: S::Address,
+        working_set: &mut WorkingSet<S>,
     ) -> RpcResult<TotalSupplyResponse> {
      ...
     }
@@ -68,8 +68,8 @@ use sov_bank::{BankRpcImpl, BankRpcServer};
 )]
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-pub struct Runtime<C: Context> {
-    pub bank: sov_bank::Bank<C>,
+pub struct Runtime<S: Spec> {
+    pub bank: sov_bank::Bank<S>,
     ...
 }
 ```
@@ -128,29 +128,33 @@ fn main() {
 ```
 
 ## Enabling Archival queries for RPC
-* We use `working_set: &mut WorkingSet<C>` in order to query state. `WorkingSet` has a function `working_set.set_archival_version(v)` where v is of type `u64` and represents the block height. 
-* Once the `set_archival_version` is called, the working_set is configured to query against the state at height `v`.
-* To modify an RPC query of the form
+
+- We use `working_set: &mut WorkingSet<S>` in order to query state. `WorkingSet` has a function `working_set.set_archival_version(v)` where v is of type `u64` and represents the block height.
+- Once the `set_archival_version` is called, the working_set is configured to query against the state at height `v`.
+- To modify an RPC query of the form
+
 ```rust
 pub fn balance_of(
          &self,
-         user_address: C::Address,
-         token_address: C::Address,
-         working_set: &mut WorkingSet<C>,
+         user_address: S::Address,
+         token_address: S::Address,
+         working_set: &mut WorkingSet<S>,
      ) -> RpcResult<BalanceResponse> {
     Ok(BalanceResponse {
         amount: self.get_balance_of(user_address, token_address, working_set),
     })
 }
 ```
+
 We need to make the following changes
+
 ```rust
 pub fn balance_of(
          &self,
          version: Option<u64>,
-         user_address: C::Address,
-         token_address: C::Address,
-         working_set: &mut WorkingSet<C>,
+         user_address: S::Address,
+         token_address: S::Address,
+         working_set: &mut WorkingSet<S>,
      ) -> RpcResult<BalanceResponse> {
     if let Some(v) = version {
         working_set.set_archival_version(v)
@@ -160,4 +164,5 @@ pub fn balance_of(
     })
 }
 ```
-* NOTE: `set_archival_version` handles configuring `WorkingSet` for both JMT state as well as accessory state
+
+- NOTE: `set_archival_version` handles configuring `WorkingSet` for both JMT state as well as accessory state

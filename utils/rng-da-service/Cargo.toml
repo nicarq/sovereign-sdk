@@ -23,3 +23,4 @@ sov-bank = { path = "../../module-system/module-implementations/sov-bank" }
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }

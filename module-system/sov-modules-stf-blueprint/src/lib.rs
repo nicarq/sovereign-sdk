@@ -18,8 +18,8 @@ use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::Transaction;
 pub use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Gas, GasArray, Genesis,
-    KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, Zkvm,
+    BasicAddress, BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
+    RuntimeEventProcessor, Spec, StateCheckpoint, Zkvm,
 };
 use sov_modules_core::capabilities::{ContextResolver, GasEnforcer, TransactionDeduplicator};
 use sov_modules_core::VersionedStateReadWriter;
@@ -32,23 +32,23 @@ use tracing::{debug, info};
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
 /// to be executed.
-pub trait Runtime<C: Context, Da: DaSpec>:
-    DispatchCall<Context = C>
-    + Genesis<Context = C, Config = Self::GenesisConfig>
-    + TxHooks<Context = C>
-    + SlotHooks<Context = C>
-    + FinalizeHook<Context = C>
+pub trait Runtime<S: Spec, Da: DaSpec>:
+    DispatchCall<Spec = S>
+    + Genesis<Spec = S, Config = Self::GenesisConfig>
+    + TxHooks<Spec = S>
+    + SlotHooks<Spec = S>
+    + FinalizeHook<Spec = S>
     + ApplyBatchHooks<
         Da,
-        Context = C,
+        Spec = S,
         BatchResult = SequencerOutcome<
             <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
         >,
     > + Default
     + RuntimeEventProcessor
-    + GasEnforcer<C, Da, Tx = Transaction<C>>
-    + TransactionDeduplicator<C, Da, Tx = Transaction<C>>
-    + ContextResolver<C, Da, Tx = Transaction<C>>
+    + GasEnforcer<S, Da, Tx = Transaction<S>>
+    + TransactionDeduplicator<S, Da, Tx = Transaction<S>>
+    + ContextResolver<S, Da, Tx = Transaction<S>>
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
@@ -60,7 +60,7 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     #[cfg(feature = "native")]
     /// Default RPC methods.
     fn rpc_methods(
-        storage: std::sync::Arc<std::sync::RwLock<<C as Spec>::Storage>>,
+        storage: std::sync::Arc<std::sync::RwLock<S::Storage>>,
     ) -> jsonrpsee::RpcModule<()>;
 
     #[cfg(feature = "native")]
@@ -122,22 +122,22 @@ pub enum SlashingReason {
     InvalidTransactionEncoding,
 }
 
-impl<C, RT, Vm, Da, K> StfBlueprint<C, Da, Vm, RT, K>
+impl<S, RT, Vm, Da, K> StfBlueprint<S, Da, Vm, RT, K>
 where
-    C: Context,
+    S: Spec,
     Vm: Zkvm,
     Da: DaSpec,
-    RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
+    RT: Runtime<S, Da>,
+    K: KernelSlotHooks<S, Da>,
 {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_slot(
         &self,
-        state_checkpoint: &mut StateCheckpoint<C>,
+        state_checkpoint: &mut StateCheckpoint<S>,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        pre_state_root: &<C::Storage as Storage>::Root,
-    ) -> <C::Gas as Gas>::Price {
+        pre_state_root: &<S::Storage as Storage>::Root,
+    ) -> <S::Gas as Gas>::Price {
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
         let gas_price = self.kernel.begin_slot_hook(
@@ -162,13 +162,13 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn end_slot(
         &self,
-        storage: C::Storage,
-        gas_used: &C::Gas,
-        mut checkpoint: StateCheckpoint<C>,
+        storage: S::Storage,
+        gas_used: &S::Gas,
+        mut checkpoint: StateCheckpoint<S>,
     ) -> (
-        <<C as Spec>::Storage as Storage>::Root,
-        <<C as Spec>::Storage as Storage>::Witness,
-        C::Storage,
+        <S::Storage as Storage>::Root,
+        <S::Storage as Storage>::Witness,
+        S::Storage,
     ) {
         // Run end_slot_hook
         self.runtime.end_slot_hook(&mut checkpoint);
@@ -191,26 +191,26 @@ where
     }
 }
 
-impl<C, RT, Vm, Da, K> StateTransitionFunction<Vm, Da> for StfBlueprint<C, Da, Vm, RT, K>
+impl<S, RT, Vm, Da, K> StateTransitionFunction<Vm, Da> for StfBlueprint<S, Da, Vm, RT, K>
 where
-    C: Context,
+    S: Spec,
     Da: DaSpec,
     Vm: Zkvm,
-    RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da, Batch = BatchWithId>,
+    RT: Runtime<S, Da>,
+    K: KernelSlotHooks<S, Da, Batch = BatchWithId>,
 {
-    type StateRoot = <C::Storage as Storage>::Root;
+    type StateRoot = <S::Storage as Storage>::Root;
 
     type GenesisParams =
-        GenesisParams<<RT as Genesis>::Config, <K as Kernel<C, Da>>::GenesisConfig>;
-    type PreState = C::Storage;
-    type ChangeSet = <C::Storage as Storage>::ChangeSet;
+        GenesisParams<<RT as Genesis>::Config, <K as Kernel<S, Da>>::GenesisConfig>;
+    type PreState = S::Storage;
+    type ChangeSet = <S::Storage as Storage>::ChangeSet;
 
     type TxReceiptContents = TxEffect;
 
     type BatchReceiptContents = SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
 
-    type Witness = <<C as Spec>::Storage as Storage>::Witness;
+    type Witness = <S::Storage as Storage>::Witness;
 
     type Condition = Da::ValidityCondition;
 
@@ -291,7 +291,7 @@ where
 
         let mut batch_receipts = vec![];
 
-        let mut total_gas = C::Gas::zero();
+        let mut total_gas = S::Gas::zero();
         for (blob_idx, (batch, sender)) in selected_batches.into_iter().enumerate() {
             let (apply_blob_result, next_checkpoint, gas_used) =
                 self.apply_batch(checkpoint, batch, &sender, &gas_price, visible_height);

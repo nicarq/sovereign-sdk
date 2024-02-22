@@ -634,13 +634,13 @@ mod tests {
 
     use rand::Rng;
     use sov_mock_da::{MockBlob, MockBlock};
-    use sov_modules_api::default_context::DefaultContext;
     use sov_modules_api::utils::generate_address;
     use sov_modules_api::AddressBech32;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
     use sov_schema_db::cache::cache_container::CacheContainer;
     use sov_schema_db::cache::cache_db::CacheDb;
     use sov_schema_db::SchemaBatch;
+    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
     use crate::ledger_db::event_test_helper::{
         find_event_details, generate_events, TestEvent, FIXED_EVENT_KEY, MAX_NUM_EVENTS_FIXED_KEY,
@@ -727,8 +727,7 @@ mod tests {
         );
         let expected_module_name = format!("module_{}", module_number);
         let expected_module_address =
-            AddressBech32::from(generate_address::<DefaultContext>(&expected_module_name))
-                .to_string();
+            AddressBech32::from(generate_address::<DefaultSpec>(&expected_module_name)).to_string();
         let event_response =
             ledger_db.get_events_by_key::<TestEvent>(&event_key, None, None, 1, None);
 
@@ -792,7 +791,7 @@ mod tests {
                 );
                 let expected_module_name = format!("module_{}", module_number);
                 let expected_module_address =
-                    AddressBech32::from(generate_address::<DefaultContext>(&expected_module_name))
+                    AddressBech32::from(generate_address::<DefaultSpec>(&expected_module_name))
                         .to_string();
                 assert_eq!(e.module_address, expected_module_address);
             }
@@ -825,8 +824,7 @@ mod tests {
         );
         let expected_module_name = format!("module_{}", module_number);
         let expected_module_address =
-            AddressBech32::from(generate_address::<DefaultContext>(&expected_module_name))
-                .to_string();
+            AddressBech32::from(generate_address::<DefaultSpec>(&expected_module_name)).to_string();
         let event_response =
             ledger_db.get_events_by_key::<TestEvent>(&event_key, None, None, 1, None);
 
@@ -863,7 +861,7 @@ mod tests {
         let module_number = 2;
         let module_name = format!("module_{}", module_number);
         let module_address =
-            AddressBech32::from(generate_address::<DefaultContext>(&module_name)).to_string();
+            AddressBech32::from(generate_address::<DefaultSpec>(&module_name)).to_string();
 
         let mut next_key = None;
         // start event number for a specific module

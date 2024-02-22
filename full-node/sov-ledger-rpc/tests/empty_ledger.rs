@@ -10,13 +10,13 @@ use sov_ledger_rpc::client::RpcClient;
 use sov_ledger_rpc::server::rpc_module;
 use sov_ledger_rpc::HexHash;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::StoredEvent;
 use sov_rollup_interface::rpc::{
     BatchResponse, EventIdentifier, QueryMode, SlotResponse, TxIdAndOffset, TxIdentifier,
     TxResponse,
 };
 use tempfile::tempdir;
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
     let dir = tempdir().unwrap();
@@ -29,7 +29,7 @@ async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
         LedgerDB,
         u32,
         u32,
-        <Runtime<DefaultContext, MockDaSpec> as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
+        <Runtime<DefaultSpec, MockDaSpec> as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
     >(ledger_db)
     .unwrap();
 

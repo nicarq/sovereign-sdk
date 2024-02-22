@@ -7,7 +7,7 @@ mod gas;
 pub use gas::GasPriceState;
 #[cfg(test)]
 mod tests;
-use sov_modules_api::{StateAccessor, StateReaderAndWriter};
+use sov_modules_api::{Spec, StateAccessor, StateReaderAndWriter};
 
 mod genesis;
 pub use genesis::*;
@@ -27,8 +27,8 @@ use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    Context, DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelStateValue,
-    ValidityConditionChecker, WorkingSet,
+    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelStateValue, ValidityConditionChecker,
+    WorkingSet,
 };
 use sov_state::codec::{BcsCodec, BorshCodec};
 use sov_state::storage::kernel_state::VersionReader;
@@ -40,23 +40,23 @@ pub type VirtualSlotNumber = u64;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 /// Structure that contains the information needed to represent a single state transition.
-pub struct StateTransitionId<C: Context, Da: DaSpec> {
+pub struct StateTransitionId<S: Spec, Da: DaSpec> {
     slot_hash: Da::SlotHash,
-    post_state_root: <C::Storage as Storage>::Root,
+    post_state_root: <S::Storage as Storage>::Root,
     validity_condition: Da::ValidityCondition,
-    gas_price: <C::Gas as Gas>::Price,
-    gas_used: C::Gas,
+    gas_price: <S::Gas as Gas>::Price,
+    gas_used: S::Gas,
 }
 
-impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
+impl<S: Spec, Da: DaSpec> StateTransitionId<S, Da> {
     /// Creates a new state transition. Only available for testing as we only want to create
     /// new state transitions from existing [`TransitionInProgress`].
     pub fn new(
         slot_hash: Da::SlotHash,
-        post_state_root: <C::Storage as Storage>::Root,
+        post_state_root: <S::Storage as Storage>::Root,
         validity_condition: Da::ValidityCondition,
-        gas_price: <C::Gas as Gas>::Price,
-        gas_used: C::Gas,
+        gas_price: <S::Gas as Gas>::Price,
+        gas_used: S::Gas,
     ) -> Self {
         Self {
             slot_hash,
@@ -68,19 +68,19 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
+impl<S: Spec, Da: DaSpec> StateTransitionId<S, Da> {
     /// Compare the transition block hash and state root with the provided input couple. If
     /// the pairs are equal, return [`true`].
     pub fn compare_hashes(
         &self,
         slot_hash: &Da::SlotHash,
-        post_state_root: &<C::Storage as Storage>::Root,
+        post_state_root: &<S::Storage as Storage>::Root,
     ) -> bool {
         self.slot_hash == *slot_hash && self.post_state_root == *post_state_root
     }
 
     /// Returns the post state root of a state transition
-    pub fn post_state_root(&self) -> &<C::Storage as Storage>::Root {
+    pub fn post_state_root(&self) -> &<S::Storage as Storage>::Root {
         &self.post_state_root
     }
 
@@ -90,12 +90,12 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
     }
 
     /// Returns the total gas used for the block execution
-    pub const fn gas_used(&self) -> &C::Gas {
+    pub const fn gas_used(&self) -> &S::Gas {
         &self.gas_used
     }
 
     /// Returns the gas price computed for the block execution
-    pub const fn gas_price(&self) -> &<C::Gas as Gas>::Price {
+    pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
         &self.gas_price
     }
 
@@ -115,20 +115,20 @@ impl<C: Context, Da: DaSpec> StateTransitionId<C, Da> {
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 /// Represents a transition in progress for the rollup.
-pub struct TransitionInProgress<C: Context, Da: DaSpec> {
+pub struct TransitionInProgress<S: Spec, Da: DaSpec> {
     slot_hash: Da::SlotHash,
     validity_condition: Da::ValidityCondition,
-    gas_price: <C::Gas as Gas>::Price,
-    gas_used: C::Gas,
+    gas_price: <S::Gas as Gas>::Price,
+    gas_used: S::Gas,
 }
 
-impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
+impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
     /// Creates a new transition in progress
     pub fn new(
         slot_hash: Da::SlotHash,
         validity_condition: Da::ValidityCondition,
-        gas_price: <C::Gas as Gas>::Price,
-        gas_used: C::Gas,
+        gas_price: <S::Gas as Gas>::Price,
+        gas_used: S::Gas,
     ) -> Self {
         Self {
             slot_hash,
@@ -139,12 +139,12 @@ impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
     }
 
     /// Returns the gas price of the transition.
-    pub const fn gas_price(&self) -> &<C::Gas as Gas>::Price {
+    pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
         &self.gas_price
     }
 
     /// Returns the total gas used of the transition.
-    pub const fn gas_used(&self) -> &C::Gas {
+    pub const fn gas_used(&self) -> &S::Gas {
         &self.gas_used
     }
 
@@ -156,10 +156,10 @@ impl<C: Context, Da: DaSpec> TransitionInProgress<C, Da> {
 
 /// The chain state module definition. Contains the current state of the da layer.
 #[derive(Clone, KernelModuleInfo)]
-pub struct ChainState<C: Context, Da: DaSpec> {
+pub struct ChainState<S: Spec, Da: DaSpec> {
     /// Address of the module.
     #[address]
-    address: C::Address,
+    address: S::Address,
 
     /// The height that should be loaded as the visible set at the start of the next block
     #[state]
@@ -182,25 +182,25 @@ pub struct ChainState<C: Context, Da: DaSpec> {
     // TODO: This should be a `VersionedStateMap`, so that recent values are not visible to user-space
     #[state]
     historical_transitions:
-        sov_modules_api::StateMap<TransitionHeight, StateTransitionId<C, Da>, BcsCodec>,
+        sov_modules_api::StateMap<TransitionHeight, StateTransitionId<S, Da>, BcsCodec>,
 
     /// The transition that is currently processed
     #[state]
     in_progress_transition:
-        sov_modules_api::VersionedStateValue<TransitionInProgress<C, Da>, BcsCodec>,
+        sov_modules_api::VersionedStateValue<TransitionInProgress<S, Da>, BcsCodec>,
 
     /// The parameters for the state based gas price computation.
     #[state]
-    gas_price_state: sov_modules_api::StateValue<GasPriceState<C>>,
+    gas_price_state: sov_modules_api::StateValue<GasPriceState<S>>,
 
     /// The genesis root hash.
     /// Set after the first transaction of the rollup is executed, using the `begin_slot` hook.
     // TODO: This should be made read-only
     #[state]
-    genesis_hash: sov_modules_api::StateValue<<C::Storage as Storage>::Root>,
+    genesis_hash: sov_modules_api::StateValue<<S::Storage as Storage>::Root>,
 }
 
-impl<C: Context, Da: DaSpec> ChainState<C, Da> {
+impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Returns transition height in the current slot
     pub fn true_slot_number<T>(&self, working_set: &mut T) -> TransitionHeight
     where
@@ -242,7 +242,7 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
     pub fn get_genesis_hash(
         &self,
         working_set: &mut impl StateAccessor,
-    ) -> Option<<C::Storage as Storage>::Root> {
+    ) -> Option<<S::Storage as Storage>::Root> {
         self.genesis_hash.get(working_set)
     }
 
@@ -250,7 +250,7 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
     pub fn get_in_progress_transition(
         &self,
         working_set: &mut impl VersionReader,
-    ) -> Option<TransitionInProgress<C, Da>> {
+    ) -> Option<TransitionInProgress<S, Da>> {
         self.in_progress_transition.get_current(working_set)
     }
 
@@ -259,7 +259,7 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
         &self,
         transition_num: TransitionHeight,
         working_set: &mut impl StateAccessor,
-    ) -> Option<StateTransitionId<C, Da>> {
+    ) -> Option<StateTransitionId<S, Da>> {
         self.historical_transitions
             .get(&transition_num, working_set)
     }
@@ -268,25 +268,25 @@ impl<C: Context, Da: DaSpec> ChainState<C, Da> {
     pub fn get_gas_price_state(
         &self,
         working_set: &mut impl StateAccessor,
-    ) -> Option<GasPriceState<C>> {
+    ) -> Option<GasPriceState<S>> {
         self.gas_price_state.get(working_set)
     }
 
     /// Replaces the parameters used for the gas price computation.
-    pub fn set_gas_price_state(&self, state: &GasPriceState<C>, working_set: &mut WorkingSet<C>) {
+    pub fn set_gas_price_state(&self, state: &GasPriceState<S>, working_set: &mut WorkingSet<S>) {
         self.gas_price_state.set(state, working_set);
     }
 }
 
-impl<C: Context, Da: DaSpec> KernelModule for ChainState<C, Da> {
-    type Context = C;
+impl<S: Spec, Da: DaSpec> KernelModule for ChainState<S, Da> {
+    type Spec = S;
 
-    type Config = ChainStateConfig<C>;
+    type Config = ChainStateConfig<S>;
 
     fn genesis_unchecked(
         &self,
         config: &Self::Config,
-        working_set: &mut KernelWorkingSet<C>,
+        working_set: &mut KernelWorkingSet<S>,
     ) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)

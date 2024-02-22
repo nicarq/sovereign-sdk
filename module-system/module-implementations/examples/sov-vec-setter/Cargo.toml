@@ -16,6 +16,7 @@ publish = false
 tempfile = { workspace = true }
 sov-modules-api = { path = "../../../sov-modules-api", features = ["native", "macros"] }
 sov-prover-storage-manager = { path = "../../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-mock-zkvm = { path = "../../../../adapters/mock-zkvm", features = ["native"]  }
 sov-vec-setter = { path = ".", features = ["native"] }
 
 [dependencies]
@@ -37,6 +38,7 @@ native = [
 	"jsonrpsee",
 	"schemars",
 	"serde_json",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-state/native",
 	"sov-vec-setter/native",

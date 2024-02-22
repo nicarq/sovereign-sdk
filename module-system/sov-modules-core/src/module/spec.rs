@@ -3,12 +3,13 @@
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use digest::typenum::U32;
-use digest::Digest;
+use sov_rollup_interface::crypto::Signature;
+use sov_rollup_interface::zk::{CryptoSpec, Zkvm};
 use sov_rollup_interface::RollupAddress;
 
-use crate::common::{Gas, PublicKey, Signature, Witness};
+use crate::common::{Gas, Witness};
 use crate::storage::Storage;
+use crate::{PublicKeyExt, SignatureExt};
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
 /// `Spec` is almost always implemented on a Context object; since all Modules are generic
@@ -19,15 +20,16 @@ use crate::storage::Storage;
 /// while a rollup running in an elliptic-curve based SNARK such as `Placeholder` from the =nil; foundation might
 /// prefer a Pedersen hash. By using a generic Context and Spec, a rollup developer can trivially customize their
 /// code for either (or both!) of these environments without touching their module implementations.
-pub trait Spec {
+pub trait Spec: Debug + Clone + Send + Sync + PartialEq + 'static {
+    /// Gas unit for the gas price computation.
+    type Gas: Gas;
+
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(all(feature = "native", feature = "std"))]
     type Address: RollupAddress
         + BorshSerialize
         + BorshDeserialize
         + Sync
-        // Do we always need this, even when the module does not have a JSON
-        // Schema? That feels a bit wrong.
         + ::schemars::JsonSchema
         + Into<crate::common::AddressBech32>
         + From<crate::common::AddressBech32>
@@ -55,70 +57,140 @@ pub trait Spec {
     #[cfg(feature = "native")]
     type Storage: Storage + crate::NativeStorage + Send + Sync;
 
-    /// The public key used for digital signatures
-    #[cfg(feature = "native")]
-    type PrivateKey: crate::common::PrivateKey<
-        PublicKey = Self::PublicKey,
-        Signature = Self::Signature,
-    >;
+    /// The Zkvm which runs the rollup.
+    type Zkvm: Zkvm;
 
-    /// The public key used for digital signatures
-    #[cfg(all(feature = "native", feature = "std"))]
-    type PublicKey: PublicKey + ::schemars::JsonSchema + alloc::str::FromStr<Err = anyhow::Error>;
-
-    /// The public key used for digital signatures
-    #[cfg(not(all(feature = "native", feature = "std")))]
-    type PublicKey: PublicKey;
-
-    /// The hasher preferred by the rollup, such as Sha256 or Poseidon.
-    type Hasher: Digest<OutputSize = U32>;
-
-    /// The digital signature scheme used by the rollup.
-    #[cfg(all(feature = "native", feature = "std"))]
-    type Signature: Signature<PublicKey = Self::PublicKey>
-        + alloc::str::FromStr<Err = anyhow::Error>
-        + serde::Serialize
-        + for<'a> serde::Deserialize<'a>
-        + schemars::JsonSchema;
-
-    /// The digital signature scheme used by the rollup.
-    #[cfg(all(feature = "native", not(feature = "std")))]
-    type Signature: Signature<PublicKey = Self::PublicKey>
-        + serde::Serialize
-        + for<'a> serde::Deserialize<'a>;
-
-    /// The digital signature scheme used by the rollup.
-    #[cfg(not(all(feature = "native", feature = "std")))]
-    type Signature: Signature<PublicKey = Self::PublicKey>
-        + serde::Serialize
-        + for<'a> serde::Deserialize<'a>;
+    /// The cryptographic primitives used by the rollup.
+    type CryptoSpec: CryptoSpecExt;
 
     /// A structure containing the non-deterministic inputs from the prover to the zk-circuit
     type Witness: Witness;
 }
 
-/// A context contains information which is passed to modules during
-/// transaction execution. Currently, context includes the sender of the transaction
-/// as recovered from its signature.
-///
-/// Context objects also implement the [`Spec`] trait, which specifies the types to be used in this
-/// instance of the state transition function. By making modules generic over a `Context`, developers
-/// can easily update their cryptography to conform to the needs of different zk-proof systems.
-pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
-    /// Gas unit for the gas price computation.
-    type Gas: Gas;
+/// A helper trait which is blanket implemented for all `CryptoSpec` types that
+/// are also compatible with module system requirements. This helper works around the lack of implied bounds in Rustc.
+/// See <https://github.com/rust-lang/rust/issues/121325> for details.
+#[cfg(not(feature = "native"))]
+pub trait CryptoHelper:
+    CryptoSpec<Signature = Self::ExtendedSignature, PublicKey = Self::ExtendedPublicKey>
+{
+    /// The digital signature scheme used by the rollup.
+    type ExtendedSignature: SignatureExt + Signature<PublicKey = Self::ExtendedPublicKey>;
 
-    /// Sender of the transaction.
-    fn sender(&self) -> &Self::Address;
+    /// The public key used for digital signatures
+    type ExtendedPublicKey: PublicKeyExt;
+}
 
-    /// Sequencer of the runtime.
-    fn sequencer(&self) -> &Self::Address;
+/// A helper trait which is blanket implemented for all `CryptoSpec` types that
+/// are also compatible with module system requirements. This helper works around the lack of implied bounds in Rustc.
+/// See <https://github.com/rust-lang/rust/issues/121325> for details.
+#[cfg(feature = "native")]
+pub trait CryptoHelper:
+    CryptoSpec<
+    Signature = Self::ExtendedSignature,
+    PublicKey = Self::ExtendedPublicKey,
+    PrivateKey = Self::ExtendedPrivateKey,
+>
+{
+    /// The digital signature scheme used by the rollup.
+    type ExtendedSignature: SignatureExt + Signature<PublicKey = Self::ExtendedPublicKey>;
 
-    /// Constructor for the Context.
-    fn new(sender: Self::Address, sequencer: Self::Address, height: u64) -> Self;
+    /// The public key used for digital signatures
+    type ExtendedPublicKey: PublicKeyExt;
 
-    /// Returns the height of the current slot as reported by the kernel. This value is
-    /// non-decreasing and is guaranteed to be less than or equal to the actual "objective" height of the rollup.
-    /// Kernels should ensure that the reported height never falls too far behind the actual height.
-    fn visible_slot_number(&self) -> u64;
+    /// The private key used for digital signatures
+    type ExtendedPrivateKey: crate::PrivateKeyExt<
+        PublicKey = Self::ExtendedPublicKey,
+        Signature = Self::ExtendedSignature,
+    >;
+}
+
+/// An extension trait for a `CryptoSpec` which guarantees that the type implements the
+/// slightly more restrictive traits defined in the module system.
+pub trait CryptoSpecExt: CryptoHelper {}
+
+#[cfg(feature = "native")]
+impl<C: CryptoSpec> CryptoHelper for C
+where
+    C::Signature: SignatureExt,
+    C::PublicKey: PublicKeyExt,
+    C::PrivateKey: crate::PrivateKeyExt,
+{
+    type ExtendedPrivateKey = C::PrivateKey;
+    type ExtendedSignature = C::Signature;
+    type ExtendedPublicKey = C::PublicKey;
+}
+
+#[cfg(not(feature = "native"))]
+impl<C: CryptoSpec> CryptoHelper for C
+where
+    C::Signature: SignatureExt,
+    C::PublicKey: PublicKeyExt,
+{
+    type ExtendedPublicKey = C::PublicKey;
+    type ExtendedSignature = C::Signature;
+}
+
+/// An extension trait for a `CryptoSpec` which guarantees that the type implements the
+/// slightly more restrictive traits defined in the module system.
+impl<C: CryptoHelper> CryptoSpecExt for C {}
+
+/// The context in which a transaction executes
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Context<S: Spec> {
+    /// The sender address of the transaction.
+    // TODO: Make these private
+    pub sender: S::Address,
+    /// The rollup address of the sequencer who included the transaction.
+    // TODO: Make these private
+    pub sequencer: S::Address,
+    /// The height to report. This is set by the kernel when the context is created
+    visible_height: u64,
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Spec> Context<S> {
+    /// Returns the rollup address which sent the transaction.
+    pub fn sender(&self) -> &S::Address {
+        &self.sender
+    }
+
+    /// Returns the rollup address of the sequencer which included the transaction.
+    pub fn sequencer(&self) -> &S::Address {
+        &self.sequencer
+    }
+
+    /// Constructs a new Context.
+    pub fn new(sender: S::Address, sequencer: S::Address, height: u64) -> Self {
+        Self {
+            sender,
+            sequencer,
+            visible_height: height,
+            phantom: core::marker::PhantomData,
+        }
+    }
+
+    /// Returns the current slot number.
+    pub fn visible_slot_number(&self) -> u64 {
+        self.visible_height
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+mod arbitrary {
+    use ::arbitrary::{Arbitrary, Unstructured};
+
+    use super::{Context, Spec};
+    impl<'a, S> Arbitrary<'a> for Context<S>
+    where
+        S: Spec,
+        S::Address: Arbitrary<'a>,
+    {
+        fn arbitrary(u: &mut Unstructured<'a>) -> ::arbitrary::Result<Self> {
+            let sender = u.arbitrary()?;
+            let sequencer = u.arbitrary()?;
+            let height = u.arbitrary()?;
+            Ok(Self::new(sender, sequencer, height))
+        }
+    }
 }

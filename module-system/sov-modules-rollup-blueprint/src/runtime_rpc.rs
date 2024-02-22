@@ -2,26 +2,26 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::{Context, Spec};
+use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
 use sov_rollup_interface::services::da::DaService;
 use sov_sequencer::batch_builder::FiFoStrictBatchBuilder;
 use sov_sequencer::Sequencer;
 
 /// Register rollup's default rpc methods.
-pub fn register_rpc<RT, C, Da>(
-    storage: Arc<RwLock<<C as Spec>::Storage>>,
+pub fn register_rpc<RT, S, Da>(
+    storage: Arc<RwLock<S::Storage>>,
     ledger_db: &LedgerDB,
     da_service: &Da,
-    sequencer: C::Address,
+    sequencer: S::Address,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
 where
-    RT: RuntimeTrait<C, <Da as DaService>::Spec>
+    RT: RuntimeTrait<S, <Da as DaService>::Spec>
         + Send
         + Sync
         + 'static
         + sov_modules_api::RuntimeEventDisplay,
-    C: Context,
+    S: Spec,
     Da: DaService + Clone,
     Da::TransactionId: Clone + serde::Serialize + Send + Sync,
 {
@@ -32,7 +32,7 @@ where
     {
         rpc_methods.merge(sov_ledger_rpc::server::rpc_module::<
             LedgerDB,
-            SequencerOutcome<<C as Spec>::Address>,
+            SequencerOutcome<S::Address>,
             TxEffect,
             <RT as ::sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
         >(ledger_db.clone())?)?;

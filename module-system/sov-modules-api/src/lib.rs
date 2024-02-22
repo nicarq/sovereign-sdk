@@ -4,10 +4,8 @@ pub mod batch;
 #[cfg(feature = "native")]
 pub mod cli;
 mod containers;
-pub mod default_context;
-pub mod default_signature;
+pub mod default_spec;
 pub mod hooks;
-mod pub_key_hex;
 pub mod tx_verifier;
 
 #[cfg(feature = "macros")]
@@ -15,7 +13,6 @@ mod reexport_macros;
 #[cfg(feature = "macros")]
 pub use reexport_macros::*;
 
-mod serde_pub_key;
 #[cfg(test)]
 mod tests;
 pub mod transaction;
@@ -23,31 +20,32 @@ pub mod transaction;
 pub mod utils;
 
 pub use containers::*;
-pub use pub_key_hex::PublicKeyHex;
 #[cfg(feature = "macros")]
 extern crate sov_modules_macros;
-
 use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "native")]
 pub use clap;
 #[cfg(feature = "native")]
-pub use sov_modules_core::PrivateKey;
+pub use schemars;
 #[cfg(feature = "native")]
 pub use sov_modules_core::RuntimeEventDisplay;
 pub use sov_modules_core::{
     archival_state, runtime, AccessoryStateCheckpoint, AccessoryWorkingSet, Address, AddressBech32,
-    CallResponse, Context, DispatchCall, EncodeCall, EventEmitter, Gas, GasArray, GasMeter,
-    GasPrice, GasUnit, Genesis, KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema,
-    ModuleError, ModuleError as Error, ModuleInfo, ModulePrefix, PublicKey, RuntimeEventProcessor,
-    Signature, Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent, VersionedStateReadWriter,
-    WorkingSet,
+    CallResponse, Context, CryptoSpecExt, DispatchCall, EncodeCall, EventEmitter, Gas, GasArray,
+    GasMeter, GasPrice, GasUnit, Genesis, KernelModule, KernelWorkingSet, Module,
+    ModuleCallJsonSchema, ModuleError, ModuleError as Error, ModuleInfo, ModulePrefix,
+    PublicKeyExt, RuntimeEventProcessor, SignatureExt, Spec, StateCheckpoint, StateReaderAndWriter,
+    TypedEvent, VersionedStateReadWriter, WorkingSet,
 };
+#[cfg(feature = "native")]
+pub use sov_rollup_interface::crypto::PrivateKey;
+pub use sov_rollup_interface::crypto::{PublicKey, Signature};
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::stf::StoredEvent;
 pub use sov_rollup_interface::zk::{
-    StateTransition, ValidityCondition, ValidityConditionChecker, Zkvm,
+    CryptoSpec, StateTransition, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
 
@@ -63,13 +61,13 @@ pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
 }
 
-struct ModuleVisitor<'a, C: Context> {
-    visited: HashSet<&'a <C as Spec>::Address>,
-    visited_on_this_path: Vec<&'a <C as Spec>::Address>,
-    sorted_modules: std::vec::Vec<&'a dyn ModuleInfo<Context = C>>,
+struct ModuleVisitor<'a, S: Spec> {
+    visited: HashSet<&'a S::Address>,
+    visited_on_this_path: Vec<&'a S::Address>,
+    sorted_modules: std::vec::Vec<&'a dyn ModuleInfo<Spec = S>>,
 }
 
-impl<'a, C: Context> ModuleVisitor<'a, C> {
+impl<'a, S: Spec> ModuleVisitor<'a, S> {
     pub fn new() -> Self {
         Self {
             visited: HashSet::new(),
@@ -81,7 +79,7 @@ impl<'a, C: Context> ModuleVisitor<'a, C> {
     /// Visits all the modules and their dependencies, and populates a Vec of modules sorted by their dependencies
     fn visit_modules(
         &mut self,
-        modules: Vec<&'a dyn ModuleInfo<Context = C>>,
+        modules: Vec<&'a dyn ModuleInfo<Spec = S>>,
     ) -> Result<(), anyhow::Error> {
         let mut module_map = HashMap::new();
 
@@ -100,8 +98,8 @@ impl<'a, C: Context> ModuleVisitor<'a, C> {
     /// Visits a module and its dependencies, and populates a Vec of modules sorted by their dependencies
     fn visit_module(
         &mut self,
-        module: &'a dyn ModuleInfo<Context = C>,
-        module_map: &HashMap<&<C as Spec>::Address, &'a (dyn ModuleInfo<Context = C>)>,
+        module: &'a dyn ModuleInfo<Spec = S>,
+        module_map: &HashMap<&S::Address, &'a (dyn ModuleInfo<Spec = S>)>,
     ) -> Result<(), anyhow::Error> {
         let address = module.address();
 
@@ -143,17 +141,17 @@ impl<'a, C: Context> ModuleVisitor<'a, C> {
 }
 
 /// Sorts ModuleInfo objects by their dependencies
-fn sort_modules_by_dependencies<C: Context>(
-    modules: Vec<&dyn ModuleInfo<Context = C>>,
-) -> Result<Vec<&dyn ModuleInfo<Context = C>>, anyhow::Error> {
-    let mut module_visitor = ModuleVisitor::<C>::new();
+fn sort_modules_by_dependencies<S: Spec>(
+    modules: Vec<&dyn ModuleInfo<Spec = S>>,
+) -> Result<Vec<&dyn ModuleInfo<Spec = S>>, anyhow::Error> {
+    let mut module_visitor = ModuleVisitor::<S>::new();
     module_visitor.visit_modules(modules)?;
     Ok(module_visitor.sorted_modules)
 }
 
 /// Accepts Vec<> of tuples (&ModuleInfo, &TValue), and returns Vec<&TValue> sorted by mapped module dependencies
-pub fn sort_values_by_modules_dependencies<C: Context, TValue>(
-    module_value_tuples: Vec<(&dyn ModuleInfo<Context = C>, TValue)>,
+pub fn sort_values_by_modules_dependencies<S: Spec, TValue>(
+    module_value_tuples: Vec<(&dyn ModuleInfo<Spec = S>, TValue)>,
 ) -> Result<Vec<TValue>, anyhow::Error>
 where
     TValue: Clone,

@@ -8,12 +8,11 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, Accounts, CallMessage, UPDATE_ACCOUNT_MSG};
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{Context, CryptoSpec, Module, PrivateKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
-type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 // Check well-formed calls
 fuzz_target!(
@@ -44,9 +43,9 @@ fuzz_target!(
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
         let working_set = &mut WorkingSet::new(storage);
 
-        let sequencer = <C as Spec>::Address::from(sequencer);
-        let config: AccountConfig<C> = keys.iter().map(|k| k.pub_key()).collect();
-        let accounts: Accounts<C> = Accounts::default();
+        let sequencer = <S as Spec>::Address::from(sequencer);
+        let config: AccountConfig<S> = keys.iter().map(|k| k.pub_key()).collect();
+        let accounts: Accounts<S> = Accounts::default();
         accounts.genesis(&config, working_set).unwrap();
 
         // address list is constant for this test
@@ -57,7 +56,7 @@ fuzz_target!(
         for i in 0..iterations {
             // we use slices for better select performance
             let sender = addresses.choose(rng).unwrap();
-            let context = C::new(*sender, sequencer, i as u64);
+            let context = Context::<S>::new(*sender, sequencer, i as u64);
 
             // clear previous state
             let previous = state.get(sender).unwrap().as_hex();
@@ -78,7 +77,7 @@ fuzz_target!(
             let sig = secret.sign(&UPDATE_ACCOUNT_MSG);
             state.insert(*sender, secret);
 
-            let msg = CallMessage::<C>::UpdatePublicKey(public.clone(), sig);
+            let msg = CallMessage::<S>::UpdatePublicKey(public.clone(), sig);
             accounts.call(msg, &context, working_set).unwrap();
         }
 

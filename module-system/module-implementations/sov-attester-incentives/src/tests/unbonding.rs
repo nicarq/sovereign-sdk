@@ -1,4 +1,3 @@
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, WorkingSet};
@@ -9,6 +8,7 @@ use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
     execution_simulation, setup, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
 };
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[test]
 fn test_two_phase_unbonding() {
@@ -30,7 +30,7 @@ fn test_two_phase_unbonding() {
         BOND_AMOUNT
     );
 
-    let context = DefaultContext::new(attester_address, sequencer, INIT_HEIGHT + 2);
+    let context = Context::<S>::new(attester_address, sequencer, INIT_HEIGHT + 2);
 
     // Try to skip the first phase of the two phase unbonding. Should fail
     {

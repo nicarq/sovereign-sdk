@@ -4,7 +4,7 @@ use anyhow::Result;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, EventEmitter, WorkingSet};
+use sov_modules_api::{CallResponse, Context, EventEmitter, WorkingSet};
 use thiserror::Error;
 
 use super::ValueSetter;
@@ -36,13 +36,13 @@ enum SetValueError {
     WrongSender,
 }
 
-impl<C: sov_modules_api::Context> ValueSetter<C> {
+impl<S: sov_modules_api::Spec> ValueSetter<S> {
     /// Sets `value` field to the `new_value`, only admin is authorized to call this method.
     pub(crate) fn set_value(
         &self,
         new_value: u32,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse> {
         // If admin is not then early return:
         let admin = self.admin.get_or_err(working_set)?;

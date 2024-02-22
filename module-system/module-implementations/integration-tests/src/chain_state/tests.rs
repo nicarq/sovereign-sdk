@@ -1,8 +1,7 @@
 use sov_chain_state::{ChainState, TransitionInProgress};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Gas, GasArray, GasPrice, KernelWorkingSet, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
@@ -13,7 +12,7 @@ use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 
 use crate::chain_state::helpers::{create_chain_state_genesis_config, TestKernel, TestRuntime};
-type C = DefaultContext;
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 /// This test generates a new mock rollup having a simple value setter module
 /// with an associated chain state, and checks that the height, the genesis hash
@@ -27,18 +26,18 @@ fn test_simple_value_setter_with_chain_state() {
     let storage = storage_manager.create_storage();
 
     let stf = StfBlueprint::<
-        C,
+        S,
         MockDaSpec,
-        MockZkvm<MockValidityCond>,
-        TestRuntime<C, MockDaSpec>,
-        BasicKernel<C, MockDaSpec>,
+        MockZkVerifier,
+        TestRuntime<S, MockDaSpec>,
+        BasicKernel<S, MockDaSpec>,
     >::new();
 
-    let value_setter_messages = ValueSetterMessages::default();
-    let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<C, MockDaSpec>>();
+    let value_setter_messages = ValueSetterMessages::prepopulated();
+    let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<S, MockDaSpec>>();
 
     let admin_pub_key = value_setter_messages.messages[0].admin.default_address();
-    let test_kernel = TestKernel::<C, MockDaSpec>::default();
+    let test_kernel = TestKernel::<S, MockDaSpec>::default();
 
     const MOCK_SEQUENCER_DA_ADDRESS: [u8; 32] = [1_u8; 32];
     const INIT_BALANCE: u64 = 100000000;
@@ -49,7 +48,7 @@ fn test_simple_value_setter_with_chain_state() {
     // Genesis
     let (init_root_hash, stf_change_set) = stf.init_chain(
         storage,
-        create_chain_state_genesis_config::<C, MockDaSpec>(
+        create_chain_state_genesis_config::<S, MockDaSpec>(
             admin_pub_key,
             MOCK_SEQUENCER_DA_ADDRESS.into(),
             MOCK_SEQUENCER_DA_ADDRESS.into(),
@@ -83,7 +82,7 @@ fn test_simple_value_setter_with_chain_state() {
     };
 
     {
-        let mut init_working_set = StateCheckpoint::<C>::new(storage.clone());
+        let mut init_working_set = StateCheckpoint::<S>::new(storage.clone());
 
         // Computes the initial kernel working set
         let kernel_working_set = KernelWorkingSet::uninitialized(&mut init_working_set);
@@ -124,7 +123,7 @@ fn test_simple_value_setter_with_chain_state() {
         let storage = storage_manager.create_storage();
         let mut state_checkpoint = StateCheckpoint::new(storage.clone());
 
-        let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.chain_state();
+        let chain_state_ref: &ChainState<S, MockDaSpec> = test_kernel.chain_state();
 
         // Check that the root hash has been stored correctly
         let stored_root = chain_state_ref
@@ -141,13 +140,13 @@ fn test_simple_value_setter_with_chain_state() {
         assert_eq!(new_height_storage, 1, "The new height did not update");
 
         // Check the tx in progress
-        let new_tx_in_progress: TransitionInProgress<C, MockDaSpec> = chain_state_ref
+        let new_tx_in_progress: TransitionInProgress<S, MockDaSpec> = chain_state_ref
             .get_in_progress_transition(&mut kernel_working_set)
             .unwrap();
 
         assert_eq!(
             new_tx_in_progress,
-            TransitionInProgress::<C, MockDaSpec>::new(
+            TransitionInProgress::<S, MockDaSpec>::new(
                 MockHash::from([10; 32]),
                 MockValidityCond::default(),
                 GasPrice::ZEROED,
@@ -196,7 +195,7 @@ fn test_simple_value_setter_with_chain_state() {
         // Computes the new working set after slot application
         let mut working_set = WorkingSet::new(storage);
 
-        let chain_state_ref: &ChainState<C, MockDaSpec> = test_kernel.chain_state();
+        let chain_state_ref: &ChainState<S, MockDaSpec> = test_kernel.chain_state();
 
         // Check that the root hash has been stored correctly
         let stored_root = chain_state_ref.get_genesis_hash(&mut working_set).unwrap();
@@ -211,13 +210,13 @@ fn test_simple_value_setter_with_chain_state() {
         assert_eq!(new_height_storage, 2, "The new height did not update");
 
         // Check the tx in progress
-        let new_tx_in_progress: TransitionInProgress<C, MockDaSpec> = chain_state_ref
+        let new_tx_in_progress: TransitionInProgress<S, MockDaSpec> = chain_state_ref
             .get_in_progress_transition(&mut kernel_working_set)
             .unwrap();
 
         assert_eq!(
             new_tx_in_progress,
-            TransitionInProgress::<C, MockDaSpec>::new(
+            TransitionInProgress::<S, MockDaSpec>::new(
                 [20; 32].into(),
                 MockValidityCond::default(),
                 GasPrice::ZEROED,
@@ -229,7 +228,7 @@ fn test_simple_value_setter_with_chain_state() {
 
     // TODO(@theochap):
     // To fix
-    // let last_tx_stored: StateTransitionId<C, MockDaSpec> = chain_state_ref
+    // let last_tx_stored: StateTransitionId<S, MockDaSpec> = chain_state_ref
     //     .get_historical_transitions(1, &mut working_set)
     //     .unwrap();
 

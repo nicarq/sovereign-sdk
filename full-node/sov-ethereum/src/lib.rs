@@ -30,7 +30,7 @@ pub mod experimental {
     };
     use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction};
     use sov_modules_api::utils::to_jsonrpsee_error_object;
-    use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
+    use sov_modules_api::{CryptoSpec, EncodeCall, PrivateKey, WorkingSet};
     use sov_rollup_interface::da::DaSpec;
     use sov_rollup_interface::services::da::DaService;
 
@@ -44,19 +44,19 @@ pub mod experimental {
     const DEFAULT_CHAIN_ID: u64 = 1;
 
     #[derive(Clone)]
-    pub struct EthRpcConfig<C: sov_modules_api::Context> {
+    pub struct EthRpcConfig<S: sov_modules_api::Spec> {
         pub min_blob_size: Option<usize>,
-        pub sov_tx_signer_priv_key: C::PrivateKey,
+        pub sov_tx_signer_priv_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
         pub gas_price_oracle_config: GasPriceOracleConfig,
         #[cfg(feature = "local")]
         pub eth_signer: DevSigner,
     }
 
-    pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
+    pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService>(
         da_service: Da,
-        eth_rpc_config: EthRpcConfig<C>,
-        storage: Arc<RwLock<C::Storage>>,
-    ) -> RpcModule<Ethereum<C, Da>> {
+        eth_rpc_config: EthRpcConfig<S>,
+        storage: Arc<RwLock<S::Storage>>,
+    ) -> RpcModule<Ethereum<S, Da>> {
         // Unpack config
         let EthRpcConfig {
             min_blob_size,
@@ -67,7 +67,7 @@ pub mod experimental {
         } = eth_rpc_config;
 
         // Fetch nonce from storage
-        let accounts = sov_accounts::Accounts::<C>::default();
+        let accounts = sov_accounts::Accounts::<S>::default();
         let sov_tx_signer_account = {
             let storage = {
                 let storage_guard = storage
@@ -78,7 +78,7 @@ pub mod experimental {
             accounts
                 .get_account(
                     sov_tx_signer_priv_key.pub_key(),
-                    &mut WorkingSet::<C>::new(storage),
+                    &mut WorkingSet::<S>::new(storage),
                 )
                 .unwrap()
         };
@@ -104,24 +104,24 @@ pub mod experimental {
         rpc
     }
 
-    pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
+    pub struct Ethereum<S: sov_modules_api::Spec, Da: DaService> {
         da_service: Da,
-        batch_builder: Arc<Mutex<EthBatchBuilder<C>>>,
-        gas_price_oracle: GasPriceOracle<C, Da::Spec>,
+        batch_builder: Arc<Mutex<EthBatchBuilder<S>>>,
+        gas_price_oracle: GasPriceOracle<S, Da::Spec>,
         #[cfg(feature = "local")]
         eth_signer: DevSigner,
-        storage: Arc<RwLock<C::Storage>>,
+        storage: Arc<RwLock<S::Storage>>,
     }
 
-    impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
+    impl<S: sov_modules_api::Spec, Da: DaService> Ethereum<S, Da> {
         fn new(
             da_service: Da,
-            batch_builder: Arc<Mutex<EthBatchBuilder<C>>>,
+            batch_builder: Arc<Mutex<EthBatchBuilder<S>>>,
             gas_price_oracle_config: GasPriceOracleConfig,
             #[cfg(feature = "local")] eth_signer: DevSigner,
-            storage: Arc<RwLock<C::Storage>>,
+            storage: Arc<RwLock<S::Storage>>,
         ) -> Self {
-            let evm = Evm::<C, Da::Spec>::default();
+            let evm = Evm::<S, Da::Spec>::default();
             let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
             Self {
                 da_service,
@@ -134,7 +134,7 @@ pub mod experimental {
         }
     }
 
-    impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
+    impl<S: sov_modules_api::Spec, Da: DaService> Ethereum<S, Da> {
         fn make_raw_tx(
             &self,
             raw_tx: RlpEvmTransaction,
@@ -144,7 +144,7 @@ pub mod experimental {
             let tx_hash = signed_transaction.hash();
 
             let tx = CallMessage { tx: raw_tx };
-            let message = <Runtime<C, Da::Spec> as EncodeCall<Evm<C, Da::Spec>>>::encode_call(tx);
+            let message = <Runtime<S, Da::Spec> as EncodeCall<Evm<S, Da::Spec>>>::encode_call(tx);
 
             Ok((tx_hash, message))
         }
@@ -207,8 +207,8 @@ pub mod experimental {
         }
     }
 
-    fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
-        rpc: &mut RpcModule<Ethereum<C, Da>>,
+    fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService>(
+        rpc: &mut RpcModule<Ethereum<S, Da>>,
     ) -> Result<(), jsonrpsee::core::Error> {
         rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
             let price = {
@@ -219,7 +219,7 @@ pub mod experimental {
                         .expect("Ethereum Storage lock must not be poisoned");
                     storage_guard.clone()
                 };
-                let mut working_set = WorkingSet::<C>::new(storage);
+                let mut working_set = WorkingSet::<S>::new(storage);
 
                 let suggested_tip = ethereum
                     .gas_price_oracle
@@ -227,7 +227,7 @@ pub mod experimental {
                     .await
                     .unwrap();
 
-                let evm = Evm::<C, Da::Spec>::default();
+                let evm = Evm::<S, Da::Spec>::default();
                 let base_fee = evm
                     .get_block_by_number(None, None, &mut working_set)
                     .unwrap()
@@ -284,7 +284,7 @@ pub mod experimental {
         rpc.register_async_method("eth_sendTransaction", |parameters, ethereum| async move {
             let mut transaction_request: TransactionRequest = parameters.one().unwrap();
 
-            let evm = Evm::<C, Da::Spec>::default();
+            let evm = Evm::<S, Da::Spec>::default();
 
             // get from, return error if none
             let from = transaction_request
@@ -307,7 +307,7 @@ pub mod experimental {
                         .expect("Ethereum Storage lock must not be poisoned");
                     storage_guard.clone()
                 };
-                let mut working_set = WorkingSet::<C>::new(storage);
+                let mut working_set = WorkingSet::<S>::new(storage);
 
                 // set nonce if none
                 if transaction_request.nonce.is_none() {
@@ -343,10 +343,10 @@ pub mod experimental {
         Ok(())
     }
 
-    fn to_typed_transaction_request<C: sov_modules_api::Context, Da: DaSpec>(
+    fn to_typed_transaction_request<S: sov_modules_api::Spec, Da: DaSpec>(
         transaction_request: TransactionRequest,
-        evm: &Evm<C, Da>,
-        working_set: &mut WorkingSet<C>,
+        evm: &Evm<S, Da>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<TypedTransactionRequest, ErrorObjectOwned> {
         let chain_id = evm
             .chain_id(working_set)

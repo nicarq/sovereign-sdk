@@ -1,13 +1,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::{Context, Gas, KernelWorkingSet, StateValueAccessor};
+use sov_modules_api::{Gas, KernelWorkingSet, Spec, StateValueAccessor};
 
 use crate::{ChainState, GasPriceState};
 
 /// Initial configuration of the chain state
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct ChainStateConfig<C: Context> {
+pub struct ChainStateConfig<S: Spec> {
     /// The time at genesis
     pub current_time: Time,
     /// The depth at which the elastic gas price will extract its average target price from the
@@ -17,16 +17,16 @@ pub struct ChainStateConfig<C: Context> {
     /// variations in used gas distances from the average target price.
     pub gas_price_maximum_elasticity: i64,
     /// The initial gas price for the genesis block.
-    pub initial_gas_price: <C::Gas as Gas>::Price,
+    pub initial_gas_price: <S::Gas as Gas>::Price,
     /// The minimum gas price allowed from the state computation.
-    pub minimum_gas_price: <C::Gas as Gas>::Price,
+    pub minimum_gas_price: <S::Gas as Gas>::Price,
 }
 
-impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> ChainState<C, Da> {
+impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::KernelModule>::Config,
-        working_set: &mut KernelWorkingSet<C>,
+        working_set: &mut KernelWorkingSet<S>,
     ) -> Result<()> {
         self.true_slot_number.set(&0, working_set);
         self.next_visible_slot_number.set(&1, working_set);

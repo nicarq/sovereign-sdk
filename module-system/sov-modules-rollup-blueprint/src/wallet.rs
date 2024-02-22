@@ -9,26 +9,26 @@ use sov_cli::workflows::transactions::TransactionWorkflow;
 use sov_cli::{clap, wallet_dir};
 use sov_modules_api::clap::Parser;
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg, JsonStringArg};
-use sov_modules_api::{CliWallet, Context, DispatchCall};
+use sov_modules_api::{CliWallet, DispatchCall, Spec};
 
 use crate::RollupBlueprint;
 
 #[derive(clap::Subcommand)]
 #[command(author, version, about, long_about = None)]
-enum Workflows<File: clap::Subcommand, Json: clap::Subcommand, C: Context> {
+enum Workflows<File: clap::Subcommand, Json: clap::Subcommand, S: Spec> {
     #[clap(subcommand)]
     Transactions(TransactionWorkflow<File, Json>),
     #[clap(subcommand)]
-    Keys(KeyWorkflow<C>),
+    Keys(KeyWorkflow<S>),
     #[clap(subcommand)]
-    Rpc(RpcWorkflows<C>),
+    Rpc(RpcWorkflows<S>),
 }
 
 #[derive(clap::Parser)]
 #[command(author, version, about = None, long_about = None)]
-struct CliApp<File: clap::Subcommand, Json: clap::Subcommand, C: Context> {
+struct CliApp<File: clap::Subcommand, Json: clap::Subcommand, S: Spec> {
     #[clap(subcommand)]
-    workflow: Workflows<File, Json, C>,
+    workflow: Workflows<File, Json, S>,
 }
 
 /// Generic wallet for any type that implements RollupBlueprint.
@@ -37,7 +37,7 @@ pub trait WalletBlueprint: RollupBlueprint
 where
     // The types here a quite complicated but they are never exposed to the user
     // as the WalletTemplate is implemented for any types that implements RollupBlueprint.
-    <Self as RollupBlueprint>::NativeContext:
+    <Self as RollupBlueprint>::NativeSpec:
         serde::Serialize + serde::de::DeserializeOwned + Send + Sync,
 
     <Self as RollupBlueprint>::NativeRuntime: CliWallet,
@@ -77,14 +77,14 @@ where
 
         let mut wallet_state: WalletState<
             <<Self as RollupBlueprint>::NativeRuntime as DispatchCall>::Decodable,
-            <Self as RollupBlueprint>::NativeContext,
+            <Self as RollupBlueprint>::NativeSpec,
         > = WalletState::load(&wallet_state_path)?;
 
-        let invocation = CliApp::<File, Json, <Self as RollupBlueprint>::NativeContext>::parse();
+        let invocation = CliApp::<File, Json, <Self as RollupBlueprint>::NativeSpec>::parse();
 
         match invocation.workflow {
             Workflows::Transactions(tx) => tx
-                .run::<<Self as RollupBlueprint>::NativeRuntime, <Self as RollupBlueprint>::NativeContext, JsonStringArg, _, _, _>(
+                .run::<<Self as RollupBlueprint>::NativeRuntime, <Self as RollupBlueprint>::NativeSpec, JsonStringArg, _, _, _>(
                     &mut wallet_state,
                     app_dir,
                 )?,

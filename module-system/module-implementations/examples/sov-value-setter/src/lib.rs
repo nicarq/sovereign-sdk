@@ -13,7 +13,7 @@ pub use call::*;
 pub use genesis::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
 
 use crate::event::Event;
 
@@ -23,10 +23,10 @@ use crate::event::Event;
 /// - Can contain any number of ` #[state]` or `[module]` fields
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo)]
-pub struct ValueSetter<C: sov_modules_api::Context> {
+pub struct ValueSetter<S: sov_modules_api::Spec> {
     /// Address of the module.
     #[address]
-    pub address: C::Address,
+    pub address: S::Address,
 
     /// Some value kept in the state.
     #[state]
@@ -34,19 +34,19 @@ pub struct ValueSetter<C: sov_modules_api::Context> {
 
     /// Holds the address of the admin user who is allowed to update the value.
     #[state]
-    pub admin: sov_modules_api::StateValue<C::Address>,
+    pub admin: sov_modules_api::StateValue<S::Address>,
 }
 
-impl<C: sov_modules_api::Context> sov_modules_api::Module for ValueSetter<C> {
-    type Context = C;
+impl<S: sov_modules_api::Spec> sov_modules_api::Module for ValueSetter<S> {
+    type Spec = S;
 
-    type Config = ValueSetterConfig<C>;
+    type Config = ValueSetterConfig<S>;
 
     type CallMessage = call::CallMessage;
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)
     }
@@ -54,8 +54,8 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for ValueSetter<C> {
     fn call(
         &self,
         msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::SetValue(new_value) => {

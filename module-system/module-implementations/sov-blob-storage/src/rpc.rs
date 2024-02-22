@@ -13,10 +13,10 @@ pub struct Response {
 
 /// TODO: <https://github.com/Sovereign-Labs/sovereign-sdk/issues/626>
 #[rpc_gen(client, server, namespace = "blobStorage")]
-impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da> {
+impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
     /// Queries the address of the module.
     #[rpc_method(name = "getModuleAddress")]
-    fn get_module_address(&self, _working_set: &mut WorkingSet<C>) -> RpcResult<Response> {
+    fn get_module_address(&self, _working_set: &mut WorkingSet<S>) -> RpcResult<Response> {
         Ok(Response {
             address: self.address().to_string(),
         })

@@ -1,17 +1,17 @@
-use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_api::{Context, ModuleInfo, StateMap, StateValue};
+use sov_modules_api::{ModuleInfo, CryptoSpec, Spec, StateMap, StateValue};
+type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 mod test_module {
     use super::*;
 
     #[derive(ModuleInfo)]
-    pub(crate) struct TestStruct<C: Context> {
+    pub(crate) struct TestStruct<S: Spec> {
         #[address]
-        pub address: C::Address,
+        pub address: S::Address,
 
         // Comment
         #[state]
-        pub test_state1: StateMap<C::PublicKey, u32>,
+        pub test_state1: StateMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u32>,
 
         /// Doc comment
         #[state]
@@ -23,8 +23,7 @@ mod test_module {
 }
 
 fn main() {
-    type C = ZkDefaultContext;
-    let test_struct = <test_module::TestStruct<C> as std::default::Default>::default();
+    let test_struct = <test_module::TestStruct<ZkDefaultSpec> as std::default::Default>::default();
 
     let prefix1 = test_struct.test_state1.prefix();
 
@@ -64,7 +63,7 @@ fn main() {
     );
 
     use sov_modules_api::digest::Digest;
-    let mut hasher = <C as sov_modules_api::Spec>::Hasher::new();
+    let mut hasher = <<ZkDefaultSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::new();
     hasher.update("trybuild000::test_module/TestStruct/".as_bytes());
     let hash: [u8; 32] = hasher.finalize().into();
 

@@ -10,8 +10,7 @@ use sov_accounts::AccountConfig;
 use sov_bank::BankConfig;
 #[cfg(feature = "experimental")]
 use sov_evm::EvmConfig;
-pub use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::Context;
+use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_nft_module::NonFungibleTokenConfig;
 use sov_rollup_interface::da::DaSpec;
@@ -61,18 +60,18 @@ impl GenesisPaths {
 }
 
 /// Creates genesis configuration.
-pub fn get_genesis_config<C: Context, Da: DaSpec>(
+pub fn get_genesis_config<S: Spec, Da: DaSpec>(
     genesis_paths: &GenesisPaths,
-) -> Result<<Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig, anyhow::Error> {
+) -> Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig, anyhow::Error> {
     let genesis_config =
         create_genesis_config(genesis_paths).context("Unable to read genesis configuration")?;
     validate_config(genesis_config)
 }
 
-pub(crate) fn validate_config<C: Context, Da: DaSpec>(
-    genesis_config: <Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig,
-) -> Result<<Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig, anyhow::Error> {
-    let token_address = &sov_bank::get_genesis_token_address::<C>(
+pub(crate) fn validate_config<S: Spec, Da: DaSpec>(
+    genesis_config: <Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig,
+) -> Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig, anyhow::Error> {
+    let token_address = &sov_bank::get_genesis_token_address::<S>(
         &genesis_config.bank.tokens[0].token_name,
         genesis_config.bank.tokens[0].salt,
     );
@@ -93,18 +92,18 @@ pub(crate) fn validate_config<C: Context, Da: DaSpec>(
     Ok(genesis_config)
 }
 
-fn create_genesis_config<C: Context, Da: DaSpec>(
+fn create_genesis_config<S: Spec, Da: DaSpec>(
     genesis_paths: &GenesisPaths,
-) -> anyhow::Result<<Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig> {
-    let bank_config: BankConfig<C> = read_json_file(&genesis_paths.bank_genesis_path)?;
+) -> anyhow::Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig> {
+    let bank_config: BankConfig<S> = read_json_file(&genesis_paths.bank_genesis_path)?;
 
-    let sequencer_registry_config: SequencerConfig<C, Da> =
+    let sequencer_registry_config: SequencerConfig<S, Da> =
         read_json_file(&genesis_paths.sequencer_genesis_path)?;
 
-    let value_setter_config: ValueSetterConfig<C> =
+    let value_setter_config: ValueSetterConfig<S> =
         read_json_file(&genesis_paths.value_setter_genesis_path)?;
 
-    let accounts_config: AccountConfig<C> = read_json_file(&genesis_paths.accounts_genesis_path)?;
+    let accounts_config: AccountConfig<S> = read_json_file(&genesis_paths.accounts_genesis_path)?;
 
     let nft_config: NonFungibleTokenConfig = read_json_file(&genesis_paths.nft_path)?;
 

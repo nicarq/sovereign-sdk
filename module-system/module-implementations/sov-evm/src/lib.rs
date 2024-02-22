@@ -41,7 +41,7 @@ mod helpers;
 #[cfg(feature = "experimental")]
 mod experimental {
     use revm::primitives::Address;
-    use sov_modules_api::{DaSpec, Error, ModuleInfo, WorkingSet};
+    use sov_modules_api::{Context, DaSpec, Error, ModuleInfo, WorkingSet};
     use sov_state::codec::BcsCodec;
 
     use super::event::Event;
@@ -68,10 +68,10 @@ mod experimental {
     #[allow(dead_code)]
     // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
     #[derive(ModuleInfo, Clone)]
-    pub struct Evm<C: sov_modules_api::Context, Da: DaSpec> {
+    pub struct Evm<S: sov_modules_api::Spec, Da: DaSpec> {
         /// The address of the evm module.
         #[address]
-        pub(crate) address: C::Address,
+        pub(crate) address: S::Address,
 
         /// Mapping from account address to account state.
         #[state]
@@ -131,11 +131,11 @@ mod experimental {
         pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,
 
         #[kernel_module]
-        pub(crate) chain_state: sov_chain_state::ChainState<C, Da>,
+        pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
     }
 
-    impl<C: sov_modules_api::Context, Da: DaSpec> sov_modules_api::Module for Evm<C, Da> {
-        type Context = C;
+    impl<S: sov_modules_api::Spec, Da: DaSpec> sov_modules_api::Module for Evm<S, Da> {
+        type Spec = S;
 
         type Config = EvmConfig;
 
@@ -146,7 +146,7 @@ mod experimental {
         fn genesis(
             &self,
             config: &Self::Config,
-            working_set: &mut WorkingSet<C>,
+            working_set: &mut WorkingSet<S>,
         ) -> Result<(), Error> {
             Ok(self.init_module(config, working_set)?)
         }
@@ -154,15 +154,15 @@ mod experimental {
         fn call(
             &self,
             msg: Self::CallMessage,
-            context: &Self::Context,
-            working_set: &mut WorkingSet<C>,
+            context: &Context<Self::Spec>,
+            working_set: &mut WorkingSet<S>,
         ) -> Result<sov_modules_api::CallResponse, Error> {
             Ok(self.execute_call(msg.tx, context, working_set)?)
         }
     }
 
-    impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
-        pub(crate) fn get_db<'a>(&self, working_set: &'a mut WorkingSet<C>) -> EvmDb<'a, C> {
+    impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
+        pub(crate) fn get_db<'a>(&self, working_set: &'a mut WorkingSet<S>) -> EvmDb<'a, S> {
             EvmDb::new(self.accounts.clone(), self.code.clone(), working_set)
         }
     }

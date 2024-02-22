@@ -1,4 +1,3 @@
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, WorkingSet};
@@ -9,6 +8,7 @@ use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
     execution_simulation, setup, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
 };
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 // Test the transition invariant
 #[test]
@@ -38,7 +38,7 @@ fn test_transition_invariant() {
         execution_simulation(20, &module, &storage, attester_address, state_checkpoint);
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
 
-    let context = DefaultContext::new(attester_address, sequencer, INIT_HEIGHT + 2);
+    let context = Context::<S>::new(attester_address, sequencer, INIT_HEIGHT + 2);
 
     const NEW_LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = DEFAULT_ROLLUP_FINALITY + INIT_HEIGHT + 1;
 

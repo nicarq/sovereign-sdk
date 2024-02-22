@@ -4,8 +4,9 @@ use alloc::vec::Vec;
 use core::{fmt, str};
 
 use sha2::Digest;
+use sov_rollup_interface::zk::CryptoSpec;
 
-use crate::module::Context;
+use crate::Spec;
 
 /// A [`Vec`] of bytes whose length is guaranteed to be aligned to 4 bytes.
 /// This makes certain operations cheaper in zk-context (namely, concatenation).
@@ -205,9 +206,9 @@ impl ModulePrefix {
     }
 
     /// Returns the hash of the combined prefix.
-    pub fn hash<C: Context>(&self) -> [u8; 32] {
+    pub fn hash<S: Spec>(&self) -> [u8; 32] {
         let combined_prefix = self.combine_prefix();
-        let mut hasher = C::Hasher::new();
+        let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
         hasher.update(combined_prefix);
         hasher.finalize().into()
     }

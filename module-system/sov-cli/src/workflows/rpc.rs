@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_accounts::AccountsRpcClient;
 use sov_bank::{BalanceResponse, BankRpcClient};
-use sov_modules_api::{clap, Spec};
+use sov_modules_api::{clap, CryptoSpec};
 use sov_rollup_interface::digest::Digest;
 
 use crate::wallet_state::{AddressEntry, KeyIdentifier, WalletState};
@@ -21,7 +21,7 @@ const BAD_RPC_URL: &str = "Unable to connect to provided rpc. You can change to 
 
 /// Query the current state of the rollup and send transactions
 #[derive(clap::Subcommand)]
-pub enum RpcWorkflows<C: sov_modules_api::Context> {
+pub enum RpcWorkflows<S: sov_modules_api::Spec> {
     /// Set the url of the rpc server to use
     SetUrl {
         /// A url like http://localhost:8545
@@ -31,33 +31,33 @@ pub enum RpcWorkflows<C: sov_modules_api::Context> {
     GetNonce {
         /// (Optional) The account to query the nonce for (default: the active account)
         #[clap(subcommand)]
-        account: Option<KeyIdentifier<C>>,
+        account: Option<KeyIdentifier<S>>,
     },
     /// Query the rpc server for the token balance of an account
     GetBalance {
         /// (Optional) The account to query the balance of (default: the active account)
         #[clap(subcommand)]
-        account: Option<KeyIdentifier<C>>,
+        account: Option<KeyIdentifier<S>>,
         /// The address of the token to query for
-        token_address: C::Address,
+        token_address: S::Address,
     },
     /// Sign all transactions from the current batch and submit them to the rollup.
     /// Nonces will be set automatically.
     SubmitBatch {
         /// (Optional) The account to sign transactions for this batch (default: the active account)
         #[clap(subcommand)]
-        account: Option<KeyIdentifier<C>>,
+        account: Option<KeyIdentifier<S>>,
         /// (Optional) The nonce to use for the first transaction in the batch (default: the current nonce for the account). Any other transactions will
         /// be signed with sequential nonces starting from this value.
         nonce_override: Option<u64>,
     },
 }
 
-impl<C: sov_modules_api::Context> RpcWorkflows<C> {
+impl<S: sov_modules_api::Spec> RpcWorkflows<S> {
     fn resolve_account<'wallet, Tx>(
         &self,
-        wallet_state: &'wallet mut WalletState<Tx, C>,
-    ) -> Result<&'wallet AddressEntry<C>, anyhow::Error>
+        wallet_state: &'wallet mut WalletState<Tx, S>,
+    ) -> Result<&'wallet AddressEntry<S>, anyhow::Error>
     where
         Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
     {
@@ -82,11 +82,11 @@ impl<C: sov_modules_api::Context> RpcWorkflows<C> {
     }
 }
 
-impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> RpcWorkflows<C> {
+impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcWorkflows<S> {
     /// Run the rpc workflow
     pub async fn run<Tx>(
         &self,
-        wallet_state: &mut WalletState<Tx, C>,
+        wallet_state: &mut WalletState<Tx, S>,
         _app_dir: impl AsRef<Path>,
     ) -> Result<(), anyhow::Error>
     where
@@ -126,7 +126,7 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                 account: _,
                 token_address,
             } => {
-                let BalanceResponse { amount } = BankRpcClient::<C>::balance_of(
+                let BalanceResponse { amount } = BankRpcClient::<S>::balance_of(
                     &client,
                     None,
                     account.address.clone(),
@@ -142,7 +142,7 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                 );
             }
             RpcWorkflows::SubmitBatch { nonce_override, .. } => {
-                let private_key = load_key::<C>(&account.location).with_context(|| {
+                let private_key = load_key::<S>(&account.location).with_context(|| {
                     format!("Unable to load key {}", account.location.display())
                 })?;
 
@@ -165,7 +165,11 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                 );
                 // Print transaction hashes from the batch
                 for (i, t) in txs.iter().enumerate() {
-                    println!("{}: {}", i, hex::encode(<C as Spec>::Hasher::digest(t)));
+                    println!(
+                        "{}: {}",
+                        i,
+                        hex::encode(<S::CryptoSpec as CryptoSpec>::Hasher::digest(t))
+                    );
                 }
             }
         }
@@ -173,11 +177,11 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
     }
 }
 
-async fn get_nonce_for_account<C: sov_modules_api::Context + Send + Sync + Serialize>(
+async fn get_nonce_for_account<S: sov_modules_api::Spec + Send + Sync + Serialize>(
     client: &(impl ClientT + Send + Sync),
-    account: &AddressEntry<C>,
+    account: &AddressEntry<S>,
 ) -> Result<u64, anyhow::Error> {
-    Ok(match AccountsRpcClient::<C>::get_account(
+    Ok(match AccountsRpcClient::<S>::get_account(
         client,
         account.pub_key.clone(),
     )

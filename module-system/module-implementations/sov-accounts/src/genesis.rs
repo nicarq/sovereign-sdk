@@ -1,21 +1,23 @@
 use anyhow::{bail, Result};
-use sov_modules_api::{Context, StateMapAccessor, WorkingSet};
+use sov_modules_api::{CryptoSpec, Spec, StateMapAccessor, WorkingSet};
 
 use crate::Accounts;
 
 /// Initial configuration for sov-accounts module.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(bound = "C::PublicKey: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct AccountConfig<C: Context> {
+#[serde(
+    bound = "<S::CryptoSpec as CryptoSpec>::PublicKey: serde::Serialize + serde::de::DeserializeOwned"
+)]
+pub struct AccountConfig<S: Spec> {
     /// Public keys to initialize the rollup.
-    pub pub_keys: Vec<C::PublicKey>,
+    pub pub_keys: Vec<<S::CryptoSpec as CryptoSpec>::PublicKey>,
 }
 
-impl<C: sov_modules_api::Context> Accounts<C> {
+impl<S: Spec> Accounts<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         for pub_key in config.pub_keys.iter() {
             if self.accounts.get(pub_key, working_set).is_some() {
@@ -33,9 +35,8 @@ impl<C: sov_modules_api::Context> Accounts<C> {
 mod tests {
     use std::str::FromStr;
 
-    use sov_modules_api::default_context::DefaultContext;
-    use sov_modules_api::default_signature::DefaultPublicKey;
-
+    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+    type DefaultPublicKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
     use super::*;
 
     #[test]
@@ -45,7 +46,7 @@ mod tests {
         )
         .unwrap();
 
-        let config = AccountConfig::<DefaultContext> {
+        let config = AccountConfig::<DefaultSpec> {
             pub_keys: vec![pub_key.clone()],
         };
 
@@ -54,7 +55,7 @@ mod tests {
             "pub_keys":["1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf"]
         }"#;
 
-        let parsed_config: AccountConfig<DefaultContext> = serde_json::from_str(data).unwrap();
+        let parsed_config: AccountConfig<DefaultSpec> = serde_json::from_str(data).unwrap();
         assert_eq!(parsed_config, config);
     }
 }

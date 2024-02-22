@@ -15,7 +15,9 @@ use nft::*;
 mod rpc;
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_modules_api::{CallResponse, Context, Error, Module, ModuleInfo, StateMap, WorkingSet};
+use sov_modules_api::{
+    CallResponse, Context, Error, Module, ModuleInfo, Spec, StateMap, WorkingSet,
+};
 mod event;
 mod offchain;
 #[cfg(feature = "offchain")]
@@ -28,33 +30,33 @@ use crate::event::Event;
 #[derive(ModuleInfo, Clone)]
 /// Module for non-fungible tokens (NFT).
 /// Each token is represented by a unique ID.
-pub struct NonFungibleToken<C: Context> {
+pub struct NonFungibleToken<S: Spec> {
     #[address]
     /// The address of the NonFungibleToken module.
-    address: C::Address,
+    address: S::Address,
 
     #[state]
     /// Mapping of tokens to their owners
-    collections: StateMap<CollectionAddress<C>, Collection<C>>,
+    collections: StateMap<CollectionAddress<S>, Collection<S>>,
 
     #[state]
     /// Mapping of tokens to their owners
-    nfts: StateMap<NftIdentifier<C>, Nft<C>>,
+    nfts: StateMap<NftIdentifier<S>, Nft<S>>,
 }
 
-impl<C: Context> Module for NonFungibleToken<C> {
-    type Context = C;
+impl<S: Spec> Module for NonFungibleToken<S> {
+    type Spec = S;
 
     type Config = NonFungibleTokenConfig;
 
-    type CallMessage = CallMessage<C>;
+    type CallMessage = CallMessage<S>;
 
     type Event = Event;
 
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<C>,
+        _working_set: &mut WorkingSet<S>,
     ) -> Result<(), Error> {
         Ok(())
     }
@@ -62,8 +64,8 @@ impl<C: Context> Module for NonFungibleToken<C> {
     fn call(
         &self,
         msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<Self::Spec>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse, Error> {
         let call_result = match msg {
             CallMessage::CreateCollection {

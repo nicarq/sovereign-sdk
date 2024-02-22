@@ -33,3 +33,4 @@ jsonrpsee = { workspace = true, features = ["client"] }
 tempfile = { workspace = true }
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }

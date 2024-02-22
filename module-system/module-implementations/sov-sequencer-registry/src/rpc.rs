@@ -1,7 +1,7 @@
 //! Defines rpc queries exposed by the sequencer registry module, along with the relevant types
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{Context, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Spec, StateMapAccessor, WorkingSet};
 
 use crate::SequencerRegistry;
 
@@ -11,13 +11,13 @@ use crate::SequencerRegistry;
     derive(serde::Deserialize, serde::Serialize, Clone)
 )]
 #[derive(Debug, Eq, PartialEq)]
-pub struct SequencerAddressResponse<C: Context> {
+pub struct SequencerAddressResponse<S: Spec> {
     /// The rollup address of the requested sequencer.
-    pub address: Option<C::Address>,
+    pub address: Option<S::Address>,
 }
 
 #[rpc_gen(client, server, namespace = "sequencer")]
-impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
+impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// Returns the rollup address of the sequencer with the given DA address.
     ///
     /// The response only contains data if the sequencer is registered.
@@ -25,8 +25,8 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
     pub fn sequencer_address(
         &self,
         da_address: Da::Address,
-        working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<SequencerAddressResponse<C>> {
+        working_set: &mut WorkingSet<S>,
+    ) -> RpcResult<SequencerAddressResponse<S>> {
         Ok(SequencerAddressResponse {
             address: self
                 .allowed_sequencers

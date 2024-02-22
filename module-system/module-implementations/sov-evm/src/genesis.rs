@@ -81,11 +81,11 @@ impl Default for EvmConfig {
     }
 }
 
-impl<C: sov_modules_api::Context, Da: DaSpec> Evm<C, Da> {
+impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         let mut evm_db = self.get_db(working_set);
 

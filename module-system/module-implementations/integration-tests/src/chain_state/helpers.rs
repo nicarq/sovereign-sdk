@@ -26,40 +26,40 @@ use sov_value_setter::{ValueSetter, ValueSetterConfig};
     serde::Serialize,
     serde::Deserialize
 )]
-pub(crate) struct TestRuntime<C: Context, Da: DaSpec> {
-    pub value_setter: ValueSetter<C>,
-    pub sequencer_registry: SequencerRegistry<C, Da>,
-    pub bank: Bank<C>,
+pub(crate) struct TestRuntime<S: Spec, Da: DaSpec> {
+    pub value_setter: ValueSetter<S>,
+    pub sequencer_registry: SequencerRegistry<S, Da>,
+    pub bank: Bank<S>,
 }
 
-pub(crate) fn create_chain_state_genesis_config<C: Context, Da: DaSpec>(
-    admin_pub_key: <C as Spec>::Address,
-    seq_rollup_address: <C as Spec>::Address,
+pub(crate) fn create_chain_state_genesis_config<S: Spec, Da: DaSpec>(
+    admin_pub_key: S::Address,
+    seq_rollup_address: S::Address,
     seq_da_address: Da::Address,
     seq_stake_amount: u64,
     token_name: String,
     salt: u64,
     init_balance: u64,
-) -> GenesisParams<GenesisConfig<C, Da>, BasicKernelGenesisConfig<C, Da>> {
-    let runtime_config: <TestRuntime<C, Da> as sov_modules_stf_blueprint::Runtime<C, Da>>::GenesisConfig =
+) -> GenesisParams<GenesisConfig<S, Da>, BasicKernelGenesisConfig<S, Da>> {
+    let runtime_config: <TestRuntime<S, Da> as sov_modules_stf_blueprint::Runtime<S, Da>>::GenesisConfig =
         GenesisConfig { value_setter: ValueSetterConfig { admin: admin_pub_key }, sequencer_registry: SequencerConfig{
             seq_rollup_address: seq_rollup_address.clone(),
             seq_da_address,
-            coins_to_lock: Coins { amount: seq_stake_amount, token_address: get_genesis_token_address::<C>(&token_name, salt) },
+            coins_to_lock: Coins { amount: seq_stake_amount, token_address: get_genesis_token_address::<S>(&token_name, salt) },
             is_preferred_sequencer: true,
         }, bank: BankConfig{
             tokens: vec![TokenConfig{token_name,
             address_and_balances: vec![(seq_rollup_address.clone(), init_balance)], authorized_minters: vec![seq_rollup_address.clone()], salt}]
         } };
 
-    let kernel_config: <TestKernel<C, Da> as Kernel<C, Da>>::GenesisConfig =
+    let kernel_config: <TestKernel<S, Da> as Kernel<S, Da>>::GenesisConfig =
         BasicKernelGenesisConfig {
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
                 gas_price_blocks_depth: 10,
                 gas_price_maximum_elasticity: 1,
-                initial_gas_price: <<C::Gas as Gas>::Price as GasArray>::ZEROED,
-                minimum_gas_price: <<C::Gas as Gas>::Price as GasArray>::ZEROED,
+                initial_gas_price: <<S::Gas as Gas>::Price as GasArray>::ZEROED,
+                minimum_gas_price: <<S::Gas as Gas>::Price as GasArray>::ZEROED,
             },
         };
     GenesisParams {
@@ -68,38 +68,38 @@ pub(crate) fn create_chain_state_genesis_config<C: Context, Da: DaSpec>(
     }
 }
 
-pub(crate) type TestKernel<C, Da> = BasicKernel<C, Da>;
+pub(crate) type TestKernel<S, Da> = BasicKernel<S, Da>;
 
-impl<C: Context, Da: DaSpec> TxHooks for TestRuntime<C, Da> {
-    type Context = C;
+impl<S: Spec, Da: DaSpec> TxHooks for TestRuntime<S, Da> {
+    type Spec = S;
 
     fn pre_dispatch_tx_hook(
         &self,
-        _tx: &Transaction<Self::Context>,
-        _working_set: &mut sov_modules_api::WorkingSet<C>,
+        _tx: &Transaction<Self::Spec>,
+        _working_set: &mut sov_modules_api::WorkingSet<S>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 
     fn post_dispatch_tx_hook(
         &self,
-        _tx: &Transaction<Self::Context>,
-        _ctx: &C,
-        _working_set: &mut sov_modules_api::WorkingSet<C>,
+        _tx: &Transaction<Self::Spec>,
+        _ctx: &Context<S>,
+        _working_set: &mut sov_modules_api::WorkingSet<S>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 }
 
-impl<C: Context, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<C, Da> {
-    type Context = C;
+impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
+    type Spec = S;
     type BatchResult = SequencerOutcome<Da::Address>;
 
     fn begin_batch_hook(
         &self,
         _batch: &mut BatchWithId,
         _sender: &<Da as DaSpec>::Address,
-        _state_checkpoint: &mut sov_modules_api::StateCheckpoint<C>,
+        _state_checkpoint: &mut sov_modules_api::StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -107,41 +107,41 @@ impl<C: Context, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<C, Da> {
     fn end_batch_hook(
         &self,
         _result: Self::BatchResult,
-        _working_set: &mut sov_modules_api::StateCheckpoint<C>,
+        _working_set: &mut sov_modules_api::StateCheckpoint<S>,
     ) {
     }
 }
 
-impl<C: Context, Da: DaSpec> SlotHooks for TestRuntime<C, Da> {
-    type Context = C;
+impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
+    type Spec = S;
 
     fn begin_slot_hook(
         &self,
-        _pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        _working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<C>>,
+        _pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        _working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
     }
 
-    fn end_slot_hook(&self, _working_set: &mut sov_modules_api::StateCheckpoint<C>) {}
+    fn end_slot_hook(&self, _working_set: &mut sov_modules_api::StateCheckpoint<S>) {}
 }
 
-impl<C: Context, Da: DaSpec> FinalizeHook for TestRuntime<C, Da> {
-    type Context = C;
+impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
+    type Spec = S;
 
     fn finalize_hook(
         &self,
-        _root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        _accesorry_working_set: &mut AccessoryStateCheckpoint<C>,
+        _root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        _accesorry_working_set: &mut AccessoryStateCheckpoint<S>,
     ) {
     }
 }
 
-impl<C: Context, Da: DaSpec> Runtime<C, Da> for TestRuntime<C, Da> {
-    type GenesisConfig = GenesisConfig<C, Da>;
+impl<S: Spec, Da: DaSpec> Runtime<S, Da> for TestRuntime<S, Da> {
+    type GenesisConfig = GenesisConfig<S, Da>;
 
     type GenesisPaths = ();
 
-    fn rpc_methods(_storage: Arc<RwLock<<C as Spec>::Storage>>) -> jsonrpsee::RpcModule<()> {
+    fn rpc_methods(_storage: Arc<RwLock<S::Storage>>) -> jsonrpsee::RpcModule<()> {
         todo!()
     }
 
@@ -152,17 +152,17 @@ impl<C: Context, Da: DaSpec> Runtime<C, Da> for TestRuntime<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> GasEnforcer<C, Da> for TestRuntime<C, Da> {
+impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
     /// The transaction type that the gas enforcer knows how to parse
-    type Tx = Transaction<C>;
+    type Tx = Transaction<S>;
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas(
         &self,
         tx: &Self::Tx,
-        context: &C,
-        gas_price: &<C::Gas as Gas>::Price,
-        mut state_checkpoint: StateCheckpoint<C>,
-    ) -> Result<WorkingSet<C>, StateCheckpoint<C>> {
+        context: &Context<S>,
+        gas_price: &<S::Gas as Gas>::Price,
+        mut state_checkpoint: StateCheckpoint<S>,
+    ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
         match self
             .bank
             .reserve_gas(tx, gas_price, context.sender(), &mut state_checkpoint)
@@ -179,25 +179,25 @@ impl<C: Context, Da: DaSpec> GasEnforcer<C, Da> for TestRuntime<C, Da> {
     fn refund_remaining_gas(
         &self,
         tx: &Self::Tx,
-        context: &C,
-        gas_meter: &sov_modules_api::GasMeter<C::Gas>,
-        state_checkpoint: &mut StateCheckpoint<C>,
+        context: &Context<S>,
+        gas_meter: &sov_modules_api::GasMeter<S::Gas>,
+        state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         self.bank
             .refund_remaining_gas(tx, gas_meter, context.sender(), state_checkpoint);
     }
 }
 
-impl<C: Context, Da: DaSpec> TransactionDeduplicator<C, Da> for TestRuntime<C, Da> {
+impl<S: Spec, Da: DaSpec> TransactionDeduplicator<S, Da> for TestRuntime<S, Da> {
     /// The transaction type that the deduplicator knows how to parse.
-    type Tx = Transaction<C>;
+    type Tx = Transaction<S>;
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
         &self,
         _tx: &Self::Tx,
-        _context: &C,
-        _state_checkpoint: &mut StateCheckpoint<C>,
+        _context: &Context<S>,
+        _state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<(), anyhow::Error> {
         Ok(())
     }
@@ -207,28 +207,28 @@ impl<C: Context, Da: DaSpec> TransactionDeduplicator<C, Da> for TestRuntime<C, D
         &self,
         _tx: &Self::Tx,
         _sequencer: &Da::Address,
-        _state_checkpoint: &mut StateCheckpoint<C>,
+        _state_checkpoint: &mut StateCheckpoint<S>,
     ) {
     }
 }
 
 /// Resolves the context for a transaction.
-impl<C: Context, Da: DaSpec> ContextResolver<C, Da> for TestRuntime<C, Da> {
+impl<S: Spec, Da: DaSpec> ContextResolver<S, Da> for TestRuntime<S, Da> {
     /// The transaction type that the resolver knows how to parse.
-    type Tx = Transaction<C>;
+    type Tx = Transaction<S>;
     /// Resolves the context for a transaction.
     fn resolve_context(
         &self,
         tx: &Self::Tx,
         sequencer: &Da::Address,
         height: u64,
-        working_set: &mut StateCheckpoint<C>,
-    ) -> C {
+        working_set: &mut StateCheckpoint<S>,
+    ) -> Context<S> {
         let sender = tx.pub_key().to_address();
         let sequencer = self
             .sequencer_registry
             .resolve_da_address(sequencer, working_set)
             .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
-        C::new(sender, sequencer, height)
+        Context::<S>::new(sender, sequencer, height)
     }
 }

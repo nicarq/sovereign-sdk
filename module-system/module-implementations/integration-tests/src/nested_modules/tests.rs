@@ -1,8 +1,10 @@
-use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Context, ModulePrefix, StateMap, WorkingSet};
+use sov_modules_api::{ModulePrefix, Spec, StateMap, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{Storage, ZkStorage};
+
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 use super::helpers::{module_c, Event};
 
@@ -14,8 +16,8 @@ fn nested_module_call_test() {
 
     // Test the `native` execution.
     {
-        execute_module_logic::<DefaultContext>(&mut working_set);
-        test_state_update::<DefaultContext>(&mut working_set);
+        execute_module_logic::<DefaultSpec>(&mut working_set);
+        test_state_update::<DefaultSpec>(&mut working_set);
     }
 
     let events: Vec<Event> = working_set
@@ -44,18 +46,18 @@ fn nested_module_call_test() {
     {
         let zk_storage = ZkStorage::new();
         let working_set = &mut WorkingSet::with_witness(zk_storage, witness);
-        execute_module_logic::<ZkDefaultContext>(working_set);
-        test_state_update::<ZkDefaultContext>(working_set);
+        execute_module_logic::<ZkDefaultSpec>(working_set);
+        test_state_update::<ZkDefaultSpec>(working_set);
     }
 }
 
-fn execute_module_logic<C: Context>(working_set: &mut WorkingSet<C>) {
-    let module = &mut module_c::ModuleC::<C>::default();
+fn execute_module_logic<S: Spec>(working_set: &mut WorkingSet<S>) {
+    let module = &mut module_c::ModuleC::<S>::default();
     module.execute("some_key", "some_value", working_set);
 }
 
-fn test_state_update<C: Context>(working_set: &mut WorkingSet<C>) {
-    let module = <module_c::ModuleC<C> as Default>::default();
+fn test_state_update<S: Spec>(working_set: &mut WorkingSet<S>) {
+    let module = <module_c::ModuleC<S> as Default>::default();
 
     let expected_value = "some_value".to_owned();
 

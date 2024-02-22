@@ -2,11 +2,12 @@ mod helpers;
 
 use helpers::*;
 use sov_bank::{get_genesis_token_address, Amount, Bank, CallMessage, Coins};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, Context, Module, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::storage::{SlotKey, SlotValue};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+
+type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[test]
 fn transfer_initial_token() {
@@ -18,7 +19,7 @@ fn transfer_initial_token() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_address = get_genesis_token_address::<C>(
+    let token_address = get_genesis_token_address::<S>(
         &bank_config.tokens[0].token_name,
         bank_config.tokens[0].salt,
     );
@@ -37,7 +38,7 @@ fn transfer_initial_token() {
     assert_eq!((sender_balance, receiver_balance), (100, 100));
     commit(working_set, prover_storage.clone());
 
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+    let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
 
     transfer(
         &bank,
@@ -59,7 +60,7 @@ fn transfer_initial_token() {
 
     commit(working_set, prover_storage.clone());
 
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+    let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
 
     transfer(
         &bank,
@@ -83,7 +84,7 @@ fn transfer_initial_token() {
     // Archival tests
 
     let archival_slot: u64 = 2;
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+    let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     working_set.set_archival_version(archival_slot);
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
@@ -116,7 +117,7 @@ fn transfer_initial_token() {
     assert_eq!((sender_balance, receiver_balance), (85, 115));
 
     let archival_slot: u64 = 1;
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+    let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     working_set.set_archival_version(archival_slot);
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
@@ -185,7 +186,7 @@ fn transfer_initial_token() {
 
     // next block
 
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+    let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     transfer(
         &bank,
         token_address,
@@ -213,7 +214,7 @@ fn transfer_initial_token() {
     // archival versioned state query
 
     let archival_slot = 3;
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+    let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     working_set.set_archival_version(archival_slot);
     let mut accessory_state = working_set.accessory_state();
     let val = accessory_state.get(&SlotKey::from("k")).unwrap();
@@ -232,11 +233,11 @@ fn transfer_initial_token() {
 }
 
 fn query_sender_receiver_balances(
-    bank: &Bank<DefaultContext>,
+    bank: &Bank<S>,
     token_address: Address,
     sender_address: Address,
     receiver_address: Address,
-    working_set: &mut WorkingSet<DefaultContext>,
+    working_set: &mut WorkingSet<S>,
 ) -> (u64, u64) {
     let sender_balance = bank
         .get_balance_of(sender_address, token_address, working_set)
@@ -248,13 +249,13 @@ fn query_sender_receiver_balances(
 }
 
 fn transfer(
-    bank: &Bank<DefaultContext>,
+    bank: &Bank<S>,
     token_address: Address,
     sender_address: Address,
     sequencer_address: Address,
     receiver_address: Address,
     transfer_amount: Amount,
-    working_set: &mut WorkingSet<DefaultContext>,
+    working_set: &mut WorkingSet<S>,
 ) {
     let transfer_message = CallMessage::Transfer {
         to: receiver_address,
@@ -264,13 +265,13 @@ fn transfer(
         },
     };
 
-    let sender_context = C::new(sender_address, sequencer_address, 1);
+    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
 
     bank.call(transfer_message, &sender_context, working_set)
         .expect("Transfer call failed");
 }
 
-fn commit(working_set: WorkingSet<DefaultContext>, storage: ProverStorage<DefaultStorageSpec>) {
+fn commit(working_set: WorkingSet<S>, storage: ProverStorage<DefaultStorageSpec>) {
     // Save checkpoint
     let mut checkpoint = working_set.checkpoint();
 

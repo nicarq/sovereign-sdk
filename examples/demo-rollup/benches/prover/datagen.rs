@@ -6,12 +6,14 @@ use std::path::Path;
 use serde::Serialize;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::default_signature::DefaultPublicKey;
-use sov_modules_api::PrivateKey;
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_rollup_interface::services::da::DaService;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::MessageGenerator;
+
+type S = sov_modules_api::default_spec::DefaultSpec<sov_risc0_adapter::Risc0Verifier>;
+type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+type DefaultPublicKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 
 #[derive(Serialize)]
 struct AccountsData {
@@ -67,16 +69,15 @@ pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
     let da_service = MockDaService::new(MockAddress::default());
     let mut blocks = vec![];
 
-    let create_token_message_gen = BankMessageGenerator::default_generate_create_token();
+    let (create_token_message_gen, transfer_message_gen) =
+        BankMessageGenerator::generate_token_and_random_transfers(txns_per_block);
     let blob = create_token_message_gen.create_blobs::<<MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeRuntime>();
     da_service.send_transaction(&blob).await.unwrap();
     let block1 = da_service.get_block_at(1).await.unwrap();
     blocks.push(block1);
 
-    let create_transfer_message_gen =
-        BankMessageGenerator::default_generate_random_transfers(txns_per_block);
     for i in 0..block_cnt {
-        let blob = create_transfer_message_gen.create_blobs::<<MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeRuntime>();
+        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeRuntime>();
         da_service.send_transaction(&blob).await.unwrap();
         let blocki = da_service.get_block_at(2 + i).await.unwrap();
         blocks.push(blocki);

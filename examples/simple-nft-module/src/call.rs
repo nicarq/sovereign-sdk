@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, Context, EventEmitter, StateMapAccessor, WorkingSet};
+use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, StateMapAccessor, WorkingSet};
 
 use crate::{Event, NonFungibleToken};
 
@@ -11,11 +11,11 @@ use crate::{Event, NonFungibleToken};
     derive(serde::Deserialize),
     derive(CliWalletArg),
     derive(schemars::JsonSchema),
-    schemars(bound = "C::Address: ::schemars::JsonSchema", rename = "CallMessage")
+    schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")
 )]
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 /// A transaction handled by the NFT module. Mints, Transfers, or Burns an NFT by id
-pub enum CallMessage<C: Context> {
+pub enum CallMessage<S: Spec> {
     /// Mint a new token
     Mint {
         /// The id of new token. Caller is an owner
@@ -24,7 +24,7 @@ pub enum CallMessage<C: Context> {
     /// Transfer existing token to the new owner
     Transfer {
         /// The address to which the token will be transferred.
-        to: C::Address,
+        to: S::Address,
         /// The token id to transfer
         id: u64,
     },
@@ -35,12 +35,12 @@ pub enum CallMessage<C: Context> {
     },
 }
 
-impl<C: Context> NonFungibleToken<C> {
+impl<S: Spec> NonFungibleToken<S> {
     pub(crate) fn mint(
         &self,
         id: u64,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
         if self.owners.get(&id, working_set).is_some() {
             bail!("Token with id {} already exists", id);
@@ -56,9 +56,9 @@ impl<C: Context> NonFungibleToken<C> {
     pub(crate) fn transfer(
         &self,
         id: u64,
-        to: C::Address,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        to: S::Address,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
         let token_owner = match self.owners.get(&id, working_set) {
             None => {
@@ -77,8 +77,8 @@ impl<C: Context> NonFungibleToken<C> {
     pub(crate) fn burn(
         &self,
         id: u64,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
         let token_owner = match self.owners.get(&id, working_set) {
             None => {

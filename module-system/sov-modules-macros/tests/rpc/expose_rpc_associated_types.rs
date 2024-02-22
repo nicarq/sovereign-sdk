@@ -1,11 +1,11 @@
 use jsonrpsee::core::RpcResult;
-use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::{
     prelude::*, Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis,
-    MessageCodec, Module, ModuleInfo, StateValue, WorkingSet,
+    MessageCodec, Module, ModuleInfo, Spec, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
+type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 pub trait TestSpec: 'static {
     type Data: Data;
@@ -32,19 +32,19 @@ pub mod my_module {
     use super::*;
 
     #[derive(ModuleInfo)]
-    pub struct QueryModule<C: Context, D: Data> {
+    pub struct QueryModule<S: Spec, D: Data> {
         #[address]
-        pub address: C::Address,
+        pub address: S::Address,
 
         #[state]
         pub data: StateValue<D>,
     }
 
-    impl<C: Context, D> Module for QueryModule<C, D>
+    impl<S: Spec, D> Module for QueryModule<S, D>
     where
         D: Data,
     {
-        type Context = C;
+        type Spec = S;
         type Config = D;
         type CallMessage = D;
         type Event = ();
@@ -52,7 +52,7 @@ pub mod my_module {
         fn genesis(
             &self,
             config: &Self::Config,
-            working_set: &mut WorkingSet<C>,
+            working_set: &mut WorkingSet<S>,
         ) -> Result<(), Error> {
             self.data.set(config, working_set);
             Ok(())
@@ -61,8 +61,8 @@ pub mod my_module {
         fn call(
             &self,
             msg: Self::CallMessage,
-            _context: &Self::Context,
-            working_set: &mut WorkingSet<C>,
+            _context: &Context<Self::Spec>,
+            working_set: &mut WorkingSet<S>,
         ) -> Result<CallResponse, Error> {
             self.data.set(&msg, working_set);
             Ok(CallResponse::default())
@@ -79,12 +79,12 @@ pub mod my_module {
         }
 
         #[rpc_gen(client, server, namespace = "queryModule")]
-        impl<C, D: Data> QueryModule<C, D>
+        impl<S, D: Data> QueryModule<S, D>
         where
-            C: Context,
+            S: Spec,
         {
             #[rpc_method(name = "queryValue")]
-            pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<QueryResponse> {
+            pub fn query_value(&self, working_set: &mut WorkingSet<S>) -> RpcResult<QueryResponse> {
                 let value = self.data.get(working_set).map(|d| format!("{:?}", d));
                 Ok(QueryResponse { value })
             }
@@ -97,8 +97,8 @@ use my_module::rpc::{QueryModuleRpcImpl, QueryModuleRpcServer};
 #[expose_rpc]
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-struct Runtime<C: Context, S: TestSpec> {
-    pub first: my_module::QueryModule<C, S::Data>,
+struct Runtime<S: Spec, T: TestSpec> {
+    pub first: my_module::QueryModule<S, T::Data>,
 }
 
 struct ActualSpec;
@@ -108,21 +108,21 @@ impl TestSpec for ActualSpec {
 }
 
 fn main() {
-    type C = ZkDefaultContext;
-    type RT = Runtime<C, ActualSpec>;
+    type S = ZkDefaultSpec;
+    type RT = Runtime<S, ActualSpec>;
     let storage = ZkStorage::new();
     let working_set = &mut WorkingSet::new(storage);
-    let runtime = &mut Runtime::<C, ActualSpec>::default();
+    let runtime = &mut Runtime::<S, ActualSpec>::default();
     let config = GenesisConfig::new(22);
     runtime.genesis(&config, working_set).unwrap();
 
     let message: u32 = 33;
     let serialized_message =
-        <RT as EncodeCall<my_module::QueryModule<C, u32>>>::encode_call(message);
+        <RT as EncodeCall<my_module::QueryModule<S, u32>>>::encode_call(message);
     let module = RT::decode_call(&serialized_message).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([12; 32].as_ref()).unwrap();
-    let context = C::new(sender, sequencer, 1);
+    let context = Context::<S>::new(sender, sequencer, 1);
 
     let _ = runtime
         .dispatch_call(module, working_set, &context)
