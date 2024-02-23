@@ -3,7 +3,7 @@ mod value;
 mod vec;
 pub use map::{StateMapAccessor, StateMapError};
 use sov_modules_core::{
-    Prefix, Spec, StateCheckpoint, StateCodec, StateKeyCodec, StateReaderAndWriter,
+    Namespace, Prefix, StateCheckpoint, StateCodec, StateKeyCodec, StateReaderAndWriter,
     StateValueCodec, WorkingSet,
 };
 pub use value::{StateValueAccessor, StateValueError};
@@ -11,7 +11,7 @@ pub use value::{StateValueAccessor, StateValueError};
 pub use vec::tests as vec_tests;
 pub use vec::{StateVecAccessor, StateVecError, StateVecPrivateAccessor};
 
-use crate::{StateMap, StateValue, StateVec};
+use crate::{Spec, StateMap, StateValue, StateVec};
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
@@ -38,6 +38,10 @@ where
     Codec::ValueCodec: StateValueCodec<V>,
     S: StateAccessor,
 {
+    fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
+    }
+
     fn prefix(&self) -> &Prefix {
         &self.prefix
     }
@@ -54,6 +58,10 @@ where
     Codec::KeyCodec: StateKeyCodec<K>,
     Codec::ValueCodec: StateValueCodec<V>,
 {
+    fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
+    }
+
     /// Returns a reference to the codec used by this [`StateMap`].
     fn codec(&self) -> &Codec {
         &self.codec

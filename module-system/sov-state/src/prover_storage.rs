@@ -2,14 +2,19 @@ use std::marker::PhantomData;
 
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
+use sha2::Digest;
+use sov_db::namespaces;
+use sov_db::namespaces::{KernelNamespace as DBKernelNamespace, UserNamespace as DBUserNamespace};
 use sov_db::native_db::NativeDB;
 use sov_db::schema::ChangeSet;
-use sov_db::state_db::StateDB;
+use sov_db::state_db::{JmtHandler, StateDB};
 use sov_modules_core::{
-    NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, Storage, StorageProof, Witness,
+    Namespace, Namespaced, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, Storage,
+    StorageProof, Witness,
 };
 
 use crate::config::Config;
+use crate::storage::OrderedReadsAndWritesRef;
 use crate::MerkleProofSpec;
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
@@ -32,16 +37,176 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
-    fn read_value(&self, key: &SlotKey, version: Option<Version>) -> Option<SlotValue> {
+    fn read_value_namespace<N: namespaces::Namespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<Version>,
+    ) -> Option<SlotValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version());
+
         match self
             .db
-            .get_value_option_by_key(version_to_use, key.as_ref())
+            .get_value_option_by_key::<N>(version_to_use, key.as_ref())
         {
             Ok(value) => value.map(Into::into),
             // It is ok to panic here, we assume the db is available and consistent.
             Err(e) => panic!("Unable to read value from db: {e}"),
         }
+    }
+
+    fn read_value(&self, key: &SlotKey, version: Option<Version>) -> Option<SlotValue> {
+        match key.namespace() {
+            Namespace::User => self.read_value_namespace::<DBUserNamespace>(key, version),
+            Namespace::Kernel => self.read_value_namespace::<DBKernelNamespace>(key, version),
+        }
+    }
+
+    fn get_root_hash_namespace_helper<N: namespaces::Namespace>(
+        &self,
+        version: Version,
+    ) -> anyhow::Result<jmt::RootHash> {
+        let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
+        let merkle = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
+        merkle.get_root_hash(version)
+    }
+
+    /// Return the root hash for a given namespace and version
+    pub fn get_root_hash_namespace(
+        &self,
+        namespace: Namespace,
+        version: Version,
+    ) -> anyhow::Result<jmt::RootHash> {
+        match namespace {
+            Namespace::User => self.get_root_hash_namespace_helper::<DBUserNamespace>(version),
+            Namespace::Kernel => self.get_root_hash_namespace_helper::<DBKernelNamespace>(version),
+        }
+    }
+
+    pub(crate) fn compute_state_update_namespace<N: namespaces::Namespace>(
+        &self,
+        state_accesses: OrderedReadsAndWritesRef,
+        witness: &<ProverStorage<S> as Storage>::Witness,
+    ) -> Result<(jmt::RootHash, ProverStateUpdate), anyhow::Error> {
+        let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
+        let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
+        let latest_version = self.db.get_next_version() - 1;
+
+        // Handle empty jmt
+        // TODO: Fix this before introducing snapshots!
+        if jmt.get_root_hash_option(latest_version)?.is_none() {
+            assert_eq!(latest_version, 0);
+            let empty_batch = Vec::default().into_iter();
+            let (_, tree_update) = jmt
+                .put_value_set(empty_batch, latest_version)
+                .expect("JMT update must succeed");
+
+            self.db
+                .get_jmt_handler::<N>()
+                .write_node_batch(&tree_update.node_batch)
+                .expect("db write must succeed");
+        }
+        let prev_root = jmt
+            .get_root_hash(latest_version)
+            .expect("Previous root hash was just populated");
+        witness.add_hint(prev_root.0);
+
+        // For each value that's been read from the tree, read it from the logged JMT to populate hints
+        for (key, read_value) in &state_accesses.ordered_reads {
+            let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
+            // TODO: Switch to the batch read API once it becomes available
+            let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
+            if result != read_value.as_ref().map(|f| f.value().to_vec()) {
+                anyhow::bail!("Bug! Incorrect value read from jmt");
+            }
+            witness.add_hint(proof);
+        }
+
+        let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
+
+        // Compute the jmt update from the write batch
+        let batch = state_accesses
+            .ordered_writes
+            .into_iter()
+            .map(|(key, value)| {
+                let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
+                key_preimages.push((key_hash, key.clone()));
+                (key_hash, value.as_ref().map(|v| v.value().to_vec()))
+            });
+
+        let next_version = self.db.get_next_version();
+
+        let (new_root, update_proof, tree_update) = jmt
+            .put_value_set_with_proof(batch, next_version)
+            .expect("JMT update must succeed");
+
+        witness.add_hint(update_proof);
+        witness.add_hint(new_root.0);
+
+        let new_state_update = ProverStateUpdate {
+            node_batch: tree_update.node_batch,
+            key_preimages,
+        };
+
+        Ok((new_root, new_state_update))
+    }
+
+    fn commit_namespace<N: namespaces::Namespace>(
+        &self,
+        state_update: &ProverStateUpdate,
+        accessory_writes: &OrderedReadsAndWritesRef,
+    ) {
+        self.db
+            .put_preimages::<N>(
+                state_update
+                    .key_preimages
+                    .iter()
+                    .map(|(key_hash, key)| (*key_hash, key.key_ref())),
+            )
+            .expect("Preimage put must succeed");
+        let latest_version = self.db.get_next_version() - 1;
+
+        self.native_db
+            .set_values(
+                accessory_writes.ordered_writes.iter().map(|(k, v_opt)| {
+                    (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))
+                }),
+                latest_version,
+            )
+            .expect("native db write must succeed");
+
+        // Write the state values last, since we base our view of what has been touched
+        // on state. If the node crashes between the `native_db` update and this update,
+        // then the whole `commit` will be re-run later so no data can be lost.
+        self.db
+            .get_jmt_handler::<N>()
+            .write_node_batch(&state_update.node_batch)
+            .expect("db write must succeed");
+    }
+
+    fn get_with_proof_namespace<N: namespaces::Namespace>(
+        &self,
+        key: SlotKey,
+    ) -> StorageProof<<ProverStorage<S> as Storage>::Proof> {
+        let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
+        let merkle = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
+        let (val_opt, proof) = merkle
+            .get_with_proof(
+                KeyHash::with::<S::Hasher>(key.as_ref()),
+                self.db.get_next_version() - 1,
+            )
+            .unwrap();
+        StorageProof {
+            key,
+            value: val_opt.map(SlotValue::from),
+            proof,
+        }
+    }
+
+    fn combine_root_hashes(user_root: jmt::RootHash, kernel_root: jmt::RootHash) -> jmt::RootHash {
+        let mut hasher = <S::Hasher as Digest>::new();
+        hasher.update(user_root.0);
+        hasher.update(kernel_root.0);
+        jmt::RootHash(hasher.finalize().into())
     }
 }
 
@@ -68,6 +233,7 @@ impl<S: MerkleProofSpec> TryFrom<ProverStorage<S>> for ProverChangeSet {
     }
 }
 
+#[derive(Default)]
 pub struct ProverStateUpdate {
     pub(crate) node_batch: NodeBatch,
     pub key_preimages: Vec<(KeyHash, SlotKey)>,
@@ -78,7 +244,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type RuntimeConfig = Config;
     type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
     type Root = jmt::RootHash;
-    type StateUpdate = ProverStateUpdate;
+    type StateUpdate = Namespaced<ProverStateUpdate>;
     type ChangeSet = ProverChangeSet;
 
     fn get(
@@ -106,93 +272,31 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
-        let latest_version = self.db.get_next_version() - 1;
-        let jmt = JellyfishMerkleTree::<_, S::Hasher>::new(&self.db);
+        let (user_state_accesses, kernel_state_accesses) = state_accesses.partition_ns().into();
 
-        // Handle empty jmt
-        // TODO: Fix this before introducing snapshots!
-        if jmt.get_root_hash_option(latest_version)?.is_none() {
-            assert_eq!(latest_version, 0);
-            let empty_batch = Vec::default().into_iter();
-            let (_, tree_update) = jmt
-                .put_value_set(empty_batch, latest_version)
-                .expect("JMT update must succeed");
+        let (user_root, user_state_update) =
+            self.compute_state_update_namespace::<DBUserNamespace>(user_state_accesses, witness)?;
 
-            self.db
-                .write_node_batch(&tree_update.node_batch)
-                .expect("db write must succeed");
-        }
-        let prev_root = jmt
-            .get_root_hash(latest_version)
-            .expect("Previous root hash was just populated");
-        witness.add_hint(prev_root.0);
+        let (kernel_root, kernel_state_update) = self
+            .compute_state_update_namespace::<DBKernelNamespace>(kernel_state_accesses, witness)?;
 
-        // For each value that's been read from the tree, read it from the logged JMT to populate hints
-        for (key, read_value) in state_accesses.ordered_reads {
-            let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
-            // TODO: Switch to the batch read API once it becomes available
-            let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
-            if result.as_ref().cloned() != read_value.as_ref().map(|v| v.value().to_vec()) {
-                anyhow::bail!("Bug! Incorrect value read from jmt");
-            }
-            witness.add_hint(proof);
-        }
-
-        let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
-
-        // Compute the jmt update from the write batch
-        let batch = state_accesses
-            .ordered_writes
-            .into_iter()
-            .map(|(key, value)| {
-                let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
-                key_preimages.push((key_hash, key));
-                (key_hash, value.map(|v| v.value().to_vec()))
-            });
-
-        let next_version = self.db.get_next_version();
-
-        let (new_root, update_proof, tree_update) = jmt
-            .put_value_set_with_proof(batch, next_version)
-            .expect("JMT update must succeed");
-
-        witness.add_hint(update_proof);
-        witness.add_hint(new_root.0);
-
-        let state_update = ProverStateUpdate {
-            node_batch: tree_update.node_batch,
-            key_preimages,
-        };
-
-        Ok((new_root, state_update))
+        Ok((
+            Self::combine_root_hashes(user_root, kernel_root),
+            Namespaced::new(user_state_update, kernel_state_update),
+        ))
     }
 
     fn commit(&self, state_update: &Self::StateUpdate, accessory_writes: &OrderedReadsAndWrites) {
-        let latest_version = self.db.get_next_version() - 1;
-        self.db
-            .put_preimages(
-                state_update
-                    .key_preimages
-                    .iter()
-                    .map(|(key_hash, key)| (*key_hash, key.key_ref())),
-            )
-            .expect("Preimage put must succeed");
+        let accessory_writes = accessory_writes.partition_ns();
 
-        self.native_db
-            .set_values(
-                accessory_writes.ordered_writes.iter().map(|(k, v_opt)| {
-                    (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))
-                }),
-                latest_version,
-            )
-            .expect("native db write must succeed");
-
-        // Write the state values last, since we base our view of what has been touched
-        // on state. If the node crashes between the `native_db` update and this update,
-        // then the whole `commit` will be re-run later so no data can be lost.
-        self.db
-            .write_node_batch(&state_update.node_batch)
-            .expect("db write must succeed");
+        self.commit_namespace::<DBUserNamespace>(
+            state_update.get(Namespace::User),
+            accessory_writes.get(Namespace::User),
+        );
+        self.commit_namespace::<DBKernelNamespace>(
+            state_update.get(Namespace::Kernel),
+            accessory_writes.get(Namespace::Kernel),
+        );
 
         // Finally, update our in-memory view of the current item numbers
         self.db.inc_next_version();
@@ -223,23 +327,16 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 
 impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
     fn get_with_proof(&self, key: SlotKey) -> StorageProof<Self::Proof> {
-        let merkle = JellyfishMerkleTree::<StateDB, S::Hasher>::new(&self.db);
-        let (val_opt, proof) = merkle
-            .get_with_proof(
-                KeyHash::with::<S::Hasher>(key.as_ref()),
-                self.db.get_next_version() - 1,
-            )
-            .unwrap();
-        StorageProof {
-            key,
-            value: val_opt.map(SlotValue::from),
-            proof,
+        match key.namespace() {
+            Namespace::User => self.get_with_proof_namespace::<DBUserNamespace>(key),
+            Namespace::Kernel => self.get_with_proof_namespace::<DBKernelNamespace>(key),
         }
     }
 
     fn get_root_hash(&self, version: Version) -> anyhow::Result<jmt::RootHash> {
-        let temp_merkle: JellyfishMerkleTree<'_, StateDB, S::Hasher> =
-            JellyfishMerkleTree::new(&self.db);
-        temp_merkle.get_root_hash(version)
+        let user_root = self.get_root_hash_namespace_helper::<DBUserNamespace>(version)?;
+        let kernel_root = self.get_root_hash_namespace_helper::<DBKernelNamespace>(version)?;
+
+        Ok(Self::combine_root_hashes(user_root, kernel_root))
     }
 }

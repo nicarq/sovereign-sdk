@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
 use sov_modules_core::kernel_state::BootstrapWorkingSet;
-use sov_modules_core::{KernelWorkingSet, Prefix, Spec, StateCodec, StateValueCodec};
+use sov_modules_core::{KernelWorkingSet, Namespace, Prefix, StateCodec, StateValueCodec};
 use sov_state::codec::BorshCodec;
 
 use super::traits::StateValueAccessor;
+use crate::Spec;
 
 /// Container for a single value which is only accesible in the kernel.
 #[derive(
@@ -31,6 +32,8 @@ impl<V> KernelStateValue<V> {
 }
 
 impl<V, Codec> KernelStateValue<V, Codec> {
+    pub const NAMESPACE: Namespace = Namespace::Kernel;
+
     /// Creates a new [`KernelStateValue`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
@@ -53,6 +56,10 @@ where
     Codec::ValueCodec: StateValueCodec<V>,
     S: Spec,
 {
+    fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
+    }
+
     fn prefix(&self) -> &Prefix {
         &self.prefix
     }
@@ -69,6 +76,10 @@ where
     Codec::ValueCodec: StateValueCodec<V>,
     S: Spec,
 {
+    fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
+    }
+
     fn prefix(&self) -> &Prefix {
         &self.prefix
     }

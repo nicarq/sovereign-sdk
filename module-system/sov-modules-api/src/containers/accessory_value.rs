@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_core::{
-    AccessoryStateCheckpoint, AccessoryWorkingSet, Prefix, Spec, StateCodec, StateValueCodec,
+    AccessoryStateCheckpoint, AccessoryWorkingSet, Namespace, Prefix, StateCodec, StateValueCodec,
 };
 use sov_state::codec::BorshCodec;
 
-use crate::StateValueAccessor;
+use crate::{Spec, StateValueAccessor};
 
 /// Container for a single value stored as "accessory" state, outside of the
 /// JMT.
@@ -35,6 +35,8 @@ impl<V> AccessoryStateValue<V> {
 }
 
 impl<V, Codec> AccessoryStateValue<V, Codec> {
+    pub const NAMESPACE: Namespace = Namespace::User;
+
     /// Creates a new [`AccessoryStateValue`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
@@ -56,6 +58,10 @@ where
     Codec: StateCodec,
     Codec::ValueCodec: StateValueCodec<V>,
 {
+    fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
+    }
+
     fn prefix(&self) -> &Prefix {
         &self.prefix
     }
@@ -71,6 +77,10 @@ where
     Codec: StateCodec,
     Codec::ValueCodec: StateValueCodec<V>,
 {
+    fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
+    }
+
     fn prefix(&self) -> &Prefix {
         &self.prefix
     }

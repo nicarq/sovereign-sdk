@@ -10,7 +10,8 @@ use jmt::storage::TreeWriter;
 use jmt::{JellyfishMerkleTree, KeyHash};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use sov_db::state_db::StateDB;
+use sov_db::namespaces::UserNamespace;
+use sov_db::state_db::{JmtHandler, StateDB};
 use sov_schema_db::cache::cache_container::CacheContainer;
 use sov_schema_db::cache::cache_db::CacheDb;
 use sov_schema_db::{ReadOnlyLock, DB};
@@ -73,26 +74,35 @@ fn prepare_data(size: usize, db: DB) -> TestData {
         batch.push((key_hash, Some(value)));
     }
 
-    let jmt = JellyfishMerkleTree::<_, sha2::Sha256>::new(&db);
+    let namespaced_db_handler: JmtHandler<'_, UserNamespace> = db.get_jmt_handler();
+
+    let jmt =
+        JellyfishMerkleTree::<JmtHandler<UserNamespace>, sha2::Sha256>::new(&namespaced_db_handler);
 
     let (_new_root, _update_proof, tree_update) = jmt
         .put_value_set_with_proof(batch, 1)
         .expect("JMT update must succeed");
 
-    db.put_preimages(key_preimages).unwrap();
+    db.put_preimages::<UserNamespace>(key_preimages).unwrap();
 
-    db.write_node_batch(&tree_update.node_batch).unwrap();
+    namespaced_db_handler
+        .write_node_batch(&tree_update.node_batch)
+        .unwrap();
 
     // Sanity check:
     let version = db.get_next_version() - 1;
     for chunk in raw_data.chunks(2) {
         let key = &chunk[0];
         let value = chunk[1].clone();
-        let res = db.get_value_option_by_key(version, key).unwrap();
+        let res = db
+            .get_value_option_by_key::<UserNamespace>(version, key)
+            .unwrap();
         assert_eq!(Some(value), res);
     }
 
-    let random_value = db.get_value_option_by_key(version, &random_key).unwrap();
+    let random_value = db
+        .get_value_option_by_key::<UserNamespace>(version, &random_key)
+        .unwrap();
     assert!(random_value.is_some());
 
     TestData {
@@ -114,7 +124,10 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let result = black_box(db.get_value_option_by_key(*version, key).unwrap());
+                let result = black_box(
+                    db.get_value_option_by_key::<UserNamespace>(*version, key)
+                        .unwrap(),
+                );
                 assert!(result.is_some());
                 black_box(result);
             })
@@ -137,7 +150,10 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let result = black_box(db.get_value_option_by_key(*version, key).unwrap());
+                let result = black_box(
+                    db.get_value_option_by_key::<UserNamespace>(*version, key)
+                        .unwrap(),
+                );
                 assert!(result.is_some());
                 black_box(result);
             })
@@ -160,7 +176,10 @@ fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let result = black_box(db.get_value_option_by_key(*version, key).unwrap());
+                let result = black_box(
+                    db.get_value_option_by_key::<UserNamespace>(*version, key)
+                        .unwrap(),
+                );
                 assert!(result.is_none());
                 black_box(result);
             })

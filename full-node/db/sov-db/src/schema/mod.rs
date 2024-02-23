@@ -7,3 +7,5 @@ pub mod types;
 pub use sov_schema_db::cache::cache_container::CacheContainer;
 pub use sov_schema_db::cache::cache_db::CacheDb;
 pub use sov_schema_db::cache::change_set::ChangeSet;
+
+pub mod namespace;

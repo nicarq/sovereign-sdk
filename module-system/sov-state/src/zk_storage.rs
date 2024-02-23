@@ -3,7 +3,11 @@ use std::marker::PhantomData;
 use jmt::KeyHash;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use sov_modules_core::{OrderedReadsAndWrites, SlotKey, SlotValue, Storage, StorageProof, Witness};
+use sha2::Digest;
+use sov_modules_core::{
+    OrderedReadsAndWrites, OrderedReadsAndWritesRef, SlotKey, SlotValue, Storage, StorageProof,
+    Witness,
+};
 
 use crate::MerkleProofSpec;
 
@@ -29,7 +33,7 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 fn jmt_verify_existence<S: MerkleProofSpec>(
     prev_state_root: [u8; 32],
-    state_accesses: &OrderedReadsAndWrites,
+    state_accesses: &OrderedReadsAndWritesRef,
     witness: &S::Witness,
 ) -> Result<(), anyhow::Error> {
     // For each value that's been read from the tree, verify the provided smt proof
@@ -54,7 +58,7 @@ fn jmt_verify_existence<S: MerkleProofSpec>(
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 fn jmt_verify_update<S: MerkleProofSpec>(
     prev_state_root: [u8; 32],
-    state_accesses: OrderedReadsAndWrites,
+    state_accesses: OrderedReadsAndWritesRef,
     witness: &S::Witness,
 ) -> [u8; 32] {
     // Compute the jmt update from the write batch
@@ -63,7 +67,7 @@ fn jmt_verify_update<S: MerkleProofSpec>(
         .into_iter()
         .map(|(key, value)| {
             let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
-            (key_hash, value.map(|v| v.value().to_vec()))
+            (key_hash, value.as_ref().map(|v| v.value().to_vec()))
         })
         .collect::<Vec<_>>();
 
@@ -78,6 +82,30 @@ fn jmt_verify_update<S: MerkleProofSpec>(
         .expect("Updates must be valid");
 
     new_root
+}
+
+impl<S: MerkleProofSpec> ZkStorage<S> {
+    fn compute_state_update_namespace(
+        &self,
+        state_accesses: OrderedReadsAndWritesRef,
+        witness: &S::Witness,
+    ) -> Result<jmt::RootHash, anyhow::Error> {
+        let prev_state_root = witness.get_hint();
+
+        // For each value that's been read from the tree, verify the provided smt proof
+        jmt_verify_existence::<S>(prev_state_root, &state_accesses, witness)?;
+
+        let new_root = jmt_verify_update::<S>(prev_state_root, state_accesses, witness);
+
+        Ok(jmt::RootHash(new_root))
+    }
+
+    pub(crate) fn combine_root_hashes(root1: jmt::RootHash, root2: jmt::RootHash) -> jmt::RootHash {
+        let mut hasher = <S::Hasher as Digest>::new();
+        hasher.update(root1.0);
+        hasher.update(root2.0);
+        jmt::RootHash(hasher.finalize().into())
+    }
 }
 
 impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
@@ -102,14 +130,12 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
-        let prev_state_root = witness.get_hint();
+        let (user_state_accesses, kernel_state_accesses) = state_accesses.partition_ns().into();
 
-        // For each value that's been read from the tree, verify the provided smt proof
-        jmt_verify_existence::<S>(prev_state_root, &state_accesses, witness)?;
+        let user_root = self.compute_state_update_namespace(user_state_accesses, witness)?;
+        let kernel_root = self.compute_state_update_namespace(kernel_state_accesses, witness)?;
 
-        let new_root = jmt_verify_update::<S>(prev_state_root, state_accesses, witness);
-
-        Ok((jmt::RootHash(new_root), ()))
+        Ok((Self::combine_root_hashes(user_root, kernel_root), ()))
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]

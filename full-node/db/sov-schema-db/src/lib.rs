@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Adapted from aptos-core/schemadb
 
-#![forbid(unsafe_code)]
-#![deny(missing_docs)]
-
 //! This library implements a schematized DB on top of [RocksDB](https://rocksdb.org/). It makes
 //! sure all data passed in and out are structured according to predefined schemas and prevents
 //! access to raw keys and values. This library also enforces a set of specific DB options,
@@ -13,12 +10,16 @@
 //! families.  To use this library to store a kind of key-value pairs, the user needs to use the
 //! [`define_schema!`] macro to define the schema name, the types of key and value, and name of the
 //! column family.
+#![deny(missing_docs)]
+#![forbid(unsafe_code)]
 
 pub mod cache;
+
 mod iterator;
 mod metrics;
 pub mod schema;
 mod schema_batch;
+
 #[cfg(feature = "test-utils")]
 pub mod test;
 

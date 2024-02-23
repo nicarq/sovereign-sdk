@@ -15,7 +15,7 @@ use crate::storage::{
     EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, StateCodec,
     StateValueCodec, Storage, StorageInternalCache, StorageProof,
 };
-use crate::{Gas, Version};
+use crate::{Gas, Namespace, Version};
 
 /// A storage reader and writer
 pub trait StateReaderAndWriter {
@@ -31,6 +31,7 @@ pub trait StateReaderAndWriter {
     /// Replaces a storage value with the provided prefix, using the provided codec.
     fn set_value<Q, K, V, Codec>(
         &mut self,
+        namespace: Namespace,
         prefix: &Prefix,
         storage_key: &Q,
         value: &V,
@@ -41,19 +42,24 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(namespace, prefix, storage_key, codec.key_codec());
         let storage_value = SlotValue::new(value, codec.value_codec());
         self.set(&storage_key, storage_value);
     }
 
     /// Replaces a storage value with a singleton prefix. For more information, check
     /// [SlotKey::singleton].
-    fn set_singleton<V, Codec>(&mut self, prefix: &Prefix, value: &V, codec: &Codec)
-    where
+    fn set_singleton<V, Codec>(
+        &mut self,
+        namespace: Namespace,
+        prefix: &Prefix,
+        value: &V,
+        codec: &Codec,
+    ) where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(prefix);
+        let storage_key = SlotKey::singleton(namespace, prefix);
         let storage_value = SlotValue::new(value, codec.value_codec());
         self.set(&storage_key, storage_value);
     }
@@ -76,6 +82,7 @@ pub trait StateReaderAndWriter {
     /// Get a value from the storage.
     fn get_value<Q, K, V, Codec>(
         &mut self,
+        namespace: Namespace,
         prefix: &Prefix,
         storage_key: &Q,
         codec: &Codec,
@@ -86,23 +93,29 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(namespace, prefix, storage_key, codec.key_codec());
         self.get_decoded(&storage_key, codec)
     }
 
     /// Get a singleton value from the storage. For more information, check [SlotKey::singleton].
-    fn get_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
+    fn get_singleton<V, Codec>(
+        &mut self,
+        namespace: Namespace,
+        prefix: &Prefix,
+        codec: &Codec,
+    ) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(prefix);
+        let storage_key = SlotKey::singleton(namespace, prefix);
         self.get_decoded(&storage_key, codec)
     }
 
     /// Removes a value from the storage.
     fn remove_value<Q, K, V, Codec>(
         &mut self,
+        namespace: Namespace,
         prefix: &Prefix,
         storage_key: &Q,
         codec: &Codec,
@@ -113,38 +126,48 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(namespace, prefix, storage_key, codec.key_codec());
         let storage_value = self.get_decoded(&storage_key, codec)?;
         self.delete(&storage_key);
         Some(storage_value)
     }
 
     /// Removes a singleton from the storage. For more information, check [SlotKey::singleton].
-    fn remove_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
+    fn remove_singleton<V, Codec>(
+        &mut self,
+        namespace: Namespace,
+        prefix: &Prefix,
+        codec: &Codec,
+    ) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(prefix);
+        let storage_key = SlotKey::singleton(namespace, prefix);
         let storage_value = self.get_decoded(&storage_key, codec)?;
         self.delete(&storage_key);
         Some(storage_value)
     }
 
     /// Deletes a value from the storage.
-    fn delete_value<Q, K, Codec>(&mut self, prefix: &Prefix, storage_key: &Q, codec: &Codec)
-    where
+    fn delete_value<Q, K, Codec>(
+        &mut self,
+        namespace: Namespace,
+        prefix: &Prefix,
+        storage_key: &Q,
+        codec: &Codec,
+    ) where
         Q: ?Sized,
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
     {
-        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(namespace, prefix, storage_key, codec.key_codec());
         self.delete(&storage_key);
     }
 
     /// Deletes a singleton from the storage. For more information, check [SlotKey::singleton].
-    fn delete_singleton(&mut self, prefix: &Prefix) {
-        let storage_key = SlotKey::singleton(prefix);
+    fn delete_singleton(&mut self, namespace: Namespace, prefix: &Prefix) {
+        let storage_key = SlotKey::singleton(namespace, prefix);
         self.delete(&storage_key);
     }
 }

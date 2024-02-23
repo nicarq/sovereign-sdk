@@ -4,7 +4,7 @@ use helpers::*;
 use sov_bank::{get_genesis_token_address, Amount, Bank, CallMessage, Coins};
 use sov_modules_api::{Address, Context, Module, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::storage::{SlotKey, SlotValue};
+use sov_state::storage::{Namespace, SlotKey, SlotValue};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
@@ -178,8 +178,13 @@ fn transfer_initial_token() {
     assert_eq!((sender_balance, receiver_balance), (70, 130));
 
     let mut accessory_state = working_set.accessory_state();
-    accessory_state.set(&SlotKey::from("k"), SlotValue::from(b"v1".to_vec()));
-    let val = accessory_state.get(&SlotKey::from("k")).unwrap();
+    accessory_state.set(
+        &SlotKey::from_str(Namespace::User, "k"),
+        SlotValue::from(b"v1".to_vec()),
+    );
+    let val = accessory_state
+        .get(&SlotKey::from_str(Namespace::User, "k"))
+        .unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     commit(working_set, prover_storage.clone());
@@ -205,8 +210,13 @@ fn transfer_initial_token() {
     );
     assert_eq!((sender_balance, receiver_balance), (60, 140));
     let mut accessory_state = working_set.accessory_state();
-    accessory_state.set(&SlotKey::from("k"), SlotValue::from(b"v2".to_vec()));
-    let val = accessory_state.get(&SlotKey::from("k")).unwrap();
+    accessory_state.set(
+        &SlotKey::from_str(Namespace::User, "k"),
+        SlotValue::from(b"v2".to_vec()),
+    );
+    let val = accessory_state
+        .get(&SlotKey::from_str(Namespace::User, "k"))
+        .unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
     commit(working_set, prover_storage.clone());
@@ -217,18 +227,27 @@ fn transfer_initial_token() {
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     working_set.set_archival_version(archival_slot);
     let mut accessory_state = working_set.accessory_state();
-    let val = accessory_state.get(&SlotKey::from("k")).unwrap();
+    let val = accessory_state
+        .get(&SlotKey::from_str(Namespace::User, "k"))
+        .unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     // archival accessory set
 
-    accessory_state.set(&SlotKey::from("k"), SlotValue::from(b"v3".to_vec()));
-    let val = accessory_state.get(&SlotKey::from("k")).unwrap();
+    accessory_state.set(
+        &SlotKey::from_str(Namespace::User, "k"),
+        SlotValue::from(b"v3".to_vec()),
+    );
+    let val = accessory_state
+        .get(&SlotKey::from_str(Namespace::User, "k"))
+        .unwrap();
     assert_eq!("v3", String::from_utf8(val.value().to_vec()).unwrap());
 
     working_set.unset_archival_version();
     let mut accessory_state = working_set.accessory_state();
-    let val = accessory_state.get(&SlotKey::from("k")).unwrap();
+    let val = accessory_state
+        .get(&SlotKey::from_str(Namespace::User, "k"))
+        .unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 }
 

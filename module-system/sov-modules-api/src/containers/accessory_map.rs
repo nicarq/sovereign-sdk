@@ -1,12 +1,13 @@
 use std::marker::PhantomData;
 
 use sov_modules_core::{
-    AccessoryStateCheckpoint, AccessoryWorkingSet, Prefix, Spec, StateCodec, StateKeyCodec,
+    AccessoryStateCheckpoint, AccessoryWorkingSet, Namespace, Prefix, StateCodec, StateKeyCodec,
     StateValueCodec,
 };
 use sov_state::codec::BorshCodec;
 
 use super::traits::StateMapAccessor;
+use crate::Spec;
 
 /// A container that maps keys to values stored as "accessory" state, outside of
 /// the JMT.
@@ -40,6 +41,8 @@ impl<K, V> AccessoryStateMap<K, V> {
 }
 
 impl<K, V, Codec> AccessoryStateMap<K, V, Codec> {
+    pub const NAMESPACE: Namespace = Namespace::User;
+
     /// Creates a new [`AccessoryStateMap`] with the given prefix and [`StateValueCodec`].
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
@@ -63,6 +66,10 @@ where
     Codec::ValueCodec: StateValueCodec<V>,
     S: Spec,
 {
+    fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
+    }
+
     /// Returns the prefix used when this [`AccessoryStateMap`] was created.
     fn prefix(&self) -> &Prefix {
         &self.prefix
@@ -81,6 +88,10 @@ where
     Codec::ValueCodec: StateValueCodec<V>,
     S: Spec,
 {
+    fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
+    }
+
     /// Returns the prefix used when this [`AccessoryStateMap`] was created.
     fn prefix(&self) -> &Prefix {
         &self.prefix

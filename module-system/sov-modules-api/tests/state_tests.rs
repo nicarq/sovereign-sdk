@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::*;
+use sov_modules_core::Namespace;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{ArrayWitness, DefaultStorageSpec, Prefix, Storage, ZkStorage};
 
@@ -400,4 +401,167 @@ fn test_state_vec_diff_type() {
         let len = state_vec.len(&mut working_set);
         assert_eq!(len, 2);
     }
+}
+
+/// Test that the state values with a standard working set get written to the user space
+#[test]
+fn test_state_value_user_namespace() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let state_value = StateValue::new(Prefix::new(vec![0]));
+
+    // Native execution
+    let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
+    // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+
+    let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
+    state_value.set(&11, &mut working_set);
+    let _ = state_value.get(&mut working_set);
+    state_value.set(&22, &mut working_set);
+    let (cache_log, witness) = working_set.checkpoint().0.freeze();
+
+    let _ = storage
+        .validate_and_commit(cache_log, &witness)
+        .expect("Native jmt validation should succeed");
+
+    // In the first version the user and the kernel root hashes are the same
+    let kernel_root_hash = storage
+        .get_root_hash_namespace(Namespace::Kernel, 0)
+        .unwrap();
+    let user_root_hash = storage.get_root_hash_namespace(Namespace::User, 0).unwrap();
+    assert_eq!(kernel_root_hash, user_root_hash);
+
+    // Then the kernel is the same but the user root hash changes
+    let new_kernel_root_hash = storage
+        .get_root_hash_namespace(Namespace::Kernel, 1)
+        .unwrap();
+    let new_user_root_hash = storage.get_root_hash_namespace(Namespace::User, 1).unwrap();
+    assert_eq!(kernel_root_hash, new_kernel_root_hash);
+    assert_ne!(new_kernel_root_hash, new_user_root_hash);
+}
+
+/// Test that the state values with a kernel working set get written to the kernel space
+#[test]
+fn test_state_value_kernel_namespace() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let state_value = KernelStateValue::new(Prefix::new(vec![0]));
+
+    // Native execution
+    let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
+    // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+
+    let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
+
+    let mut state_checkpoint = working_set.checkpoint().0;
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    state_value.set(&11, &mut kernel_working_set);
+    let _ = state_value.get(&mut kernel_working_set);
+    state_value.set(&22, &mut kernel_working_set);
+
+    let (cache_log, witness) = state_checkpoint.freeze();
+
+    let _ = storage
+        .validate_and_commit(cache_log, &witness)
+        .expect("Native jmt validation should succeed");
+
+    // In the first version the user and the kernel root hashes are the same
+    let kernel_root_hash = storage
+        .get_root_hash_namespace(Namespace::Kernel, 0)
+        .unwrap();
+    let user_root_hash = storage.get_root_hash_namespace(Namespace::User, 0).unwrap();
+    assert_eq!(kernel_root_hash, user_root_hash);
+
+    // Then the kernel is the same but the user root hash changes
+    let new_kernel_root_hash = storage
+        .get_root_hash_namespace(Namespace::Kernel, 1)
+        .unwrap();
+    let new_user_root_hash = storage.get_root_hash_namespace(Namespace::User, 1).unwrap();
+    assert_eq!(user_root_hash, new_user_root_hash);
+    assert_ne!(new_kernel_root_hash, new_user_root_hash);
+}
+
+/// Test that the state maps with a standard working set get written to the user space
+#[test]
+fn test_state_map_user_namespace() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let state_value = StateMap::new(Prefix::new(vec![0]));
+
+    // Native execution
+    let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
+    // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+
+    let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
+    state_value.set(&11, &0, &mut working_set);
+    let _ = state_value.get(&0, &mut working_set);
+    state_value.set(&22, &0, &mut working_set);
+    let (cache_log, witness) = working_set.checkpoint().0.freeze();
+
+    let _ = storage
+        .validate_and_commit(cache_log, &witness)
+        .expect("Native jmt validation should succeed");
+
+    // In the first version the user and the kernel root hashes are the same
+    let kernel_root_hash = storage
+        .get_root_hash_namespace(Namespace::Kernel, 0)
+        .unwrap();
+    let user_root_hash = storage.get_root_hash_namespace(Namespace::User, 0).unwrap();
+    assert_eq!(kernel_root_hash, user_root_hash);
+
+    // Then the kernel is the same but the user root hash changes
+    let new_kernel_root_hash = storage
+        .get_root_hash_namespace(Namespace::Kernel, 1)
+        .unwrap();
+    let new_user_root_hash = storage.get_root_hash_namespace(Namespace::User, 1).unwrap();
+    assert_eq!(kernel_root_hash, new_kernel_root_hash);
+    assert_ne!(new_kernel_root_hash, new_user_root_hash);
+}
+
+/// Test that the kernel state maps with a kernel working set get written to the kernel space
+#[test]
+fn test_versioned_state_value_kernel_namespace() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let state_value = VersionedStateValue::new(Prefix::new(vec![0]));
+
+    // Native execution
+    let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
+    // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+
+    let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
+
+    let mut state_checkpoint = working_set.checkpoint().0;
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    state_value.set_current(&11, &mut kernel_working_set);
+    let _ = state_value.get_current(&mut kernel_working_set);
+    state_value.set_current(&22, &mut kernel_working_set);
+
+    let (cache_log, witness) = state_checkpoint.freeze();
+
+    let _ = storage
+        .validate_and_commit(cache_log, &witness)
+        .expect("Native jmt validation should succeed");
+
+    // In the first version the user and the kernel root hashes are the same
+    let kernel_root_hash = storage
+        .get_root_hash_namespace(Namespace::Kernel, 0)
+        .unwrap();
+    let user_root_hash = storage.get_root_hash_namespace(Namespace::User, 0).unwrap();
+    assert_eq!(kernel_root_hash, user_root_hash);
+
+    // Then the kernel is the same but the user root hash changes
+    let new_kernel_root_hash = storage
+        .get_root_hash_namespace(Namespace::Kernel, 1)
+        .unwrap();
+    let new_user_root_hash = storage.get_root_hash_namespace(Namespace::User, 1).unwrap();
+    assert_eq!(user_root_hash, new_user_root_hash);
+    assert_ne!(new_kernel_root_hash, new_user_root_hash);
+
+    // Check that we can get the current value with a standard working set
+    let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
+    let mut state_checkpoint = working_set.checkpoint().0;
+    let kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    let mut versioned_reader = VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);
+    let val = state_value
+        .get_current(&mut versioned_reader)
+        .expect("We should be able to retrieve the state value");
+
+    assert_eq!(val, 22);
 }

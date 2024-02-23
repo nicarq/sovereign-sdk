@@ -6,7 +6,9 @@ use sov_rollup_interface::maybestd::collections::hash_map::Entry;
 use sov_rollup_interface::maybestd::collections::HashMap;
 
 use crate::common::{MergeError, ReadError};
-use crate::storage::{SlotKey, SlotValue, Storage};
+use crate::storage::Storage;
+pub use crate::Namespace;
+use crate::{Namespaced, SlotKey, SlotValue};
 
 /// `Access` represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
@@ -429,6 +431,40 @@ pub struct OrderedReadsAndWrites {
     pub ordered_writes: Vec<(SlotKey, Option<SlotValue>)>,
 }
 
+/// A struct that contains the values read from the DB and the values to be written, both in
+/// deterministic order.
+#[derive(Debug)]
+pub struct OrderedReadsAndWritesRef<'a> {
+    /// Ordered reads.
+    pub ordered_reads: Vec<&'a (SlotKey, Option<SlotValue>)>,
+    /// Ordered writes.
+    pub ordered_writes: Vec<&'a (SlotKey, Option<SlotValue>)>,
+}
+
+impl OrderedReadsAndWrites {
+    /// Partitions the ordered reads and writes on a namespace
+    pub fn partition_ns(&self) -> Namespaced<OrderedReadsAndWritesRef> {
+        let (left_reads, right_reads): (Vec<_>, Vec<_>) = self
+            .ordered_reads
+            .iter()
+            .partition(|(k, _)| k.namespace == Namespace::User);
+        let (left_writes, right_writes): (Vec<_>, Vec<_>) = self
+            .ordered_writes
+            .iter()
+            .partition(|(k, _)| k.namespace == Namespace::User);
+        Namespaced::new(
+            OrderedReadsAndWritesRef {
+                ordered_reads: left_reads,
+                ordered_writes: left_writes,
+            },
+            OrderedReadsAndWritesRef {
+                ordered_reads: right_reads,
+                ordered_writes: right_writes,
+            },
+        )
+    }
+}
+
 impl From<StorageInternalCache> for OrderedReadsAndWrites {
     fn from(val: StorageInternalCache) -> Self {
         let mut writes = val.tx_cache.take_writes();
@@ -450,6 +486,7 @@ mod tests {
 
     pub fn create_key(key: u8) -> SlotKey {
         SlotKey {
+            namespace: Namespace::User,
             key: RefCount::new(alloc::vec![key]),
         }
     }

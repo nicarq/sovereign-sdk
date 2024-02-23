@@ -5,8 +5,11 @@ use core::fmt;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::maybestd::{vec, RefCount};
+
+use crate::common::{AlignedVec, Prefix, Version, Witness};
+
 mod cache;
 mod codec;
 mod scratchpad;
@@ -15,9 +18,71 @@ pub use cache::*;
 pub use codec::*;
 pub use scratchpad::*;
 
-use crate::{AlignedVec, Prefix, Witness};
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    BorshSerialize,
+    BorshDeserialize,
+    Serialize,
+    Deserialize,
+)]
+/// The namespaces used in the rollup. Related to the db's namespaces.
+pub enum Namespace {
+    /// The user namespace. Used by the User modules and is synchronised with the visible height.
+    User,
+    /// The kernel namespace. Used by the Kernel modules and is synchronised with the true height.
+    Kernel,
+}
 
-type Version = u64;
+#[derive(Default)]
+/// A generic structure that divides a given type among the namespaces.
+pub struct Namespaced<T> {
+    user: T,
+    kernel: T,
+}
+
+impl<T> Namespaced<T> {
+    /// Gets the inner object for a given namespace.
+    pub fn get(&self, namespace: Namespace) -> &T {
+        match namespace {
+            Namespace::User => &self.user,
+            Namespace::Kernel => &self.kernel,
+        }
+    }
+
+    /// Takes the inner object for a given namespace.
+    pub fn take(self, namespace: Namespace) -> T {
+        match namespace {
+            Namespace::User => self.user,
+            Namespace::Kernel => self.kernel,
+        }
+    }
+
+    /// Sets the inner object for a given namespace.
+    pub fn set(&mut self, namespace: Namespace, state_update: T) {
+        match namespace {
+            Namespace::User => self.user = state_update,
+            Namespace::Kernel => self.kernel = state_update,
+        }
+    }
+
+    /// Creates a new struct instance from specified values.
+    pub fn new(user: T, kernel: T) -> Self {
+        Self { user, kernel }
+    }
+}
+
+impl<T> From<Namespaced<T>> for (T, T) {
+    fn from(val: Namespaced<T>) -> Self {
+        (val.user, val.kernel)
+    }
+}
 
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.
@@ -27,10 +92,16 @@ type Version = u64;
     derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
 )]
 pub struct SlotKey {
+    namespace: Namespace,
     key: RefCount<Vec<u8>>,
 }
 
 impl SlotKey {
+    /// Returns the namespace of the key.
+    pub fn namespace(&self) -> Namespace {
+        self.namespace
+    }
+
     /// Returns a new [`RefCount`] reference to the bytes of this key.
     pub fn key(&self) -> RefCount<Vec<u8>> {
         self.key.clone()
@@ -45,12 +116,14 @@ impl SlotKey {
     pub fn to_cache_key_version(&self, version: Option<u64>) -> SlotKey {
         match version {
             None => SlotKey {
+                namespace: self.namespace,
                 key: self.key.clone(),
             },
             Some(v) => {
                 let mut bytes = v.to_be_bytes().to_vec();
                 bytes.extend((*self.key).clone());
                 SlotKey {
+                    namespace: self.namespace,
                     key: RefCount::new(bytes),
                 }
             }
@@ -72,7 +145,7 @@ impl fmt::Display for SlotKey {
 
 impl SlotKey {
     /// Creates a new [`SlotKey`] that combines a prefix and a key.
-    pub fn new<K, Q, KC>(prefix: &Prefix, key: &Q, codec: &KC) -> Self
+    pub fn new<K, Q, KC>(namespace: Namespace, prefix: &Prefix, key: &Q, codec: &KC) -> Self
     where
         KC: EncodeKeyLike<Q, K>,
         Q: ?Sized,
@@ -86,20 +159,32 @@ impl SlotKey {
         full_key.extend(&encoded_key);
 
         Self {
+            namespace,
             key: RefCount::new(full_key.into_inner()),
         }
     }
 
     /// Build a storage key from raw bytes
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+    pub fn from_bytes(namespace: Namespace, bytes: Vec<u8>) -> Self {
         Self {
+            namespace,
             key: RefCount::new(bytes),
         }
     }
 
-    /// Creates a new [`SlotKey`] that combines a prefix and a key.
-    pub fn singleton(prefix: &Prefix) -> Self {
+    /// Used only in tests.
+    /// Builds a storage key from a string
+    pub fn from_str(namespace: Namespace, key: &str) -> Self {
         Self {
+            namespace,
+            key: RefCount::new(key.as_bytes().to_vec()),
+        }
+    }
+
+    /// Creates a new [`SlotKey`] that combines a prefix and a key.
+    pub fn singleton(namespace: Namespace, prefix: &Prefix) -> Self {
+        Self {
+            namespace,
             key: RefCount::new(prefix.as_aligned_vec().clone().into_inner()),
         }
     }
@@ -274,15 +359,6 @@ pub trait Storage: Clone {
 }
 
 /// Used only in tests.
-impl From<&str> for SlotKey {
-    fn from(key: &str) -> Self {
-        Self {
-            key: RefCount::new(key.as_bytes().to_vec()),
-        }
-    }
-}
-
-/// Used only in tests.
 impl From<&str> for SlotValue {
     fn from(value: &str) -> Self {
         Self {
@@ -298,6 +374,6 @@ pub trait NativeStorage: Storage {
     /// get the value.
     fn get_with_proof(&self, key: SlotKey) -> StorageProof<Self::Proof>;
 
-    /// Get the root hash of the tree at the requested version
+    /// Get the *global* root hash of the tree at the requested version
     fn get_root_hash(&self, version: Version) -> Result<Self::Root, anyhow::Error>;
 }
