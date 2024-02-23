@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::Prefix;
+use sov_modules_core::{Namespace, Prefix};
 use sov_state::codec::BorshCodec;
 
 /// Container for a single value.
@@ -28,6 +28,8 @@ impl<V> StateValue<V> {
 }
 
 impl<V, Codec> StateValue<V, Codec> {
+    pub const NAMESPACE: Namespace = Namespace::User;
+
     /// Creates a new [`StateValue`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {

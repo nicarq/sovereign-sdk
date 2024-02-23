@@ -7,7 +7,7 @@ use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
-use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
+use sov_state::storage::{Namespace, NativeStorage, SlotKey, SlotValue};
 use sov_state::{
     ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverChangeSet,
     ProverStorage, Storage,
@@ -27,9 +27,9 @@ impl<Cond> HashStf<Cond> {
         }
     }
 
-    fn hash_key() -> SlotKey {
+    fn hash_key(namespace: Namespace) -> SlotKey {
         let prefix = Prefix::new(b"root".to_vec());
-        SlotKey::singleton(&prefix)
+        SlotKey::singleton(namespace, &prefix)
     }
 
     fn save_from_hasher(
@@ -39,7 +39,7 @@ impl<Cond> HashStf<Cond> {
     ) -> ([u8; 32], ProverChangeSet) {
         let result = hasher.finalize();
 
-        let hash_key = HashStf::<Cond>::hash_key();
+        let hash_key = HashStf::<Cond>::hash_key(Namespace::User);
         let hash_value = SlotValue::from(result.as_slice().to_vec());
 
         let ordered_reads_writes = OrderedReadsAndWrites {
@@ -53,13 +53,7 @@ impl<Cond> HashStf<Cond> {
 
         storage.commit(&state_update, &OrderedReadsAndWrites::default());
 
-        let mut root_hash = [0u8; 32];
-
-        for (i, &byte) in jmt_root_hash.as_ref().iter().enumerate() {
-            root_hash[i] = byte;
-        }
-
-        (root_hash, storage.to_change_set())
+        (jmt_root_hash.into(), storage.to_change_set())
     }
 }
 
@@ -110,7 +104,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
         let mut hasher = sha2::Sha256::new();
 
-        let hash_key = HashStf::<Cond>::hash_key();
+        let hash_key = HashStf::<Cond>::hash_key(Namespace::User);
         let existing_cache = pre_state.get(&hash_key, None, &witness).unwrap();
         tracing::trace!(
             pre_state_root = hex::encode(pre_state_root),
@@ -176,8 +170,8 @@ fn compare_output() {
     assert!(root_hash.is_some());
 
     let recorded_state_root: [u8; 32] = [
-        121, 110, 56, 75, 48, 251, 66, 243, 236, 155, 4, 128, 238, 122, 188, 160, 17, 46, 169, 39,
-        160, 142, 220, 208, 15, 213, 221, 250, 108, 52, 7, 46,
+        187, 159, 56, 140, 156, 64, 1, 22, 185, 241, 95, 11, 247, 87, 147, 191, 133, 14, 225, 235,
+        94, 135, 23, 253, 145, 74, 94, 23, 128, 233, 18, 32,
     ];
 
     assert_eq!(recorded_state_root, state_root);

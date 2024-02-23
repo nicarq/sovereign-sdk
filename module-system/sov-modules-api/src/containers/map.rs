@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::Prefix;
+use sov_modules_core::{Namespace, Prefix};
 use sov_state::codec::BorshCodec;
 
+#[cfg(feature = "arbitrary")]
+use crate::StateMapAccessor;
 /// A container that maps keys to values.
 ///
 /// # Type parameters
@@ -34,6 +36,8 @@ impl<K, V> StateMap<K, V> {
 }
 
 impl<K, V, Codec> StateMap<K, V, Codec> {
+    pub const NAMESPACE: Namespace = Namespace::User;
+
     /// Creates a new [`StateMap`] with the given prefix and [`sov_modules_core::StateValueCodec`].
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
@@ -41,6 +45,10 @@ impl<K, V, Codec> StateMap<K, V, Codec> {
             codec,
             prefix,
         }
+    }
+
+    pub fn namespace(&self) -> Namespace {
+        Self::NAMESPACE
     }
 
     /// Returns a reference to the codec used by this [`StateMap`].
@@ -74,8 +82,6 @@ where
         S: sov_modules_core::Spec,
     {
         use arbitrary::Arbitrary;
-
-        use crate::StateMapAccessor;
 
         let prefix = Prefix::arbitrary(u)?;
         let len = u.arbitrary_len::<(K, V)>()?;

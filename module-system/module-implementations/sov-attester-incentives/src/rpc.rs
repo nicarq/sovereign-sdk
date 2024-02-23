@@ -48,7 +48,8 @@ where
     pub fn get_attester_storage_key(&self, address: S::Address) -> SlotKey {
         let prefix = self.bonded_attesters.prefix();
         let codec = self.bonded_attesters.codec();
-        SlotKey::new(prefix, &address, codec)
+        // Maybe we will need to store the namespace somewhere in the rollup
+        SlotKey::new(self.bonded_attesters.namespace(), prefix, &address, codec)
     }
 
     /// Used by attesters to get a proof that they were bonded before starting to produce attestations.

@@ -51,7 +51,6 @@ pub type AccessoryStateValue = Option<Vec<u8>>;
 pub type DbHash = [u8; 32];
 /// The "value" half of a key/value pair from the JMT
 pub type JmtValue = Option<Vec<u8>>;
-pub(crate) type StateKey = Vec<u8>;
 
 /// Type alias for `Vec<u8>`
 pub type ModuleAddress = Vec<u8>;

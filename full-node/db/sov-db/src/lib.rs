@@ -23,3 +23,6 @@ pub mod state_db;
 /// outside of the zkVM execution environment, as this data is not included in
 /// the JMT and does not contribute to proofs of execution.
 pub mod native_db;
+
+/// Define namespaces at the database level
+pub mod namespaces;

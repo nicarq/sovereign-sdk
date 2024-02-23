@@ -1,5 +1,5 @@
 use sov_modules_core::{
-    EncodeKeyLike, Prefix, SlotKey, StateCodec, StateKeyCodec, StateReaderAndWriter,
+    EncodeKeyLike, Namespace, Prefix, SlotKey, StateCodec, StateKeyCodec, StateReaderAndWriter,
     StateValueCodec,
 };
 use thiserror::Error;
@@ -20,6 +20,8 @@ where
     Codec::ValueCodec: StateValueCodec<V>,
     W: StateReaderAndWriter,
 {
+    fn namespace(&self) -> Namespace;
+
     /// Returns a reference to the codec used to encode this map.
     fn codec(&self) -> &Codec;
 
@@ -35,7 +37,7 @@ where
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        working_set.set_value(self.prefix(), key, value, self.codec())
+        working_set.set_value(self.namespace(), self.prefix(), key, value, self.codec())
     }
 
     /// Returns the value corresponding to the key, or [`None`] if the map
@@ -77,7 +79,7 @@ where
         Codec::ValueCodec: StateValueCodec<V>,
         Q: ?Sized,
     {
-        working_set.get_value(self.prefix(), key, self.codec())
+        working_set.get_value(self.namespace(), self.prefix(), key, self.codec())
     }
 
     /// Returns the value corresponding to the key or [`StateMapError`] if key is absent from
@@ -92,7 +94,12 @@ where
         self.get(key, working_set).ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
-                SlotKey::new(self.prefix(), key, self.codec().key_codec()),
+                SlotKey::new(
+                    self.namespace(),
+                    self.prefix(),
+                    key,
+                    self.codec().key_codec(),
+                ),
             )
         })
     }
@@ -106,7 +113,7 @@ where
         Codec::ValueCodec: StateValueCodec<V>,
         Q: ?Sized,
     {
-        working_set.remove_value(self.prefix(), key, self.codec())
+        working_set.remove_value(self.namespace(), self.prefix(), key, self.codec())
     }
 
     /// Removes a key from the map, returning the corresponding value (or
@@ -123,7 +130,12 @@ where
         self.remove(key, working_set).ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
-                SlotKey::new(self.prefix(), key, self.codec().key_codec()),
+                SlotKey::new(
+                    self.namespace(),
+                    self.prefix(),
+                    key,
+                    self.codec().key_codec(),
+                ),
             )
         })
     }
@@ -138,6 +150,6 @@ where
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        working_set.delete_value(self.prefix(), key, self.codec());
+        working_set.delete_value(self.namespace(), self.prefix(), key, self.codec());
     }
 }

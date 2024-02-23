@@ -27,7 +27,7 @@ pub use versioned_value::VersionedStateValue;
 mod test {
     use sov_mock_da::{MockBlockHeader, MockDaSpec};
     use sov_modules_core::{
-        SlotKey, SlotValue, StateReaderAndWriter, Storage, Version, WorkingSet,
+        Namespace, SlotKey, SlotValue, StateReaderAndWriter, Storage, Version, WorkingSet,
     };
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -45,22 +45,22 @@ mod test {
     fn create_tests() -> Vec<TestCase> {
         vec![
             TestCase {
-                key: SlotKey::from("key_0"),
+                key: SlotKey::from_str(Namespace::User, "key_0"),
                 value: SlotValue::from("value_0"),
                 version: 1,
             },
             TestCase {
-                key: SlotKey::from("key_1"),
+                key: SlotKey::from_str(Namespace::User, "key_1"),
                 value: SlotValue::from("value_1"),
                 version: 2,
             },
             TestCase {
-                key: SlotKey::from("key_2"),
+                key: SlotKey::from_str(Namespace::User, "key_2"),
                 value: SlotValue::from("value_2"),
                 version: 3,
             },
             TestCase {
-                key: SlotKey::from("key_1"),
+                key: SlotKey::from_str(Namespace::User, "key_1"),
                 value: SlotValue::from("value_3"),
                 version: 4,
             },
@@ -134,7 +134,7 @@ mod test {
             assert!(prover_storage.is_empty());
         }
 
-        let key = SlotKey::from("some_key");
+        let key = SlotKey::from_str(Namespace::User, "some_key");
         let value = SlotValue::from("some_value");
         // First restart
         {

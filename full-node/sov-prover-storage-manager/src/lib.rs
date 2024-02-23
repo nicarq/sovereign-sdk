@@ -926,11 +926,11 @@ mod tests {
 
     // ------------
     // More sophisticated tests
-    use sov_state::storage::{SlotKey, SlotValue};
+    use sov_state::storage::{Namespace, SlotKey, SlotValue};
 
     fn key_from(value: u64) -> SlotKey {
         let x = value.to_be_bytes().to_vec();
-        SlotKey::from_bytes(x)
+        SlotKey::from_bytes(Namespace::User, x)
     }
 
     fn value_from(value: u64) -> SlotValue {
