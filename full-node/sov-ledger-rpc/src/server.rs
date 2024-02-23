@@ -175,6 +175,12 @@ where
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 
+    rpc.register_method("ledger_getAggregatedProofData", move |_params, ledger| {
+        ledger
+            .get_latest_aggregated_proof()
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
+
     rpc.register_subscription(
         "ledger_subscribeSlots",
         "ledger_slotProcessed",

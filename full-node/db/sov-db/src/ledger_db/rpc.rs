@@ -7,6 +7,7 @@ use sov_rollup_interface::rpc::{
     EventResponse, ItemOrHash, LedgerRpcProvider, PaginatedEventResponse, QueryMode,
     SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofData;
 use tokio::sync::broadcast::Receiver;
 
 use crate::ledger_db::event_helper::{
@@ -465,12 +466,15 @@ impl LedgerRpcProvider for LedgerDB {
     }
 
     fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>> {
-        let agg_proof_data = self
-            .db
-            .get_largest::<ProofByUniqueId>()
-            .map(|agg_proof_op| agg_proof_op.map(|p| p.1))?;
+        let agg_proof_data = self.db.get_largest::<ProofByUniqueId>();
 
-        Ok(agg_proof_data.map(|p| AggregatedProofResponse { proof: p.proof }))
+        match agg_proof_data? {
+            Some(data) => {
+                let proof = AggregatedProofData::try_from_slice(&data.1.proof)?;
+                Ok(Some(AggregatedProofResponse { proof }))
+            }
+            None => Ok(None),
+        }
     }
     fn subscribe_slots(&self) -> Result<Receiver<u64>, anyhow::Error> {
         Ok(self.slot_subscriptions.subscribe())
@@ -632,15 +636,20 @@ impl LedgerDB {
 mod tests {
     use std::sync::{Arc, RwLock};
 
-    use rand::Rng;
+    use borsh::BorshSerialize;
     use sov_mock_da::{MockBlob, MockBlock};
     use sov_modules_api::utils::generate_address;
     use sov_modules_api::AddressBech32;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
+    use sov_rollup_interface::zk::aggregated_proof::{
+        AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput,
+    };
     use sov_schema_db::cache::cache_container::CacheContainer;
     use sov_schema_db::cache::cache_db::CacheDb;
     use sov_schema_db::SchemaBatch;
     type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+
+    use rand::Rng;
 
     use crate::ledger_db::event_test_helper::{
         find_event_details, generate_events, TestEvent, FIXED_EVENT_KEY, MAX_NUM_EVENTS_FIXED_KEY,
@@ -921,14 +930,29 @@ mod tests {
         assert_eq!(None, proof_from_db);
 
         for i in 0..10 {
-            let agg_proof = StoredAggregatedProof { proof: vec![i] };
+            let proof = AggregatedProofData::new(
+                AggregatedProofPublicInput {
+                    initial_state_root: vec![i],
+                    final_state_root: vec![i + 1],
+                    initial_slot_hash: vec![i + 2],
+                    final_slot_hash: vec![i + 3],
+                },
+                AggregatedProofDataInfo {
+                    initial_slot_number: i as u64,
+                    final_slot_number: i as u64,
+                },
+            );
+
+            let agg_proof = StoredAggregatedProof {
+                proof: proof.try_to_vec().unwrap(),
+            };
 
             ledger_db
                 .save_finalized_aggregated_proof(agg_proof.clone())
                 .unwrap();
 
             let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap().unwrap();
-            assert_eq!(agg_proof.proof, proof_from_db.proof)
+            assert_eq!(proof, proof_from_db.proof);
         }
     }
 }
