@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::maybestd::vec::Vec;
 use crate::stf::EventKey;
+#[cfg(feature = "native")]
+use crate::zk::aggregated_proof::AggregatedProofData;
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -207,7 +209,7 @@ pub struct EventResponse {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AggregatedProofResponse {
     /// Aggregated proof data.
-    pub proof: Vec<u8>,
+    pub proof: AggregatedProofData,
 }
 
 /// An RPC response for the module specific event

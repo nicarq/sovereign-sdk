@@ -7,13 +7,14 @@ use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::zk::aggregated_proof::{
+    AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput,
+};
 use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
 
 use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
-use crate::prover_service::aggregated::{
-    AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput, BlockProof,
-};
+use crate::prover_service::stf_info::BlockProof;
 use crate::verifier::StateTransitionVerifier;
 use crate::{
     ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,

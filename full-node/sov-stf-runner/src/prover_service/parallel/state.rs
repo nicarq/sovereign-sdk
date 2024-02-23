@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use sov_rollup_interface::da::DaSpec;
 
-use crate::prover_service::aggregated::BlockProof;
+use crate::prover_service::stf_info::BlockProof;
 use crate::StateTransitionInfo;
 
 pub(crate) enum ProverStatus<StateRoot, Witness, Da: DaSpec> {

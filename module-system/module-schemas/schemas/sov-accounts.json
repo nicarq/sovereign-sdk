@@ -14,10 +14,10 @@
           "type": "array",
           "items": [
             {
-              "$ref": "#/definitions/Risc0PublicKey"
+              "$ref": "#/definitions/Ed25519PublicKey"
             },
             {
-              "$ref": "#/definitions/Risc0Signature"
+              "$ref": "#/definitions/Ed25519Signature"
             }
           ],
           "maxItems": 2,
@@ -28,8 +28,8 @@
     }
   ],
   "definitions": {
-    "Risc0PublicKey": {
-      "description": "The public key of an ed25519 keypair. Wraps the optimized Risc0 fork of the ed25519-dalek crate.",
+    "Ed25519PublicKey": {
+      "description": "The public key of an ed25519 keypair.",
       "type": "object",
       "required": [
         "pub_key"
@@ -47,7 +47,7 @@
         }
       }
     },
-    "Risc0Signature": {
+    "Ed25519Signature": {
       "description": "An ed25519 signature. Wraps the optimized Risc0 fork of the ed25519-dalek crate.",
       "type": "object",
       "required": [

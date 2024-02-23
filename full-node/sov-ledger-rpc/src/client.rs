@@ -5,7 +5,8 @@
 
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
-    BatchIdentifier, EventIdentifier, QueryMode, SlotIdentifier, TxIdentifier,
+    AggregatedProofResponse, BatchIdentifier, EventIdentifier, QueryMode, SlotIdentifier,
+    TxIdentifier,
 };
 
 use crate::HexHash;
@@ -159,6 +160,9 @@ where
         end: u64,
         query_mode: QueryMode,
     ) -> RpcResult<Vec<Option<Tx>>>;
+
+    #[method(name = "getAggregatedProofData")]
+    fn get_latest_aggregated_proof(&self) -> RpcResult<Option<AggregatedProofResponse>>;
 
     /// Subscription method to receive a notification each time a slot is
     /// processed.
