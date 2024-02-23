@@ -14,7 +14,7 @@ fn main() -> Result<(), anyhow::Error> {
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
 
     if !risc0_cmd_output.status.success() {
-        anyhow::bail!("Failed to get risc0 rustc version. Is risc0 installed? If not you can install it with the `cargo-risczero` tool. Try running `cargo risczero install`");
+        anyhow::bail!("Failed to get risc0 rustc version. Is risc0 installed? If not you can install it with the `cargo-risczero` tool. Try running `cargo risczero install`, Output: {:?}", risc0_cmd_output);
     }
 
     // Outputs a string formatted like: cargo 1.75.0
@@ -23,7 +23,10 @@ fn main() -> Result<(), anyhow::Error> {
         .output()
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     if !native_version_cmd.status.success() {
-        anyhow::bail!("Failed to get native cargo version!");
+        anyhow::bail!(
+            "Failed to get native cargo version: {:?}",
+            native_version_cmd
+        );
     }
 
     let risc0_rustc_version =
