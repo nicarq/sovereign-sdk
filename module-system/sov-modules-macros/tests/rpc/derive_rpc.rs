@@ -2,7 +2,7 @@ use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{ModuleInfo, Spec, WorkingSet};
 use sov_state::ZkStorage;
-type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::ZkTestSpec;
 
 #[derive(ModuleInfo)]
 pub struct TestStruct<S: ::sov_modules_api::Spec> {
@@ -43,8 +43,8 @@ struct RpcStorage<S: Spec> {
     pub storage: ::std::sync::Arc<::std::sync::RwLock<S::Storage>>,
 }
 
-impl TestStructRpcImpl<ZkDefaultSpec> for RpcStorage<ZkDefaultSpec> {
-    fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<ZkDefaultSpec> {
+impl TestStructRpcImpl<ZkTestSpec> for RpcStorage<ZkTestSpec> {
+    fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<ZkTestSpec> {
         let storage = {
             let current_storage = self.storage.read().unwrap().clone();
             current_storage
@@ -55,19 +55,19 @@ impl TestStructRpcImpl<ZkDefaultSpec> for RpcStorage<ZkDefaultSpec> {
 
 fn main() {
     let storage = std::sync::Arc::new(std::sync::RwLock::new(ZkStorage::new()));
-    let r: RpcStorage<ZkDefaultSpec> = RpcStorage {
+    let r: RpcStorage<ZkTestSpec> = RpcStorage {
         storage: storage.clone(),
     };
     {
         let result =
-            <RpcStorage<ZkDefaultSpec> as TestStructRpcServer<ZkDefaultSpec>>::first_method(&r)
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec>>::first_method(&r)
                 .unwrap();
         assert_eq!(result, 11);
     }
 
     {
         let result =
-            <RpcStorage<ZkDefaultSpec> as TestStructRpcServer<ZkDefaultSpec>>::second_method(
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec>>::second_method(
                 &r, 22,
             )
             .unwrap();
@@ -76,14 +76,14 @@ fn main() {
 
     {
         let result =
-            <RpcStorage<ZkDefaultSpec> as TestStructRpcServer<ZkDefaultSpec>>::third_method(&r, 33)
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec>>::third_method(&r, 33)
                 .unwrap();
         assert_eq!(result, 33);
     }
 
     {
         let result =
-            <RpcStorage<ZkDefaultSpec> as TestStructRpcServer<ZkDefaultSpec>>::fourth_method(
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec>>::fourth_method(
                 &r, 44,
             )
             .unwrap();
@@ -92,13 +92,13 @@ fn main() {
 
     {
         let result =
-            <RpcStorage<ZkDefaultSpec> as TestStructRpcServer<ZkDefaultSpec>>::health(&r).unwrap();
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec>>::health(&r).unwrap();
         assert_eq!(result, ());
     }
 
     {
         let result =
-            <RpcStorage<ZkDefaultSpec> as TestStructRpcServer<ZkDefaultSpec>>::module_address(&r)
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec>>::module_address(&r)
                 .unwrap();
         assert_eq!(
             result,

@@ -64,26 +64,26 @@ mod tests {
 
     use sov_bank::Coins;
     use sov_mock_da::{MockAddress, MockDaSpec};
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
     use sov_modules_api::{AddressBech32, Spec};
+    use sov_test_utils::TestSpec;
 
     use crate::SequencerConfig;
 
     #[test]
     fn test_config_serialization() {
-        let seq_rollup_address: <DefaultSpec as Spec>::Address = AddressBech32::from_str(
+        let seq_rollup_address: <TestSpec as Spec>::Address = AddressBech32::from_str(
             "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
         )
         .unwrap()
         .into();
 
-        let token_address: <DefaultSpec as Spec>::Address = AddressBech32::from_str(
+        let token_address: <TestSpec as Spec>::Address = AddressBech32::from_str(
             "sov1zsnx7n2wjvtkr0ttscfgt06pjca3v2e6stxeu49qwynavmk7a8xqlxkkjp",
         )
         .unwrap()
         .into();
 
-        let coins = Coins::<DefaultSpec> {
+        let coins = Coins::<TestSpec> {
             amount: 50,
             token_address,
         };
@@ -93,7 +93,7 @@ mod tests {
         )
         .unwrap();
 
-        let config = SequencerConfig::<DefaultSpec, MockDaSpec> {
+        let config = SequencerConfig::<TestSpec, MockDaSpec> {
             seq_rollup_address,
             seq_da_address: seq_da_addreess,
             coins_to_lock: coins,
@@ -111,7 +111,7 @@ mod tests {
             "is_preferred_sequencer":true
         }"#;
 
-        let parsed_config: SequencerConfig<DefaultSpec, MockDaSpec> =
+        let parsed_config: SequencerConfig<TestSpec, MockDaSpec> =
             serde_json::from_str(data).unwrap();
         assert_eq!(config, parsed_config)
     }

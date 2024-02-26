@@ -6,7 +6,7 @@ use sov_modules_api::{Address, Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
-pub type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+pub type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<DefaultStorageSpec>;
 fn generate_address(name: &str) -> Address {
     gen_addr_generic::<S>(name)

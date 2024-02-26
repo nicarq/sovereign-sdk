@@ -2,7 +2,7 @@ use sov_bank::{BankConfig, TokenConfig};
 use sov_modules_api::utils::generate_address as gen_address_generic;
 use sov_modules_api::Address;
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 // This code is not actually dead; rustc treats each test file as a separate crate
 // so this code looks unused during some of the compilations.

@@ -5,7 +5,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::{CallMessage, SequencerRegistry};
 
 mod helpers;
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 // Happy path for registration and exit
 // This test checks:

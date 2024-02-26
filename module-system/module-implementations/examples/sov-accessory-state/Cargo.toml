@@ -22,14 +22,13 @@ borsh = { workspace = true, features = ["rc"] }
 sov-accessory-state = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-mock-zkvm = { path = "../../../../adapters/mock-zkvm", features = ["native"]  }
+sov-test-utils = { path = "../../../sov-test-utils" }
 
 [features]
 default = []
 native = [
 	"dep:jsonrpsee",
 	"sov-accessory-state/native",
-	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-state/native",
 ]

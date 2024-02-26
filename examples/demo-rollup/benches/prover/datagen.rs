@@ -6,18 +6,14 @@ use std::path::Path;
 use serde::Serialize;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::PrivateKey;
 use sov_rollup_interface::services::da::DaService;
 use sov_test_utils::bank_data::BankMessageGenerator;
-use sov_test_utils::MessageGenerator;
-
-type S = sov_modules_api::default_spec::DefaultSpec<sov_risc0_adapter::Risc0Verifier>;
-type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
-type DefaultPublicKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
+use sov_test_utils::{MessageGenerator, TestPrivateKey, TestPublicKey};
 
 #[derive(Serialize)]
 struct AccountsData {
-    pub_keys: Vec<DefaultPublicKey>,
+    pub_keys: Vec<TestPublicKey>,
 }
 
 const DEFAULT_BLOCKS: u64 = 10;
@@ -36,7 +32,7 @@ pub fn generate_genesis_config(config_dir: &str) -> anyhow::Result<()> {
     let file = File::create(Path::join(Path::new(config_dir), "accounts.json")).unwrap();
     let accounts_pub_keys: Vec<_> = (0..num_pub_keys)
         .map(|_| {
-            let pkey = DefaultPrivateKey::generate();
+            let pkey = TestPrivateKey::generate();
             pkey.pub_key()
         })
         .collect();

@@ -1,7 +1,7 @@
 use sov_modules_api::{Address, Context, Module, StateVecAccessor, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::TestSpec;
 use sov_vec_setter::{CallMessage, VecSetter, VecSetterConfig};
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 // rustfmt doesn't like long lines, but it's easier to read in this case.
 #[rustfmt::skip]
@@ -41,7 +41,7 @@ fn test_vec_setter_calls() {
     vec_setter.genesis(&config, &mut working_set).unwrap();
 
     for (sender, sequencer, call, expected_contents) in test_cases().iter().cloned() {
-        let context = Context::<DefaultSpec>::new(sender, sequencer, 1);
+        let context = Context::<TestSpec>::new(sender, sequencer, 1);
 
         let call_result = vec_setter.call(call, &context, &mut working_set);
 

@@ -23,7 +23,7 @@ pub use sov_modules_macros::MessageCodec;
 /// use std::marker::PhantomData;
 ///
 /// use sov_modules_api::{WorkingSet, Spec, Error, CallResponse, Context, Module, ModuleInfo, ModuleCallJsonSchema, StateMap};
-/// type ZkDefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+/// use sov_test_utils::ZkTestSpec;
 ///
 /// #[derive(ModuleInfo, ModuleCallJsonSchema)]
 /// struct TestModule<S: Spec> {
@@ -50,7 +50,7 @@ pub use sov_modules_macros::MessageCodec;
 ///     }
 /// }
 ///
-/// println!("JSON Schema: {}", TestModule::<ZkDefaultSpec>::json_schema());
+/// println!("JSON Schema: {}", TestModule::<ZkTestSpec>::json_schema());
 /// ```
 #[cfg(feature = "macros")]
 pub use sov_modules_macros::ModuleCallJsonSchema;

@@ -4,7 +4,7 @@ use sov_modules_core::{StateCodec, StateKeyCodec, StateValueCodec};
 use sov_state::{DefaultStorageSpec, ZkStorage};
 use std::panic::catch_unwind;
 
-type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::ZkTestSpec;
 
 #[derive(ModuleInfo)]
 struct TestModule<S>
@@ -58,10 +58,10 @@ impl<V> StateValueCodec<V> for CustomCodec {
 
 fn main() {
     let storage: ZkStorage<DefaultStorageSpec> = ZkStorage::new();
-    let module: TestModule<ZkDefaultSpec> = TestModule::default();
+    let module: TestModule<ZkTestSpec> = TestModule::default();
 
     catch_unwind(|| {
-        let mut working_set: WorkingSet<ZkDefaultSpec> = WorkingSet::new(storage);
+        let mut working_set: WorkingSet<ZkTestSpec> = WorkingSet::new(storage);
         module.state_value.set(&0u32, &mut working_set);
     })
     .unwrap_err();

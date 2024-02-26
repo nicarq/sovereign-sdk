@@ -18,7 +18,7 @@ use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
 use crate::{Evm, SpecId};
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 #[test]
 fn simple_contract_execution_sov_state() {

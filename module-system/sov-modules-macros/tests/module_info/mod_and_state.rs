@@ -1,5 +1,5 @@
 use sov_modules_api::{Context,CryptoSpec, Module, ModuleInfo, Spec, StateMap, WorkingSet};
-type ZKDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::ZkTestSpec;
 
 pub mod first_test_module {
     use super::*;
@@ -77,7 +77,7 @@ mod second_test_module {
 
 fn main() {
     let second_test_struct =
-        <second_test_module::SecondTestStruct<ZKDefaultSpec> as std::default::Default>::default();
+        <second_test_module::SecondTestStruct<ZkTestSpec> as std::default::Default>::default();
 
     let prefix2 = second_test_struct.state_in_second_struct_1.prefix();
     assert_eq!(

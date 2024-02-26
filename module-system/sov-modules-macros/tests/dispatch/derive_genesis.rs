@@ -6,7 +6,7 @@ use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::{DispatchCall, Genesis, MessageCodec, Spec};
 use sov_state::ZkStorage;
 
-type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::ZkTestSpec;
 
 // Debugging hint: To expand the macro in tests run: `cargo expand --test tests`
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
@@ -24,7 +24,7 @@ where
 fn main() {
     let storage = ZkStorage::new();
     let mut working_set = &mut sov_modules_api::WorkingSet::new(storage);
-    let runtime = &mut Runtime::<ZkDefaultSpec, u32>::default();
+    let runtime = &mut Runtime::<ZkTestSpec, u32>::default();
     let config = GenesisConfig::new((), (), ());
     runtime.genesis(&config, working_set).unwrap();
 

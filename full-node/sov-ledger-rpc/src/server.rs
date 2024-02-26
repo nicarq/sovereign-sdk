@@ -26,9 +26,9 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 /// use tempfile::tempdir;
 /// use sov_db::ledger_db::LedgerDB;
 /// use sov_db::schema::{CacheContainer, CacheDb};
+/// use sov_test_utils::TestSpec;
 /// use demo_stf::runtime::Runtime;
 /// use sov_mock_da::MockDaSpec;
-/// pub type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 ///
 /// /// Creates a new [`LedgerDB`] and starts serving JSON-RPC requests.
 /// async fn rpc_server() -> jsonrpsee::server::ServerHandle {
@@ -37,7 +37,7 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 ///     let cache_container = CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
 ///     let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
 ///     let ledger_db = LedgerDB::with_cache_db(cache_db).unwrap();
-///     let rpc_module = rpc_module::<LedgerDB, u32, u32, <Runtime<DefaultSpec, MockDaSpec> as sov_modules_api::RuntimeEventProcessor>::RuntimeEvent>(ledger_db).unwrap();
+///     let rpc_module = rpc_module::<LedgerDB, u32, u32, <Runtime<TestSpec, MockDaSpec> as sov_modules_api::RuntimeEventProcessor>::RuntimeEvent>(ledger_db).unwrap();
 ///
 ///     let server = jsonrpsee::server::ServerBuilder::default()
 ///         .build("127.0.0.1:0")

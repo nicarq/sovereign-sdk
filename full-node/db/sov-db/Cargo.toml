@@ -36,7 +36,7 @@ hex = { workspace = true}
 
 [dev-dependencies]
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]   }
+sov-test-utils = { path = "../../../module-system/sov-test-utils" }
 tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../../sov-prover-storage-manager" }
 criterion = "0.5.1"
@@ -51,11 +51,11 @@ arbitrary = [
 	"dep:proptest",
 	"dep:proptest-derive",
 	"dep:tempfile",
-	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-modules-core/arbitrary",
 	"sov-rollup-interface/arbitrary",
 	"sov-schema-db/arbitrary",
+	"sov-test-utils/arbitrary",
 ]
 
 [[bench]]

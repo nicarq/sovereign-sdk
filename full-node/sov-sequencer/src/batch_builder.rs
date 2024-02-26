@@ -272,16 +272,14 @@ mod tests {
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::services::batch_builder::BatchBuilder;
     use sov_state::Storage;
+    use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSpec};
     use sov_value_setter::{CallMessage, ValueSetter, ValueSetterConfig};
     use tempfile::TempDir;
 
     use super::*;
 
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-    type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
-    type DefaultPublicKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
     const MAX_TX_POOL_SIZE: usize = 20;
-    type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+    type S = sov_test_utils::TestSpec;
 
     #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
     #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
@@ -290,22 +288,22 @@ mod tests {
     }
 
     fn generate_random_valid_tx() -> Vec<u8> {
-        let private_key = DefaultPrivateKey::generate();
+        let private_key = TestPrivateKey::generate();
         let mut rng = rand::thread_rng();
         let value: u32 = rng.gen();
         generate_valid_tx(&private_key, value)
     }
 
-    fn generate_valid_tx(private_key: &DefaultPrivateKey, value: u32) -> Vec<u8> {
+    fn generate_valid_tx(private_key: &TestPrivateKey, value: u32) -> Vec<u8> {
         let msg = CallMessage::SetValue(value);
-        let msg = <TestRuntime<S> as EncodeCall<ValueSetter<DefaultSpec>>>::encode_call(msg);
+        let msg = <TestRuntime<S> as EncodeCall<ValueSetter<TestSpec>>>::encode_call(msg);
         let chain_id = 0;
         let gas_tip = 0;
         let gas_limit = 0;
         let max_gas_price = None;
         let nonce = 1;
 
-        Transaction::<DefaultSpec>::new_signed_tx(
+        Transaction::<TestSpec>::new_signed_tx(
             private_key,
             msg,
             chain_id,
@@ -326,7 +324,7 @@ mod tests {
         (0..length).map(|_| rng.gen()).collect()
     }
 
-    fn generate_signed_tx_with_invalid_payload(private_key: &DefaultPrivateKey) -> Vec<u8> {
+    fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey) -> Vec<u8> {
         let msg = generate_random_bytes();
         let chain_id = 0;
         let gas_tip = 0;
@@ -334,7 +332,7 @@ mod tests {
         let max_gas_price = None;
         let nonce = 1;
 
-        Transaction::<DefaultSpec>::new_signed_tx(
+        Transaction::<TestSpec>::new_signed_tx(
             private_key,
             msg,
             chain_id,
@@ -364,14 +362,14 @@ mod tests {
 
     fn setup_runtime(
         batch_builder: &mut FiFoStrictBatchBuilder<S, TestRuntime<S>>,
-        admin: Option<DefaultPublicKey>,
+        admin: Option<TestPublicKey>,
     ) {
         let runtime = TestRuntime::<S>::default();
         let storage = { batch_builder.current_storage.read().unwrap().clone() };
         let mut working_set = WorkingSet::new(storage.clone());
 
         let admin = admin.unwrap_or_else(|| {
-            let admin_private_key = DefaultPrivateKey::generate();
+            let admin_private_key = TestPrivateKey::generate();
             admin_private_key.pub_key()
         });
         let value_setter_config = ValueSetterConfig {
@@ -450,7 +448,7 @@ mod tests {
 
         #[test]
         fn reject_signed_tx_with_invalid_payload() {
-            let private_key = DefaultPrivateKey::generate();
+            let private_key = TestPrivateKey::generate();
             let tx = generate_signed_tx_with_invalid_payload(&private_key);
 
             let tmpdir = tempfile::tempdir().unwrap();
@@ -497,7 +495,7 @@ mod tests {
 
         #[test]
         fn build_batch_invalidates_everything_on_missed_genesis() {
-            let value_setter_admin = DefaultPrivateKey::generate();
+            let value_setter_admin = TestPrivateKey::generate();
             let txs = [
                 // Should be included: 113 bytes
                 generate_valid_tx(&value_setter_admin, 1),
@@ -525,7 +523,7 @@ mod tests {
 
         #[test]
         fn builds_batch_skipping_invalid_txs() {
-            let value_setter_admin = DefaultPrivateKey::generate();
+            let value_setter_admin = TestPrivateKey::generate();
             let txs = [
                 // Should be included: 113 bytes
                 generate_valid_tx(&value_setter_admin, 1),

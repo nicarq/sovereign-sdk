@@ -35,18 +35,18 @@ impl<S: Spec> Accounts<S> {
 mod tests {
     use std::str::FromStr;
 
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-    type DefaultPublicKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
+    use sov_test_utils::{TestPublicKey, TestSpec};
+
     use super::*;
 
     #[test]
     fn test_config_serialization() {
-        let pub_key = &DefaultPublicKey::from_str(
+        let pub_key = &TestPublicKey::from_str(
             "1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf",
         )
         .unwrap();
 
-        let config = AccountConfig::<DefaultSpec> {
+        let config = AccountConfig::<TestSpec> {
             pub_keys: vec![pub_key.clone()],
         };
 
@@ -55,7 +55,7 @@ mod tests {
             "pub_keys":["1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf"]
         }"#;
 
-        let parsed_config: AccountConfig<DefaultSpec> = serde_json::from_str(data).unwrap();
+        let parsed_config: AccountConfig<TestSpec> = serde_json::from_str(data).unwrap();
         assert_eq!(parsed_config, config);
     }
 }

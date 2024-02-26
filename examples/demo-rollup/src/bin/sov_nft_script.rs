@@ -5,16 +5,14 @@ use borsh::ser::BorshSerialize;
 use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::PrivateKey;
 use sov_nft_module::utils::{
     get_collection_address, get_create_collection_message, get_mint_nft_message,
     get_transfer_nft_message,
 };
 use sov_nft_module::{CallMessage, CollectionAddress};
 use sov_sequencer::utils::SimpleClient;
-
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+use sov_test_utils::{TestPrivateKey, TestSpec};
 
 const COLLECTION_1: &str = "Sovereign Squirrel Syndicate";
 const COLLECTION_2: &str = "Celestial Dolphins";
@@ -36,16 +34,16 @@ const PK3: [u8; 32] = [
 ];
 
 pub fn build_transaction(
-    signer: &DefaultPrivateKey,
-    message: CallMessage<DefaultSpec>,
+    signer: &TestPrivateKey,
+    message: CallMessage<TestSpec>,
     nonce: u64,
-) -> Transaction<DefaultSpec> {
-    let runtime_encoded_message = RuntimeCall::<DefaultSpec, MockDaSpec>::nft(message);
+) -> Transaction<TestSpec> {
+    let runtime_encoded_message = RuntimeCall::<TestSpec, MockDaSpec>::nft(message);
     let chain_id = 0;
     let gas_tip = 0;
     let gas_limit = 0;
     let max_gas_price = None;
-    Transaction::<DefaultSpec>::new_signed_tx(
+    Transaction::<TestSpec>::new_signed_tx(
         signer,
         runtime_encoded_message.try_to_vec().unwrap(),
         chain_id,
@@ -57,11 +55,11 @@ pub fn build_transaction(
 }
 
 pub fn build_create_collection_transactions(
-    creator_pk: &DefaultPrivateKey,
+    creator_pk: &TestPrivateKey,
     start_nonce: &mut u64,
     base_uri: &str,
     collections: &[&str],
-) -> Vec<Transaction<DefaultSpec>> {
+) -> Vec<Transaction<TestSpec>> {
     collections
         .iter()
         .map(|&collection_name| {
@@ -82,14 +80,14 @@ pub fn build_create_collection_transactions(
 
 /// Convenience and readability wrapper for build_mint_nft_transaction
 pub fn build_mint_transactions(
-    creator_pk: &DefaultPrivateKey,
+    creator_pk: &TestPrivateKey,
     start_nonce: &mut u64,
     collection: &str,
     start_nft_id: &mut u64,
     num: usize,
     base_uri: &str,
-    owner_pk: &DefaultPrivateKey,
-) -> Vec<Transaction<DefaultSpec>> {
+    owner_pk: &TestPrivateKey,
+) -> Vec<Transaction<TestSpec>> {
     (0..num)
         .map(|_| {
             let tx = build_transaction(
@@ -111,15 +109,15 @@ pub fn build_mint_transactions(
 }
 
 pub fn build_transfer_transactions(
-    signer: &DefaultPrivateKey,
+    signer: &TestPrivateKey,
     start_nonce: &mut u64,
-    collection_address: &CollectionAddress<DefaultSpec>,
+    collection_address: &CollectionAddress<TestSpec>,
     nft_ids: Vec<u64>,
-) -> Vec<Transaction<DefaultSpec>> {
+) -> Vec<Transaction<TestSpec>> {
     nft_ids
         .into_iter()
         .map(|nft_id| {
-            let new_owner = DefaultPrivateKey::generate().default_address();
+            let new_owner = TestPrivateKey::generate().default_address();
             let tx = build_transaction(
                 signer,
                 get_transfer_nft_message(collection_address, nft_id, &new_owner),
@@ -133,9 +131,9 @@ pub fn build_transfer_transactions(
 
 #[tokio::main]
 async fn main() {
-    let creator_pk = DefaultPrivateKey::try_from(&PK1[..]).unwrap();
-    let owner_1_pk = DefaultPrivateKey::try_from(&PK2[..]).unwrap();
-    let owner_2_pk = DefaultPrivateKey::try_from(&PK3[..]).unwrap();
+    let creator_pk = TestPrivateKey::try_from(&PK1[..]).unwrap();
+    let owner_1_pk = TestPrivateKey::try_from(&PK2[..]).unwrap();
+    let owner_2_pk = TestPrivateKey::try_from(&PK3[..]).unwrap();
 
     let client = SimpleClient::new("localhost", 12345).await.unwrap();
 
@@ -189,7 +187,7 @@ async fn main() {
     thread::sleep(Duration::from_millis(3000));
 
     let collection_1_address =
-        get_collection_address::<DefaultSpec>(COLLECTION_1, creator_pk.default_address().as_ref());
+        get_collection_address::<TestSpec>(COLLECTION_1, creator_pk.default_address().as_ref());
 
     let mut owner_1_nonce = 0;
     let nft_ids_to_transfer: Vec<u64> = (1..=6).collect();

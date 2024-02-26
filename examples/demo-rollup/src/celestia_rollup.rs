@@ -71,7 +71,7 @@ impl RollupBlueprint for CelestiaDemoRollup {
         >(storage.clone(), ledger_db, da_service, sequencer)?;
 
         #[cfg(feature = "experimental")]
-        crate::eth::register_ethereum::<Self::DaService>(
+        crate::eth::register_ethereum::<Self::NativeSpec, Self::DaService>(
             da_service.clone(),
             storage.clone(),
             &mut rpc_methods,

@@ -87,13 +87,12 @@ mod tests {
     use sov_modules_core::{Prefix, StateCheckpoint};
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_state::{DefaultStorageSpec, ProverStorage};
+    use sov_test_utils::TestSpec;
 
     use super::*;
-
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-    type W = WorkingSet<DefaultSpec>;
-    type M = StateMap<TransitionHeight, StateTransitionId<DefaultSpec, MockDaSpec>, BcsCodec>;
-    type DefaultGasPriceState = GasPriceState<DefaultSpec>;
+    type W = WorkingSet<TestSpec>;
+    type M = StateMap<TransitionHeight, StateTransitionId<TestSpec, MockDaSpec>, BcsCodec>;
+    type DefaultGasPriceState = GasPriceState<TestSpec>;
 
     #[test]
     fn price_is_unchanged_with_genesis_blocks() {
@@ -266,7 +265,7 @@ mod tests {
     fn analysis_will_consider_only_blocks_depth() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage: ProverStorage<DefaultStorageSpec> = new_orphan_storage(tmpdir.path()).unwrap();
-        let ws = &mut StateCheckpoint::<DefaultSpec>::new(storage);
+        let ws = &mut StateCheckpoint::<TestSpec>::new(storage);
         let prefix = Prefix::new(b"test".to_vec());
         let ht = &M::with_codec(prefix, BcsCodec);
 

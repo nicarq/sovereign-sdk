@@ -25,8 +25,8 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
+use sov_test_utils::TestSpec;
 use tempfile::TempDir;
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 fn print_times(
     total: Duration,
@@ -117,19 +117,18 @@ async fn main() -> Result<(), anyhow::Error> {
     let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
     let stf = StfBlueprint::<
-        DefaultSpec,
+        TestSpec,
         RngDaSpec,
         Risc0Verifier,
-        Runtime<DefaultSpec, RngDaSpec>,
-        BasicKernel<DefaultSpec, _>,
+        Runtime<TestSpec, RngDaSpec>,
+        BasicKernel<TestSpec, _>,
     >::new();
 
     let demo_genesis_config = {
         let integration_test_conf_dir: &Path = "../test-data/genesis/integration-tests".as_ref();
-        let rt_params = get_genesis_config::<DefaultSpec, _>(&GenesisPaths::from_dir(
-            integration_test_conf_dir,
-        ))
-        .unwrap();
+        let rt_params =
+            get_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(integration_test_conf_dir))
+                .unwrap();
 
         let chain_state =
             read_json_file(integration_test_conf_dir.join("chain_state.json")).unwrap();

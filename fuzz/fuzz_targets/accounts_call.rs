@@ -8,15 +8,15 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, Accounts, CallMessage, UPDATE_ACCOUNT_MSG};
-use sov_modules_api::{Context, CryptoSpec, Module, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+type S = sov_test_utils::TestSpec;
+use sov_test_utils::TestPrivateKey;
 
 // Check well-formed calls
 fuzz_target!(
-    |input: (u16, [u8; 32], [u8; 32], Vec<DefaultPrivateKey>)| -> Corpus {
+    |input: (u16, [u8; 32], [u8; 32], Vec<TestPrivateKey>)| -> Corpus {
         let (iterations, seed, sequencer, keys) = input;
         if iterations < 1024 {
             // pointless to setup & run a small iterations count
@@ -65,11 +65,11 @@ fuzz_target!(
             // generate an unused key
             rng.fill_bytes(&mut seed);
             let u = &mut Unstructured::new(&seed);
-            let mut secret = DefaultPrivateKey::arbitrary(u).unwrap();
+            let mut secret = TestPrivateKey::arbitrary(u).unwrap();
             while used.contains(&secret.as_hex()) {
                 rng.fill_bytes(&mut seed);
                 let u = &mut Unstructured::new(&seed);
-                secret = DefaultPrivateKey::arbitrary(u).unwrap();
+                secret = TestPrivateKey::arbitrary(u).unwrap();
             }
             used.insert(secret.as_hex());
 

@@ -18,8 +18,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 #[cfg(test)]
 use sov_stf_runner::RpcConfig;
+use sov_test_utils::TestSpec;
 use tendermint::crypto::Sha256;
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 struct TestExpect {
     payload: serde_json::Value,
@@ -89,7 +89,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
             LedgerDB,
             u32,
             u32,
-            demo_stf::runtime::RuntimeEvent<DefaultSpec, sov_mock_da::MockDaSpec>,
+            demo_stf::runtime::RuntimeEvent<TestSpec, sov_mock_da::MockDaSpec>,
         >(ledger_db)
         .unwrap();
         let _server_handle = server.start(server_rpc_module);

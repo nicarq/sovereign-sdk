@@ -1,12 +1,12 @@
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{PrivateKey, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::bank_data::get_default_token_address;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestPrivateKey, TestSpec};
 
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::simulate_da;
@@ -14,10 +14,6 @@ use crate::tests::{
     create_storage_manager_for_tests, get_genesis_config_for_tests, read_private_key,
     StfBlueprintTest, S,
 };
-
-pub(crate) type DefaultSpec =
-    sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 #[test]
 fn test_demo_values_in_db() {
@@ -39,7 +35,7 @@ fn test_demo_values_in_db() {
             .save_change_set(genesis_block.header(), stf_change_set, ledger_state.into())
             .unwrap();
 
-        let priv_key = read_private_key::<DefaultSpec>().private_key;
+        let priv_key = read_private_key::<TestSpec>().private_key;
         let txs = simulate_da(priv_key);
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },
@@ -81,7 +77,7 @@ fn test_demo_values_in_db() {
     // Generate a new storage instance after dumping data to the db.
     {
         let next_block = last_block.next_mock();
-        let runtime = &mut Runtime::<DefaultSpec, MockDaSpec>::default();
+        let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
         let (stf_state, _ledger_state) = storage_manager
             .create_state_for(next_block.header())
             .unwrap();
@@ -117,7 +113,7 @@ fn test_demo_values_in_cache() {
         .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
         .unwrap();
 
-    let private_key = read_private_key::<DefaultSpec>().private_key;
+    let private_key = read_private_key::<TestSpec>().private_key;
     let txs = simulate_da(private_key);
 
     let blob = new_test_blob_from_batch(
@@ -149,7 +145,7 @@ fn test_demo_values_in_cache() {
 
     assert!(has_tx_events(&apply_blob_outcome),);
 
-    let runtime = &mut Runtime::<DefaultSpec, MockDaSpec>::default();
+    let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
 
     storage_manager
         .save_change_set(
@@ -183,7 +179,7 @@ fn test_demo_values_not_in_db() {
     let path = tempdir.path();
     let mut storage_manager = create_storage_manager_for_tests(path);
 
-    let value_setter_admin_private_key = DefaultPrivateKey::generate();
+    let value_setter_admin_private_key = TestPrivateKey::generate();
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let block_2 = block_1.next_mock();
@@ -274,7 +270,7 @@ fn test_sequencer_unknown_sequencer() {
 
     let some_sequencer: [u8; 32] = [121; 32];
 
-    let private_key = read_private_key::<DefaultSpec>().private_key;
+    let private_key = read_private_key::<TestSpec>().private_key;
     let txs = simulate_da(private_key);
     let blob = new_test_blob_from_batch(BatchWithId { txs, id: [0; 32] }, &some_sequencer, [0; 32]);
     let mut blobs = [blob];

@@ -15,8 +15,8 @@ use sov_rollup_interface::rpc::{
     BatchResponse, EventIdentifier, QueryMode, SlotResponse, TxIdAndOffset, TxIdentifier,
     TxResponse,
 };
+use sov_test_utils::TestSpec;
 use tempfile::tempdir;
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
     let dir = tempdir().unwrap();
@@ -29,7 +29,7 @@ async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
         LedgerDB,
         u32,
         u32,
-        <Runtime<DefaultSpec, MockDaSpec> as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
+        <Runtime<TestSpec, MockDaSpec> as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
     >(ledger_db)
     .unwrap();
 

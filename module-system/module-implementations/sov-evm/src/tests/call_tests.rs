@@ -13,7 +13,7 @@ use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::genesis_tests::setup;
 use crate::tests::test_signer::TestSigner;
 use crate::{AccountData, EvmConfig};
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 #[test]
 fn call_test() {

@@ -6,7 +6,7 @@ use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{ModuleInfo, Spec, WorkingSet};
 use sov_state::ZkStorage;
 
-type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::ZkTestSpec;
 
 #[derive(ModuleInfo)]
 pub struct TestStruct<S: ::sov_modules_api::Spec, D>
@@ -66,8 +66,8 @@ struct RpcStorage<S: Spec> {
     pub storage: Arc<RwLock<S::Storage>>,
 }
 
-impl TestStructRpcImpl<ZkDefaultSpec, u32> for RpcStorage<ZkDefaultSpec> {
-    fn get_working_set(&self) -> sov_modules_api::WorkingSet<ZkDefaultSpec> {
+impl TestStructRpcImpl<ZkTestSpec, u32> for RpcStorage<ZkTestSpec> {
+    fn get_working_set(&self) -> sov_modules_api::WorkingSet<ZkTestSpec> {
         let storage = {
             let current_storage = self.storage.read().unwrap().clone();
             current_storage
@@ -78,12 +78,12 @@ impl TestStructRpcImpl<ZkDefaultSpec, u32> for RpcStorage<ZkDefaultSpec> {
 
 fn main() {
     let storage = Arc::new(RwLock::new(ZkStorage::new()));
-    let r: RpcStorage<ZkDefaultSpec> = RpcStorage {
+    let r: RpcStorage<ZkTestSpec> = RpcStorage {
         storage: storage.clone(),
     };
     {
         let result =
-            <RpcStorage<ZkDefaultSpec> as TestStructRpcServer<ZkDefaultSpec, u32>>::first_method(
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec, u32>>::first_method(
                 &r,
             )
             .unwrap();
@@ -92,7 +92,7 @@ fn main() {
 
     {
         let result =
-            <RpcStorage<ZkDefaultSpec> as TestStructRpcServer<ZkDefaultSpec, u32>>::second_method(
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec, u32>>::second_method(
                 &r, 22,
             )
             .unwrap();

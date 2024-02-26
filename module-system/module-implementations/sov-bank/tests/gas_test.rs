@@ -12,7 +12,7 @@ mod helpers;
 const CREATE_TOKEN_NATIVE_COST: u64 = 2;
 const CREATE_TOKEN_ZK_COST: u64 = 3;
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 #[test]
 fn zeroed_price_wont_deduct_working_set() {
     let sender_balance = 100;

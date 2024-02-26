@@ -67,20 +67,20 @@ impl<S: sov_modules_api::Spec> Bank<S> {
 mod tests {
     use std::str::FromStr;
 
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
     use sov_modules_api::{AddressBech32, Spec};
+    use sov_test_utils::TestSpec;
 
     use super::*;
 
     #[test]
     fn test_config_serialization() {
-        let address: <DefaultSpec as Spec>::Address = AddressBech32::from_str(
+        let address: <TestSpec as Spec>::Address = AddressBech32::from_str(
             "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
         )
         .unwrap()
         .into();
 
-        let config = BankConfig::<DefaultSpec> {
+        let config = BankConfig::<TestSpec> {
             tokens: vec![TokenConfig {
                 token_name: "sov-demo-token".to_owned(),
                 address_and_balances: vec![(address, 100000000)],
@@ -101,7 +101,7 @@ mod tests {
             ]
         }"#;
 
-        let parsed_config: BankConfig<DefaultSpec> = serde_json::from_str(data).unwrap();
+        let parsed_config: BankConfig<TestSpec> = serde_json::from_str(data).unwrap();
 
         assert_eq!(config, parsed_config)
     }

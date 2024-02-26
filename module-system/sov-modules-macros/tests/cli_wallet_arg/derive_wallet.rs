@@ -5,7 +5,7 @@ use sov_modules_api::{
     CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleInfo, Spec,
     StateValue, WorkingSet,
 };
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::TestSpec;
 
 pub mod first_test_module {
     use super::*;
@@ -121,8 +121,8 @@ fn main() {
         first_field: 1,
         str_field: "hello".to_string(),
     });
-    let foo_from_cli: RuntimeSubcommand<JsonStringArg, DefaultSpec> =
-        <RuntimeSubcommand<JsonStringArg, DefaultSpec>>::try_parse_from(&[
+    let foo_from_cli: RuntimeSubcommand<JsonStringArg, TestSpec> =
+        <RuntimeSubcommand<JsonStringArg, TestSpec>>::try_parse_from(&[
             "main",
             "first",
             "--json",
@@ -132,12 +132,12 @@ fn main() {
         ])
         .expect("parsing must succed")
         .into();
-    let foo_ir: RuntimeMessage<JsonStringArg, DefaultSpec> = foo_from_cli.try_into().unwrap();
+    let foo_ir: RuntimeMessage<JsonStringArg, TestSpec> = foo_from_cli.try_into().unwrap();
     assert_eq!(expected_foo, foo_ir.try_into().unwrap());
 
     let expected_bar = RuntimeCall::second(second_test_module::MyEnum::Bar(2));
-    let bar_from_cli: RuntimeSubcommand<JsonStringArg, DefaultSpec> =
-        <RuntimeSubcommand<JsonStringArg, DefaultSpec>>::try_parse_from(&[
+    let bar_from_cli: RuntimeSubcommand<JsonStringArg, TestSpec> =
+        <RuntimeSubcommand<JsonStringArg, TestSpec>>::try_parse_from(&[
             "main",
             "second",
             "--json",
@@ -147,7 +147,7 @@ fn main() {
         ])
         .expect("parsing must succed")
         .into();
-    let bar_ir: RuntimeMessage<JsonStringArg, DefaultSpec> = bar_from_cli.try_into().unwrap();
+    let bar_ir: RuntimeMessage<JsonStringArg, TestSpec> = bar_from_cli.try_into().unwrap();
 
     assert_eq!(expected_bar, bar_ir.try_into().unwrap());
 }

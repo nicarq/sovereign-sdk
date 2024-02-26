@@ -1,17 +1,16 @@
 use sov_modules_api::{
-    AddressBech32, Context, CryptoSpec, Module, PrivateKey, PublicKey, Spec, StateMapAccessor,
-    WorkingSet,
+    AddressBech32, Context, Module, PrivateKey, PublicKey, Spec, StateMapAccessor, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::rpc::{self, Response};
 use crate::{call, AccountConfig, Accounts};
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+type S = sov_test_utils::TestSpec;
+use sov_test_utils::TestPrivateKey;
 #[test]
 fn test_config_account() {
-    let priv_key = DefaultPrivateKey::generate();
+    let priv_key = TestPrivateKey::generate();
     let init_pub_key = priv_key.pub_key();
     let init_pub_key_addr = init_pub_key.to_address::<<S as Spec>::Address>();
 
@@ -42,8 +41,8 @@ fn test_update_account() {
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
-    let priv_key = DefaultPrivateKey::generate();
-    let sequencer_priv_key = DefaultPrivateKey::generate();
+    let priv_key = TestPrivateKey::generate();
+    let sequencer_priv_key = TestPrivateKey::generate();
 
     let sender = priv_key.pub_key();
     let sequencer = sequencer_priv_key.pub_key();
@@ -68,7 +67,7 @@ fn test_update_account() {
 
     // Test public key update
     {
-        let priv_key = DefaultPrivateKey::generate();
+        let priv_key = TestPrivateKey::generate();
         let new_pub_key = priv_key.pub_key();
         let sig = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
         accounts
@@ -103,13 +102,13 @@ fn test_update_account_fails() {
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
-    let sender_1 = DefaultPrivateKey::generate().pub_key();
-    let sequencer = DefaultPrivateKey::generate().pub_key();
+    let sender_1 = TestPrivateKey::generate().pub_key();
+    let sequencer = TestPrivateKey::generate().pub_key();
     let sender_context_1 = Context::<S>::new(sender_1.to_address(), sequencer.to_address(), 1);
 
     let _ = accounts.get_or_create_default(&sender_1, working_set);
 
-    let priv_key = DefaultPrivateKey::generate();
+    let priv_key = TestPrivateKey::generate();
     let sender_2 = priv_key.pub_key();
     let sig_2 = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
 
@@ -131,15 +130,15 @@ fn test_get_account_after_pub_key_update() {
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
-    let sender_1 = DefaultPrivateKey::generate().pub_key();
-    let sequencer = DefaultPrivateKey::generate().pub_key();
+    let sender_1 = TestPrivateKey::generate().pub_key();
+    let sequencer = TestPrivateKey::generate().pub_key();
     let sender_1_addr = sender_1.to_address::<<S as Spec>::Address>();
     let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
     let sender_context_1 = Context::<S>::new(sender_1_addr, sequencer_addr, 1);
 
     let _ = accounts.get_or_create_default(&sender_1, working_set);
 
-    let priv_key = DefaultPrivateKey::generate();
+    let priv_key = TestPrivateKey::generate();
     let new_pub_key = priv_key.pub_key();
     let sig = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
     accounts

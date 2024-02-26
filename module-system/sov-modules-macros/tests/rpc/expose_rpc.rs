@@ -3,7 +3,6 @@ use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
     prelude::*, CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, WorkingSet,
 };
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 #[derive(ModuleInfo)]
 pub struct QueryModule<S: Spec> {

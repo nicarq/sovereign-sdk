@@ -6,7 +6,7 @@ use sov_accounts::{Accounts, CallMessage};
 use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 // Check arbitrary, random calls
 fuzz_target!(|input: (&[u8], Vec<(Context<S>, CallMessage<S>)>)| {

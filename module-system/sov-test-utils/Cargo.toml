@@ -18,10 +18,18 @@ sov-value-setter = { path = "../module-implementations/examples/sov-value-setter
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-state = { path = "../sov-state" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native", "sov-modules"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 borsh = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+
+[features]
+default = []
+arbitrary = [
+	"sov-mock-zkvm/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-state/arbitrary",
+]

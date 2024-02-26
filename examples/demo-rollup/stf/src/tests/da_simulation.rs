@@ -1,22 +1,21 @@
 use std::rc::Rc;
 
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::{CryptoSpec, Gas, Spec};
+use sov_modules_api::{Gas, Spec};
 use sov_modules_stf_blueprint::RawTx;
 use sov_test_utils::bank_data::{
     BadNonceBankCallMessages, BadSerializationBankCallMessages, BadSignatureBankCallMessages,
     BankMessageGenerator,
 };
 use sov_test_utils::value_setter_data::{ValueSetterMessage, ValueSetterMessages};
-use sov_test_utils::MessageGenerator;
+use sov_test_utils::{MessageGenerator, TestPrivateKey};
 
 use crate::runtime::Runtime;
 
-pub(crate) type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+pub(crate) type S = sov_test_utils::TestSpec;
 type Da = MockDaSpec;
 
-pub fn simulate_da(value_setter_admin: DefaultPrivateKey) -> Vec<RawTx> {
+pub fn simulate_da(value_setter_admin: TestPrivateKey) -> Vec<RawTx> {
     let mut messages = Vec::default();
 
     let bank_generator = BankMessageGenerator::<S>::default();
@@ -32,7 +31,7 @@ pub fn simulate_da(value_setter_admin: DefaultPrivateKey) -> Vec<RawTx> {
 }
 
 pub fn simulate_da_with_max_gas_price(
-    value_setter_admin: DefaultPrivateKey,
+    value_setter_admin: TestPrivateKey,
     max_gas_price: <<S as Spec>::Gas as Gas>::Price,
 ) -> Vec<RawTx> {
     let mut messages = Vec::default();

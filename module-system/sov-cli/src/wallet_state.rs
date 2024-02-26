@@ -387,7 +387,7 @@ mod pubkey_hex {
 mod tests {
     use super::*;
 
-    type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+    type S = sov_test_utils::TestSpec;
 
     #[test]
     fn test_private_key_and_address() {

@@ -1,13 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::{Address, Spec};
+use sov_modules_core::Address;
 use sov_rollup_interface::crypto::{PrivateKey, Signature};
-use sov_rollup_interface::zk::CryptoSpec;
+use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSignature, TestSpec};
 
 use crate::ModuleInfo;
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
-type DefaultPublicKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
-type DefaultSignature = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
 
 #[test]
 fn test_account_bech32m_display() {
@@ -21,21 +17,21 @@ fn test_account_bech32m_display() {
 
 #[test]
 fn test_pub_key_serialization() {
-    let pub_key = DefaultPrivateKey::generate().pub_key();
+    let pub_key = TestPrivateKey::generate().pub_key();
     let serialized_pub_key = pub_key.try_to_vec().unwrap();
 
-    let deserialized_pub_key = DefaultPublicKey::try_from_slice(&serialized_pub_key).unwrap();
+    let deserialized_pub_key = TestPublicKey::try_from_slice(&serialized_pub_key).unwrap();
     assert_eq!(pub_key, deserialized_pub_key)
 }
 
 #[test]
 fn test_signature_serialization() {
     let msg = [1; 32];
-    let priv_key = DefaultPrivateKey::generate();
+    let priv_key = TestPrivateKey::generate();
 
     let sig = priv_key.sign(&msg);
     let serialized_sig = sig.try_to_vec().unwrap();
-    let deserialized_sig = DefaultSignature::try_from_slice(&serialized_sig).unwrap();
+    let deserialized_sig = TestSignature::try_from_slice(&serialized_sig).unwrap();
     assert_eq!(sig, deserialized_sig);
 
     let pub_key = priv_key.pub_key();
@@ -44,9 +40,9 @@ fn test_signature_serialization() {
 
 #[test]
 fn test_hex_conversion() {
-    let priv_key = DefaultPrivateKey::generate();
+    let priv_key = TestPrivateKey::generate();
     let hex = priv_key.as_hex();
-    let deserialized_pub_key = DefaultPrivateKey::from_hex(&hex).unwrap().pub_key();
+    let deserialized_pub_key = TestPrivateKey::from_hex(&hex).unwrap().pub_key();
     assert_eq!(priv_key.pub_key(), deserialized_pub_key)
 }
 
@@ -56,7 +52,7 @@ struct Module {
 }
 
 impl crate::ModuleInfo for Module {
-    type Spec = DefaultSpec;
+    type Spec = TestSpec;
 
     fn address(&self) -> &<Self::Spec as crate::Spec>::Address {
         &self.address
@@ -86,7 +82,7 @@ fn test_sorting_modules() {
         dependencies: vec![module_a.address, module_b.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Spec = DefaultSpec>, i32)> =
+    let modules: Vec<(&dyn ModuleInfo<Spec = TestSpec>, i32)> =
         vec![(&module_b, 2), (&module_c, 3), (&module_a, 1)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules).unwrap();
@@ -106,7 +102,7 @@ fn test_sorting_modules_missing_module() {
         dependencies: vec![module_a_address, module_b.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Spec = DefaultSpec>, i32)> =
+    let modules: Vec<(&dyn ModuleInfo<Spec = TestSpec>, i32)> =
         vec![(&module_b, 2), (&module_c, 3)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules);
@@ -136,7 +132,7 @@ fn test_sorting_modules_cycle() {
         dependencies: vec![module_a.address, module_d.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Spec = DefaultSpec>, i32)> = vec![
+    let modules: Vec<(&dyn ModuleInfo<Spec = TestSpec>, i32)> = vec![
         (&module_b, 2),
         (&module_d, 3),
         (&module_a, 1),
@@ -165,7 +161,7 @@ fn test_sorting_modules_duplicate() {
         dependencies: vec![],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Spec = DefaultSpec>, u32)> =
+    let modules: Vec<(&dyn ModuleInfo<Spec = TestSpec>, u32)> =
         vec![(&module_b, 3), (&module_a, 1), (&module_a2, 2)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules);
@@ -177,7 +173,7 @@ fn test_sorting_modules_duplicate() {
 
 #[test]
 fn test_default_signature_roundtrip() {
-    let key = DefaultPrivateKey::generate();
+    let key = TestPrivateKey::generate();
     let msg = b"hello, world";
     let sig = key.sign(msg);
     sig.verify(&key.pub_key(), msg)

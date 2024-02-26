@@ -7,42 +7,38 @@ use sov_ethereum::experimental::EthRpcConfig;
 use sov_ethereum::GasPriceOracleConfig;
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::services::da::DaService;
-use sov_state::ProverStorage;
-
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 const TX_SIGNER_PRIV_KEY_PATH: &str = "../test-data/keys/tx_signer_private_key.json";
 
 /// Ethereum RPC wraps EVM transaction in a rollup transaction.
 /// This function reads the private key of the rollup transaction signer.
-fn read_sov_tx_signer_priv_key() -> Result<DefaultPrivateKey, anyhow::Error> {
+fn read_sov_tx_signer_priv_key<S: Spec>(
+) -> Result<<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey, anyhow::Error> {
     let data = std::fs::read_to_string(TX_SIGNER_PRIV_KEY_PATH).context("Unable to read file")?;
 
-    let key_and_address: PrivateKeyAndAddress<DefaultSpec> = serde_json::from_str(&data)
+    let key_and_address: PrivateKeyAndAddress<S> = serde_json::from_str(&data)
         .unwrap_or_else(|_| panic!("Unable to convert data {} to PrivateKeyAndAddress", &data));
 
     Ok(key_and_address.private_key)
 }
 
 // register ethereum methods.
-pub(crate) fn register_ethereum<Da: DaService>(
+pub(crate) fn register_ethereum<S: Spec, Da: DaService>(
     da_service: Da,
-    storage: Arc<RwLock<ProverStorage<sov_state::DefaultStorageSpec>>>,
+    storage: Arc<RwLock<<S as Spec>::Storage>>,
     methods: &mut jsonrpsee::RpcModule<()>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
-        EthRpcConfig::<DefaultSpec> {
+        EthRpcConfig::<S> {
             min_blob_size: Some(1),
-            sov_tx_signer_priv_key: read_sov_tx_signer_priv_key()?,
+            sov_tx_signer_priv_key: read_sov_tx_signer_priv_key::<S>()?,
             eth_signer,
             gas_price_oracle_config: GasPriceOracleConfig::default(),
         }
     };
 
-    let ethereum_rpc =
-        sov_ethereum::get_ethereum_rpc::<DefaultSpec, Da>(da_service, eth_rpc_config, storage);
+    let ethereum_rpc = sov_ethereum::get_ethereum_rpc::<S, Da>(da_service, eth_rpc_config, storage);
     methods
         .merge(ethereum_rpc)
         .context("Failed to merge Ethereum RPC modules")

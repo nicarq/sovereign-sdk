@@ -1,5 +1,5 @@
 use sov_modules_api::{ModuleInfo, CryptoSpec, Spec, StateMap, StateValue};
-type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::ZkTestSpec;
 
 mod test_module {
     use super::*;
@@ -23,7 +23,7 @@ mod test_module {
 }
 
 fn main() {
-    let test_struct = <test_module::TestStruct<ZkDefaultSpec> as std::default::Default>::default();
+    let test_struct = <test_module::TestStruct<ZkTestSpec> as std::default::Default>::default();
 
     let prefix1 = test_struct.test_state1.prefix();
 
@@ -63,7 +63,7 @@ fn main() {
     );
 
     use sov_modules_api::digest::Digest;
-    let mut hasher = <<ZkDefaultSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::new();
+    let mut hasher = <<ZkTestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::new();
     hasher.update("trybuild000::test_module/TestStruct/".as_bytes());
     let hash: [u8; 32] = hasher.finalize().into();
 
