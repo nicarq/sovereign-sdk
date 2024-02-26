@@ -9,7 +9,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::Storage;
 use sov_test_utils::bank_data::{get_default_private_key, get_default_token_address};
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestSpec};
 
 use super::{
     create_storage_manager_for_tests, get_genesis_config_for_tests, read_private_key, RuntimeTest,
@@ -20,9 +20,6 @@ use crate::tests::da_simulation::{
     simulate_da_with_max_gas_price, simulate_da_with_revert_msg,
 };
 use crate::tests::StfBlueprintTest;
-
-pub(crate) type DefaultSpec =
-    sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 // Assume there was a proper address and we converted it to bytes already.
 const SEQUENCER_DA_ADDRESS: [u8; 32] = [1; 32];
@@ -104,7 +101,7 @@ fn test_tx_revert() {
 
     // Checks on storage after execution
     {
-        let runtime = &mut Runtime::<DefaultSpec, MockDaSpec>::default();
+        let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
         let mut working_set = WorkingSet::new(storage);
         let resp = runtime
             .bank
@@ -214,7 +211,7 @@ fn test_tx_bad_signature() {
     };
 
     {
-        let runtime = &mut Runtime::<DefaultSpec, MockDaSpec>::default();
+        let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
         let mut working_set = WorkingSet::new(storage);
         let nonce = match runtime
             .accounts
@@ -312,7 +309,7 @@ fn test_tx_bad_serialization() {
                 .create_state_after(genesis_block.header())
                 .unwrap();
             let runtime: RuntimeTest = Runtime::default();
-            let mut working_set = WorkingSet::<DefaultSpec>::new(stf_state.clone());
+            let mut working_set = WorkingSet::<TestSpec>::new(stf_state.clone());
 
             let coins = runtime
                 .sequencer_registry
@@ -380,7 +377,7 @@ fn test_tx_bad_serialization() {
     };
 
     {
-        let runtime = &mut Runtime::<DefaultSpec, MockDaSpec>::default();
+        let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
         let mut working_set = WorkingSet::new(storage);
 
         // Sequencer is not in the list of allowed sequencers
@@ -432,7 +429,7 @@ fn test_tx_max_gas_price() {
         let stf: StfBlueprintTest = StfBlueprint::new();
         let mut storage_manager = create_storage_manager_for_tests(tempdir.path());
 
-        let private_key = read_private_key::<DefaultSpec>().private_key;
+        let private_key = read_private_key::<TestSpec>().private_key;
         let txs = simulate_da_with_max_gas_price(private_key, tx_max_price);
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },

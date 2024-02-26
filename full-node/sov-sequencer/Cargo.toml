@@ -34,7 +34,6 @@ sov-value-setter = { path = "../../module-system/module-implementations/examples
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-schema-db = { path = "../db/sov-schema-db" }
 sov-db = { path = "../db/sov-db" }

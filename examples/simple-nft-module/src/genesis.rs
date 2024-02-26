@@ -34,18 +34,18 @@ impl<S: Spec> NonFungibleToken<S> {
 
 #[cfg(test)]
 mod test {
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
     use sov_modules_api::utils::generate_address;
     use sov_modules_api::Spec;
+    use sov_test_utils::TestSpec;
 
     use super::NonFungibleTokenConfig;
 
     #[test]
     fn test_config_serialization() {
-        let address: <DefaultSpec as Spec>::Address = generate_address::<DefaultSpec>("admin");
-        let owner: <DefaultSpec as Spec>::Address = generate_address::<DefaultSpec>("owner");
+        let address: <TestSpec as Spec>::Address = generate_address::<TestSpec>("admin");
+        let owner: <TestSpec as Spec>::Address = generate_address::<TestSpec>("owner");
 
-        let config = NonFungibleTokenConfig::<DefaultSpec> {
+        let config = NonFungibleTokenConfig::<TestSpec> {
             admin: address,
             owners: vec![(0, owner)],
         };
@@ -58,8 +58,7 @@ mod test {
             ]
         }"#;
 
-        let parsed_config: NonFungibleTokenConfig<DefaultSpec> =
-            serde_json::from_str(data).unwrap();
+        let parsed_config: NonFungibleTokenConfig<TestSpec> = serde_json::from_str(data).unwrap();
         assert_eq!(config, parsed_config)
     }
 }

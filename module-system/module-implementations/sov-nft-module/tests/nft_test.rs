@@ -1,10 +1,9 @@
-use sov_modules_api::{Context, CryptoSpec, Module, Spec, WorkingSet};
+use sov_modules_api::{Context, Module, WorkingSet};
 use sov_nft_module::utils::get_collection_address;
 use sov_nft_module::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::DefaultStorageSpec;
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type DefaultPrivateKey = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+use sov_test_utils::{TestPrivateKey, TestSpec};
 
 const PK1: [u8; 32] = [
     199, 23, 116, 41, 227, 173, 69, 178, 7, 24, 164, 151, 88, 149, 52, 187, 102, 167, 163, 248, 38,
@@ -25,17 +24,17 @@ const PK4: [u8; 32] = [
 
 #[test]
 fn mints_and_transfers() {
-    let creator_pk = DefaultPrivateKey::try_from(&PK1[..]).unwrap();
-    let private_key_1 = DefaultPrivateKey::try_from(&PK2[..]).unwrap();
-    let private_key_2 = DefaultPrivateKey::try_from(&PK3[..]).unwrap();
-    let sequencer_pk = DefaultPrivateKey::try_from(&PK4[..]).unwrap();
+    let creator_pk = TestPrivateKey::try_from(&PK1[..]).unwrap();
+    let private_key_1 = TestPrivateKey::try_from(&PK2[..]).unwrap();
+    let private_key_2 = TestPrivateKey::try_from(&PK3[..]).unwrap();
+    let sequencer_pk = TestPrivateKey::try_from(&PK4[..]).unwrap();
 
     let creator_address = creator_pk.default_address();
     let sequencer_address = sequencer_pk.default_address();
     let collection_name = "Test Collection";
     let collection_uri = "http://foo.bar/test_collection";
     let collection_address =
-        get_collection_address::<DefaultSpec>(collection_name, creator_address.as_ref());
+        get_collection_address::<TestSpec>(collection_name, creator_address.as_ref());
 
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage::<DefaultStorageSpec>(tmpdir.path()).unwrap();
@@ -47,7 +46,7 @@ fn mints_and_transfers() {
         collection_uri: collection_uri.to_string(),
     };
 
-    let creator_context = Context::<DefaultSpec>::new(creator_address, sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(creator_address, sequencer_address, 1);
 
     // Create Collection
     nft.call(
@@ -129,7 +128,7 @@ fn mints_and_transfers() {
         collection_uri: new_collection_uri.to_string(),
     };
 
-    let creator_context = Context::<DefaultSpec>::new(creator_address, sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(creator_address, sequencer_address, 1);
 
     nft.call(
         create_collection_message,
@@ -152,7 +151,7 @@ fn mints_and_transfers() {
         collection_name: ne_collection_name.to_string(),
     };
 
-    let creator_context = Context::<DefaultSpec>::new(creator_address, sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(creator_address, sequencer_address, 1);
 
     let freeze_response = nft.call(
         freeze_collection_message,
@@ -179,7 +178,7 @@ fn mints_and_transfers() {
         collection_name: collection_name.to_string(),
     };
 
-    let creator_context = Context::<DefaultSpec>::new(creator_address, sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(creator_address, sequencer_address, 1);
     nft.call(
         freeze_collection_message,
         &creator_context,
@@ -200,7 +199,7 @@ fn mints_and_transfers() {
         collection_uri: un_updated_collection_uri.to_string(),
     };
 
-    let creator_context = Context::<DefaultSpec>::new(creator_address, sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(creator_address, sequencer_address, 1);
 
     let update_response = nft.call(
         create_collection_message,
@@ -234,7 +233,7 @@ fn mints_and_transfers() {
     // mint nft to frozen collection
     let new_token_id = 23;
     let new_token_uri = "http://foo.bar/test_collection/23";
-    let owner: OwnerAddress<DefaultSpec> = OwnerAddress::new(&private_key_1.default_address());
+    let owner: OwnerAddress<TestSpec> = OwnerAddress::new(&private_key_1.default_address());
 
     let mint_nft_message = CallMessage::MintNft {
         collection_name: collection_name.to_string(),
@@ -294,7 +293,7 @@ fn mints_and_transfers() {
 
     // transfer NFT with non-existent token id
     let target_address = private_key_2.default_address();
-    let owner_context = Context::<DefaultSpec>::new(*owner.get_address(), sequencer_address, 1);
+    let owner_context = Context::<TestSpec>::new(*owner.get_address(), sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
         collection_address: collection_address.clone(),
         token_id: 1000,
@@ -319,7 +318,7 @@ fn mints_and_transfers() {
 
     // transfer NFT by owner
     let target_address = private_key_2.default_address();
-    let owner_context = Context::<DefaultSpec>::new(*owner.get_address(), sequencer_address, 1);
+    let owner_context = Context::<TestSpec>::new(*owner.get_address(), sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
         collection_address: collection_address.clone(),
         token_id,
@@ -429,7 +428,7 @@ fn mints_and_transfers() {
     // transfer NFT by owner
     let target_address = private_key_1.default_address();
     let owner = private_key_2.default_address();
-    let owner_context = Context::<DefaultSpec>::new(owner, sequencer_address, 1);
+    let owner_context = Context::<TestSpec>::new(owner, sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
         collection_address: collection_address.clone(),
         token_id,

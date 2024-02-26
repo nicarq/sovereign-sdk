@@ -66,7 +66,7 @@ tempfile = { workspace = true }
 bytes = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
+sov-test-utils = { path = "../../sov-test-utils" }
 
 
 [features]
@@ -83,7 +83,6 @@ native = [
 	"sov-chain-state/native",
 	"sov-evm/native",
 	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-state/native",
 ]

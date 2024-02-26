@@ -24,7 +24,7 @@ use sov_state::{jmt, DefaultStorageSpec, ProverStorage, Storage};
 use sov_test_utils::new_test_blob_from_batch;
 use tracing::{debug, info};
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 type Da = MockDaSpec;
 
 const LOCKED_AMOUNT: u64 = 200;

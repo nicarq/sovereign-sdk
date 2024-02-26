@@ -6,7 +6,7 @@ use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{KernelModule, KernelWorkingSet, StateCheckpoint};
 use sov_prover_storage_manager::new_orphan_storage;
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 type Da = MockDaSpec;
 
 #[test]

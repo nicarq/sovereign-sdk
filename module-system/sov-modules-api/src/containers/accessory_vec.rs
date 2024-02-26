@@ -146,16 +146,16 @@ mod test {
 
     use sov_modules_core::WorkingSet;
     use sov_prover_storage_manager::new_orphan_storage;
+    use sov_test_utils::TestSpec;
 
     use super::*;
     use crate::containers::traits::vec_tests::Testable;
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
     #[test]
     fn test_accessory_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let mut working_set: WorkingSet<DefaultSpec> = WorkingSet::new(storage);
+        let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = AccessoryStateVec::<u32>::new(prefix);

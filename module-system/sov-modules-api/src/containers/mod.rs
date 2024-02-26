@@ -32,8 +32,7 @@ mod test {
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_state::DefaultStorageSpec;
-
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+    use sov_test_utils::TestSpec;
 
     #[derive(Clone)]
     struct TestCase {
@@ -82,7 +81,7 @@ mod test {
             let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
             for test in tests.clone() {
                 {
-                    let mut working_set: WorkingSet<DefaultSpec> =
+                    let mut working_set: WorkingSet<TestSpec> =
                         WorkingSet::new(prover_storage.clone());
 
                     working_set.set(&test.key, test.value.clone());
@@ -144,7 +143,7 @@ mod test {
             let header = MockBlockHeader::default();
             let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
             assert!(prover_storage.is_empty());
-            let mut storage: WorkingSet<DefaultSpec> = WorkingSet::new(prover_storage.clone());
+            let mut storage: WorkingSet<TestSpec> = WorkingSet::new(prover_storage.clone());
             storage.set(&key, value.clone());
             let (cache, witness) = storage.checkpoint().0.freeze();
             prover_storage

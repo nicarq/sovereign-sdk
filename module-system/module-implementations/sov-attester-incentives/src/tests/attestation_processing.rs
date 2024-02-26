@@ -7,7 +7,7 @@ use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
     execution_simulation, setup, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
 };
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 /// Start by testing the positive case where the attestations are valid
 #[test]

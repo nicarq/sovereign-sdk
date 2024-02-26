@@ -6,7 +6,7 @@ use sov_modules_core::{
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::codec::BcsCodec;
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::TestSpec;
 
 #[test]
 fn test_workingset_get() {
@@ -23,7 +23,7 @@ fn test_workingset_get() {
     );
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
-    let mut working_set = WorkingSet::<DefaultSpec>::new(storage.clone());
+    let mut working_set = WorkingSet::<TestSpec>::new(storage.clone());
     working_set.set(&storage_key, storage_value.clone());
 
     assert_eq!(Some(storage_value), working_set.get(&storage_key));
@@ -46,9 +46,9 @@ fn test_versioned_workingset_get() {
 
     let sender = Address::from([1; 32]);
     let sequencer = Address::from([2; 32]);
-    let mut working_set = WorkingSet::<DefaultSpec>::new(storage.clone());
+    let mut working_set = WorkingSet::<TestSpec>::new(storage.clone());
     let mut working_set =
-        working_set.versioned_state(&Context::<DefaultSpec>::new(sender, sequencer, 1));
+        working_set.versioned_state(&Context::<TestSpec>::new(sender, sequencer, 1));
     working_set.set(&storage_key, storage_value.clone());
 
     assert_eq!(Some(storage_value), working_set.get(&storage_key));
@@ -68,9 +68,9 @@ fn test_kernel_workingset_get() {
         &codec,
     );
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
-    let kernel: MockKernel<DefaultSpec, MockDaSpec> = MockKernel::new(4, 1);
+    let kernel: MockKernel<TestSpec, MockDaSpec> = MockKernel::new(4, 1);
 
-    let mut working_set = StateCheckpoint::<DefaultSpec>::new(storage.clone());
+    let mut working_set = StateCheckpoint::<TestSpec>::new(storage.clone());
     let mut working_set = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
     working_set.set(&storage_key, storage_value.clone());
 

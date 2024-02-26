@@ -10,7 +10,7 @@ use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<DefaultStorageSpec>;
 
 #[test]

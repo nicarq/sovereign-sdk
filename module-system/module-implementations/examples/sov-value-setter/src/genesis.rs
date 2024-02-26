@@ -25,22 +25,22 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
 
 #[cfg(test)]
 mod tests {
-    type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
     use sov_modules_api::Address;
+    use sov_test_utils::TestSpec;
 
     use crate::ValueSetterConfig;
 
     #[test]
     fn test_config_serialization() {
         let admin = Address::from([1; 32]);
-        let config = ValueSetterConfig::<DefaultSpec> { admin };
+        let config = ValueSetterConfig::<TestSpec> { admin };
 
         let data = r#"
         {
             "admin":"sov1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs259tk3"
         }"#;
 
-        let parsed_config: ValueSetterConfig<DefaultSpec> = serde_json::from_str(data).unwrap();
+        let parsed_config: ValueSetterConfig<TestSpec> = serde_json::from_str(data).unwrap();
         assert_eq!(parsed_config, config);
     }
 }

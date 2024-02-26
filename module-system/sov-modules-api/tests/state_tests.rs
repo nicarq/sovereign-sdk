@@ -4,8 +4,8 @@ use sov_modules_core::Namespace;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{ArrayWitness, DefaultStorageSpec, Prefix, Storage, ZkStorage};
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type Zk = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
+type Zk = sov_test_utils::ZkTestSpec;
 
 enum Operation {
     Merge,

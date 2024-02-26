@@ -21,7 +21,8 @@ sov-accounts = { path = "../module-system/module-implementations/sov-accounts", 
 sov-bank = { path = "../module-system/module-implementations/sov-bank", features = ["native"] }
 sov-state = { path = "../module-system/sov-state" }
 sov-prover-storage-manager = { path = "../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-mock-zkvm = { path = "../adapters/mock-zkvm", features = ["native", "arbitrary"] }
+sov-test-utils = { path = "../module-system/sov-test-utils", features = ["arbitrary"] }
+
 
 # Prevent this from interfering with workspaces.
 [workspace]

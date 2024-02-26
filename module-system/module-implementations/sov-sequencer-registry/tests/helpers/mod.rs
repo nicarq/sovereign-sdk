@@ -4,7 +4,7 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::{Address, CryptoSpec, DaSpec, Module, Spec, StateAccessor, WorkingSet};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 pub type Da = MockDaSpec;
 
 pub const GENESIS_SEQUENCER_KEY: &str = "sequencer_1";

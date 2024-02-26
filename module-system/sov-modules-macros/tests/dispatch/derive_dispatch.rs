@@ -6,7 +6,7 @@ use sov_modules_api::{
     Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, ModuleInfo, Spec,
 };
 use sov_state::ZkStorage;
-type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::ZkTestSpec;
 
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
@@ -21,7 +21,7 @@ where
 }
 
 fn main() {
-    type RT = Runtime<ZkDefaultSpec, u32>;
+    type RT = Runtime<ZkTestSpec, u32>;
     let runtime = &mut RT::default();
 
     let storage = ZkStorage::new();
@@ -30,13 +30,13 @@ fn main() {
     runtime.genesis(&config, working_set).unwrap();
     let sender = Address::try_from([0; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
-    let context: Context<ZkDefaultSpec> = Context::new(sender, sequencer, 1);
+    let context: Context<ZkTestSpec> = Context::new(sender, sequencer, 1);
 
     let value = 11;
     {
         let message = value;
         let serialized_message = <RT as EncodeCall<
-            first_test_module::FirstTestStruct<ZkDefaultSpec>,
+            first_test_module::FirstTestStruct<ZkTestSpec>,
         >>::encode_call(message);
         let module = RT::decode_call(&serialized_message).unwrap();
 
@@ -55,7 +55,7 @@ fn main() {
     {
         let message = value;
         let serialized_message = <RT as EncodeCall<
-            second_test_module::SecondTestStruct<ZkDefaultSpec>,
+            second_test_module::SecondTestStruct<ZkTestSpec>,
         >>::encode_call(message);
         let module = RT::decode_call(&serialized_message).unwrap();
 

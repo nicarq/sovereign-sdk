@@ -17,7 +17,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage};
 
 use crate::AttesterIncentives;
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 pub const TOKEN_NAME: &str = "TEST_TOKEN";
 pub const BOND_AMOUNT: u64 = 1000;

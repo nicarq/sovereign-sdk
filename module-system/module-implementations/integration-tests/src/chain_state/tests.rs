@@ -12,7 +12,7 @@ use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 
 use crate::chain_state::helpers::{create_chain_state_genesis_config, TestKernel, TestRuntime};
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 /// This test generates a new mock rollup having a simple value setter module
 /// with an associated chain state, and checks that the height, the genesis hash

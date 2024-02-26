@@ -15,7 +15,7 @@ use crate::runtime::{GenesisConfig, Runtime};
 mod da_simulation;
 mod stf_tests;
 mod tx_revert_tests;
-pub(crate) type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
 
 pub(crate) type RuntimeTest = Runtime<S, Da>;

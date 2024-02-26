@@ -11,7 +11,7 @@ use crate::call::{AttesterIncentiveErrors, SlashingReason};
 use crate::tests::helpers::{
     execution_simulation, setup, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
 };
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 /// Test that given an invalid transition, a challenger can successfully challenge it and get rewarded
 #[test]

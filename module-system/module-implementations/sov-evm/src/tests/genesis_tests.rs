@@ -18,7 +18,7 @@ use crate::evm::primitive_types::{Block, SealedBlock};
 use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
 use crate::{AccountData, Evm, EvmConfig};
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 lazy_static! {
     pub(crate) static ref TEST_CONFIG: EvmConfig = EvmConfig {

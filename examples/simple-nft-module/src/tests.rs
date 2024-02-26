@@ -1,15 +1,15 @@
 use sov_modules_api::utils::generate_address as gen_addr_generic;
 use sov_modules_api::Spec;
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::TestSpec;
 
 use crate::NonFungibleTokenConfig;
 
 #[test]
 fn test_config_serialization() {
-    let address: <DefaultSpec as Spec>::Address = gen_addr_generic::<DefaultSpec>("admin");
-    let owner: <DefaultSpec as Spec>::Address = gen_addr_generic::<DefaultSpec>("owner");
+    let address: <TestSpec as Spec>::Address = gen_addr_generic::<TestSpec>("admin");
+    let owner: <TestSpec as Spec>::Address = gen_addr_generic::<TestSpec>("owner");
 
-    let config = NonFungibleTokenConfig::<DefaultSpec> {
+    let config = NonFungibleTokenConfig::<TestSpec> {
         admin: address,
         owners: vec![(0, owner)],
     };
@@ -22,6 +22,6 @@ fn test_config_serialization() {
         ]
     }"#;
 
-    let parsed_config: NonFungibleTokenConfig<DefaultSpec> = serde_json::from_str(data).unwrap();
+    let parsed_config: NonFungibleTokenConfig<TestSpec> = serde_json::from_str(data).unwrap();
     assert_eq!(config, parsed_config)
 }

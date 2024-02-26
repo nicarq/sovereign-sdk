@@ -34,9 +34,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
+use sov_test_utils::TestSpec;
 use tempfile::TempDir;
-
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 
 use crate::datagen::{generate_genesis_config, get_bench_blocks};
 
@@ -150,11 +149,11 @@ fn chain_stats(num_blocks: usize, num_blocks_with_txns: usize, num_txns: usize, 
 }
 
 type BenchSTF<'a> = StfBlueprint<
-    DefaultSpec,
+    TestSpec,
     MockDaSpec,
     Risc0Verifier,
-    Runtime<DefaultSpec, MockDaSpec>,
-    BasicKernel<DefaultSpec, MockDaSpec>,
+    Runtime<TestSpec, MockDaSpec>,
+    BasicKernel<TestSpec, MockDaSpec>,
 >;
 
 #[tokio::main]
@@ -198,10 +197,9 @@ async fn main() -> Result<(), anyhow::Error> {
     generate_genesis_config(genesis_conf_dir.as_str())?;
 
     let genesis_config = {
-        let rt_params = get_genesis_config::<DefaultSpec, _>(&GenesisPaths::from_dir(
-            genesis_conf_dir.as_str(),
-        ))
-        .unwrap();
+        let rt_params =
+            get_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(genesis_conf_dir.as_str()))
+                .unwrap();
 
         let chain_state =
             read_json_file(Path::new(genesis_conf_dir.as_str()).join("chain_state.json")).unwrap();

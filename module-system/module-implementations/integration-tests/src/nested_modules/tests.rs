@@ -2,9 +2,7 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::{ModulePrefix, Spec, StateMap, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{Storage, ZkStorage};
-
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::{TestSpec, ZkTestSpec};
 
 use super::helpers::{module_c, Event};
 
@@ -16,8 +14,8 @@ fn nested_module_call_test() {
 
     // Test the `native` execution.
     {
-        execute_module_logic::<DefaultSpec>(&mut working_set);
-        test_state_update::<DefaultSpec>(&mut working_set);
+        execute_module_logic::<TestSpec>(&mut working_set);
+        test_state_update::<TestSpec>(&mut working_set);
     }
 
     let events: Vec<Event> = working_set
@@ -46,8 +44,8 @@ fn nested_module_call_test() {
     {
         let zk_storage = ZkStorage::new();
         let working_set = &mut WorkingSet::with_witness(zk_storage, witness);
-        execute_module_logic::<ZkDefaultSpec>(working_set);
-        test_state_update::<ZkDefaultSpec>(working_set);
+        execute_module_logic::<ZkTestSpec>(working_set);
+        test_state_update::<ZkTestSpec>(working_set);
     }
 }
 

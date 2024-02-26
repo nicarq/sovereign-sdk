@@ -394,7 +394,7 @@ use simple_nft_module::Event;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_prover_storage_manager::{new_orphan_storage};
 
-pub type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+pub type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<DefaultStorageSpec>;
 
 

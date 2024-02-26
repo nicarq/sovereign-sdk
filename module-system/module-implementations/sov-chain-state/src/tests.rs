@@ -1,6 +1,6 @@
 use sov_modules_api::da::{NanoSeconds, Time};
+use sov_test_utils::TestSpec;
 
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
 use crate::ChainStateConfig;
 
 #[test]
@@ -26,6 +26,6 @@ fn test_config_serialization() {
         "minimum_gas_price": [1, 1]
     }"#;
 
-    let parsed_config: ChainStateConfig<DefaultSpec> = serde_json::from_str(data).unwrap();
+    let parsed_config: ChainStateConfig<TestSpec> = serde_json::from_str(data).unwrap();
     assert_eq!(config, parsed_config)
 }

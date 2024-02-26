@@ -6,7 +6,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage};
 
 mod helpers;
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<DefaultStorageSpec>;
 
 #[test]

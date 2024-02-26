@@ -3,14 +3,13 @@ use sov_cli::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{CryptoSpec, PrivateKey, PublicKey, Spec};
-
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::TestSpec;
 type Da = MockDaSpec;
 
 #[test]
 fn test_key_gen() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<DefaultSpec, Da>, DefaultSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
     let workflow = KeyWorkflow::Generate { nickname: None };
     workflow.run(&mut wallet_state, app_dir).unwrap();
 
@@ -21,14 +20,14 @@ fn test_key_gen() {
 fn test_key_import() {
     let app_dir = tempfile::tempdir().unwrap();
     // Generate a key and write it to a file
-    let generated_key = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let generated_key = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
     let key_path = app_dir.path().join("test_key");
-    let key_and_address = PrivateKeyAndAddress::<DefaultSpec>::from_key(generated_key.clone());
+    let key_and_address = PrivateKeyAndAddress::<TestSpec>::from_key(generated_key.clone());
     std::fs::write(&key_path, serde_json::to_string(&key_and_address).unwrap())
         .expect("Failed to write key to tempdir");
 
     // Initialize an empty wallet
-    let mut wallet_state = WalletState::<RuntimeCall<DefaultSpec, Da>, DefaultSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
     let workflow = KeyWorkflow::Import {
         nickname: Some("my-test-key".to_string()),
         address_override: None,
@@ -48,7 +47,7 @@ fn test_key_import() {
         entry.address,
         generated_key
             .pub_key()
-            .to_address::<<DefaultSpec as Spec>::Address>()
+            .to_address::<<TestSpec as Spec>::Address>()
     );
 }
 
@@ -56,7 +55,7 @@ fn test_key_import() {
 fn test_activate() {
     // Setup a wallet with two keys
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<DefaultSpec, Da>, DefaultSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
     let workflow = KeyWorkflow::Generate {
         nickname: Some("key1".into()),
     };
@@ -98,7 +97,7 @@ fn test_activate() {
 fn test_show() {
     // Setup a wallet with mock key
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<DefaultSpec, Da>, DefaultSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
     let workflow = KeyWorkflow::Generate {
         nickname: Some("mockkey".into()),
     };
@@ -132,7 +131,7 @@ fn test_show() {
 fn test_list() {
     // Setup a wallet with key1 and key2
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<DefaultSpec, Da>, DefaultSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
     let workflow = KeyWorkflow::Generate {
         nickname: Some("key1".into()),

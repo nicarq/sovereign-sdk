@@ -46,7 +46,7 @@ tempfile = { workspace = true }
 sov-modules-api = { path = ".", features = ["native"] }
 sov-modules-core = { path = "../sov-modules-core", features = ["mocks"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
+sov-test-utils = { path = "../sov-test-utils" }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-db = { path = "../../full-node/db/sov-db" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
@@ -58,11 +58,11 @@ arbitrary = [
 	"dep:proptest-derive",
 	"proptest/default",
 	"sov-db/arbitrary",
-	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-modules-core/arbitrary",
 	"sov-rollup-interface/arbitrary",
 	"sov-state/arbitrary",
+	"sov-test-utils/arbitrary",
 ]
 bench = [
 	"risc0-cycle-macros",
@@ -82,7 +82,6 @@ native = [
 	"serde_json",
 	"sov-bank/native",
 	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-core/native",
 	"sov-modules-macros/native",

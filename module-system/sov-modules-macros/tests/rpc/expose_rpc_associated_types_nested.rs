@@ -5,7 +5,7 @@ use sov_modules_api::{
     Module, ModuleInfo, Spec, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
-type ZkDefaultSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::ZkTestSpec;
 
 pub trait Message: 'static {
     type Caller: std::fmt::Display;
@@ -119,7 +119,7 @@ impl TestSpec for ActualSpec {
 }
 
 fn main() {
-    type S = ZkDefaultSpec;
+    type S = ZkTestSpec;
     type RT = Runtime<S, ActualSpec>;
     let storage = ZkStorage::new();
     let working_set = &mut WorkingSet::new(storage);

@@ -5,7 +5,7 @@ use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 mod helpers;
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 #[test]
 fn initial_and_deployed_token() {

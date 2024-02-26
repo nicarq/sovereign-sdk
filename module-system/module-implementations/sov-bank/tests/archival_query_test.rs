@@ -7,7 +7,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::storage::{Namespace, SlotKey, SlotValue};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = sov_test_utils::TestSpec;
 
 #[test]
 fn transfer_initial_token() {

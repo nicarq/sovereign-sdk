@@ -13,6 +13,12 @@ pub mod bank_data;
 pub mod logging;
 pub mod value_setter_data;
 
+pub type TestSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+pub type ZkTestSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+pub type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
+pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
+
 pub fn new_test_blob_from_batch(
     batch: BatchWithId,
     address: &[u8],

@@ -9,17 +9,16 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
-
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+use sov_test_utils::TestSpec;
 type Da = MockDaSpec;
 
 #[test]
 fn test_import_transaction_from_string() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<DefaultSpec, Da>, DefaultSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
     let test_token_path = make_test_path("requests/create_token.json");
-    let subcommand = RuntimeSubcommand::<JsonStringArg, DefaultSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<JsonStringArg, TestSpec, Da>::bank {
         contents: JsonStringArg {
             json: std::fs::read_to_string(test_token_path).unwrap(),
             chain_id: 0,
@@ -31,10 +30,10 @@ fn test_import_transaction_from_string() {
 
     let workflow = TransactionWorkflow::Import(ImportTransaction::<
         _,
-        RuntimeSubcommand<JsonStringArg, DefaultSpec, Da>,
+        RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
     >::FromFile(subcommand));
     workflow
-        .run::<Runtime<DefaultSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir)
+        .run::<Runtime<TestSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir)
         .unwrap();
 
     assert_eq!(wallet_state.unsent_transactions.len(), 1);
@@ -43,10 +42,10 @@ fn test_import_transaction_from_string() {
 #[test]
 fn test_import_transaction_from_file() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<DefaultSpec, Da>, DefaultSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
     let test_token_path = make_test_path("requests/create_token.json");
-    let subcommand = RuntimeSubcommand::<FileNameArg, DefaultSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::bank {
         contents: FileNameArg {
             path: test_token_path.to_str().unwrap().into(),
             chain_id: 0,
@@ -58,10 +57,10 @@ fn test_import_transaction_from_file() {
 
     let workflow = TransactionWorkflow::Import(ImportTransaction::<
         _,
-        RuntimeSubcommand<JsonStringArg, DefaultSpec, Da>,
+        RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
     >::FromFile(subcommand));
     workflow
-        .run::<Runtime<DefaultSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir)
+        .run::<Runtime<TestSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir)
         .unwrap();
 
     assert_eq!(wallet_state.unsent_transactions.len(), 1);
@@ -69,7 +68,7 @@ fn test_import_transaction_from_file() {
 
 #[test]
 fn transaction_is_serialized_correctly() {
-    let mut wallet_state = WalletState::<RuntimeCall<DefaultSpec, Da>, DefaultSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
     let runtime_call_path = make_test_path("requests/create_token.json");
     let runtime_call_json = fs::read_to_string(runtime_call_path).unwrap();
@@ -91,13 +90,13 @@ fn transaction_is_serialized_correctly() {
 
     wallet_state.unsent_transactions.push(unsigned_tx);
 
-    let key = <<DefaultSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let key = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
     let initial_nonce = 15;
     let txs = wallet_state.take_signed_transactions(&key, initial_nonce);
 
     for (i, tx) in txs.into_iter().enumerate() {
-        let tx = Transaction::<DefaultSpec>::try_from_slice(&tx).unwrap();
-        let tx_p = Transaction::<DefaultSpec>::new_signed_tx(
+        let tx = Transaction::<TestSpec>::try_from_slice(&tx).unwrap();
+        let tx_p = Transaction::<TestSpec>::new_signed_tx(
             &key,
             runtime_call_bytes.clone(),
             chain_id,

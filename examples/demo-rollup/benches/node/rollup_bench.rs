@@ -21,7 +21,7 @@ use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
 use tempfile::TempDir;
 
-type BenchSpec = sov_modules_api::default_spec::DefaultSpec<Risc0Verifier>;
+type BenchSpec = sov_test_utils::TestSpec;
 
 fn rollup_bench(_bench: &mut Criterion) {
     let start_height: u64 = 0u64;

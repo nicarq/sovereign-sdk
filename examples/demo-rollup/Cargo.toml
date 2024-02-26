@@ -43,7 +43,7 @@ sov-db = { path = "../../full-node/db/sov-db" }
 sov-ethereum = { path = "../../full-node/sov-ethereum", optional = true }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native", "sov-modules"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native", "sov-modules"]  }
+sov-test-utils = { path = "../../module-system/sov-test-utils", optional = true } # Only needed for nft script
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 sov-cli = { path = "../../module-system/sov-cli" }
 clap = { workspace = true }
@@ -98,7 +98,7 @@ experimental = [
 ]
 # TODO: Enable experimental for risc0 when it is ready
 #experimental = ["default", "sov-ethereum/experimental", "reth-primitives", "demo-stf/experimental", "sov-ethereum/local", "secp256k1", "risc0/experimental"]
-
+nft-script = [ "sov-test-utils" ]
 
 bench = [
 	"hex",
@@ -136,6 +136,7 @@ path = "src/sov-cli/main.rs"
 [[bin]]
 name = "sov-nft-script"
 path = "src/bin/sov_nft_script.rs"
+required-features = ["nft-script"]
 
 [[bin]]
 name = "sov-demo-rollup"
