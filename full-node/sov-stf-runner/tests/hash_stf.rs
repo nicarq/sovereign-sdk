@@ -98,7 +98,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         let storage_root_hash = pre_state.get_root_hash(slot_header.height()).unwrap();
         assert_eq!(
             pre_state_root,
-            storage_root_hash.as_ref(),
+            &storage_root_hash.root_hash().0,
             "Incorrect pre_state_root has been passed"
         );
 

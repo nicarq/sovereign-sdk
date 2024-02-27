@@ -15,6 +15,9 @@ test-legacy: ## Runs test suite with output from tests printed
 test:  ## Runs test suite using next test
 	@cargo nextest run --workspace --all-features
 
+test-default-features:  ## Runs test suite using default features
+	@cargo nextest run --workspace
+
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov
 	cargo install cargo-hack

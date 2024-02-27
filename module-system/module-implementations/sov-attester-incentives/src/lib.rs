@@ -9,10 +9,8 @@ mod genesis;
 pub use call::*;
 pub use genesis::*;
 
-// TODO: we need to fix the proof generation/verification mechanism to make the
-// attester incentives module's test pass again: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/172
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 #[cfg(feature = "native")]
 mod rpc;

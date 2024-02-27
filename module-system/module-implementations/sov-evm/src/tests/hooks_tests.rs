@@ -8,6 +8,7 @@ use sov_modules_api::{
     VersionedStateReadWriter,
 };
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_state::VisibleHash;
 
 use super::genesis_tests::{setup, TEST_CONFIG};
 use crate::evm::primitive_types::{
@@ -26,7 +27,7 @@ fn begin_slot_hook_creates_pending_block() {
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
+    evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
     let pending_block = evm.block_env.get(&mut state_checkpoint).unwrap();
     assert_eq!(
         pending_block,
@@ -49,7 +50,7 @@ fn end_slot_hook_sets_head() {
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
+    evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
 
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
@@ -113,7 +114,7 @@ fn end_slot_hook_moves_transactions_and_receipts() {
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
+    evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
 
     let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
     evm.pending_transactions.push(&tx1, &mut state_checkpoint);
@@ -197,11 +198,11 @@ fn finalize_hook_creates_final_block() {
     let tmpdir = tempfile::tempdir().unwrap();
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
-    let p = [10u8; 32].into();
+    let p = [10u8; 32];
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
-    evm.begin_slot_hook(&p, &mut versioned_ws);
+    evm.begin_slot_hook(VisibleHash::new(p), &mut versioned_ws);
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut state_checkpoint,
@@ -212,17 +213,17 @@ fn finalize_hook_creates_final_block() {
     );
     evm.end_slot_hook(&mut state_checkpoint);
 
-    let root_hash = [99u8; 32].into();
+    let root_hash = [99u8; 32];
 
     let mut accessory_state = state_checkpoint.accessory_state();
-    evm.finalize_hook(&root_hash, &mut accessory_state);
+    evm.finalize_hook(VisibleHash::new(root_hash), &mut accessory_state);
     assert_eq!(evm.blocks.len(&mut accessory_state), 2);
 
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1); // Because we haven't invoked the chain-state hooks, re-use the block number
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
 
-    evm.begin_slot_hook(&root_hash, &mut versioned_ws);
+    evm.begin_slot_hook(VisibleHash::new(root_hash), &mut versioned_ws);
 
     let mut accessory_state = state_checkpoint.accessory_state();
 
@@ -238,7 +239,7 @@ fn finalize_hook_creates_final_block() {
                     parent_hash,
                     ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: TEST_CONFIG.coinbase,
-                    state_root: B256::from(root_hash.0),
+                    state_root: B256::from(root_hash),
                     transactions_root: B256::from(hex!(
                         "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
                     )),

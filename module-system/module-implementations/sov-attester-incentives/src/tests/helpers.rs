@@ -11,9 +11,9 @@ use sov_modules_api::{
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::{GasMeter, StateCheckpoint};
 use sov_rollup_interface::da::Time;
-use sov_state::jmt::{RootHash, SparseMerkleProof};
+use sov_state::jmt::SparseMerkleProof;
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
-use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_state::{DefaultStorageSpec, ProverStorage, StorageRoot};
 
 use crate::AttesterIncentives;
 
@@ -31,7 +31,7 @@ pub const INIT_HEIGHT: u64 = 0;
 pub(crate) fn commit_get_new_state_checkpoint(
     storage: &ProverStorage<DefaultStorageSpec>,
     mut checkpoint: StateCheckpoint<S>,
-) -> (RootHash, StateCheckpoint<S>) {
+) -> (StorageRoot<DefaultStorageSpec>, StateCheckpoint<S>) {
     let (reads_writes, witness) = checkpoint.freeze();
 
     let prev_root = storage
@@ -155,7 +155,7 @@ pub(crate) fn setup(
 }
 
 pub(crate) struct ExecutionSimulationVars {
-    pub state_root: RootHash,
+    pub state_root: StorageRoot<DefaultStorageSpec>,
     pub state_proof:
         StorageProof<SparseMerkleProof<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
 }

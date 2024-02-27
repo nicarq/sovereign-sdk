@@ -8,7 +8,6 @@ use sov_modules_api::{AccessoryStateCheckpoint, Context, Gas, Spec, StateCheckpo
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_sequencer_registry::SequencerRegistry;
-use sov_state::Storage;
 use tracing::info;
 
 use crate::runtime::Runtime;
@@ -91,8 +90,7 @@ impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
 
     fn begin_slot_hook(
         &self,
-        #[allow(unused_variables)]
-        pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        #[allow(unused_variables)] pre_state_root: <S as Spec>::VisibleHash,
         #[allow(unused_variables)]
         versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<
             StateCheckpoint<S>,
@@ -117,7 +115,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
 
     fn finalize_hook(
         &self,
-        #[allow(unused_variables)] root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        #[allow(unused_variables)] root_hash: S::VisibleHash,
         #[allow(unused_variables)] accessory_working_set: &mut AccessoryStateCheckpoint<S>,
     ) {
         #[cfg(all(feature = "experimental", feature = "native"))]

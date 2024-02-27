@@ -20,7 +20,7 @@ use sov_sequencer_registry::SequencerConfig;
 use sov_soft_confirmations_kernel::{
     SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
 };
-use sov_state::{jmt, DefaultStorageSpec, ProverStorage, Storage};
+use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_test_utils::new_test_blob_from_batch;
 use tracing::{debug, info};
 
@@ -763,7 +763,11 @@ struct TestRuntime<S: Spec, Da: DaSpec> {
 impl TestRuntime<S, MockDaSpec> {
     pub fn pre_initialized(
         with_preferred_sequencer: bool,
-    ) -> (ProverStorage<DefaultStorageSpec>, Self, jmt::RootHash) {
+    ) -> (
+        ProverStorage<DefaultStorageSpec>,
+        Self,
+        <ProverStorage<DefaultStorageSpec> as Storage>::Root,
+    ) {
         use sov_modules_api::Genesis;
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();

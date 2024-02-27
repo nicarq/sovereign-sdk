@@ -86,7 +86,8 @@ mod tests {
     use sov_modules_api::{GasPrice, StateMap, WorkingSet};
     use sov_modules_core::{Prefix, StateCheckpoint};
     use sov_prover_storage_manager::new_orphan_storage;
-    use sov_state::{DefaultStorageSpec, ProverStorage};
+    use sov_state::jmt::RootHash;
+    use sov_state::{DefaultStorageSpec, ProverStorage, StorageRoot};
     use sov_test_utils::TestSpec;
 
     use super::*;
@@ -175,7 +176,7 @@ mod tests {
             &1,
             &StateTransitionId::new(
                 [1; 32].into(),
-                [2; 32].into(),
+                StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
                 original_price,
                 used,
@@ -219,7 +220,7 @@ mod tests {
             &1,
             &StateTransitionId::new(
                 [1; 32].into(),
-                [2; 32].into(),
+                StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
                 [5, 7].into(),
                 [1000, 1000].into(),
@@ -231,7 +232,7 @@ mod tests {
             &2,
             &StateTransitionId::new(
                 [1; 32].into(),
-                [2; 32].into(),
+                StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
                 [7, 11].into(),
                 [2000, 2000].into(),
@@ -275,7 +276,7 @@ mod tests {
             &1,
             &StateTransitionId::new(
                 [1; 32].into(),
-                [2; 32].into(),
+                StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
                 [5, 7].into(),
                 [1000, 1000].into(),
@@ -287,7 +288,7 @@ mod tests {
             &2,
             &StateTransitionId::new(
                 [1; 32].into(),
-                [2; 32].into(),
+                StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
                 [7, 11].into(),
                 [2000, 2000].into(),
@@ -299,7 +300,7 @@ mod tests {
             &3,
             &StateTransitionId::new(
                 [1; 32].into(),
-                [2; 32].into(),
+                StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
                 [7, 11].into(),
                 [1500, 1500].into(),

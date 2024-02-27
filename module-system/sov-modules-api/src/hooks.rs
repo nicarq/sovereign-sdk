@@ -1,6 +1,5 @@
 use sov_modules_core::{
-    AccessoryStateCheckpoint, Context, Spec, StateCheckpoint, Storage, VersionedStateReadWriter,
-    WorkingSet,
+    AccessoryStateCheckpoint, Context, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
 };
 use sov_rollup_interface::da::DaSpec;
 
@@ -66,7 +65,7 @@ pub trait SlotHooks {
 
     fn begin_slot_hook(
         &self,
-        pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        pre_state_root: <Self::Spec as Spec>::VisibleHash,
         working_set: &mut VersionedStateReadWriter<StateCheckpoint<Self::Spec>>,
     );
 
@@ -78,7 +77,7 @@ pub trait FinalizeHook {
 
     fn finalize_hook(
         &self,
-        root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        root_hash: <Self::Spec as Spec>::VisibleHash,
         accessory_working_set: &mut AccessoryStateCheckpoint<Self::Spec>,
     );
 }
