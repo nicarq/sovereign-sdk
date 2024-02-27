@@ -82,6 +82,7 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: u64,
     planned_fork: Option<PlannedFork>,
+    aggregated_proof_subscription: broadcast::Sender<()>,
 }
 
 impl MockDaService {
@@ -94,6 +95,8 @@ impl MockDaService {
         // error and the task will exit.
         tokio::spawn(async move { while rx.recv().await.is_ok() {} });
 
+        let (aggregated_proof_subscription, mut rec) = broadcast::channel(16);
+        tokio::spawn(async move { while rec.recv().await.is_ok() {} });
         Self {
             sequencer_da_address,
             aggregated_proof_buffer: Default::default(),
@@ -102,6 +105,7 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: default_wait_attempts(),
             planned_fork: None,
+            aggregated_proof_subscription,
         }
     }
 
@@ -266,6 +270,15 @@ impl MockDaService {
         }
         Ok(())
     }
+
+    /// Wait until aggregated proof is posted to the DA.
+    pub async fn wait_for_aggregated_proof_in_da(&self) {
+        self.aggregated_proof_subscription
+            .subscribe()
+            .recv()
+            .await
+            .unwrap()
+    }
 }
 
 #[async_trait]
@@ -377,6 +390,7 @@ impl DaService for MockDaService {
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<(), Self::Error> {
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(Proof(proof.to_vec()));
+        self.aggregated_proof_subscription.send(()).unwrap();
         Ok(())
     }
 

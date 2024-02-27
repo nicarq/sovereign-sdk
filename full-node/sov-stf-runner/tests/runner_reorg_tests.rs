@@ -10,9 +10,9 @@ use sov_stf_runner::{
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 
-mod hash_stf;
+mod helpers;
 
-use hash_stf::{get_result_from_blocks, HashStf, S};
+use helpers::hash_stf::{get_result_from_blocks, HashStf, S};
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_prover_storage_manager::ProverStorageManager;
