@@ -22,6 +22,7 @@ mod utils;
 #[cfg(feature = "native")]
 mod rpc;
 use borsh::{BorshDeserialize, BorshSerialize};
+use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
@@ -38,7 +39,12 @@ use sov_state::Storage;
 /// Type alias that contains the height of a given transition
 pub type VirtualSlotNumber = u64;
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
+// We need to use derivative here because `Storage` doesn't implement `Eq` and `PartialEq`
+#[derivative(
+    PartialEq(bound = "S: Spec, Da: DaSpec"),
+    Eq(bound = "S: Spec, Da: DaSpec")
+)]
 /// Structure that contains the information needed to represent a single state transition.
 pub struct StateTransitionId<S: Spec, Da: DaSpec> {
     slot_hash: Da::SlotHash,
