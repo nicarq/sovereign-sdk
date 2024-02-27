@@ -9,7 +9,7 @@ use sov_rollup_interface::services::da::DaService;
 use crate::{ProofAggregationStatus, ProverService, StateTransitionInfo};
 
 /// Manages the lifecycle of the `AggregatedProof`.
-pub(crate) struct ProofManager<Ps: ProverService> {
+pub struct ProofManager<Ps: ProverService> {
     da_service: Arc<Ps::DaService>,
     prover_service: Ps,
     ledger_db: LedgerDB,
@@ -65,7 +65,6 @@ where
             .await
             // TODO handle back pressure: If provers are too slow we panic.
             .expect("The proof creation should succeed");
-
         if agg_proof_hashes.len() >= self.prover_service.aggregated_proof_block_jump() {
             loop {
                 let status = self
@@ -76,7 +75,6 @@ where
                 match status {
                     Ok(ProofAggregationStatus::Success(agg_proof_data)) => {
                         agg_proof_hashes.clear();
-
                         let data = agg_proof_data.try_to_vec()?;
                         self.da_service.send_aggregated_zk_proof(&data).await?;
                         return Ok(());
