@@ -3,18 +3,18 @@ use syn::DeriveInput;
 
 use crate::common::StructFieldExtractor;
 
-pub(crate) struct ExposeRpcMacro {
+pub struct ExposeRpcMacro {
     field_extractor: StructFieldExtractor,
 }
 
 impl ExposeRpcMacro {
-    pub(crate) fn new(name: &'static str) -> Self {
+    pub fn new(name: &'static str) -> Self {
         Self {
             field_extractor: StructFieldExtractor::new(name),
         }
     }
 
-    pub(crate) fn generate_rpc(
+    pub fn generate_rpc(
         &self,
         original: proc_macro::TokenStream,
         input: DeriveInput,
