@@ -1,4 +1,4 @@
-use sov_chain_state::{ChainState, TransitionInProgress};
+use sov_chain_state::{ChainState, StateTransitionId, TransitionInProgress};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::batch::BatchWithId;
@@ -224,22 +224,20 @@ fn test_simple_value_setter_with_chain_state() {
             ),
             "The new transition has not been correctly stored"
         );
+
+        let last_tx_stored: StateTransitionId<S, MockDaSpec> = chain_state_ref
+            .get_historical_transitions(1, &mut state_checkpoint)
+            .unwrap();
+
+        let expected_tx_stored: StateTransitionId<S, MockDaSpec> =
+            StateTransitionId::<S, MockDaSpec>::new(
+                [10; 32].into(),
+                new_root_hash,
+                MockValidityCond::default(),
+                GasPrice::ZEROED,
+                Gas::zero(),
+            );
+
+        assert_eq!(last_tx_stored, expected_tx_stored);
     }
-
-    // TODO(@theochap):
-    // To fix
-    // let last_tx_stored: StateTransitionId<S, MockDaSpec> = chain_state_ref
-    //     .get_historical_transitions(1, &mut working_set)
-    //     .unwrap();
-
-    // assert_eq!(
-    //     last_tx_stored,
-    //     StateTransitionId::new(
-    //         [10; 32].into(),
-    //         new_root_hash,
-    //         MockValidityCond::default(),
-    //         Gas::zero(),
-    //         Gas::zero()
-    //     )
-    // );
 }

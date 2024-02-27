@@ -20,7 +20,10 @@ use crate::MerkleProofSpec;
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
 #[derive(derivative::Derivative)]
-#[derivative(Clone(bound = "S: MerkleProofSpec"))]
+#[derivative(
+    Clone(bound = "S: MerkleProofSpec"),
+    Debug(bound = "S: MerkleProofSpec")
+)]
 pub struct ProverStorage<S: MerkleProofSpec> {
     db: StateDB,
     native_db: NativeDB,

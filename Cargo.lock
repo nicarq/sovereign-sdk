@@ -8505,6 +8505,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh 0.10.3",
+ "derivative",
  "jsonrpsee 0.20.3",
  "serde",
  "serde_json",
