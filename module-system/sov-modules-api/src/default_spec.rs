@@ -1,5 +1,5 @@
 use sov_modules_core::{Address, GasUnit, Spec};
-use sov_state::{ArrayWitness, DefaultStorageSpec, ZkStorage};
+use sov_state::{ArrayWitness, DefaultStorageSpec};
 
 #[cfg(feature = "native")]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -40,6 +40,8 @@ where
 
     type Storage = sov_state::ProverStorage<DefaultStorageSpec>;
 
+    type VisibleHash = sov_state::VisibleHash;
+
     type Zkvm = Zkvm;
 
     type CryptoSpec = Zkvm::CryptoSpec;
@@ -59,7 +61,9 @@ where
     type Address = Address;
     type Gas = GasUnit<2>;
 
-    type Storage = ZkStorage<DefaultStorageSpec>;
+    type Storage = sov_state::ZkStorage<DefaultStorageSpec>;
+
+    type VisibleHash = sov_state::VisibleHash;
 
     type Zkvm = Zkvm;
 

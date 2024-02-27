@@ -153,8 +153,10 @@ where
         let mut versioned_working_set =
             VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);
 
+        let visible_hash = <S as Spec>::VisibleHash::from(pre_state_root.clone());
+
         self.runtime
-            .begin_slot_hook(pre_state_root, &mut versioned_working_set);
+            .begin_slot_hook(visible_hash, &mut versioned_working_set);
 
         gas_price
     }
@@ -180,8 +182,10 @@ where
             .compute_state_update(cache_log, &witness)
             .expect("jellyfish merkle tree update must succeed");
 
+        let visible_root_hash = <S as Spec>::VisibleHash::from(root_hash.clone());
+
         self.runtime
-            .finalize_hook(&root_hash, &mut checkpoint.accessory_state());
+            .finalize_hook(visible_root_hash, &mut checkpoint.accessory_state());
 
         let accessory_log = checkpoint.freeze_non_provable();
 
@@ -240,8 +244,10 @@ where
             .compute_state_update(log, &witness)
             .expect("Storage update must succeed");
 
+        let visible_genesis_hash = <S as Spec>::VisibleHash::from(genesis_hash.clone());
+
         self.runtime
-            .finalize_hook(&genesis_hash, &mut checkpoint.accessory_state());
+            .finalize_hook(visible_genesis_hash, &mut checkpoint.accessory_state());
 
         let accessory_log = checkpoint.freeze_non_provable();
         // HACK: Drop the old checkpoint to ensure that it's RC is not active during commit.

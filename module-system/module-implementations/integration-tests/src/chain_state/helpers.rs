@@ -16,7 +16,6 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime, SequencerOutcome};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
-use sov_state::Storage;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 #[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
@@ -117,7 +116,7 @@ impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
 
     fn begin_slot_hook(
         &self,
-        _pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        _pre_state_root: S::VisibleHash,
         _working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
     }
@@ -130,7 +129,7 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
 
     fn finalize_hook(
         &self,
-        _root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        _root_hash: S::VisibleHash,
         _accesorry_working_set: &mut AccessoryStateCheckpoint<S>,
     ) {
     }

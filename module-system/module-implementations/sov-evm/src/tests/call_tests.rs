@@ -6,6 +6,7 @@ use sov_modules_api::{
     StateValueAccessor, StateVecAccessor, VersionedStateReadWriter,
 };
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_state::VisibleHash;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
@@ -45,7 +46,7 @@ fn call_test() {
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
+    evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
 
     let set_arg = 999;
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
@@ -117,7 +118,7 @@ fn failed_transaction_test() {
     temp_kernel.update_virtual_height(1);
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
 
-    evm.begin_slot_hook(&[10u8; 32].into(), &mut versioned_ws);
+    evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     {
         let sender_address = generate_address::<S>("sender");

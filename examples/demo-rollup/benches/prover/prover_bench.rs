@@ -233,7 +233,7 @@ async fn main() -> Result<(), anyhow::Error> {
         println!(
             "Requesting data for height {} and prev_state_root 0x{}",
             height,
-            hex::encode(prev_state_root.0)
+            hex::encode(prev_state_root.root_hash())
         );
         let (mut blob_txs, inclusion_proof, completeness_proof) = da_service
             .extract_relevant_blobs_with_proof(filtered_block)

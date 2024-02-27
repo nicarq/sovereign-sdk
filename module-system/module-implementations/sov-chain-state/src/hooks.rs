@@ -1,7 +1,6 @@
 use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::hooks::FinalizeHook;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryStateCheckpoint, Gas, Spec};
+use sov_modules_api::{Gas, Spec};
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
 
@@ -81,16 +80,5 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         in_progress_transition.gas_used = gas_used.clone();
         self.in_progress_transition
             .set_current(&in_progress_transition, working_set);
-    }
-}
-
-impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for ChainState<S, Da> {
-    type Spec = S;
-
-    fn finalize_hook(
-        &self,
-        _root_hash: &<S::Storage as Storage>::Root,
-        _accesorry_working_set: &mut AccessoryStateCheckpoint<S>,
-    ) {
     }
 }

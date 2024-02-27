@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
-use sha2::Digest;
 use sov_db::namespaces;
 use sov_db::namespaces::{KernelNamespace as DBKernelNamespace, UserNamespace as DBUserNamespace};
 use sov_db::native_db::NativeDB;
@@ -15,6 +14,7 @@ use sov_modules_core::{
 
 use crate::config::Config;
 use crate::storage::OrderedReadsAndWritesRef;
+use crate::storage_internals::StorageRoot;
 use crate::MerkleProofSpec;
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
@@ -201,13 +201,6 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             proof,
         }
     }
-
-    fn combine_root_hashes(user_root: jmt::RootHash, kernel_root: jmt::RootHash) -> jmt::RootHash {
-        let mut hasher = <S::Hasher as Digest>::new();
-        hasher.update(user_root.0);
-        hasher.update(kernel_root.0);
-        jmt::RootHash(hasher.finalize().into())
-    }
 }
 
 /// Changeset extracted from [`ProverStorage`]
@@ -243,7 +236,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type Witness = S::Witness;
     type RuntimeConfig = Config;
     type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
-    type Root = jmt::RootHash;
+    type Root = StorageRoot<S>;
     type StateUpdate = Namespaced<ProverStateUpdate>;
     type ChangeSet = ProverChangeSet;
 
@@ -281,7 +274,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
             .compute_state_update_namespace::<DBKernelNamespace>(kernel_state_accesses, witness)?;
 
         Ok((
-            Self::combine_root_hashes(user_root, kernel_root),
+            StorageRoot::<S>::new(user_root, kernel_root),
             Namespaced::new(user_state_update, kernel_state_update),
         ))
     }
@@ -309,7 +302,21 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         let StorageProof { key, value, proof } = state_proof;
         let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
 
-        proof.verify(state_root, key_hash, value.as_ref().map(|v| v.value()))?;
+        // We need to verify the proof against the correct root hash
+        // Hence we match the key against its namespace
+        match key.namespace() {
+            Namespace::User => proof.verify(
+                state_root.user_hash(),
+                key_hash,
+                value.as_ref().map(|v| v.value()),
+            )?,
+            Namespace::Kernel => proof.verify(
+                state_root.kernel_hash(),
+                key_hash,
+                value.as_ref().map(|v| v.value()),
+            )?,
+        }
+
         Ok((key, value))
     }
 
@@ -333,10 +340,10 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
         }
     }
 
-    fn get_root_hash(&self, version: Version) -> anyhow::Result<jmt::RootHash> {
+    fn get_root_hash(&self, version: Version) -> anyhow::Result<Self::Root> {
         let user_root = self.get_root_hash_namespace_helper::<DBUserNamespace>(version)?;
         let kernel_root = self.get_root_hash_namespace_helper::<DBKernelNamespace>(version)?;
 
-        Ok(Self::combine_root_hashes(user_root, kernel_root))
+        Ok(StorageRoot::<S>::new(user_root, kernel_root))
     }
 }

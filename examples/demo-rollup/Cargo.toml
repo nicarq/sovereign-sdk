@@ -54,6 +54,7 @@ sov-rng-da-service = { path = "../../utils/rng-da-service" }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["arbitrary"] }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../adapters/mock-da" }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = ["smart_contracts"] }
 sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module", features = ["native"] }

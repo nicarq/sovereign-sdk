@@ -3,16 +3,12 @@ use std::marker::PhantomData;
 use jmt::KeyHash;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use sha2::Digest;
 use sov_modules_core::{
-    OrderedReadsAndWrites, OrderedReadsAndWritesRef, SlotKey, SlotValue, Storage, StorageProof,
-    Witness,
+    Namespace, OrderedReadsAndWrites, OrderedReadsAndWritesRef, SlotKey, SlotValue, Storage,
+    StorageProof, Witness,
 };
 
-use crate::MerkleProofSpec;
-
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-extern crate risc0_zkvm;
+use crate::{MerkleProofSpec, StorageRoot};
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default, derivative::Derivative)]
@@ -99,20 +95,13 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
 
         Ok(jmt::RootHash(new_root))
     }
-
-    pub(crate) fn combine_root_hashes(root1: jmt::RootHash, root2: jmt::RootHash) -> jmt::RootHash {
-        let mut hasher = <S::Hasher as Digest>::new();
-        hasher.update(root1.0);
-        hasher.update(root2.0);
-        jmt::RootHash(hasher.finalize().into())
-    }
 }
 
 impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type Witness = S::Witness;
     type RuntimeConfig = ();
     type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
-    type Root = jmt::RootHash;
+    type Root = StorageRoot<S>;
     type StateUpdate = ();
     type ChangeSet = ();
 
@@ -135,7 +124,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         let user_root = self.compute_state_update_namespace(user_state_accesses, witness)?;
         let kernel_root = self.compute_state_update_namespace(kernel_state_accesses, witness)?;
 
-        Ok((Self::combine_root_hashes(user_root, kernel_root), ()))
+        Ok((StorageRoot::<S>::new(user_root, kernel_root), ()))
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -148,7 +137,21 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         let StorageProof { key, value, proof } = state_proof;
         let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
 
-        proof.verify(state_root, key_hash, value.as_ref().map(|v| v.value()))?;
+        // We need to verify the proof against the correct root hash
+        // Hence we match the key against its namespace
+        match key.namespace() {
+            Namespace::User => proof.verify(
+                state_root.user_hash(),
+                key_hash,
+                value.as_ref().map(|v| v.value()),
+            )?,
+            Namespace::Kernel => proof.verify(
+                state_root.kernel_hash(),
+                key_hash,
+                value.as_ref().map(|v| v.value()),
+            )?,
+        }
+
         Ok((key, value))
     }
 
@@ -165,7 +168,7 @@ impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
         unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 
-    fn get_root_hash(&self, _version: jmt::Version) -> anyhow::Result<jmt::RootHash> {
+    fn get_root_hash(&self, _version: jmt::Version) -> anyhow::Result<Self::Root> {
         unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 }

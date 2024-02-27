@@ -60,6 +60,11 @@ pub trait Spec: Debug + Clone + Send + Sync + PartialEq + 'static {
     /// The Zkvm which runs the rollup.
     type Zkvm: Zkvm;
 
+    /// The hash type accessible by the execution environment of the rollup.
+    /// In the case of a rollup compatible with soft-confirmations, this is the hash of the `User` space.
+    /// In all the other cases it is the same as the [`Storage::Root`] associated type.
+    type VisibleHash: Into<[u8; 32]> + From<<Self::Storage as Storage>::Root>;
+
     /// The cryptographic primitives used by the rollup.
     type CryptoSpec: CryptoSpecExt;
 

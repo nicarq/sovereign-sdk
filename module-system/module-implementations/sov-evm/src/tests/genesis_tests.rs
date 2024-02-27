@@ -13,6 +13,8 @@ use sov_modules_api::{
     DaSpec, GasArray, GasMeter, GasPrice, KernelModule, KernelWorkingSet, Module, StateCheckpoint,
 };
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_state::jmt::RootHash;
+use sov_state::{StorageRoot, VisibleHash};
 
 use crate::evm::primitive_types::{Block, SealedBlock};
 use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
@@ -262,7 +264,7 @@ pub(crate) fn setup(
     let mut state_checkpoint = genesis_ws.checkpoint().0;
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     evm.finalize_hook(
-        &[10u8; 32].into(),
+        VisibleHash::new([10u8; 32]),
         &mut kernel_working_set.inner.accessory_state(),
     );
 
@@ -274,7 +276,7 @@ pub(crate) fn setup(
             time: Time::now(),
         },
         &<MockDaSpec as DaSpec>::ValidityCondition::default(),
-        &[1_u8; 32].into(),
+        &StorageRoot::new(RootHash([1_u8; 32]), RootHash([1; 32])),
         &mut kernel_working_set,
     );
 

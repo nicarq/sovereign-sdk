@@ -56,14 +56,6 @@ impl<T> Namespaced<T> {
         }
     }
 
-    /// Takes the inner object for a given namespace.
-    pub fn take(self, namespace: Namespace) -> T {
-        match namespace {
-            Namespace::User => self.user,
-            Namespace::Kernel => self.kernel,
-        }
-    }
-
     /// Sets the inner object for a given namespace.
     pub fn set(&mut self, namespace: Namespace, state_update: T) {
         match namespace {

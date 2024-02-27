@@ -15,7 +15,7 @@ where
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
     pub fn begin_slot_hook(
         &self,
-        pre_state_root: &<S::Storage as Storage>::Root,
+        pre_state_user_root: S::VisibleHash,
         versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
         let mut parent_block = self
@@ -23,14 +23,13 @@ where
             .get(versioned_working_set.get_ws_mut())
             .expect("Head block should always be set");
 
-        parent_block.header.state_root = B256::from_slice(pre_state_root.as_ref());
+        let pre_state_user_root: [u8; 32] = pre_state_user_root.into();
+
+        parent_block.header.state_root =
+            // We have to force the conversion to [u8;32] to prevent the `from_slice` method from panicking
+            B256::from_slice(&pre_state_user_root);
         self.head
             .set(&parent_block, versioned_working_set.get_ws_mut());
-
-        let current_transition = self
-            .chain_state
-            .get_in_progress_transition(versioned_working_set)
-            .expect("There should always be a transition in progress");
 
         let cfg = self
             .cfg
@@ -44,9 +43,7 @@ where
             // WARNING: `prevrandao`` value is predictable up to [`DEFERRED_SLOTS_COUNT`] in advance,
             // Users should follow the same best practice that they would on Ethereum and use future randomness.
             // See: https://eips.ethereum.org/EIPS/eip-4399#tips-for-application-developers
-            prevrandao: B256::from(<<Da as DaSpec>::SlotHash as Into<[u8; 32]>>::into(
-                current_transition.block_hash().clone(),
-            )),
+            prevrandao: B256::from(pre_state_user_root),
             basefee: parent_block
                 .header
                 .next_block_base_fee(cfg.base_fee_params)
@@ -174,7 +171,7 @@ where
     /// enabling block-related RPC queries.
     pub fn finalize_hook(
         &self,
-        root_hash: &<S::Storage as Storage>::Root,
+        root_hash: S::VisibleHash,
         accessory_working_set: &mut AccessoryStateCheckpoint<S>,
     ) {
         let expected_block_number = self.blocks.len(accessory_working_set) as u64;
@@ -195,7 +192,7 @@ where
             expected_block_number, block.header.number
         );
 
-        let root_hash_bytes: [u8; 32] = root_hash.clone().into();
+        let root_hash_bytes: [u8; 32] = root_hash.into();
         block.header.state_root = root_hash_bytes.into();
 
         let sealed_block = block.seal();

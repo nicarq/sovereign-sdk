@@ -7,6 +7,11 @@ pub mod codec;
 #[cfg(feature = "native")]
 mod prover_storage;
 
+/// Defines the data structures needed by both the zk-storage and the prover storage.
+mod storage_internals;
+
+pub use storage_internals::{StorageRoot, VisibleHash};
+
 mod witness;
 mod zk_storage;
 pub mod jmt {
@@ -29,7 +34,7 @@ pub use crate::witness::ArrayWitness;
 
 /// A trait specifying the hash function and format of the witness used in
 /// merkle proofs for storage access
-pub trait MerkleProofSpec {
+pub trait MerkleProofSpec: Send + Sync {
     /// The structure that accumulates the witness data
     type Witness: Witness + Send + Sync;
     /// The hash function used to compute the merkle root
