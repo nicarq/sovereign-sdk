@@ -36,7 +36,7 @@ fn test_simple_value_setter_with_chain_state() {
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<S, MockDaSpec>>();
 
-    let admin_pub_key = value_setter_messages.messages[0].admin.default_address();
+    let admin_pub_key = value_setter_messages.messages[0].admin.to_address();
     let test_kernel = TestKernel::<S, MockDaSpec>::default();
 
     const MOCK_SEQUENCER_DA_ADDRESS: [u8; 32] = [1_u8; 32];

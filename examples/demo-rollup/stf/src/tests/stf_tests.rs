@@ -1,6 +1,6 @@
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{PrivateKey, WorkingSet};
+use sov_modules_api::{PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -24,6 +24,8 @@ fn test_demo_values_in_db() {
 
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
+    let admin_key = read_private_key::<TestSpec>().private_key;
+    let admin_address: <S as Spec>::Address = admin_key.to_address();
 
     let last_block = {
         let stf: StfBlueprintTest = StfBlueprint::new();
@@ -35,8 +37,7 @@ fn test_demo_values_in_db() {
             .save_change_set(genesis_block.header(), stf_change_set, ledger_state.into())
             .unwrap();
 
-        let priv_key = read_private_key::<TestSpec>().private_key;
-        let txs = simulate_da(priv_key);
+        let txs = simulate_da(admin_key);
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },
             &MOCK_SEQUENCER_DA_ADDRESS,
@@ -84,7 +85,11 @@ fn test_demo_values_in_db() {
         let mut working_set = WorkingSet::new(stf_state);
         let resp = runtime
             .bank
-            .supply_of(None, get_default_token_address(), &mut working_set)
+            .supply_of(
+                None,
+                get_default_token_address::<S>(&admin_address),
+                &mut working_set,
+            )
             .unwrap();
         assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
@@ -114,6 +119,7 @@ fn test_demo_values_in_cache() {
         .unwrap();
 
     let private_key = read_private_key::<TestSpec>().private_key;
+    let admin_address: <S as Spec>::Address = private_key.to_address();
     let txs = simulate_da(private_key);
 
     let blob = new_test_blob_from_batch(
@@ -163,7 +169,11 @@ fn test_demo_values_in_cache() {
 
     let resp = runtime
         .bank
-        .supply_of(None, get_default_token_address(), &mut working_set)
+        .supply_of(
+            None,
+            get_default_token_address::<S>(&admin_address),
+            &mut working_set,
+        )
         .unwrap();
     assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
@@ -180,6 +190,8 @@ fn test_demo_values_not_in_db() {
     let mut storage_manager = create_storage_manager_for_tests(path);
 
     let value_setter_admin_private_key = TestPrivateKey::generate();
+    let value_setter_admin_address: <TestSpec as Spec>::Address =
+        value_setter_admin_private_key.to_address();
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let block_2 = block_1.next_mock();
@@ -237,7 +249,11 @@ fn test_demo_values_not_in_db() {
 
         let resp = runtime
             .bank
-            .supply_of(None, get_default_token_address(), &mut working_set)
+            .supply_of(
+                None,
+                get_default_token_address::<TestSpec>(&value_setter_admin_address),
+                &mut working_set,
+            )
             .unwrap();
         assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 

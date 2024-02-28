@@ -1,36 +1,19 @@
-use sov_modules_api::{Context, Module, WorkingSet};
+use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 use sov_nft_module::utils::get_collection_address;
 use sov_nft_module::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::DefaultStorageSpec;
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
-const PK1: [u8; 32] = [
-    199, 23, 116, 41, 227, 173, 69, 178, 7, 24, 164, 151, 88, 149, 52, 187, 102, 167, 163, 248, 38,
-    86, 207, 66, 87, 81, 56, 66, 211, 150, 208, 155,
-];
-const PK2: [u8; 32] = [
-    92, 136, 187, 3, 235, 27, 9, 215, 232, 93, 24, 78, 85, 255, 234, 60, 152, 21, 139, 246, 151,
-    129, 152, 227, 231, 204, 38, 84, 159, 129, 71, 143,
-];
-const PK3: [u8; 32] = [
-    233, 139, 68, 72, 169, 252, 229, 117, 72, 144, 47, 191, 13, 42, 32, 107, 190, 52, 102, 210,
-    161, 208, 245, 116, 93, 84, 37, 87, 171, 44, 30, 239,
-];
-const PK4: [u8; 32] = [
-    233, 139, 68, 72, 169, 252, 229, 117, 72, 149, 47, 191, 13, 42, 32, 107, 190, 52, 102, 210,
-    161, 208, 245, 116, 93, 84, 37, 87, 171, 44, 30, 239,
-];
-
 #[test]
 fn mints_and_transfers() {
-    let creator_pk = TestPrivateKey::try_from(&PK1[..]).unwrap();
-    let private_key_1 = TestPrivateKey::try_from(&PK2[..]).unwrap();
-    let private_key_2 = TestPrivateKey::try_from(&PK3[..]).unwrap();
-    let sequencer_pk = TestPrivateKey::try_from(&PK4[..]).unwrap();
+    let creator_pk = TestPrivateKey::generate();
+    let private_key_1 = TestPrivateKey::generate();
+    let private_key_2 = TestPrivateKey::generate();
+    let sequencer_pk = TestPrivateKey::generate();
 
-    let creator_address = creator_pk.default_address();
-    let sequencer_address = sequencer_pk.default_address();
+    let creator_address: <TestSpec as Spec>::Address = creator_pk.to_address();
+    let sequencer_address = sequencer_pk.to_address();
     let collection_name = "Test Collection";
     let collection_uri = "http://foo.bar/test_collection";
     let collection_address =
@@ -70,7 +53,7 @@ fn mints_and_transfers() {
 
     let token_id = 42;
     let token_uri = "http://foo.bar/test_collection/42";
-    let owner = UserAddress::new(&private_key_1.default_address());
+    let owner = UserAddress::new(&private_key_1.to_address());
 
     let mint_nft_message = CallMessage::MintNft {
         collection_name: collection_name.to_string(),
@@ -233,7 +216,7 @@ fn mints_and_transfers() {
     // mint nft to frozen collection
     let new_token_id = 23;
     let new_token_uri = "http://foo.bar/test_collection/23";
-    let owner: OwnerAddress<TestSpec> = OwnerAddress::new(&private_key_1.default_address());
+    let owner: OwnerAddress<TestSpec> = OwnerAddress::new(&private_key_1.to_address());
 
     let mint_nft_message = CallMessage::MintNft {
         collection_name: collection_name.to_string(),
@@ -266,7 +249,7 @@ fn mints_and_transfers() {
     assert_eq!(actual_collection.supply, 1);
 
     // transfer NFT with non-owner
-    let target_address = private_key_2.default_address();
+    let target_address = private_key_2.to_address();
     let transfer_nft_message = CallMessage::TransferNft {
         collection_address: collection_address.clone(),
         token_id,
@@ -292,7 +275,7 @@ fn mints_and_transfers() {
     }
 
     // transfer NFT with non-existent token id
-    let target_address = private_key_2.default_address();
+    let target_address = private_key_2.to_address();
     let owner_context = Context::<TestSpec>::new(*owner.get_address(), sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
         collection_address: collection_address.clone(),
@@ -317,7 +300,7 @@ fn mints_and_transfers() {
     }
 
     // transfer NFT by owner
-    let target_address = private_key_2.default_address();
+    let target_address = private_key_2.to_address();
     let owner_context = Context::<TestSpec>::new(*owner.get_address(), sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
         collection_address: collection_address.clone(),
@@ -426,8 +409,8 @@ fn mints_and_transfers() {
 
     // Transfer on a frozen NFT should still work
     // transfer NFT by owner
-    let target_address = private_key_1.default_address();
-    let owner = private_key_2.default_address();
+    let target_address = private_key_1.to_address();
+    let owner = private_key_2.to_address();
     let owner_context = Context::<TestSpec>::new(owner, sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
         collection_address: collection_address.clone(),

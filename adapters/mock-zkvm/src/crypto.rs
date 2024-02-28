@@ -5,26 +5,20 @@ use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use ed25519_dalek::{
-    Signature as DalekSignature, SigningKey, VerifyingKey as DalekPublicKey, KEYPAIR_LENGTH,
-    PUBLIC_KEY_LENGTH,
+    Signature as DalekSignature, VerifyingKey as DalekPublicKey, PUBLIC_KEY_LENGTH,
 };
 use sha2::Digest;
-#[cfg(all(feature = "native", feature = "sov-modules"))]
-use sov_modules_api::schemars;
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
+#[cfg(feature = "native")]
+use sov_rollup_interface::schemars;
 use sov_rollup_interface::RollupAddress;
 
 /// Defines private key types and operations
 #[cfg(feature = "native")]
 pub mod private_key {
-    use ed25519_dalek::{Signer, SigningKey, KEYPAIR_LENGTH, SECRET_KEY_LENGTH};
+    use ed25519_dalek::{Signer, SigningKey};
     use rand::rngs::OsRng;
-    #[cfg(feature = "sov-modules")]
-    use sov_modules_api::Address;
-    #[cfg(any(feature = "sov-modules", feature = "abitrary"))]
-    use sov_rollup_interface::crypto::PrivateKey;
-    #[cfg(feature = "sov-modules")]
-    use sov_rollup_interface::crypto::PublicKey;
+    use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
     use thiserror::Error;
 
     use super::{Ed25519PublicKey, Ed25519Signature};
@@ -59,53 +53,12 @@ pub mod private_key {
         key_pair: SigningKey,
     }
 
-    impl Ed25519PrivateKey {
-        // This is private method and panics if input slice has incorrect length
-        fn try_from_keypair(value: &[u8]) -> Result<Self, Ed25519PrivateKeyDeserializationError> {
-            let value: [u8; KEYPAIR_LENGTH] = value
-                .try_into()
-                .expect("incorrect usage of `try_from_keypair`, check input length");
-            let key_pair = SigningKey::from_keypair_bytes(&value)?;
-            Ok(Self { key_pair })
-        }
-
-        // This is private method and panics if input slice has incorrect length
-        fn try_from_private_key(value: &[u8]) -> Self {
-            let value: [u8; SECRET_KEY_LENGTH] = value
-                .try_into()
-                .expect("incorrect usage of `try_from_private_key`, check input length");
-            let key_pair = SigningKey::from_bytes(&value);
-            Self { key_pair }
-        }
-    }
-
     impl core::fmt::Debug for Ed25519PrivateKey {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct("Ed25519PrivateKey")
                 .field("public_key", &self.key_pair.verifying_key())
                 .field("private_key", &"***REDACTED***")
                 .finish()
-        }
-    }
-
-    impl TryFrom<&[u8]> for Ed25519PrivateKey {
-        type Error = anyhow::Error;
-
-        fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-            if value.len() == KEYPAIR_LENGTH {
-                Self::try_from_keypair(value).map_err(|e| e.into())
-            } else if value.len() == SECRET_KEY_LENGTH {
-                Ok(Self::try_from_private_key(value))
-            } else {
-                let err = Err(
-                    Ed25519PrivateKeyDeserializationError::InvalidPrivateKeyLength {
-                        secret_key_len: SECRET_KEY_LENGTH,
-                        keypair_len: KEYPAIR_LENGTH,
-                        actual: value.len(),
-                    },
-                );
-                err.map_err(|e| e.into())
-            }
         }
     }
 
@@ -141,16 +94,9 @@ pub mod private_key {
             hex::encode(self.key_pair.to_bytes())
         }
 
-        /// Tries to decode a hex string into a private key.
-        pub fn from_hex(hex: &str) -> anyhow::Result<Self> {
-            let bytes = hex::decode(hex)?;
-            Self::try_from(&bytes[..])
-        }
-
         /// Returns the address associated with the public key derived from this private key.
-        #[cfg(feature = "sov-modules")]
-        pub fn default_address(&self) -> Address {
-            self.pub_key().to_address::<Address>()
+        pub fn to_address<A: sov_rollup_interface::RollupAddress>(&self) -> A {
+            self.pub_key().to_address::<A>()
         }
     }
 
@@ -174,8 +120,6 @@ pub mod private_key {
     #[cfg(all(feature = "arbitrary", feature = "native"))]
     impl<'a> arbitrary::Arbitrary<'a> for Ed25519PublicKey {
         fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-            #[cfg(not(feature = "sov-modules"))]
-            use sov_rollup_interface::crypto::PrivateKey;
             Ed25519PrivateKey::arbitrary(u).map(|p| p.pub_key())
         }
     }
@@ -183,8 +127,6 @@ pub mod private_key {
     #[cfg(all(feature = "arbitrary", feature = "native"))]
     impl<'a> arbitrary::Arbitrary<'a> for Ed25519Signature {
         fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-            #[cfg(not(feature = "sov-modules"))]
-            use sov_rollup_interface::crypto::PrivateKey;
             // the secret/public pair is lost; it is impossible to verify this signature
             // to run a verification, generate the keys+payload individually
             let payload_len = u.arbitrary_len::<u8>()?;
@@ -195,14 +137,11 @@ pub mod private_key {
 }
 
 /// The public key of an ed25519 keypair.
-#[cfg_attr(
-    all(feature = "native", feature = "sov-modules"),
-    derive(schemars::JsonSchema)
-)]
+#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Ed25519PublicKey {
     #[cfg_attr(
-        all(feature = "native", feature = "sov-modules"),
+        feature = "native",
         schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH"))
     )]
     pub(crate) pub_key: DalekPublicKey,
@@ -242,39 +181,13 @@ impl BorshSerialize for Ed25519PublicKey {
     }
 }
 
-impl TryFrom<&[u8]> for Ed25519PublicKey {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() == KEYPAIR_LENGTH {
-            let mut keypair = [0u8; KEYPAIR_LENGTH];
-            keypair.copy_from_slice(value);
-            let keypair = SigningKey::from_keypair_bytes(&keypair).map_err(anyhow::Error::msg)?;
-            Ok(Self {
-                pub_key: keypair.verifying_key(),
-            })
-        } else if value.len() == PUBLIC_KEY_LENGTH {
-            let mut public = [0u8; PUBLIC_KEY_LENGTH];
-            public.copy_from_slice(value);
-            Ok(Self {
-                pub_key: DalekPublicKey::from_bytes(&public).map_err(anyhow::Error::msg)?,
-            })
-        } else {
-            anyhow::bail!("Unexpected public key length")
-        }
-    }
-}
-
 /// An ed25519 signature. Wraps the optimized Risc0 fork of the ed25519-dalek crate.
-#[cfg_attr(
-    all(feature = "native", feature = "sov-modules"),
-    derive(schemars::JsonSchema)
-)]
+#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
 #[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Ed25519Signature {
     /// The inner signature.
     #[cfg_attr(
-        all(feature = "native", feature = "sov-modules"),
+        feature = "native",
         schemars(with = "&[u8]", length(equal = "ed25519_dalek::Signature::BYTE_SIZE"))
     )]
     pub msg_sig: DalekSignature,

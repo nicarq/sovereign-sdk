@@ -4,7 +4,7 @@ use borsh::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_modules_api::digest::Digest;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -13,7 +13,7 @@ use sov_sequencer::utils::SimpleClient;
 use sov_sequencer::{Sequencer, TxStatus};
 use sov_state::DefaultStorageSpec;
 use sov_test_utils::bank_data::BankMessageGenerator;
-use sov_test_utils::{MessageGenerator, TestSpec};
+use sov_test_utils::{MessageGenerator, TestPrivateKey, TestSpec};
 use tempfile::TempDir;
 
 fn new_sequencer(
@@ -59,23 +59,12 @@ async fn subscribe() {
 
     let client = SimpleClient::new("127.0.0.1", addr.port()).await.unwrap();
 
-    let bank_generator = BankMessageGenerator::<TestSpec>::default();
-    let mut messages_iter = bank_generator.create_messages().into_iter().peekable();
+    let private_key = TestPrivateKey::generate();
+    let bank_generator = BankMessageGenerator::<TestSpec>::with_minter(private_key);
+    let messages_iter = bank_generator.create_messages().into_iter();
     let mut txs = Vec::default();
-    while let Some(message) = messages_iter.next() {
-        let is_last = messages_iter.peek().is_none();
-
-        let tx = bank_generator.create_tx::<Runtime<TestSpec, MockDaSpec>>(
-            &message.sender_key,
-            message.content,
-            message.chain_id,
-            message.gas_tip,
-            message.gas_limit,
-            message.max_gas_price,
-            message.nonce,
-            is_last,
-        );
-
+    for message in messages_iter {
+        let tx = message.to_tx::<Runtime<TestSpec, MockDaSpec>>();
         txs.push(tx);
     }
 

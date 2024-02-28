@@ -9,6 +9,8 @@
 extern crate alloc;
 
 mod state_machine;
+#[cfg(all(feature = "native", feature = "schemars"))]
+pub use schemars;
 pub use state_machine::*;
 
 mod node;
