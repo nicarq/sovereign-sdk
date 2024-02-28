@@ -3,10 +3,10 @@
 
 use std::collections::VecDeque;
 use std::io::Write;
-use std::sync::{Arc, Condvar, Mutex};
-
+mod notifier;
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
+use notifier::NotificationManager;
 use serde::{Deserialize, Serialize};
 pub mod crypto;
 use sov_rollup_interface::zk::{CryptoSpec, Matches, ValidityCondition};
@@ -76,31 +76,10 @@ impl<'a> MockProof<'a> {
     }
 }
 
-#[derive(Clone, Default)]
-struct Notifier {
-    notified: Arc<Mutex<bool>>,
-    cond: Arc<Condvar>,
-}
-
-impl Notifier {
-    fn wait(&self) {
-        let mut notified = self.notified.lock().unwrap();
-        while !*notified {
-            notified = self.cond.wait(notified).unwrap();
-        }
-    }
-
-    fn notify(&self) {
-        let mut notified = self.notified.lock().unwrap();
-        *notified = true;
-        self.cond.notify_all();
-    }
-}
-
 /// A mock implementing the zkVM trait.
 #[derive(Clone)]
 pub struct MockZkvm<ValidityCond> {
-    worker_thread_notifier: Notifier,
+    notification_manager: NotificationManager,
     committed_data: VecDeque<Vec<u8>>,
     validity_condition: ValidityCond,
 }
@@ -109,7 +88,7 @@ impl<ValidityCond> MockZkvm<ValidityCond> {
     /// Creates a new MockZkvm
     pub fn new(validity_condition: ValidityCond) -> Self {
         Self {
-            worker_thread_notifier: Default::default(),
+            notification_manager: Default::default(),
             committed_data: Default::default(),
             validity_condition,
         }
@@ -118,7 +97,7 @@ impl<ValidityCond> MockZkvm<ValidityCond> {
     /// Simulates zk proof generation.
     pub fn make_proof(&self) {
         // We notify the worker thread.
-        self.worker_thread_notifier.notify();
+        self.notification_manager.notify();
     }
 }
 
@@ -179,7 +158,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
     }
 
     fn run(&mut self, _with_proof: bool) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
-        self.worker_thread_notifier.wait();
+        self.notification_manager.wait();
         let data = self.committed_data.pop_front().unwrap_or_default();
         Ok(sov_rollup_interface::zk::Proof::PublicInput(data))
     }
@@ -205,17 +184,22 @@ struct ProofInfo<ValidityCond> {
     validity_condition: ValidityCond,
 }
 
-#[test]
-fn test_mock_proof_round_trip() {
-    let proof = MockProof {
-        program_id: MockCodeCommitment([1; 32]),
-        is_valid: true,
-        log: &[2; 50],
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let mut encoded = Vec::new();
-    proof.encode(&mut encoded);
+    #[test]
+    fn test_mock_proof_round_trip() {
+        let proof = MockProof {
+            program_id: MockCodeCommitment([1; 32]),
+            is_valid: true,
+            log: &[2; 50],
+        };
 
-    let decoded = MockProof::decode(&encoded).unwrap();
-    assert_eq!(proof, decoded);
+        let mut encoded = Vec::new();
+        proof.encode(&mut encoded);
+
+        let decoded = MockProof::decode(&encoded).unwrap();
+        assert_eq!(proof, decoded);
+    }
 }
