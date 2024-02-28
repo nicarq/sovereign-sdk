@@ -6,14 +6,18 @@ use std::str::FromStr;
 
 use const_rollup_config::{ROLLUP_BATCH_NAMESPACE_RAW, ROLLUP_PROOF_NAMESPACE_RAW};
 use sov_celestia_adapter::types::Namespace;
+
 mod mock_rollup;
+
 pub use mock_rollup::*;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
 
 mod celestia_rollup;
+
 pub use celestia_rollup::*;
+
 #[cfg(feature = "experimental")]
 mod eth;
 
@@ -29,11 +33,11 @@ pub fn initialize_logging() {
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(
-            EnvFilter::from_str(
-                &env::var("RUST_LOG")
-                    .unwrap_or_else(|_| "debug,hyper=info,risc0_zkvm=info".to_string()),
-            )
-            .unwrap(),
+            EnvFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| {
+                "debug,hyper=info,risc0_zkvm=warn,sov_prover_storage_manager=info,jmt=info,sov_celestia_adapter=info"
+                    .to_string()
+            }))
+                .unwrap(),
         )
         .init();
 }

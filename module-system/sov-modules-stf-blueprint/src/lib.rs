@@ -28,6 +28,7 @@ use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunc
 use sov_state::Storage;
 pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
+
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
@@ -289,10 +290,10 @@ where
             .expect("blob selection must succeed, probably serialization failed");
 
         info!(
-            "Selected {} batch(es) for execution in current slot. Virtual slot: {}. True slot: {}",
-            selected_batches.len(),
-            visible_height,
-            kernel_working_set.current_slot()
+            batches_count = selected_batches.len(),
+            virtual_slot = visible_height,
+            true_slot = kernel_working_set.current_slot(),
+            "Selected batch(es) for execution in current slot"
         );
 
         let mut batch_receipts = vec![];
