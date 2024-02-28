@@ -1,5 +1,6 @@
 mod manager;
 mod parallel;
+
 mod stf_info;
 use async_trait::async_trait;
 pub(crate) use manager::ProofManager;
@@ -12,6 +13,7 @@ pub use stf_info::StateTransitionInfo;
 use thiserror::Error;
 
 /// The possible configurations of the prover.
+#[derive(Debug)]
 pub enum RollupProverConfig {
     /// Skip proving.
     Skip,

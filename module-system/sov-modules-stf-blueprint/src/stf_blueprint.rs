@@ -21,6 +21,7 @@ pub(crate) type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
     <Da::BlobTransaction as BlobReaderTrait>::Address,
 >;
+
 #[cfg(feature = "native")]
 use borsh::BorshSerialize;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
@@ -127,7 +128,11 @@ where
         gas_price: &<S::Gas as Gas>::Price,
         height: u64,
     ) -> (ApplyBatch<Da>, StateCheckpoint<S>, S::Gas) {
-        debug!(sequencer = hex::encode(sender), "Applying a batch");
+        debug!(
+            sequencer_da_address = %sender,
+            ?gas_price,
+            "Applying a batch"
+        );
 
         // ApplyBlobHook: begin
         if let Err(e) = self
@@ -135,8 +140,9 @@ where
             .begin_batch_hook(&mut batch, sender, &mut checkpoint)
         {
             error!(
-                "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer: {}",
-                e
+                error = %e,
+                batch_id = hex::encode(batch.id),
+                "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer",
             );
 
             return (
@@ -418,10 +424,10 @@ where
         let gas_reward = tx.gas_tip().try_into().unwrap_or(i64::MAX);
         *sequencer_reward = sequencer_reward.saturating_add(gas_reward);
         debug!(
-            "Tx 0x{} effect: {:?}, sequencer reward: {}",
-            hex::encode(raw_tx_hash),
-            receipt.receipt,
-            gas_reward
+            tx_hash = hex::encode(raw_tx_hash),
+            receipt = ?receipt.receipt,
+            %gas_reward,
+            "Sequencer reward has be updated after tx execution",
         );
 
         (checkpoint, receipt)

@@ -179,7 +179,7 @@ impl DaService for CelestiaService {
         for blob_ref in block.rollup_data.blobs() {
             let commitment = Commitment::from_shares(self.rollup_batch_namespace, blob_ref.0)
                 .expect("blob must be valid");
-            info!(?commitment, "Extracing blob");
+            info!(commitment = hex::encode(commitment.0), "Extracting blob");
             let sender = block
                 .relevant_pfbs
                 .get(&commitment.0[..])
@@ -223,7 +223,10 @@ impl DaService for CelestiaService {
         let fee = gas_limit * GAS_PRICE as u64;
 
         let blob = JsonBlob::new(self.rollup_batch_namespace, blob.to_vec())?;
-        info!(?blob.commitment, "Submitting a blob");
+        info!(
+            commitment = hex::encode(blob.commitment.0),
+            "Submitting a blob"
+        );
 
         let height = self
             .client
@@ -276,7 +279,7 @@ impl DaService for CelestiaService {
             // Thus, we address this scenario here.
             // https://github.com/celestiaorg/celestia-node/issues/3192
             Err(e) => {
-                info!("Get aggregated proof error: {}", e);
+                info!("Get aggregated proof error (might happen if there is no blobs, that's expected): {}", e);
                 Ok(Vec::default())
             }
         }

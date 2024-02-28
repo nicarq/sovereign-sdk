@@ -16,7 +16,6 @@ mod test_rpc;
 /// Main demo runner. Initializes a DA chain, and starts a demo-rollup using the provided.
 /// If you're trying to sign or submit transactions to the rollup, the `sov-cli` binary
 /// is the one you want. You can run it `cargo run --bin sov-cli`.
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -42,6 +41,27 @@ async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
     let rollup_config_path = args.rollup_config_path.as_str();
 
+    let prover_config = if option_env!("CI").is_some() {
+        RollupProverConfig::Execute
+    } else if let Some(prover) = option_env!("SOV_PROVER_MODE") {
+        match prover {
+            "simulate" => RollupProverConfig::Simulate,
+            "execute" => RollupProverConfig::Execute,
+            "prove" => RollupProverConfig::Prove,
+            _ => {
+                tracing::warn!(
+                    prover_mode = prover,
+                    "Unknown sov prover mode, using 'Skip' default"
+                );
+                RollupProverConfig::Skip
+            }
+        }
+    } else {
+        RollupProverConfig::Skip
+    };
+
+    tracing::info!(?prover_config, "Running demo rollup with prover config");
+
     match args.da_layer {
         SupportedDaLayer::Mock => {
             let rollup = new_rollup_with_mock_da(
@@ -50,7 +70,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     chain_state: "../test-data/genesis/demo-tests/mock/chain_state.json".into(),
                 },
                 rollup_config_path,
-                RollupProverConfig::Execute,
+                prover_config,
             )
             .await?;
             rollup.run().await
@@ -62,7 +82,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     chain_state: "../test-data/genesis/demo-tests/celestia/chain_state.json".into(),
                 },
                 rollup_config_path,
-                RollupProverConfig::Execute,
+                prover_config,
             )
             .await?;
             rollup.run().await
