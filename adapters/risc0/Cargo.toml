@@ -53,7 +53,6 @@ native = [
 	"risc0-cycle-utils/native",
 	"risc0-zkvm/prove",
 	"sov-rollup-interface/native",
-	"sov-rollup-interface/schemars",
 ]
 bench = [ "native", "once_cell", "parking_lot", "risc0-cycle-utils/native" ]
 arbitrary = [ "dep:arbitrary", "sov-rollup-interface/arbitrary" ]
