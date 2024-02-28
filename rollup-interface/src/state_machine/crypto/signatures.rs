@@ -53,15 +53,7 @@ pub trait Signature:
 
 /// A public key for verifying digital signatures.
 pub trait PublicKey:
-    for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
-    + Eq
-    + Hash
-    + Clone
-    + Debug
-    + Send
-    + Sync
-    + Serialize
-    + for<'a> Deserialize<'a>
+    Eq + Hash + Clone + Debug + Send + Sync + Serialize + for<'a> Deserialize<'a>
 {
     /// Returns a representation of the public key that can be represented as a rollup address.
     fn to_address<A: RollupAddress>(&self) -> A;
@@ -70,13 +62,7 @@ pub trait PublicKey:
 /// A private key for generating digital signatures.
 #[cfg(feature = "native")]
 pub trait PrivateKey:
-    Debug
-    + Send
-    + Sync
-    + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
-    + Serialize
-    + Clone
-    + serde::de::DeserializeOwned
+    Debug + Send + Sync + Serialize + Clone + serde::de::DeserializeOwned
 {
     /// The public key type associated with this signature scheme.
     type PublicKey: PublicKey;

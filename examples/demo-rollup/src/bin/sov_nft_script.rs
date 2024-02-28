@@ -5,7 +5,7 @@ use borsh::ser::BorshSerialize;
 use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::PrivateKey;
+use sov_modules_api::{PrivateKey, Spec};
 use sov_nft_module::utils::{
     get_collection_address, get_create_collection_message, get_mint_nft_message,
     get_transfer_nft_message,
@@ -19,19 +19,6 @@ const COLLECTION_2: &str = "Celestial Dolphins";
 const COLLECTION_3: &str = "Risky Rhinos";
 
 const DUMMY_URL: &str = "http://foobar.storage";
-
-const PK1: [u8; 32] = [
-    199, 23, 116, 41, 227, 173, 69, 178, 7, 24, 164, 151, 88, 149, 52, 187, 102, 167, 163, 248, 38,
-    86, 207, 66, 87, 81, 56, 66, 211, 150, 208, 155,
-];
-const PK2: [u8; 32] = [
-    92, 136, 187, 3, 235, 27, 9, 215, 232, 93, 24, 78, 85, 255, 234, 60, 152, 21, 139, 246, 151,
-    129, 152, 227, 231, 204, 38, 84, 159, 129, 71, 143,
-];
-const PK3: [u8; 32] = [
-    233, 139, 68, 72, 169, 252, 229, 117, 72, 144, 47, 191, 13, 42, 32, 107, 190, 52, 102, 210,
-    161, 208, 245, 116, 93, 84, 37, 87, 171, 44, 30, 239,
-];
 
 pub fn build_transaction(
     signer: &TestPrivateKey,
@@ -65,11 +52,7 @@ pub fn build_create_collection_transactions(
         .map(|&collection_name| {
             let tx = build_transaction(
                 creator_pk,
-                get_create_collection_message(
-                    &creator_pk.default_address(),
-                    collection_name,
-                    base_uri,
-                ),
+                get_create_collection_message(&creator_pk.to_address(), collection_name, base_uri),
                 *start_nonce,
             );
             *start_nonce += 1;
@@ -93,11 +76,11 @@ pub fn build_mint_transactions(
             let tx = build_transaction(
                 creator_pk,
                 get_mint_nft_message(
-                    &creator_pk.default_address(),
+                    &creator_pk.to_address(),
                     collection,
                     *start_nft_id,
                     base_uri,
-                    &owner_pk.default_address(),
+                    &owner_pk.to_address(),
                 ),
                 *start_nonce,
             );
@@ -117,7 +100,7 @@ pub fn build_transfer_transactions(
     nft_ids
         .into_iter()
         .map(|nft_id| {
-            let new_owner = TestPrivateKey::generate().default_address();
+            let new_owner = TestPrivateKey::generate().to_address();
             let tx = build_transaction(
                 signer,
                 get_transfer_nft_message(collection_address, nft_id, &new_owner),
@@ -131,9 +114,9 @@ pub fn build_transfer_transactions(
 
 #[tokio::main]
 async fn main() {
-    let creator_pk = TestPrivateKey::try_from(&PK1[..]).unwrap();
-    let owner_1_pk = TestPrivateKey::try_from(&PK2[..]).unwrap();
-    let owner_2_pk = TestPrivateKey::try_from(&PK3[..]).unwrap();
+    let creator_pk = TestPrivateKey::generate();
+    let owner_1_pk = TestPrivateKey::generate();
+    let owner_2_pk = TestPrivateKey::generate();
 
     let client = SimpleClient::new("localhost", 12345).await.unwrap();
 
@@ -186,8 +169,12 @@ async fn main() {
     // TODO: remove after https://github.com/Sovereign-Labs/sovereign-sdk/issues/949 is fixed
     thread::sleep(Duration::from_millis(3000));
 
-    let collection_1_address =
-        get_collection_address::<TestSpec>(COLLECTION_1, creator_pk.default_address().as_ref());
+    let collection_1_address = get_collection_address::<TestSpec>(
+        COLLECTION_1,
+        creator_pk
+            .to_address::<<TestSpec as Spec>::Address>()
+            .as_ref(),
+    );
 
     let mut owner_1_nonce = 0;
     let nft_ids_to_transfer: Vec<u64> = (1..=6).collect();

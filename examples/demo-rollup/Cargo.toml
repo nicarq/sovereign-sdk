@@ -42,7 +42,7 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 sov-db = { path = "../../full-node/db/sov-db" }
 sov-ethereum = { path = "../../full-node/sov-ethereum", optional = true }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
-sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native", "sov-modules"] }
+sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils", optional = true } # Only needed for nft script
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 sov-cli = { path = "../../module-system/sov-cli" }

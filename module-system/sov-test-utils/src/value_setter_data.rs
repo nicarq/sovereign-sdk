@@ -1,8 +1,7 @@
-use sov_modules_api::{CryptoSpec, Gas, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_value_setter::ValueSetter;
 
 use super::*;
-use crate::EncodeCall;
 
 const DEFAULT_CHAIN_ID: u64 = 0;
 const DEFAULT_GAS_TIP: u64 = 0;
@@ -59,28 +58,5 @@ impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
             }
         }
         messages
-    }
-
-    fn create_tx<Encoder: EncodeCall<Self::Module>>(
-        &self,
-        sender: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
-        message: <Self::Module as Module>::CallMessage,
-        chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
-        max_gas_price: Option<<S::Gas as Gas>::Price>,
-        nonce: u64,
-        _is_last: bool,
-    ) -> Transaction<S> {
-        let message = Encoder::encode_call(message);
-        Transaction::<S>::new_signed_tx(
-            sender,
-            message,
-            chain_id,
-            gas_tip,
-            gas_limit,
-            max_gas_price,
-            nonce,
-        )
     }
 }

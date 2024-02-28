@@ -38,14 +38,6 @@ fn test_signature_serialization() {
     deserialized_sig.verify(&pub_key, &msg).unwrap()
 }
 
-#[test]
-fn test_hex_conversion() {
-    let priv_key = TestPrivateKey::generate();
-    let hex = priv_key.as_hex();
-    let deserialized_pub_key = TestPrivateKey::from_hex(&hex).unwrap().pub_key();
-    assert_eq!(priv_key.pub_key(), deserialized_pub_key)
-}
-
 struct Module {
     address: Address,
     dependencies: Vec<Address>,

@@ -22,6 +22,7 @@ digest = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
@@ -39,6 +40,8 @@ serde_json = { workspace = true }
 
 [features]
 default = [ "std" ]
+# Re-export schemars for the native feature. Consumers should only enable the schmars feature when native is active.
+schemars = [ "dep:schemars", "native" ]
 native = [ "futures", "serde_json", "std", "tokio" ]
 arbitrary = [ "proptest", "proptest-derive", "sha2", "std" ]
 std = [

@@ -50,7 +50,7 @@ fuzz_target!(
 
         // address list is constant for this test
         let mut used = keys.iter().map(|k| k.as_hex()).collect::<HashSet<_>>();
-        let mut state: HashMap<_, _> = keys.into_iter().map(|k| (k.default_address(), k)).collect();
+        let mut state: HashMap<_, _> = keys.into_iter().map(|k| (k.to_address(), k)).collect();
         let addresses: Vec<_> = state.keys().copied().collect();
 
         for i in 0..iterations {

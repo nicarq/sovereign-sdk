@@ -78,6 +78,19 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
             nonce,
         }
     }
+
+    pub fn to_tx<Encoder: EncodeCall<Mod>>(self) -> sov_modules_api::transaction::Transaction<S> {
+        let message = Encoder::encode_call(self.content);
+        Transaction::<S>::new_signed_tx(
+            &self.sender_key,
+            message,
+            self.chain_id,
+            self.gas_tip,
+            self.gas_limit,
+            self.max_gas_price,
+            self.nonce,
+        )
+    }
 }
 
 /// Trait used to generate messages from the DA layer to automate module testing
@@ -91,47 +104,12 @@ pub trait MessageGenerator {
     /// Generates a list of messages originating from the module.
     fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>>;
 
-    /// Creates a transaction object associated with a call message, for a given module.
-    #[allow(clippy::too_many_arguments)]
-    fn create_tx<Encoder: EncodeCall<Self::Module>>(
-        &self,
-        // Private key of the sender
-        sender: &<<Self::Spec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
-        // The message itself
-        message: <Self::Module as Module>::CallMessage,
-        // The ID of the chain
-        chain_id: u64,
-        // A gas tip for the sequencer
-        gas_tip: u64,
-        // The gas limit for the transaction execution
-        gas_limit: u64,
-        // The maximum gas price for the transaction execution
-        max_gas_price: Option<<<Self::Spec as Spec>::Gas as Gas>::Price>,
-        // The message nonce
-        nonce: u64,
-        // A boolean that indicates whether this message is the last one to be sent.
-        // Useful to perform some operations specifically on the last message.
-        is_last: bool,
-    ) -> Transaction<Self::Spec>;
-
     /// Creates a vector of raw transactions from the module.
     fn create_raw_txs<Encoder: EncodeCall<Self::Module>>(&self) -> Vec<RawTx> {
-        let mut messages_iter = self.create_messages().into_iter().peekable();
+        let messages_iter = self.create_messages().into_iter().peekable();
         let mut serialized_messages = Vec::default();
-        while let Some(message) = messages_iter.next() {
-            let is_last = messages_iter.peek().is_none();
-
-            let tx = self.create_tx::<Encoder>(
-                &message.sender_key,
-                message.content,
-                message.chain_id,
-                message.gas_tip,
-                message.gas_limit,
-                message.max_gas_price,
-                message.nonce,
-                is_last,
-            );
-
+        for message in messages_iter {
+            let tx = message.to_tx::<Encoder>();
             serialized_messages.push(RawTx {
                 data: tx.try_to_vec().unwrap(),
             })
@@ -144,26 +122,12 @@ pub trait MessageGenerator {
         &self,
         max_gas_price: <<Self::Spec as Spec>::Gas as Gas>::Price,
     ) -> Vec<RawTx> {
-        let mut messages_iter = self.create_messages().into_iter().peekable();
+        let messages_iter = self.create_messages().into_iter().peekable();
         let mut serialized_messages = Vec::default();
-        while let Some(mut message) = messages_iter.next() {
-            let is_last = messages_iter.peek().is_none();
-
+        for mut message in messages_iter {
             message.max_gas_price.replace(max_gas_price.clone());
-
-            let tx = self.create_tx::<Encoder>(
-                &message.sender_key,
-                message.content,
-                message.chain_id,
-                message.gas_tip,
-                message.gas_limit,
-                message.max_gas_price,
-                message.nonce,
-                is_last,
-            );
-
             serialized_messages.push(RawTx {
-                data: tx.try_to_vec().unwrap(),
+                data: message.to_tx::<Encoder>().try_to_vec().unwrap(),
             })
         }
         serialized_messages

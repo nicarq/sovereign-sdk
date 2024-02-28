@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::{fs, mem};
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -182,31 +181,6 @@ impl<S: sov_modules_api::Spec> PrivateKeyAndAddress<S> {
             private_key,
             address,
         }
-    }
-}
-
-/// A simplified struct representing private key and associated address
-/// where the private key is represented as a hex string and address as canonical string
-/// TODO: Remove it <https://github.com/Sovereign-Labs/sovereign-sdk/issues/766>.
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct HexPrivateAndAddress {
-    /// Private key is hex encoded bytes, without leading 0x
-    pub hex_priv_key: String,
-    /// Address is in canonical string format
-    pub address: String,
-}
-
-impl<S: sov_modules_api::Spec> TryFrom<HexPrivateAndAddress> for PrivateKeyAndAddress<S> {
-    type Error = anyhow::Error;
-
-    fn try_from(value: HexPrivateAndAddress) -> Result<Self, Self::Error> {
-        let private_key_bytes = hex::decode(value.hex_priv_key)?;
-        let private_key = <S::CryptoSpec as CryptoSpec>::PrivateKey::try_from(&private_key_bytes)?;
-        let address = S::Address::from_str(&value.address)?;
-        Ok(PrivateKeyAndAddress {
-            private_key,
-            address,
-        })
     }
 }
 
@@ -402,26 +376,5 @@ mod tests {
             decoded.private_key.pub_key()
         );
         assert_eq!(private_key_and_address.address, decoded.address);
-    }
-
-    #[test]
-    fn test_hex_private_key_conversion() {
-        let private_key_and_address = PrivateKeyAndAddress::<S>::generate();
-
-        let hex_private_key = private_key_and_address.private_key.as_hex();
-        let address_string = private_key_and_address.address.to_string();
-
-        let hex_private_key_and_address = HexPrivateAndAddress {
-            hex_priv_key: hex_private_key,
-            address: address_string,
-        };
-
-        let converted = PrivateKeyAndAddress::<S>::try_from(hex_private_key_and_address).unwrap();
-
-        assert_eq!(
-            private_key_and_address.private_key.pub_key(),
-            converted.private_key.pub_key()
-        );
-        assert_eq!(private_key_and_address.address, converted.address);
     }
 }

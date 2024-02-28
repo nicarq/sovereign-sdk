@@ -1,15 +1,15 @@
 use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{GasArray, GasPrice, PrivateKey, WorkingSet};
+use sov_modules_api::{GasArray, GasPrice, PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::Storage;
-use sov_test_utils::bank_data::{get_default_private_key, get_default_token_address};
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestSpec};
+use sov_test_utils::bank_data::get_default_token_address;
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestPrivateKey, TestSpec};
 
 use super::{
     create_storage_manager_for_tests, get_genesis_config_for_tests, read_private_key, RuntimeTest,
@@ -37,6 +37,8 @@ fn test_tx_revert() {
 
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
+    let admin_key = TestPrivateKey::generate();
+    let admin_address: <TestSpec as Spec>::Address = admin_key.to_address();
 
     let storage = {
         let mut storage_manager = create_storage_manager_for_tests(tempdir.path());
@@ -50,7 +52,7 @@ fn test_tx_revert() {
             .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
 
-        let txs = simulate_da_with_revert_msg();
+        let txs = simulate_da_with_revert_msg(admin_key.clone());
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },
             &MOCK_SEQUENCER_DA_ADDRESS,
@@ -107,8 +109,8 @@ fn test_tx_revert() {
             .bank
             .balance_of(
                 None,
-                get_default_private_key().default_address(),
-                get_default_token_address(),
+                admin_address,
+                get_default_token_address::<TestSpec>(&admin_address),
                 &mut working_set,
             )
             .unwrap();
@@ -127,7 +129,7 @@ fn test_tx_revert() {
 
         let nonce = match runtime
             .accounts
-            .get_account(get_default_private_key().pub_key(), &mut working_set)
+            .get_account(admin_key.pub_key(), &mut working_set)
             .unwrap()
         {
             Response::AccountExists { nonce, .. } => nonce,
@@ -152,6 +154,7 @@ fn test_tx_bad_signature() {
 
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
+    let admin_key = TestPrivateKey::generate();
     let storage = {
         let mut storage_manager = create_storage_manager_for_tests(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
@@ -163,7 +166,7 @@ fn test_tx_bad_signature() {
             .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
 
-        let txs = simulate_da_with_bad_sig();
+        let txs = simulate_da_with_bad_sig(admin_key.clone());
 
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },
@@ -215,7 +218,7 @@ fn test_tx_bad_signature() {
         let mut working_set = WorkingSet::new(storage);
         let nonce = match runtime
             .accounts
-            .get_account(get_default_private_key().pub_key(), &mut working_set)
+            .get_account(admin_key.pub_key(), &mut working_set)
             .unwrap()
         {
             Response::AccountExists { nonce, .. } => nonce,
@@ -233,6 +236,7 @@ fn test_tx_bad_nonce() {
     let config = get_genesis_config_for_tests();
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
+    let admin_key = TestPrivateKey::generate();
     {
         let mut storage_manager = create_storage_manager_for_tests(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
@@ -243,7 +247,7 @@ fn test_tx_bad_nonce() {
         storage_manager
             .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
-        let txs = simulate_da_with_bad_nonce();
+        let txs = simulate_da_with_bad_nonce(admin_key);
 
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },
@@ -292,6 +296,7 @@ fn test_tx_bad_serialization() {
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let mut storage_manager = create_storage_manager_for_tests(path);
+    let admin_key = TestPrivateKey::generate();
 
     let (genesis_root, sequencer_balance_before) = {
         let stf: StfBlueprintTest = StfBlueprint::new();
@@ -330,7 +335,7 @@ fn test_tx_bad_serialization() {
     let storage = {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
-        let txs = simulate_da_with_bad_serialization();
+        let txs = simulate_da_with_bad_serialization(admin_key.clone());
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },
             &MOCK_SEQUENCER_DA_ADDRESS,

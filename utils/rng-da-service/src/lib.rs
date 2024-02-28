@@ -10,7 +10,7 @@ use sov_mock_da::{
     MOCK_SEQUENCER_DA_ADDRESS,
 };
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Address, AddressBech32, EncodeCall, GasPrice, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{Address, EncodeCall, GasPrice, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_test_utils::{TestPrivateKey, TestSpec};
@@ -23,14 +23,8 @@ const DEFAULT_MAX_GAS_PRICE: Option<GasPrice<2>> = None;
 pub fn sender_address_with_pkey() -> (Address, TestPrivateKey) {
     // TODO: maybe generate address and private key randomly, instead of
     // hard-coding them?
-    let addr_bytes = "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqmlyjd6".to_string();
-    let addr = Address::from(
-        AddressBech32::try_from(addr_bytes)
-            .unwrap_or_else(|e| panic!("Failed generating sender address: {:?}", e)),
-    );
-
-    let pk = TestPrivateKey::from_hex("236e80cb222c4ed0431b093b3ac53e6aa7a2273fe1f4351cd354989a823432a27b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe6").unwrap();
-
+    let pk = TestPrivateKey::generate();
+    let addr = pk.to_address();
     (addr, pk)
 }
 
