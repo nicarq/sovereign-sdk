@@ -15,7 +15,8 @@ use sov_stf_runner::{
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 
-use crate::HashStf;
+use super::TEST_CODE_COMMITMENT;
+use crate::helpers::hash_stf::HashStf;
 
 type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaSpec>;
 type S = DefaultStorageSpec;
@@ -92,6 +93,7 @@ pub fn initialize_runner(
         genesis_storage,
         1,
         rollup_config.prover_service,
+        TEST_CODE_COMMITMENT,
     );
 
     (

@@ -9,6 +9,7 @@ use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
 use super::{ProverService, ProverServiceError};
@@ -58,6 +59,7 @@ where
     V::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         vm: Vm,
         zk_stf: V,
@@ -66,6 +68,7 @@ where
         zk_storage: V::PreState,
         num_threads: usize,
         prover_service_config: ProverServiceConfig,
+        code_commitment: CodeCommitment,
     ) -> Self {
         let stf_verifier =
             StateTransitionVerifier::<V, Da::Verifier, Vm::Guest>::new(zk_stf, da_verifier.clone());
@@ -78,7 +81,7 @@ where
         Self {
             vm,
             prover_config: Arc::new(config),
-            prover_state: Prover::new(num_threads),
+            prover_state: Prover::new(num_threads, code_commitment),
             jump: prover_service_config.aggregated_proof_block_jump,
             zk_storage,
             verifier,
@@ -93,6 +96,7 @@ where
         config: RollupProverConfig,
         zk_storage: V::PreState,
         prover_service_config: ProverServiceConfig,
+        code_commitment: CodeCommitment,
     ) -> Self {
         let num_cpus = num_cpus::get();
         assert!(num_cpus > 1, "Unable to create parallel prover service");
@@ -105,6 +109,7 @@ where
             zk_storage,
             num_cpus - 1,
             prover_service_config,
+            code_commitment,
         )
     }
 }

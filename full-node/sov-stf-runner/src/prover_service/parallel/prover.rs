@@ -8,7 +8,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput,
+    AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput, CodeCommitment,
 };
 use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
 
@@ -27,6 +27,7 @@ pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
     prover_state: Arc<RwLock<ProverState<StateRoot, Witness, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
+    code_commitment: CodeCommitment,
 }
 
 impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
@@ -35,8 +36,9 @@ where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    pub(crate) fn new(num_threads: usize) -> Self {
+    pub(crate) fn new(num_threads: usize, code_commitment: CodeCommitment) -> Self {
         Self {
+            code_commitment,
             num_threads,
             pool: rayon::ThreadPoolBuilder::new()
                 .num_threads(num_threads)
@@ -212,6 +214,7 @@ where
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
             initial_slot_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
             final_slot_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
+            code_commitment: self.code_commitment.clone(),
         };
 
         let info = AggregatedProofDataInfo {

@@ -643,7 +643,7 @@ mod tests {
     use sov_modules_api::AddressBech32;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
-        AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput,
+        AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput, CodeCommitment,
     };
     use sov_schema_db::cache::cache_container::CacheContainer;
     use sov_schema_db::cache::cache_db::CacheDb;
@@ -935,6 +935,7 @@ mod tests {
                     final_state_root: vec![i + 1],
                     initial_slot_hash: vec![i + 2],
                     final_slot_hash: vec![i + 3],
+                    code_commitment: CodeCommitment::default(),
                 },
                 AggregatedProofDataInfo {
                     initial_slot_number: i as u64,
