@@ -1,5 +1,4 @@
 mod helpers;
-use helpers::TEST_CODE_COMMITMENT;
 use sov_mock_da::{
     MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash, MockValidityCond,
 };
@@ -334,7 +333,7 @@ fn make_new_prover(jump: usize) -> TestProver {
             ProverServiceConfig {
                 aggregated_proof_block_jump: jump,
             },
-            TEST_CODE_COMMITMENT,
+            Default::default(),
         ),
         vm,
         num_worker_threads: num_threads,

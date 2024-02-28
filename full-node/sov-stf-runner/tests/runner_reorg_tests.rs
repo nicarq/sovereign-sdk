@@ -1,7 +1,6 @@
 use std::sync::{Arc, RwLock};
 mod helpers;
 use helpers::hash_stf::{get_result_from_blocks, HashStf, S};
-use helpers::TEST_CODE_COMMITMENT;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
@@ -161,7 +160,7 @@ async fn runner_execution(
         genesis_storage,
         1,
         rollup_config.prover_service,
-        TEST_CODE_COMMITMENT,
+        Default::default(),
     );
 
     let mut runner: StateTransitionRunner<_, _, _, MockZkvm<MockValidityCond>, _> =

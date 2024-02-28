@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Default,
 )]
-pub struct CodeCommitment(pub [u8; 32]);
+pub struct CodeCommitment(pub Vec<u8>);
 
 /// Public input of an aggregated proof.
 #[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
