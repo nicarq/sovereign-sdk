@@ -2,6 +2,12 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+/// Aggregated proof code commitment.
+#[derive(
+    Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Default,
+)]
+pub struct CodeCommitment(pub [u8; 32]);
+
 /// Public input of an aggregated proof.
 #[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 pub struct AggregatedProofPublicInput {
@@ -13,6 +19,8 @@ pub struct AggregatedProofPublicInput {
     pub initial_slot_hash: Vec<u8>,
     /// The final slot hash of the aggregated proof.
     pub final_slot_hash: Vec<u8>,
+    /// Code Commitment of the aggregated proof circuit.
+    pub code_commitment: CodeCommitment,
 }
 
 /// Additional information that is not zk proven. Can be used by clients for

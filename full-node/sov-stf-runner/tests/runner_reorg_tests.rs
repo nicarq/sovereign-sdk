@@ -1,25 +1,22 @@
 use std::sync::{Arc, RwLock};
-
+mod helpers;
+use helpers::hash_stf::{get_result_from_blocks, HashStf, S};
+use helpers::TEST_CODE_COMMITMENT;
+use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
     MockDaVerifier, MockValidityCond, PlannedFork,
 };
-use sov_mock_zkvm::MockZkvm;
-use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
-};
-
-mod helpers;
-
-use helpers::hash_stf::{get_result_from_blocks, HashStf, S};
-use sov_db::ledger_db::LedgerDB;
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ProverStorage, Storage};
+use sov_stf_runner::{
+    InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
+    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+};
 
 type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaSpec>;
 #[tokio::test]
@@ -164,6 +161,7 @@ async fn runner_execution(
         genesis_storage,
         1,
         rollup_config.prover_service,
+        TEST_CODE_COMMITMENT,
     );
 
     let mut runner: StateTransitionRunner<_, _, _, MockZkvm<MockValidityCond>, _> =

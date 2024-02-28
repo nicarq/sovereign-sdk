@@ -13,6 +13,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
+use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
@@ -115,6 +116,7 @@ impl RollupBlueprint for CelestiaDemoRollup {
             prover_config,
             zk_storage,
             rollup_config.prover_service,
+            CodeCommitment::default(),
         )
     }
 
