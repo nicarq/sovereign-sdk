@@ -37,7 +37,6 @@ native = [
 	"ed25519-dalek/rand_core",
 	"rand",
 	"sov-rollup-interface/native",
-	"sov-rollup-interface/schemars",
 ]
 arbitrary = [
 	"dep:arbitrary",
