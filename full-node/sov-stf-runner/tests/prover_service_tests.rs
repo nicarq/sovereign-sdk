@@ -107,7 +107,10 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
         );
     }
 
-    vm.make_proof();
+    for _ in 0..header_hashes.len() {
+        vm.make_proof();
+    }
+
     for header_hash in header_hashes.clone() {
         let status = wait_for_aggregated_proof(&[header_hash], &prover_service)
             .await
