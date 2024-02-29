@@ -31,14 +31,11 @@ rand = { workspace = true, optional = true }
 serde_json = { workspace = true }
 
 [features]
-default = [ ]
+default = []
 native = [
 	"ed25519-dalek/default",
 	"ed25519-dalek/rand_core",
 	"rand",
 	"sov-rollup-interface/native",
 ]
-arbitrary = [
-	"dep:arbitrary",
-	"sov-rollup-interface/arbitrary",
-]
+arbitrary = [ "dep:arbitrary", "sov-rollup-interface/arbitrary" ]
