@@ -236,10 +236,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
     /// Handler for: `eth_feeHistory`
     // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
     #[rpc_method(name = "eth_feeHistory")]
-    pub fn fee_history(
-        &self,
-        _working_set: &mut WorkingSet<S>,
-    ) -> RpcResult<reth_rpc_types::FeeHistory> {
+    pub fn fee_history(&self) -> RpcResult<reth_rpc_types::FeeHistory> {
         debug!("EVM module JSON-RPC request to `eth_feeHistory`");
 
         Ok(reth_rpc_types::FeeHistory {

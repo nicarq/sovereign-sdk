@@ -84,7 +84,6 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         creator: CreatorAddress<S>,
         collection_name: &str,
-        _working_set: &mut WorkingSet<S>,
     ) -> RpcResult<CollectionAddressResponse<S>> {
         let ca = get_collection_address::<S>(collection_name, creator.as_ref());
         Ok(CollectionAddressResponse {

@@ -46,6 +46,7 @@ fn rpc_tests() {
     t.pass("tests/rpc/expose_rpc.rs");
     t.pass("tests/rpc/expose_rpc_associated_types.rs");
     t.pass("tests/rpc/expose_rpc_associated_types_nested.rs");
+    t.pass("tests/rpc/derive_rpc_without_working_set_deny_missing_docs.rs");
 
     t.compile_fail("tests/rpc/derive_rpc_working_set_immutable_reference.rs");
     t.compile_fail("tests/rpc/derive_rpc_working_set_no_generic.rs");
