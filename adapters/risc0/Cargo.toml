@@ -27,7 +27,6 @@ risc0-cycle-utils = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 hex = { workspace = true }
 tracing = { workspace = true }
-thiserror = { workspace = true }
 rand = { workspace = true, optional = true }
 
 sha2 = { version = "0.10.6" }
