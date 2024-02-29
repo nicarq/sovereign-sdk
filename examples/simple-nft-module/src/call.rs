@@ -46,8 +46,7 @@ impl<S: Spec> NonFungibleToken<S> {
             bail!("Token with id {} already exists", id);
         }
 
-        self.owners.set(&id, context.sender(), working_set);
-
+        self.give_nft(context.sender(), id, working_set)?;
         self.emit_event(working_set, "simple_nft_mint", Event::Mint { id });
 
         Ok(CallResponse::default())
@@ -60,17 +59,17 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
-        let token_owner = match self.owners.get(&id, working_set) {
-            None => {
-                bail!("Token with id {} does not exist", id);
-            }
-            Some(owner) => owner,
+        let Some(token_owner) = self.owners.get(&id, working_set) else {
+            bail!("Token with id {} does not exist", id);
         };
         if &token_owner != context.sender() {
             bail!("Only token owner can transfer token");
         }
-        self.owners.set(&id, &to, working_set);
+
+        self.remove_nft(&to, id, working_set)?;
+        self.give_nft(&to, id, working_set)?;
         self.emit_event(working_set, "nft_transfer", Event::Transfer { id });
+
         Ok(CallResponse::default())
     }
 
@@ -80,18 +79,68 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
-        let token_owner = match self.owners.get(&id, working_set) {
-            None => {
-                bail!("Token with id {} does not exist", id);
-            }
-            Some(owner) => owner,
+        let Some(token_owner) = self.owners.get(&id, working_set) else {
+            bail!("Token with id {} does not exist", id);
         };
         if &token_owner != context.sender() {
             bail!("Only token owner can burn token");
         }
-        self.owners.remove(&id, working_set);
 
+        self.remove_nft(context.sender(), id, working_set)?;
         self.emit_event(working_set, "nft_burned", Event::Burn { id });
+
         Ok(CallResponse::default())
+    }
+
+    pub(crate) fn give_nft(
+        &self,
+        owner: &S::Address,
+        nft_id: u64,
+        working_set: &mut WorkingSet<S>,
+    ) -> anyhow::Result<()> {
+        self.owners.set(&nft_id, owner, working_set);
+
+        if cfg!(feature = "native") {
+            let count = self
+                .nft_count_by_owner
+                .get(owner, &mut working_set.accessory_state())
+                .unwrap_or_default();
+            self.nft_count_by_owner.set(
+                owner,
+                &count
+                    .checked_add(1)
+                    .ok_or_else(|| anyhow::anyhow!("NFT count overflow"))?,
+                &mut working_set.accessory_state(),
+            );
+        }
+
+        Ok(())
+    }
+
+    fn remove_nft(
+        &self,
+        owner: &S::Address,
+        nft_id: u64,
+        working_set: &mut WorkingSet<S>,
+    ) -> anyhow::Result<()> {
+        self.owners.remove(&nft_id, working_set);
+
+        if cfg!(feature = "native") {
+            let count = self
+                .nft_count_by_owner
+                .get(owner, &mut working_set.accessory_state())
+                // .unwrap(): safe because we checked that the owner exists
+                // before entering this function.
+                .unwrap();
+            self.nft_count_by_owner.set(
+                owner,
+                // .unwrap(): safe because if the owner exists, the count is
+                // non-zero.
+                &count.checked_sub(1).unwrap(),
+                &mut working_set.accessory_state(),
+            );
+        }
+
+        Ok(())
     }
 }

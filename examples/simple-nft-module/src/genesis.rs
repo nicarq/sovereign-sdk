@@ -26,7 +26,7 @@ impl<S: Spec> NonFungibleToken<S> {
             if self.owners.get(id, working_set).is_some() {
                 bail!("Token id {} already exists", id);
             }
-            self.owners.set(id, owner, working_set);
+            self.give_nft(owner, *id, working_set)?;
         }
         Ok(())
     }

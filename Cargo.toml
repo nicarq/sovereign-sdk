@@ -41,10 +41,8 @@ members = [
     "module-system/module-implementations/sov-prover-incentives",
     "module-system/module-implementations/sov-attester-incentives",
     "module-system/module-implementations/sov-sequencer-registry",
+    "module-system/module-implementations/sov-value-setter",
     "module-system/module-implementations/module-template",
-    "module-system/module-implementations/examples/sov-value-setter",
-    "module-system/module-implementations/examples/sov-vec-setter",
-    "module-system/module-implementations/examples/sov-accessory-state",
     "module-system/module-implementations/integration-tests",
 ]
 
