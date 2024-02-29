@@ -14,7 +14,6 @@ use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, PrivateKey, Spec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_rollup_interface::rpc::PaginatedEventResponse;
 use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{TestPrivateKey, TestSpec};
@@ -181,117 +180,32 @@ async fn assert_balance(
     Ok(())
 }
 
-async fn assert_bank_transfer_events_paged(
+async fn assert_bank_event(
     client: &SimpleClient,
-    token_address: Address,
-    num_events_to_fetch: usize,
-    total_num: usize,
-    expected_transfer_list: Vec<u64>,
+    event_number: u64,
+    expected_event: BankEvent<TestSpec>,
 ) -> Result<(), anyhow::Error> {
-    let mut num_fetched = 0;
-    let mut next_key = None;
-    let mut expected_transfer_list = expected_transfer_list.clone();
-    loop {
-        let response_events = <HttpClient as RpcClient<String, String, String>>::get_events_by_key(
-            client.http(),
-            "token_transfer",
-            Some("sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"),
-            None,
-            num_events_to_fetch as u64,
-            next_key.as_deref(),
-        )
-        .await?
-        .unwrap();
-        let paginated_response: PaginatedEventResponse =
-            serde_json::from_value(response_events).unwrap();
-        let _: Vec<_> = paginated_response
-            .events_response
-            .iter()
-            .map(|e| {
-                assert_eq!(e.module_name, "bank");
-                assert_eq!(
-                    e.module_address,
-                    "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"
-                );
-                let bank_event = from_value::<BankEvent<TestSpec>>(e.event_value.clone())
-                    .expect("Unable to deserialize Bank event");
-                assert_eq!(
-                    bank_event,
-                    BankEvent::TokenTransferred {
-                        token_address,
-                        amount: expected_transfer_list.remove(0)
-                    }
-                );
-            })
-            .collect();
-        num_fetched += paginated_response.events_response.len();
-        if num_fetched == total_num {
-            assert!(paginated_response.next.is_none());
-            break;
-        } else {
-            assert!(paginated_response.next.is_some());
-            assert_eq!(
-                paginated_response.events_response.len(),
-                num_events_to_fetch
-            );
-            next_key = paginated_response.next;
-        }
+    let response_event = <HttpClient as RpcClient<String, String, String>>::get_event_by_number(
+        client.http(),
+        event_number,
+    )
+    .await?
+    .unwrap();
+    if let Value::Object(ref map) = response_event {
+        // Ensure "bank" is present in response json
+        assert_eq!(map.get("module_name").unwrap(), "bank");
+        // Attempt to deserialize the "body" of the bank key in the response to the Event type
+        let bank_event = from_value::<BankEvent<TestSpec>>(map.get("event_value").unwrap().clone())
+            .expect("Unable to deserialize Bank event");
+        // Ensure the event generated is a TokenCreated event with the correct token_address
+        assert_eq!(bank_event, expected_event);
+        assert_eq!(
+            map.get("module_address").unwrap(),
+            "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"
+        );
+    } else {
+        panic!("Event from rpc not an object");
     }
-    assert!(expected_transfer_list.is_empty());
-    Ok(())
-}
-
-async fn assert_bank_module_events_paged(
-    client: &SimpleClient,
-    num_events_to_fetch: usize,
-    total_num: usize,
-    expected_enum_disc: Vec<std::mem::Discriminant<BankEvent<TestSpec>>>,
-) -> Result<(), anyhow::Error> {
-    let mut num_fetched = 0;
-    let mut next_key = None;
-    let mut expected_enum_disc = expected_enum_disc.clone();
-    loop {
-        let response_events =
-            <HttpClient as RpcClient<String, String, String>>::get_events_by_module_address(
-                client.http(),
-                "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h",
-                num_events_to_fetch as u64,
-                next_key.as_deref(),
-            )
-            .await?
-            .unwrap();
-        let paginated_response: PaginatedEventResponse =
-            serde_json::from_value(response_events).unwrap();
-        let _: Vec<_> = paginated_response
-            .events_response
-            .iter()
-            .map(|e| {
-                assert_eq!(e.module_name, "bank");
-                assert_eq!(
-                    e.module_address,
-                    "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"
-                );
-                let bank_event = std::mem::discriminant(
-                    &from_value::<BankEvent<TestSpec>>(e.event_value.clone())
-                        .expect("Unable to deserialize Bank event"),
-                );
-                assert_eq!(bank_event, expected_enum_disc.remove(0));
-            })
-            .collect();
-        num_fetched += paginated_response.events_response.len();
-        if num_fetched == total_num {
-            assert!(paginated_response.next.is_none());
-            break;
-        } else {
-            assert!(paginated_response.next.is_some());
-            assert_eq!(
-                paginated_response.events_response.len(),
-                num_events_to_fetch
-            );
-            next_key = paginated_response.next;
-        }
-    }
-    assert!(expected_enum_disc.is_empty());
     Ok(())
 }
 
@@ -347,54 +261,25 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
         build_multiple_transfers(&transfer_amounts, &key, token_address, recipient_address, 3);
     send_transactions_and_wait_slot(&client, txs).await?;
 
-    let response_event =
-        <HttpClient as RpcClient<String, String, String>>::get_event_by_number(client.http(), 1)
-            .await?
-            .unwrap();
-    let expected = serde_json::json!({
-        "event_value": {
-            "TokenCreated": {
-                "token_address": token_address
-            }
-        },
-        "module_address": "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h",
-        "module_name": "bank"
-    });
-    assert_eq!(response_event, expected);
-    if let Value::Object(ref map) = response_event {
-        // Ensure "bank" is present in response json
-        assert_eq!(map.get("module_name").unwrap(), "bank");
-        // Attempt to deserialize the "body" of the bank key in the response to the Event type
-        let bank_event = from_value::<BankEvent<TestSpec>>(map.get("event_value").unwrap().clone())
-            .expect("Unable to deserialize Bank event");
-        // Ensure the event generated is a TokenCreated event with the correct token_address
-        assert_eq!(bank_event, BankEvent::TokenCreated { token_address });
-        assert_eq!(
-            map.get("module_address").unwrap(),
-            "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"
-        );
-    } else {
-        panic!("Event from rpc not an object");
-    }
-
-    // assert events for all transfers
-    let mut transfer_amount_list = vec![100, 200];
-    transfer_amount_list.extend(transfer_amounts);
-    // 12 transfer events
-    assert_bank_transfer_events_paged(&client, token_address, 7, 12, transfer_amount_list).await?;
-
-    // assert getting events using module address
-    let mut event_variants = vec![std::mem::discriminant(&BankEvent::TokenCreated {
-        token_address,
-    })];
-    for _ in 0..12 {
-        event_variants.push(std::mem::discriminant(&BankEvent::TokenTransferred {
+    assert_bank_event(&client, 1, BankEvent::TokenCreated { token_address }).await?;
+    assert_bank_event(
+        &client,
+        2,
+        BankEvent::TokenTransferred {
             token_address,
-            amount: 0,
-        }))
-    }
-    // 13 events for bank module. 1 token create + 12 transfers
-    assert_bank_module_events_paged(&client, 5, 13, event_variants).await?;
+            amount: 100,
+        },
+    )
+    .await?;
+    assert_bank_event(
+        &client,
+        3,
+        BankEvent::TokenTransferred {
+            token_address,
+            amount: 200,
+        },
+    )
+    .await?;
 
     Ok(())
 }

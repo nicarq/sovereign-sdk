@@ -41,7 +41,7 @@ serde_json = { workspace = true }
 [features]
 default = [ "std" ]
 # Re-export schemars for the native feature. Consumers should only enable the schmars feature when native is active.
-native = [ "futures", "serde_json", "std", "tokio", "schemars" ]
+native = [ "futures", "schemars", "serde_json", "std", "tokio" ]
 arbitrary = [ "proptest", "proptest-derive", "sha2", "std" ]
 std = [
 	"anyhow/default",
