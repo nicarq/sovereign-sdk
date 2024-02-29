@@ -643,7 +643,7 @@ mod tests {
     use sov_modules_api::AddressBech32;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
-        AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput, CodeCommitment,
+        AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
     };
     use sov_schema_db::cache::cache_container::CacheContainer;
     use sov_schema_db::cache::cache_db::CacheDb;
@@ -929,19 +929,15 @@ mod tests {
         assert_eq!(None, proof_from_db);
 
         for i in 0..10 {
-            let proof = AggregatedProofData::new(
-                AggregatedProofPublicInput {
-                    initial_state_root: vec![i],
-                    final_state_root: vec![i + 1],
-                    initial_slot_hash: vec![i + 2],
-                    final_slot_hash: vec![i + 3],
-                    code_commitment: CodeCommitment::default(),
-                },
-                AggregatedProofDataInfo {
-                    initial_slot_number: i as u64,
-                    final_slot_number: i as u64,
-                },
-            );
+            let proof = AggregatedProofData::new(AggregatedProofPublicInput {
+                initial_slot_number: i as u64,
+                final_slot_number: i as u64,
+                initial_state_root: vec![i],
+                final_state_root: vec![i + 1],
+                initial_slot_hash: vec![i + 2],
+                final_slot_hash: vec![i + 3],
+                code_commitment: CodeCommitment::default(),
+            });
 
             let agg_proof = StoredAggregatedProof {
                 proof: proof.try_to_vec().unwrap(),
