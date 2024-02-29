@@ -1,6 +1,6 @@
 [package]
-name = "sov-vec-setter"
-description = "A Sovereign SDK example module for setting/reading vectors from state"
+name = "sov-value-setter"
+description = "A Sovereign SDK example module for setting/reading value from state"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
@@ -12,17 +12,19 @@ readme = "README.md"
 resolver = "2"
 publish = false
 
+
 [dev-dependencies]
+sov-value-setter = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
-sov-modules-api = { path = "../../../sov-modules-api", features = ["native", "macros"] }
-sov-prover-storage-manager = { path = "../../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-test-utils = { path = "../../../sov-test-utils" }
-sov-vec-setter = { path = ".", features = ["native"] }
+sov-modules-api = { path = "../../sov-modules-api", features = ["native"] }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-test-utils = { path = "../../sov-test-utils" }
+
 
 [dependencies]
 anyhow = { workspace = true }
-sov-modules-api = { path = "../../../sov-modules-api", default-features = false, features = ["macros"] }
-sov-state = { path = "../../../sov-state", default-features = false }
+sov-modules-api = { path = "../../sov-modules-api" }
+sov-state = { path = "../../sov-state" }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
@@ -40,5 +42,5 @@ native = [
 	"serde_json",
 	"sov-modules-api/native",
 	"sov-state/native",
-	"sov-vec-setter/native",
+	"sov-value-setter/native",
 ]

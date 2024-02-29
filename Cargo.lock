@@ -8329,21 +8329,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-accessory-state"
-version = "0.3.0"
-dependencies = [
- "borsh 0.10.3",
- "jsonrpsee 0.20.3",
- "serde",
- "sov-accessory-state",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "sov-test-utils",
- "tempfile",
-]
-
-[[package]]
 name = "sov-accounts"
 version = "0.3.0"
 dependencies = [
@@ -9218,26 +9203,6 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "sov-vec-setter"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh 0.10.3",
- "clap 4.5.1",
- "jsonrpsee 0.20.3",
- "schemars",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "sov-test-utils",
- "sov-vec-setter",
  "tempfile",
  "thiserror",
 ]

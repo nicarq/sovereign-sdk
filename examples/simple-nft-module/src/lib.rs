@@ -28,8 +28,18 @@ pub struct NonFungibleToken<S: Spec> {
     admin: sov_modules_api::StateValue<S::Address>,
 
     #[state]
-    /// Mapping of tokens to their owners
+    /// Mapping of tokens to their owners.
     owners: sov_modules_api::StateMap<u64, S::Address>,
+
+    /// Mapping from owners to their NFT ownership count.
+    ///
+    /// Note, this is an "accessory" state value, meaning it is not part of the
+    /// proven state and should only be used for tooling, RPC, and debugging.
+    /// You should only ever read and write to this value from within the
+    /// `native` feature flag. See [`sov_modules_api::AccessoryStateValue`] for
+    /// more information.
+    #[state]
+    nft_count_by_owner: sov_modules_api::AccessoryStateMap<S::Address, u64>,
 }
 
 impl<S: Spec> Module for NonFungibleToken<S> {
