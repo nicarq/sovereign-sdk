@@ -62,7 +62,6 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         token_name: String,
         sender: S::Address,
         salt: u64,
-        _working_set: &mut WorkingSet<S>,
     ) -> RpcResult<S::Address> {
         Ok(get_token_address::<S>(&token_name, &sender, salt))
     }

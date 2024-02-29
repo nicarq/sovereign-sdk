@@ -1,6 +1,6 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{ModuleInfo, WorkingSet};
+use sov_modules_api::ModuleInfo;
 
 use super::BlobStorage;
 
@@ -16,7 +16,7 @@ pub struct Response {
 impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
     /// Queries the address of the module.
     #[rpc_method(name = "getModuleAddress")]
-    fn get_module_address(&self, _working_set: &mut WorkingSet<S>) -> RpcResult<Response> {
+    fn get_module_address(&self) -> RpcResult<Response> {
         Ok(Response {
             address: self.address().to_string(),
         })

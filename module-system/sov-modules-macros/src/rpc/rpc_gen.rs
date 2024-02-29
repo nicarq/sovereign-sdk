@@ -299,6 +299,7 @@ impl RpcImplBlock {
                 .clone()
                 .filter(|arg| arg.to_string() != quote! { self }.to_string());
             quote! {
+                #( #docs )*
                 #signature {
                     let default_module = <#type_name #ty_generics as ::std::default::Default>::default();
                     default_module.#method_name(#(#arg_values),*)
@@ -339,6 +340,8 @@ impl RpcImplBlock {
                     format!("All `#[rpc_method]` annotated methods must have the same working set type. Found `{:?}` and `{:?}`", ws, method_ws_type),
                 ));
             }
+            // The method has no working set argument; do nothing.
+            (_, None) => {}
             _ => self.working_set_type = method_ws_type,
         };
 

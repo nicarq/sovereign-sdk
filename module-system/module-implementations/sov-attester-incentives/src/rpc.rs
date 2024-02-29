@@ -71,7 +71,6 @@ where
         &self,
         _address: S::Address,
         _witness: &<S::Storage as Storage>::Witness,
-        _working_set: &mut WorkingSet<S>,
     ) -> u64 {
         todo!("Make the unbonding amount queryable: https://github.com/Sovereign-Labs/sovereign-sdk/issues/675")
     }
