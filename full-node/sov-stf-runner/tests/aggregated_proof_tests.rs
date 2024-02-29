@@ -39,9 +39,9 @@ async fn fetch_aggregated_proof_test() -> Result<(), anyhow::Error> {
     }
 
     let proof_from_db = ledger_db.get_latest_aggregated_proof()?.unwrap();
-    let info = proof_from_db.proof.info();
-    assert_eq!(2, info.initial_slot_number);
-    assert_eq!(2, info.final_slot_number);
+    let public_input = proof_from_db.proof.public_input();
+    assert_eq!(2, public_input.initial_slot_number);
+    assert_eq!(2, public_input.final_slot_number);
 
     Ok(())
 }

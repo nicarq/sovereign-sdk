@@ -8,7 +8,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregatedProofData, AggregatedProofDataInfo, AggregatedProofPublicInput, CodeCommitment,
+    AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
 };
 use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
 
@@ -210,6 +210,8 @@ where
         let final_block_proof = block_proofs_data.last().unwrap();
 
         let public_input = AggregatedProofPublicInput {
+            initial_slot_number: initial_block_proof.slot_number,
+            final_slot_number: final_block_proof.slot_number,
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
             initial_slot_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
@@ -217,12 +219,7 @@ where
             code_commitment: self.code_commitment.clone(),
         };
 
-        let info = AggregatedProofDataInfo {
-            initial_slot_number: initial_block_proof.slot_number,
-            final_slot_number: final_block_proof.slot_number,
-        };
-
-        let aggregated_proof = AggregatedProofData::new(public_input, info);
+        let aggregated_proof = AggregatedProofData::new(public_input);
 
         for slot_hash in block_header_hashes {
             prover_state.remove(slot_hash);
