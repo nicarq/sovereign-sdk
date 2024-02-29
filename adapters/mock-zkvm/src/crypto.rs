@@ -19,32 +19,8 @@ pub mod private_key {
     use ed25519_dalek::{Signer, SigningKey};
     use rand::rngs::OsRng;
     use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
-    use thiserror::Error;
 
     use super::{Ed25519PublicKey, Ed25519Signature};
-
-    /// An error that arises during private key deserilization.
-    #[derive(Error, Debug)]
-    pub enum Ed25519PrivateKeyDeserializationError {
-        /// An error converting from hex.
-        #[error("Hex deserialization error")]
-        FromHexError(#[from] hex::FromHexError),
-        /// An error indicating that the key pair could not be deserialized.
-        #[error("KeyPairError deserialization error")]
-        KeyPairError(#[from] ed25519_dalek::SignatureError),
-        /// An error indicating that the private key was not the expected length.
-        #[error(
-            "Invalid private key length: {actual}, expected {secret_key_len} or {keypair_len}"
-        )]
-        InvalidPrivateKeyLength {
-            /// The length of a secret key.
-            secret_key_len: usize,
-            /// The length of a key pair.
-            keypair_len: usize,
-            /// The length that was actually found.
-            actual: usize,
-        },
-    }
 
     /// A private key for the ed25519 signature scheme.
     /// This struct also stores the corresponding public key.
