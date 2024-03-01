@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_sequencer::batch_builder::FiFoStrictBatchBuilder;
 use sov_sequencer::Sequencer;
@@ -13,14 +14,10 @@ pub fn register_rpc<RT, S, Da>(
     storage: Arc<RwLock<S::Storage>>,
     ledger_db: &LedgerDB,
     da_service: &Da,
-    sequencer: S::Address,
+    sequencer: <Da::Spec as DaSpec>::Address,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
 where
-    RT: RuntimeTrait<S, <Da as DaService>::Spec>
-        + Send
-        + Sync
-        + 'static
-        + sov_modules_api::RuntimeEventDisplay,
+    RT: RuntimeTrait<S, <Da as DaService>::Spec> + 'static + sov_modules_api::RuntimeEventDisplay,
     S: Spec,
     Da: DaService + Clone,
     Da::TransactionId: Clone + serde::Serialize + Send + Sync,
@@ -34,13 +31,13 @@ where
             LedgerDB,
             SequencerOutcome<S::Address>,
             TxEffect,
-            <RT as ::sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
+            <RT as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
         >(ledger_db.clone())?)?;
     }
 
     // sequencer RPC.
     {
-        let batch_builder = FiFoStrictBatchBuilder::new(
+        let batch_builder = FiFoStrictBatchBuilder::<S, Da::Spec, RT>::new(
             1024 * 100,
             u32::MAX as usize,
             RT::default(),

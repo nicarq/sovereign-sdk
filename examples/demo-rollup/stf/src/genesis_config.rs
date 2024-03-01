@@ -6,18 +6,19 @@ use std::convert::AsRef;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _};
-use sov_accounts::AccountConfig;
-use sov_bank::BankConfig;
+pub use sov_accounts::AccountConfig;
+pub use sov_bank::{BankConfig, Coins, TokenConfig};
+pub use sov_chain_state::ChainStateConfig;
 #[cfg(feature = "experimental")]
-use sov_evm::EvmConfig;
+pub use sov_evm::EvmConfig;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
-use sov_nft_module::NonFungibleTokenConfig;
+pub use sov_nft_module::NonFungibleTokenConfig;
 use sov_rollup_interface::da::DaSpec;
-use sov_sequencer_registry::SequencerConfig;
+pub use sov_sequencer_registry::SequencerConfig;
 pub use sov_state::config::Config as StorageConfig;
 use sov_stf_runner::read_json_file;
-use sov_value_setter::ValueSetterConfig;
+pub use sov_value_setter::ValueSetterConfig;
 
 /// Creates config for a rollup with some default settings, the config is used in demos and tests.
 use crate::runtime::GenesisConfig;

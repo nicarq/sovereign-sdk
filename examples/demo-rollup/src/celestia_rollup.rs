@@ -1,12 +1,14 @@
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
+use sov_celestia_adapter::verifier::address::CelestiaAddress;
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use sov_celestia_adapter::{CelestiaConfig, CelestiaService};
 use sov_modules_api::default_spec::{DefaultSpec, ZkDefaultSpec};
-use sov_modules_api::{Address, Spec};
+use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::{RollupBlueprint, WalletBlueprint};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -57,12 +59,13 @@ impl RollupBlueprint for CelestiaDemoRollup {
 
     fn create_rpc_methods(
         &self,
-        storage: Arc<RwLock<<Self::NativeSpec as sov_modules_api::Spec>::Storage>>,
+        storage: Arc<RwLock<<Self::NativeSpec as Spec>::Storage>>,
         ledger_db: &sov_db::ledger_db::LedgerDB,
         da_service: &Self::DaService,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
-        // TODO set the sequencer address
-        let sequencer = Address::new([0; 32]);
+        // TODO set the sequencer address https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/219
+        let sequencer =
+            CelestiaAddress::from_str("celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s")?;
 
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
@@ -122,7 +125,7 @@ impl RollupBlueprint for CelestiaDemoRollup {
 
     fn create_storage_manager(
         &self,
-        rollup_config: &sov_stf_runner::RollupConfig<Self::DaConfig>,
+        rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),

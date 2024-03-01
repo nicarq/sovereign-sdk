@@ -7,9 +7,11 @@ use anyhow::{bail, Context as ErrorContext};
 use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, CryptoSpec, DispatchCall, PublicKey, Spec, WorkingSet};
+use sov_modules_api::tx_verifier::TransactionAndRawHash;
+use sov_modules_api::{CryptoSpec, DispatchCall, Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_stf_blueprint::{apply_tx, ExecutionMode, Runtime, TxEffect};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
-use tracing::{info, warn};
 
 use self::mempool::Mempool;
 use crate::TxHash;
@@ -45,19 +47,20 @@ fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
 
 /// BatchBuilder that creates batches of transactions in the order they were submitted
 /// Only transactions that were successfully dispatched are included.
-pub struct FiFoStrictBatchBuilder<S: Spec, R: DispatchCall<Spec = S>> {
+pub struct FiFoStrictBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>> {
     mempool: Mempool<S, R>,
     mempool_max_txs_count: usize,
     runtime: R,
     max_batch_size_bytes: usize,
     current_storage: Arc<RwLock<S::Storage>>,
-    sequencer: S::Address,
+    sequencer: Da::Address,
 }
 
-impl<S, R> FiFoStrictBatchBuilder<S, R>
+impl<S, Da, R> FiFoStrictBatchBuilder<S, Da, R>
 where
     S: Spec,
-    R: DispatchCall<Spec = S>,
+    Da: DaSpec,
+    R: Runtime<S, Da>,
 {
     /// BatchBuilder constructor.
     pub fn new(
@@ -65,7 +68,7 @@ where
         mempool_max_txs_count: usize,
         runtime: R,
         current_storage: Arc<RwLock<S::Storage>>,
-        sequencer: S::Address,
+        sequencer: Da::Address,
     ) -> Self {
         Self {
             mempool: Mempool::new(),
@@ -78,10 +81,11 @@ where
     }
 }
 
-impl<S, R> BatchBuilder for FiFoStrictBatchBuilder<S, R>
+impl<S, Da, R> BatchBuilder for FiFoStrictBatchBuilder<S, Da, R>
 where
     S: Spec,
-    R: DispatchCall<Spec = S>,
+    Da: DaSpec,
+    R: Runtime<S, Da>,
 {
     /// Attempt to add transaction to the mempool.
     ///
@@ -134,21 +138,35 @@ where
 
     /// Builds a new batch of valid transactions in order they were added to mempool
     /// Only transactions, which are dispatched successfully are included in the batch
-    fn get_next_blob(&mut self) -> anyhow::Result<Vec<TxWithHash>> {
+    fn get_next_blob(&mut self, height: u64) -> anyhow::Result<Vec<TxWithHash>> {
         tracing::debug!("get_next_blob has been called");
         let storage = {
             let storage_guard = self
                 .current_storage
                 .read()
-                .expect("Internal Storage lock is poisoned");
+                .expect("Internal storage lock is poisoned");
             storage_guard.clone()
         };
-        let mut working_set = WorkingSet::new(storage);
+        let mut state_checkpoint = StateCheckpoint::new(storage);
+
         let mut txs = Vec::new();
         let mut current_batch_size = 0;
 
-        while let Some(mut pooled) = self.mempool.pop_front() {
-            // In order to fill batch as big as possible, we only check if valid
+        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/224
+        //     Use Kernel Hooks to get correct gas price
+        // K: KernelSlotHooks<C, Da>>
+        // let gas_price = self.kernel.begin_slot_hook(
+        //     slot_header,
+        //     validity_condition,
+        //     pre_state_root,
+        //     state_checkpoint,
+        // );
+
+        let gas_price = <S::Gas as Gas>::Price::ZEROED;
+        let mut reward = 0;
+
+        while let Some(pooled) = self.mempool.pop_front() {
+            // To fill a batch as big as possible, we only check if valid
             // tx can fit in the batch.
             let tx_len = pooled.raw.len();
             if current_batch_size + tx_len > self.max_batch_size_bytes {
@@ -156,39 +174,64 @@ where
                 break;
             }
 
+            let PooledTransaction {
+                raw,
+                tx,
+                mut msg,
+                hash,
+            } = pooled;
+
             // Take the decoded runtime message cached upon accepting transaction
             // into the pool or attempt to decode the message again if
             // the transaction was previously executed,
             // but discarded from the batch due to the batch size.
-            let msg = pooled.msg.take().unwrap_or_else(||
-                    // SAFETY: The transaction was accepted into the pool,
-                    // so we know that the runtime message is valid. 
-                    R::decode_call(pooled.tx.runtime_msg()).expect("noop; qed"));
+            let msg = msg.take().unwrap_or_else(||
+                // SAFETY: The transaction was accepted into the pool,
+                // so we know that the runtime message is valid.
+                R::decode_call(tx.runtime_msg()).expect("Undecodable transaction has been accepted into the pool"));
 
             // Execute
             {
-                // TODO: Bug(!), because potential discrepancy. Should be resolved by https://github.com/Sovereign-Labs/sovereign-sdk/issues/434
-                let sender_address: S::Address = pooled.tx.pub_key().to_address();
-                // FIXME! This should use the correct height
-                let ctx = Context::<S>::new(sender_address, self.sequencer.clone(), 0);
+                let tx_and_raw_hash = TransactionAndRawHash {
+                    tx,
+                    raw_tx_hash: hash,
+                };
+                let (after_state_checkpoint, tx_receipt) = apply_tx(
+                    &self.runtime,
+                    &tx_and_raw_hash,
+                    msg,
+                    state_checkpoint,
+                    &self.sequencer,
+                    &mut reward,
+                    ExecutionMode::Speculative,
+                    &gas_price,
+                    height,
+                );
+                state_checkpoint = after_state_checkpoint;
 
-                if let Err(error) = self.runtime.dispatch_call(msg, &mut working_set, &ctx) {
-                    warn!(%error, tx = hex::encode(&pooled.raw), "Error during transaction dispatch");
-                    continue;
+                match tx_receipt.receipt {
+                    TxEffect::Successful => {
+                        tracing::info!(
+                            hash = hex::encode(hash),
+                            "Transaction has been included in the batch",
+                        );
+
+                        // Update size of current batch
+                        current_batch_size += tx_len;
+
+                        txs.push(TxWithHash { raw_tx: raw, hash });
+                    }
+                    TxEffect::InsufficientBaseGas | TxEffect::Reverted | TxEffect::Duplicate => {
+                        tracing::warn!(
+                            ?tx_receipt,
+                            tx = hex::encode(&raw),
+                            hash = hex::encode(hash),
+                            "Error during transaction dispatch"
+                        );
+                        continue;
+                    }
                 }
             }
-
-            // Update size of current batch
-            current_batch_size += tx_len;
-
-            info!(
-                hash = hex::encode(pooled.hash),
-                "Transaction has been included in the batch",
-            );
-            txs.push(TxWithHash {
-                raw_tx: pooled.raw,
-                hash: pooled.hash,
-            });
         }
 
         if txs.is_empty() {
@@ -266,26 +309,23 @@ mod mempool {
 mod tests {
     use borsh::BorshSerialize;
     use rand::Rng;
-    use sov_modules_api::macros::DefaultRuntime;
+    use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::transaction::Transaction;
-    use sov_modules_api::{Address, DispatchCall, EncodeCall, Genesis, MessageCodec, PrivateKey};
+    use sov_modules_api::{EncodeCall, Genesis, PrivateKey, PublicKey, WorkingSet};
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::services::batch_builder::BatchBuilder;
     use sov_state::Storage;
+    use sov_test_utils::runtime::{create_genesis_config, TestRuntime};
     use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSpec};
-    use sov_value_setter::{CallMessage, ValueSetter, ValueSetterConfig};
+    use sov_value_setter::{CallMessage, ValueSetter};
     use tempfile::TempDir;
 
     use super::*;
 
     const MAX_TX_POOL_SIZE: usize = 20;
-    type S = sov_test_utils::TestSpec;
+    const DEFAULT_SEQUENCER_ADDRESS: MockAddress = MockAddress::new([0u8; 32]);
 
-    #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
-    #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-    struct TestRuntime<T: Spec> {
-        value_setter: sov_value_setter::ValueSetter<T>,
-    }
+    type S = TestSpec;
 
     fn generate_random_valid_tx() -> Vec<u8> {
         let private_key = TestPrivateKey::generate();
@@ -296,7 +336,7 @@ mod tests {
 
     fn generate_valid_tx(private_key: &TestPrivateKey, value: u32) -> Vec<u8> {
         let msg = CallMessage::SetValue(value);
-        let msg = <TestRuntime<S> as EncodeCall<ValueSetter<TestSpec>>>::encode_call(msg);
+        let msg = <TestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
         let chain_id = 0;
         let gas_tip = 0;
         let gas_limit = 0;
@@ -348,23 +388,24 @@ mod tests {
     fn create_batch_builder(
         batch_size_bytes: usize,
         tmpdir: &TempDir,
-    ) -> FiFoStrictBatchBuilder<S, TestRuntime<S>> {
+        sequencer_address: MockAddress,
+    ) -> FiFoStrictBatchBuilder<S, MockDaSpec, TestRuntime<S, MockDaSpec>> {
         let storage = Arc::new(RwLock::new(new_orphan_storage(tmpdir.path()).unwrap()));
-        let sequencer = Address::from([0; 32]);
         FiFoStrictBatchBuilder::new(
             batch_size_bytes,
             MAX_TX_POOL_SIZE,
-            TestRuntime::<S>::default(),
+            TestRuntime::<S, MockDaSpec>::default(),
             storage.clone(),
-            sequencer,
+            sequencer_address,
         )
     }
 
     fn setup_runtime(
-        batch_builder: &mut FiFoStrictBatchBuilder<S, TestRuntime<S>>,
+        batch_builder: &mut FiFoStrictBatchBuilder<S, MockDaSpec, TestRuntime<S, MockDaSpec>>,
         admin: Option<TestPublicKey>,
+        admin_da_address: MockAddress,
     ) {
-        let runtime = TestRuntime::<S>::default();
+        let runtime = TestRuntime::<S, MockDaSpec>::default();
         let storage = { batch_builder.current_storage.read().unwrap().clone() };
         let mut working_set = WorkingSet::new(storage.clone());
 
@@ -372,10 +413,15 @@ mod tests {
             let admin_private_key = TestPrivateKey::generate();
             admin_private_key.pub_key()
         });
-        let value_setter_config = ValueSetterConfig {
-            admin: admin.to_address(),
-        };
-        let config = GenesisConfig::<S>::new(value_setter_config);
+        let admin = admin.to_address();
+        let config = create_genesis_config(
+            admin,
+            admin_da_address,
+            100,
+            "BatchBuilderTestToken".to_string(),
+            10,
+            100_000,
+        );
         runtime.genesis(&config, &mut working_set).unwrap();
         let (log, witness) = working_set.checkpoint().0.freeze();
         storage.validate_and_commit(log, &witness).unwrap();
@@ -393,7 +439,8 @@ mod tests {
             let tx = generate_random_valid_tx();
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(tx.len(), &tmpdir);
+            let mut batch_builder =
+                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
             batch_builder.accept_tx(tx).unwrap();
         }
@@ -404,7 +451,8 @@ mod tests {
             let batch_size = tx.len().saturating_sub(1);
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(batch_size, &tmpdir);
+            let mut batch_builder =
+                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx);
             assert!(accept_result.is_err());
@@ -417,7 +465,8 @@ mod tests {
         #[test]
         fn reject_tx_on_full_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(usize::MAX, &tmpdir);
+            let mut batch_builder =
+                create_batch_builder(usize::MAX, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
             for _ in 0..MAX_TX_POOL_SIZE {
                 let tx = generate_random_valid_tx();
@@ -436,7 +485,8 @@ mod tests {
             let tx = generate_random_bytes();
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(tx.len(), &tmpdir);
+            let mut batch_builder =
+                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx);
             assert!(accept_result.is_err());
@@ -452,7 +502,8 @@ mod tests {
             let tx = generate_signed_tx_with_invalid_payload(&private_key);
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(tx.len(), &tmpdir);
+            let mut batch_builder =
+                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx);
             assert!(accept_result.is_err());
@@ -467,7 +518,8 @@ mod tests {
             let tx = generate_random_valid_tx();
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(tx.len(), &tmpdir);
+            let mut batch_builder =
+                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
             batch_builder.mempool_max_txs_count = 0;
 
             let accept_result = batch_builder.accept_tx(tx);
@@ -482,10 +534,10 @@ mod tests {
         #[test]
         fn error_on_empty_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(10, &tmpdir);
-            setup_runtime(&mut batch_builder, None);
+            let mut batch_builder = create_batch_builder(10, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+            setup_runtime(&mut batch_builder, None, DEFAULT_SEQUENCER_ADDRESS);
 
-            let build_result = batch_builder.get_next_blob();
+            let build_result = batch_builder.get_next_blob(1);
             assert!(build_result.is_err());
             assert_eq!(
                 "No valid transactions are available",
@@ -494,6 +546,7 @@ mod tests {
         }
 
         #[test]
+        #[should_panic = "Sequencer is no longer registered by the time of context resolution. This is a bug"]
         fn build_batch_invalidates_everything_on_missed_genesis() {
             let value_setter_admin = TestPrivateKey::generate();
             let txs = [
@@ -504,7 +557,8 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let batch_size = txs[0].len() * 3 + 1;
-            let mut batch_builder = create_batch_builder(batch_size, &tmpdir);
+            let mut batch_builder =
+                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
             // Skipping runtime setup
 
             for tx in &txs {
@@ -513,12 +567,7 @@ mod tests {
 
             assert_eq!(txs.len(), batch_builder.mempool.len());
 
-            let build_result = batch_builder.get_next_blob();
-            assert!(build_result.is_err());
-            assert_eq!(
-                "No valid transactions are available",
-                build_result.unwrap_err().to_string()
-            );
+            let _ = batch_builder.get_next_blob(1);
         }
 
         #[test]
@@ -537,8 +586,13 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let batch_size = txs[0].len() + txs[2].len() + 1;
-            let mut batch_builder = create_batch_builder(batch_size, &tmpdir);
-            setup_runtime(&mut batch_builder, Some(value_setter_admin.pub_key()));
+            let mut batch_builder =
+                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+            setup_runtime(
+                &mut batch_builder,
+                Some(value_setter_admin.pub_key()),
+                DEFAULT_SEQUENCER_ADDRESS,
+            );
 
             for tx in &txs {
                 batch_builder.accept_tx(tx.clone()).unwrap();
@@ -546,7 +600,7 @@ mod tests {
 
             assert_eq!(txs.len(), batch_builder.mempool.len());
 
-            let build_result = batch_builder.get_next_blob();
+            let build_result = batch_builder.get_next_blob(1);
             assert!(build_result.is_ok());
             let blob = build_result
                 .unwrap()

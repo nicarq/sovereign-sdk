@@ -11,6 +11,7 @@ RUN apk update && apk add --no-cache bash jq
 COPY --from=ghcr.io/celestiaorg/celestia-app:v1.3.0 /bin/celestia-appd /bin/celestia-appd
 
 COPY ./run-validator.sh /opt/entrypoint.sh
+RUN chmod +x /opt/entrypoint.sh
 
 # p2p, rpc and prometheus port
 EXPOSE 26656 26657 1317 9090

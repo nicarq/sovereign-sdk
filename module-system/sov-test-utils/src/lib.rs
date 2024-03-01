@@ -3,6 +3,7 @@ use std::rc::Rc;
 use borsh::ser::BorshSerialize;
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
+pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::Transaction;
 pub use sov_modules_api::EncodeCall;
@@ -11,10 +12,11 @@ use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
 
 pub mod bank_data;
 pub mod logging;
+pub mod runtime;
 pub mod value_setter_data;
 
-pub type TestSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
-pub type ZkTestSpec = sov_modules_api::default_spec::ZkDefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+pub type TestSpec = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier>;
+pub type ZkTestSpec = sov_modules_api::default_spec::ZkDefaultSpec<MockZkVerifier>;
 pub type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
