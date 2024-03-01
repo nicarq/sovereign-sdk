@@ -261,8 +261,8 @@ where
             }
         };
         tracing::debug!(
-            ?block_header,
-            ?new_snapshot_id,
+            block_header = %block_header.display(),
+            new_snapshot_id,
             "Requested the native storage given block and snapshot ID"
         );
 
@@ -293,7 +293,7 @@ where
         self.latest_snapshot_id += 1;
         let new_snapshot_id = self.latest_snapshot_id;
         tracing::debug!(
-            ?block_header,
+            block_header = %block_header.display(),
             new_snapshot_id,
             parent_snapshot_id,
             "Creating a new storage snapshot"
@@ -336,7 +336,11 @@ where
             accessory_change_set,
         } = stf_change_set;
         let snapshot_id = state_change_set.id();
-        tracing::debug!(snapshot_id, ?block_header, "Saving the ChangeSet");
+        tracing::debug!(
+            block_header = %block_header.display(),
+            snapshot_id,
+            "Saving the ChangeSet"
+        );
         if snapshot_id != accessory_change_set.id() {
             anyhow::bail!(
                 "State id={} and accessory id={} are not matching.",
@@ -383,15 +387,15 @@ where
                 .expect("Adding duplicate change sets, bug detected");
         }
         tracing::debug!(
-            "Snapshot id={} for block={:?} has been saved to StorageManager",
+            block_header = %block_header.display(),
             snapshot_id,
-            block_header
+            "Snapshot for block has been saved to StorageManager",
         );
         Ok(())
     }
 
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
-        tracing::debug!(?block_header, "Finalizing block");
+        tracing::debug!(block_header = %block_header.display(), "Finalizing block");
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
         self.finalize_by_hash_pair(prev_block_hash, current_block_hash)

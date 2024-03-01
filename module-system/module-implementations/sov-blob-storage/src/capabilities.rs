@@ -119,11 +119,13 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                             },
                             blob.sender(),
                         )),
-                        Err(_) => {
+                        Err(e) => {
                             warn!(
-                                    "Unable to deserialize blob with hash 0x{} as a valid batch. Slashing sender {}",
-                                    hex::encode(blob.hash()), blob.sender()
-                                );
+                                blob_hash = hex::encode(blob.hash()),
+                                sender = %blob.sender(),
+                                error = ?e,
+                                "Unable to deserialize blob as a valid batch. Slashing sender",
+                            );
                             self.slash_sequencer(&blob.sender(), working_set.inner);
                         }
                     }
@@ -177,10 +179,12 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                     },
                     blob.sender(),
                 )),
-                Err(_) => {
+                Err(e) => {
                     warn!(
-                        "Unable to deserialize blob with hash 0x{} as a valid batch. Slashing sender {}",
-                        hex::encode(blob.hash()), blob.sender()
+                        blob_hash = hex::encode(blob.hash()),
+                        sender = ?blob.sender(),
+                        error = %e,
+                        "Unable to deserialize blob as a valid batch. Slashing sender",
                     );
                     self.slash_sequencer(&blob.sender(), working_set.inner);
                 }
@@ -287,10 +291,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             );
 
             if preferred_batch.inner.virtual_slots_to_advance as u64 > max_slots_to_advance {
-                tracing::warn!(
+                warn!(
                     "Preferred sequencer requested {} slots, but we can only advance {} slots",
-                    preferred_batch.inner.virtual_slots_to_advance,
-                    max_slots_to_advance
+                    preferred_batch.inner.virtual_slots_to_advance, max_slots_to_advance
                 );
                 max_slots_to_advance
             } else {
@@ -392,8 +395,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                 // If the deserialization fails, we need to make sure it's not because the prover was malicious and left
                 // out some relevant data! Make that check here. If the data is missing, panic.
                 error!(
-                    "Unable to deserialize batch provided by the sequencer {}",
-                    e
+                    sender = %blob_data.sender(),
+                    error = ?e,
+                    "Unable to deserialize batch provided by the sequencer",
                 );
                 Err(e)
             }
@@ -413,9 +417,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             Err(e) => {
                 warn!(
                     blob_hash = hex::encode(blob.hash()),
-                    slashed_sender = hex::encode(blob.sender()),
-                    deserialization_error = ?e,
-                    "Unable to deserialize blob; slashing sender"
+                    slashed_sender = %blob.sender(),
+                    error = ?e,
+                    "Unable to deserialize blob. slashing sender"
                 );
 
                 self.sequencer_registry

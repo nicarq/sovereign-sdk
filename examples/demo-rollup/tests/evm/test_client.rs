@@ -167,7 +167,7 @@ impl TestClient {
         max_fee_per_gas: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
-        tracing::info!("NONCE FOR {} is {}", self.from_addr, nonce);
+        tracing::info!(from = %self.from_addr, nonce, "SmartContract::set_value");
 
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)

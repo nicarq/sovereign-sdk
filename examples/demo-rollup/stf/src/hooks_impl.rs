@@ -140,7 +140,11 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
         {
             Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
             Err(e) => {
-                tracing::debug!("Unable to reserve gas from {}. {}", e, context.sender());
+                tracing::debug!(
+                    sender = %context.sender(),
+                    error = ?e,
+                    "Unable to reserve gas from sender"
+                );
                 Err(state_checkpoint)
             }
         }

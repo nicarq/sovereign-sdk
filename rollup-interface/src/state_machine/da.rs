@@ -177,7 +177,7 @@ pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static 
     }
 }
 
-/// Trait with collection of trait bounds for a block hash.
+/// Trait with a collection of trait bounds for a block hash.
 pub trait BlockHashTrait:
     // so it is compatible with StorageManager implementation?
     Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash {
@@ -199,6 +199,32 @@ pub trait BlockHeaderTrait: PartialEq + Debug + Clone + Serialize + DeserializeO
 
     /// The timestamp of the block
     fn time(&self) -> Time;
+
+    /// Returns displayable version of the header
+    fn display(&self) -> impl core::fmt::Display
+    where
+        Self: Sized,
+    {
+        BlockHeaderDisplay { header: self }
+    }
+}
+
+/// Wrapper of [`BlockHeaderTrait`] that implements the [`std::fmt::Display`] trait.
+struct BlockHeaderDisplay<'a, T> {
+    header: &'a T,
+}
+
+impl<T: BlockHeaderTrait> core::fmt::Display for BlockHeaderDisplay<'_, T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} prev_hash={} hash={} height={}",
+            core::any::type_name::<T>(),
+            self.header.prev_hash(),
+            self.header.hash(),
+            self.header.height()
+        )
+    }
 }
 
 #[derive(
