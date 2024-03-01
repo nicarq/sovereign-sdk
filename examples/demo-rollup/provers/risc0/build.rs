@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
+    println!("cargo:rerun-if-env-changed=OUT_DIR");
+
     if std::env::var("SKIP_GUEST_BUILD").is_ok() {
         println!("Skipping guest build for CI run");
         let out_dir = std::env::var_os("OUT_DIR").unwrap();
