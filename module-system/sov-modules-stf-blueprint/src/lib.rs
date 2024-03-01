@@ -26,7 +26,7 @@ use sov_modules_core::VersionedStateReadWriter;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_state::Storage;
-pub use stf_blueprint::StfBlueprint;
+pub use stf_blueprint::{apply_tx, ExecutionMode, StfBlueprint};
 use tracing::{debug, info};
 
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
@@ -105,11 +105,11 @@ pub enum SequencerOutcome<A: BasicAddress> {
 }
 
 /// Genesis parameters for a blueprint
-pub struct GenesisParams<RT, K> {
+pub struct GenesisParams<RuntimeConfig, KernelConfig> {
     /// The runtime genesis parameters
-    pub runtime: RT,
+    pub runtime: RuntimeConfig,
     /// The kernel's genesis parameters
-    pub kernel: K,
+    pub kernel: KernelConfig,
 }
 
 /// Reason why sequencer was slashed.

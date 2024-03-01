@@ -4,9 +4,9 @@ use async_trait::async_trait;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDB;
-use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
+use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec};
 use sov_modules_api::default_spec::{DefaultSpec, ZkDefaultSpec};
-use sov_modules_api::{Address, Spec};
+use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -60,7 +60,7 @@ impl RollupBlueprint for MockDemoRollup {
         da_service: &Self::DaService,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
-        let sequencer = Address::new([0; 32]);
+        let sequencer = MockAddress::new([0; 32]);
 
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<

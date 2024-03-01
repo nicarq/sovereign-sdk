@@ -10,7 +10,7 @@ use crate::zk::ValidityCondition;
 use crate::BasicAddress;
 
 /// A specification for the types used by a DA layer.
-pub trait DaSpec: 'static + Debug + PartialEq + Eq + Clone {
+pub trait DaSpec: 'static + Debug + PartialEq + Eq + Clone + Send + Sync {
     /// The hash of a DA layer block
     type SlotHash: BlockHashTrait;
 
@@ -180,8 +180,7 @@ pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static 
 /// Trait with collection of trait bounds for a block hash.
 pub trait BlockHashTrait:
     // so it is compatible with StorageManager implementation?
-    Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash
-{
+    Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash {
 }
 
 /// A block header, typically used in the context of an underlying DA blockchain.

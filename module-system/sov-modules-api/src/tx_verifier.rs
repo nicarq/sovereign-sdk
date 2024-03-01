@@ -12,8 +12,10 @@ use crate::Spec;
 type RawTxHash = [u8; 32];
 
 pub struct TransactionAndRawHash<S: Spec> {
-    pub(crate) tx: Transaction<S>,
-    pub(crate) raw_tx_hash: RawTxHash,
+    /// Deserialized transaction.
+    pub tx: Transaction<S>,
+    /// Hash of raw bytes.
+    pub raw_tx_hash: RawTxHash,
 }
 
 impl<S: Spec> TransactionAndRawHash<S> {

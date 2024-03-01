@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
+
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use jsonrpsee::core::StringError;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::Mutex;
@@ -57,9 +59,15 @@ where
         // It can be improved with atomics,
         // so a new batch is only created after previous was submitted.
         tracing::info!("Submit batch request has been received!");
+
         let blob = {
+            let current_head = self
+                .da_service
+                .get_head_block_header()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to fetch current head: {}", e))?;
             let mut batch_builder = self.batch_builder.lock().await;
-            batch_builder.get_next_blob()?
+            batch_builder.get_next_blob(current_head.height())?
         };
 
         let num_txs = blob.len();
@@ -237,7 +245,7 @@ mod tests {
             unimplemented!("MockBatchBuilder::contains is not implemented")
         }
 
-        fn get_next_blob(&mut self) -> anyhow::Result<Vec<TxWithHash>> {
+        fn get_next_blob(&mut self, _height: u64) -> anyhow::Result<Vec<TxWithHash>> {
             if self.mempool.is_empty() {
                 anyhow::bail!("Mock mempool is empty");
             }

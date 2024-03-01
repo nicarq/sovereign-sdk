@@ -38,7 +38,7 @@ impl<S: Spec> Bank<S> {
         payer: &S::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<GasMeter<S::Gas>, anyhow::Error> {
-        // TODO(@vlopes11) - this calulation diverges from EIP 1559
+        // TODO(@vlopes11) - this calculation diverges from EIP 1559
         if tx
             .max_gas_price()
             .map(|max_gas_price| max_gas_price < gas_price)

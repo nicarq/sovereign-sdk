@@ -16,8 +16,8 @@ pub trait BatchBuilder {
     fn contains(&self, hash: &TxHash) -> bool;
 
     /// Builds a new batch out of transactions in mempool.
-    /// Logic of which transactions and how many of them is included in batch is up to implementation.
-    fn get_next_blob(&mut self) -> anyhow::Result<Vec<TxWithHash>>;
+    /// The logic of which transactions and how many of them are included in batch is up to implementation.
+    fn get_next_blob(&mut self, height: u64) -> anyhow::Result<Vec<TxWithHash>>;
 }
 
 /// An encoded transaction with its hash as returned by

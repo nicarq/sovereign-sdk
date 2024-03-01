@@ -1,26 +1,42 @@
 use std::sync::{Arc, RwLock};
 
 use borsh::BorshSerialize;
-use demo_stf::runtime::Runtime;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_modules_api::digest::Digest;
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::{Address, CryptoSpec, GasPrice, PrivateKey, Spec};
+use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::batch_builder::TxHash;
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::batch_builder::FiFoStrictBatchBuilder;
 use sov_sequencer::utils::SimpleClient;
 use sov_sequencer::{Sequencer, TxStatus};
 use sov_state::DefaultStorageSpec;
 use sov_test_utils::bank_data::BankMessageGenerator;
-use sov_test_utils::{MessageGenerator, TestPrivateKey, TestSpec};
+use sov_test_utils::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
+use sov_test_utils::{MessageGenerator, MockZkVerifier, TestPrivateKey, TestSpec};
 use tempfile::TempDir;
+
+type Blueprint = StfBlueprint<
+    TestSpec,
+    MockDaSpec,
+    MockZkVerifier,
+    TestRuntime<TestSpec, MockDaSpec>,
+    BasicKernel<TestSpec, MockDaSpec>,
+>;
 
 fn new_sequencer(
     dir: &TempDir,
-) -> Sequencer<FiFoStrictBatchBuilder<TestSpec, Runtime<TestSpec, MockDaSpec>>, MockDaService> {
+) -> Sequencer<
+    FiFoStrictBatchBuilder<TestSpec, MockDaSpec, TestRuntime<TestSpec, MockDaSpec>>,
+    MockDaService,
+> {
     let sequencer_addr = [42u8; 32];
-    let runtime = Runtime::<TestSpec, MockDaSpec>::default();
+    // Use "same" bytes for sequencer address and rollup address.
+    let sequencer_rollup_addr = Address::from(sequencer_addr);
+    let runtime = TestRuntime::<TestSpec, MockDaSpec>::default();
 
     let storage_config = sov_state::config::Config {
         path: dir.path().to_path_buf(),
@@ -28,12 +44,57 @@ fn new_sequencer(
     let mut storage_manager =
         ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config).unwrap();
     let genesis_block_header = MockBlockHeader::from_height(0);
-    let (stf_state, _ledger_storage) = storage_manager
+    let (stf_state, ledger_storage) = storage_manager
         .create_state_for(&genesis_block_header)
         .expect("Getting genesis storage failed");
 
+    // Config
+    let token_name = "SovereignToken".to_string();
+    let salt = 42;
+
+    let genesis_config = create_genesis_config(
+        sequencer_rollup_addr,
+        sequencer_addr.into(),
+        100,
+        token_name.clone(),
+        salt,
+        10_000_000,
+    );
+
+    let blueprint = Blueprint::new();
+
+    let kernel_genesis = BasicKernelGenesisConfig {
+        chain_state: ChainStateConfig {
+            current_time: Default::default(),
+            gas_price_blocks_depth: 0,
+            gas_price_maximum_elasticity: 0,
+            initial_gas_price: GasPrice::from([15; 2]),
+            minimum_gas_price: GasPrice::from([10; 2]),
+        },
+    };
+    let params = GenesisParams {
+        runtime: genesis_config,
+        kernel: kernel_genesis,
+    };
+
+    let (_root_hash, change_set) = blueprint.init_chain(stf_state, params);
+
+    storage_manager
+        .save_change_set(
+            &genesis_block_header,
+            change_set,
+            ledger_storage.clone_change_set(),
+        )
+        .unwrap();
+
+    let first_block = MockBlockHeader::from_height(1);
+
+    let (stf_state, _ledger_storage) = storage_manager
+        .create_state_for(&first_block)
+        .expect("Getting first block storage failed");
+
     let da_service = MockDaService::new(sequencer_addr.into());
-    let batch_builder = sov_sequencer::batch_builder::FiFoStrictBatchBuilder::new(
+    let batch_builder = FiFoStrictBatchBuilder::new(
         usize::MAX,
         usize::MAX,
         runtime,
@@ -64,7 +125,7 @@ async fn subscribe() {
     let messages_iter = bank_generator.create_messages().into_iter();
     let mut txs = Vec::default();
     for message in messages_iter {
-        let tx = message.to_tx::<Runtime<TestSpec, MockDaSpec>>();
+        let tx = message.to_tx::<TestRuntime<TestSpec, MockDaSpec>>();
         txs.push(tx);
     }
 
