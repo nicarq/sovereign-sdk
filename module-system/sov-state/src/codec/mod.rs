@@ -10,6 +10,7 @@ mod split_codec;
 pub use bcs_codec::BcsCodec;
 pub use borsh_codec::BorshCodec;
 pub use json_codec::JsonCodec;
+pub use split_codec::SplitCodec;
 
 #[cfg(test)]
 mod tests {
