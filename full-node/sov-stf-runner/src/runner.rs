@@ -166,7 +166,7 @@ where
                 genesis_params: params,
             } => {
                 info!(
-                    ?block_header,
+                    header = %block_header.display(),
                     "No history detected. Initializing chain on the block header..."
                 );
                 let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header)?;
@@ -417,14 +417,8 @@ where
 
             self.proof_manager.save_aggregated_proof(height).await?;
 
-            debug!("Checking seen header height={}", height);
+            debug!(height, "Checking seen header");
             if height <= last_finalized_height {
-                debug!(
-                    "Finalizing seen header height={}",
-                    earliest_seen_state_transition_info
-                        .da_block_header()
-                        .height()
-                );
                 self.storage_manager
                     .finalize(earliest_seen_state_transition_info.da_block_header())?;
 
@@ -493,7 +487,8 @@ where
     if let Some(state_transition) = seen_state_transition.back() {
         if state_transition.da_block_header().hash() != filtered_block.header().prev_hash() {
             tracing::warn!(
-                "Block {:?} does not belong in current chain. Chain has forked. Traversing seen headers backwards", filtered_block.header()
+                block_header = %filtered_block.header().display(),
+                "Block does not belong in current chain. Chain has forked. Traversing seen headers backwards"
             );
             while let Some(state_transition) = seen_state_transition.pop_back() {
                 let block = da_service

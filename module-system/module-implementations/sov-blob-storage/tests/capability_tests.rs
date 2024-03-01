@@ -278,8 +278,9 @@ fn do_deferred_blob_test(
                 // If applicable, assert that the expected number of blobs was processed
                 if let Some(expected) = next_slot_info.expected_blobs_to_process {
                     info!(
-                        "selected_batches for slot {}: {:?}",
-                        slot_number, &batches_to_execute
+                        slot_number = slot_number,
+                        batches = ?batches_to_execute,
+                        "selected_batches for slot"
                     );
                     assert_eq!(expected, batches_to_execute.len())
                 }

@@ -205,7 +205,6 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
         let get_arg = client.query_contract(contract_address).await?;
         assert_eq!(value, get_arg.as_u32());
     }
-    tracing::info!("5: SET VALUE 2 SUBMITTED");
 
     {
         // get initial gas price
