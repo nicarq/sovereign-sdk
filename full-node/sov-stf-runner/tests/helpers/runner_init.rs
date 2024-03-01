@@ -8,12 +8,17 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
+use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerRpcProvider};
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
     InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
+use tokio::sync::broadcast::error::TryRecvError;
+use tokio::sync::broadcast::Receiver;
 
 use crate::helpers::hash_stf::HashStf;
 
@@ -29,10 +34,62 @@ pub type MockProverService = ParallelProverService<
     HashStf<MockValidityCond>,
 >;
 
+/// TestNode simulates a full-node.
+pub struct TestNode {
+    slot_subscription: Receiver<u64>,
+    da: MockDaService,
+    vm: MockZkvm<MockValidityCond>,
+    ledger_db: LedgerDB,
+}
+
+impl TestNode {
+    /// Send da transaction and optionally waits for corresponding slot/
+    pub async fn send_transaction(&mut self, wait: bool) -> Result<(), anyhow::Error> {
+        self.da.send_transaction(&[1, 2, 3]).await?;
+        if wait {
+            self.slot_subscription.recv().await?;
+        }
+        Ok(())
+    }
+
+    pub async fn wait_for_all_slots(&mut self) {
+        loop {
+            match self.slot_subscription.try_recv() {
+                Ok(_) => continue,
+                Err(TryRecvError::Lagged(_)) => continue,
+                Err(TryRecvError::Empty) => break,
+                e => panic!("Error {:?}", e),
+            }
+        }
+    }
+
+    pub fn make_proof(&self) {
+        self.vm.make_proof();
+    }
+
+    pub async fn wait_for_aggregated_proof_in_da(&self) {
+        self.da.wait_for_aggregated_proof_in_da().await;
+    }
+
+    pub fn get_latest_aggregated_proof(
+        &self,
+    ) -> Result<Option<AggregatedProofResponse>, anyhow::Error> {
+        self.ledger_db.get_latest_aggregated_proof()
+    }
+
+    pub fn get_latest_public_input_proof(
+        &self,
+    ) -> Result<Option<AggregatedProofPublicInput>, anyhow::Error> {
+        let proof_from_db = self.ledger_db.get_latest_aggregated_proof()?;
+        Ok(proof_from_db.map(|p| p.proof.public_input().clone()))
+    }
+}
+
 #[allow(clippy::type_complexity)]
 pub fn initialize_runner(
-    path: &std::path::Path,
     init_variant: MockInitVariant,
+    aggregated_proof_block_jump: usize,
+    nb_of_prover_threads: usize,
 ) -> (
     StateTransitionRunner<
         HashStf<MockValidityCond>,
@@ -41,10 +98,10 @@ pub fn initialize_runner(
         MockZkvm<MockValidityCond>,
         MockProverService,
     >,
-    LedgerDB,
-    MockDaService,
-    MockZkvm<MockValidityCond>,
+    TestNode,
 ) {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path();
     let address = MockAddress::new([11u8; 32]);
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
@@ -60,12 +117,11 @@ pub fn initialize_runner(
         },
         da: MockDaConfig::instant_with_sender(address),
         prover_service: ProverServiceConfig {
-            aggregated_proof_block_jump: 1,
+            aggregated_proof_block_jump,
         },
     };
 
     let da_service = MockDaService::new(address);
-
     let stf = HashStf::<MockValidityCond>::new();
 
     let storage_config = sov_state::config::Config {
@@ -90,11 +146,12 @@ pub fn initialize_runner(
         prover_config,
         // Should be ZkStorage, but we don't need it for this test
         genesis_storage,
-        1,
+        nb_of_prover_threads,
         rollup_config.prover_service,
         Default::default(),
     );
 
+    let slot_subscription = ledger_db.subscribe_slots().unwrap();
     (
         StateTransitionRunner::new(
             rollup_config.runner,
@@ -107,8 +164,11 @@ pub fn initialize_runner(
             prover_service,
         )
         .unwrap(),
-        ledger_db,
-        da_service,
-        vm,
+        TestNode {
+            slot_subscription,
+            da: da_service,
+            vm,
+            ledger_db,
+        },
     )
 }

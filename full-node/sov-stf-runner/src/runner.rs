@@ -386,7 +386,7 @@ where
 
             let last_finalized_height = last_finalized.height();
 
-            let slot_number = self.ledger_db.get_next_items_numbers().slot_number;
+            let slot_number = self.ledger_db.get_next_items_numbers().slot_number - 1;
             seen_state_transition.push_back(StateTransitionInfo {
                 data: transition_data,
                 slot_number,
@@ -516,8 +516,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
-    use std::default::Default;
 
     use sov_mock_da::{
         MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec,

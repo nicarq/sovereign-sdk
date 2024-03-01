@@ -88,7 +88,7 @@ pub struct MockDaService {
 impl MockDaService {
     /// Creates a new [`MockDaService`] with instant finality.
     pub fn new(sequencer_da_address: MockAddress) -> Self {
-        let (tx, mut rx) = broadcast::channel(16);
+        let (tx, mut rx) = broadcast::channel(100);
 
         // Spawn a task, so the receiver is not dropped and the channel is not
         // closed. Once the sender is dropped, the receiver will receive an

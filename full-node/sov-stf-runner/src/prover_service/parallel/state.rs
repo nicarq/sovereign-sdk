@@ -25,6 +25,15 @@ impl<StateRoot, Witness, Da: DaSpec> ProverState<StateRoot, Witness, Da> {
         self.prover_status.remove(hash)
     }
 
+    pub(crate) fn set_to_submitted(
+        &mut self,
+        hash: Da::SlotHash,
+        stf_info: StateTransitionInfo<StateRoot, Witness, Da>,
+    ) -> Option<ProverStatus<StateRoot, Witness, Da>> {
+        self.prover_status
+            .insert(hash, ProverStatus::WitnessSubmitted(stf_info))
+    }
+
     pub(crate) fn set_to_proving(
         &mut self,
         hash: Da::SlotHash,
