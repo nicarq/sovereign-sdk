@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use borsh::BorshSerialize;
 use sov_db::ledger_db::LedgerDB;
@@ -6,7 +7,7 @@ use sov_db::schema::types::StoredAggregatedProof;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 
-use crate::{ProofAggregationStatus, ProverService, StateTransitionInfo};
+use crate::{ProofAggregationStatus, ProofProcessingStatus, ProverService, StateTransitionInfo};
 
 /// Manages the lifecycle of the `AggregatedProof`.
 pub struct ProofManager<Ps: ProverService> {
@@ -60,11 +61,23 @@ where
             .submit_state_transition_info(transition_data)
             .await;
 
-        self.prover_service
-            .prove(header_hash.clone())
-            .await
-            // TODO handle back pressure: If provers are too slow we panic.
-            .expect("The proof creation should succeed");
+        loop {
+            let status = self
+                .prover_service
+                .prove(header_hash.clone())
+                .await
+                .expect("The proof creation should succeed");
+
+            // Stop the runner loop until prover is ready.
+            match status {
+                ProofProcessingStatus::ProvingInProgress => break,
+                ProofProcessingStatus::Busy => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            }
+        }
+
         if agg_proof_hashes.len() >= self.prover_service.aggregated_proof_block_jump() {
             loop {
                 let status = self
@@ -81,7 +94,7 @@ where
                     }
                     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
                     Ok(ProofAggregationStatus::ProofGenerationInProgress) => {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        tokio::time::sleep(Duration::from_millis(100)).await;
                     }
                     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
                     Err(e) => panic!("{:?}", e),

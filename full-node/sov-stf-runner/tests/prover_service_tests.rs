@@ -101,10 +101,10 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
             .await
             .unwrap_err();
 
-        // The new job wasn't accepted.
+        // The new job is not triggered.
         assert_eq!(
             err.to_string(),
-            "Missing witness for: 0x0000000000000000000000000000000000000000000000000000000000000000"
+            "Witness for 0x0000000000000000000000000000000000000000000000000000000000000000 was submitted, but the proof generation is not triggered."
         );
     }
 

@@ -1,4 +1,3 @@
-use std::collections::hash_map::Entry;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
@@ -57,17 +56,11 @@ where
         state_transition_info: StateTransitionInfo<StateRoot, Witness, Da::Spec>,
     ) -> WitnessSubmissionStatus {
         let header_hash = state_transition_info.da_block_header().hash();
-        let data = ProverStatus::WitnessSubmitted(state_transition_info);
-
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
-        let entry = prover_state.prover_status.entry(header_hash.clone());
 
-        match entry {
-            Entry::Occupied(_) => WitnessSubmissionStatus::WitnessExist,
-            Entry::Vacant(v) => {
-                v.insert(data);
-                WitnessSubmissionStatus::SubmittedForProving
-            }
+        match prover_state.set_to_submitted(header_hash, state_transition_info) {
+            Some(_) => WitnessSubmissionStatus::WitnessExist,
+            None => WitnessSubmissionStatus::SubmittedForProving,
         }
     }
 
@@ -99,6 +92,7 @@ where
                 let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
 
                 // Initiate a new proving job only if the prover is not busy.
+
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
                     vm.add_hint(&state_transition_info.data);
@@ -155,6 +149,8 @@ where
 
                     Ok(ProofProcessingStatus::ProvingInProgress)
                 } else {
+                    // Insert the stf again.
+                    prover_state.set_to_submitted(block_header_hash, state_transition_info);
                     Ok(ProofProcessingStatus::Busy)
                 }
             }
@@ -194,7 +190,7 @@ where
                 ))
                 }
                 Some(ProverStatus::ProvingInProgress) => {
-                    return Ok(ProofAggregationStatus::ProofGenerationInProgress)
+                    return Ok(ProofAggregationStatus::ProofGenerationInProgress);
                 }
                 Some(ProverStatus::Proved(block_proof)) => {
                     assert_eq!(slot_hash, &block_proof.st.slot_hash);
