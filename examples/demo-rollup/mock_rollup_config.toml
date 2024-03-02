@@ -6,10 +6,10 @@ wait_attempts = 10_000_000
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
 path = "demo_data"
 
-# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
-# any blocks before this height
+# We define the rollup's genesis to occur at block number `genesis_height`. The rollup will ignore
+# any blocks before this height, and any blobs at this height will not be processed
 [runner]
-start_height = 1
+genesis_height = 0
 da_polling_interval_ms = 1000
 
 [runner.rpc_config]

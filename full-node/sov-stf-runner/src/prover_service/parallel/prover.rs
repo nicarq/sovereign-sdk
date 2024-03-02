@@ -10,6 +10,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
 };
 use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
+use tracing::{debug, error, info};
 
 use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
@@ -214,6 +215,7 @@ where
             final_slot_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
             code_commitment: self.code_commitment.clone(),
         };
+        debug!(?public_input, "generating aggregate proof");
 
         let aggregated_proof = AggregatedProofData::new(public_input);
 
@@ -239,13 +241,31 @@ where
         + 'static,
     V::PreState: Send + Sync + 'static,
 {
-    match config.deref() {
+    let result = match config.deref() {
         RollupProverConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
         RollupProverConfig::Simulate => stf_verifier
             .run_block(vm.simulate_with_hints(), zk_storage)
             .map(|_| Proof::PublicInput(Vec::default()))
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
-        RollupProverConfig::Execute => vm.run(false),
-        RollupProverConfig::Prove => vm.run(true),
+        RollupProverConfig::Execute => {
+            info!(
+                "Executing in VM without constructing proof using {}",
+                std::any::type_name::<Vm>()
+            );
+            vm.run(false)
+        }
+        RollupProverConfig::Prove => {
+            info!("Generating proof with {}", std::any::type_name::<Vm>());
+            vm.run(true)
+        }
+    };
+    match result {
+        Ok(_) => {
+            info!("Proof generation complete.");
+        }
+        Err(ref e) => {
+            error!("Proof generation failed: {:?}", e);
+        }
     }
+    result
 }

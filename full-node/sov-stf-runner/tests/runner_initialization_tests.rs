@@ -1,12 +1,21 @@
-use sov_mock_da::MockBlockHeader;
+use sov_mock_da::{MockBlock, MockDaService, MockValidityCond};
+use sov_mock_zkvm::MockZkVerifier;
 use sov_stf_runner::InitVariant;
 mod helpers;
 use helpers::runner_init::initialize_runner;
 
+use crate::helpers::hash_stf::HashStf;
+type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaService>;
+
 #[tokio::test]
 async fn init_and_restart() {
-    let init_variant = InitVariant::Genesis {
-        block_header: MockBlockHeader::from_height(0),
+    let genesis_block = MockBlock {
+        header: Default::default(),
+        validity_cond: Default::default(),
+        blobs: vec![],
+    };
+    let init_variant: MockInitVariant = InitVariant::Genesis {
+        block: genesis_block,
         genesis_params: vec![1],
     };
 

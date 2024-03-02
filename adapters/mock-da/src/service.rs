@@ -10,6 +10,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::sync::{broadcast, Mutex, RwLock, RwLockWriteGuard};
 use tokio::time;
+use tracing::debug;
 
 use crate::types::{default_wait_attempts, MockAddress, MockBlob, MockBlock, MockDaVerifier};
 use crate::utils::hash_to_array;
@@ -97,10 +98,13 @@ impl MockDaService {
 
         let (aggregated_proof_subscription, mut rec) = broadcast::channel(16);
         tokio::spawn(async move { while rec.recv().await.is_ok() {} });
+        let mut blocks: VecDeque<MockBlock> = Default::default();
+        blocks.push_back(GENESIS_BLOCK.clone());
+        let blocks = Arc::new(RwLock::new(blocks));
         Self {
             sequencer_da_address,
             aggregated_proof_buffer: Default::default(),
-            blocks: Default::default(),
+            blocks,
             blocks_to_finality: 0,
             finalized_header_sender: tx,
             wait_attempts: default_wait_attempts(),
@@ -243,12 +247,14 @@ impl MockDaService {
         let block = self.make_new_block(blob, blocks);
 
         let height = block.header.height;
+        debug!("Creating block at height {}", height);
         blocks.push_back(block);
 
         // Enough blocks to finalize block
         if blocks.len() > self.blocks_to_finality as usize {
             let next_index_to_finalize = blocks.len() - self.blocks_to_finality as usize - 1;
             let next_finalized_header = blocks[next_index_to_finalize].header().clone();
+            debug!("Finalizing block at height {}", next_index_to_finalize);
             self.finalized_header_sender
                 .send(next_finalized_header)
                 .unwrap();
@@ -376,6 +382,7 @@ impl DaService for MockDaService {
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
 
         while let Some(proof) = proof_buffer.pop_front() {
+            debug!("Including buffered proof in block");
             proof_blob.push(proof.0)
         }
 
@@ -388,6 +395,7 @@ impl DaService for MockDaService {
     /// Sends aggregated proof to the MockDA. The submitted proof is internally buffered and will be included on the MockDA
     /// alongside the next batch of transactions (after calling the `send_transaction` function).
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<(), Self::Error> {
+        debug!("Proof received. Buffering for later inclusion.");
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(Proof(proof.to_vec()));
         self.aggregated_proof_subscription.send(()).unwrap();
@@ -445,7 +453,7 @@ mod tests {
         let timeout_duration = Duration::from_millis(1000);
         tokio::spawn(async move {
             let mut received = Vec::with_capacity(expected_num_headers);
-            for _ in 0..expected_num_headers {
+            for _ in 0..=expected_num_headers {
                 match time::timeout(timeout_duration, receiver.next()).await {
                     Ok(Some(Ok(header))) => received.push(header),
                     _ => break,
@@ -476,9 +484,9 @@ mod tests {
         let collector_handle =
             get_finalized_headers_collector(&mut da, number_of_finalized_blocks).await;
 
-        for i in 0..num_blocks {
+        for i in 1..num_blocks {
             let published_blob: Vec<u8> = vec![i as u8; i + 1];
-            let height = (i + 1) as u64;
+            let height = i as u64;
 
             da.send_transaction(&published_blob).await.unwrap();
 
@@ -500,7 +508,11 @@ mod tests {
 
         let received = collector_handle.await.unwrap();
         let heights: Vec<u64> = received.iter().map(|h| h.height()).collect();
-        let expected_heights: Vec<u64> = (1..=number_of_finalized_blocks as u64).collect();
+        // When finalization is set to zero, the DA service sends the notification for the Genesis block
+        // before we subscribe, so we miss that one.
+        let start_height = if finalization == 0 { 1 } else { 0 };
+        let expected_heights: Vec<u64> =
+            (start_height..number_of_finalized_blocks as u64).collect();
         assert_eq!(expected_heights, heights);
     }
 
@@ -551,8 +563,11 @@ mod tests {
 
         let received = collector_handle.await.unwrap();
         let finalized_heights: Vec<u64> = received.iter().map(|h| h.height()).collect();
+        // When finalization is set to zero, the DA service sends the notification for the Genesis block
+        // before we subscribe, so we miss that one.
+        let start_height = if finalization == 0 { 1 } else { 0 };
         let expected_finalized_heights: Vec<u64> =
-            (1..=number_of_finalized_blocks as u64).collect();
+            (start_height..=number_of_finalized_blocks as u64).collect();
         assert_eq!(expected_finalized_heights, finalized_heights);
     }
 
@@ -685,7 +700,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_attempt_reorg_after_finalized() {
-            let da = MockDaService::new(MockAddress::new([1; 32])).with_finality(2);
+            let da = MockDaService::new(MockAddress::new([1; 32])).with_finality(3);
 
             // 1 -> 2 -> 3 -> 4
 
@@ -699,7 +714,7 @@ mod tests {
             let block_3_before = da.get_block_at(3).await.unwrap();
             let block_4_before = da.get_block_at(4).await.unwrap();
             let finalized_header_before = da.get_last_finalized_block_header().await.unwrap();
-            assert_eq!(&finalized_header_before, block_2_before.header());
+            assert_eq!(&finalized_header_before, block_1_before.header());
 
             // Attempt at finalized header. It will try to overwrite height 2 and 3
             let result = da.fork_at(1, &[vec![3, 3, 3, 3], vec![4, 4, 4, 4]]).await;
@@ -714,7 +729,7 @@ mod tests {
             let block_3_after = da.get_block_at(3).await.unwrap();
             let block_4_after = da.get_block_at(4).await.unwrap();
             let finalized_header_after = da.get_last_finalized_block_header().await.unwrap();
-            assert_eq!(&finalized_header_after, block_2_after.header());
+            assert_eq!(&finalized_header_after, block_1_after.header());
 
             assert_eq!(block_1_before, block_1_after);
             assert_eq!(block_2_before, block_2_after);

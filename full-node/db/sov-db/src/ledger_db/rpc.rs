@@ -666,7 +666,7 @@ mod tests {
             .commit_slot(SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()))
             .unwrap();
 
-        assert_eq!(rx.blocking_recv().unwrap(), 1);
+        assert_eq!(rx.blocking_recv().unwrap(), 0);
     }
 
     #[test]

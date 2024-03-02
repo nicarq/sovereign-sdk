@@ -17,7 +17,7 @@ use sov_stf_runner::{
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 
-type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaSpec>;
+type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaService>;
 #[tokio::test]
 async fn test_simple_reorg_case() {
     let tmpdir = tempfile::tempdir().unwrap();
@@ -47,7 +47,7 @@ async fn test_simple_reorg_case() {
         .with_finality(4)
         .with_wait_attempts(2);
 
-    let genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
+    let genesis_block = da_service.get_block_at(0).await.unwrap();
 
     let planned_fork = PlannedFork::new(5, 2, fork_blobs.clone());
     da_service.set_planned_fork(planned_fork).await.unwrap();
@@ -62,7 +62,7 @@ async fn test_simple_reorg_case() {
         get_expected_execution_hash_from(&genesis_params, vec![vec![1, 1, 1, 1]]);
 
     let init_variant: MockInitVariant = InitVariant::Genesis {
-        block_header: genesis_header,
+        block: genesis_block,
         genesis_params,
     };
 
@@ -87,7 +87,7 @@ async fn test_instant_finality_data_stored() {
 
     let da_service = MockDaService::new(sequencer_address).with_wait_attempts(2);
 
-    let genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
+    let genesis_block = da_service.get_block_at(0).await.unwrap();
 
     da_service.send_transaction(&[1, 1, 1, 1]).await.unwrap();
     da_service.send_transaction(&[2, 2, 2, 2]).await.unwrap();
@@ -99,7 +99,7 @@ async fn test_instant_finality_data_stored() {
     );
 
     let init_variant: MockInitVariant = InitVariant::Genesis {
-        block_header: genesis_header,
+        block: genesis_block,
         genesis_params,
     };
 
@@ -122,7 +122,7 @@ async fn runner_execution(
             path: path.to_path_buf(),
         },
         runner: RunnerConfig {
-            start_height: 1,
+            genesis_height: 0,
             da_polling_interval_ms: 150,
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),

@@ -20,6 +20,7 @@ hex = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, optional = true }
 futures = { workspace = true, optional = true, features = ["std"] }
+tracing = { workspace = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 

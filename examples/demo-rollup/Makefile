@@ -6,7 +6,7 @@ TEST_PRIVATE_KEY_PATH := $(PROJECT_ROOT)/examples/test-data/keys/minter_private_
 SOV_CLI_REL_PATH := $(PROJECT_ROOT)/target/debug/sov-cli
 
 # at height 3 the credits will already belong to the keys
-START_HEIGHT := 3
+GENESIS_HEIGHT := 3
 KEY_NAME := bridge-0
 RPC_PORT := 26658
 
@@ -65,11 +65,11 @@ update-config: wait-compose-ready
 ifeq ($(shell uname -s),Darwin)
 	@sed -i '' 's/^\(celestia_rpc_auth_token = \)"[^"]*"/\1"$(get_auth)"/' celestia_rollup_config.toml
 	@sed -i '' 's#^\(celestia_rpc_address = \)"[^"]*"#\1"http://127.0.0.1:$(RPC_PORT)"#' celestia_rollup_config.toml
-	@sed -i '' 's#^\(start_height = \)[0-9]*#\1$(START_HEIGHT)#' celestia_rollup_config.toml
+	@sed -i '' 's#^\(genesis_height = \)[0-9]*#\1$(GENESIS_HEIGHT)#' celestia_rollup_config.toml
 else
 	@sed -i 's/^\(celestia_rpc_auth_token = \)"[^"]*"/\1"$(get_auth)"/' celestia_rollup_config.toml
 	@sed -i 's#^\(celestia_rpc_address = \)"[^"]*"#\1"http://127.0.0.1:$(RPC_PORT)"#' celestia_rollup_config.toml
-	@sed -i 's#^\(start_height = \)[0-9]*#\1$(START_HEIGHT)#' celestia_rollup_config.toml
+	@sed -i 's#^\(genesis_height = \)[0-9]*#\1$(GENESIS_HEIGHT)#' celestia_rollup_config.toml
 endif
 
 build-sov-cli:

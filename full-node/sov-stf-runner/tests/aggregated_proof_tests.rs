@@ -1,4 +1,4 @@
-use sov_mock_da::MockBlockHeader;
+use sov_mock_da::{MockBlock, MockBlockHeader};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
 use sov_stf_runner::InitVariant;
 mod helpers;
@@ -23,6 +23,8 @@ async fn run_make_proof_sync(
     aggregated_proof_block_jump: usize,
 ) -> Result<(), anyhow::Error> {
     let mut test_node = spawn(test_case.jump(), aggregated_proof_block_jump);
+    // Clear the notification from the genesis slot
+    test_node.wait_for_all_slots().await;
 
     for i in 0..test_case.input.nb_of_transactions {
         test_node.send_transaction(true).await?;
@@ -65,8 +67,13 @@ async fn run_make_proof_async(
 }
 
 fn spawn(jump: usize, aggregated_proof_block_jump: usize) -> TestNode {
+    let genesis_block = MockBlock {
+        header: MockBlockHeader::from_height(0),
+        validity_cond: Default::default(),
+        blobs: vec![],
+    };
     let init_variant = InitVariant::Genesis {
-        block_header: MockBlockHeader::from_height(0),
+        block: genesis_block,
         genesis_params: vec![1],
     };
 
@@ -98,7 +105,10 @@ struct TestCase {
 
 impl TestCase {
     fn new(jump: usize) -> Self {
+        // Generate 7 aggregate-proofs worth of blocks
         let nb_of_transactions = 7 * jump;
+        // The initial slot number of the final proof
+        // The first proof covers blocks 1..=jump, the second jump+1..=(2*jump), etc.
         let initial_slot_number = (6 * jump + 1) as u64;
         Self {
             input: Input {
@@ -125,6 +135,6 @@ impl TestCase {
             public_input.initial_slot_number,
         );
 
-        assert_eq!(self.final_slot_number(), public_input.final_slot_number,);
+        assert_eq!(self.final_slot_number(), public_input.final_slot_number);
     }
 }

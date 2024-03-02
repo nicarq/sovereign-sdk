@@ -12,7 +12,7 @@ pub fn initialize_logging() {
         .with(
             EnvFilter::from_str(
                 &env::var("RUST_LOG")
-                    .unwrap_or_else(|_| "debug,hyper=info,risc0_zkvm=info".to_string()),
+                    .unwrap_or_else(|_| "debug,hyper=info,jmt=info,risc0_zkvm=info".to_string()),
             )
             .unwrap(),
         )

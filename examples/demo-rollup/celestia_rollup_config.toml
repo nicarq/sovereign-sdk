@@ -12,10 +12,10 @@ celestia_rpc_timeout_seconds = 60
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
 path = "demo_data"
 
-# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
-# any blocks before this height
+# We define the rollup's genesis to occur at block number `genesis_height`. The rollup will ignore
+# any blocks before this height, and any blobs at this height will not be processed
 [runner]
-start_height = 3
+genesis_height = 3
 da_polling_interval_ms = 10000
 
 [runner.rpc_config]
