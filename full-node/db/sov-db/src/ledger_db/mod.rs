@@ -108,15 +108,18 @@ impl LedgerDB {
 
     fn load_next_item_numbers(db_snapshot: &CacheDb) -> anyhow::Result<ItemNumbers> {
         Ok(ItemNumbers {
-            slot_number: Self::last_version_written(db_snapshot, SlotByNumber)?.unwrap_or_default()
-                + 1,
+            slot_number: Self::last_version_written(db_snapshot, SlotByNumber)?
+                .map(|x| x + 1)
+                .unwrap_or_default(),
             batch_number: Self::last_version_written(db_snapshot, BatchByNumber)?
-                .unwrap_or_default()
-                + 1,
-            tx_number: Self::last_version_written(db_snapshot, TxByNumber)?.unwrap_or_default() + 1,
+                .map(|x| x + 1)
+                .unwrap_or_default(),
+            tx_number: Self::last_version_written(db_snapshot, TxByNumber)?
+                .map(|x| x + 1)
+                .unwrap_or_default(),
             event_number: Self::last_version_written(db_snapshot, EventByNumber)?
-                .unwrap_or_default()
-                + 1,
+                .map(|x| x + 1)
+                .unwrap_or_default(),
         })
     }
 

@@ -8722,6 +8722,7 @@ dependencies = [
  "sov-mock-da",
  "sov-rollup-interface",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

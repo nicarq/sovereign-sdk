@@ -32,7 +32,7 @@ where
     >,
     Ps: ProverService,
 {
-    start_height: u64,
+    first_unprocessed_height_at_startup: u64,
     da_polling_interval_ms: u64,
     da_service: Arc<Da>,
     stf: Stf,
@@ -48,7 +48,7 @@ where
 /// The state necessary to track the sync status of the node
 #[derive(Debug, Default)]
 pub struct DaSyncState {
-    current_da_height: AtomicU64,
+    synced_da_height: AtomicU64,
     target_da_height: AtomicU64,
 }
 
@@ -57,13 +57,13 @@ pub struct DaSyncState {
 pub enum SyncStatus {
     /// The node has caught up to the chain tip
     Synced {
-        /// The current height to which we've synced
-        current_da_height: u64,
+        /// The current height through which we've synced
+        synced_da_height: u64,
     },
     /// The node is currently syncing
     Syncing {
-        /// The current height to which we've synced
-        current_da_height: u64,
+        /// The current height through which we've synced
+        synced_da_height: u64,
         /// The height to which we're syncing. This reflects the current view of the DA chain tip
         target_da_height: u64,
     },
@@ -92,7 +92,7 @@ impl DaSyncState {
 
     fn status(&self) -> SyncStatus {
         let current = self
-            .current_da_height
+            .synced_da_height
             .load(std::sync::atomic::Ordering::Acquire);
         let target = self
             .target_da_height
@@ -100,11 +100,11 @@ impl DaSyncState {
 
         if current == target {
             SyncStatus::Synced {
-                current_da_height: current,
+                synced_da_height: current,
             }
         } else {
             SyncStatus::Syncing {
-                current_da_height: current,
+                synced_da_height: current,
                 target_da_height: target,
             }
         }
@@ -112,15 +112,15 @@ impl DaSyncState {
 }
 
 /// How [`StateTransitionRunner`] is initialized
-pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec> {
+pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da::Spec>, Vm: Zkvm, Da: DaService> {
     /// From give state root
     Initialized(Stf::StateRoot),
     /// From empty state root
     Genesis {
         /// Genesis block header should be finalized at init moment
-        block_header: Da::BlockHeader,
+        block: Da::FilteredBlock,
         /// Genesis params for Stf::init
-        genesis_params: GenesisParams<Stf, Vm, Da>,
+        genesis_params: GenesisParams<Stf, Vm, Da::Spec>,
     },
 }
 
@@ -151,7 +151,7 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         rpc_storage: Arc<RwLock<Sm::StfState>>,
-        init_variant: InitVariant<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>,
+        init_variant: InitVariant<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da>,
         prover_service: Ps,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
@@ -162,9 +162,10 @@ where
                 state_root
             }
             InitVariant::Genesis {
-                block_header,
+                block,
                 genesis_params: params,
             } => {
+                let block_header = block.header().clone();
                 info!(
                     header = %block_header.display(),
                     "No history detected. Initializing chain on the block header..."
@@ -172,6 +173,12 @@ where
                 let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header)?;
                 ledger_db.replace_db(ledger_state)?;
                 let (genesis_root, initialized_storage) = stf.init_chain(stf_state, params);
+                let data_to_commit: SlotCommit<
+                    _,
+                    Stf::BatchReceiptContents,
+                    Stf::TxReceiptContents,
+                > = SlotCommit::new(block);
+                ledger_db.commit_slot(data_to_commit)?;
                 let ledger_change_set = ledger_db.clone_change_set();
                 storage_manager.save_change_set(
                     &block_header,
@@ -190,13 +197,16 @@ where
         let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
 
         // Start the main rollup loop
-        let item_numbers = ledger_db.get_next_items_numbers();
-        let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
-        let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
+        let next_item_numbers = ledger_db.get_next_items_numbers();
+        let last_slot_processed_before_shutdown = next_item_numbers.slot_number.saturating_sub(1);
+
+        debug!(?last_slot_processed_before_shutdown, ?runner_config.genesis_height);
+        let da_height_processed =
+            runner_config.genesis_height + last_slot_processed_before_shutdown;
 
         let da_service = Arc::new(da_service);
         Ok(Self {
-            start_height,
+            first_unprocessed_height_at_startup: da_height_processed + 1,
             da_polling_interval_ms: runner_config.da_polling_interval_ms,
             da_service: da_service.clone(),
             stf,
@@ -207,7 +217,7 @@ where
             listen_address,
             proof_manager: ProofManager::new(da_service, prover_service, ledger_db),
             sync_state: Arc::new(DaSyncState {
-                current_da_height: AtomicU64::new(start_height),
+                synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(std::u64::MAX),
             }),
         })
@@ -256,11 +266,11 @@ where
                     .await
                     .expect("Failed to update target height");
                 if let SyncStatus::Syncing {
-                    current_da_height,
+                    synced_da_height,
                     target_da_height,
                 } = sync_state.status()
                 {
-                    info!(current_da_height, target_da_height, "Sync in progress");
+                    info!(synced_da_height, target_da_height, "Sync in progress");
                 }
                 interval.tick().await;
             }
@@ -272,7 +282,7 @@ where
         let mut seen_state_transition: VecDeque<
             StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>,
         > = VecDeque::new();
-        let mut da_height = self.start_height;
+        let mut next_da_height = self.first_unprocessed_height_at_startup;
         let target_height = self.da_service.get_head_block_header().await?.height();
         self.sync_state
             .target_da_height
@@ -282,8 +292,8 @@ where
 
         let mut agg_block_hashes = Vec::default();
         loop {
-            debug!(da_height, "Requesting DA block for given height");
-            let mut filtered_block = self.da_service.get_block_at(da_height).await?;
+            debug!(next_da_height, "Requesting DA block for");
+            let mut filtered_block = self.da_service.get_block_at(next_da_height).await?;
 
             // Checking if reorg happened or not.
             if let Some(ForkPoint {
@@ -297,17 +307,17 @@ where
             )
             .await?
             {
-                da_height = new_height;
+                next_da_height = new_height;
                 filtered_block = new_block;
                 self.state_root = pre_state_root;
-                info!(da_height, "Resuming execution at fork point's height");
+                info!(next_da_height, "Resuming execution at fork point's height");
             }
 
             let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
 
             info!(
                 blobs_count = blobs.len(),
-                da_height,
+                next_da_height,
                 blobs = ?blobs
                     .iter()
                     .map(|b| format!(
@@ -362,10 +372,6 @@ where
             let next_state_root = slot_result.state_root;
             self.state_root = next_state_root;
 
-            da_height += 1;
-            self.sync_state
-                .current_da_height
-                .store(da_height, std::sync::atomic::Ordering::Release);
             self.ledger_db.commit_slot(data_to_commit)?;
 
             // Save data back to StorageManager
@@ -377,6 +383,10 @@ where
             )?;
 
             self.update_rpc_storage(filtered_block_header)?;
+            self.sync_state
+                .synced_da_height
+                .store(next_da_height, std::sync::atomic::Ordering::Release);
+            next_da_height += 1;
 
             // ----------------
             // Finalization. Done after seen block for proper handling of instant finality

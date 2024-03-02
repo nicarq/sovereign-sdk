@@ -13,9 +13,9 @@ celestia_rpc_timeout_seconds = 60
 path = "benches/demo_data"
 
 [runner]
-# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
-# any blocks before this height
-start_height = 1
+# We define the rollup's genesis to occur at block number `genesis_height`. The rollup will ignore
+# any blocks before this height, and any blobs at this height will not be processed
+genesis_height = 0
 da_polling_interval_ms = 1000
 
 [runner.rpc_config]

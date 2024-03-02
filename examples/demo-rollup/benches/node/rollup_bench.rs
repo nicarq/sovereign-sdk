@@ -24,7 +24,7 @@ use tempfile::TempDir;
 type BenchSpec = sov_test_utils::TestSpec;
 
 fn rollup_bench(_bench: &mut Criterion) {
-    let start_height: u64 = 0u64;
+    let genesis_height: u64 = 0u64;
     let mut end_height: u64 = 100u64;
     if let Ok(val) = env::var("BLOCKS") {
         end_height = val.parse().expect("BLOCKS var should be a +ve number");
@@ -87,7 +87,7 @@ fn rollup_bench(_bench: &mut Criterion) {
     // data generation
     let mut blobs = vec![];
     let mut blocks = vec![];
-    for height in start_height..end_height {
+    for height in genesis_height..end_height {
         let filtered_block = MockBlock {
             header: MockBlockHeader::from_height(height),
             validity_cond: Default::default(),

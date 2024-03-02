@@ -19,10 +19,11 @@ use sov_stf_runner::{
 };
 use tokio::sync::broadcast::error::TryRecvError;
 use tokio::sync::broadcast::Receiver;
+use tracing::debug;
 
 use crate::helpers::hash_stf::HashStf;
 
-type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaSpec>;
+type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaService>;
 type S = DefaultStorageSpec;
 type StorageManager = ProverStorageManager<MockDaSpec, S>;
 
@@ -47,7 +48,8 @@ impl TestNode {
     pub async fn send_transaction(&mut self, wait: bool) -> Result<(), anyhow::Error> {
         self.da.send_transaction(&[1, 2, 3]).await?;
         if wait {
-            self.slot_subscription.recv().await?;
+            let slot = self.slot_subscription.recv().await?;
+            debug!(?slot, "Received slot from subscription");
         }
         Ok(())
     }
@@ -108,7 +110,7 @@ pub fn initialize_runner(
             path: path.to_path_buf(),
         },
         runner: RunnerConfig {
-            start_height: 1,
+            genesis_height: 0,
             da_polling_interval_ms: 150,
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),

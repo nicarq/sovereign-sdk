@@ -6,6 +6,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::types::StoredAggregatedProof;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::DaService;
+use tracing::info;
 
 use crate::{ProofAggregationStatus, ProofProcessingStatus, ProverService, StateTransitionInfo};
 
@@ -34,6 +35,7 @@ where
 
     /// Stores the `AggregatedProof` posted on DA into the database.
     pub(crate) async fn save_aggregated_proof(&self, height: u64) -> Result<(), anyhow::Error> {
+        info!(%height, "Saving aggregated proof");
         let aggregated_proofs = self.da_service.get_aggregated_proofs_at(height).await?;
         for data in aggregated_proofs {
             self.ledger_db
@@ -89,6 +91,7 @@ where
                     Ok(ProofAggregationStatus::Success(agg_proof_data)) => {
                         agg_proof_hashes.clear();
                         let data = agg_proof_data.try_to_vec()?;
+                        info!("Sending aggregated proof to da");
                         self.da_service.send_aggregated_zk_proof(&data).await?;
                         return Ok(());
                     }

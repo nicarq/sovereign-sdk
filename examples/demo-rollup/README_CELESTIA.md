@@ -57,9 +57,9 @@ If you are looking for a simple rollup with minimal dependencies as a starting p
 If you don't need ZK guest to be compiled, for faster compilation time you can export `export SKIP_GUEST_BUILD=1` environment
 variable in each terminal you run. By default, demo-rollup skip proving. If you want to enable proving, several options are available:
 
-* `export SOV_PROVER_CONFIG=simulate` Run the rollup verification logic inside the current process.
-* `export SOV_PROVER_CONFIG=execute` Run the rollup verifier in a zkVM executor.
-* `export SOV_PROVER_CONFIG=prove` Run the rollup verifier and create a SNARK of execution.
+- `export SOV_PROVER_CONFIG=simulate` Run the rollup verification logic inside the current process.
+- `export SOV_PROVER_CONFIG=execute` Run the rollup verifier in a zkVM executor.
+- `export SOV_PROVER_CONFIG=prove` Run the rollup verifier and create a SNARK of execution.
 
 ### Run a local DA layer instance
 
@@ -324,7 +324,7 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
   - Waits until the container is started
   - Sets up the config
     - `examples/demo-rollup/rollup_config.toml` is modified -
-      - `start_height` is set to `3`, which is the block in which sequencers are funded with credits
+      - `genesis_height` is set to `3`, which is the block in which sequencers are funded with credits
       - `celestia_rpc_auth_token` is set to the auth token exposed by sequencer (in <repo_root>/docker/credentials directory)
       - `celestia_rpc_address` is set to point to `127.0.0.1` and the `RPC_PORT`
 - `make stop`:

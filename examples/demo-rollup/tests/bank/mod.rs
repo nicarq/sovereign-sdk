@@ -261,10 +261,10 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
         build_multiple_transfers(&transfer_amounts, &key, token_address, recipient_address, 3);
     send_transactions_and_wait_slot(&client, txs).await?;
 
-    assert_bank_event(&client, 1, BankEvent::TokenCreated { token_address }).await?;
+    assert_bank_event(&client, 0, BankEvent::TokenCreated { token_address }).await?;
     assert_bank_event(
         &client,
-        2,
+        1,
         BankEvent::TokenTransferred {
             token_address,
             amount: 100,
@@ -273,7 +273,7 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
     .await?;
     assert_bank_event(
         &client,
-        3,
+        2,
         BankEvent::TokenTransferred {
             token_address,
             amount: 200,

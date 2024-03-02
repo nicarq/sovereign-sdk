@@ -8,7 +8,7 @@ celestia_rpc_timeout_seconds = 60
 path = "demo_data_0"
 
 [runner]
-start_height = 1
+genesis_height = 1
 da_polling_interval_ms = 10000
 
 [runner.rpc_config]

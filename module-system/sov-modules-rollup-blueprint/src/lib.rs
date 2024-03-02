@@ -154,6 +154,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
+        let relative_da_genesis_block = da_service
+            .get_block_at(rollup_config.runner.genesis_height)
+            .await?;
         let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
         let prover_service = self
             .create_prover_service(prover_config, &rollup_config, &da_service)
@@ -183,7 +186,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let init_variant = match prev_root {
             Some(root_hash) => InitVariant::Initialized(root_hash),
             None => InitVariant::Genesis {
-                block_header: last_finalized_block_header.clone(),
+                block: relative_da_genesis_block,
                 genesis_params: genesis_config,
             },
         };
