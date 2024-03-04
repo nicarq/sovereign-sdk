@@ -215,7 +215,7 @@ where
             final_slot_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
             code_commitment: self.code_commitment.clone(),
         };
-        debug!(?public_input, "generating aggregate proof");
+        debug!(%public_input, "generating aggregate proof");
 
         let aggregated_proof = AggregatedProofData::new(public_input);
 
@@ -260,8 +260,11 @@ where
         }
     };
     match result {
-        Ok(_) => {
-            info!("Proof generation complete.");
+        Ok(ref proof) => {
+            info!(
+                bytes = proof.size(),
+                "Proof generation completed successfully"
+            );
         }
         Err(ref e) => {
             error!("Proof generation failed: {:?}", e);

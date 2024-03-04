@@ -91,7 +91,7 @@ where
                     Ok(ProofAggregationStatus::Success(agg_proof_data)) => {
                         agg_proof_hashes.clear();
                         let data = agg_proof_data.try_to_vec()?;
-                        info!("Sending aggregated proof to da");
+                        tracing::debug!(bytes = data.len(), "Sending aggregated proof to DA");
                         self.da_service.send_aggregated_zk_proof(&data).await?;
                         return Ok(());
                     }
