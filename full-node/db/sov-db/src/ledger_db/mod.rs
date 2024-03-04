@@ -89,6 +89,7 @@ pub struct LedgerDB {
     db: Arc<CacheDb>,
     next_item_numbers: Arc<Mutex<ItemNumbers>>,
     slot_subscriptions: tokio::sync::broadcast::Sender<u64>,
+    proof_subscriptions: tokio::sync::broadcast::Sender<()>,
 }
 
 impl LedgerDB {
@@ -130,6 +131,7 @@ impl LedgerDB {
             db: Arc::new(db),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
             slot_subscriptions: tokio::sync::broadcast::channel(10).0,
+            proof_subscriptions: tokio::sync::broadcast::channel(10).0,
         })
     }
 
@@ -336,7 +338,7 @@ impl LedgerDB {
 
         self.db.write_many(schema_batch)?;
 
-        // Notify subscribers. This call returns an error IFF there are no subscribers, so we don't need to check the result
+        // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
         let _ = self
             .slot_subscriptions
             .send(current_item_numbers.slot_number);
@@ -371,6 +373,8 @@ impl LedgerDB {
         schema_batch.put::<ProofByUniqueId>(&ProofUniqueId(unique_id), &agg_proof)?;
 
         self.db.write_many(schema_batch)?;
+        // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
+        let _ = self.proof_subscriptions.send(());
         Ok(())
     }
 }

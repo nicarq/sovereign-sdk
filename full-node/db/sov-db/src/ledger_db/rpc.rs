@@ -476,8 +476,12 @@ impl LedgerRpcProvider for LedgerDB {
             None => Ok(None),
         }
     }
-    fn subscribe_slots(&self) -> Result<Receiver<u64>, anyhow::Error> {
-        Ok(self.slot_subscriptions.subscribe())
+    fn subscribe_slots(&self) -> Receiver<u64> {
+        self.slot_subscriptions.subscribe()
+    }
+
+    fn subscribe_proof_saved(&self) -> Receiver<()> {
+        self.proof_subscriptions.subscribe()
     }
 }
 
@@ -661,7 +665,7 @@ mod tests {
     fn test_slot_subscription() {
         let ledger_db = create_ledger();
 
-        let mut rx = ledger_db.subscribe_slots().unwrap();
+        let mut rx = ledger_db.subscribe_slots();
         ledger_db
             .commit_slot(SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()))
             .unwrap();
@@ -924,6 +928,7 @@ mod tests {
     #[test]
     fn test_save_aggregated_proof() {
         let ledger_db = create_ledger();
+        let _rx = ledger_db.proof_subscriptions.subscribe();
 
         let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap();
         assert_eq!(None, proof_from_db);
