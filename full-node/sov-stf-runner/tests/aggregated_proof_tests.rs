@@ -25,17 +25,19 @@ async fn run_make_proof_sync(
     let nb_of_batches = test_case.input.nb_of_batches;
     let mut test_node = spawn(test_case.jump(), nb_of_threads);
 
-    for batch_number in 0..nb_of_batches + 1 {
+    for batch_number in 0..nb_of_batches {
         test_node.send_transaction().await.unwrap();
-        test_node.make_proof();
+        test_node.make_block_proof();
 
         if (batch_number + 1) % test_case.jump() == 0 {
-            test_node.wait_for_aggregated_proof_in_da().await?;
+            test_node.wait_for_aggregated_proof_posted_to_da().await?;
         }
     }
 
+    test_node.try_send_aggregated_proof().await?;
+
     for _ in (0..nb_of_batches).step_by(test_case.jump()) {
-        test_node.wait_for_aggregated_proof().await?;
+        test_node.wait_for_aggregated_proof_saved_in_db().await?;
     }
 
     let public_input = test_node.get_latest_public_input_proof()?.unwrap();
@@ -56,17 +58,17 @@ async fn run_make_proof_async(
     }
 
     for _ in 0..nb_of_batches {
-        test_node.make_proof();
+        test_node.make_block_proof();
     }
 
     for _ in (0..nb_of_batches).step_by(test_case.jump()) {
-        test_node.wait_for_aggregated_proof_in_da().await?;
+        test_node.wait_for_aggregated_proof_posted_to_da().await?;
     }
 
-    test_node.send_transaction().await?;
+    test_node.try_send_aggregated_proof().await?;
 
     for _ in (0..nb_of_batches).step_by(test_case.jump()) {
-        test_node.wait_for_aggregated_proof().await?;
+        test_node.wait_for_aggregated_proof_saved_in_db().await?;
     }
 
     let public_input = test_node.get_latest_public_input_proof()?.unwrap();
