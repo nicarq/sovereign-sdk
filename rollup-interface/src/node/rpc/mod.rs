@@ -1,14 +1,11 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
-#[cfg(feature = "native")]
 use borsh::BorshDeserialize;
-#[cfg(feature = "native")]
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use tokio::sync::broadcast;
 
-use crate::maybestd::vec::Vec;
 use crate::stf::EventKey;
-#[cfg(feature = "native")]
 use crate::zk::aggregated_proof::AggregatedProofData;
 
 /// A struct containing enough information to uniquely specify single batch.
@@ -193,7 +190,6 @@ pub enum ItemOrHash<T> {
 }
 
 /// An RPC response for the module specific event
-#[cfg(feature = "native")]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct EventResponse {
     /// A value representing the the module event serialized as json
@@ -205,7 +201,6 @@ pub struct EventResponse {
 }
 
 /// An RPC response for the latest aggregated proof.
-#[cfg(feature = "native")]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AggregatedProofResponse {
     /// Aggregated proof data.
@@ -213,7 +208,6 @@ pub struct AggregatedProofResponse {
 }
 
 /// An RPC response for the module specific event
-#[cfg(feature = "native")]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct PaginatedEventResponse {
     /// A value representing the the module event serialized as json
@@ -223,7 +217,6 @@ pub struct PaginatedEventResponse {
 }
 
 /// Module specific event
-#[cfg(feature = "native")]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Event {
     /// A value representing the the module event serialized as json
@@ -233,7 +226,6 @@ pub struct Event {
 }
 
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
-#[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
     /// Get the latest slot in the ledger.
     fn get_head<B: DeserializeOwned + Clone, T: DeserializeOwned>(
@@ -391,7 +383,12 @@ pub trait LedgerRpcProvider {
     fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>>;
 
     /// Get a notification each time a slot is processed
-    fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;
+    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
+    fn subscribe_slots(&self) -> broadcast::Receiver<u64>;
+
+    /// Get a notification each time an aggregated proof is processed
+    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
+    fn subscribe_proof_saved(&self) -> broadcast::Receiver<()>;
 }
 
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most
@@ -474,7 +471,6 @@ mod rpc_hex_tests {
     use serde::{Deserialize, Serialize};
 
     use crate::maybestd::vec;
-    use crate::maybestd::vec::Vec;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {

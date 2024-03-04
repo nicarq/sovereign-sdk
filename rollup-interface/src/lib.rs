@@ -14,7 +14,6 @@ pub use schemars;
 pub use state_machine::*;
 
 mod node;
-
 pub use node::*;
 pub use {anyhow, digest};
 

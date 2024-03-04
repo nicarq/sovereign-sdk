@@ -8,9 +8,9 @@ use helpers::runner_init::{initialize_runner, TestNode};
 async fn fetch_aggregated_proof_test() -> Result<(), anyhow::Error> {
     for jump in [1, 7] {
         let test_case = TestCase::new(jump);
-        for threads in [1, 3] {
-            run_make_proof_sync(test_case, threads).await?;
-            run_make_proof_async(test_case, threads).await?;
+        for nb_of_threads in [1, 3] {
+            run_make_proof_sync(test_case, nb_of_threads).await?;
+            run_make_proof_async(test_case, nb_of_threads).await?;
         }
     }
 
@@ -20,21 +20,24 @@ async fn fetch_aggregated_proof_test() -> Result<(), anyhow::Error> {
 // In this test proofs are created just after batch is submitted to the DA.
 async fn run_make_proof_sync(
     test_case: TestCase,
-    aggregated_proof_block_jump: usize,
+    nb_of_threads: usize,
 ) -> Result<(), anyhow::Error> {
-    let mut test_node = spawn(test_case.jump(), aggregated_proof_block_jump);
-    // Clear the notification from the genesis slot
-    test_node.wait_for_all_slots().await;
+    let nb_of_batches = test_case.input.nb_of_batches;
+    let mut test_node = spawn(test_case.jump(), nb_of_threads);
 
-    for i in 0..test_case.input.nb_of_transactions {
-        test_node.send_transaction(true).await?;
+    for batch_number in 0..nb_of_batches + 1 {
+        test_node.send_transaction().await.unwrap();
         test_node.make_proof();
-        if (i + 1) % test_case.jump() == 0 {
-            test_node.wait_for_aggregated_proof_in_da().await;
+
+        if (batch_number + 1) % test_case.jump() == 0 {
+            test_node.wait_for_aggregated_proof_in_da().await?;
         }
     }
 
-    test_node.send_transaction(true).await?;
+    for _ in (0..nb_of_batches).step_by(test_case.jump()) {
+        test_node.wait_for_aggregated_proof().await?;
+    }
+
     let public_input = test_node.get_latest_public_input_proof()?.unwrap();
     test_case.assert(&public_input);
     Ok(())
@@ -43,30 +46,35 @@ async fn run_make_proof_sync(
 // In this test proofs are created after multiple batches are submitted to the DA.
 async fn run_make_proof_async(
     test_case: TestCase,
-    aggregated_proof_block_jump: usize,
+    nb_of_threads: usize,
 ) -> Result<(), anyhow::Error> {
-    let mut test_node = spawn(test_case.jump(), aggregated_proof_block_jump);
+    let nb_of_batches = test_case.input.nb_of_batches;
+    let mut test_node = spawn(test_case.jump(), nb_of_threads);
 
-    for _ in 0..test_case.input.nb_of_transactions {
-        test_node.send_transaction(false).await?;
+    for _ in 0..nb_of_batches {
+        test_node.send_transaction().await?;
     }
 
-    for i in 0..test_case.input.nb_of_transactions {
+    for _ in 0..nb_of_batches {
         test_node.make_proof();
-        if (i + 1) % test_case.jump() == 0 {
-            test_node.wait_for_aggregated_proof_in_da().await;
-        }
     }
 
-    test_node.wait_for_all_slots().await;
-    test_node.send_transaction(true).await?;
+    for _ in (0..nb_of_batches).step_by(test_case.jump()) {
+        test_node.wait_for_aggregated_proof_in_da().await?;
+    }
+
+    test_node.send_transaction().await?;
+
+    for _ in (0..nb_of_batches).step_by(test_case.jump()) {
+        test_node.wait_for_aggregated_proof().await?;
+    }
 
     let public_input = test_node.get_latest_public_input_proof()?.unwrap();
     test_case.assert(&public_input);
     Ok(())
 }
 
-fn spawn(jump: usize, aggregated_proof_block_jump: usize) -> TestNode {
+fn spawn(jump: usize, nb_of_threads: usize) -> TestNode {
     let genesis_block = MockBlock {
         header: MockBlockHeader::from_height(0),
         validity_cond: Default::default(),
@@ -77,8 +85,7 @@ fn spawn(jump: usize, aggregated_proof_block_jump: usize) -> TestNode {
         genesis_params: vec![1],
     };
 
-    let (mut runner, test_node) =
-        initialize_runner(init_variant, jump, aggregated_proof_block_jump);
+    let (mut runner, test_node) = initialize_runner(init_variant, jump, nb_of_threads);
     tokio::spawn(async move {
         runner.run_in_process().await.unwrap();
     });
@@ -89,7 +96,7 @@ fn spawn(jump: usize, aggregated_proof_block_jump: usize) -> TestNode {
 #[derive(Clone, Copy)]
 struct Input {
     jump: usize,
-    nb_of_transactions: usize,
+    nb_of_batches: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -106,14 +113,14 @@ struct TestCase {
 impl TestCase {
     fn new(jump: usize) -> Self {
         // Generate 7 aggregate-proofs worth of blocks
-        let nb_of_transactions = 7 * jump;
+        let nb_of_batches = 7 * jump;
         // The initial slot number of the final proof
         // The first proof covers blocks 1..=jump, the second jump+1..=(2*jump), etc.
         let initial_slot_number = (6 * jump + 1) as u64;
         Self {
             input: Input {
                 jump,
-                nb_of_transactions,
+                nb_of_batches,
             },
             output: Output {
                 initial_slot_number,

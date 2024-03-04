@@ -187,9 +187,7 @@ where
         "ledger_unsubscribeSlots",
         |_, pending_subscription, db| async move {
             // Register with the ledgerDB to receive callbacks
-            let mut rx = db
-                .subscribe_slots()
-                .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))?;
+            let mut rx = db.subscribe_slots();
 
             // Accept the subscription. This message is sent immediately
             let subscription = pending_subscription.accept().await?;

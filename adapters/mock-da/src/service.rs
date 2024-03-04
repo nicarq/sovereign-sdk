@@ -83,7 +83,7 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: u64,
     planned_fork: Option<PlannedFork>,
-    aggregated_proof_subscription: broadcast::Sender<()>,
+    aggregated_proof_sender: broadcast::Sender<()>,
 }
 
 impl MockDaService {
@@ -109,7 +109,7 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: default_wait_attempts(),
             planned_fork: None,
-            aggregated_proof_subscription,
+            aggregated_proof_sender: aggregated_proof_subscription,
         }
     }
 
@@ -277,13 +277,9 @@ impl MockDaService {
         Ok(())
     }
 
-    /// Wait until aggregated proof is posted to the DA.
-    pub async fn wait_for_aggregated_proof_in_da(&self) {
-        self.aggregated_proof_subscription
-            .subscribe()
-            .recv()
-            .await
-            .unwrap()
+    /// Will receive notification one block before the proof is included on the DA.
+    pub fn subscribe_proof_posted(&self) -> broadcast::Receiver<()> {
+        self.aggregated_proof_sender.subscribe()
     }
 }
 
@@ -398,7 +394,7 @@ impl DaService for MockDaService {
         debug!("Proof received. Buffering for later inclusion.");
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(Proof(proof.to_vec()));
-        self.aggregated_proof_subscription.send(()).unwrap();
+        self.aggregated_proof_sender.send(())?;
         Ok(())
     }
 

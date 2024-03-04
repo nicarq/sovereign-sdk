@@ -17,9 +17,7 @@ use sov_stf_runner::{
     InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
-use tokio::sync::broadcast::error::TryRecvError;
 use tokio::sync::broadcast::Receiver;
-use tracing::debug;
 
 use crate::helpers::hash_stf::HashStf;
 
@@ -37,7 +35,8 @@ pub type MockProverService = ParallelProverService<
 
 /// TestNode simulates a full-node.
 pub struct TestNode {
-    slot_subscription: Receiver<u64>,
+    proof_posted_in_da_sub: Receiver<()>,
+    agg_proof_saved_in_db_sub: Receiver<()>,
     da: MockDaService,
     vm: MockZkvm<MockValidityCond>,
     ledger_db: LedgerDB,
@@ -45,32 +44,20 @@ pub struct TestNode {
 
 impl TestNode {
     /// Send da transaction and optionally waits for corresponding slot/
-    pub async fn send_transaction(&mut self, wait: bool) -> Result<(), anyhow::Error> {
-        self.da.send_transaction(&[1, 2, 3]).await?;
-        if wait {
-            let slot = self.slot_subscription.recv().await?;
-            debug!(?slot, "Received slot from subscription");
-        }
-        Ok(())
-    }
-
-    pub async fn wait_for_all_slots(&mut self) {
-        loop {
-            match self.slot_subscription.try_recv() {
-                Ok(_) => continue,
-                Err(TryRecvError::Lagged(_)) => continue,
-                Err(TryRecvError::Empty) => break,
-                e => panic!("Error {:?}", e),
-            }
-        }
+    pub async fn send_transaction(&mut self) -> Result<(), anyhow::Error> {
+        self.da.send_transaction(&[1, 2, 3]).await
     }
 
     pub fn make_proof(&self) {
         self.vm.make_proof();
     }
 
-    pub async fn wait_for_aggregated_proof_in_da(&self) {
-        self.da.wait_for_aggregated_proof_in_da().await;
+    pub async fn wait_for_aggregated_proof_in_da(&mut self) -> Result<(), anyhow::Error> {
+        Ok(self.proof_posted_in_da_sub.recv().await?)
+    }
+
+    pub async fn wait_for_aggregated_proof(&mut self) -> Result<(), anyhow::Error> {
+        Ok(self.agg_proof_saved_in_db_sub.recv().await?)
     }
 
     pub fn get_latest_aggregated_proof(
@@ -153,7 +140,8 @@ pub fn initialize_runner(
         Default::default(),
     );
 
-    let slot_subscription = ledger_db.subscribe_slots().unwrap();
+    let proof_posted_in_da_sub = da_service.subscribe_proof_posted();
+    let agg_proof_saved_in_db_sub = ledger_db.subscribe_proof_saved();
     (
         StateTransitionRunner::new(
             rollup_config.runner,
@@ -167,7 +155,8 @@ pub fn initialize_runner(
         )
         .unwrap(),
         TestNode {
-            slot_subscription,
+            proof_posted_in_da_sub,
+            agg_proof_saved_in_db_sub,
             da: da_service,
             vm,
             ledger_db,
