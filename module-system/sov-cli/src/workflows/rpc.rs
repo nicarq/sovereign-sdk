@@ -153,7 +153,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
 
                 let txs = wallet_state.take_signed_transactions(&private_key, nonce);
 
-                let response: String = client
+                let response: serde_json::Value = client
                     .request("sequencer_publishBatch", txs.clone())
                     .await
                     .context("Unable to publish batch")?;
