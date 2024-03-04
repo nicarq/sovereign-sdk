@@ -8,7 +8,7 @@ use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use tokio::sync::{broadcast, Mutex, RwLock, RwLockWriteGuard};
+use tokio::sync::{broadcast, Mutex, RwLock};
 use tokio::time;
 use tracing::debug;
 
@@ -200,10 +200,7 @@ impl MockDaService {
         Ok(())
     }
 
-    async fn get_last_finalized_height(
-        &self,
-        blocks: &RwLockWriteGuard<'_, VecDeque<MockBlock>>,
-    ) -> u64 {
+    async fn get_last_finalized_height(&self, blocks: &VecDeque<MockBlock>) -> u64 {
         blocks
             .len()
             .checked_sub(self.blocks_to_finality as usize)
@@ -657,7 +654,6 @@ mod tests {
 
     mod reo4g_control {
         use super::*;
-        use crate::{MockAddress, MockDaService};
 
         #[tokio::test]
         async fn test_reorg_control_success() {

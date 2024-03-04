@@ -43,23 +43,32 @@ pub struct TestNode {
 }
 
 impl TestNode {
-    /// Send da transaction and optionally waits for corresponding slot/
+    /// Creates a DA block containing a transaction blob, optionally including an aggregated proof.
     pub async fn send_transaction(&mut self) -> Result<(), anyhow::Error> {
         self.da.send_transaction(&[1, 2, 3]).await
     }
 
-    pub fn make_proof(&self) {
+    /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.  
+    pub async fn try_send_aggregated_proof(&mut self) -> Result<(), anyhow::Error> {
+        self.da.send_transaction(&[]).await
+    }
+
+    /// Unlocks the prover service worker thread and completes the block proof.
+    pub fn make_block_proof(&self) {
         self.vm.make_proof();
     }
 
-    pub async fn wait_for_aggregated_proof_in_da(&mut self) -> Result<(), anyhow::Error> {
+    /// The aggregated proof was posted to DA and will be included in the NEXT block.
+    pub async fn wait_for_aggregated_proof_posted_to_da(&mut self) -> Result<(), anyhow::Error> {
         Ok(self.proof_posted_in_da_sub.recv().await?)
     }
 
-    pub async fn wait_for_aggregated_proof(&mut self) -> Result<(), anyhow::Error> {
+    /// The aggregated proof was saved in the db.
+    pub async fn wait_for_aggregated_proof_saved_in_db(&mut self) -> Result<(), anyhow::Error> {
         Ok(self.agg_proof_saved_in_db_sub.recv().await?)
     }
 
+    /// The latest aggregated proof saved in the db.
     pub fn get_latest_aggregated_proof(
         &self,
     ) -> Result<Option<AggregatedProofResponse>, anyhow::Error> {
