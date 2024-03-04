@@ -200,13 +200,15 @@ where
         let next_item_numbers = ledger_db.get_next_items_numbers();
         let last_slot_processed_before_shutdown = next_item_numbers.slot_number.saturating_sub(1);
 
-        debug!(?last_slot_processed_before_shutdown, ?runner_config.genesis_height);
         let da_height_processed =
             runner_config.genesis_height + last_slot_processed_before_shutdown;
 
+        let first_unprocessed_height_at_startup = da_height_processed + 1;
+        debug!(%last_slot_processed_before_shutdown, %runner_config.genesis_height, %first_unprocessed_height_at_startup, "Initializing StfRunner");
+
         let da_service = Arc::new(da_service);
         Ok(Self {
-            first_unprocessed_height_at_startup: da_height_processed + 1,
+            first_unprocessed_height_at_startup,
             da_polling_interval_ms: runner_config.da_polling_interval_ms,
             da_service: da_service.clone(),
             stf,
@@ -490,7 +492,7 @@ async fn has_reorg_happened<Stf, Da, Vm>(
     da_service: &Da,
 ) -> anyhow::Result<Option<ForkPoint<Da, Stf::StateRoot>>>
 where
-    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
+    Da: DaService<Error = anyhow::Error> + Clone,
     Vm: Zkvm,
     Stf: StateTransitionFunction<Vm, Da::Spec>,
 {

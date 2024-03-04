@@ -29,6 +29,16 @@ pub enum Proof {
     Full(Vec<u8>),
 }
 
+impl Proof {
+    /// The size of the underlying proof in bytes.
+    pub fn size(&self) -> usize {
+        match self {
+            Proof::PublicInput(data) => data.len(),
+            Proof::Full(data) => data.len(),
+        }
+    }
+}
+
 /// The `CryptoSpec` trait configures the cryptographic primitives used by a particular instance of a rollup.
 /// this trait implementation is meant to be provided by the `Zkvm`. module
 pub trait CryptoSpec: PartialEq + Debug + Clone + Send + Sync + 'static {
