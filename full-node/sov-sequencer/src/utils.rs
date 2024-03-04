@@ -60,7 +60,7 @@ impl SimpleClient {
         match chunk_size {
             Some(batch_size) => {
                 for chunk in serialized_txs.chunks(batch_size) {
-                    let response: String = self
+                    let response: serde_json::Value = self
                         .http_client
                         .request("sequencer_publishBatch", chunk.to_vec())
                         .await?;
@@ -68,7 +68,7 @@ impl SimpleClient {
                 }
             }
             None => {
-                let response: String = self
+                let response: serde_json::Value = self
                     .http_client
                     .request("sequencer_publishBatch", serialized_txs)
                     .await?;

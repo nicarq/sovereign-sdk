@@ -11,6 +11,7 @@ pub mod utils;
 use jsonrpsee::core::StringError;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
+use serde::{Deserialize, Serialize};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
@@ -53,21 +54,22 @@ where
         rpc
     }
 
-    async fn submit_batch(&self) -> anyhow::Result<usize> {
+    async fn submit_batch(&self) -> anyhow::Result<SubmittedBatchInfo> {
         // Need to release lock before await, so the Future is `Send`.
         // But potentially it can create blobs that are sent out of order.
         // It can be improved with atomics,
         // so a new batch is only created after previous was submitted.
         tracing::info!("Submit batch request has been received!");
 
+        let da_height = self
+            .da_service
+            .get_head_block_header()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fetch current head: {}", e))?
+            .height();
         let blob = {
-            let current_head = self
-                .da_service
-                .get_head_block_header()
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to fetch current head: {}", e))?;
             let mut batch_builder = self.batch_builder.lock().await;
-            batch_builder.get_next_blob(current_head.height())?
+            batch_builder.get_next_blob(da_height)?
         };
 
         let num_txs = blob.len();
@@ -91,15 +93,15 @@ where
             );
         }
 
-        Ok(num_txs)
+        Ok(SubmittedBatchInfo { da_height, num_txs })
     }
 
-    async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<()> {
+    async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
         info!(tx = hex::encode(&tx), "Accepting transactiontx");
         let mut batch_builder = self.batch_builder.lock().await;
         let tx_hash = batch_builder.accept_tx(tx)?;
         self.tx_status_notifier.notify(tx_hash, TxStatus::Submitted);
-        Ok(())
+        Ok(tx_hash)
     }
 
     async fn tx_status(&self, tx_hash: &TxHash) -> Option<TxStatus<Da::TransactionId>> {
@@ -112,32 +114,37 @@ where
         }
     }
 
+    async fn accept_tx_rpc(&self, tx: Vec<u8>) -> Result<AcceptTxResponse, ErrorObjectOwned> {
+        self.accept_tx(tx.clone())
+            .await
+            .map(|tx_hash| AcceptTxResponse {
+                tx,
+                tx_hash: HexHash(tx_hash),
+            })
+            .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))
+    }
+
     fn register_txs_rpc_methods(rpc: &mut RpcModule<Self>) -> Result<(), jsonrpsee::core::Error> {
         rpc.register_async_method(
             "sequencer_publishBatch",
             |params, batch_builder| async move {
                 let mut params_iter = params.sequence();
+                let mut accept_tx_results = vec![];
                 while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
-                    batch_builder
-                        .accept_tx(tx)
-                        .await
-                        .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
+                    let res = batch_builder.accept_tx_rpc(tx).await;
+                    accept_tx_results.push(res)
                 }
-                let num_txs = batch_builder
+                let submitted_batch_info = batch_builder
                     .submit_batch()
                     .await
                     .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
 
-                Ok::<String, ErrorObjectOwned>(format!("Submitted {} transactions", num_txs))
+                Ok::<SubmittedBatchInfo, ErrorObjectOwned>(submitted_batch_info)
             },
         )?;
         rpc.register_async_method("sequencer_acceptTx", |params, sequencer| async move {
             let tx: SubmitTransaction = params.one()?;
-            let response = match sequencer.accept_tx(tx.body).await {
-                Ok(()) => SubmitTransactionResponse::Registered,
-                Err(e) => SubmitTransactionResponse::Failed(e.to_string()),
-            };
-            Ok::<_, ErrorObjectOwned>(response)
+            sequencer.accept_tx_rpc(tx.body).await
         })?;
 
         rpc.register_async_method("sequencer_txStatus", |params, sequencer| async move {
@@ -185,6 +192,36 @@ where
     }
 }
 
+/// The return type of `sequencer_publishBatch`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmittedBatchInfo {
+    /// The DA height for which the batch was submitted.
+    pub da_height: u64,
+    /// The number of transactions that were successfully included in the batch.
+    pub num_txs: usize,
+}
+
+/// The response type to the RPC method `sequencer_publishBatch`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublishBatchResponse {
+    /// Summary information about the batch submission result.
+    batch: Result<SubmittedBatchInfo, String>,
+    /// Detailed information about the contents of the batch that was submitted
+    /// (or attempted to be submitted, if case of an error).
+    accept_tx_results: Vec<AcceptTxResponse>,
+}
+
+/// The response type to the RPC method `sequencer_acceptTx`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AcceptTxResponse {
+    /// Raw transaction contents as originally passed by the client, as a
+    /// hex-encoded string.
+    #[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")]
+    pub tx: Vec<u8>,
+    /// The transaction hash of the transaction that was accepted.
+    pub tx_hash: HexHash,
+}
+
 /// A 32-byte hash [`serde`]-encoded as a hex string optionally prefixed with
 /// `0x`. See [`sov_rollup_interface::rpc::utils::rpc_hex`].
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -201,15 +238,6 @@ impl SubmitTransaction {
     pub fn new(body: Vec<u8>) -> Self {
         SubmitTransaction { body }
     }
-}
-
-/// The result of submitting a transaction to the rollup
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum SubmitTransactionResponse {
-    /// Submission succeeded
-    Registered,
-    /// Submission failed with given reason
-    Failed(String),
 }
 
 #[cfg(test)]
@@ -292,7 +320,7 @@ mod tests {
         let rpc = sequencer_rpc(batch_builder, da_service.clone());
 
         let arg: &[u8] = &[];
-        let _: String = rpc.call("sequencer_publishBatch", arg).await.unwrap();
+        let _: serde_json::Value = rpc.call("sequencer_publishBatch", arg).await.unwrap();
 
         let mut submitted_block = da_service.get_block_at(1).await.unwrap();
         let block_data = submitted_block.blobs[0].full_data();
@@ -312,12 +340,12 @@ mod tests {
 
         let tx: Vec<u8> = vec![1, 2, 3, 4, 5];
         let request = SubmitTransaction { body: tx.clone() };
-        let result: SubmitTransactionResponse =
-            rpc.call("sequencer_acceptTx", [request]).await.unwrap();
-        assert_eq!(SubmitTransactionResponse::Registered, result);
+        rpc.call::<_, AcceptTxResponse>("sequencer_acceptTx", [request])
+            .await
+            .unwrap();
 
         let arg: &[u8] = &[];
-        let _: String = rpc.call("sequencer_publishBatch", arg).await.unwrap();
+        let _: serde_json::Value = rpc.call("sequencer_publishBatch", arg).await.unwrap();
 
         let mut submitted_block = da_service.get_block_at(1).await.unwrap();
         let block_data = submitted_block.blobs[0].full_data();
