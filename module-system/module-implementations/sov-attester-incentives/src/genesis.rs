@@ -2,21 +2,21 @@ use core::marker::PhantomData;
 
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{DaSpec, Spec, ValidityConditionChecker, WorkingSet, Zkvm};
+use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
 use sov_state::Storage;
 
 use crate::{AttesterIncentives, Role};
 
 /// Configuration of the attester incentives module
-pub struct AttesterIncentivesConfig<S, Vm, Da, Checker>
+#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct AttesterIncentivesConfig<S, Da>
 where
     S: Spec,
-    Vm: Zkvm,
     Da: DaSpec,
-    Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
     /// The address of the token to be used for bonding.
     pub bonding_token_address: S::Address,
@@ -27,8 +27,8 @@ where
     /// The minimum bond for a challenger.
     pub minimum_challenger_bond: Amount,
     /// A code commitment to be used for verifying proofs
-    pub commitment_to_allowed_challenge_method: Vm::CodeCommitment,
-    /// A list of initial provers and their bonded amount.
+    pub commitment_to_allowed_challenge_method: <S::Zkvm as Zkvm>::CodeCommitment,
+    /// A list of initial attesters and their bonded amount.
     pub initial_attesters: Vec<(S::Address, Amount)>,
     /// The finality period of the rollup (constant) in the number of DA layer slots processed.
     pub rollup_finality_period: TransitionHeight,
@@ -37,19 +37,17 @@ where
     /// The light client finalized height
     pub light_client_finalized_height: TransitionHeight,
     /// The validity condition checker used to check validity conditions
-    pub validity_condition_checker: Checker,
+    pub validity_condition_checker: Da::Checker,
     /// Phantom data that contains the validity condition
-    pub(crate) phantom_data: PhantomData<Da::ValidityCondition>,
+    pub phantom_data: PhantomData<Da::ValidityCondition>,
 }
 
-impl<S, Vm, Store, P, Da, Checker> AttesterIncentives<S, Vm, Da, Checker>
+impl<S, Store, P, Da> AttesterIncentives<S, Da>
 where
     S: sov_modules_api::Spec<Storage = Store>,
-    Vm: sov_modules_api::Zkvm,
     Store: Storage<Proof = P>,
     P: BorshDeserialize + BorshSerialize,
     Da: sov_modules_api::DaSpec,
-    Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
     pub(crate) fn init_module(
         &self,

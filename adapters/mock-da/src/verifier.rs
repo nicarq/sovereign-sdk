@@ -1,5 +1,7 @@
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, DaVerifier};
 
+#[cfg(feature = "native")]
+use crate::MockValidityCondChecker;
 use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash, MockValidityCond};
 
 impl BlobReaderTrait for MockBlob {
@@ -38,6 +40,10 @@ impl DaSpec for MockDaSpec {
     type BlobTransaction = MockBlob;
     type Address = MockAddress;
     type ValidityCondition = MockValidityCond;
+
+    #[cfg(feature = "native")]
+    type Checker = MockValidityCondChecker<MockValidityCond>;
+
     type InclusionMultiProof = [u8; 32];
     type CompletenessProof = ();
     type ChainParams = ();

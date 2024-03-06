@@ -8385,6 +8385,7 @@ dependencies = [
  "anyhow",
  "bcs",
  "borsh 0.10.3",
+ "derivative",
  "serde",
  "serde_json",
  "sov-attester-incentives",
@@ -8400,6 +8401,7 @@ dependencies = [
  "sov-test-utils",
  "tempfile",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

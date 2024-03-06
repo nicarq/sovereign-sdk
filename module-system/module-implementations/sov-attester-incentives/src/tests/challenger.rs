@@ -1,6 +1,6 @@
 use borsh::BorshSerialize;
-use sov_mock_da::{MockDaSpec, MockValidityCond, MockValidityCondChecker};
-use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkVerifier};
+use sov_mock_da::{MockDaSpec, MockValidityCond};
+use sov_mock_zkvm::{MockCodeCommitment, MockProof};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::GasMeter;
@@ -136,12 +136,7 @@ fn invalid_proof_helper(
     proof: &Vec<u8>,
     reason: SlashingReason,
     challenger_address: sov_modules_api::Address,
-    module: &crate::AttesterIncentives<
-        S,
-        MockZkVerifier,
-        MockDaSpec,
-        MockValidityCondChecker<MockValidityCond>,
-    >,
+    module: &crate::AttesterIncentives<S, MockDaSpec>,
     working_set: &mut WorkingSet<S>,
 ) {
     // Let's bond the challenger and try to publish a false challenge
@@ -154,14 +149,22 @@ fn invalid_proof_helper(
         )
         .expect("Should be able to bond");
 
-    let err = module
+    module
         .process_challenge(context, proof.as_slice(), &(INIT_HEIGHT + 1), working_set)
-        .unwrap_err();
+        .expect("Since the challenger is slashed this should exit gracefully");
+
+    // We get the last event from the working set to check the slashing reason
+    let mut events = working_set.take_events();
+    let slash_event = events.pop().unwrap();
+    let slash_event = slash_event.downcast::<crate::Event<S>>().unwrap();
 
     // Check the error raised
     assert_eq!(
-        err,
-        AttesterIncentiveErrors::UserSlashed(reason),
+        slash_event,
+        crate::Event::UserSlashed {
+            address: challenger_address,
+            reason
+        },
         "The challenge processing should fail with an invalid proof error"
     )
 }

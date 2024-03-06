@@ -150,6 +150,9 @@ fn test_burn_on_invalid_attestation() {
             .process_attestation(&context, attestation.into(), &mut working_set)
             .unwrap_err();
 
+        // The working set does not produce events because the method has returned an error
+        assert_eq!(working_set.events().len(), 0);
+
         assert_eq!(
             attestation_error,
             AttesterIncentiveErrors::InvalidBondingProof,
@@ -184,6 +187,20 @@ fn test_burn_on_invalid_attestation() {
         module
             .process_attestation(&context, attestation.into(), &mut working_set)
             .expect("An invalid proof is an error");
+
+        // The working set has only returned one event
+        assert_eq!(working_set.events().len(), 1);
+
+        // This is the valid attestation event
+        let valid_event = working_set.take_event(0).unwrap();
+        let valid_event = valid_event.downcast::<crate::Event<S>>().unwrap();
+
+        assert_eq!(
+            valid_event,
+            crate::Event::ProcessedValidAttestation {
+                attester: attester_address
+            }
+        )
     }
 
     // Then process a new attestation having the wrong initial state root. The attester must be slashed, and the fees burnt
@@ -198,13 +215,22 @@ fn test_burn_on_invalid_attestation() {
             },
         };
 
-        let attestation_error = module
+        module
             .process_attestation(&context, attestation.into(), &mut working_set)
-            .unwrap_err();
+            .expect("Since we slash the user we must exit gracefully");
+
+        // The working set has only returned one event
+        assert_eq!(working_set.events().len(), 1);
+
+        let slash_event = working_set.take_event(0).unwrap();
+        let slash_event = slash_event.downcast::<crate::Event<S>>().unwrap();
 
         assert_eq!(
-            attestation_error,
-            AttesterIncentiveErrors::UserSlashed(crate::call::SlashingReason::InvalidInitialHash)
+            slash_event,
+            crate::Event::UserSlashed {
+                address: attester_address,
+                reason: crate::call::SlashingReason::InvalidInitialHash
+            }
         )
     }
 
@@ -239,6 +265,24 @@ fn test_burn_on_invalid_attestation() {
         )
         .unwrap();
 
+    {
+        // Check that the attester has been bonded again
+
+        // The working set has only returned one event
+        assert_eq!(working_set.events().len(), 1);
+
+        let bond_event = working_set.take_event(0).unwrap();
+        let bond_event = bond_event.downcast::<crate::Event<S>>().unwrap();
+
+        assert_eq!(
+            bond_event,
+            crate::Event::BondedAttester {
+                new_deposit: BOND_AMOUNT,
+                total_bond: BOND_AMOUNT
+            }
+        )
+    }
+
     // Process an attestation that has the right bonding proof and initial hash but has a faulty post transition hash.
     {
         let attestation = Attestation {
@@ -251,14 +295,23 @@ fn test_burn_on_invalid_attestation() {
             },
         };
 
-        let attestation_error = module
+        module
             .process_attestation(&context, attestation.into(), &mut working_set)
-            .unwrap_err();
+            .expect("Since we slash the user we must exit gracefully");
+
+        // The working set has only returned one event
+        assert_eq!(working_set.events().len(), 1);
+
+        let slash_event = working_set.take_event(0).unwrap();
+        let slash_event = slash_event.downcast::<crate::Event<S>>().unwrap();
 
         assert_eq!(
-            attestation_error,
-            AttesterIncentiveErrors::UserSlashed(crate::call::SlashingReason::TransitionInvalid)
-        )
+            slash_event,
+            crate::Event::UserSlashed {
+                address: attester_address,
+                reason: crate::call::SlashingReason::TransitionInvalid
+            }
+        );
     }
 
     // Check that the attester's bond has been burnt

@@ -1,6 +1,8 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::verifier::ChainValidityCondition;
+#[cfg(feature = "native")]
+use crate::verifier::ChainValidityConditionChecker;
 
 pub mod address;
 pub mod block;
@@ -21,6 +23,9 @@ impl DaSpec for DaLayerSpec {
     type Address = address::AvailAddress;
 
     type ValidityCondition = ChainValidityCondition;
+
+    #[cfg(feature = "native")]
+    type Checker = ChainValidityConditionChecker;
 
     type InclusionMultiProof = ();
 

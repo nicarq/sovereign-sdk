@@ -21,9 +21,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use rpc::*;
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{
-    Context, DaSpec, Error, KernelModuleInfo, Spec, ValidityConditionChecker, WorkingSet, Zkvm,
-};
+use sov_modules_api::{Context, DaSpec, Error, ModuleInfo, Spec, WorkingSet, Zkvm};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
@@ -41,13 +39,11 @@ pub struct UnbondingInfo {
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-#[derive(KernelModuleInfo)]
-pub struct AttesterIncentives<S, Vm, Da, Checker>
+#[derive(ModuleInfo)]
+pub struct AttesterIncentives<S, Da>
 where
     S: Spec,
-    Vm: Zkvm,
     Da: DaSpec,
-    Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
     /// Address of the module.
     #[address]
@@ -72,11 +68,11 @@ where
     /// The code commitment to be used for verifying proofs
     #[state]
     pub commitment_to_allowed_challenge_method:
-        sov_modules_api::StateValue<Vm::CodeCommitment, BcsCodec>,
+        sov_modules_api::StateValue<<S::Zkvm as Zkvm>::CodeCommitment, BcsCodec>,
 
     /// Constant validity condition checker for the module.
     #[state]
-    pub validity_cond_checker: sov_modules_api::StateValue<Checker>,
+    pub validity_cond_checker: sov_modules_api::StateValue<Da::Checker>,
 
     /// The set of bonded attesters and their bonded amount.
     #[state]
@@ -122,16 +118,14 @@ where
     pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
 }
 
-impl<S, Vm, Da, Checker> sov_modules_api::Module for AttesterIncentives<S, Vm, Da, Checker>
+impl<S, Da> sov_modules_api::Module for AttesterIncentives<S, Da>
 where
     S: sov_modules_api::Spec,
-    Vm: Zkvm,
     Da: DaSpec,
-    Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
     type Spec = S;
 
-    type Config = AttesterIncentivesConfig<S, Vm, Da, Checker>;
+    type Config = AttesterIncentivesConfig<S, Da>;
 
     type CallMessage = call::CallMessage<S, Da>;
 
