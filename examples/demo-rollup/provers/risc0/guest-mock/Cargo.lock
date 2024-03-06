@@ -2840,6 +2840,7 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
