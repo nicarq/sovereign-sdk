@@ -1,9 +1,12 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use borsh::BorshDeserialize;
 use serde::Serialize;
+use sov_rollup_interface::rpc::AggregatedProofResponse;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent};
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofData;
 use sov_schema_db::cache::cache_db::CacheDb;
 use sov_schema_db::cache::change_set::ChangeSet;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder};
@@ -89,7 +92,7 @@ pub struct LedgerDB {
     db: Arc<CacheDb>,
     next_item_numbers: Arc<Mutex<ItemNumbers>>,
     slot_subscriptions: tokio::sync::broadcast::Sender<u64>,
-    proof_subscriptions: tokio::sync::broadcast::Sender<()>,
+    proof_subscriptions: tokio::sync::broadcast::Sender<AggregatedProofResponse>,
 }
 
 impl LedgerDB {
@@ -374,7 +377,10 @@ impl LedgerDB {
 
         self.db.write_many(schema_batch)?;
         // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
-        let _ = self.proof_subscriptions.send(());
+        let proof = AggregatedProofData::try_from_slice(&agg_proof.proof)?;
+        let _ = self
+            .proof_subscriptions
+            .send(AggregatedProofResponse { proof });
         Ok(())
     }
 }

@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-
 use borsh::BorshSerialize;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
@@ -14,6 +12,8 @@ use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, PrivateKey, Spec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
+use sov_rollup_interface::rpc::AggregatedProofResponse;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
 use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{TestPrivateKey, TestSpec};
@@ -23,17 +23,30 @@ use crate::test_helpers::start_rollup;
 const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
 
+struct TestCase {
+    wait_for_aggregated_proof: bool,
+    finalization_blocks: u32,
+}
+
 #[tokio::test]
 async fn bank_tx_tests_instant_finality() -> Result<(), anyhow::Error> {
-    bank_tx_tests(0).await
+    let test_case = TestCase {
+        wait_for_aggregated_proof: true,
+        finalization_blocks: 0,
+    };
+    bank_tx_tests(test_case).await
 }
 
 #[tokio::test]
 async fn bank_tx_tests_non_instant_finality() -> Result<(), anyhow::Error> {
-    bank_tx_tests(3).await
+    let test_case = TestCase {
+        wait_for_aggregated_proof: false,
+        finalization_blocks: 3,
+    };
+    bank_tx_tests(test_case).await
 }
 
-async fn bank_tx_tests(finalization_blocks: u32) -> anyhow::Result<()> {
+async fn bank_tx_tests(test_case: TestCase) -> anyhow::Result<()> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async move {
@@ -48,19 +61,20 @@ async fn bank_tx_tests(finalization_blocks: u32) -> anyhow::Result<()> {
                 // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
                 // Otherwise batches are going to be rejected
                 sender_address: MockAddress::new([0; 32]),
-                finalization_blocks,
+                finalization_blocks: test_case.finalization_blocks,
                 wait_attempts: 10,
             },
         )
         .await;
     });
 
-    let port = port_rx.await.unwrap();
+    let port = port_rx.await.unwrap().port();
+    let client = SimpleClient::new("localhost", port).await?;
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = rollup_task => err?,
-        res = send_test_bank_txs(port) => res?,
+        res = send_test_bank_txs(test_case, client) => res?,
     };
     Ok(())
 }
@@ -162,6 +176,19 @@ async fn send_transactions_and_wait_slot(
     Ok(())
 }
 
+async fn subscribe_proof(
+    client: &SimpleClient,
+) -> Result<Subscription<AggregatedProofResponse>, anyhow::Error> {
+    Ok(client
+        .ws()
+        .subscribe(
+            "ledger_subscribeAggregatedProof",
+            rpc_params![],
+            "ledger_unsubscribeAggregatedProof",
+        )
+        .await?)
+}
+
 async fn assert_balance(
     client: &SimpleClient,
     assert_amount: u64,
@@ -178,6 +205,15 @@ async fn assert_balance(
     .await?;
     assert_eq!(balance_response.amount.unwrap_or_default(), assert_amount);
     Ok(())
+}
+
+fn assert_aggregated_proof_public_input(
+    initial_slot: u64,
+    final_slot: u64,
+    pub_input: &AggregatedProofPublicInput,
+) {
+    assert_eq!(initial_slot, pub_input.initial_slot_number);
+    assert_eq!(final_slot, pub_input.final_slot_number);
 }
 
 async fn assert_bank_event(
@@ -209,9 +245,10 @@ async fn assert_bank_event(
     Ok(())
 }
 
-async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error> {
-    let port = rpc_address.port();
-    let client = SimpleClient::new("localhost", port).await?;
+async fn send_test_bank_txs(
+    test_case: TestCase,
+    client: SimpleClient,
+) -> Result<(), anyhow::Error> {
     let key = TestPrivateKey::generate();
     let user_address: <TestSpec as Spec>::Address = key.to_address();
 
@@ -229,6 +266,7 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
     )
     .await?;
 
+    let mut aggregated_proof_subscription = subscribe_proof(&client).await?;
     assert_eq!(token_address, token_address_response);
 
     // create token. height 2
@@ -280,6 +318,12 @@ async fn send_test_bank_txs(rpc_address: SocketAddr) -> Result<(), anyhow::Error
         },
     )
     .await?;
+
+    if test_case.wait_for_aggregated_proof {
+        let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
+        let pub_input = aggregated_proof_resp.proof.public_input();
+        assert_aggregated_proof_public_input(1, 1, pub_input);
+    }
 
     Ok(())
 }
