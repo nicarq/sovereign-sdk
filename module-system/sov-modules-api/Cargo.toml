@@ -48,7 +48,7 @@ sov-modules-core = { path = "../sov-modules-core", features = ["mocks"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-test-utils = { path = "../sov-test-utils" }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
-sov-db = { path = "../../full-node/db/sov-db" }
+sov-db = { path = "../../full-node/sov-db" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 [features]

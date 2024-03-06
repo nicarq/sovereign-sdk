@@ -28,9 +28,9 @@
 use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::Version;
+use rockbound::schema::{KeyDecoder, KeyEncoder, ValueCodec};
+use rockbound::{CodecError, SeekKeyEncoder};
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
-use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
-use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleAddress,
@@ -60,7 +60,7 @@ pub const LEDGER_TABLES: &[&str] = &[
 /// used for JSON-RPC and other tooling.
 pub const NATIVE_TABLES: &[&str] = &[ModuleAccessoryState::table_name()];
 
-/// Macro to define a table that implements [`sov_schema_db::Schema`].
+/// Macro to define a table that implements [`rockbound::Schema`].
 /// KeyCodec<Schema> and ValueCodec<Schema> must be implemented separately.
 ///
 /// ```ignore
@@ -87,7 +87,7 @@ macro_rules! define_table_without_codec {
         #[derive(Clone, Copy, Debug, Default)]
         pub(crate) struct $table_name;
 
-        impl ::sov_schema_db::schema::Schema for $table_name {
+        impl ::rockbound::schema::Schema for $table_name {
             const COLUMN_FAMILY_NAME: &'static str = $table_name::table_name();
             type Key = $key;
             type Value = $value;
@@ -110,26 +110,24 @@ macro_rules! define_table_without_codec {
 
 macro_rules! impl_borsh_value_codec {
     ($table_name:ident, $value:ty) => {
-        impl ::sov_schema_db::schema::ValueCodec<$table_name> for $value {
+        impl ::rockbound::schema::ValueCodec<$table_name> for $value {
             fn encode_value(
                 &self,
             ) -> ::std::result::Result<
                 ::sov_rollup_interface::maybestd::vec::Vec<u8>,
-                ::sov_schema_db::CodecError,
+                ::rockbound::CodecError,
             > {
                 ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
             }
 
-            fn decode_value(
-                data: &[u8],
-            ) -> ::std::result::Result<Self, ::sov_schema_db::CodecError> {
+            fn decode_value(data: &[u8]) -> ::std::result::Result<Self, ::rockbound::CodecError> {
                 ::borsh::BorshDeserialize::deserialize_reader(&mut &data[..]).map_err(Into::into)
             }
         }
     };
 }
 
-/// Macro to define a table that implements [`sov_schema_db::schema::Schema`].
+/// Macro to define a table that implements [`rockbound::schema::Schema`].
 /// Automatically generates KeyCodec<...> and ValueCodec<...> implementations
 /// using the Encode and Decode traits from sov_rollup_interface
 ///
@@ -143,14 +141,14 @@ macro_rules! define_table_with_default_codec {
     ($(#[$docs:meta])+ ($table_name:ident) $key:ty => $value:ty) => {
         define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
 
-        impl ::sov_schema_db::schema::KeyEncoder<$table_name> for $key {
-            fn encode_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::sov_schema_db::CodecError> {
+        impl ::rockbound::schema::KeyEncoder<$table_name> for $key {
+            fn encode_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::rockbound::CodecError> {
                 ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
             }
         }
 
-        impl ::sov_schema_db::schema::KeyDecoder<$table_name> for $key {
-            fn decode_key(data: &[u8]) -> ::std::result::Result<Self, ::sov_schema_db::CodecError> {
+        impl ::rockbound::schema::KeyDecoder<$table_name> for $key {
+            fn decode_key(data: &[u8]) -> ::std::result::Result<Self, ::rockbound::CodecError> {
                 ::borsh::BorshDeserialize::deserialize_reader(&mut &data[..]).map_err(Into::into)
             }
         }
@@ -168,8 +166,8 @@ macro_rules! define_table_with_seek_key_codec {
     ($(#[$docs:meta])+ ($table_name:ident) $key:ty => $value:ty) => {
         define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
 
-        impl ::sov_schema_db::schema::KeyEncoder<$table_name> for $key {
-            fn encode_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::sov_schema_db::CodecError> {
+        impl ::rockbound::schema::KeyEncoder<$table_name> for $key {
+            fn encode_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::rockbound::CodecError> {
                 use ::anyhow::Context as _;
                 use ::bincode::Options as _;
 
@@ -181,8 +179,8 @@ macro_rules! define_table_with_seek_key_codec {
             }
         }
 
-        impl ::sov_schema_db::schema::KeyDecoder<$table_name> for $key {
-            fn decode_key(data: &[u8]) -> ::std::result::Result<Self, ::sov_schema_db::CodecError> {
+        impl ::rockbound::schema::KeyDecoder<$table_name> for $key {
+            fn decode_key(data: &[u8]) -> ::std::result::Result<Self, ::rockbound::CodecError> {
                 use ::anyhow::Context as _;
                 use ::bincode::Options as _;
 
@@ -194,9 +192,9 @@ macro_rules! define_table_with_seek_key_codec {
             }
         }
 
-        impl ::sov_schema_db::SeekKeyEncoder<$table_name> for $key {
-            fn encode_seek_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::sov_schema_db::CodecError> {
-                <Self as ::sov_schema_db::schema::KeyEncoder<$table_name>>::encode_key(self)
+        impl ::rockbound::SeekKeyEncoder<$table_name> for $key {
+            fn encode_seek_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::rockbound::CodecError> {
+                <Self as ::rockbound::schema::KeyEncoder<$table_name>>::encode_key(self)
             }
         }
 
@@ -260,7 +258,7 @@ define_table_without_codec!(
 );
 
 impl KeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
-    fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+    fn encode_key(&self) -> rockbound::schema::Result<Vec<u8>> {
         let mut out = Vec::with_capacity(self.0.len() + std::mem::size_of::<Version>() + 8);
         self.0
             .as_slice()
@@ -274,13 +272,13 @@ impl KeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
 }
 
 impl SeekKeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
-    fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+    fn encode_seek_key(&self) -> rockbound::schema::Result<Vec<u8>> {
         <(Vec<u8>, u64) as KeyEncoder<ModuleAccessoryState>>::encode_key(self)
     }
 }
 
 impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, Version) {
-    fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+    fn decode_key(data: &[u8]) -> rockbound::schema::Result<Self> {
         let mut cursor = maybestd::io::Cursor::new(data);
         let key = Vec::<u8>::deserialize_reader(&mut cursor)?;
         let version = cursor.read_u64::<BigEndian>()?;
@@ -289,11 +287,11 @@ impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, Version) {
 }
 
 impl ValueCodec<ModuleAccessoryState> for AccessoryStateValue {
-    fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+    fn encode_value(&self) -> rockbound::schema::Result<Vec<u8>> {
         self.try_to_vec().map_err(CodecError::from)
     }
 
-    fn decode_value(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+    fn decode_value(data: &[u8]) -> rockbound::schema::Result<Self> {
         Ok(Self::deserialize_reader(&mut &data[..])?)
     }
 }

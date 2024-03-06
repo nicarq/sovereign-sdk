@@ -5,19 +5,19 @@ use std::sync::{Arc, Mutex};
 use anyhow::ensure;
 use jmt::storage::{HasPreimage, TreeReader, TreeWriter};
 use jmt::{KeyHash, Version};
-use sov_schema_db::cache::cache_db::CacheDb;
-use sov_schema_db::cache::change_set::ChangeSet;
-use sov_schema_db::{SchemaBatch, SchemaKey};
+use rockbound::cache::cache_db::CacheDb;
+use rockbound::cache::change_set::ChangeSet;
+use rockbound::{SchemaBatch, SchemaKey};
 
 use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::namespace::{JmtNodes, JmtValues, KeyHashToKey};
 
 /// A typed wrapper around the db for storing rollup state. Internally,
-/// this is roughly just an [`Arc<sov_schema_db::CacheDB>`].
+/// this is roughly just an [`Arc<rockbound::CacheDB>`].
 #[derive(Debug, Clone)]
 pub struct StateDB {
-    /// The underlying [`CacheDb`] that plays as local cache and pointer to previous snapshots and/or [`sov_schema_db::DB`]
+    /// The underlying [`CacheDb`] that plays as local cache and pointer to previous snapshots and/or [`rockbound::DB`]
     db: Arc<CacheDb>,
     /// The [`Version`] that will be used for the next batch of writes to the DB
     /// This [`Version`] is also used for querying data,
@@ -29,7 +29,7 @@ impl StateDB {
     const DB_PATH_SUFFIX: &'static str = "state";
     const DB_NAME: &'static str = "state-db";
 
-    /// Create a new instance of [`StateDB`] from a given [`sov_schema_db::DB`]
+    /// Create a new instance of [`StateDB`] from a given [`rockbound::DB`]
     pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
         let next_version = Self::next_version_from(&db)?;
         Ok(Self {
@@ -66,12 +66,12 @@ impl StateDB {
         Ok(next_version)
     }
 
-    /// Initialize [`sov_schema_db::DB`] that should be used by snapshots.
+    /// Initialize [`rockbound::DB`] that should be used by snapshots.
     /// Should initialize all the namespace tables under the same DB.
     /// Maybe we can use a macro to loop over all the namespaces.
-    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<sov_schema_db::DB> {
+    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<rockbound::DB> {
         let state_db_path = path.as_ref().join(Self::DB_PATH_SUFFIX);
-        sov_schema_db::DB::open(
+        rockbound::DB::open(
             state_db_path,
             Self::DB_NAME,
             UserNamespace::get_table_names()
@@ -210,8 +210,8 @@ mod state_db_tests {
 
     use jmt::storage::{NodeBatch, TreeReader, TreeWriter};
     use jmt::KeyHash;
-    use sov_schema_db::cache::cache_container::CacheContainer;
-    use sov_schema_db::cache::cache_db::CacheDb;
+    use rockbound::cache::cache_container::CacheContainer;
+    use rockbound::cache::cache_db::CacheDb;
 
     use crate::namespaces::{KernelNamespace, UserNamespace};
     use crate::state_db::{JmtHandler, StateDB};

@@ -13,7 +13,7 @@ members = [
     "examples/demo-rollup",
     "examples/simple-nft-module",
     # Full Node
-    "full-node/db/sov-db",
+    "full-node/sov-db",
     "full-node/sov-sequencer",
     "full-node/sov-ethereum",
     "full-node/sov-ledger-rpc",
@@ -58,7 +58,7 @@ repository = "https://github.com/sovereign-labs/sovereign-sdk"
 [workspace.dependencies]
 # Dependencies maintained by Sovereign
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6" }
-
+rockbound = { git = "https://github.com/sovereign-Labs/rockbound", tag = "v2.0.0" }
 
 # External dependencies
 async-trait = "0.1.71"

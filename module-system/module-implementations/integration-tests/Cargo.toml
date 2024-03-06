@@ -21,12 +21,12 @@ serde = { workspace = true }
 jsonrpsee = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+rockbound = { workspace = true }
 
 sov-modules-api = { path = "../../sov-modules-api", features = ["native"] }
 sov-state = { path = "../../sov-state", features = ["native"] }
 
 sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"] }
-sov-schema-db = { path = "../../../full-node/db/sov-schema-db" }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-rollup-interface = { path = "../../../rollup-interface", features = ["native"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }

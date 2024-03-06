@@ -16,9 +16,9 @@ resolver = "2"
 [dependencies]
 # Maintained by sovereign labs
 jmt = { workspace = true }
-sov-schema-db = { path = "../sov-schema-db", version = "0.3" }
-sov-rollup-interface = { path = "../../../rollup-interface", version = "0.3", features = ["native"] }
-sov-modules-core = { path = "../../../module-system/sov-modules-core", version = "0.3", features = ["native"] }
+rockbound = { workspace = true }
+sov-rollup-interface = { path = "../../rollup-interface", version = "0.3", features = ["native"] }
+sov-modules-core = { path = "../../module-system/sov-modules-core", version = "0.3", features = ["native"] }
 
 # External
 anyhow = { workspace = true, default-features = true }
@@ -32,18 +32,18 @@ tempfile = { workspace = true, optional = true }
 rocksdb = { workspace = true }
 bincode = { workspace = true }
 tokio = { workspace = true }
-hex = { workspace = true}
+hex = { workspace = true }
 
 [dev-dependencies]
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-test-utils = { path = "../../../module-system/sov-test-utils" }
+sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+sov-test-utils = { path = "../../module-system/sov-test-utils" }
 tempfile = { workspace = true }
-sov-prover-storage-manager = { path = "../../sov-prover-storage-manager" }
+sov-prover-storage-manager = { path = "../sov-prover-storage-manager" }
 criterion = "0.5.1"
 rand = { workspace = true }
 sha2 = { workspace = true }
-serde_json = { workspace = true}
-sov-modules-api = { path = "../../../module-system/sov-modules-api", version = "0.3", features = ["native"] }
+serde_json = { workspace = true }
+sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", features = ["native"] }
 
 [features]
 arbitrary = [
@@ -51,10 +51,10 @@ arbitrary = [
 	"dep:proptest",
 	"dep:proptest-derive",
 	"dep:tempfile",
+	"rockbound/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-modules-core/arbitrary",
 	"sov-rollup-interface/arbitrary",
-	"sov-schema-db/arbitrary",
 	"sov-test-utils/arbitrary",
 ]
 

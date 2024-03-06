@@ -25,7 +25,7 @@ tracing = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
-sov-db = { path = "../db/sov-db", version = "0.3", optional = true }
+sov-db = { path = "../sov-db", version = "0.3", optional = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 
 [dev-dependencies]
@@ -45,7 +45,7 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["n
 sov-stf-runner = { path = ".", features = ["mock"] }
 
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
 sov-prover-storage-manager = { path = "../sov-prover-storage-manager", features = ["test-utils"] }
 
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }

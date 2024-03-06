@@ -1,6 +1,6 @@
 //! Defines namespaces that are used to partition the state of the rollup.
 
-use sov_schema_db::schema::ColumnFamilyName;
+use rockbound::schema::ColumnFamilyName;
 
 pub use crate::schema::namespace::Namespace;
 

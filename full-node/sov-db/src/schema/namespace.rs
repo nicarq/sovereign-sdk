@@ -9,10 +9,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
+use rockbound::schema::{ColumnFamilyName, KeyDecoder, KeyEncoder, ValueCodec};
+use rockbound::{CodecError, Schema, SchemaKey, SchemaValue, SeekKeyEncoder};
 #[cfg(feature = "sync")]
 use serde::Serialize;
-use sov_schema_db::schema::{ColumnFamilyName, KeyDecoder, KeyEncoder, ValueCodec};
-use sov_schema_db::{CodecError, Schema, SchemaKey, SchemaValue, SeekKeyEncoder};
 
 /// Mapping table from key Hash to jmt key
 #[derive(Debug)]

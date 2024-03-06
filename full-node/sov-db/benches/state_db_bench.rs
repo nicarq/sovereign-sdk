@@ -10,11 +10,11 @@ use jmt::storage::TreeWriter;
 use jmt::{JellyfishMerkleTree, KeyHash};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use rockbound::cache::cache_container::CacheContainer;
+use rockbound::cache::cache_db::CacheDb;
+use rockbound::{ReadOnlyLock, DB};
 use sov_db::namespaces::UserNamespace;
 use sov_db::state_db::{JmtHandler, StateDB};
-use sov_schema_db::cache::cache_container::CacheContainer;
-use sov_schema_db::cache::cache_db::CacheDb;
-use sov_schema_db::{ReadOnlyLock, DB};
 
 // TODO: Improve for collisions
 fn generate_random_bytes(count: usize) -> Vec<Vec<u8>> {
