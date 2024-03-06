@@ -6,7 +6,7 @@ use sov_rollup_interface::da::{
     self, BlobReaderTrait, BlockHashTrait as BlockHash, BlockHeaderTrait, DaSpec,
 };
 use sov_rollup_interface::digest::Digest;
-use sov_rollup_interface::zk::ValidityCondition;
+use sov_rollup_interface::zk::{ValidityCondition, ValidityConditionChecker};
 use sov_rollup_interface::Buf;
 use thiserror::Error;
 
@@ -117,6 +117,9 @@ impl DaSpec for CelestiaSpec {
 
     type ValidityCondition = ChainValidityCondition;
 
+    #[cfg(feature = "native")]
+    type Checker = ChainValidityConditionChecker;
+
     type InclusionMultiProof = Vec<EtxProof>;
 
     type CompletenessProof = NamespacedShares;
@@ -161,6 +164,19 @@ impl ValidityCondition for ChainValidityCondition {
             return Err(ValidityConditionError::BlocksNotConsecutive);
         }
         Ok(rhs)
+    }
+}
+
+/// The [`ValidityConditionChecker`] used to validate Celestia's [`ChainValidityCondition`]
+/// This validity condition checker is trivial because the validity condition consistency
+/// constraints are enforced in the `combine` method.
+#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+pub struct ChainValidityConditionChecker;
+
+impl ValidityConditionChecker<ChainValidityCondition> for ChainValidityConditionChecker {
+    type Error = anyhow::Error;
+    fn check(&mut self, _condition: &ChainValidityCondition) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 

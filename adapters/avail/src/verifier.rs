@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
-use sov_rollup_interface::zk::ValidityCondition;
+use sov_rollup_interface::zk::{ValidityCondition, ValidityConditionChecker};
 use thiserror::Error;
 
 use crate::spec::DaLayerSpec;
@@ -42,6 +42,19 @@ impl ValidityCondition for ChainValidityCondition {
             block_hash: rhs.block_hash,
             txs_commitment: combined_root,
         })
+    }
+}
+
+/// The [`ValidityConditionChecker`] used to validate Avail's [`ChainValidityCondition`]
+/// This validity condition checker is trivial because the validity condition consistency
+/// constraints are enforced in the `combine` method.
+#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+pub struct ChainValidityConditionChecker;
+
+impl ValidityConditionChecker<ChainValidityCondition> for ChainValidityConditionChecker {
+    type Error = anyhow::Error;
+    fn check(&mut self, _condition: &ChainValidityCondition) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 

@@ -1,6 +1,6 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateMapAccessor, ValidityConditionChecker, WorkingSet};
+use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::storage::{NativeStorage, SlotKey, Storage, StorageProof};
 
 use super::AttesterIncentives;
@@ -14,12 +14,10 @@ pub struct BondAmountResponse {
 }
 
 // TODO: implement rpc_gen macro
-impl<S, Vm, Da, Checker> AttesterIncentives<S, Vm, Da, Checker>
+impl<S, Da> AttesterIncentives<S, Da>
 where
     S: sov_modules_api::Spec,
-    Vm: sov_modules_api::Zkvm,
     Da: sov_modules_api::DaSpec,
-    Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
     /// Queries the state of the module.
     pub fn get_bond_amount(

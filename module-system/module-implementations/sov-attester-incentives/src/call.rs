@@ -3,6 +3,7 @@ use std::fmt::Debug;
 
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
+use derivative::Derivative;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins};
@@ -11,16 +12,21 @@ use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
     CallResponse, Context, DaSpec, EventEmitter, StateTransition, ValidityConditionChecker,
-    WorkingSet,
+    WorkingSet, Zkvm,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use thiserror::Error;
+use tracing::error;
 
 use crate::{AttesterIncentives, Event, UnbondingInfo};
 
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 /// A wrapper for attestations which implements `borsh` serialization. This is necessary since
 /// Attestations are treated as `CallMessage`s, and we only support borsh encoding for transactions.
+#[derive(Derivative, Clone, Serialize, Deserialize)]
+#[derivative(
+    PartialEq(bound = "Da: DaSpec, StorageProof: PartialEq + Eq, Root: PartialEq + Eq"),
+    Eq(bound = "Da: DaSpec, StorageProof: PartialEq + Eq, Root: PartialEq + Eq")
+)]
 pub struct WrappedAttestation<Da: DaSpec, StorageProof, Root> {
     #[serde(
         bound = "Da::SlotHash: Serialize + DeserializeOwned, StorageProof: Serialize + DeserializeOwned, Root: Serialize + DeserializeOwned"
@@ -78,7 +84,11 @@ impl<
 }
 
 /// This enumeration represents the available call messages for interacting with the `AttesterIncentives` module.
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+#[derivative(
+    PartialEq(bound = "<S::Storage as Storage>::Proof: PartialEq + Eq"),
+    Eq(bound = "<S::Storage as Storage>::Proof: PartialEq + Eq")
+)]
 pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
     /// Bonds an attester, the parameter is the bond amount
     BondAttester(Amount),
@@ -124,7 +134,18 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Debug for CallMessage<S, Da> {
     }
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(
+    Debug,
+    Error,
+    PartialEq,
+    Eq,
+    BorshDeserialize,
+    BorshSerialize,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+)]
 /// Error type that explains why a user is slashed
 pub enum SlashingReason {
     #[error("Transition isn't found")]
@@ -205,12 +226,10 @@ pub enum Role {
     Challenger,
 }
 
-impl<S, Vm, Da, Checker> AttesterIncentives<S, Vm, Da, Checker>
+impl<S, Da> AttesterIncentives<S, Da>
 where
     S: sov_modules_api::Spec,
-    Vm: sov_modules_api::Zkvm,
     Da: sov_modules_api::DaSpec,
-    Checker: ValidityConditionChecker<Da::ValidityCondition>,
 {
     /// This returns the address of the reward token supply
     pub fn get_reward_token_supply_address(&self, working_set: &mut WorkingSet<S>) -> S::Address {
@@ -240,7 +259,13 @@ where
     }
 
     /// A helper function that simply slashes an attester and returns a reward value
-    fn slash_user(&self, user: &S::Address, role: Role, working_set: &mut WorkingSet<S>) -> u64 {
+    fn slash_user(
+        &self,
+        user: &S::Address,
+        role: Role,
+        reason: SlashingReason,
+        working_set: &mut WorkingSet<S>,
+    ) -> u64 {
         let bonded_set = match role {
             Role::Attester => {
                 // We have to remove the attester from the unbonding set
@@ -263,6 +288,7 @@ where
             "user_slashed",
             Event::<S>::UserSlashed {
                 address: user.clone(),
+                reason,
             },
         );
 
@@ -276,7 +302,7 @@ where
         reason: SlashingReason,
         working_set: &mut WorkingSet<S>,
     ) -> AttesterIncentiveErrors {
-        self.slash_user(user, role, working_set);
+        self.slash_user(user, role, reason, working_set);
         AttesterIncentiveErrors::UserSlashed(reason)
     }
 
@@ -288,7 +314,7 @@ where
         reason: SlashingReason,
         working_set: &mut WorkingSet<S>,
     ) -> AttesterIncentiveErrors {
-        let reward = self.slash_user(attester, Role::Attester, working_set);
+        let reward = self.slash_user(attester, Role::Attester, reason, working_set);
 
         let curr_reward_value = self
             .bad_transition_pool
@@ -671,7 +697,9 @@ where
         Ok(CallResponse::default())
     }
 
-    /// Try to process an attestation if the attester is bonded
+    /// Try to process an attestation if the attester is bonded.
+    /// This function returns an error (hence ignores the transaction) when the attester is not bonded
+    /// or when the module is unable to verify the bonding proof.
     #[allow(clippy::type_complexity)]
     pub(crate) fn process_attestation(
         &self,
@@ -733,21 +761,37 @@ where
             return Err(AttesterIncentiveErrors::InvalidTransitionInvariant);
         }
 
+        // From this point below, the attester has been correctly authenticated -
+        // any error constitutes a slashable offense which *needs to be reflected in the state*.
+        // Hence we don't want to return an error after this point, but rather slash the attester and exit gracefully.
+
         // First compare the initial hashes
-        self.check_initial_hash(
+        if let Err(err) = self.check_initial_hash(
             attestation.proof_of_bond.claimed_transition_num,
             context.sender(),
             &attestation,
             working_set,
-        )?;
+        ) {
+            error!(
+                error = ?err,
+                ?attestation,
+                "Error raised when checking initial hashes for attestation");
+            return Ok(CallResponse::default());
+        }
 
         // Then compare the transition
-        self.check_transition(
+        if let Err(err) = self.check_transition(
             attestation.proof_of_bond.claimed_transition_num,
             context.sender(),
             &attestation,
             working_set,
-        )?;
+        ) {
+            error!(
+                error = ?err,
+                ?attestation,
+                "Error raised when checking the transition for attestation");
+            return Ok(CallResponse::default());
+        }
 
         self.emit_event(
             working_set,
@@ -824,6 +868,8 @@ where
     }
 
     /// Try to process a zk proof if the challenger is bonded.
+    /// Same comment as above for the [`AttesterIncentives::process_attestation`] method: if we have a slashable
+    /// offense, we want to be able to exit gracefully.
     pub(crate) fn process_challenge(
         &self,
         context: &Context<S>,
@@ -854,20 +900,31 @@ where
             .expect("Should be set at genesis");
 
         // Find the faulty attestation pool and get the associated reward
-        let attestation_reward: u64 = self
+        let attestation_reward: u64 = match self
             .bad_transition_pool
             .get_or_err(transition_num, working_set)
-            .map_err(|_| {
-                self.slash_burn_reward(
+        {
+            Ok(reward) => reward,
+            Err(err) => {
+                let slash_err = self.slash_burn_reward(
                     context.sender(),
                     Role::Challenger,
                     SlashingReason::NoInvalidTransition,
                     working_set,
-                )
-            })?;
+                );
+
+                error!(
+                    error = ?slash_err,
+                    ?err,
+                    transition_num,
+                    "Impossible to find the bad transition associated with the transition");
+
+                return Ok(CallResponse::default());
+            }
+        };
 
         let public_outputs_opt: anyhow::Result<StateTransition<Da, <S::Storage as Storage>::Root>> =
-            Vm::verify_and_extract_output::<Da, <S::Storage as Storage>::Root>(
+            <S::Zkvm as Zkvm>::verify_and_extract_output::<Da, <S::Storage as Storage>::Root>(
                 proof,
                 &code_commitment,
             )
@@ -883,15 +940,24 @@ where
                     .expect("Should be defined at genesis");
 
                 // We have to perform the checks to ensure that the challenge is valid while the attestation isn't.
-                self.check_challenge_outputs_against_transition(
+                if let Err(err) = self.check_challenge_outputs_against_transition(
                     public_output,
                     transition_num,
                     &mut validity_checker,
                     working_set,
-                )
-                .map_err(|err| {
-                    self.slash_burn_reward(context.sender(), Role::Challenger, err, working_set)
-                })?;
+                ) {
+                    let err = self.slash_burn_reward(
+                        context.sender(),
+                        Role::Challenger,
+                        err,
+                        working_set,
+                    );
+                    error!(
+                        error = ?err,
+                        "Error raised when checking the challenge outputs against the transition");
+
+                    return Ok(CallResponse::default());
+                };
 
                 // Reward the challenger with half of the attestation reward (avoid DOS)
                 self.reward_sender(context, attestation_reward / 2, working_set)?;
@@ -909,12 +975,16 @@ where
             }
             Err(_err) => {
                 // Slash the challenger
-                return Err(self.slash_burn_reward(
+                let err = self.slash_burn_reward(
                     context.sender(),
                     Role::Challenger,
                     SlashingReason::InvalidProofOutputs,
                     working_set,
-                ));
+                );
+
+                error!(
+                    error = ?err,
+                    "Impossible to verify the proof");
             }
         }
 

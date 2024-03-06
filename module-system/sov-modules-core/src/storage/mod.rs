@@ -225,7 +225,7 @@ impl SlotValue {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
     feature = "sync",
     derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)

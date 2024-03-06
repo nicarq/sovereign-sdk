@@ -7,6 +7,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::zk::ValidityCondition;
+#[cfg(feature = "native")]
+use crate::zk::ValidityConditionChecker;
 use crate::BasicAddress;
 
 /// A specification for the types used by a DA layer.
@@ -25,6 +27,10 @@ pub trait DaSpec: 'static + Debug + PartialEq + Eq + Clone + Send + Sync {
 
     /// Any conditions imposed by the DA layer which need to be checked outside of the SNARK
     type ValidityCondition: ValidityCondition + Send + Sync;
+
+    /// The validity condition checker used for this DA layer.
+    #[cfg(feature = "native")]
+    type Checker: ValidityConditionChecker<Self::ValidityCondition>;
 
     /// A proof that each tx in a set of blob transactions is included in a given block.
     type InclusionMultiProof: Serialize + DeserializeOwned + Send + Sync;

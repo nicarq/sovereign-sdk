@@ -31,6 +31,8 @@ bcs =  { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
+derivative = { workspace = true }
+tracing = { workspace = true }
 
 sov-bank = { path = "../sov-bank", version = "0.3" }
 sov-chain-state = { path = "../sov-chain-state", version = "0.3" }

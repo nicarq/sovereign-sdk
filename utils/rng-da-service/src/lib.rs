@@ -7,7 +7,7 @@ use futures::stream::BoxStream;
 use sov_bank::{Bank, Coins};
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash, MockValidityCond,
-    MOCK_SEQUENCER_DA_ADDRESS,
+    MockValidityCondChecker, MOCK_SEQUENCER_DA_ADDRESS,
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, EncodeCall, GasPrice, PrivateKey, PublicKey, Spec};
@@ -49,6 +49,7 @@ impl DaSpec for RngDaSpec {
     type BlobTransaction = MockBlob;
     type Address = MockAddress;
     type ValidityCondition = MockValidityCond;
+    type Checker = MockValidityCondChecker<MockValidityCond>;
     type InclusionMultiProof = [u8; 32];
     type CompletenessProof = ();
     type ChainParams = ();

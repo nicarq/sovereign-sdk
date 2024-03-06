@@ -1,3 +1,5 @@
+use crate::SlashingReason;
+
 /// Events for attester incentives
 #[derive(
     borsh::BorshDeserialize,
@@ -10,7 +12,10 @@
 )]
 pub enum Event<S: sov_modules_api::Spec> {
     /// Event for User Slashed
-    UserSlashed { address: S::Address },
+    UserSlashed {
+        address: S::Address,
+        reason: SlashingReason,
+    },
     /// Event for a new deposit
     BondedAttester { new_deposit: u64, total_bond: u64 },
     /// Event for a new deposit
