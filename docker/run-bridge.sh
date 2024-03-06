@@ -21,7 +21,7 @@ GENESIS_HASH_FILE="$GENESIS_DIR/genesis_hash"
 
 # Wait for the validator to set up and provision us via shared dirs
 wait_for_provision() {
-  echo "Waiting for the validator node to start"
+  echo "Waiting for the validator node to start..."
   while [[ ! ( -e "$GENESIS_HASH_FILE" && -e "$NODE_KEY_FILE" ) ]]; do
     sleep 0.5
   done
@@ -49,11 +49,13 @@ add_trusted_genesis() {
 }
 
 write_jwt_token() {
-  echo "Saving jwt token to $NODE_JWT_FILE"
+  echo "Saving JWT token to $NODE_JWT_FILE"
   celestia bridge auth admin --p2p.network "$P2P_NETWORK" > "$NODE_JWT_FILE"
+  echo "JWT token has been saved"
 }
 
 main() {
+  echo "Initializing a bridge node..."
   # Wait for a validator
   wait_for_provision
   # Import the key with the coins

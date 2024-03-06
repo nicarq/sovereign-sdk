@@ -116,9 +116,9 @@ pub struct Token<S: sov_modules_api::Spec> {
 
     /// Vector containing the authorized minters
     /// Empty vector indicates that the token supply is frozen
-    /// Non empty vector indicates members of the vector can mint.
+    /// Non-empty vector indicates members of the vector can mint.
     /// Freezing a token requires emptying the vector
-    /// NOTE: This is explicit so if a creator doesn't add themselves, then they can't mint
+    /// NOTE: This is explicit, so if a creator doesn't add themselves, then they can't mint
     pub(crate) authorized_minters: Vec<S::Address>,
 }
 

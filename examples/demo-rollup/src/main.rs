@@ -65,9 +65,9 @@ async fn main() -> Result<(), anyhow::Error> {
     match args.da_layer {
         SupportedDaLayer::Mock => {
             let rollup = new_rollup_with_mock_da(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
+                &GenesisPaths::from_dir("../test-data/genesis/demo/mock"),
                 &BasicKernelGenesisPaths {
-                    chain_state: "../test-data/genesis/demo-tests/mock/chain_state.json".into(),
+                    chain_state: "../test-data/genesis/demo/mock/chain_state.json".into(),
                 },
                 rollup_config_path,
                 prover_config,
@@ -77,9 +77,9 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         SupportedDaLayer::Celestia => {
             let rollup = new_rollup_with_celestia_da(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
+                &GenesisPaths::from_dir("../test-data/genesis/demo/celestia"),
                 &BasicKernelGenesisPaths {
-                    chain_state: "../test-data/genesis/demo-tests/celestia/chain_state.json".into(),
+                    chain_state: "../test-data/genesis/demo/celestia/chain_state.json".into(),
                 },
                 rollup_config_path,
                 prover_config,

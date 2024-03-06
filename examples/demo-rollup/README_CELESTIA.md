@@ -77,25 +77,15 @@ $ echo $MY_PERSONAL_GITHUB_TOKEN | docker login ghcr.io -u $MY_GITHUB_USERNAME -
 
 ```shell,test-ci
 $ cd examples/demo-rollup/
-$ cargo build --bins
+$ make build
 ```
 
 4. Spin up a local Celestia instance as your DA layer. We've built a small Makefile to simplify that process:
 
-```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=genesis.json
+```sh,test-ci,bashtestmd:wait-until=genesis.json
 $ make clean
 # Make sure to run `make stop` or `make clean` when you're done with this demo!
 $ make start
-```
-
-If interested, you can check out what the Makefile does [here](#Makefile).  
- The above command will also modify some configuration files:
-
-```sh,test-ci
-$ git status
-..
-..
-	modified:   rollup_config.toml
 ```
 
 ### Start the Rollup Full Node
@@ -104,16 +94,25 @@ Now run the demo-rollup full node, as shown below. You will see it consuming blo
 
 ```sh,test-ci,bashtestmd:long-running
 # Make sure you're still in the examples/demo-rollup directory.
-$  cargo run -- --da-layer celestia --rollup-config-path celestia_rollup_config.toml
-2023-06-07T10:03:25.473920Z  INFO sov_celestia_adapter::da_service: Fetching header at height=1...
-2023-06-07T10:03:25.496853Z  INFO sov_demo_rollup: Received 0 blobs
-2023-06-07T10:03:25.497700Z  INFO sov_demo_rollup: Requesting data for height 2 and prev_state_root 0xa96745d3184e54d098982daf44923d84c358800bd22c1864734ccb978027a670
-2023-06-07T10:03:25.497719Z  INFO sov_celestia_adapter::da_service: Fetching header at height=2...
-2023-06-07T10:03:25.505412Z  INFO sov_demo_rollup: Received 0 blobs
-2023-06-07T10:03:25.505992Z  INFO sov_demo_rollup: Requesting data for height 3 and prev_state_root 0xa96745d3184e54d098982daf44923d84c358800bd22c1864734ccb978027a670
-2023-06-07T10:03:25.506003Z  INFO sov_celestia_adapter::da_service: Fetching header at height=3...
-2023-06-07T10:03:25.511237Z  INFO sov_demo_rollup: Received 0 blobs
-2023-06-07T10:03:25.511815Z  INFO sov_demo_rollup: Requesting data for height 4 and prev_state_root 0xa96745d3184e54d098982daf44923d84c358800bd22c1864734ccb978027a670
+$ cargo run -- --da-layer celestia --rollup-config-path demo_rollup_config.toml
+2024-03-05T14:42:21.332792Z  INFO sov_demo_rollup: Running demo rollup with prover config prover_config=Skip
+2024-03-05T14:42:21.332955Z DEBUG sov_demo_rollup: Starting Celestia rollup config_path="demo_rollup_config.toml"
+2024-03-05T14:42:21.333147Z DEBUG sov_stf_runner::config: Parsing config file size_in_bytes=1238 contents="[da]\n# The JWT used to authenticate with the celestia light client. Instructions for generating this token can be found in the README\ncelestia_rpc_auth_token = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiLCJhZG1pbiJdfQ.xFFGFMlIAkJ5_9dJR1GIwujpfr1tuISDvNr6cDR8wnY\"\n# The address of the *trusted* Celestia light client to interact with\ncelestia_rpc_address = \"http://127.0.0.1:26658\"\n# The largest response the rollup will accept from the Celestia node. Defaults to 100 MB\nmax_celestia_response_body_size = 104_857_600\n# The maximum time to wait for a response to an RPC query against Celestia node. Defaults to 60 seconds.\ncelestia_rpc_timeout_seconds = 60\n\n[storage]\n# The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.\npath = \"demo_data\"\n\n# We define the rollup's genesis to occur at block number `genesis_height`. The rollup will ignore\n# any blocks before this height, and any blobs at this height will not be processed\n[runner]\ngenesis_height = 3\nda_polling_interval_ms = 10000\n\n[runner.rpc_config]\n# the host and port to bind the rpc server for\nbind_host = \"127.0.0.1\"\nbind_port = 12345\n\n[prover_service]\naggregated_proof_block_jump = 1\n"
+2024-03-05T14:42:28.772046Z  INFO sov_schema_db: Opened RocksDB rocksdb_name="state-db"
+2024-03-05T14:42:28.838260Z  INFO sov_schema_db: Opened RocksDB rocksdb_name="native-db"
+2024-03-05T14:42:29.087513Z  INFO sov_schema_db: Opened RocksDB rocksdb_name="ledger-db"
+2024-03-05T14:42:29.089568Z  INFO sov_stf_runner::runner: No history detected. Initializing chain on the block header... header=sov_celestia_adapter::celestia::CelestiaHeader prev_hash=0x88f40f107bd45687b37c57ce7d4a6a303e1635417a4c6afe84401ffdf97b3bf3 hash=0x248042f683e50f55a34847323ae367f88f692dfc60629ce78d2c8c70a86466f5 height=3
+2024-03-05T14:42:29.090544Z DEBUG sov_bank::genesis: Bank genesis token config: TokenConfig { token_name: sov-demo-token, address_and_balances: [(sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94, 100000000)], authorized_minters: [sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94], salt: 0 }
+2024-03-05T14:42:29.119153Z  INFO sov_stf_runner::runner: Chain initialization is done genesis_root="34b162718eaf1878f6dc0306a9cc9d17fb0c0337343f6e21c0babb44480adb5d2674feeb85ae0e109d4f8e2714a55fd287d7e447997fbc42a43d1c634a74bce3"
+2024-03-05T14:42:29.119211Z DEBUG sov_stf_runner::runner: Initializing StfRunner last_slot_processed_before_shutdown=0 runner_config.genesis_height=3 first_unprocessed_height_at_startup=4
+2024-03-05T14:42:29.119759Z  INFO sov_stf_runner::runner: Starting RPC server bound_address=127.0.0.1:12345
+2024-03-05T14:42:29.122392Z DEBUG sov_stf_runner::runner: Requesting DA block for next_da_height=4
+2024-03-05T14:42:39.608515Z  INFO sov_stf_runner::runner: Extracted relevant blobs blobs_count=0 next_da_height=4 blobs=[]
+2024-03-05T14:42:39.610889Z  INFO sov_stf_runner::runner: Sync in progress synced_da_height=3 target_da_height=4
+2024-03-05T14:42:39.611847Z DEBUG sov_chain_state: Setting next visible slot number slot_number=2
+2024-03-05T14:42:39.611923Z  INFO sov_modules_stf_blueprint: Selected batch(es) for execution in current slot batches_count=0 virtual_slot=1 true_slot=1
+2024-03-05T14:42:39.614143Z  INFO sov_stf_runner::runner: Sync in progress synced_da_height=3 target_da_height=4
+2024-03-05T14:42:39.618315Z  INFO sov_stf_runner::prover_service::manager: Saving aggregated proof height=4
 ```
 
 Leave it running while you proceed with the rest of the demo.
@@ -309,7 +308,7 @@ This command will use your default private key.
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"},"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":{"amount":1000},"id":1}
+{"jsonrpc":"2.0","result":{"amount":1000000},"id":1}
 ```
 
 ### Makefile
@@ -323,7 +322,7 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
   - Exposes the RPC port `26658`
   - Waits until the container is started
   - Sets up the config
-    - `examples/demo-rollup/rollup_config.toml` is modified -
+    - `examples/demo-rollup/demo_rollup_config.toml` is modified -
       - `genesis_height` is set to `3`, which is the block in which sequencers are funded with credits
       - `celestia_rpc_auth_token` is set to the auth token exposed by sequencer (in <repo_root>/docker/credentials directory)
       - `celestia_rpc_address` is set to point to `127.0.0.1` and the `RPC_PORT`
@@ -333,6 +332,7 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
 - `make clean`:
   - Stops any running containers with the name `sov-celestia-local` and also removes them
   - Removes `demo-data` (or the configured path of the rollup database from rollup_config.toml)
+  - Removes `~/sov_cli_wallet`
 
 ### Remote setup
 

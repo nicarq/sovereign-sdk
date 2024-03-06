@@ -8420,6 +8420,7 @@ dependencies = [
  "sov-test-utils",
  "tempfile",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

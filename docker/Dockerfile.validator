@@ -5,7 +5,7 @@ FROM docker.io/alpine:3.18.3
 
 ENV CELESTIA_HOME=/root
 
-RUN apk update && apk add --no-cache bash jq
+RUN apk update && apk add --no-cache bash jq curl
 
 # Copy in the binary
 COPY --from=ghcr.io/celestiaorg/celestia-app:v1.3.0 /bin/celestia-appd /bin/celestia-appd

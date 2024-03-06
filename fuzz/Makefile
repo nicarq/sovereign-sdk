@@ -10,6 +10,9 @@ help: ## Display this help message
 check: ## Checks that fuzz member compiles
 	cargo check
 
+clean:
+	@cargo clean
+
 # Needs nightly for `-Z sanitizer=address`
 build-target: ## Build the target fuzz
 	cargo +nightly rustc --bin $(TARGET) $(ARGS) -- \
