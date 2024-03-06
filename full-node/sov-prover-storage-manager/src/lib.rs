@@ -3,16 +3,16 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
+use rockbound::cache::cache_container::CacheContainer;
+use rockbound::cache::cache_db::CacheDb;
+use rockbound::cache::change_set::ChangeSet;
+use rockbound::cache::SnapshotId;
+use rockbound::ReadOnlyLock;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_schema_db::cache::cache_container::CacheContainer;
-use sov_schema_db::cache::cache_db::CacheDb;
-use sov_schema_db::cache::change_set::ChangeSet;
-use sov_schema_db::cache::SnapshotId;
-use sov_schema_db::ReadOnlyLock;
 use sov_state::{MerkleProofSpec, ProverChangeSet, ProverStorage};
 
 use crate::cache_container_group::{CacheContainerRwLockGroup, CacheDbGroup};
@@ -48,9 +48,9 @@ where
     Da::SlotHash: Hash,
 {
     fn with_db_handles(
-        state_db: sov_schema_db::DB,
-        native_db: sov_schema_db::DB,
-        ledger_db: sov_schema_db::DB,
+        state_db: rockbound::DB,
+        native_db: rockbound::DB,
+        ledger_db: rockbound::DB,
     ) -> Self {
         let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
 
@@ -541,9 +541,7 @@ mod tests {
         }
     }
 
-    fn build_dbs(
-        path: &std::path::Path,
-    ) -> (sov_schema_db::DB, sov_schema_db::DB, sov_schema_db::DB) {
+    fn build_dbs(path: &std::path::Path) -> (rockbound::DB, rockbound::DB, rockbound::DB) {
         let state_db = StateDB::setup_schema_db(path).unwrap();
         let native_db = NativeDB::setup_schema_db(path).unwrap();
         let ledger_db = LedgerDB::setup_schema_db(path).unwrap();

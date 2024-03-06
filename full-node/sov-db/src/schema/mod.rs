@@ -4,8 +4,8 @@ pub mod tables;
 /// are split into their constituent parts and stored in separate tables for easy retrieval.
 pub mod types;
 
-pub use sov_schema_db::cache::cache_container::CacheContainer;
-pub use sov_schema_db::cache::cache_db::CacheDb;
-pub use sov_schema_db::cache::change_set::ChangeSet;
+pub use rockbound::cache::cache_container::CacheContainer;
+pub use rockbound::cache::cache_db::CacheDb;
+pub use rockbound::cache::change_set::ChangeSet;
 
 pub mod namespace;

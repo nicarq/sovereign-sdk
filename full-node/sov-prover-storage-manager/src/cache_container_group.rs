@@ -1,9 +1,9 @@
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
-use sov_schema_db::cache::cache_container::CacheContainer;
-use sov_schema_db::cache::cache_db::CacheDb;
-use sov_schema_db::cache::change_set::ChangeSet;
-use sov_schema_db::cache::SnapshotId;
+use rockbound::cache::cache_container::CacheContainer;
+use rockbound::cache::cache_db::CacheDb;
+use rockbound::cache::change_set::ChangeSet;
+use rockbound::cache::SnapshotId;
 
 /// Group of cache containers. For consistent usage of all RwLocks.
 pub(crate) struct CacheContainerRwLockGroup {

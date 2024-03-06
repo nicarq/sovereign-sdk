@@ -39,7 +39,7 @@ tokio = { workspace = true }
 reth-primitives = { workspace = true, optional = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
-sov-db = { path = "../../full-node/db/sov-db" }
+sov-db = { path = "../../full-node/sov-db" }
 sov-ethereum = { path = "../../full-node/sov-ethereum", optional = true }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }

@@ -208,7 +208,7 @@ The event key for all `CreateToken` calls in the bank module is `token_created` 
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByKey","params":["token_created",null,null,1,null],"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":{"events_response":[{"event_value":{"TokenCreated":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"next":null},"id":1}
 ```
-The parameters can be inferred from [rpc.rs](../full-node/db/sov-db/src/ledger_db/rpc.rs), and [server.rs](../full-node/sov-ledger-rpc/src/server.rs)
+The parameters can be inferred from [rpc.rs](../full-node/sov-db/src/ledger_db/rpc.rs), and [server.rs](../full-node/sov-ledger-rpc/src/server.rs)
 ```rust
 fn get_events_by_key<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
     &self,
@@ -237,7 +237,7 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
 
 ### ledger_getEventsByModuleAddress
 `getEventsByModuleAddress` is similar to the previous call, but is more suitable for use cases where all the events from a specific module need to be fetched.
-The parameters can be inferred from [rpc.rs](../full-node/db/sov-db/src/ledger_db/rpc.rs)
+The parameters can be inferred from [rpc.rs](../full-node/sov-db/src/ledger_db/rpc.rs)
 ```rust
     fn get_events_by_module_address<
         E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,

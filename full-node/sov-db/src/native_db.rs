@@ -1,9 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use sov_schema_db::cache::cache_db::CacheDb;
-use sov_schema_db::cache::change_set::ChangeSet;
-use sov_schema_db::SchemaBatch;
+use rockbound::cache::cache_db::CacheDb;
+use rockbound::cache::change_set::ChangeSet;
+use rockbound::SchemaBatch;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{ModuleAccessoryState, NATIVE_TABLES};
@@ -24,10 +24,10 @@ impl NativeDB {
     const DB_PATH_SUFFIX: &'static str = "native";
     const DB_NAME: &'static str = "native-db";
 
-    /// Initialize [`sov_schema_db::DB`] that matches tables and columns for [`NativeDB`]
-    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<sov_schema_db::DB> {
+    /// Initialize [`rockbound::DB`] that matches tables and columns for [`NativeDB`]
+    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<rockbound::DB> {
         let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
-        sov_schema_db::DB::open(
+        rockbound::DB::open(
             path,
             Self::DB_NAME,
             NATIVE_TABLES.iter().copied(),
@@ -91,8 +91,8 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::RwLock;
 
-    use sov_schema_db::cache::cache_container::CacheContainer;
-    use sov_schema_db::cache::cache_db::CacheDb;
+    use rockbound::cache::cache_container::CacheContainer;
+    use rockbound::cache::cache_db::CacheDb;
 
     use super::*;
 

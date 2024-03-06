@@ -2,14 +2,14 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use borsh::BorshDeserialize;
+use rockbound::cache::cache_db::CacheDb;
+use rockbound::cache::change_set::ChangeSet;
+use rockbound::{Schema, SchemaBatch, SeekKeyEncoder};
 use serde::Serialize;
 use sov_rollup_interface::rpc::AggregatedProofResponse;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofData;
-use sov_schema_db::cache::cache_db::CacheDb;
-use sov_schema_db::cache::change_set::ChangeSet;
-use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder};
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
@@ -99,10 +99,10 @@ impl LedgerDB {
     const DB_PATH_SUFFIX: &'static str = "ledger";
     const DB_NAME: &'static str = "ledger-db";
 
-    /// Initialize [`sov_schema_db::DB`] that matches tables and columns for [`LedgerDB`]
-    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<sov_schema_db::DB> {
+    /// Initialize [`rockbound::DB`] that matches tables and columns for [`LedgerDB`]
+    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<rockbound::DB> {
         let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
-        sov_schema_db::DB::open(
+        rockbound::DB::open(
             path,
             Self::DB_NAME,
             LEDGER_TABLES.iter().copied(),

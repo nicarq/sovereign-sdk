@@ -643,6 +643,9 @@ mod tests {
 
     use borsh::BorshSerialize;
     use rand::Rng;
+    use rockbound::cache::cache_container::CacheContainer;
+    use rockbound::cache::cache_db::CacheDb;
+    use rockbound::SchemaBatch;
     use sov_mock_da::{MockBlob, MockBlock};
     use sov_modules_api::utils::generate_address;
     use sov_modules_api::AddressBech32;
@@ -650,9 +653,6 @@ mod tests {
     use sov_rollup_interface::zk::aggregated_proof::{
         AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
     };
-    use sov_schema_db::cache::cache_container::CacheContainer;
-    use sov_schema_db::cache::cache_db::CacheDb;
-    use sov_schema_db::SchemaBatch;
     use sov_test_utils::TestSpec;
 
     use crate::ledger_db::event_test_helper::{
