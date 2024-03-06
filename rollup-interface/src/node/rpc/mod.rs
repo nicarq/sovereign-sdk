@@ -388,7 +388,7 @@ pub trait LedgerRpcProvider {
 
     /// Get a notification each time an aggregated proof is processed
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
-    fn subscribe_proof_saved(&self) -> broadcast::Receiver<()>;
+    fn subscribe_proof_saved(&self) -> broadcast::Receiver<AggregatedProofResponse>;
 }
 
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most

@@ -22,22 +22,27 @@ async fn run_make_proof_sync(
     test_case: TestCase,
     nb_of_threads: usize,
 ) -> Result<(), anyhow::Error> {
+    let jump = test_case.jump();
+
     let nb_of_batches = test_case.input.nb_of_batches;
-    let mut test_node = spawn(test_case.jump(), nb_of_threads);
+    let mut test_node = spawn(jump, nb_of_threads);
 
     for batch_number in 0..nb_of_batches {
         test_node.send_transaction().await.unwrap();
         test_node.make_block_proof();
 
-        if (batch_number + 1) % test_case.jump() == 0 {
+        if (batch_number + 1) % jump == 0 {
             test_node.wait_for_aggregated_proof_posted_to_da().await?;
         }
     }
 
     test_node.try_send_aggregated_proof().await?;
 
-    for _ in (0..nb_of_batches).step_by(test_case.jump()) {
-        test_node.wait_for_aggregated_proof_saved_in_db().await?;
+    let mut init_slot = 1;
+    for _ in (0..nb_of_batches).step_by(jump) {
+        let resp = test_node.wait_for_aggregated_proof_saved_in_db().await?;
+        let pub_input = resp.proof.public_input();
+        init_slot = calculate_and_check_slot_number(init_slot, jump, pub_input);
     }
 
     let public_input = test_node.get_latest_public_input_proof()?.unwrap();
@@ -50,6 +55,7 @@ async fn run_make_proof_async(
     test_case: TestCase,
     nb_of_threads: usize,
 ) -> Result<(), anyhow::Error> {
+    let jump = test_case.jump();
     let nb_of_batches = test_case.input.nb_of_batches;
     let mut test_node = spawn(test_case.jump(), nb_of_threads);
 
@@ -61,19 +67,35 @@ async fn run_make_proof_async(
         test_node.make_block_proof();
     }
 
-    for _ in (0..nb_of_batches).step_by(test_case.jump()) {
+    for _ in (0..nb_of_batches).step_by(jump) {
         test_node.wait_for_aggregated_proof_posted_to_da().await?;
     }
 
     test_node.try_send_aggregated_proof().await?;
 
-    for _ in (0..nb_of_batches).step_by(test_case.jump()) {
-        test_node.wait_for_aggregated_proof_saved_in_db().await?;
+    let mut init_slot = 1;
+    for _ in (0..nb_of_batches).step_by(jump) {
+        let resp = test_node.wait_for_aggregated_proof_saved_in_db().await?;
+        let pub_input = resp.proof.public_input();
+        init_slot = calculate_and_check_slot_number(init_slot, jump, pub_input);
     }
 
     let public_input = test_node.get_latest_public_input_proof()?.unwrap();
     test_case.assert(&public_input);
     Ok(())
+}
+
+fn calculate_and_check_slot_number(
+    init_slot: u64,
+    jump: usize,
+    pub_input: &AggregatedProofPublicInput,
+) -> u64 {
+    assert_eq!(init_slot, pub_input.initial_slot_number);
+
+    let final_slot = init_slot + jump as u64 - 1;
+    assert_eq!(final_slot, pub_input.final_slot_number);
+
+    final_slot + 1
 }
 
 fn spawn(jump: usize, nb_of_threads: usize) -> TestNode {

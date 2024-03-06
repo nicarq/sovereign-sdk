@@ -36,7 +36,7 @@ pub type MockProverService = ParallelProverService<
 /// TestNode simulates a full-node.
 pub struct TestNode {
     proof_posted_in_da_sub: Receiver<()>,
-    agg_proof_saved_in_db_sub: Receiver<()>,
+    agg_proof_saved_in_db_sub: Receiver<AggregatedProofResponse>,
     da: MockDaService,
     vm: MockZkvm<MockValidityCond>,
     ledger_db: LedgerDB,
@@ -64,7 +64,9 @@ impl TestNode {
     }
 
     /// The aggregated proof was saved in the db.
-    pub async fn wait_for_aggregated_proof_saved_in_db(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn wait_for_aggregated_proof_saved_in_db(
+        &mut self,
+    ) -> Result<AggregatedProofResponse, anyhow::Error> {
         Ok(self.agg_proof_saved_in_db_sub.recv().await?)
     }
 

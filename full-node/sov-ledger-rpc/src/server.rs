@@ -2,12 +2,15 @@
 
 use futures::future::Either;
 use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::{RpcModule, SubscriptionMessage};
+use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::{
-    BatchIdentifier, EventIdentifier, LedgerRpcProvider, QueryMode, SlotIdentifier, TxIdentifier,
+    AggregatedProofResponse, BatchIdentifier, EventIdentifier, LedgerRpcProvider, QueryMode,
+    SlotIdentifier, TxIdentifier,
 };
+use tokio::sync::broadcast::Receiver;
 
 use crate::HexHash;
 
@@ -186,36 +189,51 @@ where
         "ledger_slotProcessed",
         "ledger_unsubscribeSlots",
         |_, pending_subscription, db| async move {
-            // Register with the ledgerDB to receive callbacks
-            let mut rx = db.subscribe_slots();
+            let rx = db.subscribe_slots();
+            Ok(register_subscription::<u64>(pending_subscription, rx).await?)
+        },
+    )?;
 
-            // Accept the subscription. This message is sent immediately
-            let subscription = pending_subscription.accept().await?;
-            let closed = subscription.closed();
-            futures::pin_mut!(closed);
-
-            // This loop continues running until the subscription ends.
-            loop {
-                let next_msg = rx.recv();
-                futures::pin_mut!(next_msg);
-                match futures::future::select(closed, next_msg).await {
-                    // If the subscription closed, we're done
-                    Either::Left(_) => break Ok(()),
-                    // Otherwise, we need to send the message
-                    Either::Right((outcome, channel_closing_future)) => {
-                        let msg = SubscriptionMessage::from_json(&outcome?)?;
-                        // Sending only fails if the subscriber has canceled, so we can stop sending messages
-                        if subscription.send(msg).await.is_err() {
-                            break Ok(());
-                        }
-                        closed = channel_closing_future;
-                    }
-                }
-            }
+    rpc.register_subscription(
+        "ledger_subscribeAggregatedProof",
+        "ledger_aggregatedProofProcessed",
+        "ledger_unsubscribeAggregatedProof",
+        |_, pending_subscription, db| async move {
+            let rx = db.subscribe_proof_saved();
+            Ok(register_subscription::<AggregatedProofResponse>(pending_subscription, rx).await?)
         },
     )?;
 
     Ok(rpc)
+}
+
+async fn register_subscription<T: Clone + Serialize>(
+    pending_subscription: PendingSubscriptionSink,
+    mut rx: Receiver<T>,
+) -> Result<(), anyhow::Error> {
+    // Accept the subscription. This message is sent immediately
+    let subscription = pending_subscription.accept().await?;
+    let closed = subscription.closed();
+    futures::pin_mut!(closed);
+
+    // This loop continues running until the subscription ends.
+    loop {
+        let next_msg = rx.recv();
+        futures::pin_mut!(next_msg);
+        match futures::future::select(closed, next_msg).await {
+            // If the subscription closed, we're done
+            Either::Left(_) => break Ok(()),
+            // Otherwise, we need to send the message
+            Either::Right((outcome, channel_closing_future)) => {
+                let msg = SubscriptionMessage::from_json(&outcome?)?;
+                // Sending only fails if the subscriber has canceled, so we can stop sending messages
+                if subscription.send(msg).await.is_err() {
+                    break Ok(());
+                }
+                closed = channel_closing_future;
+            }
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]

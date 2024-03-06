@@ -476,11 +476,12 @@ impl LedgerRpcProvider for LedgerDB {
             None => Ok(None),
         }
     }
+
     fn subscribe_slots(&self) -> Receiver<u64> {
         self.slot_subscriptions.subscribe()
     }
 
-    fn subscribe_proof_saved(&self) -> Receiver<()> {
+    fn subscribe_proof_saved(&self) -> Receiver<AggregatedProofResponse> {
         self.proof_subscriptions.subscribe()
     }
 }
