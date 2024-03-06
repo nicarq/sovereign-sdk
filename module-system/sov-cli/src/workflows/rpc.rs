@@ -27,11 +27,22 @@ pub enum RpcWorkflows<S: sov_modules_api::Spec> {
         /// A url like http://localhost:8545
         rpc_url: String,
     },
-    /// Query the rpc server for the nonce of the provided account. If no account is provided, the active account is used
+    /// Query the RPC server for the nonce of the provided account. If no account is provided, the active account is used
     GetNonce {
         /// (Optional) The account to query the nonce for (default: the active account)
         #[clap(subcommand)]
         account: Option<KeyIdentifier<S>>,
+    },
+    /// Query the address of token by name, salt and owner
+    GetTokenAddress {
+        /// The name of the token to query for
+        token_name: String,
+        /// The deployer of the token.
+        /// In the case of genesis, it is "sov1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0xu3qn".
+        /// Check the server logs if it does not match.
+        deployer_address: S::Address,
+        /// A salt used in the token address derivation.
+        salt: u64,
     },
     /// Query the rpc server for the token balance of an account
     GetBalance {
@@ -66,6 +77,7 @@ impl<S: sov_modules_api::Spec> RpcWorkflows<S> {
             RpcWorkflows::GetNonce { account } => account.as_ref(),
             RpcWorkflows::GetBalance { account, .. } => account.as_ref(),
             RpcWorkflows::SubmitBatch { account, .. } => account.as_ref(),
+            RpcWorkflows::GetTokenAddress { .. } => None,
         };
 
         let account = if let Some(id) = account_id {
@@ -107,7 +119,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
             .rpc_url
             .as_ref()
             .ok_or(anyhow::format_err!(
-                "No rpc url set. Use the `rpc set-url` subcommand to set one"
+                "No RPC url set. Use the `rpc set-url` subcommand to set one"
             ))?
             .clone();
         let client = HttpClientBuilder::default().build(rpc_url)?;
@@ -171,6 +183,23 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                         hex::encode(<S::CryptoSpec as CryptoSpec>::Hasher::digest(t))
                     );
                 }
+            }
+            RpcWorkflows::GetTokenAddress {
+                token_name,
+                deployer_address: owner_address,
+                salt,
+                ..
+            } => {
+                let address = BankRpcClient::<S>::token_address(
+                    &client,
+                    token_name.clone(),
+                    owner_address.clone(),
+                    *salt,
+                )
+                .await
+                .context(BAD_RPC_URL)?;
+
+                println!("Address of token {} is {}", token_name, address);
             }
         }
         Ok(())

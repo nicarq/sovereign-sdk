@@ -82,6 +82,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<S::Address> {
+        tracing::info!(%token_name, %salt, %initial_balance, %minter_address, sender= %context.sender(), "Create token request");
         let (token_address, token) = Token::<S>::create(
             &token_name,
             &[(minter_address, initial_balance)],
@@ -108,6 +109,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                 token_address: token_address.clone(),
             },
         );
+        tracing::info!(%token_name, %token_address, "Token created");
         Ok(token_address)
     }
 

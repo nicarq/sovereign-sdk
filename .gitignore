@@ -17,3 +17,4 @@ demo_data/
 
 adapters/solana/libyellowstone_grpc_geyser.dylib
 examples/test-data/genesis/benchmark/accounts.json
+examples/demo-rollup/demo_rollup_config.toml

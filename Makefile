@@ -8,6 +8,7 @@ build: ## Build the project
 
 clean: ## Cleans compiled
 	@cargo clean
+	$(MAKE) -C fuzz clean
 
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time

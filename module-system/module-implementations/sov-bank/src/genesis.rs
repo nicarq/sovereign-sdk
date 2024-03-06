@@ -29,7 +29,34 @@ pub struct TokenConfig<S: sov_modules_api::Spec> {
     pub salt: u64,
 }
 
-/// The address of the token deployer. For now, set to [0; 32]
+impl<S: sov_modules_api::Spec> core::fmt::Display for TokenConfig<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let address_and_balances = self
+            .address_and_balances
+            .iter()
+            .map(|(address, balance)| format!("({}, {})", address, balance))
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        let authorized_minters = self
+            .authorized_minters
+            .iter()
+            .map(|minter| minter.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        write!(
+            f,
+            "TokenConfig {{ token_name: {}, address_and_balances: [{}], authorized_minters: [{}], salt: {} }}",
+            self.token_name,
+            address_and_balances,
+            authorized_minters,
+            self.salt
+        )
+    }
+}
+
+/// The address of the genesis token(s) deployer. For now, set to [0; 32]
 pub(crate) const DEPLOYER: [u8; 32] = [0; 32];
 
 impl<S: sov_modules_api::Spec> Bank<S> {
@@ -42,12 +69,14 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         let parent_prefix = self.tokens.prefix();
+        let genesis_deployer = S::Address::try_from(&DEPLOYER)?;
         for token_config in config.tokens.iter() {
+            tracing::debug!(%token_config, deployer = %genesis_deployer, "Genesis of the token");
             let (token_address, token) = Token::<S>::create(
                 &token_config.token_name,
                 &token_config.address_and_balances,
                 &token_config.authorized_minters,
-                &S::Address::try_from(&DEPLOYER)?,
+                &genesis_deployer,
                 token_config.salt,
                 parent_prefix,
                 working_set,
@@ -58,6 +87,12 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             }
 
             self.tokens.set(&token_address, &token, working_set);
+            tracing::debug!(
+                "Token {} created at address {} by {}",
+                token.name,
+                token_address,
+                genesis_deployer
+            );
         }
         Ok(())
     }

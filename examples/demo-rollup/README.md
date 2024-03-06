@@ -41,7 +41,8 @@
 
 ## What is This?
 
-This demo shows how to integrate a State Transition Function (STF) with a Data Availability (DA) layer and a zkVM to create a full
+This demo shows how to integrate a State Transition Function (STF) with a Data Availability (DA) layer and a zkVM to
+create a full
 zk-rollup. The code in this repository corresponds to running a full-node of the rollup, which executes
 every transaction.
 
@@ -55,8 +56,10 @@ understand how to build your own state transition function, check out at the doc
 If you are looking for a simple rollup with minimal dependencies as a starting point, please have a look here:
 [sov-rollup-starter](https://github.com/Sovereign-Labs/sov-rollup-starter/)
 
-If you don't need ZK guest to be compiled, for faster compilation time you can export `export SKIP_GUEST_BUILD=1` environment
-variable in each terminal you run. By default, demo-rollup skip proving. If you want to enable proving, several options are available:
+If you don't need ZK guest to be compiled, for faster compilation time you can export `export SKIP_GUEST_BUILD=1`
+environment
+variable in each terminal you run. By default, demo-rollup skip proving. If you want to enable proving, several options
+are available:
 
 * `export SOV_PROVER_CONFIG=simulate` Run the rollup verification logic inside the current process.
 * `export SOV_PROVER_CONFIG=execute` Run the rollup verifier in a zkVM executor.
@@ -72,14 +75,14 @@ This setup works with an in-memory DA that is easy to set up for testing purpose
 
 ```shell,test-ci
 $ cd examples/demo-rollup/
-$ cargo build --bins
+$ make build 
 ```
 
 2. Clean up the existing database.
    Makefile to simplify that process:
 
 ```sh,test-ci
-$ make clean-mock-rollup-db
+$ make clean
 ```
 
 3. Now run the demo-rollup full node, as shown below.
@@ -105,18 +108,21 @@ Your batch was submitted to the sequencer for publication. Response: "Submitted 
 0: 66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17
 ```
 
-The transaction hash can be used to query the RPC endpoint to fetch events belonging to the transaction, which should in this case have the TokenCreated Event
+The transaction hash can be used to query the RPC endpoint to fetch events belonging to the transaction, which should in
+this case have the TokenCreated Event
 
 ```sh,test-ci
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%
 ```
 
-We can see the TokenCreated event which contains the address of the token created - `sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72`
+We can see the TokenCreated event which contains the address of the token
+created - `sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72`
 
 ### How to Submit Transactions
 
-The `make test-create-token` command above was useful to test if everything is running correctly. Now let's get a better understanding of how to create and submit a transaction.
+The `make test-create-token` command above was useful to test if everything is running correctly. Now let's get a better
+understanding of how to create and submit a transaction.
 
 #### 1. Build `sov-cli`
 
@@ -138,7 +144,8 @@ Options:
   -V, --version  Print version
 ```
 
-Each transaction that we want to submit is a member of the `CallMessage` enum defined as part of creating a module. For example, let's consider the `Bank` module's `CallMessage`:
+Each transaction that we want to submit is a member of the `CallMessage` enum defined as part of creating a module. For
+example, let's consider the `Bank` module's `CallMessage`:
 
 ```rust
 use sov_bank::CallMessage::Transfer;
@@ -190,12 +197,16 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
 }
 ```
 
-In the above snippet, we can see that `CallMessage` in `Bank` supports five different types of calls. The `sov-cli` has the ability to parse a JSON file that aligns with any of these calls and subsequently serialize them. The structure of the JSON file, which represents the call, closely mirrors that of the Enum member. You can view the relevant JSON Schema for `Bank` [here](../../module-system/module-schemas/schemas/sov-bank.json) Consider the `Transfer` message as an example:
+In the above snippet, we can see that `CallMessage` in `Bank` supports five different types of calls. The `sov-cli` has
+the ability to parse a JSON file that aligns with any of these calls and subsequently serialize them. The structure of
+the JSON file, which represents the call, closely mirrors that of the Enum member. You can view the relevant JSON Schema
+for `Bank` [here](../../module-system/module-schemas/schemas/sov-bank.json) Consider the `Transfer` message as an
+example:
 
 ```rust
 use sov_bank::Coins;
 
-struct Transfer<S: sov_modules_api::Spec>  {
+struct Transfer<S: sov_modules_api::Spec> {
     /// The address to which the tokens will be transferred.
     to: S::Address,
     /// The amount of tokens to transfer.
@@ -219,12 +230,16 @@ Here's an example of a JSON representing the above call:
 
 #### 2. Generate the Transaction
 
-The JSON above is the contents of the file [`examples/test-data/requests/transfer.json`](../../examples/test-data/requests/transfer.json). We'll use this transaction as our example for the rest of the tutorial. In order to send the transaction, we need to perform 2 operations:
+The JSON above is the contents of the
+file [`examples/test-data/requests/transfer.json`](../../examples/test-data/requests/transfer.json). We'll use this
+transaction as our example for the rest of the tutorial. In order to send the transaction, we need to perform 2
+operations:
 
 - Import the transaction data into the wallet
 - Sign and submit the transaction
 
-Note: we're able to make a `Transfer` call here because we already created the token as part of the sanity check above, using `make test-create-token`.
+Note: we're able to make a `Transfer` call here because we already created the token as part of the sanity check above,
+using `make test-create-token`.
 
 To generate transactions you can use the `transactions import from-file` subcommand, as shown below:
 
@@ -272,7 +287,8 @@ Adding the following transaction to batch:
 
 #### Submit the Transaction(s)
 
-You now have a batch with a single transaction in your wallet. If you want to submit any more transactions as part of this
+You now have a batch with a single transaction in your wallet. If you want to submit any more transactions as part of
+this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
@@ -283,18 +299,20 @@ $ cargo run --bin sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2n
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"},"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":{"amount":1000},"id":1}
+{"jsonrpc":"2.0","result":{"amount":1000000},"id":1}
 ```
 
 ## Disclaimer
 
 > ⚠️ Warning! ⚠️
 
-`demo-rollup` is a prototype! It contains known vulnerabilities and should not be used in production under any circumstances.
+`demo-rollup` is a prototype! It contains known vulnerabilities and should not be used in production under any
+circumstances.
 
 ## Interacting with your Node via RPC
 
-By default, this implementation prints the state root and the number of blobs processed for each slot. To access any other data, you'll
+By default, this implementation prints the state root and the number of blobs processed for each slot. To access any
+other data, you'll
 want to use our RPC server. You can configure its host and port in `rollup_config.toml`.
 
 ### Key Concepts
@@ -303,28 +321,37 @@ want to use our RPC server. You can configure its host and port in `rollup_confi
 
 Most queries for ledger information accept an optional `QueryMode` argument. There are three QueryModes:
 
-- `Standard`. In Standard mode, a response to a query for an outer struct will contain the full outer struct and hashes of inner structs. For example
-  a standard `ledger_getSlots` query would return all information relating to the requested slot, but only the hashes of the batches contained therein.
+- `Standard`. In Standard mode, a response to a query for an outer struct will contain the full outer struct and hashes
+  of inner structs. For example
+  a standard `ledger_getSlots` query would return all information relating to the requested slot, but only the hashes of
+  the batches contained therein.
   If no `QueryMode` is specified, a `Standard` response will be returned
 - `Compact`. In Compact mode, even the hashes of child structs are omitted.
-- `Full`. In Full mode, child structs are recursively expanded. So, for example, a query for a slot would return the slot's data, as well as data relating
-  to any `batches` that occurred in that slot, any transactions in those batches, and any events that were emitted by those transactions.
+- `Full`. In Full mode, child structs are recursively expanded. So, for example, a query for a slot would return the
+  slot's data, as well as data relating
+  to any `batches` that occurred in that slot, any transactions in those batches, and any events that were emitted by
+  those transactions.
 
 **Identifiers**
 
 There are several ways to uniquely identify items in the Ledger DB.
 
-- By _number_. Each family of structs (`slots`, `blocks`, `transactions`, and `events`) is numbered in order starting from `1`. So, for example, the
-  first transaction to appear on the DA layer will be numered `1` and might emit events `1`-`5`. Or, slot `17` might contain batches `41` - `44`.
+- By _number_. Each family of structs (`slots`, `blocks`, `transactions`, and `events`) is numbered in order starting
+  from `1`. So, for example, the
+  first transaction to appear on the DA layer will be numered `1` and might emit events `1`-`5`. Or, slot `17` might
+  contain batches `41` - `44`.
 - By _hash_. (`slots`, `blocks`, and `transactions` only)
 - By _containing item_id and offset_.
 - (`Events` only) By _transaction_id and key_.
 
-To request an item from the ledger DB, you can provide any identifier - and even mix and match different identifiers. We recommend using item number
+To request an item from the ledger DB, you can provide any identifier - and even mix and match different identifiers. We
+recommend using item number
 wherever possible, though, since resolving other identifiers may require additional database lookups.
 
-Some examples will make this clearer. Suppose that slot number `5` contains batches `9`, `10`, and `11`, that batch `10` contains
-transactions `50`-`81`, and that transaction `52` emits event number `17`. If we want to fetch events number `17`, we can use any of the following queries:
+Some examples will make this clearer. Suppose that slot number `5` contains batches `9`, `10`, and `11`, that batch `10`
+contains
+transactions `50`-`81`, and that transaction `52` emits event number `17`. If we want to fetch events number `17`, we
+can use any of the following queries:
 
 - `{"jsonrpc":"2.0","method":"ledger_getEvents","params":[[17]], ... }`
 - `{"jsonrpc":"2.0","method":"ledger_getEvents","params":[[{"transaction_id": 50, "offset": 0}]], ... }`
@@ -345,13 +372,16 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
 {"jsonrpc":"2.0","result":{"number":22019,"hash":"0xe8daef0f58a558aea44632a420bb62318bff6c38bbc616ff849d0a4be0a69cd3","batch_range":{"start":2,"end":2}},"id":1}
 ```
 
-This response indicates that the most recent slot processed was number `22019`, its hash, and that it contained no batches (since the `start` and `end`
+This response indicates that the most recent slot processed was number `22019`, its hash, and that it contained no
+batches (since the `start` and `end`
 of the `batch_range` overlap). It also indicates that the next available batch to occur will be numbered `2`.
 
 #### `ledger_getSlots`
 
-This method retrieves slot data. It takes two arguments, a list of `SlotIdentifier`s and an optional `QueryMode`. If no query mode is provided,
-this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable, but `"params":[7, "Compact"]` is not.
+This method retrieves slot data. It takes two arguments, a list of `SlotIdentifier`s and an optional `QueryMode`. If no
+query mode is provided,
+this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable,
+but `"params":[7, "Compact"]` is not.
 
 **Example Query:**
 
@@ -365,8 +395,10 @@ This response indicates that slot number `6` contained batch `1` and gives the
 
 #### `ledger_getBatches`
 
-This method retrieves slot data. It takes two arguments, a list of `BatchIdentifier`s and an optional `QueryMode`. If no query mode is provided,
-this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable, but `"params":[7, "Compact"]` is not.
+This method retrieves slot data. It takes two arguments, a list of `BatchIdentifier`s and an optional `QueryMode`. If no
+query mode is provided,
+this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable,
+but `"params":[7, "Compact"]` is not.
 
 **Example Query:**
 
@@ -378,8 +410,10 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
 
 #### `ledger_getTransactions`
 
-This method retrieves transactions. It takes two arguments, a list of `TxIdentifiers`s and an optional `QueryMode`. If no query mode is provided,
-this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable, but `"params":[7, "Compact"]` is not.
+This method retrieves transactions. It takes two arguments, a list of `TxIdentifiers`s and an optional `QueryMode`. If
+no query mode is provided,
+this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable,
+but `"params":[7, "Compact"]` is not.
 
 **Example Query:**
 

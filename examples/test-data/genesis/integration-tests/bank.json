@@ -1,7 +1,7 @@
 {
   "tokens": [
     {
-      "token_name": "sov-demo-token",
+      "token_name": "sov-integration-test-token",
       "address_and_balances": [
         [
           "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
