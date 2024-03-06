@@ -427,12 +427,12 @@ where
                 .da_block_header()
                 .height();
 
-            self.proof_manager.save_aggregated_proof(height).await?;
-
             debug!(height, "Checking seen header");
             if height <= last_finalized_height {
                 self.storage_manager
                     .finalize(earliest_seen_state_transition_info.da_block_header())?;
+
+                self.proof_manager.save_aggregated_proof(height).await?;
 
                 let transition_data = seen_state_transition.pop_front().unwrap();
 
