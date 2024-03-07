@@ -54,12 +54,15 @@ understand how to build your own state transition function, check out at the doc
 If you are looking for a simple rollup with minimal dependencies as a starting point, please have a look here:
 [sov-rollup-starter](https://github.com/Sovereign-Labs/sov-rollup-starter/)
 
-If you don't need ZK guest to be compiled, for faster compilation time you can export `export SKIP_GUEST_BUILD=1` environment
-variable in each terminal you run. By default, demo-rollup skip proving. If you want to enable proving, several options are available:
+If you don't need ZK guest to be compiled, for faster compilation time you can export `export SKIP_GUEST_BUILD=1`
+environment
+variable in each terminal you run. By default, demo-rollup disables proving. If you want to enable proving, several options
+are available:
 
-- `export SOV_PROVER_CONFIG=simulate` Run the rollup verification logic inside the current process.
-- `export SOV_PROVER_CONFIG=execute` Run the rollup verifier in a zkVM executor.
-- `export SOV_PROVER_CONFIG=prove` Run the rollup verifier and create a SNARK of execution.
+* `export SOV_PROVER_CONFIG=skip` Skips verification logic.
+* `export SOV_PROVER_CONFIG=simulate` Run the rollup verification logic inside the current process.
+* `export SOV_PROVER_CONFIG=execute` Run the rollup verifier in a zkVM executor.
+* `export SOV_PROVER_CONFIG=prove` Run the rollup verifier and create a SNARK of execution.
 
 ### Run a local DA layer instance
 

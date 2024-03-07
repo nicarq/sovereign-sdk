@@ -145,7 +145,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         >>::GenesisPaths,
         kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeSpec, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
-        prover_config: RollupProverConfig,
+        prover_config: Option<RollupProverConfig>,
     ) -> Result<Rollup<Self>, anyhow::Error>
     where
         <Self::NativeSpec as Spec>::Storage: NativeStorage,
@@ -158,9 +158,14 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .get_block_at(rollup_config.runner.genesis_height)
             .await?;
         let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
-        let prover_service = self
-            .create_prover_service(prover_config, &rollup_config, &da_service)
-            .await;
+
+        let prover_service = match prover_config {
+            Some(c) => Some(
+                self.create_prover_service(c, &rollup_config, &da_service)
+                    .await,
+            ),
+            None => None,
+        };
 
         let genesis_config = self.create_genesis_config(
             runtime_genesis_paths,
