@@ -11,8 +11,7 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, EventEmitter, StateTransition, ValidityConditionChecker,
-    WorkingSet, Zkvm,
+    CallResponse, Context, DaSpec, EventEmitter, StateTransition, WorkingSet, Zkvm,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use thiserror::Error;
@@ -826,7 +825,6 @@ where
         &self,
         public_outputs: StateTransition<Da, <S::Storage as Storage>::Root>,
         height: &TransitionHeight,
-        condition_checker: &mut impl ValidityConditionChecker<Da::ValidityCondition>,
         working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<(), SlashingReason> {
         let transition = self
@@ -858,11 +856,6 @@ where
         if public_outputs.validity_condition != *transition.validity_condition() {
             return Err(SlashingReason::TransitionInvalid);
         }
-
-        // TODO: Should we compare the validity conditions of the public outputs with the ones of the recorded transition?
-        condition_checker
-            .check(&public_outputs.validity_condition)
-            .map_err(|_err| SlashingReason::TransitionInvalid)?;
 
         Ok(())
     }
@@ -933,17 +926,10 @@ where
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         match public_outputs_opt {
             Ok(public_output) => {
-                // We get the validity condition checker from the state
-                let mut validity_checker = self
-                    .validity_cond_checker
-                    .get(working_set)
-                    .expect("Should be defined at genesis");
-
                 // We have to perform the checks to ensure that the challenge is valid while the attestation isn't.
                 if let Err(err) = self.check_challenge_outputs_against_transition(
                     public_output,
                     transition_num,
-                    &mut validity_checker,
                     working_set,
                 ) {
                     let err = self.slash_burn_reward(

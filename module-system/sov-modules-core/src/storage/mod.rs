@@ -254,7 +254,11 @@ pub trait Storage: Clone {
         + fmt::Debug
         + Clone
         + BorshSerialize
-        + BorshDeserialize;
+        + BorshDeserialize
+        + Send
+        + Sync
+        + PartialEq
+        + Eq;
 
     /// A cryptographic commitment to the contents of this storage
     type Root: Serialize

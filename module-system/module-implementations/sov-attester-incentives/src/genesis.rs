@@ -86,9 +86,6 @@ where
         self.light_client_finalized_height
             .set(&config.light_client_finalized_height, working_set);
 
-        self.validity_cond_checker
-            .set(&config.validity_condition_checker, working_set);
-
         Ok(())
     }
 }

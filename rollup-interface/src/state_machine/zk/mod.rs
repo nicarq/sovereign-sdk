@@ -90,7 +90,9 @@ pub trait Zkvm: Send + Sync + 'static {
         + Clone
         + Debug
         + Serialize
-        + DeserializeOwned;
+        + DeserializeOwned
+        + Send
+        + Sync;
 
     /// Defines the cryptographic operations provided natively by the Zkvm.
     type CryptoSpec: CryptoSpec;
@@ -167,7 +169,7 @@ pub struct StateTransition<Da: DaSpec, Root> {
 
 /// This trait expresses that a type can check a validity condition.
 pub trait ValidityConditionChecker<Condition: ValidityCondition>:
-    BorshDeserialize + BorshSerialize + Debug
+    BorshDeserialize + BorshSerialize + Serialize + for<'a> Deserialize<'a> + Debug + Send + Sync
 {
     /// The error type returned when a [`ValidityCondition`] is invalid.
     type Error: Into<anyhow::Error>;

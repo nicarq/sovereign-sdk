@@ -3043,6 +3043,7 @@ dependencies = [
  "async-trait",
  "borsh 0.10.3",
  "bytes",
+ "derivative",
  "digest 0.10.7",
  "futures",
  "hex",

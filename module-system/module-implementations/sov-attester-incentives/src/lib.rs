@@ -27,7 +27,7 @@ use sov_state::codec::BcsCodec;
 use crate::event::Event;
 
 /// The information about an attender's unbonding
-#[derive(BorshDeserialize, BorshSerialize, Clone, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug, PartialEq, Eq)]
 pub struct UnbondingInfo {
     /// The height at which an attester started unbonding
     pub unbonding_initiated_height: TransitionHeight,
@@ -69,10 +69,6 @@ where
     #[state]
     pub commitment_to_allowed_challenge_method:
         sov_modules_api::StateValue<<S::Zkvm as Zkvm>::CodeCommitment, BcsCodec>,
-
-    /// Constant validity condition checker for the module.
-    #[state]
-    pub validity_cond_checker: sov_modules_api::StateValue<Da::Checker>,
 
     /// The set of bonded attesters and their bonded amount.
     #[state]

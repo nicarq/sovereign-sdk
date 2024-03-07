@@ -10,13 +10,12 @@ mod prover_storage;
 /// Defines the data structures needed by both the zk-storage and the prover storage.
 mod storage_internals;
 
-pub use storage_internals::{StorageRoot, VisibleHash};
+pub use storage_internals::{SparseMerkleProof, StorageRoot, VisibleHash};
 
 mod witness;
 mod zk_storage;
 pub mod jmt {
     //! Re-export the [`jellyfish-merkle-tree`](https://github.com/penumbra-zone/jmt) crate.
-    pub use jmt::proof::SparseMerkleProof;
     pub use jmt::{KeyHash, RootHash};
 }
 #[cfg(feature = "native")]
@@ -38,7 +37,7 @@ pub trait MerkleProofSpec: Send + Sync {
     /// The structure that accumulates the witness data
     type Witness: Witness + Send + Sync;
     /// The hash function used to compute the merkle root
-    type Hasher: Digest<OutputSize = sha2::digest::typenum::U32>;
+    type Hasher: Digest<OutputSize = sha2::digest::typenum::U32> + Send + Sync;
 }
 
 use sha2::Sha256;

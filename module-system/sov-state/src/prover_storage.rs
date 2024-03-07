@@ -14,7 +14,7 @@ use sov_modules_core::{
 
 use crate::config::Config;
 use crate::storage::OrderedReadsAndWritesRef;
-use crate::storage_internals::StorageRoot;
+use crate::storage_internals::{SparseMerkleProof, StorageRoot};
 use crate::MerkleProofSpec;
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
@@ -201,7 +201,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         StorageProof {
             key,
             value: val_opt.map(SlotValue::from),
-            proof,
+            proof: SparseMerkleProof::<S::Hasher>::from(proof),
         }
     }
 }
@@ -238,7 +238,7 @@ pub struct ProverStateUpdate {
 impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type Witness = S::Witness;
     type RuntimeConfig = Config;
-    type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
+    type Proof = SparseMerkleProof<S::Hasher>;
     type Root = StorageRoot<S>;
     type StateUpdate = Namespaced<ProverStateUpdate>;
     type ChangeSet = ProverChangeSet;
@@ -308,12 +308,12 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         // We need to verify the proof against the correct root hash
         // Hence we match the key against its namespace
         match key.namespace() {
-            Namespace::User => proof.verify(
+            Namespace::User => proof.inner().verify(
                 state_root.user_hash(),
                 key_hash,
                 value.as_ref().map(|v| v.value()),
             )?,
-            Namespace::Kernel => proof.verify(
+            Namespace::Kernel => proof.inner().verify(
                 state_root.kernel_hash(),
                 key_hash,
                 value.as_ref().map(|v| v.value()),

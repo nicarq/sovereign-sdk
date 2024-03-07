@@ -36,9 +36,6 @@ pub struct BankMessageGenerator<S: Spec> {
 
 const DEFAULT_TOKEN_NAME: &str = "Token1";
 const DEFAULT_SALT: u64 = 10;
-const DEFAULT_CHAIN_ID: u64 = 0;
-const DEFAULT_GAS_TIP: u64 = 0;
-const DEFAULT_GAS_LIMIT: u64 = 0;
 const DEFAULT_INIT_BALANCE: u64 = 1000000;
 
 pub fn get_default_token_address<S: Spec>(
@@ -231,9 +228,9 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
             messages.push(Message::new(
                 mint_message.minter_pkey.clone(),
                 mint_token_tx::<S>(mint_message),
-                DEFAULT_CHAIN_ID,
-                DEFAULT_GAS_TIP,
-                DEFAULT_GAS_LIMIT,
+                Self::DEFAULT_CHAIN_ID,
+                Self::DEFAULT_GAS_TIP,
+                Self::DEFAULT_GAS_LIMIT,
                 max_gas_price,
                 nonce,
             ));
@@ -245,9 +242,9 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
             messages.push(Message::new(
                 transfer_message.sender_pkey.clone(),
                 transfer_token_tx::<S>(transfer_message),
-                DEFAULT_CHAIN_ID,
-                DEFAULT_GAS_TIP,
-                DEFAULT_GAS_LIMIT,
+                Self::DEFAULT_CHAIN_ID,
+                Self::DEFAULT_GAS_TIP,
+                Self::DEFAULT_GAS_LIMIT,
                 max_gas_price,
                 nonce,
             ));

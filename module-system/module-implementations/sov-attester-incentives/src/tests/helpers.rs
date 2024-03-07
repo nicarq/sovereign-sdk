@@ -11,7 +11,7 @@ use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::{GasMeter, StateCheckpoint};
 use sov_rollup_interface::da::Time;
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
-use sov_state::{jmt, DefaultStorageSpec, ProverStorage, StorageRoot};
+use sov_state::{DefaultStorageSpec, ProverStorage, SparseMerkleProof, StorageRoot};
 
 use crate::AttesterIncentives;
 
@@ -150,7 +150,7 @@ pub(crate) fn setup(
 pub(crate) struct ExecutionSimulationVars {
     pub state_root: StorageRoot<DefaultStorageSpec>,
     pub state_proof:
-        StorageProof<jmt::SparseMerkleProof<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
+        StorageProof<SparseMerkleProof<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
 }
 
 /// Generate an execution simulation for a given number of rounds. Returns a list of the successive state roots

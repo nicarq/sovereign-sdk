@@ -34,7 +34,7 @@ impl ValidityCondition for MockValidityCond {
 }
 
 /// A mock validity condition checker that always evaluate to cond
-#[derive(BorshDeserialize, BorshSerialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug)]
 pub struct MockValidityCondChecker<Cond: ValidityCondition> {
     phantom: PhantomData<Cond>,
 }

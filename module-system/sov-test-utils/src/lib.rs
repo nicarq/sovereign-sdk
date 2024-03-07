@@ -10,6 +10,7 @@ pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, Module, RollupAddress, Spec};
 use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
 
+pub mod attester_incentive_data;
 pub mod bank_data;
 pub mod logging;
 pub mod runtime;
@@ -97,6 +98,10 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
 
 /// Trait used to generate messages from the DA layer to automate module testing
 pub trait MessageGenerator {
+    const DEFAULT_CHAIN_ID: u64 = 0;
+    const DEFAULT_GAS_TIP: u64 = 0;
+    const DEFAULT_GAS_LIMIT: u64 = 0;
+
     /// Module where the messages originate from.
     type Module: Module;
 
