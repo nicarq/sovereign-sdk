@@ -151,14 +151,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         <Self::NativeSpec as Spec>::Storage: NativeStorage,
     {
         let da_service = self.create_da_service(&rollup_config).await;
-        // TODO: Double check what kind of storage needed here.
-        // Maybe whole "prev_root" can be initialized inside runner
-        // Getting block here, so prover_service doesn't have to be `Send`
         let relative_da_genesis_block = da_service
             .get_block_at(rollup_config.runner.genesis_height)
             .await?;
-        let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
-
         let prover_service = match prover_config {
             Some(c) => Some(
                 self.create_prover_service(c, &rollup_config, &da_service)
@@ -174,19 +169,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         )?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-        let (prover_storage, ledger_state) =
-            storage_manager.create_state_for(&last_finalized_block_header)?;
+        let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
         let ledger_db = self.create_ledger_db(ledger_state)?;
 
         let prev_root = ledger_db
             .get_head_slot()?
             .map(|(number, _)| prover_storage.get_root_hash(number.0))
             .transpose()?;
-
-        let rpc_storage = Arc::new(RwLock::new(prover_storage));
-        let rpc_methods = self.create_rpc_methods(rpc_storage.clone(), &ledger_db, &da_service)?;
-
-        let native_stf = StfBlueprint::new();
 
         let init_variant = match prev_root {
             Some(root_hash) => InitVariant::Initialized(root_hash),
@@ -195,6 +184,12 @@ pub trait RollupBlueprint: Sized + Send + Sync {
                 genesis_params: genesis_config,
             },
         };
+
+        // We pass "bootstrap" storage here,
+        // as it will be replaced with the latest on after first processed block.
+        let rpc_storage = Arc::new(RwLock::new(prover_storage));
+        let rpc_methods = self.create_rpc_methods(rpc_storage.clone(), &ledger_db, &da_service)?;
+        let native_stf = StfBlueprint::new();
 
         let runner = StateTransitionRunner::new(
             rollup_config.runner,

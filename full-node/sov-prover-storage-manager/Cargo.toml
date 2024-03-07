@@ -20,6 +20,7 @@ sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+borsh = { workspace = true }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 rockbound = { workspace = true, features = ["test-utils"] }
 tempfile = { workspace = true }

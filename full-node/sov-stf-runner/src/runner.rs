@@ -117,9 +117,9 @@ pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da::Spec>, Vm: Zkvm, Da: D
     Initialized(Stf::StateRoot),
     /// From empty state root
     Genesis {
-        /// Genesis block header should be finalized at init moment
+        /// Genesis block header should be finalized at initialization moment.
         block: Da::FilteredBlock,
-        /// Genesis params for Stf::init
+        /// Genesis params for Stf::init.
         genesis_params: GenesisParams<Stf, Vm, Da::Spec>,
     },
 }
@@ -220,7 +220,7 @@ where
             proof_manager: ProofManager::new(da_service, prover_service, ledger_db),
             sync_state: Arc::new(DaSyncState {
                 synced_da_height: AtomicU64::new(da_height_processed),
-                target_da_height: AtomicU64::new(std::u64::MAX),
+                target_da_height: AtomicU64::new(u64::MAX),
             }),
         })
     }
@@ -228,7 +228,7 @@ where
     /// Starts a RPC server with provided rpc methods.
     ///  # Arguments:
     ///   * methods: [`RpcModule`] with all RPC methods.
-    ///   * channel: If `Some`, notification with actual [`SocketAddr`] where RPC server listens
+    ///   * channel: If `Some`, notification with actual [`SocketAddr`] where RPC server listens to.
     pub async fn start_rpc_server(
         &self,
         methods: RpcModule<()>,
@@ -585,7 +585,7 @@ mod tests {
             let raw_blob: Vec<u8> = vec![height as u8; 32];
             da_service.send_transaction(&raw_blob).await.unwrap();
             if height < fork_point {
-                // Just take block from the service
+                // Just take a block from the service
                 let block = da_service.get_block_at(height).await.unwrap();
                 seen_state_transition_info.push_back(make_transition_info(
                     block.header.clone(),

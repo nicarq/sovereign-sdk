@@ -128,6 +128,15 @@ where
             ?current_block_hash,
             "Finalizing block by pair"
         );
+        // Check if snapshot has been saved, but not removing id
+        let snapshot_id = &self
+            .block_hash_to_snapshot_id
+            .get(&current_block_hash)
+            .ok_or(anyhow::anyhow!("Attempt to finalize non existing snapshot"))?;
+        if !self.cache_containers.contains_snapshot(snapshot_id) {
+            anyhow::bail!("Attempt to finalize snapshot which hasn't been saved yet");
+        }
+
         // Check if this is the oldest block
         if self
             .block_hash_to_snapshot_id
@@ -213,6 +222,25 @@ where
     type StfChangeSet = ProverChangeSet;
     type LedgerState = CacheDb;
     type LedgerChangeSet = ChangeSet;
+
+    fn create_bootstrap_state(&mut self) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
+        self.latest_snapshot_id += 1;
+        let new_snapshot_id = self.latest_snapshot_id;
+        self.dangled_snapshots.insert(new_snapshot_id);
+        let CacheDbGroup {
+            state: state_cache_db,
+            accessory: accessory_cache_db,
+            ledger: ledger_cache_db,
+        } = self.cache_containers.get_cache_db_group(new_snapshot_id);
+
+        let state_db = StateDB::with_cache_db(state_cache_db)?;
+        let native_db = NativeDB::with_cache_db(accessory_cache_db)?;
+
+        Ok((
+            ProverStorage::with_db_handles(state_db, native_db),
+            ledger_cache_db,
+        ))
+    }
 
     fn create_state_for(
         &mut self,
@@ -488,8 +516,14 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
 
+    use borsh::ser::BorshSerialize;
+    use sov_db::schema::types::StoredAggregatedProof;
     use sov_mock_da::{MockBlockHeader, MockHash};
     use sov_rollup_interface::da::Time;
+    use sov_rollup_interface::rpc::LedgerRpcProvider;
+    use sov_rollup_interface::zk::aggregated_proof::{
+        AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
+    };
     use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 
     use super::*;
@@ -924,6 +958,133 @@ mod tests {
         let result = storage_manager.create_state_after(&block_header);
         validate_internal_consistency(&storage_manager);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn try_save_bootstrap_storage() {
+        // This test checks following things:
+        //  - bootstrap state only has access to the finalized data.
+        //  - bootstrap state can be "saved" back without error and without affecting data
+        let tmpdir = tempfile::tempdir().unwrap();
+
+        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+
+        let mut storage_manager =
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+        assert!(storage_manager.is_empty());
+
+        // Save something to the DB, so bootstrap storage can read it
+        let witness = ArrayWitness::default();
+        let genesis_block = MockBlockHeader::from_height(0);
+        let proof = AggregatedProofData::new(AggregatedProofPublicInput {
+            initial_slot_number: 10,
+            final_slot_number: 12,
+            initial_state_root: vec![3],
+            final_state_root: vec![4],
+            initial_slot_hash: vec![5],
+            final_slot_hash: vec![6],
+            code_commitment: CodeCommitment::default(),
+        });
+
+        {
+            let (stf_state, ledger_state) =
+                storage_manager.create_state_for(&genesis_block).unwrap();
+            let mut state_operations = OrderedReadsAndWrites::default();
+            state_operations.ordered_writes.push(write_op(1, 2));
+            let mut native_operations = OrderedReadsAndWrites::default();
+            native_operations.ordered_writes.push(write_op(30, 40));
+            let (_, state_update) = stf_state
+                .compute_state_update(state_operations, &witness)
+                .unwrap();
+            stf_state.commit(&state_update, &native_operations);
+
+            let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+
+            let agg_proof = StoredAggregatedProof {
+                proof: proof.try_to_vec().unwrap(),
+            };
+            ledger_db
+                .save_finalized_aggregated_proof(agg_proof)
+                .unwrap();
+
+            storage_manager
+                .save_change_set(
+                    &genesis_block,
+                    stf_state.try_into().unwrap(),
+                    ledger_db.clone_change_set(),
+                )
+                .unwrap();
+        }
+        validate_internal_consistency(&storage_manager);
+        let mut block_1 = MockBlockHeader::from_height(1);
+        block_1.hash = MockHash::from([11; 32]);
+        let mut block_2 = MockBlockHeader::from_height(1);
+        block_2.hash = MockHash::from([111; 32]);
+        // Create regular storage, so we can try to save bootstrap storage
+        {
+            let (_, _) = storage_manager.create_state_for(&block_1).unwrap();
+            let (_, _) = storage_manager.create_state_for(&block_2).unwrap();
+        }
+
+        // Now bootstrap storage does not have anything,
+        {
+            let (bootstrap_stf, bootstrap_ledger) =
+                storage_manager.create_bootstrap_state().unwrap();
+
+            assert_eq!(None, bootstrap_stf.get(&key_from(1), None, &witness));
+            assert_eq!(None, bootstrap_stf.get_accessory(&key_from(30), None));
+
+            let ledger_db = LedgerDB::with_cache_db(bootstrap_ledger).unwrap();
+            let proof = ledger_db.get_latest_aggregated_proof().unwrap();
+            assert!(proof.is_none());
+
+            storage_manager
+                .save_change_set(
+                    &block_1,
+                    bootstrap_stf.to_change_set(),
+                    ledger_db.clone_change_set(),
+                )
+                .unwrap();
+
+            // We check that data actually wasn't save, by trying to finalize block
+            // It should not have data available, so
+            assert!(storage_manager.finalize(&block_1).is_err());
+        }
+
+        storage_manager.finalize(&genesis_block).unwrap();
+
+        // Now it is accessible to bootstrap data
+        {
+            let (bootstrap_stf, bootstrap_ledger) =
+                storage_manager.create_bootstrap_state().unwrap();
+
+            assert_eq!(
+                Some(value_from(2)),
+                bootstrap_stf.get(&key_from(1), None, &witness)
+            );
+            assert_eq!(
+                Some(value_from(40)),
+                bootstrap_stf.get_accessory(&key_from(30), None)
+            );
+
+            let ledger_db = LedgerDB::with_cache_db(bootstrap_ledger).unwrap();
+            let actual_proof = ledger_db
+                .get_latest_aggregated_proof()
+                .unwrap()
+                .unwrap()
+                .proof;
+
+            assert_eq!(proof, actual_proof);
+
+            storage_manager
+                .save_change_set(
+                    &block_2,
+                    bootstrap_stf.to_change_set(),
+                    ledger_db.clone_change_set(),
+                )
+                .unwrap();
+            assert!(storage_manager.finalize(&block_2).is_err());
+        }
     }
 
     // ------------
@@ -1504,7 +1665,7 @@ mod tests {
         storage_manager.finalize(&block_e).unwrap();
         assert!(storage_manager.is_empty());
         // Check that values are in the database.
-        // Storage manager is empty, as checked before,
+        // The storage manager is empty, as checked before,
         // so new storage should read from the database
         let new_block_after_e = MockBlockHeader {
             prev_hash: MockHash::from([5; 32]),
@@ -1571,7 +1732,7 @@ mod tests {
         // B is finalized and then C.
 
         // Would F see data from E?
-        // In current version it won't, because it will not have a pointer to parent.
+        // In the current version, it won't, because it will not have a pointer to parent.
         // Фnd will read from the database.
         let tmpdir = tempfile::tempdir().unwrap();
         let storage_config = sov_state::config::Config {
@@ -1694,7 +1855,7 @@ mod tests {
         // E, H, G are moved to a separate thread.
         // They read data from each snapshot all the time,
         // checking that data from each for is present
-        // Data in each snapshot is `key == value`
+        // Data in each snapshot has `key == value`
         // for a key in `height*10..((height+1)*10)`
         // TBD: Delete operations!
 

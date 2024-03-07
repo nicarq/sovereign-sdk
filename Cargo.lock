@@ -8974,6 +8974,7 @@ name = "sov-prover-storage-manager"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "borsh 0.10.3",
  "criterion",
  "rand 0.8.5",
  "rockbound",
