@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
-use jmt::RootHash;
+use jmt::{RootHash, SimpleHasher};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use sha2::Digest;
@@ -88,9 +88,9 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
     /// Returns the global root hash of the prover storage.
     pub fn root_hash(&self) -> jmt::RootHash {
         let mut hasher = <S::Hasher as sha2::Digest>::new();
-        hasher.update(self.user_hash().0);
-        hasher.update(self.kernel_hash().0);
-        let output: [u8; 32] = hasher.finalize().into();
+        Digest::update(&mut hasher, self.user_hash().0);
+        Digest::update(&mut hasher, self.kernel_hash().0);
+        let output: [u8; 32] = Digest::finalize(hasher).into();
         jmt::RootHash(output)
     }
 }
@@ -120,5 +120,30 @@ impl<'a, S: MerkleProofSpec> From<&'a StorageRoot<S>> for VisibleHash {
 impl From<VisibleHash> for [u8; 32] {
     fn from(val: VisibleHash) -> Self {
         val.0 .0
+    }
+}
+
+/// A storage proof that is used to verify the existence of a key in the storage.
+#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
+#[derivative(
+    PartialEq(bound = "H: SimpleHasher"),
+    Eq(bound = "H: SimpleHasher"),
+    Clone(bound = "H: SimpleHasher"),
+    Debug(bound = "H: SimpleHasher")
+)]
+pub struct SparseMerkleProof<H: SimpleHasher>(
+    #[serde(bound(serialize = "", deserialize = ""))] jmt::proof::SparseMerkleProof<H>,
+);
+
+impl<H: SimpleHasher> SparseMerkleProof<H> {
+    /// Returns the underlying proof.
+    pub fn inner(&self) -> &jmt::proof::SparseMerkleProof<H> {
+        &self.0
+    }
+}
+
+impl<H: SimpleHasher> From<jmt::proof::SparseMerkleProof<H>> for SparseMerkleProof<H> {
+    fn from(proof: jmt::proof::SparseMerkleProof<H>) -> Self {
+        SparseMerkleProof(proof)
     }
 }

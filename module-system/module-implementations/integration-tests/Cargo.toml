@@ -32,6 +32,7 @@ sov-rollup-interface = { path = "../../../rollup-interface", features = ["native
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
 
+sov-attester-incentives = { path = "../sov-attester-incentives" }
 sov-chain-state = { path = "../sov-chain-state", features = ["native"] }
 sov-value-setter = { path = "../sov-value-setter", features = ["native"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
@@ -42,6 +43,7 @@ sov-bank = { path = "../sov-bank" }
 default = []
 native = [
 	"integration-tests/native",
+	"sov-attester-incentives/native",
 	"sov-bank/native",
 	"sov-chain-state/native",
 	"sov-mock-da/native",

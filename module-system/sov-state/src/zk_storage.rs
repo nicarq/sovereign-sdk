@@ -8,6 +8,7 @@ use sov_modules_core::{
     StorageProof, Witness,
 };
 
+use crate::storage_internals::SparseMerkleProof;
 use crate::{MerkleProofSpec, StorageRoot};
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
@@ -100,7 +101,7 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
 impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type Witness = S::Witness;
     type RuntimeConfig = ();
-    type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
+    type Proof = SparseMerkleProof<S::Hasher>;
     type Root = StorageRoot<S>;
     type StateUpdate = ();
     type ChangeSet = ();
@@ -140,12 +141,12 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         // We need to verify the proof against the correct root hash
         // Hence we match the key against its namespace
         match key.namespace() {
-            Namespace::User => proof.verify(
+            Namespace::User => proof.inner().verify(
                 state_root.user_hash(),
                 key_hash,
                 value.as_ref().map(|v| v.value()),
             )?,
-            Namespace::Kernel => proof.verify(
+            Namespace::Kernel => proof.inner().verify(
                 state_root.kernel_hash(),
                 key_hash,
                 value.as_ref().map(|v| v.value()),

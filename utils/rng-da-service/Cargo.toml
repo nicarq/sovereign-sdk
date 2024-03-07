@@ -24,3 +24,13 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["n
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
+
+[features]
+default = [ "native" ]
+native = [
+	"demo-stf/native",
+	"sov-bank/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-rollup-interface/native",
+]

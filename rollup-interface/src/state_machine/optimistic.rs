@@ -8,7 +8,7 @@ use crate::zk::StateTransition;
 /// A proof that the attester was bonded at the transition num `transition_num`.
 /// For rollups using the `jmt`, this will be a `jmt::SparseMerkleProof`
 #[derive(
-    Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Default,
+    Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Default, PartialEq, Eq,
 )]
 pub struct ProofOfBond<StateProof> {
     /// The transition number for which the proof of bond applies
@@ -19,7 +19,7 @@ pub struct ProofOfBond<StateProof> {
 
 /// An attestation that a particular DA layer block transitioned the rollup state to some value
 #[derive(
-    Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Default,
+    Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Default, PartialEq, Eq,
 )]
 pub struct Attestation<Da: DaSpec, StateProof, StateRoot> {
     /// The alleged state root before applying the contents of the da block
