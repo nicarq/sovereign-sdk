@@ -37,7 +37,7 @@ pub fn initialize_logging() {
                 "debug,hyper=info,risc0_zkvm=warn,sov_prover_storage_manager=info,jmt=info,sov_celestia_adapter=info"
                     .to_string()
             }))
-                .unwrap(),
+            .unwrap(),
         )
         .init();
 }
