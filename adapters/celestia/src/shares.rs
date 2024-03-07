@@ -436,17 +436,25 @@ impl<'a> Buf for BlobRefIterator<'a> {
         chunk
     }
 
-    fn advance(&mut self, cnt: usize) {
+    fn advance(&mut self, mut cnt: usize) {
         self.consumed += cnt;
-        if self.current.remaining() > cnt {
-            self.current.advance(cnt);
-            return;
-        }
+        while cnt > 0 {
+            if self.current.remaining() >= cnt {
+                self.current.advance(cnt);
+                return;
+            }
 
-        let next_cnt = cnt - self.current.remaining();
-        self.current_idx += 1;
-        self.current = self.shares[self.current_idx].data();
-        self.current.advance(next_cnt);
+            cnt = cnt
+                .checked_sub(self.current.remaining())
+                .expect("Underflow!");
+
+            self.current.advance(self.current.remaining());
+            self.current_idx += 1;
+            match self.shares.get(self.current_idx) {
+                Some(share) => self.current = share.data(),
+                None => assert_eq!(cnt, 0, "Tried to read more bytes than are available"),
+            }
+        }
     }
 }
 
