@@ -152,7 +152,7 @@ where
         mut storage_manager: Sm,
         rpc_storage: Arc<RwLock<Sm::StfState>>,
         init_variant: InitVariant<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da>,
-        prover_service: Ps,
+        prover_service: Option<Ps>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 

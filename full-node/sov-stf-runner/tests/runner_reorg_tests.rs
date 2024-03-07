@@ -172,7 +172,7 @@ async fn runner_execution(
             storage_manager,
             rpc_storage,
             init_variant,
-            prover_service,
+            Some(prover_service),
         )
         .unwrap();
 

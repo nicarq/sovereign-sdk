@@ -13,7 +13,7 @@ use crate::{ProofAggregationStatus, ProofProcessingStatus, ProverService, StateT
 /// Manages the lifecycle of the `AggregatedProof`.
 pub struct ProofManager<Ps: ProverService> {
     da_service: Arc<Ps::DaService>,
-    prover_service: Ps,
+    prover_service: Option<Ps>,
     ledger_db: LedgerDB,
 }
 
@@ -23,7 +23,7 @@ where
 {
     pub(crate) fn new(
         da_service: Arc<Ps::DaService>,
-        prover_service: Ps,
+        prover_service: Option<Ps>,
         ledger_db: LedgerDB,
     ) -> Self {
         Self {
@@ -56,51 +56,51 @@ where
         >,
         agg_proof_hashes: &mut Vec<<<Ps::DaService as DaService>::Spec as DaSpec>::SlotHash>,
     ) -> Result<(), anyhow::Error> {
-        let header_hash = transition_data.da_block_header().hash();
-        agg_proof_hashes.push(header_hash.clone());
+        if let Some(prover_service) = self.prover_service.as_ref() {
+            let header_hash = transition_data.da_block_header().hash();
+            agg_proof_hashes.push(header_hash.clone());
 
-        self.prover_service
-            .submit_state_transition_info(transition_data)
-            .await;
+            prover_service
+                .submit_state_transition_info(transition_data)
+                .await;
 
-        loop {
-            let status = self
-                .prover_service
-                .prove(header_hash.clone())
-                .await
-                .expect("The proof creation should succeed");
+            loop {
+                let status = prover_service
+                    .prove(header_hash.clone())
+                    .await
+                    .expect("The proof creation should succeed");
 
-            // Stop the runner loop until prover is ready.
-            match status {
-                ProofProcessingStatus::ProvingInProgress => break,
-                ProofProcessingStatus::Busy => {
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    continue;
+                // Stop the runner loop until prover is ready.
+                match status {
+                    ProofProcessingStatus::ProvingInProgress => break,
+                    ProofProcessingStatus::Busy => {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
                 }
             }
-        }
 
-        if agg_proof_hashes.len() >= self.prover_service.aggregated_proof_block_jump() {
-            loop {
-                let status = self
-                    .prover_service
-                    .create_aggregated_proof(agg_proof_hashes.as_slice())
-                    .await;
+            if agg_proof_hashes.len() >= prover_service.aggregated_proof_block_jump() {
+                loop {
+                    let status = prover_service
+                        .create_aggregated_proof(agg_proof_hashes.as_slice())
+                        .await;
 
-                match status {
-                    Ok(ProofAggregationStatus::Success(agg_proof_data)) => {
-                        agg_proof_hashes.clear();
-                        let data = agg_proof_data.try_to_vec()?;
-                        tracing::debug!(bytes = data.len(), "Sending aggregated proof to DA");
-                        self.da_service.send_aggregated_zk_proof(&data).await?;
-                        return Ok(());
+                    match status {
+                        Ok(ProofAggregationStatus::Success(agg_proof_data)) => {
+                            agg_proof_hashes.clear();
+                            let data = agg_proof_data.try_to_vec()?;
+                            tracing::debug!(bytes = data.len(), "Sending aggregated proof to DA");
+                            self.da_service.send_aggregated_zk_proof(&data).await?;
+                            return Ok(());
+                        }
+                        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
+                        Ok(ProofAggregationStatus::ProofGenerationInProgress) => {
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                        }
+                        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
+                        Err(e) => panic!("{:?}", e),
                     }
-                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
-                    Ok(ProofAggregationStatus::ProofGenerationInProgress) => {
-                        tokio::time::sleep(Duration::from_millis(100)).await;
-                    }
-                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
-                    Err(e) => panic!("{:?}", e),
                 }
             }
         }

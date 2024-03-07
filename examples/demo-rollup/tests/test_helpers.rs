@@ -55,7 +55,7 @@ pub async fn start_rollup(
             &rt_genesis_paths,
             kernel_genesis,
             rollup_config,
-            rollup_prover_config,
+            Some(rollup_prover_config),
         )
         .await
         .unwrap();

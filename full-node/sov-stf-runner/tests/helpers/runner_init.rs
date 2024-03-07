@@ -162,7 +162,7 @@ pub fn initialize_runner(
             storage_manager,
             rpc_storage,
             init_variant,
-            prover_service,
+            Some(prover_service),
         )
         .unwrap(),
         TestNode {
