@@ -936,6 +936,7 @@ mod tests {
 
         for i in 0..10 {
             let proof = AggregatedProofData::new(AggregatedProofPublicInput {
+                validity_conditions: vec![],
                 initial_slot_number: i as u64,
                 final_slot_number: i as u64,
                 initial_state_root: vec![i],

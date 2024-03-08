@@ -1,6 +1,7 @@
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
+use borsh::BorshSerialize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
@@ -207,6 +208,15 @@ where
         let final_block_proof = block_proofs_data.last().unwrap();
 
         let public_input = AggregatedProofPublicInput {
+            validity_conditions: block_proofs_data
+                .iter()
+                .map(|bp| {
+                    bp.st
+                        .validity_condition
+                        .try_to_vec()
+                        .expect("Impossible to serialize validity condition.")
+                })
+                .collect(),
             initial_slot_number: initial_block_proof.slot_number,
             final_slot_number: final_block_proof.slot_number,
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
