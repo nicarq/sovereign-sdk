@@ -339,36 +339,25 @@ pub struct StorageInternalCache {
     pub tx_cache: CacheLog,
     /// Ordered reads and writes.
     pub ordered_db_reads: Vec<(SlotKey, Option<SlotValue>)>,
-    /// Version for versioned usage with cache
-    pub version: Option<u64>,
 }
 
 impl StorageInternalCache {
-    /// Wrapper around default that can create the cache with knowledge of the version
-    pub fn new_with_version(version: u64) -> Self {
-        StorageInternalCache {
-            version: Some(version),
-            ..Default::default()
-        }
-    }
-
     /// Gets a value from the cache or reads it from the provided `ValueReader`.
     pub fn get_or_fetch<S: Storage>(
         &mut self,
         key: &SlotKey,
         value_reader: &S,
         witness: &S::Witness,
+        version: Option<u64>,
     ) -> Option<SlotValue> {
-        let cache_key = key.to_cache_key_version(self.version);
-        let cache_value = self.get_value_from_cache(&cache_key);
+        let cache_value = self.get_value_from_cache(key);
 
         match cache_value {
             ValueExists::Yes(cache_value_exists) => cache_value_exists.map(Into::into),
             // If the value does not exist in the cache, then fetch it from an external source.
             ValueExists::No => {
-                let storage_value = value_reader.get(key, self.version, witness);
-
-                self.add_read(cache_key, storage_value.clone());
+                let storage_value = value_reader.get(key, version, witness);
+                self.add_read(key.clone(), storage_value.clone());
                 storage_value
             }
         }
@@ -376,25 +365,21 @@ impl StorageInternalCache {
 
     /// Gets a keyed value from the cache, returning a wrapper on whether it exists.
     pub fn try_get(&self, key: &SlotKey) -> ValueExists {
-        let cache_key = key.to_cache_key_version(self.version);
-        self.get_value_from_cache(&cache_key)
+        self.get_value_from_cache(key)
     }
 
     /// Replaces the keyed value on the storage.
     pub fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        let cache_key = key.to_cache_key_version(self.version);
-        let cache_value = value;
-        self.tx_cache.add_write(cache_key, Some(cache_value));
+        self.tx_cache.add_write(key.clone(), Some(value));
     }
 
     /// Deletes a keyed value from the cache.
     pub fn delete(&mut self, key: &SlotKey) {
-        let cache_key = key.to_cache_key_version(self.version);
-        self.tx_cache.add_write(cache_key, None);
+        self.tx_cache.add_write(key.clone(), None);
     }
 
-    fn get_value_from_cache(&self, cache_key: &SlotKey) -> ValueExists {
-        self.tx_cache.get_value(cache_key)
+    fn get_value_from_cache(&self, key: &SlotKey) -> ValueExists {
+        self.tx_cache.get_value(key)
     }
 
     /// Merges the provided `StorageInternalCache` into this one.
