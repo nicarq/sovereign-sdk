@@ -103,24 +103,6 @@ impl SlotKey {
     pub fn key_ref(&self) -> &Vec<u8> {
         self.key.as_ref()
     }
-
-    /// Converts this key into a [`SlotKey`] via cloning.
-    pub fn to_cache_key_version(&self, version: Option<u64>) -> SlotKey {
-        match version {
-            None => SlotKey {
-                namespace: self.namespace,
-                key: self.key.clone(),
-            },
-            Some(v) => {
-                let mut bytes = v.to_be_bytes().to_vec();
-                bytes.extend((*self.key).clone());
-                SlotKey {
-                    namespace: self.namespace,
-                    key: RefCount::new(bytes),
-                }
-            }
-        }
-    }
 }
 
 impl AsRef<Vec<u8>> for SlotKey {

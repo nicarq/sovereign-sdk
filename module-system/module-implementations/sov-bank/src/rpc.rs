@@ -31,12 +31,16 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         token_address: S::Address,
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<BalanceResponse> {
-        if let Some(v) = version {
-            working_set.set_archival_version(v)
-        }
-        Ok(BalanceResponse {
-            amount: self.get_balance_of(user_address, token_address, working_set),
-        })
+        let amount = if let Some(v) = version {
+            self.get_balance_of(
+                user_address,
+                token_address,
+                &mut working_set.get_archival_at(v),
+            )
+        } else {
+            self.get_balance_of(user_address, token_address, working_set)
+        };
+        Ok(BalanceResponse { amount })
     }
 
     #[rpc_method(name = "supplyOf")]
@@ -47,12 +51,12 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         token_address: S::Address,
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<TotalSupplyResponse> {
-        if let Some(v) = version {
-            working_set.set_archival_version(v)
-        }
-        Ok(TotalSupplyResponse {
-            amount: self.get_total_supply_of(&token_address, working_set),
-        })
+        let amount = if let Some(v) = version {
+            self.get_total_supply_of(&token_address, &mut working_set.get_archival_at(v))
+        } else {
+            self.get_total_supply_of(&token_address, working_set)
+        };
+        Ok(TotalSupplyResponse { amount })
     }
 
     #[rpc_method(name = "tokenAddress")]

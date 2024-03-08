@@ -84,15 +84,15 @@ fn transfer_initial_token() {
     // Archival tests
 
     let archival_slot: u64 = 2;
-    let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
-    working_set.set_archival_version(archival_slot);
+    let working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
+    let mut archival = working_set.get_archival_at(archival_slot);
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_address,
         sender_address,
         receiver_address,
-        &mut working_set,
+        &mut archival,
     );
     assert_eq!((sender_balance, receiver_balance), (90, 110));
 
@@ -104,7 +104,7 @@ fn transfer_initial_token() {
         sequencer_address,
         receiver_address,
         5,
-        &mut working_set,
+        &mut archival,
     );
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
@@ -112,19 +112,19 @@ fn transfer_initial_token() {
         token_address,
         sender_address,
         receiver_address,
-        &mut working_set,
+        &mut archival,
     );
     assert_eq!((sender_balance, receiver_balance), (85, 115));
 
     let archival_slot: u64 = 1;
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
-    working_set.set_archival_version(archival_slot);
+    let mut archival = working_set.get_archival_at(archival_slot);
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_address,
         sender_address,
         receiver_address,
-        &mut working_set,
+        &mut archival,
     );
     assert_eq!((sender_balance, receiver_balance), (100, 100));
 
@@ -135,7 +135,7 @@ fn transfer_initial_token() {
         sequencer_address,
         receiver_address,
         45,
-        &mut working_set,
+        &mut archival,
     );
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
@@ -143,11 +143,10 @@ fn transfer_initial_token() {
         token_address,
         sender_address,
         receiver_address,
-        &mut working_set,
+        &mut archival,
     );
     assert_eq!((sender_balance, receiver_balance), (55, 145));
 
-    working_set.unset_archival_version();
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_address,
@@ -225,8 +224,8 @@ fn transfer_initial_token() {
 
     let archival_slot = 3;
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
-    working_set.set_archival_version(archival_slot);
-    let mut accessory_state = working_set.accessory_state();
+    let mut archival = working_set.get_archival_at(archival_slot);
+    let mut accessory_state = archival.accessory_state();
     let val = accessory_state
         .get(&SlotKey::from_str(Namespace::User, "k"))
         .unwrap();
@@ -243,7 +242,6 @@ fn transfer_initial_token() {
         .unwrap();
     assert_eq!("v3", String::from_utf8(val.value().to_vec()).unwrap());
 
-    working_set.unset_archival_version();
     let mut accessory_state = working_set.accessory_state();
     let val = accessory_state
         .get(&SlotKey::from_str(Namespace::User, "k"))
