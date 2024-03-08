@@ -977,6 +977,7 @@ mod tests {
         let witness = ArrayWitness::default();
         let genesis_block = MockBlockHeader::from_height(0);
         let proof = AggregatedProofData::new(AggregatedProofPublicInput {
+            validity_conditions: vec![],
             initial_slot_number: 10,
             final_slot_number: 12,
             initial_state_root: vec![3],

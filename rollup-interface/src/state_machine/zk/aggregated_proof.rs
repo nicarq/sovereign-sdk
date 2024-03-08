@@ -2,6 +2,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+// Type that represents a serialized validity condition.
+type SerializedValidityCondition = Vec<u8>;
+
 /// Aggregated proof code commitment.
 #[derive(
     Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Default,
@@ -20,6 +23,8 @@ impl core::fmt::Display for CodeCommitment {
 /// Public input of an aggregated proof.
 #[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 pub struct AggregatedProofPublicInput {
+    /// Contains the validity conditions for each block in the aggregated proof.
+    pub validity_conditions: Vec<SerializedValidityCondition>,
     /// Initial slot number.
     pub initial_slot_number: u64,
     /// Final slot number.
