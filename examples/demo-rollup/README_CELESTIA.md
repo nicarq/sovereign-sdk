@@ -59,10 +59,10 @@ environment
 variable in each terminal you run. By default, demo-rollup disables proving. If you want to enable proving, several options
 are available:
 
-* `export SOV_PROVER_CONFIG=skip` Skips verification logic.
-* `export SOV_PROVER_CONFIG=simulate` Run the rollup verification logic inside the current process.
-* `export SOV_PROVER_CONFIG=execute` Run the rollup verifier in a zkVM executor.
-* `export SOV_PROVER_CONFIG=prove` Run the rollup verifier and create a SNARK of execution.
+* `export SOV_PROVER_MODE=skip` Skips verification logic.
+* `export SOV_PROVER_MODE=simulate` Run the rollup verification logic inside the current process.
+* `export SOV_PROVER_MODE=execute` Run the rollup verifier in a zkVM executor.
+* `export SOV_PROVER_MODE=prove` Run the rollup verifier and create a SNARK of execution.
 
 ### Run a local DA layer instance
 
@@ -84,6 +84,10 @@ $ make build
 ```
 
 4. Spin up a local Celestia instance as your DA layer. We've built a small Makefile to simplify that process:
+
+```sh,test-ci
+export SOV_PROVER_MODE=execute 
+```
 
 ```sh,test-ci,bashtestmd:wait-until=genesis.json
 $ make clean
