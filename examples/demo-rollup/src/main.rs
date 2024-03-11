@@ -43,21 +43,19 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let prover_config = if option_env!("CI").is_some() {
         Some(RollupProverConfig::Execute)
-    } else if let Some(prover) = option_env!("SOV_PROVER_MODE") {
-        match prover {
-            "simulate" => Some(RollupProverConfig::Simulate),
-            "execute" => Some(RollupProverConfig::Execute),
-            "prove" => Some(RollupProverConfig::Prove),
+    } else {
+        option_env!("SOV_PROVER_MODE").map(|prover| match prover {
+            "simulate" => RollupProverConfig::Simulate,
+            "execute" => RollupProverConfig::Execute,
+            "prove" => RollupProverConfig::Prove,
             _ => {
                 tracing::warn!(
                     prover_mode = prover,
                     "Unknown sov prover mode, using 'Skip' default"
                 );
-                Some(RollupProverConfig::Skip)
+                RollupProverConfig::Skip
             }
-        }
-    } else {
-        None
+        })
     };
 
     tracing::info!(?prover_config, "Running demo rollup with prover config");
