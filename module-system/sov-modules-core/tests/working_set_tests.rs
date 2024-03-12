@@ -1,4 +1,5 @@
 use sov_mock_da::MockDaSpec;
+use sov_modules_api::namespaces::Kernel;
 use sov_modules_core::capabilities::mocks::MockKernel;
 use sov_modules_core::{
     Address, Context, KernelWorkingSet, SlotKey, SlotValue, StateCheckpoint, StateReaderAndWriter,
@@ -72,7 +73,11 @@ fn test_kernel_workingset_get() {
 
     let mut working_set = StateCheckpoint::<TestSpec>::new(storage.clone());
     let mut working_set = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
-    working_set.set(&storage_key, storage_value.clone());
 
-    assert_eq!(Some(storage_value), working_set.get(&storage_key));
+    StateReaderAndWriter::<Kernel>::set(&mut working_set, &storage_key, storage_value.clone());
+
+    assert_eq!(
+        Some(storage_value),
+        StateReaderAndWriter::<Kernel>::get(&mut working_set, &storage_key)
+    );
 }

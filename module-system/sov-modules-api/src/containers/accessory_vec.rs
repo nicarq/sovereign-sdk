@@ -1,150 +1,16 @@
-use std::marker::PhantomData;
-
-use sov_modules_core::{
-    AccessoryStateCheckpoint, AccessoryWorkingSet, Prefix, Spec, StateCodec, StateKeyCodec,
-    StateValueCodec,
-};
+use sov_modules_core::namespaces::Accessory;
 use sov_state::codec::BorshCodec;
 
-use super::traits::StateVecPrivateAccessor;
-use super::{AccessoryStateMap, AccessoryStateValue};
-use crate::{StateValueAccessor, StateVecAccessor};
+use super::vec::GenericStateVec;
 
 /// A variant of [`StateVec`](crate::StateVec) that stores its elements as
 /// "accessory" state, instead of in the JMT.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-)]
-pub struct AccessoryStateVec<V, Codec = BorshCodec> {
-    _phantom: PhantomData<V>,
-    prefix: Prefix,
-    len_value: AccessoryStateValue<usize, Codec>,
-    elems: AccessoryStateMap<usize, V, Codec>,
-}
-
-impl<V> AccessoryStateVec<V>
-where
-    BorshCodec: StateCodec + Clone,
-    <BorshCodec as StateCodec>::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
-    <BorshCodec as StateCodec>::KeyCodec: StateKeyCodec<usize>,
-{
-    /// Crates a new [`AccessoryStateVec`] with the given prefix and the default
-    /// [`StateValueCodec`] (i.e. [`BorshCodec`]).
-    pub fn new(prefix: Prefix) -> Self {
-        Self::with_codec(prefix, BorshCodec)
-    }
-}
-
-impl<'a, V, Codec, S> StateVecPrivateAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
-    for AccessoryStateVec<V, Codec>
-where
-    Codec: StateCodec + Clone,
-    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
-    Codec::KeyCodec: StateKeyCodec<usize>,
-    S: Spec,
-{
-    type ElemsMap = AccessoryStateMap<usize, V, Codec>;
-
-    type LenValue = AccessoryStateValue<usize, Codec>;
-    fn set_len(&self, length: usize, working_set: &mut AccessoryWorkingSet<'a, S>) {
-        self.len_value.set(&length, working_set);
-    }
-
-    fn elems(&self) -> &Self::ElemsMap {
-        &self.elems
-    }
-
-    fn len_value(&self) -> &Self::LenValue {
-        &self.len_value
-    }
-}
-impl<'a, V, Codec, S> StateVecAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
-    for AccessoryStateVec<V, Codec>
-where
-    Codec: StateCodec + Clone,
-    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
-    Codec::KeyCodec: StateKeyCodec<usize>,
-    S: Spec,
-{
-    /// Returns the prefix used when this vector was created.
-    fn prefix(&self) -> &Prefix {
-        &self.prefix
-    }
-}
-
-impl<'a, V, Codec, S> StateVecPrivateAccessor<V, Codec, AccessoryStateCheckpoint<'a, S>>
-    for AccessoryStateVec<V, Codec>
-where
-    Codec: StateCodec + Clone,
-    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
-    Codec::KeyCodec: StateKeyCodec<usize>,
-    S: Spec,
-{
-    type ElemsMap = AccessoryStateMap<usize, V, Codec>;
-
-    type LenValue = AccessoryStateValue<usize, Codec>;
-
-    fn set_len(&self, length: usize, working_set: &mut AccessoryStateCheckpoint<'a, S>) {
-        self.len_value.set(&length, working_set);
-    }
-
-    fn elems(&self) -> &Self::ElemsMap {
-        &self.elems
-    }
-
-    fn len_value(&self) -> &Self::LenValue {
-        &self.len_value
-    }
-}
-
-impl<'a, V, Codec, S> StateVecAccessor<V, Codec, AccessoryStateCheckpoint<'a, S>>
-    for AccessoryStateVec<V, Codec>
-where
-    Codec: StateCodec + Clone,
-    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
-    Codec::KeyCodec: StateKeyCodec<usize>,
-    S: Spec,
-{
-    /// Returns the prefix used when this vector was created.
-    fn prefix(&self) -> &Prefix {
-        &self.prefix
-    }
-}
-
-impl<V, Codec> AccessoryStateVec<V, Codec>
-where
-    Codec: StateCodec + Clone,
-    Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
-    Codec::KeyCodec: StateKeyCodec<usize>,
-{
-    /// Creates a new [`AccessoryStateVec`] with the given prefix and codec.
-    pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
-        // Differentiating the prefixes for the length and the elements
-        // shouldn't be necessary, but it's best not to rely on implementation
-        // details of `StateValue` and `StateMap` as they both have the right to
-        // reserve the whole key space for themselves.
-        let len_value =
-            AccessoryStateValue::<usize, Codec>::with_codec(prefix.extended(b"l"), codec.clone());
-        let elems = AccessoryStateMap::with_codec(prefix.extended(b"e"), codec);
-        Self {
-            _phantom: PhantomData,
-            prefix,
-            len_value,
-            elems,
-        }
-    }
-}
+pub type AccessoryStateVec<V, Codec = BorshCodec> = GenericStateVec<Accessory, V, Codec>;
 
 #[cfg(all(test, feature = "native"))]
 mod test {
 
-    use sov_modules_core::WorkingSet;
+    use sov_modules_core::{Prefix, WorkingSet};
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_test_utils::TestSpec;
 

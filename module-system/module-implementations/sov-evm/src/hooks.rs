@@ -1,7 +1,8 @@
 use reth_primitives::{Bloom, Bytes};
 use revm::primitives::{B256, U256};
+use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryStateCheckpoint, DaSpec, StateCheckpoint};
+use sov_modules_api::{DaSpec, StateCheckpoint, StateReaderAndWriter};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
@@ -172,19 +173,16 @@ where
     pub fn finalize_hook(
         &self,
         root_hash: S::VisibleHash,
-        accessory_working_set: &mut AccessoryStateCheckpoint<S>,
+        accessory_state: &mut impl StateReaderAndWriter<Accessory>,
     ) {
-        let expected_block_number = self.blocks.len(accessory_working_set) as u64;
+        let expected_block_number = self.blocks.len(accessory_state) as u64;
 
-        let mut block = self
-            .pending_head
-            .get(accessory_working_set)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Pending head must be set to block {}, but was empty",
-                    expected_block_number
-                )
-            });
+        let mut block = self.pending_head.get(accessory_state).unwrap_or_else(|| {
+            panic!(
+                "Pending head must be set to block {}, but was empty",
+                expected_block_number
+            )
+        });
 
         assert_eq!(
             block.header.number, expected_block_number,
@@ -197,12 +195,12 @@ where
 
         let sealed_block = block.seal();
 
-        self.blocks.push(&sealed_block, accessory_working_set);
+        self.blocks.push(&sealed_block, accessory_state);
         self.block_hashes.set(
             &sealed_block.header.hash(),
             &sealed_block.header.number,
-            accessory_working_set,
+            accessory_state,
         );
-        self.pending_head.delete(accessory_working_set);
+        self.pending_head.delete(accessory_state);
     }
 }

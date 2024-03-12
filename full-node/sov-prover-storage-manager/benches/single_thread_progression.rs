@@ -105,7 +105,7 @@ fn setup_storage(
         let (_, state_update) = stf_state
             .compute_state_update(state_operations, &witness)
             .unwrap();
-        stf_state.commit(&state_update, &OrderedReadsAndWrites::default());
+        stf_state.commit(&state_update);
 
         storage_manager
             .save_change_set(

@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
+use anyhow::bail;
 use jmt::KeyHash;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_core::{
-    Namespace, OrderedReadsAndWrites, OrderedReadsAndWritesRef, SlotKey, SlotValue, Storage,
-    StorageProof, Witness,
+    Namespace, OrderedReadsAndWrites, SlotKey, SlotValue, Storage, StorageProof, Witness,
 };
 
 use crate::storage_internals::SparseMerkleProof;
@@ -30,7 +30,7 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 fn jmt_verify_existence<S: MerkleProofSpec>(
     prev_state_root: [u8; 32],
-    state_accesses: &OrderedReadsAndWritesRef,
+    state_accesses: &OrderedReadsAndWrites,
     witness: &S::Witness,
 ) -> Result<(), anyhow::Error> {
     // For each value that's been read from the tree, verify the provided smt proof
@@ -55,7 +55,7 @@ fn jmt_verify_existence<S: MerkleProofSpec>(
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 fn jmt_verify_update<S: MerkleProofSpec>(
     prev_state_root: [u8; 32],
-    state_accesses: OrderedReadsAndWritesRef,
+    state_accesses: OrderedReadsAndWrites,
     witness: &S::Witness,
 ) -> [u8; 32] {
     // Compute the jmt update from the write batch
@@ -84,7 +84,7 @@ fn jmt_verify_update<S: MerkleProofSpec>(
 impl<S: MerkleProofSpec> ZkStorage<S> {
     fn compute_state_update_namespace(
         &self,
-        state_accesses: OrderedReadsAndWritesRef,
+        state_accesses: OrderedReadsAndWrites,
         witness: &S::Witness,
     ) -> Result<jmt::RootHash, anyhow::Error> {
         let prev_state_root = witness.get_hint();
@@ -120,7 +120,8 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
-        let (user_state_accesses, kernel_state_accesses) = state_accesses.partition_ns().into();
+        let (user_state_accesses, kernel_state_accesses, _accessory_state_updates) =
+            state_accesses.partition_ns().into();
 
         let user_root = self.compute_state_update_namespace(user_state_accesses, witness)?;
         let kernel_root = self.compute_state_update_namespace(kernel_state_accesses, witness)?;
@@ -129,7 +130,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn commit(&self, _node_batch: &Self::StateUpdate, _accessory_writes: &OrderedReadsAndWrites) {}
+    fn commit(&self, _node_batch: &Self::StateUpdate) {}
 
     fn open_proof(
         state_root: Self::Root,
@@ -151,6 +152,9 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
                 key_hash,
                 value.as_ref().map(|v| v.value()),
             )?,
+            Namespace::Accessory => {
+                bail!("Accessory namespace is not provable")
+            }
         }
 
         Ok((key, value))

@@ -7,7 +7,6 @@ use sov_rollup_interface::maybestd::collections::HashMap;
 
 use crate::common::{MergeError, ReadError};
 use crate::storage::Storage;
-pub use crate::Namespace;
 use crate::{Namespaced, SlotKey, SlotValue};
 
 /// `Access` represents a sequence of events on a particular value.
@@ -416,37 +415,24 @@ pub struct OrderedReadsAndWrites {
     pub ordered_writes: Vec<(SlotKey, Option<SlotValue>)>,
 }
 
-/// A struct that contains the values read from the DB and the values to be written, both in
-/// deterministic order.
-#[derive(Debug)]
-pub struct OrderedReadsAndWritesRef<'a> {
-    /// Ordered reads.
-    pub ordered_reads: Vec<&'a (SlotKey, Option<SlotValue>)>,
-    /// Ordered writes.
-    pub ordered_writes: Vec<&'a (SlotKey, Option<SlotValue>)>,
-}
-
 impl OrderedReadsAndWrites {
     /// Partitions the ordered reads and writes on a namespace
-    pub fn partition_ns(&self) -> Namespaced<OrderedReadsAndWritesRef> {
-        let (left_reads, right_reads): (Vec<_>, Vec<_>) = self
-            .ordered_reads
-            .iter()
-            .partition(|(k, _)| k.namespace == Namespace::User);
-        let (left_writes, right_writes): (Vec<_>, Vec<_>) = self
-            .ordered_writes
-            .iter()
-            .partition(|(k, _)| k.namespace == Namespace::User);
-        Namespaced::new(
-            OrderedReadsAndWritesRef {
-                ordered_reads: left_reads,
-                ordered_writes: left_writes,
-            },
-            OrderedReadsAndWritesRef {
-                ordered_reads: right_reads,
-                ordered_writes: right_writes,
-            },
-        )
+    pub fn partition_ns(self) -> Namespaced<OrderedReadsAndWrites> {
+        let mut output: Namespaced<OrderedReadsAndWrites> = Default::default();
+        for (key, value) in self.ordered_reads.into_iter() {
+            output
+                .get_mut(key.namespace)
+                .ordered_reads
+                .push((key.clone(), value.clone()));
+        }
+
+        for (key, value) in self.ordered_writes.into_iter() {
+            output
+                .get_mut(key.namespace)
+                .ordered_writes
+                .push((key.clone(), value.clone()));
+        }
+        output
     }
 }
 
@@ -468,6 +454,7 @@ mod tests {
     use sov_rollup_interface::maybestd::RefCount;
 
     use super::*;
+    use crate::Namespace;
 
     pub fn create_key(key: u8) -> SlotKey {
         SlotKey {

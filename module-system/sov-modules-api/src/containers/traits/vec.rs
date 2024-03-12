@@ -1,5 +1,6 @@
 use std::iter::FusedIterator;
 
+use sov_modules_core::namespaces::CompileTimeNamespace;
 use sov_modules_core::{Prefix, StateCodec, StateKeyCodec, StateReaderAndWriter, StateValueCodec};
 use thiserror::Error;
 
@@ -16,15 +17,15 @@ pub enum StateVecError {
     MissingValue(Prefix, usize),
 }
 
-pub trait StateVecPrivateAccessor<V, Codec, W>
+pub trait StateVecPrivateAccessor<N: CompileTimeNamespace, V, Codec, W>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    W: StateReaderAndWriter,
+    W: StateReaderAndWriter<N>,
 {
-    type ElemsMap: StateMapAccessor<usize, V, Codec, W>;
-    type LenValue: StateValueAccessor<usize, Codec, W>;
+    type ElemsMap: StateMapAccessor<N, usize, V, Codec, W>;
+    type LenValue: StateValueAccessor<N, usize, Codec, W>;
     fn set_len(&self, length: usize, working_set: &mut W);
 
     fn elems(&self) -> &Self::ElemsMap;
@@ -32,12 +33,13 @@ where
     fn len_value(&self) -> &Self::LenValue;
 }
 
-pub trait StateVecAccessor<V, Codec, W>: StateVecPrivateAccessor<V, Codec, W> + Sized
+pub trait StateVecAccessor<N: CompileTimeNamespace, V, Codec, W>:
+    StateVecPrivateAccessor<N, V, Codec, W> + Sized
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    W: StateReaderAndWriter,
+    W: StateReaderAndWriter<N>,
 {
     /// Returns the prefix used when this vector was created.
     fn prefix(&self) -> &Prefix;
@@ -133,7 +135,7 @@ where
     fn iter<'a, 'ws>(
         &'a self,
         working_set: &'ws mut W,
-    ) -> StateVecIter<'a, 'ws, V, Codec, Self, W> {
+    ) -> StateVecIter<'a, 'ws, N, V, Codec, Self, W> {
         let len = self.len(working_set);
         StateVecIter {
             state_vec: self,
@@ -156,28 +158,30 @@ where
 /// An [`Iterator`] over a state vector.
 ///
 /// See [`StateVecAccessor::iter`] for more details.
-pub struct StateVecIter<'a, 'ws, V, Codec, S, W>
+pub struct StateVecIter<'a, 'ws, N, V, Codec, S, W>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    S: StateVecAccessor<V, Codec, W>,
-    W: StateReaderAndWriter,
+    N: CompileTimeNamespace,
+    S: StateVecAccessor<N, V, Codec, W>,
+    W: StateReaderAndWriter<N>,
 {
     state_vec: &'a S,
     ws: &'ws mut W,
     len: usize,
     next_i: usize,
-    _phantom: std::marker::PhantomData<(V, Codec)>,
+    _phantom: std::marker::PhantomData<(N, V, Codec)>,
 }
 
-impl<'a, 'ws, V, Codec, S, W> Iterator for StateVecIter<'a, 'ws, V, Codec, S, W>
+impl<'a, 'ws, N, V, Codec, S, W> Iterator for StateVecIter<'a, 'ws, N, V, Codec, S, W>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    S: StateVecAccessor<V, Codec, W>,
-    W: StateReaderAndWriter,
+    N: CompileTimeNamespace,
+    S: StateVecAccessor<N, V, Codec, W>,
+    W: StateReaderAndWriter<N>,
 {
     type Item = V;
 
@@ -191,36 +195,40 @@ where
     }
 }
 
-impl<'a, 'ws, V, Codec, S, W> ExactSizeIterator for StateVecIter<'a, 'ws, V, Codec, S, W>
+impl<'a, 'ws, N, V, Codec, S, W> ExactSizeIterator for StateVecIter<'a, 'ws, N, V, Codec, S, W>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    S: StateVecAccessor<V, Codec, W>,
-    W: StateReaderAndWriter,
+    N: CompileTimeNamespace,
+    S: StateVecAccessor<N, V, Codec, W>,
+    W: StateReaderAndWriter<N>,
 {
     fn len(&self) -> usize {
         self.len - self.next_i
     }
 }
 
-impl<'a, 'ws, V, Codec, S, W> FusedIterator for StateVecIter<'a, 'ws, V, Codec, S, W>
+impl<'a, 'ws, N, V, Codec, S, W> FusedIterator for StateVecIter<'a, 'ws, N, V, Codec, S, W>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    S: StateVecAccessor<V, Codec, W>,
-    W: StateReaderAndWriter,
+    N: CompileTimeNamespace,
+    S: StateVecAccessor<N, V, Codec, W>,
+    W: StateReaderAndWriter<N>,
 {
 }
 
-impl<'a, 'ws, V, Codec, Vec, W> DoubleEndedIterator for StateVecIter<'a, 'ws, V, Codec, Vec, W>
+impl<'a, 'ws, N, V, Codec, Vec, W> DoubleEndedIterator
+    for StateVecIter<'a, 'ws, N, V, Codec, Vec, W>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    Vec: StateVecAccessor<V, Codec, W>,
-    W: StateReaderAndWriter,
+    N: CompileTimeNamespace,
+    Vec: StateVecAccessor<N, V, Codec, W>,
+    W: StateReaderAndWriter<N>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
@@ -240,9 +248,10 @@ pub mod tests {
 
     use super::*;
 
-    pub trait Testable<W>: StateVecAccessor<u32, BorshCodec, W>
+    pub trait Testable<N: CompileTimeNamespace, W>:
+        StateVecAccessor<N, u32, BorshCodec, W>
     where
-        W: StateReaderAndWriter,
+        W: StateReaderAndWriter<N>,
     {
         fn run_tests(&self, working_set: &mut W) {
             for test_case_action in test_cases() {
@@ -264,7 +273,10 @@ pub mod tests {
         Clear,
     }
 
-    impl<T: StateVecAccessor<u32, BorshCodec, W>, W> Testable<W> for T where W: StateReaderAndWriter {}
+    impl<N: CompileTimeNamespace, T: StateVecAccessor<N, u32, BorshCodec, W>, W> Testable<N, W> for T where
+        W: StateReaderAndWriter<N>
+    {
+    }
 
     fn test_cases() -> Vec<TestCaseAction<u32>> {
         vec![
@@ -300,12 +312,13 @@ pub mod tests {
         ]
     }
 
-    fn check_test_case_action<S, T, W>(state_vec: &S, action: TestCaseAction<T>, ws: &mut W)
+    fn check_test_case_action<N, S, T, W>(state_vec: &S, action: TestCaseAction<T>, ws: &mut W)
     where
-        S: StateVecAccessor<T, BorshCodec, W>,
+        S: StateVecAccessor<N, T, BorshCodec, W>,
         BorshCodec: StateValueCodec<T>,
         T: Eq + Debug,
-        W: StateReaderAndWriter,
+        W: StateReaderAndWriter<N>,
+        N: CompileTimeNamespace,
     {
         match action {
             TestCaseAction::CheckContents(expected) => {

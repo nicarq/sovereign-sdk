@@ -43,7 +43,7 @@ impl<S: MerkleProofSpec> Clone for StorageRoot<S> {
 }
 impl<S: MerkleProofSpec> From<StorageRoot<S>> for Namespaced<[u8; 32]> {
     fn from(val: StorageRoot<S>) -> Self {
-        Namespaced::new(val.user_hash().0, val.kernel_hash().0)
+        Namespaced::new(val.user_hash().0, val.kernel_hash().0, [0u8; 32])
     }
 }
 

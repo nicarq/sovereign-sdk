@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use anyhow::bail;
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::namespaces;
@@ -8,12 +9,11 @@ use sov_db::native_db::NativeDB;
 use sov_db::schema::ChangeSet;
 use sov_db::state_db::{JmtHandler, StateDB};
 use sov_modules_core::{
-    Namespace, Namespaced, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, Storage,
+    Namespace, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, StateUpdate, Storage,
     StorageProof, Witness,
 };
 
 use crate::config::Config;
-use crate::storage::OrderedReadsAndWritesRef;
 use crate::storage_internals::{SparseMerkleProof, StorageRoot};
 use crate::MerkleProofSpec;
 
@@ -61,6 +61,11 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         match key.namespace() {
             Namespace::User => self.read_value_namespace::<DBUserNamespace>(key, version),
             Namespace::Kernel => self.read_value_namespace::<DBKernelNamespace>(key, version),
+            Namespace::Accessory => self
+                .native_db
+                .get_value_option(key.as_ref(), version.unwrap_or(u64::MAX))
+                .expect("Unable to read from nativeDB")
+                .map(Into::into),
         }
     }
 
@@ -82,12 +87,13 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         match namespace {
             Namespace::User => self.get_root_hash_namespace_helper::<DBUserNamespace>(version),
             Namespace::Kernel => self.get_root_hash_namespace_helper::<DBKernelNamespace>(version),
+            Namespace::Accessory => bail!("Accessory namespace is not provable"),
         }
     }
 
     pub(crate) fn compute_state_update_namespace<N: namespaces::Namespace>(
         &self,
-        state_accesses: OrderedReadsAndWritesRef,
+        state_accesses: OrderedReadsAndWrites,
         witness: &<ProverStorage<S> as Storage>::Witness,
     ) -> Result<(jmt::RootHash, ProverStateUpdate), anyhow::Error> {
         let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
@@ -153,11 +159,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         Ok((new_root, new_state_update))
     }
 
-    fn commit_namespace<N: namespaces::Namespace>(
-        &self,
-        state_update: &ProverStateUpdate,
-        accessory_writes: &OrderedReadsAndWritesRef,
-    ) {
+    fn commit_namespace<N: namespaces::Namespace>(&self, state_update: &ProverStateUpdate) {
         self.db
             .put_preimages::<N>(
                 state_update
@@ -166,16 +168,6 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
                     .map(|(key_hash, key)| (*key_hash, key.key_ref())),
             )
             .expect("Preimage put must succeed");
-        let latest_version = self.db.get_next_version() - 1;
-
-        self.native_db
-            .set_values(
-                accessory_writes.ordered_writes.iter().map(|(k, v_opt)| {
-                    (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))
-                }),
-                latest_version,
-            )
-            .expect("native db write must succeed");
 
         // Write the state values last, since we base our view of what has been touched
         // on state. If the node crashes between the `native_db` update and this update,
@@ -184,6 +176,18 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             .get_jmt_handler::<N>()
             .write_node_batch(&state_update.node_batch)
             .expect("db write must succeed");
+    }
+
+    fn commit_accessory(&self, accessory_writes: &OrderedReadsAndWrites) {
+        let latest_version = self.db.get_next_version() - 1;
+        self.native_db
+            .set_values(
+                accessory_writes.ordered_writes.iter().map(|(k, v_opt)| {
+                    (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))
+                }),
+                latest_version,
+            )
+            .expect("native db write must succeed");
     }
 
     fn get_with_proof_namespace<N: namespaces::Namespace>(
@@ -235,12 +239,38 @@ pub struct ProverStateUpdate {
     pub key_preimages: Vec<(KeyHash, SlotKey)>,
 }
 
+pub struct NamespacedStateUpdate {
+    pub(crate) user: ProverStateUpdate,
+    pub(crate) kernel: ProverStateUpdate,
+    pub(crate) accessory: OrderedReadsAndWrites,
+}
+
+impl StateUpdate for NamespacedStateUpdate {
+    fn add_accessory_item(&mut self, key: SlotKey, value: Option<SlotValue>) {
+        self.accessory.ordered_writes.push((key, value));
+    }
+}
+
+impl NamespacedStateUpdate {
+    pub fn new(
+        user: ProverStateUpdate,
+        kernel: ProverStateUpdate,
+        accessory: OrderedReadsAndWrites,
+    ) -> Self {
+        Self {
+            user,
+            kernel,
+            accessory,
+        }
+    }
+}
+
 impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type Witness = S::Witness;
     type RuntimeConfig = Config;
     type Proof = SparseMerkleProof<S::Hasher>;
     type Root = StorageRoot<S>;
-    type StateUpdate = Namespaced<ProverStateUpdate>;
+    type StateUpdate = NamespacedStateUpdate;
     type ChangeSet = ProverChangeSet;
 
     fn get(
@@ -268,7 +298,8 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
-        let (user_state_accesses, kernel_state_accesses) = state_accesses.partition_ns().into();
+        let (user_state_accesses, kernel_state_accesses, accessory_state_accesses) =
+            state_accesses.partition_ns().into();
 
         let (user_root, user_state_update) =
             self.compute_state_update_namespace::<DBUserNamespace>(user_state_accesses, witness)?;
@@ -278,21 +309,18 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 
         Ok((
             StorageRoot::<S>::new(user_root, kernel_root),
-            Namespaced::new(user_state_update, kernel_state_update),
+            NamespacedStateUpdate::new(
+                user_state_update,
+                kernel_state_update,
+                accessory_state_accesses,
+            ),
         ))
     }
 
-    fn commit(&self, state_update: &Self::StateUpdate, accessory_writes: &OrderedReadsAndWrites) {
-        let accessory_writes = accessory_writes.partition_ns();
-
-        self.commit_namespace::<DBUserNamespace>(
-            state_update.get(Namespace::User),
-            accessory_writes.get(Namespace::User),
-        );
-        self.commit_namespace::<DBKernelNamespace>(
-            state_update.get(Namespace::Kernel),
-            accessory_writes.get(Namespace::Kernel),
-        );
+    fn commit(&self, state_update: &Self::StateUpdate) {
+        self.commit_namespace::<DBUserNamespace>(&state_update.user);
+        self.commit_namespace::<DBKernelNamespace>(&state_update.kernel);
+        self.commit_accessory(&state_update.accessory);
 
         // Finally, update our in-memory view of the current item numbers
         self.db.inc_next_version();
@@ -318,6 +346,9 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
                 key_hash,
                 value.as_ref().map(|v| v.value()),
             )?,
+            Namespace::Accessory => {
+                bail!("Accessory namespace is not provable")
+            }
         }
 
         Ok((key, value))
@@ -340,6 +371,10 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
         match key.namespace() {
             Namespace::User => self.get_with_proof_namespace::<DBUserNamespace>(key),
             Namespace::Kernel => self.get_with_proof_namespace::<DBKernelNamespace>(key),
+            // TODO(@preston-evans98): change this API to prevent panics
+            Namespace::Accessory => {
+                panic!("Accessory namespace is not provable")
+            }
         }
     }
 

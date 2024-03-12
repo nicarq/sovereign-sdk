@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
+use sov_modules_core::namespaces::{CompileTimeNamespace, User};
 use sov_modules_core::{Namespace, Prefix};
+#[cfg(feature = "arbitrary")]
+use sov_modules_core::{StateReaderAndWriter, WorkingSet};
 use sov_state::codec::BorshCodec;
 
 #[cfg(feature = "arbitrary")]
@@ -21,13 +24,15 @@ use crate::StateMapAccessor;
     serde::Serialize,
     serde::Deserialize,
 )]
-pub struct StateMap<K, V, Codec = BorshCodec> {
-    _phantom: (PhantomData<K>, PhantomData<V>),
+pub struct GenericStateMap<N, K, V, Codec = BorshCodec> {
+    _phantom: PhantomData<(N, K, V)>,
     pub(crate) codec: Codec,
     pub(crate) prefix: Prefix,
 }
 
-impl<K, V> StateMap<K, V> {
+pub type StateMap<K, V, Codec = BorshCodec> = GenericStateMap<User, K, V, Codec>;
+
+impl<N: CompileTimeNamespace, K, V> GenericStateMap<N, K, V> {
     /// Creates a new [`StateMap`] with the given prefix and the default
     /// [`sov_modules_core::StateValueCodec`] (i.e. [`BorshCodec`]).
     pub fn new(prefix: Prefix) -> Self {
@@ -35,20 +40,18 @@ impl<K, V> StateMap<K, V> {
     }
 }
 
-impl<K, V, Codec> StateMap<K, V, Codec> {
-    pub const NAMESPACE: Namespace = Namespace::User;
-
+impl<N: CompileTimeNamespace, K, V, Codec> GenericStateMap<N, K, V, Codec> {
     /// Creates a new [`StateMap`] with the given prefix and [`sov_modules_core::StateValueCodec`].
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
-            _phantom: (PhantomData, PhantomData),
+            _phantom: PhantomData,
             codec,
             prefix,
         }
     }
 
     pub fn namespace(&self) -> Namespace {
-        Self::NAMESPACE
+        N::NAMESPACE
     }
 
     /// Returns a reference to the codec used by this [`StateMap`].
@@ -63,13 +66,14 @@ impl<K, V, Codec> StateMap<K, V, Codec> {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a, K, V, Codec> StateMap<K, V, Codec>
+impl<'a, N, K, V, Codec> GenericStateMap<N, K, V, Codec>
 where
     K: arbitrary::Arbitrary<'a>,
     V: arbitrary::Arbitrary<'a>,
     Codec: sov_modules_core::StateCodec + Default,
     Codec::KeyCodec: sov_modules_core::StateKeyCodec<K>,
     Codec::ValueCodec: sov_modules_core::StateValueCodec<V>,
+    N: CompileTimeNamespace,
 {
     /// Returns an arbitrary [`StateMap`] instance.
     ///
@@ -80,13 +84,14 @@ where
     ) -> arbitrary::Result<Self>
     where
         S: sov_modules_core::Spec,
+        WorkingSet<S>: StateReaderAndWriter<N>,
     {
         use arbitrary::Arbitrary;
 
         let prefix = Prefix::arbitrary(u)?;
         let len = u.arbitrary_len::<(K, V)>()?;
         let codec = Codec::default();
-        let map = StateMap::with_codec(prefix, codec);
+        let map = Self::with_codec(prefix, codec);
 
         (0..len).try_fold(map, |map, _| {
             let key = K::arbitrary(u)?;

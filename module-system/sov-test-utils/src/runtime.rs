@@ -5,13 +5,14 @@ pub use sov_chain_state::ChainStateConfig;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::macros::DefaultRuntime;
+use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
     ContextResolver, GasEnforcer, TransactionDeduplicator,
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    AccessoryStateCheckpoint, Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec,
-    PublicKey, Spec, StateCheckpoint, WorkingSet,
+    Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, PublicKey, Spec,
+    StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 use sov_modules_stf_blueprint::{Runtime, SequencerOutcome};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -86,7 +87,7 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
     fn finalize_hook(
         &self,
         _root_hash: <Self::Spec as Spec>::VisibleHash,
-        _accessory_working_set: &mut AccessoryStateCheckpoint<S>,
+        _accessory_working_set: &mut impl StateReaderAndWriter<Accessory>,
     ) {
     }
 }
