@@ -12,7 +12,7 @@ use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, PrivateKey, Spec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_rollup_interface::rpc::AggregatedProofResponse;
+use sov_rollup_interface::rpc::{AggregatedProofResponse, BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
 use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
@@ -207,6 +207,37 @@ async fn assert_balance(
     Ok(())
 }
 
+async fn assert_aggregated_proof(
+    initial_slot: u64,
+    final_slot: u64,
+    client: &SimpleClient,
+) -> Result<(), anyhow::Error> {
+    let proof_resp = RpcClient::<
+        SlotResponse<u32, u32>,
+        BatchResponse<u32, u32>,
+        TxResponse<u32>,
+    >::get_aggregated_proof(client.http())
+    .await?
+    .expect("Proof missing in the ledger db");
+
+    let proof_pub_input = proof_resp.proof.public_input();
+    // We test inequality because proofs are saved asynchronously in the db.
+    assert!(initial_slot <= proof_pub_input.initial_slot_number);
+    assert!(final_slot <= proof_pub_input.final_slot_number);
+
+    let proof_data_info_resp = RpcClient::<
+        SlotResponse<u32, u32>,
+        BatchResponse<u32, u32>,
+        TxResponse<u32>,
+    >::get_aggregated_proof_info(client.http())
+    .await?
+    .expect("Proof missing in the ledger db");
+
+    assert!(initial_slot <= proof_data_info_resp.initial_slot_number);
+    assert!(final_slot <= proof_data_info_resp.final_slot_number);
+    Ok(())
+}
+
 fn assert_aggregated_proof_public_input(
     initial_slot: u64,
     final_slot: u64,
@@ -323,6 +354,7 @@ async fn send_test_bank_txs(
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
         let pub_input = aggregated_proof_resp.proof.public_input();
         assert_aggregated_proof_public_input(1, 1, pub_input);
+        assert_aggregated_proof(1, 1, &client).await?;
     }
 
     Ok(())

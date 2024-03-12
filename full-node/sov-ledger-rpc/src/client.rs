@@ -5,8 +5,8 @@
 
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
-    AggregatedProofResponse, BatchIdentifier, EventIdentifier, QueryMode, SlotIdentifier,
-    TxIdentifier,
+    AggregatedProofResponse, BatchIdentifier, EventIdentifier, ProofInfoResponse, QueryMode,
+    SlotIdentifier, TxIdentifier,
 };
 
 use crate::HexHash;
@@ -150,6 +150,14 @@ where
         query_mode: QueryMode,
     ) -> RpcResult<Vec<Option<Batch>>>;
 
+    /// Gets the latest aggregated proof.
+    #[method(name = "getAggregatedProofData")]
+    fn get_aggregated_proof(&self) -> RpcResult<Option<AggregatedProofResponse>>;
+
+    /// Gets the latest aggregated proof data info.
+    #[method(name = "getAggregatedProofInfo")]
+    fn get_aggregated_proof_info(&self) -> RpcResult<Option<ProofInfoResponse>>;
+
     /// Gets a range of transactions. This query is the most efficient way to
     /// fetch large numbers of transactions, since it allows for easy batching of
     /// db queries for adjacent items.
@@ -160,9 +168,6 @@ where
         end: u64,
         query_mode: QueryMode,
     ) -> RpcResult<Vec<Option<Tx>>>;
-
-    #[method(name = "getAggregatedProofData")]
-    fn get_latest_aggregated_proof(&self) -> RpcResult<Option<AggregatedProofResponse>>;
 
     /// Subscription method to receive a notification each time a slot is
     /// processed.

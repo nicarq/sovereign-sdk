@@ -200,6 +200,15 @@ pub struct EventResponse {
     pub module_address: String,
 }
 
+/// An RPC response for the latest aggregated proof info.
+#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProofInfoResponse {
+    /// Initial slot number
+    pub initial_slot_number: u64,
+    /// Final slot number.
+    pub final_slot_number: u64,
+}
+
 /// An RPC response for the latest aggregated proof.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AggregatedProofResponse {
