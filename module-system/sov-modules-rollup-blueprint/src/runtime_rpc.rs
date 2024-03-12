@@ -2,17 +2,18 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::sequencer_db::SequencerDB;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_sequencer::batch_builder::FiFoStrictBatchBuilder;
-use sov_sequencer::Sequencer;
+use sov_sequencer::{FiFoStrictBatchBuilder, Sequencer};
 
 /// Register rollup's default rpc methods.
 pub fn register_rpc<RT, S, Da>(
     storage: Arc<RwLock<S::Storage>>,
     ledger_db: &LedgerDB,
+    sequencer_db: &SequencerDB,
     da_service: &Da,
     sequencer: <Da::Spec as DaSpec>::Address,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
@@ -43,6 +44,7 @@ where
             RT::default(),
             storage.clone(),
             sequencer,
+            sequencer_db.clone(),
         );
 
         let sequencer_rpc = Sequencer::new(batch_builder, da_service.clone()).rpc();

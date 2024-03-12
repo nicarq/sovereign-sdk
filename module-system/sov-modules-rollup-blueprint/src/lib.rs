@@ -10,6 +10,7 @@ use async_trait::async_trait;
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::{CacheDb, ChangeSet};
+use sov_db::sequencer_db::SequencerDB;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{DaSpec, Spec};
@@ -77,6 +78,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
         storage: Arc<RwLock<<Self::NativeSpec as Spec>::Storage>>,
         ledger_db: &LedgerDB,
+        sequencer_db: &SequencerDB,
         da_service: &Self::DaService,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
@@ -172,6 +174,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
         let ledger_db = self.create_ledger_db(ledger_state)?;
 
+        let sequencer_db = SequencerDB::new(rollup_config.storage.path)?;
+
         let prev_root = ledger_db
             .get_head_slot()?
             .map(|(number, _)| prover_storage.get_root_hash(number.0))
@@ -188,7 +192,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // We pass "bootstrap" storage here,
         // as it will be replaced with the latest on after first processed block.
         let rpc_storage = Arc::new(RwLock::new(prover_storage));
-        let rpc_methods = self.create_rpc_methods(rpc_storage.clone(), &ledger_db, &da_service)?;
+        let rpc_methods =
+            self.create_rpc_methods(rpc_storage.clone(), &ledger_db, &sequencer_db, &da_service)?;
         let native_stf = StfBlueprint::new();
 
         let runner = StateTransitionRunner::new(

@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::sequencer_db::SequencerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec};
 use sov_modules_api::default_spec::{DefaultSpec, ZkDefaultSpec};
 use sov_modules_api::Spec;
@@ -57,6 +58,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         storage: Arc<RwLock<<Self::NativeSpec as Spec>::Storage>>,
         ledger_db: &LedgerDB,
+        sequencer_db: &SequencerDB,
         da_service: &Self::DaService,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
@@ -67,7 +69,13 @@ impl RollupBlueprint for MockDemoRollup {
             Self::NativeRuntime,
             Self::NativeSpec,
             Self::DaService,
-        >(storage.clone(), ledger_db, da_service, sequencer)?;
+        >(
+            storage.clone(),
+            ledger_db,
+            sequencer_db,
+            da_service,
+            sequencer,
+        )?;
 
         #[cfg(feature = "experimental")]
         crate::eth::register_ethereum::<Self::NativeSpec, Self::DaService>(

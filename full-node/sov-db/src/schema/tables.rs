@@ -30,13 +30,15 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::Version;
 use rockbound::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use rockbound::{CodecError, SeekKeyEncoder};
+use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleAddress,
     ProofUniqueId, SlotNumber, StoredAggregatedProof, StoredBatch, StoredSlot, StoredTransaction,
-    TxNumber,
+    TxIncrId, TxNumber,
 };
+use crate::sequencer_db::MempoolTx;
 
 /* Other tables used by the Rollup */
 
@@ -250,6 +252,16 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// The primary source for proof data
     (ProofByUniqueId) ProofUniqueId => StoredAggregatedProof
+);
+
+define_table_with_seek_key_codec!(
+    /// Transactions stored in the mempool, keyed by sequential ID.
+    (TxByIncrId) TxIncrId => MempoolTx
+);
+
+define_table_with_default_codec!(
+    /// Index over [`TxByIncrId`] for lookup by hash.
+    (TxIncrIdByHash) TxHash => TxIncrId
 );
 
 define_table_without_codec!(

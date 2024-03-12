@@ -13,7 +13,7 @@ pub trait BatchBuilder {
 
     /// Checks whether a transaction with the given `hash` is already in the
     /// mempool.
-    fn contains(&self, hash: &TxHash) -> bool;
+    fn contains(&self, hash: &TxHash) -> anyhow::Result<bool>;
 
     /// Builds a new batch out of transactions in mempool.
     /// The logic of which transactions and how many of them are included in batch is up to implementation.

@@ -1,7 +1,6 @@
 - sov-rollup-interface
 - sov-mock-da
 - sov-mock-zkvm
-- sov-schema-db
 - sov-db
 - sov-modules-core
 - sov-state

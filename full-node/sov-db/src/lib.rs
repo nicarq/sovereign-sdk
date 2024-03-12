@@ -15,6 +15,9 @@ pub mod ledger_db;
 pub mod rocks_db_config;
 /// Defines the tables used by the Sovereign SDK.
 pub mod schema;
+/// Defines the types used by the sequencer to store mempool transactions and
+/// related data.
+pub mod sequencer_db;
 /// Implements a wrapper around [RocksDB](https://rocksdb.org/) meant for storing rollup state.
 /// This is primarily used as the backing store for the [JMT(JellyfishMerkleTree)](https://docs.rs/jmt/latest/jmt/).
 pub mod state_db;

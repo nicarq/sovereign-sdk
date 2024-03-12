@@ -4,10 +4,11 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
-pub mod batch_builder;
+mod batch_builder;
 mod tx_status;
 pub mod utils;
 
+pub use batch_builder::FiFoStrictBatchBuilder;
 use jsonrpsee::core::StringError;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
@@ -97,21 +98,11 @@ where
     }
 
     async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
-        info!(tx = hex::encode(&tx), "Accepting transactiontx");
+        info!(tx = hex::encode(&tx), "Accepting transaction");
         let mut batch_builder = self.batch_builder.lock().await;
         let tx_hash = batch_builder.accept_tx(tx)?;
         self.tx_status_notifier.notify(tx_hash, TxStatus::Submitted);
         Ok(tx_hash)
-    }
-
-    async fn tx_status(&self, tx_hash: &TxHash) -> Option<TxStatus<Da::TransactionId>> {
-        let is_in_mempool = self.batch_builder.lock().await.contains(tx_hash);
-
-        if is_in_mempool {
-            Some(TxStatus::Submitted)
-        } else {
-            self.tx_status_notifier.get_cached(tx_hash)
-        }
     }
 
     async fn accept_tx_rpc(&self, tx: Vec<u8>) -> Result<AcceptTxResponse, ErrorObjectOwned> {
@@ -122,6 +113,19 @@ where
                 tx_hash: HexHash(tx_hash),
             })
             .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))
+    }
+
+    async fn tx_status(
+        &self,
+        tx_hash: &TxHash,
+    ) -> anyhow::Result<Option<TxStatus<Da::TransactionId>>> {
+        let is_in_mempool = self.batch_builder.lock().await.contains(tx_hash)?;
+
+        if is_in_mempool {
+            Ok(Some(TxStatus::Submitted))
+        } else {
+            Ok(self.tx_status_notifier.get_cached(tx_hash))
+        }
     }
 
     fn register_txs_rpc_methods(rpc: &mut RpcModule<Self>) -> Result<(), jsonrpsee::core::Error> {
@@ -150,7 +154,10 @@ where
         rpc.register_async_method("sequencer_txStatus", |params, sequencer| async move {
             let tx_hash: HexHash = params.one()?;
 
-            let status = sequencer.tx_status(&tx_hash.0).await;
+            let status = sequencer
+                .tx_status(&tx_hash.0)
+                .await
+                .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
             Ok::<_, ErrorObjectOwned>(status)
         })?;
         rpc.register_subscription(
@@ -177,7 +184,7 @@ where
 
         let initial_status = sequencer
             .tx_status(&tx_hash.0)
-            .await
+            .await?
             .unwrap_or(TxStatus::Unknown);
         subscription
             .send(SubscriptionMessage::from_json(&initial_status)?)
@@ -269,7 +276,7 @@ mod tests {
             Ok([0; 32])
         }
 
-        fn contains(&self, _tx_hash: &TxHash) -> bool {
+        fn contains(&self, _tx_hash: &TxHash) -> anyhow::Result<bool> {
             unimplemented!("MockBatchBuilder::contains is not implemented")
         }
 
