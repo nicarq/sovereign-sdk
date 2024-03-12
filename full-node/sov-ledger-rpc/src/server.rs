@@ -7,8 +7,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::{
-    AggregatedProofResponse, BatchIdentifier, EventIdentifier, LedgerRpcProvider, QueryMode,
-    SlotIdentifier, TxIdentifier,
+    AggregatedProofResponse, BatchIdentifier, EventIdentifier, LedgerRpcProvider,
+    ProofInfoResponse, QueryMode, SlotIdentifier, TxIdentifier,
 };
 use tokio::sync::broadcast::Receiver;
 
@@ -176,6 +176,22 @@ where
         ledger
             .get_transactions_range::<Tx>(args.0, args.1, args.2)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
+
+    rpc.register_method("ledger_getAggregatedProofInfo", move |_params, ledger| {
+        let aggregated_proof = ledger
+            .get_latest_aggregated_proof()
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))?;
+
+        let info = aggregated_proof.map(|resp| {
+            let public_input = resp.proof.public_input();
+            ProofInfoResponse {
+                initial_slot_number: public_input.initial_slot_number,
+                final_slot_number: public_input.final_slot_number,
+            }
+        });
+
+        Ok::<_, ErrorObjectOwned>(info)
     })?;
 
     rpc.register_method("ledger_getAggregatedProofData", move |_params, ledger| {
