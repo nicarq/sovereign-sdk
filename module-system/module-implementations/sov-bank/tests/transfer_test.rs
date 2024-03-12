@@ -1,10 +1,7 @@
 mod helpers;
 
 use helpers::*;
-use sov_bank::{
-    get_genesis_token_address, get_token_address, Bank, BankConfig, CallMessage, Coins,
-    TotalSupplyResponse,
-};
+use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -24,10 +21,7 @@ fn transfer_initial_token() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_address = get_genesis_token_address::<S>(
-        &bank_config.tokens[0].token_name,
-        bank_config.tokens[0].salt,
-    );
+    let token_address = bank_config.tokens[0].token_address;
     let sender_address = bank_config.tokens[0].address_and_balances[0].0;
     let receiver_address = bank_config.tokens[0].address_and_balances[1].0;
     let sequencer_address = bank_config.tokens[0].address_and_balances[3].0;
@@ -83,7 +77,7 @@ fn transfer_initial_token() {
         assert_eq!(total_supply_before, total_supply_after);
     }
 
-    // Not enough balance
+    // Balance is too low.
     {
         let transfer_message = CallMessage::Transfer {
             to: receiver_address,

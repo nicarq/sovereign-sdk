@@ -10,6 +10,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::tx_verifier::RawTx;
+use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasArray, GasPrice, KernelWorkingSet,
     MessageCodec, Module, Spec, StateCheckpoint, WorkingSet,
@@ -38,14 +39,16 @@ fn get_bank_config(
     preferred_sequencer: <S as Spec>::Address,
     regular_sequencer: <S as Spec>::Address,
 ) -> sov_bank::BankConfig<S> {
+    let token_name = "InitialToken".to_owned();
+    let token_address = generate_address::<S>(&token_name);
     let token_config: TokenConfig<S> = TokenConfig {
-        token_name: "InitialToken".to_owned(),
+        token_name,
+        token_address,
         address_and_balances: vec![
             (preferred_sequencer, LOCKED_AMOUNT * 3),
             (regular_sequencer, LOCKED_AMOUNT * 3),
         ],
         authorized_minters: vec![],
-        salt: 9,
     };
 
     sov_bank::BankConfig {
@@ -803,10 +806,7 @@ impl TestRuntime<S, MockDaSpec> {
     fn build_genesis_config(with_preferred_sequencer: bool) -> GenesisConfig<S, MockDaSpec> {
         let bank_config = get_bank_config(PREFERRED_SEQUENCER_ROLLUP, REGULAR_SEQUENCER_ROLLUP);
 
-        let token_address = sov_bank::get_genesis_token_address::<S>(
-            &bank_config.tokens[0].token_name,
-            bank_config.tokens[0].salt,
-        );
+        let token_address = bank_config.tokens[0].token_address;
 
         let sequencer_registry_config = SequencerConfig {
             seq_rollup_address: PREFERRED_SEQUENCER_ROLLUP,

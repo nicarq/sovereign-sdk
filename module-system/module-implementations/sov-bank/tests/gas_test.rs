@@ -134,9 +134,9 @@ impl BankGasTestCase {
         let bank_config: BankConfig<S> = BankConfig {
             tokens: vec![TokenConfig {
                 token_name: base_token_name.to_string(),
+                token_address: base_token_address,
                 address_and_balances,
                 authorized_minters,
-                salt,
             }],
         };
 

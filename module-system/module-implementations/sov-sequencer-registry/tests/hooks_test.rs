@@ -178,11 +178,7 @@ fn end_blob_hook_slash_preferred_sequencer() {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_address = sov_bank::get_genesis_token_address::<S>(
-        &bank_config.tokens[0].token_name,
-        bank_config.tokens[0].salt,
-    );
-
+    let token_address = bank_config.tokens[0].token_address;
     let registry = SequencerRegistry::<S, Da>::default();
     let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
 
@@ -328,7 +324,7 @@ fn begin_blob_hook_without_enough_stake() {
 }
 
 #[test]
-fn slashed_sequencer_shouldnt_preserve_balance() {
+fn slashed_sequencer_should_not_preserve_balance() {
     let test_sequencer = create_test_sequencer_large_balance();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());

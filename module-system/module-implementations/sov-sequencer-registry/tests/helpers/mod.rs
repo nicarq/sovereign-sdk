@@ -22,6 +22,8 @@ pub const INITIAL_BALANCE: u64 = 210;
 #[allow(dead_code)]
 pub const INITIAL_BALANCE_LARGE: u64 = 2100;
 pub const LOCKED_AMOUNT: u64 = 200;
+#[allow(dead_code)]
+pub const GENESIS_TOKEN_NAME: &str = "initial_token";
 
 pub struct TestSequencer {
     pub bank: sov_bank::Bank<S>,
@@ -97,9 +99,11 @@ impl TestSequencer {
 
 pub fn create_bank_config() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
     let seq_address = generate_address(GENESIS_SEQUENCER_KEY);
+    let token_address = generate_address(GENESIS_TOKEN_NAME);
 
     let token_config = sov_bank::TokenConfig {
-        token_name: "InitialToken".to_owned(),
+        token_name: GENESIS_TOKEN_NAME.to_owned(),
+        token_address,
         address_and_balances: vec![
             (seq_address, INITIAL_BALANCE),
             (generate_address(ANOTHER_SEQUENCER_KEY), INITIAL_BALANCE),
@@ -107,7 +111,6 @@ pub fn create_bank_config() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
             (generate_address(LOW_FUND_KEY), 3),
         ],
         authorized_minters: vec![],
-        salt: 8,
     };
 
     (
@@ -121,9 +124,11 @@ pub fn create_bank_config() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
 #[allow(dead_code)]
 pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
     let seq_address = generate_address(GENESIS_SEQUENCER_KEY);
+    let token_address = generate_address(GENESIS_TOKEN_NAME);
 
     let token_config = sov_bank::TokenConfig {
-        token_name: "InitialToken".to_owned(),
+        token_name: GENESIS_TOKEN_NAME.to_owned(),
+        token_address,
         address_and_balances: vec![
             (seq_address, INITIAL_BALANCE_LARGE),
             (
@@ -137,7 +142,6 @@ pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<S>, <S as Spe
             (generate_address(LOW_FUND_KEY), 3),
         ],
         authorized_minters: vec![],
-        salt: 8,
     };
 
     (
@@ -167,10 +171,7 @@ pub fn create_test_sequencer() -> TestSequencer {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_address = sov_bank::get_genesis_token_address::<S>(
-        &bank_config.tokens[0].token_name,
-        bank_config.tokens[0].salt,
-    );
+    let token_address = bank_config.tokens[0].token_address;
 
     let registry = SequencerRegistry::<S, Da>::default();
     let sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
@@ -188,10 +189,7 @@ pub fn create_test_sequencer_large_balance() -> TestSequencer {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config_large_balance();
 
-    let token_address = sov_bank::get_genesis_token_address::<S>(
-        &bank_config.tokens[0].token_name,
-        bank_config.tokens[0].salt,
-    );
+    let token_address = bank_config.tokens[0].token_address;
 
     let registry = SequencerRegistry::<S, Da>::default();
     let sequencer_config = create_sequencer_config(seq_rollup_address, token_address);

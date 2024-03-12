@@ -25,12 +25,13 @@ fn create_bank_config() -> (
 ) {
     let prover_address = generate_address("prover_pub_key");
     let sequencer_address = generate_address("sequencer_pub_key");
+    let token_address = generate_address("initial_token");
 
     let token_config = sov_bank::TokenConfig {
         token_name: "InitialToken".to_owned(),
+        token_address,
         address_and_balances: vec![(prover_address, BOND_AMOUNT * 5)],
         authorized_minters: vec![prover_address],
-        salt: 2,
     };
 
     (
@@ -51,11 +52,7 @@ fn setup(
     bank.genesis(&bank_config, working_set)
         .expect("bank genesis must succeed");
 
-    let token_address = sov_bank::get_genesis_token_address::<S>(
-        &bank_config.tokens[0].token_name,
-        bank_config.tokens[0].salt,
-    );
-
+    let token_address = bank_config.tokens[0].token_address;
     // initialize prover incentives
     let module = ProverIncentives::<S, MockZkVerifier>::default();
     let config = crate::ProverIncentivesConfig {
