@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use borsh::BorshSerialize;
+use sov_db::sequencer_db::SequencerDB;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{Address, CryptoSpec, GasPrice, PrivateKey, Spec};
@@ -10,9 +11,8 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_sequencer::batch_builder::FiFoStrictBatchBuilder;
 use sov_sequencer::utils::SimpleClient;
-use sov_sequencer::{Sequencer, TxStatus};
+use sov_sequencer::{FiFoStrictBatchBuilder, Sequencer, TxStatus};
 use sov_state::DefaultStorageSpec;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
@@ -89,6 +89,8 @@ fn new_sequencer(
 
     let first_block = MockBlockHeader::from_height(1);
 
+    let sequencer_db = SequencerDB::new(dir.path()).unwrap();
+
     let (stf_state, _ledger_storage) = storage_manager
         .create_state_for(&first_block)
         .expect("Getting first block storage failed");
@@ -100,6 +102,7 @@ fn new_sequencer(
         runtime,
         Arc::new(RwLock::new(stf_state)),
         sequencer_addr.into(),
+        sequencer_db,
     );
 
     Sequencer::new(batch_builder, da_service)

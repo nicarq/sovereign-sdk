@@ -194,6 +194,34 @@ macro_rules! u64_wrapper {
             }
         }
 
+        impl ::core::ops::Add<u64> for $name {
+            type Output = Self;
+
+            fn add(self, rhs: u64) -> Self {
+                Self(self.0 + rhs)
+            }
+        }
+
+        impl ::core::ops::AddAssign<u64> for $name {
+            fn add_assign(&mut self, rhs: u64) {
+                self.0 += rhs;
+            }
+        }
+
+        impl ::core::ops::Sub<u64> for $name {
+            type Output = Self;
+
+            fn sub(self, rhs: u64) -> Self {
+                Self(self.0 - rhs)
+            }
+        }
+
+        impl ::core::ops::SubAssign<u64> for $name {
+            fn sub_assign(&mut self, rhs: u64) {
+                self.0 -= rhs;
+            }
+        }
+
         #[cfg(feature = "arbitrary")]
         impl<'a> ::arbitrary::Arbitrary<'a> for $name {
             fn arbitrary(u: &mut ::arbitrary::Unstructured<'a>) -> ::arbitrary::Result<Self> {
@@ -203,6 +231,7 @@ macro_rules! u64_wrapper {
     };
 }
 
+u64_wrapper!(TxIncrId);
 u64_wrapper!(SlotNumber);
 u64_wrapper!(BatchNumber);
 u64_wrapper!(TxNumber);

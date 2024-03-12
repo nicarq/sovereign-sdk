@@ -13,19 +13,24 @@ resolver = "2"
 
 [dependencies]
 anyhow = { workspace = true }
+bincode = { workspace = true }
 borsh = { workspace = true }
 dashmap = "5"
+derivative = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["client", "server"] }
 mini-moka = "0.10"
+rockbound = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tracing = { workspace = true }
-tokio = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", features = ["native"] }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", version = "0.3", features = ["native"] }
 sov-state = { path = "../../module-system/sov-state", version = "0.3" }
+sov-db = { path = "../sov-db", version = "0.3" }
+sov-test-utils = { path = "../../module-system/sov-test-utils", version = "0.3" }
+tracing = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }

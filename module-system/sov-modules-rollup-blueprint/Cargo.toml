@@ -26,9 +26,9 @@ sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-ledger-rpc = { path = "../../full-node/sov-ledger-rpc", features = ["server"] }
 
 anyhow = { workspace = true }
+async-trait = { workspace = true }
+borsh = { workspace = true }
+jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-async-trait = { workspace = true }
-jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 tokio = { workspace = true }
-borsh = { workspace = true }

@@ -1,59 +1,29 @@
 //! Concrete implementation(s) of [`BatchBuilder`].
 
-use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, RwLock};
 
 use anyhow::{bail, Context as ErrorContext};
 use borsh::BorshDeserialize;
+use sov_db::sequencer_db::{MempoolTx, SequencerDB};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::tx_verifier::TransactionAndRawHash;
-use sov_modules_api::{CryptoSpec, DispatchCall, Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_api::{CryptoSpec, Gas, GasArray, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::{apply_tx, ExecutionMode, Runtime, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
 
-use self::mempool::Mempool;
 use crate::TxHash;
-
-/// Transaction stored in the mempool.
-pub struct PooledTransaction<S: Spec, R: DispatchCall<Spec = S>> {
-    /// Raw transaction bytes.
-    raw: Vec<u8>,
-    /// Deserialized transaction.
-    tx: Transaction<S>,
-    /// The decoded runtime message, cached during initial verification.
-    msg: Option<R::Decodable>,
-    /// Hash calculated with [`calculate_hash`].
-    hash: TxHash,
-}
-
-impl<S, R> std::fmt::Debug for PooledTransaction<S, R>
-where
-    S: Spec,
-    R: DispatchCall<Spec = S>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PooledTransaction")
-            .field("raw", &hex::encode(&self.raw))
-            .field("tx", &self.tx)
-            .finish()
-    }
-}
-
-fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
-    <S::CryptoSpec as CryptoSpec>::Hasher::digest(tx_raw).into()
-}
 
 /// BatchBuilder that creates batches of transactions in the order they were submitted
 /// Only transactions that were successfully dispatched are included.
 pub struct FiFoStrictBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>> {
-    mempool: Mempool<S, R>,
     mempool_max_txs_count: usize,
     runtime: R,
     max_batch_size_bytes: usize,
     current_storage: Arc<RwLock<S::Storage>>,
     sequencer: Da::Address,
+    sequencer_db: SequencerDB,
 }
 
 impl<S, Da, R> FiFoStrictBatchBuilder<S, Da, R>
@@ -62,21 +32,22 @@ where
     Da: DaSpec,
     R: Runtime<S, Da>,
 {
-    /// BatchBuilder constructor.
+    /// [`BatchBuilder`] constructor.
     pub fn new(
         max_batch_size_bytes: usize,
         mempool_max_txs_count: usize,
         runtime: R,
         current_storage: Arc<RwLock<S::Storage>>,
         sequencer: Da::Address,
+        sequencer_db: SequencerDB,
     ) -> Self {
         Self {
-            mempool: Mempool::new(),
             mempool_max_txs_count,
             max_batch_size_bytes,
             runtime,
             current_storage,
             sequencer,
+            sequencer_db,
         }
     }
 }
@@ -93,7 +64,7 @@ where
     /// - mempool is full
     /// - transaction is invalid (deserialization, verification or decoding of the runtime message failed)
     fn accept_tx(&mut self, raw: Vec<u8>) -> anyhow::Result<TxHash> {
-        if self.mempool.len() >= self.mempool_max_txs_count {
+        if self.sequencer_db.txs_count() >= self.mempool_max_txs_count {
             bail!("Mempool is full")
         }
 
@@ -111,8 +82,8 @@ where
         // Verify
         tx.verify().context("Failed to verify transaction")?;
 
-        // Decode
-        let msg = R::decode_call(tx.runtime_msg())
+        // Make sure the runtime message is valid
+        R::decode_call(tx.runtime_msg())
             .map_err(anyhow::Error::new)
             .context("Failed to decode message in transaction")?;
 
@@ -121,19 +92,19 @@ where
             "Added a transaction to the mempool"
         );
         let hash = calculate_hash::<S>(&raw);
-        let tx = PooledTransaction {
-            raw,
-            tx,
-            msg: Some(msg),
+        let tx = MempoolTx {
+            tx_bytes: raw,
+            runtime_msg: tx.runtime_msg().to_owned(),
             hash,
         };
-        self.mempool.push_back(tx);
+
+        self.sequencer_db.push(tx)?;
 
         Ok(hash)
     }
 
-    fn contains(&self, hash: &TxHash) -> bool {
-        self.mempool.contains(hash)
+    fn contains(&self, hash: &TxHash) -> anyhow::Result<bool> {
+        self.sequencer_db.contains(hash)
     }
 
     /// Builds a new batch of valid transactions in order they were added to mempool
@@ -165,36 +136,27 @@ where
         let gas_price = <S::Gas as Gas>::Price::ZEROED;
         let mut reward = 0;
 
-        while let Some(pooled) = self.mempool.pop_front() {
+        while let Some(pooled) = self.sequencer_db.pop()? {
             // To fill a batch as big as possible, we only check if valid
             // tx can fit in the batch.
-            let tx_len = pooled.raw.len();
+            let tx_len = pooled.tx_bytes.len();
             if current_batch_size + tx_len > self.max_batch_size_bytes {
-                self.mempool.push_front(pooled);
+                self.sequencer_db.reinsert(pooled)?;
                 break;
             }
 
-            let PooledTransaction {
-                raw,
-                tx,
-                mut msg,
-                hash,
-            } = pooled;
-
-            // Take the decoded runtime message cached upon accepting transaction
-            // into the pool or attempt to decode the message again if
-            // the transaction was previously executed,
-            // but discarded from the batch due to the batch size.
-            let msg = msg.take().unwrap_or_else(||
-                // SAFETY: The transaction was accepted into the pool,
-                // so we know that the runtime message is valid.
-                R::decode_call(tx.runtime_msg()).expect("Undecodable transaction has been accepted into the pool"));
+            // expect(): The transaction was accepted into the pool,
+            // so we know that the runtime message is valid.
+            let msg = R::decode_call(pooled.runtime_msg.as_slice())
+                .expect("Undecodable transaction has been accepted into the pool");
 
             // Execute
             {
+                let tx = Transaction::<S>::deserialize(&mut pooled.tx_bytes.as_slice())
+                    .context("Failed to deserialize transaction")?;
                 let tx_and_raw_hash = TransactionAndRawHash {
                     tx,
-                    raw_tx_hash: hash,
+                    raw_tx_hash: pooled.hash,
                 };
                 let (after_state_checkpoint, tx_receipt) = apply_tx(
                     &self.runtime,
@@ -212,20 +174,23 @@ where
                 match tx_receipt.receipt {
                     TxEffect::Successful => {
                         tracing::info!(
-                            hash = hex::encode(hash),
+                            hash = hex::encode(pooled.hash),
                             "Transaction has been included in the batch",
                         );
 
                         // Update size of current batch
                         current_batch_size += tx_len;
 
-                        txs.push(TxWithHash { raw_tx: raw, hash });
+                        txs.push(TxWithHash {
+                            raw_tx: pooled.tx_bytes,
+                            hash: pooled.hash,
+                        });
                     }
                     TxEffect::InsufficientBaseGas | TxEffect::Reverted | TxEffect::Duplicate => {
                         tracing::warn!(
                             ?tx_receipt,
-                            tx = hex::encode(&raw),
-                            hash = hex::encode(hash),
+                            tx = hex::encode(&pooled.tx_bytes),
+                            hash = hex::encode(pooled.hash),
                             "Error during transaction dispatch"
                         );
                         continue;
@@ -247,62 +212,8 @@ where
     }
 }
 
-mod mempool {
-    use super::*;
-
-    pub struct Mempool<S: Spec, R: DispatchCall<Spec = S>> {
-        txs: VecDeque<PooledTransaction<S, R>>,
-        // Makes it cheap to check if transaction is already in the mempool.
-        hashes: HashSet<TxHash>,
-    }
-
-    impl<S: Spec, R: DispatchCall<Spec = S>> Mempool<S, R> {
-        pub fn new() -> Self {
-            Self {
-                txs: VecDeque::new(),
-                hashes: HashSet::new(),
-            }
-        }
-
-        pub fn len(&self) -> usize {
-            self.txs.len()
-        }
-
-        pub fn contains(&self, hash: &TxHash) -> bool {
-            self.hashes.contains(hash)
-        }
-
-        pub fn push_back(&mut self, tx: PooledTransaction<S, R>) {
-            self.assert_invariant();
-
-            self.hashes.insert(tx.hash);
-            self.txs.push_back(tx);
-        }
-
-        pub fn push_front(&mut self, tx: PooledTransaction<S, R>) {
-            self.assert_invariant();
-
-            self.hashes.insert(tx.hash);
-            self.txs.push_front(tx);
-        }
-
-        fn assert_invariant(&self) {
-            assert_eq!(
-                self.txs.len(),
-                self.hashes.len(),
-                "Mempool invariant violated, the variables got out of sync. This is a bug!"
-            );
-        }
-
-        pub fn pop_front(&mut self) -> Option<PooledTransaction<S, R>> {
-            let tx = self.txs.pop_front();
-            if let Some(tx) = &tx {
-                self.hashes.remove(&tx.hash);
-            }
-
-            tx
-        }
-    }
+fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
+    <S::CryptoSpec as CryptoSpec>::Hasher::digest(tx_raw).into()
 }
 
 #[cfg(test)]
@@ -390,13 +301,17 @@ mod tests {
         tmpdir: &TempDir,
         sequencer_address: MockAddress,
     ) -> FiFoStrictBatchBuilder<S, MockDaSpec, TestRuntime<S, MockDaSpec>> {
-        let storage = Arc::new(RwLock::new(new_orphan_storage(tmpdir.path()).unwrap()));
+        let state_path = tmpdir.path().join("state");
+        let sequencer_db_path = tmpdir.path().join("mempool");
+        let storage = Arc::new(RwLock::new(new_orphan_storage(state_path).unwrap()));
+        let sequencer_db = SequencerDB::new(sequencer_db_path).unwrap();
         FiFoStrictBatchBuilder::new(
             batch_size_bytes,
             MAX_TX_POOL_SIZE,
             TestRuntime::<S, MockDaSpec>::default(),
             storage.clone(),
             sequencer_address,
+            sequencer_db,
         )
     }
 
@@ -565,7 +480,7 @@ mod tests {
                 batch_builder.accept_tx(tx.clone()).unwrap();
             }
 
-            assert_eq!(txs.len(), batch_builder.mempool.len());
+            assert_eq!(txs.len(), batch_builder.sequencer_db.txs_count());
 
             let _ = batch_builder.get_next_blob(1);
         }
@@ -598,10 +513,9 @@ mod tests {
                 batch_builder.accept_tx(tx.clone()).unwrap();
             }
 
-            assert_eq!(txs.len(), batch_builder.mempool.len());
+            assert_eq!(txs.len(), batch_builder.sequencer_db.txs_count());
 
             let build_result = batch_builder.get_next_blob(1);
-            assert!(build_result.is_ok());
             let blob = build_result
                 .unwrap()
                 .iter()
@@ -612,7 +526,7 @@ mod tests {
             assert!(blob.contains(&txs[0]));
             assert!(blob.contains(&txs[2]));
             assert!(!blob.contains(&txs[3]));
-            assert_eq!(1, batch_builder.mempool.len());
+            assert_eq!(1, batch_builder.sequencer_db.txs_count());
         }
     }
 }
