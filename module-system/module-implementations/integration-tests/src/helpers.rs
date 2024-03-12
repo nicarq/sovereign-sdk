@@ -9,13 +9,14 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::da::Time;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::macros::DefaultRuntime;
+use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
     ContextResolver, GasEnforcer, Kernel, TransactionDeduplicator,
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    AccessoryStateCheckpoint, Context, DaSpec, DispatchCall, Event, Gas, GasArray, Genesis,
-    MessageCodec, PublicKey, Spec, StateCheckpoint, WorkingSet, Zkvm,
+    Context, DaSpec, DispatchCall, Event, Gas, GasArray, Genesis, MessageCodec, PublicKey, Spec,
+    StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
 };
 use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{
@@ -195,7 +196,7 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
     fn finalize_hook(
         &self,
         _root_hash: S::VisibleHash,
-        _accesorry_working_set: &mut AccessoryStateCheckpoint<S>,
+        _accessory_state: &mut impl StateReaderAndWriter<Accessory>,
     ) {
     }
 }

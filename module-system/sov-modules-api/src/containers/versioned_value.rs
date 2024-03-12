@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_core::kernel_state::VersionReader;
+use sov_modules_core::namespaces::Kernel;
 use sov_modules_core::{
     KernelWorkingSet, Namespace, Prefix, Spec, StateCodec, StateKeyCodec, StateReaderAndWriter,
     StateValueCodec,
@@ -68,12 +69,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateValueCodec<V>,
         Codec::KeyCodec: StateKeyCodec<u64>,
     {
-        ws.get_value(
-            sov_modules_core::Namespace::Kernel,
-            self.prefix(),
-            &ws.current_version(),
-            &self.codec,
-        )
+        ws.get_value(self.prefix(), &ws.current_version(), &self.codec)
     }
 
     /// Only the kernel working set can write to versioned values
@@ -83,8 +79,8 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateValueCodec<V>,
         Codec::KeyCodec: StateKeyCodec<u64>,
     {
-        ws.set_value(
-            sov_modules_core::Namespace::Kernel,
+        StateReaderAndWriter::<Kernel>::set_value(
+            ws,
             self.prefix(),
             &ws.current_version(),
             value,
@@ -95,22 +91,18 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
 
 mod as_kernel_value {
 
-    use sov_modules_core::Namespace;
+    use sov_modules_core::namespaces::Kernel;
 
     use super::*;
     use crate::StateValueAccessor;
 
-    impl<'a, V, Codec, S: Spec> StateValueAccessor<V, Codec, KernelWorkingSet<'a, S>>
+    impl<'a, V, Codec, S: Spec> StateValueAccessor<Kernel, V, Codec, KernelWorkingSet<'a, S>>
         for VersionedStateValue<V, Codec>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
         Codec::KeyCodec: StateKeyCodec<u64>,
     {
-        fn namespace(&self) -> Namespace {
-            Self::NAMESPACE
-        }
-
         fn prefix(&self) -> &Prefix {
             &self.prefix
         }
@@ -120,21 +112,15 @@ mod as_kernel_value {
         }
 
         fn set(&self, value: &V, working_set: &mut KernelWorkingSet<'a, S>) {
-            working_set.set_value(
-                Namespace::Kernel,
-                self.prefix(),
-                &working_set.current_slot(),
-                value,
-                &self.codec,
-            );
+            self.set_current(value, working_set)
         }
 
         fn get(&self, working_set: &mut KernelWorkingSet<'a, S>) -> Option<V> {
-            working_set.get_value(
-                Namespace::Kernel,
+            StateReaderAndWriter::<Kernel>::get_value(
+                working_set,
                 self.prefix(),
                 &working_set.current_slot(),
-                StateValueAccessor::<V, Codec, KernelWorkingSet<'a, S>>::codec(self),
+                StateValueAccessor::<Kernel, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
             )
         }
 
@@ -147,11 +133,11 @@ mod as_kernel_value {
         }
 
         fn remove(&self, working_set: &mut KernelWorkingSet<'a, S>) -> Option<V> {
-            working_set.remove_value(
-                Namespace::Kernel,
+            StateReaderAndWriter::<Kernel>::get_value(
+                working_set,
                 self.prefix(),
                 &working_set.current_slot(),
-                StateValueAccessor::<V, Codec, KernelWorkingSet<'a, S>>::codec(self),
+                StateValueAccessor::<Kernel, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
             )
         }
 
@@ -164,11 +150,11 @@ mod as_kernel_value {
         }
 
         fn delete(&self, working_set: &mut KernelWorkingSet<'a, S>) {
-            working_set.delete_value(
-                Namespace::Kernel,
+            StateReaderAndWriter::<Kernel>::delete_value(
+                working_set,
                 self.prefix(),
                 &working_set.current_slot(),
-                StateValueAccessor::<V, Codec, KernelWorkingSet<'a, S>>::codec(self),
+                StateValueAccessor::<Kernel, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
             );
         }
     }
@@ -176,21 +162,18 @@ mod as_kernel_value {
 
 mod as_kernel_map {
 
+    use sov_modules_core::namespaces::Kernel;
     use sov_modules_core::Namespace;
 
     use super::*;
     use crate::StateMapAccessor;
-    impl<'a, V, Codec, S: Spec> StateMapAccessor<u64, V, Codec, KernelWorkingSet<'a, S>>
+    impl<'a, V, Codec, S: Spec> StateMapAccessor<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>
         for VersionedStateValue<V, Codec>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
         Codec::KeyCodec: StateKeyCodec<u64>,
     {
-        fn namespace(&self) -> Namespace {
-            Self::NAMESPACE
-        }
-
         fn prefix(&self) -> &Prefix {
             &self.prefix
         }
@@ -204,12 +187,12 @@ mod as_kernel_map {
             <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,
             Q: ?Sized,
         {
-            working_set.set_value(
-                Namespace::Kernel,
+            StateReaderAndWriter::<Kernel>::set_value(
+                working_set,
                 self.prefix(),
                 key,
                 value,
-                StateMapAccessor::<u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
+                StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
             )
         }
 
@@ -220,11 +203,11 @@ mod as_kernel_map {
             <Codec as StateCodec>::ValueCodec: StateValueCodec<V>,
             Q: ?Sized,
         {
-            working_set.get_value(
-                Namespace::Kernel,
+            StateReaderAndWriter::<Kernel>::get_value(
+                working_set,
                 self.prefix(),
                 key,
-                StateMapAccessor::<u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
+                StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
             )
         }
 
@@ -246,8 +229,10 @@ mod as_kernel_map {
                         Namespace::Kernel,
                         self.prefix(),
                         key,
-                        StateMapAccessor::<u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self)
-                            .key_codec(),
+                        StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(
+                            self,
+                        )
+                        .key_codec(),
                     ),
                 )
             })
@@ -260,11 +245,11 @@ mod as_kernel_map {
             <Codec as StateCodec>::ValueCodec: StateValueCodec<V>,
             Q: ?Sized,
         {
-            working_set.remove_value(
-                Namespace::Kernel,
+            StateReaderAndWriter::<Kernel>::remove_value(
+                working_set,
                 self.prefix(),
                 key,
-                StateMapAccessor::<u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
+                StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
             )
         }
 
@@ -286,8 +271,10 @@ mod as_kernel_map {
                         Namespace::Kernel,
                         self.prefix(),
                         key,
-                        StateMapAccessor::<u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self)
-                            .key_codec(),
+                        StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(
+                            self,
+                        )
+                        .key_codec(),
                     ),
                 )
             })
@@ -299,11 +286,11 @@ mod as_kernel_map {
             <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,
             Q: ?Sized,
         {
-            working_set.delete_value(
-                Namespace::Kernel,
+            StateReaderAndWriter::<Kernel>::delete_value(
+                working_set,
                 self.prefix(),
                 key,
-                StateMapAccessor::<u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
+                StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
             );
         }
     }
@@ -346,10 +333,9 @@ mod tests {
                 // Try to read the value from user space with the slot number set to 1. Should fail.
                 assert_eq!(value.get_current(&mut versioned_state), None);
             }
-            // Try to read the value from user space with the slot number set to 4. Should succeed.
             let mut versioned_state =
                 working_set.versioned_state(&Context::<TestSpec>::new(signer, sequencer, 4));
-            // Try to read the value from user space with the slot number set to 1. Should fail.
+            // Try to read the value from user space with the slot number set to 4. Should succeed.
             assert_eq!(value.get_current(&mut versioned_state), Some(100));
         }
     }

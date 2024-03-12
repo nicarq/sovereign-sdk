@@ -51,7 +51,7 @@ impl<Cond> HashStf<Cond> {
             .compute_state_update(ordered_reads_writes, witness)
             .unwrap();
 
-        storage.commit(&state_update, &OrderedReadsAndWrites::default());
+        storage.commit(&state_update);
 
         (jmt_root_hash.into(), storage.to_change_set())
     }

@@ -66,7 +66,7 @@ fn test_accessory_value_setter() {
     let (reads_writes, witness) = checkpoint.0.freeze();
     let accessory_writes = checkpoint.0.freeze_non_provable();
     let state_root_hash_after = storage
-        .validate_and_commit_with_accessory_update(reads_writes, &witness, &accessory_writes)
+        .validate_and_commit_with_accessory_update(reads_writes, &witness, accessory_writes)
         .unwrap();
 
     assert_eq!(state_root_hash_initial, state_root_hash_after);

@@ -898,12 +898,13 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(3, 4));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(write_op(50, 60));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(50, 60));
             let (_, state_update) = stf_state
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state.commit(&state_update, &native_operations);
+            stf_state.commit(&state_update);
         }
 
         storage_manager
@@ -992,12 +993,13 @@ mod tests {
                 storage_manager.create_state_for(&genesis_block).unwrap();
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 2));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(write_op(30, 40));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(30, 40));
             let (_, state_update) = stf_state
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state.commit(&state_update, &native_operations);
+            stf_state.commit(&state_update);
 
             let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
@@ -1104,6 +1106,20 @@ mod tests {
 
     fn write_op(key: u64, value: u64) -> (SlotKey, Option<SlotValue>) {
         (key_from(key), Some(value_from(value)))
+    }
+
+    fn accessory_write_op(key: u64, value: u64) -> (SlotKey, Option<SlotValue>) {
+        (
+            SlotKey::from_bytes(Namespace::Accessory, key.to_be_bytes().to_vec()),
+            Some(value_from(value)),
+        )
+    }
+
+    fn accessory_delete_op(key: u64) -> (SlotKey, Option<SlotValue>) {
+        (
+            SlotKey::from_bytes(Namespace::Accessory, key.to_be_bytes().to_vec()),
+            None,
+        )
     }
 
     fn delete_op(key: u64) -> (SlotKey, Option<SlotValue>) {
@@ -1216,12 +1232,13 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 2));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(write_op(30, 40));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(30, 40));
             let (_, state_update) = stf_state_a
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state_a.commit(&state_update, &native_operations);
+            stf_state_a.commit(&state_update);
         }
         storage_manager
             .save_change_set(
@@ -1235,12 +1252,13 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(3, 4));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(write_op(50, 60));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(50, 60));
             let (_, state_update) = stf_state_b
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state_b.commit(&state_update, &native_operations);
+            stf_state_b.commit(&state_update);
         }
         storage_manager
             .save_change_set(
@@ -1395,13 +1413,14 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 3));
             state_operations.ordered_writes.push(write_op(3, 4));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(write_op(3, 40));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(3, 40));
 
             let (_, state_update) = stf_state_a
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state_a.commit(&state_update, &native_operations);
+            stf_state_a.commit(&state_update);
         }
 
         storage_manager
@@ -1416,12 +1435,13 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(3, 2));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(write_op(3, 50));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(3, 50));
             let (_, state_update) = stf_state_b
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state_b.commit(&state_update, &native_operations);
+            stf_state_b.commit(&state_update);
         }
         storage_manager
             .save_change_set(
@@ -1436,12 +1456,13 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(delete_op(1));
             state_operations.ordered_writes.push(write_op(4, 5));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(write_op(1, 60));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(1, 60));
             let (_, state_update) = stf_state_c
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state_c.commit(&state_update, &native_operations);
+            stf_state_c.commit(&state_update);
         }
         storage_manager
             .save_change_set(
@@ -1458,7 +1479,7 @@ mod tests {
             let (_, state_update) = stf_state_d
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state_d.commit(&state_update, &OrderedReadsAndWrites::default());
+            stf_state_d.commit(&state_update);
         }
         storage_manager
             .save_change_set(
@@ -1473,13 +1494,14 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 7));
             state_operations.ordered_writes.push(delete_op(3));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(delete_op(1));
-            native_operations.ordered_writes.push(write_op(3, 70));
+            state_operations.ordered_writes.push(accessory_delete_op(1));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(3, 70));
             let (_, state_update) = stf_state_f
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state_f.commit(&state_update, &native_operations);
+            stf_state_f.commit(&state_update);
         }
         storage_manager
             .save_change_set(
@@ -1493,12 +1515,13 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 8));
-            let mut native_operations = OrderedReadsAndWrites::default();
-            native_operations.ordered_writes.push(write_op(2, 9));
+            state_operations
+                .ordered_writes
+                .push(accessory_write_op(2, 9));
             let (_, state_update) = stf_state_g
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state_g.commit(&state_update, &native_operations);
+            stf_state_g.commit(&state_update);
         }
         storage_manager
             .save_change_set(
@@ -1515,7 +1538,7 @@ mod tests {
             let (_, state_update) = storage_l
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            storage_l.commit(&state_update, &OrderedReadsAndWrites::default());
+            storage_l.commit(&state_update);
         }
         storage_manager
             .save_change_set(&block_l, storage_l.try_into().unwrap(), ledger_l.into())
@@ -1690,18 +1713,19 @@ mod tests {
     fn fill_storage_for_height(height: u64, stf_state: &ProverStorage<S>) {
         let witness = ArrayWitness::default();
         let mut state_operations = OrderedReadsAndWrites::default();
-        let mut native_operations = OrderedReadsAndWrites::default();
         for x in height * 10..((height + 1) * 10) {
             if x % 2 == 0 {
                 state_operations.ordered_writes.push(write_op(x, x));
             } else {
-                native_operations.ordered_writes.push(write_op(x, x));
+                state_operations
+                    .ordered_writes
+                    .push(accessory_write_op(x, x));
             }
         }
         let (_, state_update) = stf_state
             .compute_state_update(state_operations, &witness)
             .unwrap();
-        stf_state.commit(&state_update, &native_operations);
+        stf_state.commit(&state_update);
     }
 
     fn check_storage_for_height(height: u64, stf_state: &ProverStorage<S>) {
@@ -1765,7 +1789,6 @@ mod tests {
         // Fill some special data for E
         {
             let mut state_operations = OrderedReadsAndWrites::default();
-            let mut native_operations = OrderedReadsAndWrites::default();
 
             state_operations
                 .ordered_writes
@@ -1774,16 +1797,16 @@ mod tests {
                 .ordered_writes
                 .push(write_op(40_000_000, 200));
 
-            native_operations
+            state_operations
                 .ordered_writes
-                .push(write_op(50_000_000, 300));
-            native_operations
+                .push(accessory_write_op(50_000_000, 300));
+            state_operations
                 .ordered_writes
-                .push(write_op(60_000_000, 400));
+                .push(accessory_write_op(60_000_000, 400));
             let (_, state_update) = stf_state
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
-            stf_state.commit(&state_update, &native_operations);
+            stf_state.commit(&state_update);
         }
 
         storage_manager

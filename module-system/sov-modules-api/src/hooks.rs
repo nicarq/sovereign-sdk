@@ -1,5 +1,6 @@
+use sov_modules_core::namespaces::Accessory;
 use sov_modules_core::{
-    AccessoryStateCheckpoint, Context, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
+    Context, Spec, StateCheckpoint, StateReaderAndWriter, VersionedStateReadWriter, WorkingSet,
 };
 use sov_rollup_interface::da::DaSpec;
 
@@ -78,6 +79,6 @@ pub trait FinalizeHook {
     fn finalize_hook(
         &self,
         root_hash: <Self::Spec as Spec>::VisibleHash,
-        accessory_working_set: &mut AccessoryStateCheckpoint<Self::Spec>,
+        accessory_working_set: &mut impl StateReaderAndWriter<Accessory>,
     );
 }

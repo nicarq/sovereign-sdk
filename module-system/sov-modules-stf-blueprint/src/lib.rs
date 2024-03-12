@@ -25,6 +25,7 @@ use sov_modules_core::capabilities::{ContextResolver, GasEnforcer, TransactionDe
 use sov_modules_core::VersionedStateReadWriter;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
+use sov_state::storage::StateUpdate;
 use sov_state::Storage;
 pub use stf_blueprint::{apply_tx, ExecutionMode, StfBlueprint};
 use tracing::{debug, info};
@@ -179,7 +180,7 @@ where
 
         let (cache_log, witness) = checkpoint.freeze();
 
-        let (root_hash, state_update) = storage
+        let (root_hash, mut state_update) = storage
             .compute_state_update(cache_log, &witness)
             .expect("jellyfish merkle tree update must succeed");
 
@@ -188,9 +189,13 @@ where
         self.runtime
             .finalize_hook(visible_root_hash, &mut checkpoint.accessory_state());
 
+        // TODO(@preston-evans98): Unify the accessory state with the regular state
         let accessory_log = checkpoint.freeze_non_provable();
+        for (key, value) in accessory_log.ordered_writes.into_iter() {
+            state_update.add_accessory_item(key, value);
+        }
 
-        storage.commit(&state_update, &accessory_log);
+        storage.commit(&state_update);
 
         (root_hash, witness, storage)
     }
@@ -241,7 +246,7 @@ where
         let mut checkpoint = working_set.checkpoint().0;
         let (log, witness) = checkpoint.freeze();
 
-        let (genesis_hash, state_update) = pre_state
+        let (genesis_hash, mut state_update) = pre_state
             .compute_state_update(log, &witness)
             .expect("Storage update must succeed");
 
@@ -250,14 +255,19 @@ where
         self.runtime
             .finalize_hook(visible_genesis_hash, &mut checkpoint.accessory_state());
 
+        // TODO(@preston-evans98): Unify the accessory state with the regular state
         let accessory_log = checkpoint.freeze_non_provable();
+        for (key, value) in accessory_log.ordered_writes.into_iter() {
+            state_update.add_accessory_item(key, value);
+        }
         // HACK: Drop the old checkpoint to ensure that it's RC is not active during commit.
         // This will be resolved as part of https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/132
         drop(checkpoint);
 
         // TODO: Commit here for now, but probably this can be done outside of STF
         // TODO: Commit is fine
-        pre_state.commit(&state_update, &accessory_log);
+
+        pre_state.commit(&state_update);
 
         (genesis_hash, pre_state.to_change_set())
     }

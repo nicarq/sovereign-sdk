@@ -38,6 +38,61 @@ pub enum Namespace {
     User,
     /// The kernel namespace. Used by the Kernel modules and is synchronised with the true height.
     Kernel,
+    /// The accessory namespace. Values in this namespace are not writeable but not readable inside the state transition
+    /// function. They are used to provide auxiliary data via RPC.
+    Accessory,
+}
+
+/// Defines type-level representations of  namespaces.
+pub mod namespaces {
+    use crate::Namespace;
+
+    /// Converts a type into a runtime namespace.
+    pub trait CompileTimeNamespace {
+        /// The runtime namespace variant associated with the type.
+        const NAMESPACE: Namespace;
+    }
+
+    /// A type-level representation fo the user namespace
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct User;
+
+    impl CompileTimeNamespace for User {
+        const NAMESPACE: Namespace = Namespace::User;
+    }
+
+    impl From<User> for Namespace {
+        fn from(_: User) -> Namespace {
+            Namespace::User
+        }
+    }
+    /// A type-level representation fo the kernel namespace
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Kernel;
+
+    impl CompileTimeNamespace for Kernel {
+        const NAMESPACE: Namespace = Namespace::Kernel;
+    }
+
+    impl From<Kernel> for Namespace {
+        fn from(_: Kernel) -> Namespace {
+            Namespace::Kernel
+        }
+    }
+
+    /// A type-level representation fo the accessory namespace
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Accessory;
+
+    impl CompileTimeNamespace for Accessory {
+        const NAMESPACE: Namespace = Namespace::Accessory;
+    }
+
+    impl From<Accessory> for Namespace {
+        fn from(_: Accessory) -> Namespace {
+            Namespace::Accessory
+        }
+    }
 }
 
 #[derive(Default)]
@@ -45,6 +100,7 @@ pub enum Namespace {
 pub struct Namespaced<T> {
     user: T,
     kernel: T,
+    accessory: T,
 }
 
 impl<T> Namespaced<T> {
@@ -53,6 +109,16 @@ impl<T> Namespaced<T> {
         match namespace {
             Namespace::User => &self.user,
             Namespace::Kernel => &self.kernel,
+            Namespace::Accessory => &self.accessory,
+        }
+    }
+
+    /// Gets the inner object for a given namespace.
+    pub fn get_mut(&mut self, namespace: Namespace) -> &mut T {
+        match namespace {
+            Namespace::User => &mut self.user,
+            Namespace::Kernel => &mut self.kernel,
+            Namespace::Accessory => &mut self.accessory,
         }
     }
 
@@ -61,18 +127,23 @@ impl<T> Namespaced<T> {
         match namespace {
             Namespace::User => self.user = state_update,
             Namespace::Kernel => self.kernel = state_update,
+            Namespace::Accessory => self.accessory = state_update,
         }
     }
 
     /// Creates a new struct instance from specified values.
-    pub fn new(user: T, kernel: T) -> Self {
-        Self { user, kernel }
+    pub fn new(user: T, kernel: T, accessory: T) -> Self {
+        Self {
+            user,
+            kernel,
+            accessory,
+        }
     }
 }
 
-impl<T> From<Namespaced<T>> for (T, T) {
+impl<T> From<Namespaced<T>> for (T, T, T) {
     fn from(val: Namespaced<T>) -> Self {
-        (val.user, val.kernel)
+        (val.user, val.kernel, val.accessory)
     }
 }
 
@@ -222,6 +293,22 @@ pub struct StorageProof<P> {
     pub proof: P,
 }
 
+/// A trait implemented by state updates that can be committed to the database.
+pub trait StateUpdate {
+    /// Allows the addition of non-provable ("accessory") state changes to the
+    /// state update after the rest of eh update is finalized.
+    fn add_accessory_item(&mut self, key: SlotKey, value: Option<SlotValue>);
+}
+
+impl StateUpdate for () {
+    fn add_accessory_item(&mut self, _key: SlotKey, _value: Option<SlotValue>) {
+        // Silently discard the input. This is safe, since the accessory state
+        // is *not* consensus critical. This implementation is intended to be used
+        // in the zk context only. In the native context, a real implementation SHOULD
+        // be used instead.
+    }
+}
+
 /// An interface for storing and retrieving values in the storage.
 pub trait Storage: Clone {
     /// The witness type for this storage instance.
@@ -257,7 +344,7 @@ pub trait Storage: Clone {
                           // implemented by hashing the state root even if the root itself is not 32 bytes.
 
     /// State update that will be committed to the database.
-    type StateUpdate;
+    type StateUpdate: StateUpdate;
 
     /// Collections of all the writes that have been made on top of this instance of the storage;
     type ChangeSet;
@@ -289,17 +376,20 @@ pub trait Storage: Clone {
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error>;
 
     /// Commits state changes to the underlying storage.
-    fn commit(&self, node_batch: &Self::StateUpdate, accessory_update: &OrderedReadsAndWrites);
+    fn commit(&self, state_update: &Self::StateUpdate);
 
     /// A version of [`Storage::validate_and_commit`] that allows for "accessory" non-JMT updates.
     fn validate_and_commit_with_accessory_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-        accessory_update: &OrderedReadsAndWrites,
+        accessory_updates: OrderedReadsAndWrites,
     ) -> Result<Self::Root, anyhow::Error> {
-        let (root_hash, node_batch) = self.compute_state_update(state_accesses, witness)?;
-        self.commit(&node_batch, accessory_update);
+        let (root_hash, mut node_batch) = self.compute_state_update(state_accesses, witness)?;
+        for write in accessory_updates.ordered_writes {
+            node_batch.add_accessory_item(write.0, write.1);
+        }
+        self.commit(&node_batch);
 
         Ok(root_hash)
     }
@@ -317,7 +407,7 @@ pub trait Storage: Clone {
             self,
             state_accesses,
             witness,
-            &Default::default(),
+            Default::default(),
         )
     }
 

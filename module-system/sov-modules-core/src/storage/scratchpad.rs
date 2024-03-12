@@ -10,14 +10,15 @@ use sov_rollup_interface::maybestd::collections::HashMap;
 
 use crate::common::{GasMeter, Prefix};
 use crate::module::{Context, Spec};
+use crate::namespaces::{Accessory, CompileTimeNamespace, User};
 use crate::storage::{
     EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, StateCodec,
     StateValueCodec, Storage, StorageInternalCache, StorageProof,
 };
-use crate::{Gas, Namespace};
+use crate::Gas;
 
 /// A storage reader and writer
-pub trait StateReaderAndWriter {
+pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
     /// Get a value from the storage.
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue>;
 
@@ -30,7 +31,6 @@ pub trait StateReaderAndWriter {
     /// Replaces a storage value with the provided prefix, using the provided codec.
     fn set_value<Q, K, V, Codec>(
         &mut self,
-        namespace: Namespace,
         prefix: &Prefix,
         storage_key: &Q,
         value: &V,
@@ -41,24 +41,19 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(namespace, prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(N::NAMESPACE, prefix, storage_key, codec.key_codec());
         let storage_value = SlotValue::new(value, codec.value_codec());
         self.set(&storage_key, storage_value);
     }
 
     /// Replaces a storage value with a singleton prefix. For more information, check
     /// [SlotKey::singleton].
-    fn set_singleton<V, Codec>(
-        &mut self,
-        namespace: Namespace,
-        prefix: &Prefix,
-        value: &V,
-        codec: &Codec,
-    ) where
+    fn set_singleton<V, Codec>(&mut self, prefix: &Prefix, value: &V, codec: &Codec)
+    where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(namespace, prefix);
+        let storage_key = SlotKey::singleton(N::NAMESPACE, prefix);
         let storage_value = SlotValue::new(value, codec.value_codec());
         self.set(&storage_key, storage_value);
     }
@@ -81,7 +76,6 @@ pub trait StateReaderAndWriter {
     /// Get a value from the storage.
     fn get_value<Q, K, V, Codec>(
         &mut self,
-        namespace: Namespace,
         prefix: &Prefix,
         storage_key: &Q,
         codec: &Codec,
@@ -92,29 +86,23 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(namespace, prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(N::NAMESPACE, prefix, storage_key, codec.key_codec());
         self.get_decoded(&storage_key, codec)
     }
 
     /// Get a singleton value from the storage. For more information, check [SlotKey::singleton].
-    fn get_singleton<V, Codec>(
-        &mut self,
-        namespace: Namespace,
-        prefix: &Prefix,
-        codec: &Codec,
-    ) -> Option<V>
+    fn get_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(namespace, prefix);
+        let storage_key = SlotKey::singleton(N::NAMESPACE, prefix);
         self.get_decoded(&storage_key, codec)
     }
 
     /// Removes a value from the storage.
     fn remove_value<Q, K, V, Codec>(
         &mut self,
-        namespace: Namespace,
         prefix: &Prefix,
         storage_key: &Q,
         codec: &Codec,
@@ -125,48 +113,38 @@ pub trait StateReaderAndWriter {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(namespace, prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(N::NAMESPACE, prefix, storage_key, codec.key_codec());
         let storage_value = self.get_decoded(&storage_key, codec)?;
         self.delete(&storage_key);
         Some(storage_value)
     }
 
     /// Removes a singleton from the storage. For more information, check [SlotKey::singleton].
-    fn remove_singleton<V, Codec>(
-        &mut self,
-        namespace: Namespace,
-        prefix: &Prefix,
-        codec: &Codec,
-    ) -> Option<V>
+    fn remove_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(namespace, prefix);
+        let storage_key = SlotKey::singleton(N::NAMESPACE, prefix);
         let storage_value = self.get_decoded(&storage_key, codec)?;
         self.delete(&storage_key);
         Some(storage_value)
     }
 
     /// Deletes a value from the storage.
-    fn delete_value<Q, K, Codec>(
-        &mut self,
-        namespace: Namespace,
-        prefix: &Prefix,
-        storage_key: &Q,
-        codec: &Codec,
-    ) where
+    fn delete_value<Q, K, Codec>(&mut self, prefix: &Prefix, storage_key: &Q, codec: &Codec)
+    where
         Q: ?Sized,
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
     {
-        let storage_key = SlotKey::new(namespace, prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(N::NAMESPACE, prefix, storage_key, codec.key_codec());
         self.delete(&storage_key);
     }
 
     /// Deletes a singleton from the storage. For more information, check [SlotKey::singleton].
-    fn delete_singleton(&mut self, namespace: Namespace, prefix: &Prefix) {
-        let storage_key = SlotKey::singleton(namespace, prefix);
+    fn delete_singleton(&mut self, prefix: &Prefix) {
+        let storage_key = SlotKey::singleton(N::NAMESPACE, prefix);
         self.delete(&storage_key);
     }
 }
@@ -208,7 +186,7 @@ impl<S: Storage> fmt::Debug for Delta<S> {
     }
 }
 
-impl<S: Storage> StateReaderAndWriter for Delta<S> {
+impl<S: Storage> StateReaderAndWriter<User> for Delta<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         self.cache
             .get_or_fetch(key, &self.inner, &self.witness, self.version)
@@ -263,7 +241,7 @@ impl<S: Storage> AccessoryDelta<S> {
     }
 }
 
-impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
+impl<S: Storage> StateReaderAndWriter<Accessory> for AccessoryDelta<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if let Some(value) = self.writes.cache.get(key) {
             return value.clone().map(Into::into);
@@ -358,7 +336,7 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 }
 
-impl<S: Spec> StateReaderAndWriter for StateCheckpoint<S> {
+impl<S: Spec> StateReaderAndWriter<User> for StateCheckpoint<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         self.delta.get(key)
     }
@@ -596,7 +574,7 @@ impl<S: Spec> WorkingSet<S> {
     }
 }
 
-impl<S: Spec> StateReaderAndWriter for WorkingSet<S> {
+impl<S: Spec> StateReaderAndWriter<User> for WorkingSet<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         self.delta.get(key)
     }
@@ -616,7 +594,7 @@ pub struct AccessoryWorkingSet<'a, S: Spec> {
     ws: &'a mut WorkingSet<S>,
 }
 
-impl<'a, S: Spec> StateReaderAndWriter for AccessoryWorkingSet<'a, S> {
+impl<'a, S: Spec> StateReaderAndWriter<Accessory> for AccessoryWorkingSet<'a, S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if !cfg!(feature = "native") {
             None
@@ -640,7 +618,7 @@ pub struct AccessoryStateCheckpoint<'a, S: Spec> {
     checkpoint: &'a mut StateCheckpoint<S>,
 }
 
-impl<'a, S: Spec> StateReaderAndWriter for AccessoryStateCheckpoint<'a, S> {
+impl<'a, S: Spec> StateReaderAndWriter<Accessory> for AccessoryStateCheckpoint<'a, S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if !cfg!(feature = "native") {
             None
@@ -664,14 +642,15 @@ pub mod kernel_state {
 
     use super::*;
     use crate::capabilities::Kernel;
+    use crate::namespaces;
 
     /// A trait indicating that this working set is version aware
-    pub trait VersionReader: StateReaderAndWriter {
+    pub trait VersionReader: StateReaderAndWriter<crate::namespaces::Kernel> {
         /// Returns the current version of the working set
         fn current_version(&self) -> u64;
     }
 
-    impl<'a, S: StateReaderAndWriter> VersionReader for VersionedStateReadWriter<'a, S> {
+    impl<'a, S: Spec> VersionReader for VersionedStateReadWriter<'a, StateCheckpoint<S>> {
         fn current_version(&self) -> u64 {
             self.slot_num
         }
@@ -713,17 +692,35 @@ pub mod kernel_state {
         }
     }
 
-    impl<'a, S: StateReaderAndWriter> StateReaderAndWriter for VersionedStateReadWriter<'a, S> {
+    impl<'a, S: Spec> StateReaderAndWriter<crate::namespaces::Kernel>
+        for VersionedStateReadWriter<'a, StateCheckpoint<S>>
+    {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-            self.ws.get(key)
+            self.ws.delta.get(key)
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.ws.set(key, value)
+            self.ws.delta.set(key, value)
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.ws.delete(key)
+            self.ws.delta.delete(key)
+        }
+    }
+
+    impl<'a, S: Spec> StateReaderAndWriter<crate::namespaces::Kernel>
+        for VersionedStateReadWriter<'a, WorkingSet<S>>
+    {
+        fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
+            self.ws.delta.get(key)
+        }
+
+        fn set(&mut self, key: &SlotKey, value: SlotValue) {
+            self.ws.delta.set(key, value)
+        }
+
+        fn delete(&mut self, key: &SlotKey) {
+            self.ws.delta.delete(key)
         }
     }
 
@@ -733,7 +730,21 @@ pub mod kernel_state {
         pub(crate) inner: &'a mut StateCheckpoint<S>,
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter for BootstrapWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReaderAndWriter<User> for BootstrapWorkingSet<'a, S> {
+        fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
+            self.inner.delta.get(key)
+        }
+
+        fn set(&mut self, key: &SlotKey, value: SlotValue) {
+            self.inner.delta.set(key, value)
+        }
+
+        fn delete(&mut self, key: &SlotKey) {
+            self.inner.delta.delete(key)
+        }
+    }
+
+    impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel> for BootstrapWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.inner.delta.get(key)
         }
@@ -815,7 +826,21 @@ pub mod kernel_state {
         }
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter for KernelWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReaderAndWriter<User> for KernelWorkingSet<'a, S> {
+        fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
+            self.inner.delta.get(key)
+        }
+
+        fn set(&mut self, key: &SlotKey, value: SlotValue) {
+            self.inner.delta.set(key, value)
+        }
+
+        fn delete(&mut self, key: &SlotKey) {
+            self.inner.delta.delete(key)
+        }
+    }
+
+    impl<'a, S: Spec> StateReaderAndWriter<crate::namespaces::Kernel> for KernelWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.inner.delta.get(key)
         }
@@ -843,10 +868,7 @@ impl<T: fmt::Debug> fmt::Debug for RevertableWriter<T> {
     }
 }
 
-impl<T> RevertableWriter<T>
-where
-    T: StateReaderAndWriter,
-{
+impl<T> RevertableWriter<T> {
     fn new(inner: T) -> Self {
         Self {
             inner,
@@ -855,7 +877,10 @@ where
     }
 
     /// Commit all items from `RevertableWriter` returning the inner storage.
-    fn commit(mut self) -> T {
+    fn commit<N: CompileTimeNamespace>(mut self) -> T
+    where
+        T: StateReaderAndWriter<N>,
+    {
         for (k, v) in self.writes.into_iter() {
             Self::commit_entry(&mut self.inner, k, v);
         }
@@ -867,18 +892,20 @@ where
         self.inner
     }
 
-    fn commit_entry(inner: &mut T, key: SlotKey, value: Option<SlotValue>) {
-        if let Some(value) = value {
-            inner.set(&key, value);
-        } else {
-            inner.delete(&key);
+    fn commit_entry<N: CompileTimeNamespace>(inner: &mut T, key: SlotKey, value: Option<SlotValue>)
+    where
+        T: StateReaderAndWriter<N>,
+    {
+        match value {
+            Some(value) => inner.set(&key, value),
+            None => inner.delete(&key),
         }
     }
 }
 
-impl<T> StateReaderAndWriter for RevertableWriter<T>
+impl<T, N: CompileTimeNamespace> StateReaderAndWriter<N> for RevertableWriter<T>
 where
-    T: StateReaderAndWriter,
+    T: StateReaderAndWriter<N>,
 {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if let Some(value) = self.writes.get(key) {

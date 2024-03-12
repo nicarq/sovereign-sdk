@@ -1,10 +1,11 @@
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
+use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
     ContextResolver, GasEnforcer, TransactionDeduplicator,
 };
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{AccessoryStateCheckpoint, Context, Gas, Spec, StateCheckpoint, WorkingSet};
+use sov_modules_api::{Context, Gas, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet};
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_sequencer_registry::SequencerRegistry;
@@ -116,10 +117,10 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
     fn finalize_hook(
         &self,
         #[allow(unused_variables)] root_hash: S::VisibleHash,
-        #[allow(unused_variables)] accessory_working_set: &mut AccessoryStateCheckpoint<S>,
+        #[allow(unused_variables)] accessory_state: &mut impl StateReaderAndWriter<Accessory>,
     ) {
         #[cfg(all(feature = "experimental", feature = "native"))]
-        self.evm.finalize_hook(root_hash, accessory_working_set);
+        self.evm.finalize_hook(root_hash, accessory_state);
     }
 }
 

@@ -4,7 +4,7 @@ use helpers::*;
 use sov_bank::{Amount, Bank, CallMessage, Coins};
 use sov_modules_api::{Address, Context, Module, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::storage::{Namespace, SlotKey, SlotValue};
+use sov_state::storage::{Namespace, SlotKey, SlotValue, StateUpdate};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 type S = sov_test_utils::TestSpec;
@@ -291,13 +291,16 @@ fn commit(working_set: WorkingSet<S>, storage: ProverStorage<DefaultStorageSpec>
 
     let (cache_log, witness) = checkpoint.0.freeze();
 
-    let (_, authenticated_node_batch) = storage
+    let (_, mut authenticated_node_batch) = storage
         .compute_state_update(cache_log, &witness)
         .expect("jellyfish merkle tree update must succeed");
 
     let working_set = checkpoint.0.to_revertable(Default::default());
 
     let accessory_log = working_set.checkpoint().0.freeze_non_provable();
+    for (key, value) in accessory_log.ordered_writes.into_iter() {
+        authenticated_node_batch.add_accessory_item(key, value);
+    }
 
-    storage.commit(&authenticated_node_batch, &accessory_log);
+    storage.commit(&authenticated_node_batch);
 }
