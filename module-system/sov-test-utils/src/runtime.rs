@@ -201,6 +201,7 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
         init_balance >= seq_stake_amount,
         "sequencer cannot stake more than its initial balance"
     );
+    let token_address = get_genesis_token_address::<S>(&token_name, salt);
     GenesisConfig {
         value_setter: ValueSetterConfig {
             admin: admin.clone(),
@@ -210,16 +211,16 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
             seq_da_address: admin_da_address,
             coins_to_lock: Coins {
                 amount: seq_stake_amount,
-                token_address: get_genesis_token_address::<S>(&token_name, salt),
+                token_address: token_address.clone(),
             },
             is_preferred_sequencer: true,
         },
         bank: BankConfig {
             tokens: vec![TokenConfig {
                 token_name,
+                token_address,
                 address_and_balances: vec![(admin.clone(), init_balance)],
                 authorized_minters: vec![admin.clone()],
-                salt,
             }],
         },
     }

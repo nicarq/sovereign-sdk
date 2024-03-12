@@ -1,8 +1,5 @@
 use helpers::generate_address;
-use sov_bank::{
-    get_genesis_token_address, get_token_address, Bank, BankConfig, CallMessage, Coins,
-    TotalSupplyResponse,
-};
+use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -154,7 +151,7 @@ fn burn_deployed_tokens() {
     );
 
     // ---
-    // Try to burn non existing token
+    // Try to burn non-existing token
     let token_address = get_token_address::<S>("NotRealToken2", &minter_address, salt);
     let burn_message = CallMessage::Burn {
         coins: Coins {
@@ -177,7 +174,7 @@ fn burn_deployed_tokens() {
         ),
         message_1
     );
-    // Note, no token address in root cause message.
+    // Note, no token address in root cause the message.
     let expected_error_part =
         "Value not found for prefix: \"sov_bank/Bank/tokens/\" and: storage key";
     assert!(message_2.starts_with(expected_error_part));
@@ -192,10 +189,7 @@ fn burn_initial_tokens() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_address = get_genesis_token_address::<S>(
-        &bank_config.tokens[0].token_name,
-        bank_config.tokens[0].salt,
-    );
+    let token_address = bank_config.tokens[0].token_address;
     let sender_address = bank_config.tokens[0].address_and_balances[0].0;
     let sequencer_address = bank_config.tokens[0].address_and_balances[1].0;
 

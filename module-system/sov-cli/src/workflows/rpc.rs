@@ -38,7 +38,7 @@ pub enum RpcWorkflows<S: sov_modules_api::Spec> {
         /// The name of the token to query for
         token_name: String,
         /// The deployer of the token.
-        /// In the case of genesis, it is "sov1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0xu3qn".
+        /// In the case of genesis token, it can be looked up in genesis config JSON.
         /// Check the server logs if it does not match.
         deployer_address: S::Address,
         /// A salt used in the token address derivation.

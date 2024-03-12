@@ -53,11 +53,13 @@ pub(crate) fn create_bank_config_with_token(
         })
         .collect();
 
+    let token_address = sov_bank::get_genesis_token_address::<S>(&token_name, salt);
+
     let token_config = TokenConfig {
         token_name,
+        token_address,
         address_and_balances: address_and_balances.clone(),
         authorized_minters: vec![address_and_balances.first().unwrap().0],
-        salt,
     };
 
     (

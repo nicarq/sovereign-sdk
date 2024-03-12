@@ -1,7 +1,7 @@
 mod helpers;
 
 use helpers::*;
-use sov_bank::{get_genesis_token_address, Amount, Bank, CallMessage, Coins};
+use sov_bank::{Amount, Bank, CallMessage, Coins};
 use sov_modules_api::{Address, Context, Module, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::storage::{Namespace, SlotKey, SlotValue};
@@ -19,10 +19,7 @@ fn transfer_initial_token() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_address = get_genesis_token_address::<S>(
-        &bank_config.tokens[0].token_name,
-        bank_config.tokens[0].salt,
-    );
+    let token_address = bank_config.tokens[0].token_address;
     let sender_address = bank_config.tokens[0].address_and_balances[0].0;
     let sequencer_address = bank_config.tokens[0].address_and_balances[3].0;
     let receiver_address = bank_config.tokens[0].address_and_balances[1].0;

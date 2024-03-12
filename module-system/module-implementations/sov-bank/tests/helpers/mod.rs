@@ -24,11 +24,13 @@ pub fn create_bank_config_with_token(
         })
         .collect();
 
+    let token_name = "InitialToken".to_owned();
+    let token_address = generate_address(&token_name);
     let token_config = TokenConfig {
-        token_name: "InitialToken".to_owned(),
+        token_name,
+        token_address,
         address_and_balances,
         authorized_minters: vec![],
-        salt: 5,
     };
 
     BankConfig {

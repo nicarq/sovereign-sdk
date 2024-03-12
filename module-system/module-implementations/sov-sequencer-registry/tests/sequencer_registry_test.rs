@@ -140,8 +140,8 @@ fn test_registration_not_enough_funds() {
     );
     assert_eq!(
         format!(
-            "Incorrect balance on={} for token=InitialToken",
-            sequencer_address
+            "Incorrect balance on={} for token={}",
+            sequencer_address, GENESIS_TOKEN_NAME,
         ),
         message_2,
     );
@@ -247,10 +247,7 @@ fn test_preferred_sequencer_returned_and_removed() {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_address = sov_bank::get_genesis_token_address::<S>(
-        &bank_config.tokens[0].token_name,
-        bank_config.tokens[0].salt,
-    );
+    let token_address = bank_config.tokens[0].token_address;
 
     let registry = SequencerRegistry::<S, Da>::default();
     let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
@@ -284,7 +281,7 @@ fn test_preferred_sequencer_returned_and_removed() {
         .call(exit_message, &sender_context, working_set)
         .expect("Last sequencer exit has failed");
 
-    // Preferred sequencer exited, so result is none
+    // Preferred sequencer exited, so the result is none
     assert!(test_sequencer
         .registry
         .get_preferred_sequencer(working_set)

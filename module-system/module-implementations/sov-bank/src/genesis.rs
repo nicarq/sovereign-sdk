@@ -21,12 +21,12 @@ pub struct BankConfig<S: sov_modules_api::Spec> {
 pub struct TokenConfig<S: sov_modules_api::Spec> {
     /// The name of the token.
     pub token_name: String,
+    /// Predetermined address of the token. Allowed only for genesis tokens.
+    pub token_address: S::Address,
     /// A vector of tuples containing the initial addresses and balances (as u64)
     pub address_and_balances: Vec<(S::Address, u64)>,
     /// The addresses that are authorized to mint the token.
     pub authorized_minters: Vec<S::Address>,
-    /// A salt used to encrypt the token address.
-    pub salt: u64,
 }
 
 impl<S: sov_modules_api::Spec> core::fmt::Display for TokenConfig<S> {
@@ -47,11 +47,11 @@ impl<S: sov_modules_api::Spec> core::fmt::Display for TokenConfig<S> {
 
         write!(
             f,
-            "TokenConfig {{ token_name: {}, address_and_balances: [{}], authorized_minters: [{}], salt: {} }}",
+            "TokenConfig {{ token_name: {}, token_address: {}, address_and_balances: [{}], authorized_minters: [{}] }}",
             self.token_name,
+            self.token_address,
             address_and_balances,
             authorized_minters,
-            self.salt
         )
     }
 }
@@ -71,27 +71,34 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         let parent_prefix = self.tokens.prefix();
         let genesis_deployer = S::Address::try_from(&DEPLOYER)?;
         for token_config in config.tokens.iter() {
-            tracing::debug!(%token_config, deployer = %genesis_deployer, "Genesis of the token");
-            let (token_address, token) = Token::<S>::create(
+            let token_address = &token_config.token_address;
+            tracing::debug!(
+                %token_config,
+                deployer = %genesis_deployer,
+                token_address = %token_address,
+                "Genesis of the token");
+            let token = Token::<S>::create_with_address(
                 &token_config.token_name,
                 &token_config.address_and_balances,
                 &token_config.authorized_minters,
-                &genesis_deployer,
-                token_config.salt,
+                token_address,
                 parent_prefix,
                 working_set,
             )?;
 
-            if self.tokens.get(&token_address, working_set).is_some() {
-                bail!("Token address {} already exists", token_address);
+            if self.tokens.get(token_address, working_set).is_some() {
+                bail!(
+                    "Token address {} already exists",
+                    token_config.token_address
+                );
             }
 
-            self.tokens.set(&token_address, &token, working_set);
+            self.tokens.set(token_address, &token, working_set);
             tracing::debug!(
-                "Token {} created at address {} by {}",
-                token.name,
-                token_address,
-                genesis_deployer
+                token_name = %token.name,
+                token_address = %token_address,
+                deployer = %genesis_deployer,
+                "Token has been created"
             );
         }
         Ok(())
@@ -109,8 +116,13 @@ mod tests {
 
     #[test]
     fn test_config_serialization() {
-        let address: <TestSpec as Spec>::Address = AddressBech32::from_str(
+        let sender_address: <TestSpec as Spec>::Address = AddressBech32::from_str(
             "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+        )
+        .unwrap()
+        .into();
+        let token_address: <TestSpec as Spec>::Address = AddressBech32::from_str(
+            "sov1qjytl0fvdgatrfkltllfqrmjhqpvchpwz4tnc975znlcsxc39psqd94r7x",
         )
         .unwrap()
         .into();
@@ -118,9 +130,9 @@ mod tests {
         let config = BankConfig::<TestSpec> {
             tokens: vec![TokenConfig {
                 token_name: "sov-demo-token".to_owned(),
-                address_and_balances: vec![(address, 100000000)],
-                authorized_minters: vec![address],
-                salt: 0,
+                token_address,
+                address_and_balances: vec![(sender_address, 100000000)],
+                authorized_minters: vec![sender_address],
             }],
         };
 
@@ -129,9 +141,9 @@ mod tests {
             "tokens":[
                 {
                     "token_name":"sov-demo-token",
+                    "token_address": "sov1qjytl0fvdgatrfkltllfqrmjhqpvchpwz4tnc975znlcsxc39psqd94r7x",
                     "address_and_balances":[["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",100000000]],
                     "authorized_minters":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"]
-                    ,"salt":0
                 }
             ]
         }"#;

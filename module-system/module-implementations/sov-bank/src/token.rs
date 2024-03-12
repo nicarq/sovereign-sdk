@@ -5,7 +5,7 @@ use std::fmt::Formatter;
 #[cfg(feature = "native")]
 use std::num::ParseIntError;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateAccessor, StateMapAccessor, WorkingSet};
 use sov_state::Prefix;
@@ -47,7 +47,7 @@ pub struct Coins<S: sov_modules_api::Spec> {
 #[cfg(feature = "native")]
 #[derive(Debug, Error)]
 pub enum CoinsFromStrError {
-    /// The amount could not be parsed as a u64.
+    /// The amount could not be parsed as an u64.
     #[error("Could not parse {input} as a valid amount: {err}")]
     InvalidAmount { input: String, err: ParseIntError },
     /// The input string was malformed, so the `amount` substring could not be extracted.
@@ -132,7 +132,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         to: &S::Address,
         amount: Amount,
         working_set: &mut impl StateAccessor,
-    ) -> Result<()> {
+    ) -> anyhow::Result<()> {
         if from == to {
             return Ok(());
         }
@@ -154,7 +154,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         from: &S::Address,
         amount: Amount,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<()> {
+    ) -> anyhow::Result<()> {
         let new_balance = self.check_balance(from, amount, working_set)?;
         self.balances.set(from, &new_balance, working_set);
 
@@ -164,7 +164,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
     /// Freezing a token requires emptying the authorized_minter vector
     /// authorized_minter: Vec<Address> is used to determine if the token is frozen or not
     /// If the vector is empty when the function is called, this means the token is already frozen
-    pub(crate) fn freeze(&mut self, sender: &S::Address) -> Result<()> {
+    pub(crate) fn freeze(&mut self, sender: &S::Address) -> anyhow::Result<()> {
         if self.authorized_minters.is_empty() {
             bail!("Token {} is already frozen", self.name)
         }
@@ -183,7 +183,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         mint_to_address: &S::Address,
         amount: Amount,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<()> {
+    ) -> anyhow::Result<()> {
         if self.authorized_minters.is_empty() {
             bail!("Attempt to mint frozen token {}", self.name)
         }
@@ -208,7 +208,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         Ok(())
     }
 
-    fn is_authorized_minter(&self, sender: &S::Address) -> Result<()> {
+    fn is_authorized_minter(&self, sender: &S::Address) -> anyhow::Result<()> {
         if !self.authorized_minters.contains(sender) {
             bail!(
                 "Sender {} is not an authorized minter of token {}",
@@ -226,7 +226,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         from: &S::Address,
         amount: Amount,
         working_set: &mut impl StateAccessor,
-    ) -> Result<Amount> {
+    ) -> anyhow::Result<Amount> {
         let balance = self.balances.get_or_err(from, working_set)?;
         let new_balance = match balance.checked_sub(amount) {
             Some(from_balance) => from_balance,
@@ -248,9 +248,29 @@ impl<S: sov_modules_api::Spec> Token<S> {
         salt: u64,
         parent_prefix: &Prefix,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<(S::Address, Self)> {
+    ) -> anyhow::Result<(S::Address, Self)> {
         let token_address = super::get_token_address::<S>(token_name, sender, salt);
-        let token_prefix = prefix_from_address_with_parent::<S>(parent_prefix, &token_address);
+        let token = Self::create_with_address(
+            token_name,
+            address_and_balances,
+            authorized_minters,
+            &token_address,
+            parent_prefix,
+            working_set,
+        )?;
+        Ok((token_address, token))
+    }
+
+    /// Shouldn't be used directly, only by genesis call
+    pub(crate) fn create_with_address(
+        token_name: &str,
+        address_and_balances: &[(S::Address, u64)],
+        authorized_minters: &[S::Address],
+        token_address: &S::Address,
+        parent_prefix: &Prefix,
+        working_set: &mut WorkingSet<S>,
+    ) -> anyhow::Result<Token<S>> {
+        let token_prefix = prefix_from_address_with_parent::<S>(parent_prefix, token_address);
         let balances = sov_modules_api::StateMap::new(token_prefix);
 
         let mut total_supply: Option<u64> = Some(0);
@@ -273,13 +293,11 @@ impl<S: sov_modules_api::Spec> Token<S> {
             }
         }
 
-        let token = Token::<S> {
+        Ok(Token::<S> {
             name: token_name.to_owned(),
             total_supply,
             balances,
             authorized_minters: auth_minter_list,
-        };
-
-        Ok((token_address, token))
+        })
     }
 }
