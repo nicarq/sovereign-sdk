@@ -219,6 +219,8 @@ where
                 .collect(),
             initial_slot_number: initial_block_proof.slot_number,
             final_slot_number: final_block_proof.slot_number,
+            // TODO https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/272
+            genesis_state_root: Default::default(),
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
             initial_slot_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
