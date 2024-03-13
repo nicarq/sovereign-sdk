@@ -376,7 +376,7 @@ impl DaService for MockDaService {
 
         while let Some(proof) = proof_buffer.pop_front() {
             debug!("Including buffered proof in block");
-            proof_blob.push(proof.0)
+            proof_blob.push(proof.0);
         }
 
         let mut blocks = self.blocks.write().await;
@@ -807,6 +807,6 @@ mod tests {
     }
 
     fn assert_consecutive_blocks(block1: &MockBlock, block2: &MockBlock) {
-        assert_eq!(block2.header().prev_hash(), block1.header().hash())
+        assert_eq!(block2.header().prev_hash(), block1.header().hash());
     }
 }

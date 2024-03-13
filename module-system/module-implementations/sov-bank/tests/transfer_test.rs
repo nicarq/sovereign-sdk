@@ -223,7 +223,7 @@ fn transfer_initial_token() {
         // Num transfer events should be 2
         assert_eq!(working_set.events().len(), 2);
         let receiver_balance_after = query_user_balance(unknown_receiver, &mut working_set);
-        assert_eq!(Some(1), receiver_balance_after)
+        assert_eq!(Some(1), receiver_balance_after);
     }
 
     // Sender equals receiver (this call should succeed)

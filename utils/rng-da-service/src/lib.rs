@@ -197,7 +197,7 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
             start_nonce + (i as u64),
         );
         let ser_tx = tx.try_to_vec().unwrap();
-        message_vec.push(ser_tx)
+        message_vec.push(ser_tx);
     }
     message_vec.try_to_vec().unwrap()
 }

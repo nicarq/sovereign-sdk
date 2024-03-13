@@ -11,6 +11,8 @@ version = { workspace = true }
 readme = "README.md"
 resolver = "2"
 
+[lints]
+workspace = true
 
 [dependencies]
 anyhow = { workspace = true }

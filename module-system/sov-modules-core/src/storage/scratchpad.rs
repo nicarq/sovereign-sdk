@@ -193,11 +193,11 @@ impl<S: Storage> StateReaderAndWriter<User> for Delta<S> {
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.cache.set(key, value)
+        self.cache.set(key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.cache.delete(key)
+        self.cache.delete(key);
     }
 }
 
@@ -342,11 +342,11 @@ impl<S: Spec> StateReaderAndWriter<User> for StateCheckpoint<S> {
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.delta.set(key, value)
+        self.delta.set(key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.delta.delete(key)
+        self.delta.delete(key);
     }
 }
 
@@ -580,7 +580,7 @@ impl<S: Spec> StateReaderAndWriter<User> for WorkingSet<S> {
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.delta.set(key, value)
+        self.delta.set(key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
@@ -628,11 +628,11 @@ impl<'a, S: Spec> StateReaderAndWriter<Accessory> for AccessoryStateCheckpoint<'
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.checkpoint.accessory_delta.set(key, value)
+        self.checkpoint.accessory_delta.set(key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.checkpoint.accessory_delta.delete(key)
+        self.checkpoint.accessory_delta.delete(key);
     }
 }
 
@@ -700,11 +700,11 @@ pub mod kernel_state {
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.ws.delta.set(key, value)
+            self.ws.delta.set(key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.ws.delta.delete(key)
+            self.ws.delta.delete(key);
         }
     }
 
@@ -716,11 +716,11 @@ pub mod kernel_state {
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.ws.delta.set(key, value)
+            self.ws.delta.set(key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.ws.delta.delete(key)
+            self.ws.delta.delete(key);
         }
     }
 
@@ -736,11 +736,11 @@ pub mod kernel_state {
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.inner.delta.set(key, value)
+            self.inner.delta.set(key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.inner.delta.delete(key)
+            self.inner.delta.delete(key);
         }
     }
 
@@ -750,11 +750,11 @@ pub mod kernel_state {
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.inner.delta.set(key, value)
+            self.inner.delta.set(key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.inner.delta.delete(key)
+            self.inner.delta.delete(key);
         }
     }
 
@@ -832,11 +832,11 @@ pub mod kernel_state {
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.inner.delta.set(key, value)
+            self.inner.delta.set(key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.inner.delta.delete(key)
+            self.inner.delta.delete(key);
         }
     }
 
@@ -846,11 +846,11 @@ pub mod kernel_state {
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.inner.delta.set(key, value)
+            self.inner.delta.set(key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.inner.delta.delete(key)
+            self.inner.delta.delete(key);
         }
     }
 }

@@ -32,7 +32,7 @@ fn test_config_account() {
             addr: AddressBech32::from(&init_pub_key_addr),
             nonce: 0
         }
-    )
+    );
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn test_update_account() {
                 addr: AddressBech32::try_from(sender_addr.as_ref()).unwrap(),
                 nonce: 0
             }
-        )
+        );
     }
 
     // Test public key update
@@ -92,7 +92,7 @@ fn test_update_account() {
                 addr: AddressBech32::try_from(sender_addr.as_ref()).unwrap(),
                 nonce: 0
             }
-        )
+        );
     }
 }
 
@@ -121,7 +121,7 @@ fn test_update_account_fails() {
             &sender_context_1,
             working_set
         )
-        .is_err())
+        .is_err());
 }
 
 #[test]
@@ -151,7 +151,7 @@ fn test_get_account_after_pub_key_update() {
 
     let acc = accounts.accounts.get(&new_pub_key, working_set).unwrap();
 
-    assert_eq!(acc.addr, sender_1_addr)
+    assert_eq!(acc.addr, sender_1_addr);
 }
 
 #[test]

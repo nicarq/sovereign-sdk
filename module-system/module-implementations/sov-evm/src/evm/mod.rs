@@ -1,3 +1,7 @@
+// Much of this code was copy-pasted from reth-evm, and we'd rather keep it as
+// similar as possible to upstream than clean it up.
+#![allow(clippy::match_same_arms)]
+
 use reth_primitives::BaseFeeParams;
 use revm::primitives::specification::SpecId;
 use revm::primitives::{Address, B256, U256};

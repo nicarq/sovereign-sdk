@@ -22,7 +22,7 @@ impl<'a, S: sov_modules_api::Spec> InitEvmDb for EvmDb<'a, S> {
     }
 
     fn insert_code(&mut self, code_hash: B256, code: Bytes) {
-        self.code.set(&code_hash, &code, self.working_set)
+        self.code.set(&code_hash, &code, self.working_set);
     }
 }
 

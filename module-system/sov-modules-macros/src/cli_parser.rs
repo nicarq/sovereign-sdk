@@ -171,7 +171,7 @@ impl CliParserMacro {
             generics.params.insert(0, syn::parse_quote! {__Dest});
             if let Some(c) = generics.where_clause.as_mut() {
                 c.predicates
-                    .push(syn::parse_quote! { __Dest: ::core::convert::TryFrom<__Inner> })
+                    .push(syn::parse_quote! { __Dest: ::core::convert::TryFrom<__Inner> });
             }
             generics
         };

@@ -24,7 +24,7 @@ where
 
     /// Sets the value.
     fn set(&self, value: &V, working_set: &mut W) {
-        working_set.set_singleton(self.prefix(), value, self.codec())
+        working_set.set_singleton(self.prefix(), value, self.codec());
     }
 
     /// Gets the value from state or returns None if the value is absent.

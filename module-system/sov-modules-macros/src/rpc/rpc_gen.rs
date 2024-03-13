@@ -409,7 +409,7 @@ fn build_rpc_trait(
                 continue;
             }
         }
-        simplified_impl_items.push(item)
+        simplified_impl_items.push(item);
     }
 
     let impl_rpc_trait_impl = rpc_info.build_rpc_impl_trait();

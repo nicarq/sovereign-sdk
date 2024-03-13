@@ -247,7 +247,7 @@ pub mod experimental {
 
             let mut txs = Vec::default();
             while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
-                txs.push(tx)
+                txs.push(tx);
             }
 
             ethereum

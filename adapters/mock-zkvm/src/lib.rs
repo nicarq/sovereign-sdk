@@ -150,7 +150,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
         };
 
         let data = bincode::serialize(&proof_info).unwrap();
-        self.committed_data.push_back(data)
+        self.committed_data.push_back(data);
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {

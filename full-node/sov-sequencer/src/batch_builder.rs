@@ -432,7 +432,7 @@ mod tests {
             assert!(accept_result
                 .unwrap_err()
                 .to_string()
-                .starts_with("Failed to deserialize transaction"))
+                .starts_with("Failed to deserialize transaction"));
         }
 
         #[test]
@@ -449,7 +449,7 @@ mod tests {
             assert!(accept_result
                 .unwrap_err()
                 .to_string()
-                .starts_with("Failed to decode message"))
+                .starts_with("Failed to decode message"));
         }
 
         #[test]

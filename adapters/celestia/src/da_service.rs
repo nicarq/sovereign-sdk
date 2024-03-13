@@ -197,7 +197,7 @@ impl DaService for CelestiaService {
                 hash: commitment.0,
             };
 
-            output.push(blob_tx)
+            output.push(blob_tx);
         }
         output
     }

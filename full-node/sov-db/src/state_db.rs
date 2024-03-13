@@ -301,7 +301,7 @@ mod state_db_tests {
             assert_eq!(
                 kernel_state_db_handler.get_value(1, key_hash).unwrap(),
                 value
-            )
+            );
         }
     }
 }

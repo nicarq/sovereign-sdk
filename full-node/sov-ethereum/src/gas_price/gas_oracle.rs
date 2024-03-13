@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn max_price_sanity() {
         assert_eq!(DEFAULT_MAX_PRICE, U256::from(500_000_000_000u64));
-        assert_eq!(DEFAULT_MAX_PRICE, U256::from(500 * GWEI_TO_WEI))
+        assert_eq!(DEFAULT_MAX_PRICE, U256::from(500 * GWEI_TO_WEI));
     }
 
     #[test]

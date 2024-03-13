@@ -65,7 +65,7 @@ impl<S: Spec> OwnedNft<S> {
         &self.0
     }
     pub fn set_owner(&mut self, to: &UserAddress<S>) {
-        self.0.owner = OwnerAddress::new(to.get_address())
+        self.0.owner = OwnerAddress::new(to.get_address());
     }
 }
 

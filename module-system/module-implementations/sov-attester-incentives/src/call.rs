@@ -439,7 +439,7 @@ where
                 Event::<S>::UnbondedChallenger {
                     amount_withdrawn: old_balance,
                 },
-            )
+            );
         }
 
         Ok(CallResponse::default())

@@ -11,6 +11,9 @@ version = { workspace = true }
 resolver = "2"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 borsh = { workspace = true }
 anyhow = { workspace = true }

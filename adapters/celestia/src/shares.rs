@@ -69,16 +69,14 @@ impl Share {
     /// Returns this share in raw serialized form as Bytes
     fn raw_inner(&self) -> Bytes {
         match self {
-            Share::Continuation(inner) => inner.clone(),
-            Share::Start(inner) => inner.clone(),
+            Share::Continuation(inner) | Share::Start(inner) => inner.clone(),
         }
     }
 
     /// Returns this share in raw serialized form as a slice
     fn raw_inner_ref(&self) -> &[u8] {
         match self {
-            Share::Continuation(inner) => inner.as_ref(),
-            Share::Start(inner) => inner.as_ref(),
+            Share::Continuation(inner) | Share::Start(inner) => inner.as_ref(),
         }
     }
 
@@ -182,7 +180,7 @@ fn is_continuation_unchecked(share: &[u8]) -> bool {
 }
 
 fn enforce_version_zero(share: &[u8]) {
-    assert_eq!(share[NS_SIZE] & !0x01, 0)
+    assert_eq!(share[NS_SIZE] & !0x01, 0);
 }
 
 /// A group of shares, in a single namespace
@@ -206,8 +204,7 @@ impl NamespaceGroup {
 
     pub fn shares(&self) -> &Vec<Share> {
         match self {
-            NamespaceGroup::Compact(shares) => shares,
-            NamespaceGroup::Sparse(shares) => shares,
+            NamespaceGroup::Compact(shares) | NamespaceGroup::Sparse(shares) => shares,
         }
     }
 

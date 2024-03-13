@@ -12,6 +12,9 @@ readme = "README.md"
 resolver = "2"
 autotests = false
 
+[lints]
+workspace = true
+
 [lib]
 proc-macro = true
 

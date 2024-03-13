@@ -136,7 +136,7 @@ where
                 let mut accept_tx_results = vec![];
                 while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
                     let res = batch_builder.accept_tx_rpc(tx).await;
-                    accept_tx_results.push(res)
+                    accept_tx_results.push(res);
                 }
                 let submitted_batch_info = batch_builder
                     .submit_batch()

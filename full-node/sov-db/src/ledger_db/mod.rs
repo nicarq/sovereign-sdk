@@ -206,7 +206,7 @@ impl LedgerDB {
         let raw_out = self.db.collect_in_range(range.clone())?;
         let mut out = Vec::with_capacity(raw_out.len());
         for (_, value) in raw_out {
-            out.push(value)
+            out.push(value);
         }
         Ok(out)
     }

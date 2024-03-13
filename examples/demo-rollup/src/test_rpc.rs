@@ -161,7 +161,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
     ];
 
     for batch in batches {
-        slots.get_mut(0).unwrap().add_batch(batch)
+        slots.get_mut(0).unwrap().add_batch(batch);
     }
 
     test_helper(
@@ -170,7 +170,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             expected: expected.clone(),
         }],
         slots,
-    )
+    );
 }
 
 /// Concisely generate a [JSON-RPC 2.0](https://www.jsonrpc.org/specification)

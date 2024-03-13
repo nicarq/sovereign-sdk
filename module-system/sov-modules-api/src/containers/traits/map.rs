@@ -36,7 +36,7 @@ where
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        working_set.set_value(self.prefix(), key, value, self.codec())
+        working_set.set_value(self.prefix(), key, value, self.codec());
     }
 
     /// Returns the value corresponding to the key, or [`None`] if the map

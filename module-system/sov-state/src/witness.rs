@@ -28,7 +28,7 @@ pub struct ArrayWitness {
 
 impl Witness for ArrayWitness {
     fn add_hint<T: BorshSerialize>(&self, hint: T) {
-        self.hints.lock().unwrap().push(hint.try_to_vec().unwrap())
+        self.hints.lock().unwrap().push(hint.try_to_vec().unwrap());
     }
 
     fn get_hint<T: BorshDeserialize>(&self) -> T {
@@ -44,6 +44,6 @@ impl Witness for ArrayWitness {
         let rhs_next_idx = rhs.next_idx.load(std::sync::atomic::Ordering::SeqCst);
         let mut lhs_hints_lock = self.hints.lock().unwrap();
         let mut rhs_hints_lock = rhs.hints.lock().unwrap();
-        lhs_hints_lock.extend(rhs_hints_lock.drain(rhs_next_idx..))
+        lhs_hints_lock.extend(rhs_hints_lock.drain(rhs_next_idx..));
     }
 }

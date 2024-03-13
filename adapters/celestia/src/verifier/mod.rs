@@ -251,7 +251,7 @@ impl da::DaVerifier for CelestiaVerifier {
                         .shares
                         .into_iter()
                         .map(|share_vec| Share::new(share_vec.into())),
-                )
+                );
             }
 
             // Next, ensure that the start_index is valid
@@ -346,7 +346,7 @@ impl CelestiaVerifier {
                     .expect("Proofs must be valid");
 
                 for leaf in row_proof.shares {
-                    verified_shares.push(leaf)
+                    verified_shares.push(leaf);
                 }
             }
         }

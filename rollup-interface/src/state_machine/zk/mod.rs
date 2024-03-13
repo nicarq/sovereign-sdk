@@ -33,8 +33,7 @@ impl Proof {
     /// The size of the underlying proof in bytes.
     pub fn size(&self) -> usize {
         match self {
-            Proof::PublicInput(data) => data.len(),
-            Proof::Full(data) => data.len(),
+            Proof::PublicInput(data) | Proof::Full(data) => data.len(),
         }
     }
 }

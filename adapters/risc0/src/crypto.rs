@@ -376,6 +376,6 @@ mod hex_tests {
         let pub_key_lower = Risc0PublicKey::try_from(&pub_key_hex_lower).unwrap();
         let pub_key_upper = Risc0PublicKey::try_from(&pub_key_hex_upper).unwrap();
 
-        assert_eq!(pub_key_lower, pub_key_upper)
+        assert_eq!(pub_key_lower, pub_key_upper);
     }
 }

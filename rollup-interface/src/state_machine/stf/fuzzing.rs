@@ -32,8 +32,7 @@ impl<T: Digest<OutputSize = U32> + Clone> FuzzHasher for T {
 /// A special merkle hasher used only for fuzz tests. This hasher sacrifices some
 /// efficiency for object safety.
 struct FuzzMerkleHasher<'a> {
-    #[allow(clippy::borrowed_box)]
-    hasher: &'a Box<dyn FuzzHasher>,
+    hasher: &'a dyn FuzzHasher,
 }
 
 impl<'a> FuzzMerkleHasher<'a> {
@@ -196,7 +195,9 @@ impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<
                 .prop_map(move |(batch_hash, txs, receipt, mut gas_price)| {
                     let batch_hash = match args.hasher {
                         Some(ref hasher) => {
-                            let mut merkle_hasher = FuzzMerkleHasher { hasher };
+                            let mut merkle_hasher = FuzzMerkleHasher {
+                                hasher: hasher.as_ref(),
+                            };
                             let tx_hashes = txs.iter().map(|tx| &tx.tx_hash).collect::<Vec<_>>();
                             merkle_hasher.build_merkle_tree(&tx_hashes)
                         }

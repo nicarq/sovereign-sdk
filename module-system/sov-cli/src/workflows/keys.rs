@@ -88,10 +88,10 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
             }
             KeyWorkflow::Show { identifier } => {
                 let addr = wallet_state.addresses.get_address(&identifier);
-                println!("{}", serde_json::to_string_pretty(&addr)?)
+                println!("{}", serde_json::to_string_pretty(&addr)?);
             }
             KeyWorkflow::List => {
-                println!("{}", serde_json::to_string_pretty(&wallet_state.addresses)?)
+                println!("{}", serde_json::to_string_pretty(&wallet_state.addresses)?);
             }
             KeyWorkflow::Activate { identifier } => {
                 if let Some(active) = wallet_state.addresses.default_address() {

@@ -310,7 +310,7 @@ pub fn parse_pfb_namespace(
     for blob in group.blobs() {
         let mut data = blob.data();
         while data.has_remaining() {
-            pfbs.push(next_pfb(&mut data)?)
+            pfbs.push(next_pfb(&mut data)?);
         }
     }
     Ok(pfbs)
@@ -402,7 +402,7 @@ mod tests {
             let serialized_header = postcard::to_stdvec(&header).unwrap();
             let deserialized_header: CompactHeader =
                 postcard::from_bytes(&serialized_header).unwrap();
-            assert_eq!(deserialized_header, header)
+            assert_eq!(deserialized_header, header);
         }
     }
 

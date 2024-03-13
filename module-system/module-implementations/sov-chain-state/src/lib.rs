@@ -235,7 +235,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         T: StateReaderAndWriter<Kernel>,
     {
         tracing::debug!(slot_number = value, "Setting next visible slot number");
-        self.next_visible_slot_number.set(value, working_set)
+        self.next_visible_slot_number.set(value, working_set);
     }
 
     /// Returns the current time, as reported by the DA layer

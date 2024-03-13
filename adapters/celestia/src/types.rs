@@ -251,7 +251,7 @@ fn get_rows_containing_namespace<'a>(
             output.push(Row {
                 shares: row.to_vec(),
                 root: root.clone(),
-            })
+            });
         }
     }
     Ok(output)

@@ -6,6 +6,9 @@ resolver = "2"
 license = "Sovereign Labs Community Software License"
 publish = false
 
+[lints]
+workspace = true
+
 [build-dependencies]
 risc0-build = { workspace = true }
 

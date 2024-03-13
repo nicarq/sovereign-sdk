@@ -12,6 +12,9 @@ readme = "README.md"
 resolver = "2"
 publish = false
 
+[lints]
+workspace = true
+
 [build-dependencies]
 sov-modules-api = { path = "../sov-modules-api" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }

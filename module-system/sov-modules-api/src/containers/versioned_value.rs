@@ -85,7 +85,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
             &ws.current_version(),
             value,
             &self.codec,
-        )
+        );
     }
 }
 
@@ -112,7 +112,7 @@ mod as_kernel_value {
         }
 
         fn set(&self, value: &V, working_set: &mut KernelWorkingSet<'a, S>) {
-            self.set_current(value, working_set)
+            self.set_current(value, working_set);
         }
 
         fn get(&self, working_set: &mut KernelWorkingSet<'a, S>) -> Option<V> {
@@ -193,7 +193,7 @@ mod as_kernel_map {
                 key,
                 value,
                 StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
-            )
+            );
         }
 
         fn get<Q>(&self, key: &Q, working_set: &mut KernelWorkingSet<'a, S>) -> Option<V>
