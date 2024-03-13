@@ -153,7 +153,7 @@ impl TestClient {
                     .send_transaction(typed_transaction, None)
                     .await
                     .unwrap(),
-            )
+            );
         }
 
         requests

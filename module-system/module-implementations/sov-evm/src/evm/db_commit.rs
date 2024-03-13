@@ -38,7 +38,7 @@ impl<'a, S: sov_modules_api::Spec> DatabaseCommit for EvmDb<'a, S> {
                 db_account.storage.set(&key, &value, self.working_set);
             }
 
-            self.accounts.set(&address, &db_account, self.working_set)
+            self.accounts.set(&address, &db_account, self.working_set);
         }
     }
 }

@@ -376,6 +376,6 @@ mod hex_tests {
         let pub_key_lower = Ed25519PublicKey::try_from(&pub_key_hex_lower).unwrap();
         let pub_key_upper = Ed25519PublicKey::try_from(&pub_key_hex_upper).unwrap();
 
-        assert_eq!(pub_key_lower, pub_key_upper)
+        assert_eq!(pub_key_lower, pub_key_upper);
     }
 }

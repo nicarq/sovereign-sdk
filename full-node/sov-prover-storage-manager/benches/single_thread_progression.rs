@@ -169,7 +169,7 @@ fn bench_random_read(
                 let result = black_box(stf_state.get(random_key, None, &witness));
                 assert!(result.is_some());
                 black_box(result);
-            })
+            });
         },
     );
 }
@@ -211,7 +211,7 @@ fn bench_not_found_read(
                 let result = black_box(storage.get(random_key, None, &witness));
                 assert!(result.is_none());
                 black_box(result);
-            })
+            });
         },
     );
 }

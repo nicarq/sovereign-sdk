@@ -200,7 +200,7 @@ fn test_burn_on_invalid_attestation() {
             crate::Event::ProcessedValidAttestation {
                 attester: attester_address
             }
-        )
+        );
     }
 
     // Then process a new attestation having the wrong initial state root. The attester must be slashed, and the fees burnt
@@ -231,7 +231,7 @@ fn test_burn_on_invalid_attestation() {
                 address: attester_address,
                 reason: crate::call::SlashingReason::InvalidInitialHash
             }
-        )
+        );
     }
 
     // Check that the attester's bond has been burnt
@@ -280,7 +280,7 @@ fn test_burn_on_invalid_attestation() {
                 new_deposit: BOND_AMOUNT,
                 total_bond: BOND_AMOUNT
             }
-        )
+        );
     }
 
     // Process an attestation that has the right bonding proof and initial hash but has a faulty post transition hash.

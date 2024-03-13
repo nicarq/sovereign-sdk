@@ -29,9 +29,11 @@ pub(crate) enum Access {
 impl Access {
     pub fn last_value(&self) -> &Option<SlotValue> {
         match self {
-            Access::Read(value) => value,
-            Access::ReadThenWrite { modified, .. } => modified,
-            Access::Write(value) => value,
+            Access::Read(value)
+            | Access::Write(value)
+            | Access::ReadThenWrite {
+                modified: value, ..
+            } => value,
         }
     }
 
@@ -54,9 +56,9 @@ impl Access {
             Access::ReadThenWrite { original, modified } => {
                 // If we're resetting the key to its original value, we can just discard the write history
                 if original == &new_value {
-                    *self = Access::Read(new_value)
+                    *self = Access::Read(new_value);
                 } else {
-                    *modified = new_value
+                    *modified = new_value;
                 }
             }
             // For Write override the original value with a new value
@@ -401,7 +403,7 @@ impl StorageInternalCache {
             .add_read(key.clone(), value.clone())
             // It is ok to panic here, we must guarantee that the cache is consistent.
             .unwrap_or_else(|e| panic!("Inconsistent read from the cache: {e:?}"));
-        self.ordered_db_reads.push((key, value))
+        self.ordered_db_reads.push((key, value));
     }
 }
 
@@ -541,20 +543,16 @@ mod tests {
                 (ReadWrite::Read(left_read), ReadWrite::Read(right_read)) => {
                     assert_eq!(left_read, right_read);
                     let value = merged.get_value(&left_read.key).get();
-                    assert_eq!(left_read.value, value)
-                }
-                (ReadWrite::Read(_), ReadWrite::Write(right_write)) => {
-                    let value = merged.get_value(&right_write.key).get();
-                    assert_eq!(right_write.value, value)
+                    assert_eq!(left_read.value, value);
                 }
                 (ReadWrite::Write(left_write), ReadWrite::Read(right_write)) => {
                     assert_eq!(left_write, right_write);
                     let value = merged.get_value(&left_write.key).get();
-                    assert_eq!(left_write.value, value)
+                    assert_eq!(left_write.value, value);
                 }
-                (ReadWrite::Write(_), ReadWrite::Write(right_write)) => {
+                (_, ReadWrite::Write(right_write)) => {
                     let value = merged.get_value(&right_write.key).get();
-                    assert_eq!(right_write.value, value)
+                    assert_eq!(right_write.value, value);
                 }
             }
         }
@@ -600,7 +598,7 @@ mod tests {
                 expected: create_value(1),
                 found: create_value(2)
             })
-        )
+        );
     }
 
     #[test]
@@ -713,15 +711,10 @@ mod tests {
         for TestCase { left, right } in test_cases {
             match (left, right) {
                 (None, None) => unreachable!(),
-                (None, Some(rw)) => {
+                (Some(rw), None) | (None, Some(rw)) => {
                     let entry = rw.get_value();
                     let value = merged.get_value(&entry.key).get();
-                    assert_eq!(entry.value, value)
-                }
-                (Some(rw), None) => {
-                    let entry = rw.get_value();
-                    let value = merged.get_value(&entry.key).get();
-                    assert_eq!(entry.value, value)
+                    assert_eq!(entry.value, value);
                 }
                 (Some(left_rw), Some(right_rw)) => {
                     left_rw.check_cache_consistency(right_rw, &merged);
@@ -820,7 +813,7 @@ mod tests {
                 original: create_value(first_read),
                 modified: create_value(last_write)
             }
-        )
+        );
     }
 
     #[test]
@@ -884,7 +877,7 @@ mod tests {
                 write: value,
                 read: value2,
             })
-        )
+        );
     }
 
     #[test]
@@ -911,7 +904,7 @@ mod tests {
                 write: value2,
                 read: value,
             })
-        )
+        );
     }
 
     #[test]
@@ -934,6 +927,6 @@ mod tests {
                 write: value,
                 read: value2,
             })
-        )
+        );
     }
 }

@@ -118,7 +118,7 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
                 cycle
             );
         } else {
-            self.visited_on_this_path.push(address)
+            self.visited_on_this_path.push(address);
         }
 
         // if the module hasn't been visited yet, visit it and its dependencies

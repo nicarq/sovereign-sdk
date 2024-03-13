@@ -121,7 +121,7 @@ fn rollup_bench(_bench: &mut Criterion) {
 
             ledger_db.commit_slot(data_to_commit).unwrap();
             height += 1;
-        })
+        });
     });
 }
 

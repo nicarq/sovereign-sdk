@@ -31,10 +31,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegi
 
     fn end_batch_hook(&self, result: Self::BatchResult, state_checkpoint: &mut StateCheckpoint<S>) {
         match result {
-            SequencerOutcome::Rewarded { amount: _ } => {
-                // TODO(@vlopes11) Process the actual reward/penalty
-            }
-            SequencerOutcome::Penalized { amount: _ } => {
+            SequencerOutcome::Rewarded { .. } | SequencerOutcome::Penalized { .. } => {
                 // TODO(@vlopes11) Process the actual reward/penalty
             }
             SequencerOutcome::Slashed { sequencer } => {

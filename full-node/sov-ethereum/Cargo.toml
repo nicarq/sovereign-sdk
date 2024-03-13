@@ -11,6 +11,9 @@ readme = "README.md"
 resolver = "2"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 tracing = { workspace = true }

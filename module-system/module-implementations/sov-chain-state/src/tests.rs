@@ -27,5 +27,5 @@ fn test_config_serialization() {
     }"#;
 
     let parsed_config: ChainStateConfig<TestSpec> = serde_json::from_str(data).unwrap();
-    assert_eq!(config, parsed_config)
+    assert_eq!(config, parsed_config);
 }

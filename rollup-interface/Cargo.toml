@@ -12,6 +12,8 @@ readme = "README.md"
 resolver = "2"
 exclude = ["specs/assets/*"]
 
+[lints]
+workspace = true
 
 [dependencies]
 anyhow = { workspace = true }

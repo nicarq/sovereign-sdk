@@ -146,7 +146,7 @@ where
 
                             prover_state.set_to_proved(block_header_hash, block_proof);
                             prover_state.dec_task_count();
-                        })
+                        });
                     });
 
                     Ok(ProofProcessingStatus::ProvingInProgress)

@@ -11,6 +11,9 @@ version = { workspace = true }
 readme = "README.md"
 resolver = "2"
 
+[lints]
+workspace = true
+
 [dev-dependencies]
 tempfile = { workspace = true }
 sov-prover-incentives = { features = ["native"], path = "." }

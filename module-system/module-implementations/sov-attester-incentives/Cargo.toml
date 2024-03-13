@@ -12,6 +12,9 @@ readme = "README.md"
 resolver = "2"
 publish = false
 
+[lints]
+workspace = true
+
 [dev-dependencies]
 tempfile = { workspace = true }
 sov-attester-incentives = { path = ".", features = ["native"] }

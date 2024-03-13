@@ -37,7 +37,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         sender: &Da::Address,
         working_set: &mut StateCheckpoint<S>,
     ) {
-        self.sequencer_registry.slash_sequencer(sender, working_set)
+        self.sequencer_registry.slash_sequencer(sender, working_set);
     }
 
     /// Enforce the ordering constraints on preferred batches by discarding or deferring blobs that arrive
@@ -249,7 +249,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                         working_set.inner,
                     )
                 }) {
-                    preferred_batch = Some(next_preferred_batch)
+                    preferred_batch = Some(next_preferred_batch);
                 }
             } else {
                 // Otherwise, the batch is from a valid sender (checked in step 1) but not the preferred sender

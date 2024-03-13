@@ -25,6 +25,6 @@ mod test {
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = AccessoryStateVec::<u32>::new(prefix);
-        state_vec.run_tests(&mut working_set.accessory_state())
+        state_vec.run_tests(&mut working_set.accessory_state());
     }
 }

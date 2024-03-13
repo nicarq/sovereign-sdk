@@ -80,7 +80,7 @@ impl LedgerRpcProvider for LedgerDB {
                     }
                 }
                 None => None,
-            })
+            });
         }
         Ok(out)
     }
@@ -110,7 +110,7 @@ impl LedgerRpcProvider for LedgerDB {
                     }
                 }
                 None => None,
-            })
+            });
         }
         Ok(out)
     }
@@ -140,7 +140,7 @@ impl LedgerRpcProvider for LedgerDB {
                     }
                 }
                 None => None,
-            })
+            });
         }
         Ok(out)
     }
@@ -188,7 +188,7 @@ impl LedgerRpcProvider for LedgerDB {
                         .unwrap_or(None)
                 }
                 None => None,
-            })
+            });
         }
         Ok(out)
     }

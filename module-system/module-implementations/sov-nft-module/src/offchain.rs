@@ -50,7 +50,7 @@ pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
         } else {
             tracing::error!("Environment variable POSTGRES_CONNECTION_STRING is not set");
         }
-    })
+    });
 }
 
 /// Syncs an NFT to the corresponding table "nfts" in postgres
@@ -119,5 +119,5 @@ pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<Owne
                 ],
             );
         }
-    })
+    });
 }

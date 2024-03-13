@@ -119,7 +119,7 @@ pub trait MessageGenerator {
             let tx = message.to_tx::<Encoder>();
             serialized_messages.push(RawTx {
                 data: tx.try_to_vec().unwrap(),
-            })
+            });
         }
         serialized_messages
     }
@@ -135,7 +135,7 @@ pub trait MessageGenerator {
             message.max_gas_price.replace(max_gas_price.clone());
             serialized_messages.push(RawTx {
                 data: message.to_tx::<Encoder>().try_to_vec().unwrap(),
-            })
+            });
         }
         serialized_messages
     }

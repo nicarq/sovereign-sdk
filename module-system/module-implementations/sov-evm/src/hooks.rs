@@ -158,7 +158,7 @@ where
                     &mut accessory_state,
                 );
 
-                tx_index += 1
+                tx_index += 1;
             }
         }
 

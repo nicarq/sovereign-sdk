@@ -113,6 +113,6 @@ mod tests {
 
         let parsed_config: SequencerConfig<TestSpec, MockDaSpec> =
             serde_json::from_str(data).unwrap();
-        assert_eq!(config, parsed_config)
+        assert_eq!(config, parsed_config);
     }
 }

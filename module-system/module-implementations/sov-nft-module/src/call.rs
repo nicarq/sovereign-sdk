@@ -220,7 +220,7 @@ impl<S: Spec> NonFungibleToken<S> {
             working_set,
         )?;
         if let Some(true) = frozen {
-            mutable_nft.freeze()
+            mutable_nft.freeze();
         }
         if let Some(uri) = token_uri {
             mutable_nft.update_token_uri(&uri);

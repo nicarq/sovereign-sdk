@@ -12,6 +12,8 @@ readme = "README.md"
 resolver = "2"
 publish = false
 
+[lints]
+workspace = true
 
 [dev-dependencies]
 sov-value-setter = { path = ".", features = ["native"] }

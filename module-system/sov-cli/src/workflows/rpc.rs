@@ -73,11 +73,10 @@ impl<S: sov_modules_api::Spec> RpcWorkflows<S> {
         Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
     {
         let account_id = match self {
-            RpcWorkflows::SetUrl { .. } => None,
-            RpcWorkflows::GetNonce { account } => account.as_ref(),
-            RpcWorkflows::GetBalance { account, .. } => account.as_ref(),
-            RpcWorkflows::SubmitBatch { account, .. } => account.as_ref(),
-            RpcWorkflows::GetTokenAddress { .. } => None,
+            RpcWorkflows::SetUrl { .. } | RpcWorkflows::GetTokenAddress { .. } => None,
+            RpcWorkflows::GetNonce { account }
+            | RpcWorkflows::GetBalance { account, .. }
+            | RpcWorkflows::SubmitBatch { account, .. } => account.as_ref(),
         };
 
         let account = if let Some(id) = account_id {

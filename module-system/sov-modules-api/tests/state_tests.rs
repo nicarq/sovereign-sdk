@@ -37,7 +37,7 @@ impl StorageOperation {
         for op in self.operations.iter() {
             working_set = op
                 .execute(working_set, db.clone())
-                .to_revertable(Default::default())
+                .to_revertable(Default::default());
         }
         working_set
     }

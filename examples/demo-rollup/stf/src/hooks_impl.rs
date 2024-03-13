@@ -58,7 +58,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                     &self.sequencer_registry,
                     sov_sequencer_registry::SequencerOutcome::Rewarded { amount: reward },
                     state_checkpoint,
-                )
+                );
             }
             SequencerOutcome::Ignored => {}
             SequencerOutcome::Slashed {
@@ -72,7 +72,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                         sequencer: sequencer_da_address,
                     },
                     state_checkpoint,
-                )
+                );
             }
             SequencerOutcome::Penalized(amount) => {
                 info!(amount, "Penalizing sequencer");
@@ -80,7 +80,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                     &self.sequencer_registry,
                     sov_sequencer_registry::SequencerOutcome::Penalized { amount },
                     state_checkpoint,
-                )
+                );
             }
         }
     }

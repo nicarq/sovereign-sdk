@@ -110,7 +110,7 @@ impl fmt::Display for Prefix {
 impl Extend<u8> for Prefix {
     fn extend<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
         self.prefix
-            .extend(&AlignedVec::new(iter.into_iter().collect()))
+            .extend(&AlignedVec::new(iter.into_iter().collect()));
     }
 }
 

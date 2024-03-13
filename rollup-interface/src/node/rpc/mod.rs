@@ -496,7 +496,7 @@ mod rpc_hex_tests {
         let serialized = serde_json::to_string(&test_data).unwrap();
         assert!(serialized.contains("0x01020304"));
         let deserialized: TestStruct = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(deserialized, test_data)
+        assert_eq!(deserialized, test_data);
     }
 
     #[test]
@@ -506,6 +506,6 @@ mod rpc_hex_tests {
         };
 
         let deserialized: TestStruct = serde_json::from_str(r#"{"data": "01020304"}"#).unwrap();
-        assert_eq!(deserialized, test_data)
+        assert_eq!(deserialized, test_data);
     }
 }

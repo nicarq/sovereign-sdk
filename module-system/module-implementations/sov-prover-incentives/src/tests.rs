@@ -221,6 +221,6 @@ fn test_prover_not_bonded() {
         // Assert that processing a valid proof fails
         assert!(module
             .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
-            .is_err())
+            .is_err());
     }
 }

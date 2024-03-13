@@ -55,7 +55,7 @@ impl NotificationManager {
             let notifier = Notifier::default();
             internal.notifiers.push(notifier.clone());
             drop(internal);
-            notifier.wait()
+            notifier.wait();
         }
     }
 }

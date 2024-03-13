@@ -11,6 +11,9 @@ version = { workspace = true }
 resolver = "2"
 publish = true
 
+[lints]
+workspace = true
+
 [dependencies]
 # Common dependencies
 jsonrpsee = { workspace = true }

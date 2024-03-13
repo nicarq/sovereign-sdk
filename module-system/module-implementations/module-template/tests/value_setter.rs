@@ -62,6 +62,6 @@ fn test_value_setter_helper<S: Spec>(
                 value: Some(new_value)
             },
             query_response
-        )
+        );
     }
 }

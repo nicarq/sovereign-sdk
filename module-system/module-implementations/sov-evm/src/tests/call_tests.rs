@@ -104,7 +104,7 @@ fn call_test() {
                 error: None
             }
         ]
-    )
+    );
 }
 
 #[test]

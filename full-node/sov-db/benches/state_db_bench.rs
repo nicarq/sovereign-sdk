@@ -130,7 +130,7 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
                 );
                 assert!(result.is_some());
                 black_box(result);
-            })
+            });
         },
     );
 }
@@ -156,7 +156,7 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
                 );
                 assert!(result.is_some());
                 black_box(result);
-            })
+            });
         },
     );
 }
@@ -182,7 +182,7 @@ fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
                 );
                 assert!(result.is_none());
                 black_box(result);
-            })
+            });
         },
     );
 }

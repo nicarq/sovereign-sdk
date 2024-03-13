@@ -11,6 +11,9 @@ readme = "README.md"
 publish = false
 resolver = "2"
 
+[lints]
+workspace = true
+
 [dev-dependencies]
 integration-tests = { path = ".", features = ["native"] }
 

@@ -55,7 +55,7 @@ pub mod module_a {
             self.emit_event(working_set, "modulea_update", Event::Update);
             self.state_1_a
                 .set(&key.to_owned(), &value.to_owned(), working_set);
-            self.state_2_a.set(&value.to_owned(), working_set)
+            self.state_2_a.set(&value.to_owned(), working_set);
         }
     }
 }

@@ -21,7 +21,7 @@ fn test_pub_key_serialization() {
     let serialized_pub_key = pub_key.try_to_vec().unwrap();
 
     let deserialized_pub_key = TestPublicKey::try_from_slice(&serialized_pub_key).unwrap();
-    assert_eq!(pub_key, deserialized_pub_key)
+    assert_eq!(pub_key, deserialized_pub_key);
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn test_signature_serialization() {
     assert_eq!(sig, deserialized_sig);
 
     let pub_key = priv_key.pub_key();
-    deserialized_sig.verify(&pub_key, &msg).unwrap()
+    deserialized_sig.verify(&pub_key, &msg).unwrap();
 }
 
 struct Module {

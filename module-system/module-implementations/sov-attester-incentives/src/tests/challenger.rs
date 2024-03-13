@@ -110,7 +110,7 @@ fn test_valid_challenge() {
                 .get(&(INIT_HEIGHT + 1), &mut working_set),
             None,
             "The transition should have disappeared"
-        )
+        );
     }
 
     {
@@ -127,7 +127,7 @@ fn test_valid_challenge() {
                 .unwrap(),
             INITIAL_BOND_AMOUNT + BOND_AMOUNT / 2,
             "The challenger should have been unbonded"
-        )
+        );
     }
 }
 
@@ -166,7 +166,7 @@ fn invalid_proof_helper(
             reason
         },
         "The challenge processing should fail with an invalid proof error"
-    )
+    );
 }
 
 #[test]
@@ -231,7 +231,7 @@ fn test_invalid_challenge() {
             err,
             AttesterIncentiveErrors::UserNotBonded,
             "The challenge processing should fail with an unbonded error"
-        )
+        );
     }
 
     // Invalid proofs

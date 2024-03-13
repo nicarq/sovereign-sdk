@@ -11,6 +11,9 @@ readme = "README.md"
 resolver = "2"
 publish = true
 
+[lints]
+workspace = true
+
 [dependencies]
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"], version = "0.3" }
 sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = ["native"], version = "0.3" }

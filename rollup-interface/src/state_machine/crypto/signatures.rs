@@ -162,6 +162,6 @@ mod tests {
         let key = "022";
         let err = PublicKeyHex::try_from(key).unwrap_err();
 
-        assert_eq!(err.to_string(), "Bad hex conversion: odd input length")
+        assert_eq!(err.to_string(), "Bad hex conversion: odd input length");
     }
 }

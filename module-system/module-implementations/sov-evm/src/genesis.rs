@@ -235,6 +235,6 @@ mod tests {
         }"#;
 
         let parsed_config: EvmConfig = serde_json::from_str(data).unwrap();
-        assert_eq!(config, parsed_config)
+        assert_eq!(config, parsed_config);
     }
 }

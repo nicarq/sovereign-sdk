@@ -285,7 +285,7 @@ fn do_deferred_blob_test(
                         batches = ?batches_to_execute,
                         "selected_batches for slot"
                     );
-                    assert_eq!(expected, batches_to_execute.len())
+                    assert_eq!(expected, batches_to_execute.len());
                 }
             }
         }
@@ -526,7 +526,7 @@ fn test_recovery_mode() {
                 assert_eq!(next_height - kernel_working_set.virtual_slot(), 2);
             }
             std::cmp::Ordering::Equal => {
-                assert!(next_height - kernel_working_set.virtual_slot() <= 2)
+                assert!(next_height - kernel_working_set.virtual_slot() <= 2);
             }
             std::cmp::Ordering::Greater => {
                 panic!("Virtual slot must not advance beyond real slot!")
@@ -596,10 +596,10 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
 
         for batch in blobs_to_execute {
             batches_processed += 1;
-            assert_ne!(batch.1, unregistered_sequencer)
+            assert_ne!(batch.1, unregistered_sequencer);
         }
     }
-    assert_eq!(batches_processed, 2)
+    assert_eq!(batches_processed, 2);
 }
 
 #[test]

@@ -234,7 +234,7 @@ async fn main() -> Result<(), anyhow::Error> {
         for receipt in apply_block_result.batch_receipts {
             for t in &receipt.tx_receipts {
                 if t.receipt == TxEffect::Successful {
-                    num_success_txns += 1
+                    num_success_txns += 1;
                 }
             }
             data_to_commit.add_batch(receipt);

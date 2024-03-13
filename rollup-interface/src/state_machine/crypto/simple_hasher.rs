@@ -49,7 +49,7 @@ impl Digest for NoOpHasher {
     }
 
     fn finalize_into(self, out: &mut digest::Output<Self>) {
-        <Self as FixedOutput>::finalize_into(self, out)
+        <Self as FixedOutput>::finalize_into(self, out);
     }
 
     fn finalize_reset(&mut self) -> digest::Output<Self>
@@ -63,14 +63,14 @@ impl Digest for NoOpHasher {
     where
         Self: digest::FixedOutputReset,
     {
-        <Self as FixedOutputReset>::finalize_into_reset(self, out)
+        <Self as FixedOutputReset>::finalize_into_reset(self, out);
     }
 
     fn reset(&mut self)
     where
         Self: digest::Reset,
     {
-        <Self as Reset>::reset(self)
+        <Self as Reset>::reset(self);
     }
 
     fn output_size() -> usize {
