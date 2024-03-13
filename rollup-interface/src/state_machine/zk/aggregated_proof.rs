@@ -29,6 +29,8 @@ pub struct AggregatedProofPublicInput {
     pub initial_slot_number: u64,
     /// Final slot number.
     pub final_slot_number: u64,
+    /// The genesis state root of the aggregated proof.
+    pub genesis_state_root: Vec<u8>,
     /// The initial state root of the aggregated proof.
     pub initial_state_root: Vec<u8>,
     /// The final state root of the aggregated proof.

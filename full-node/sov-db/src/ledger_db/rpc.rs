@@ -939,6 +939,7 @@ mod tests {
                 validity_conditions: vec![],
                 initial_slot_number: i as u64,
                 final_slot_number: i as u64,
+                genesis_state_root: vec![1],
                 initial_state_root: vec![i],
                 final_state_root: vec![i + 1],
                 initial_slot_hash: vec![i + 2],
