@@ -64,14 +64,19 @@ where
     /// - mempool is full
     /// - transaction is invalid (deserialization, verification or decoding of the runtime message failed)
     fn accept_tx(&mut self, raw: Vec<u8>) -> anyhow::Result<TxHash> {
+        tracing::trace!(raw_tx = hex::encode(&raw), "`accept_tx` has been called");
         if self.sequencer_db.txs_count() >= self.mempool_max_txs_count {
-            bail!("Mempool is full")
+            bail!(
+                "Mempool is full: transactions_count={}",
+                self.sequencer_db.txs_count()
+            )
         }
 
         if raw.len() > self.max_batch_size_bytes {
             bail!(
-                "Transaction too big. Max allowed size: {}",
-                self.max_batch_size_bytes
+                "Transaction is too big. Max allowed size: {}, submitted size: {}",
+                self.max_batch_size_bytes,
+                raw.len()
             )
         }
 
@@ -87,11 +92,13 @@ where
             .map_err(anyhow::Error::new)
             .context("Failed to decode message in transaction")?;
 
+        let hash = calculate_hash::<S>(&raw);
         tracing::debug!(
             raw_tx = hex::encode(&raw),
-            "Added a transaction to the mempool"
+            hash = hex::encode(hash),
+            "Adding a transaction to the mempool"
         );
-        let hash = calculate_hash::<S>(&raw);
+
         let tx = MempoolTx {
             tx_bytes: raw,
             runtime_msg: tx.runtime_msg().to_owned(),
@@ -99,7 +106,10 @@ where
         };
 
         self.sequencer_db.push(tx)?;
-
+        tracing::debug!(
+            hash = hex::encode(hash),
+            "Transaction has been added to the mempool"
+        );
         Ok(hash)
     }
 
@@ -136,6 +146,11 @@ where
         let gas_price = <S::Gas as Gas>::Price::ZEROED;
         let mut reward = 0;
 
+        let count_before = self.sequencer_db.txs_count();
+        tracing::debug!(
+            txs_count = count_before,
+            "Going to build batch from transactions in mempool"
+        );
         while let Some(pooled) = self.sequencer_db.pop()? {
             // To fill a batch as big as possible, we only check if valid
             // tx can fit in the batch.
@@ -200,7 +215,10 @@ where
         }
 
         if txs.is_empty() {
-            bail!("No valid transactions are available");
+            bail!(
+                "No valid transactions are available out of {} were in the pool",
+                count_before
+            );
         }
 
         tracing::info!(
@@ -363,6 +381,7 @@ mod tests {
         #[test]
         fn reject_tx_too_big() {
             let tx = generate_random_valid_tx();
+            let tx_size = tx.len();
             let batch_size = tx.len().saturating_sub(1);
 
             let tmpdir = tempfile::tempdir().unwrap();
@@ -372,7 +391,7 @@ mod tests {
             let accept_result = batch_builder.accept_tx(tx);
             assert!(accept_result.is_err());
             assert_eq!(
-                format!("Transaction too big. Max allowed size: {batch_size}"),
+                format!("Transaction is too big. Max allowed size: {batch_size}, submitted size: {tx_size}"),
                 accept_result.unwrap_err().to_string()
             );
         }
@@ -392,7 +411,12 @@ mod tests {
             let accept_result = batch_builder.accept_tx(tx);
 
             assert!(accept_result.is_err());
-            assert_eq!("Mempool is full", accept_result.unwrap_err().to_string());
+            let expected_error_message =
+                format!("Mempool is full: transactions_count={}", MAX_TX_POOL_SIZE);
+            assert_eq!(
+                expected_error_message,
+                accept_result.unwrap_err().to_string()
+            );
         }
 
         #[test]
@@ -439,7 +463,10 @@ mod tests {
 
             let accept_result = batch_builder.accept_tx(tx);
             assert!(accept_result.is_err());
-            assert_eq!("Mempool is full", accept_result.unwrap_err().to_string());
+            assert_eq!(
+                "Mempool is full: transactions_count=0",
+                accept_result.unwrap_err().to_string()
+            );
         }
     }
 
@@ -455,7 +482,7 @@ mod tests {
             let build_result = batch_builder.get_next_blob(1);
             assert!(build_result.is_err());
             assert_eq!(
-                "No valid transactions are available",
+                "No valid transactions are available out of 0 were in the pool",
                 build_result.unwrap_err().to_string()
             );
         }
