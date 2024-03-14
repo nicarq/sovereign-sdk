@@ -16,12 +16,7 @@ fn test_workingset_get() {
     let storage = new_orphan_storage(tempdir.path()).unwrap();
 
     let prefix = sov_modules_core::Prefix::new(vec![1, 2, 3]);
-    let storage_key = SlotKey::new(
-        sov_modules_core::Namespace::User,
-        &prefix,
-        &vec![4, 5, 6],
-        &codec,
-    );
+    let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
     let mut working_set = WorkingSet::<TestSpec>::new(storage.clone());
@@ -37,12 +32,7 @@ fn test_versioned_workingset_get() {
     let storage = new_orphan_storage(tempdir.path()).unwrap();
 
     let prefix = sov_modules_core::Prefix::new(vec![1, 2, 3]);
-    let storage_key = SlotKey::new(
-        sov_modules_core::Namespace::User,
-        &prefix,
-        &vec![4, 5, 6],
-        &codec,
-    );
+    let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
     let sender = Address::from([1; 32]);
@@ -62,12 +52,7 @@ fn test_kernel_workingset_get() {
     let storage = new_orphan_storage(tempdir.path()).unwrap();
 
     let prefix = sov_modules_core::Prefix::new(vec![1, 2, 3]);
-    let storage_key = SlotKey::new(
-        sov_modules_core::Namespace::User,
-        &prefix,
-        &vec![4, 5, 6],
-        &codec,
-    );
+    let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
     let kernel: MockKernel<TestSpec, MockDaSpec> = MockKernel::new(4, 1);
 

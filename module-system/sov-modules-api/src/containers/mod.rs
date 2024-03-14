@@ -26,8 +26,9 @@ pub use versioned_value::VersionedStateValue;
 #[cfg(test)]
 mod test {
     use sov_mock_da::{MockBlockHeader, MockDaSpec};
+    use sov_modules_core::namespaces::User;
     use sov_modules_core::{
-        Namespace, SlotKey, SlotValue, StateReaderAndWriter, Storage, Version, WorkingSet,
+        SlotKey, SlotValue, StateReaderAndWriter, Storage, Version, WorkingSet,
     };
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -44,22 +45,22 @@ mod test {
     fn create_tests() -> Vec<TestCase> {
         vec![
             TestCase {
-                key: SlotKey::from_str(Namespace::User, "key_0"),
+                key: SlotKey::from_slice(b"key_0"),
                 value: SlotValue::from("value_0"),
                 version: 1,
             },
             TestCase {
-                key: SlotKey::from_str(Namespace::User, "key_1"),
+                key: SlotKey::from_slice(b"key_1"),
                 value: SlotValue::from("value_1"),
                 version: 2,
             },
             TestCase {
-                key: SlotKey::from_str(Namespace::User, "key_2"),
+                key: SlotKey::from_slice(b"key_2"),
                 value: SlotValue::from("value_2"),
                 version: 3,
             },
             TestCase {
-                key: SlotKey::from_str(Namespace::User, "key_1"),
+                key: SlotKey::from_slice(b"key_1"),
                 value: SlotValue::from("value_3"),
                 version: 4,
             },
@@ -85,13 +86,15 @@ mod test {
                         WorkingSet::new(prover_storage.clone());
 
                     working_set.set(&test.key, test.value.clone());
-                    let (cache, witness) = working_set.checkpoint().0.freeze();
+                    let (cache, _, witness) = working_set.checkpoint().0.freeze();
                     prover_storage
                         .validate_and_commit(cache, &witness)
                         .expect("storage is valid");
                     assert_eq!(
                         test.value,
-                        prover_storage.get(&test.key, None, &witness).unwrap()
+                        prover_storage
+                            .get::<User>(&test.key, None, &witness)
+                            .unwrap()
                     );
                 }
             }
@@ -111,7 +114,7 @@ mod test {
                 assert_eq!(
                     test.value,
                     storage
-                        .get(&test.key, Some(test.version), &Default::default())
+                        .get::<User>(&test.key, Some(test.version), &Default::default())
                         .unwrap()
                 );
             }
@@ -133,7 +136,7 @@ mod test {
             assert!(prover_storage.is_empty());
         }
 
-        let key = SlotKey::from_str(Namespace::User, "some_key");
+        let key = SlotKey::from_slice(b"some_key");
         let value = SlotValue::from("some_value");
         // First restart
         {
@@ -145,7 +148,7 @@ mod test {
             assert!(prover_storage.is_empty());
             let mut storage: WorkingSet<TestSpec> = WorkingSet::new(prover_storage.clone());
             storage.set(&key, value.clone());
-            let (cache, witness) = storage.checkpoint().0.freeze();
+            let (cache, _, witness) = storage.checkpoint().0.freeze();
             prover_storage
                 .validate_and_commit(cache, &witness)
                 .expect("storage is valid");
@@ -167,7 +170,9 @@ mod test {
             assert!(!prover_storage.is_empty());
             assert_eq!(
                 value,
-                prover_storage.get(&key, None, &Default::default()).unwrap()
+                prover_storage
+                    .get::<User>(&key, None, &Default::default())
+                    .unwrap()
             );
         }
     }

@@ -24,15 +24,15 @@ use crate::StateMapAccessor;
     serde::Serialize,
     serde::Deserialize,
 )]
-pub struct GenericStateMap<N, K, V, Codec = BorshCodec> {
+pub struct NamespacedStateMap<N, K, V, Codec = BorshCodec> {
     _phantom: PhantomData<(N, K, V)>,
     pub(crate) codec: Codec,
     pub(crate) prefix: Prefix,
 }
 
-pub type StateMap<K, V, Codec = BorshCodec> = GenericStateMap<User, K, V, Codec>;
+pub type StateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<User, K, V, Codec>;
 
-impl<N: CompileTimeNamespace, K, V> GenericStateMap<N, K, V> {
+impl<N: CompileTimeNamespace, K, V> NamespacedStateMap<N, K, V> {
     /// Creates a new [`StateMap`] with the given prefix and the default
     /// [`sov_modules_core::StateValueCodec`] (i.e. [`BorshCodec`]).
     pub fn new(prefix: Prefix) -> Self {
@@ -40,7 +40,7 @@ impl<N: CompileTimeNamespace, K, V> GenericStateMap<N, K, V> {
     }
 }
 
-impl<N: CompileTimeNamespace, K, V, Codec> GenericStateMap<N, K, V, Codec> {
+impl<N: CompileTimeNamespace, K, V, Codec> NamespacedStateMap<N, K, V, Codec> {
     /// Creates a new [`StateMap`] with the given prefix and [`sov_modules_core::StateValueCodec`].
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
@@ -66,7 +66,7 @@ impl<N: CompileTimeNamespace, K, V, Codec> GenericStateMap<N, K, V, Codec> {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a, N, K, V, Codec> GenericStateMap<N, K, V, Codec>
+impl<'a, N, K, V, Codec> NamespacedStateMap<N, K, V, Codec>
 where
     K: arbitrary::Arbitrary<'a>,
     V: arbitrary::Arbitrary<'a>,

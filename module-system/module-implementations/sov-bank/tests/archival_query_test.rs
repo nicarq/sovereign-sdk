@@ -4,7 +4,7 @@ use helpers::*;
 use sov_bank::{Amount, Bank, CallMessage, Coins};
 use sov_modules_api::{Address, Context, Module, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::storage::{Namespace, SlotKey, SlotValue, StateUpdate};
+use sov_state::storage::{SlotKey, SlotValue, StateUpdate};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 type S = sov_test_utils::TestSpec;
@@ -174,13 +174,8 @@ fn transfer_initial_token() {
     assert_eq!((sender_balance, receiver_balance), (70, 130));
 
     let mut accessory_state = working_set.accessory_state();
-    accessory_state.set(
-        &SlotKey::from_str(Namespace::User, "k"),
-        SlotValue::from(b"v1".to_vec()),
-    );
-    let val = accessory_state
-        .get(&SlotKey::from_str(Namespace::User, "k"))
-        .unwrap();
+    accessory_state.set(&SlotKey::from_slice(b"k"), SlotValue::from(b"v1".to_vec()));
+    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     commit(working_set, prover_storage.clone());
@@ -206,13 +201,8 @@ fn transfer_initial_token() {
     );
     assert_eq!((sender_balance, receiver_balance), (60, 140));
     let mut accessory_state = working_set.accessory_state();
-    accessory_state.set(
-        &SlotKey::from_str(Namespace::User, "k"),
-        SlotValue::from(b"v2".to_vec()),
-    );
-    let val = accessory_state
-        .get(&SlotKey::from_str(Namespace::User, "k"))
-        .unwrap();
+    accessory_state.set(&SlotKey::from_slice(b"k"), SlotValue::from(b"v2".to_vec()));
+    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
     commit(working_set, prover_storage.clone());
@@ -223,26 +213,17 @@ fn transfer_initial_token() {
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     let mut archival = working_set.get_archival_at(archival_slot);
     let mut accessory_state = archival.accessory_state();
-    let val = accessory_state
-        .get(&SlotKey::from_str(Namespace::User, "k"))
-        .unwrap();
+    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     // archival accessory set
 
-    accessory_state.set(
-        &SlotKey::from_str(Namespace::User, "k"),
-        SlotValue::from(b"v3".to_vec()),
-    );
-    let val = accessory_state
-        .get(&SlotKey::from_str(Namespace::User, "k"))
-        .unwrap();
+    accessory_state.set(&SlotKey::from_slice(b"k"), SlotValue::from(b"v3".to_vec()));
+    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v3", String::from_utf8(val.value().to_vec()).unwrap());
 
     let mut accessory_state = working_set.accessory_state();
-    let val = accessory_state
-        .get(&SlotKey::from_str(Namespace::User, "k"))
-        .unwrap();
+    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 }
 
@@ -287,20 +268,15 @@ fn transfer(
 
 fn commit(working_set: WorkingSet<S>, storage: ProverStorage<DefaultStorageSpec>) {
     // Save checkpoint
-    let mut checkpoint = working_set.checkpoint();
+    let checkpoint = working_set.checkpoint();
 
-    let (cache_log, witness) = checkpoint.0.freeze();
+    let (cache_log, accessory_delta, witness) = checkpoint.0.freeze();
 
-    let (_, mut authenticated_node_batch) = storage
+    let (_, mut state_update) = storage
         .compute_state_update(cache_log, &witness)
         .expect("jellyfish merkle tree update must succeed");
 
-    let working_set = checkpoint.0.to_revertable(Default::default());
+    state_update.add_accessory_items(accessory_delta.freeze());
 
-    let accessory_log = working_set.checkpoint().0.freeze_non_provable();
-    for (key, value) in accessory_log.ordered_writes.into_iter() {
-        authenticated_node_batch.add_accessory_item(key, value);
-    }
-
-    storage.commit(&authenticated_node_batch);
+    storage.commit(&state_update);
 }

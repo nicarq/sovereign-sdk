@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::*;
-use sov_modules_core::Namespace;
+use sov_modules_core::ProvableNamespace;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{ArrayWitness, DefaultStorageSpec, Prefix, Storage, ZkStorage};
 
@@ -17,7 +17,7 @@ impl Operation {
         match self {
             Operation::Merge => working_set.checkpoint().0,
             Operation::Finalize => {
-                let (cache_log, witness) = working_set.checkpoint().0.freeze();
+                let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
                 db.validate_and_commit(cache_log, &witness)
                     .expect("JMT update is valid");
@@ -174,7 +174,7 @@ fn test_witness_round_trip() {
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
-        let (cache_log, witness) = working_set.checkpoint().0.freeze();
+        let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
         let _ = storage
             .validate_and_commit(cache_log, &witness)
@@ -188,7 +188,7 @@ fn test_witness_round_trip() {
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
-        let (cache_log, witness) = working_set.checkpoint().0.freeze();
+        let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
         let _ = storage
             .validate_and_commit(cache_log, &witness)
@@ -417,7 +417,7 @@ fn test_state_value_user_namespace() {
     state_value.set(&11, &mut working_set);
     let _ = state_value.get(&mut working_set);
     state_value.set(&22, &mut working_set);
-    let (cache_log, witness) = working_set.checkpoint().0.freeze();
+    let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
     let _ = storage
         .validate_and_commit(cache_log, &witness)
@@ -425,16 +425,20 @@ fn test_state_value_user_namespace() {
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
-        .get_root_hash_namespace(Namespace::Kernel, 0)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
         .unwrap();
-    let user_root_hash = storage.get_root_hash_namespace(Namespace::User, 0).unwrap();
+    let user_root_hash = storage
+        .get_root_hash_namespace(ProvableNamespace::User, 0)
+        .unwrap();
     assert_eq!(kernel_root_hash, user_root_hash);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
-        .get_root_hash_namespace(Namespace::Kernel, 1)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
         .unwrap();
-    let new_user_root_hash = storage.get_root_hash_namespace(Namespace::User, 1).unwrap();
+    let new_user_root_hash = storage
+        .get_root_hash_namespace(ProvableNamespace::User, 1)
+        .unwrap();
     assert_eq!(kernel_root_hash, new_kernel_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 }
@@ -457,7 +461,7 @@ fn test_state_value_kernel_namespace() {
     let _ = state_value.get(&mut kernel_working_set);
     state_value.set(&22, &mut kernel_working_set);
 
-    let (cache_log, witness) = state_checkpoint.freeze();
+    let (cache_log, _, witness) = state_checkpoint.freeze();
 
     let _ = storage
         .validate_and_commit(cache_log, &witness)
@@ -465,16 +469,20 @@ fn test_state_value_kernel_namespace() {
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
-        .get_root_hash_namespace(Namespace::Kernel, 0)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
         .unwrap();
-    let user_root_hash = storage.get_root_hash_namespace(Namespace::User, 0).unwrap();
+    let user_root_hash = storage
+        .get_root_hash_namespace(ProvableNamespace::User, 0)
+        .unwrap();
     assert_eq!(kernel_root_hash, user_root_hash);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
-        .get_root_hash_namespace(Namespace::Kernel, 1)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
         .unwrap();
-    let new_user_root_hash = storage.get_root_hash_namespace(Namespace::User, 1).unwrap();
+    let new_user_root_hash = storage
+        .get_root_hash_namespace(ProvableNamespace::User, 1)
+        .unwrap();
     assert_eq!(user_root_hash, new_user_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 }
@@ -493,7 +501,7 @@ fn test_state_map_user_namespace() {
     state_value.set(&11, &0, &mut working_set);
     let _ = state_value.get(&0, &mut working_set);
     state_value.set(&22, &0, &mut working_set);
-    let (cache_log, witness) = working_set.checkpoint().0.freeze();
+    let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
     let _ = storage
         .validate_and_commit(cache_log, &witness)
@@ -501,16 +509,20 @@ fn test_state_map_user_namespace() {
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
-        .get_root_hash_namespace(Namespace::Kernel, 0)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
         .unwrap();
-    let user_root_hash = storage.get_root_hash_namespace(Namespace::User, 0).unwrap();
+    let user_root_hash = storage
+        .get_root_hash_namespace(ProvableNamespace::User, 0)
+        .unwrap();
     assert_eq!(kernel_root_hash, user_root_hash);
 
     // Then the kernel is the same but the user root hash changes
-    let new_kernel_root_hash = storage
-        .get_root_hash_namespace(Namespace::Kernel, 1)
+    let new_kernel_root_hash: sov_state::jmt::RootHash = storage
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
         .unwrap();
-    let new_user_root_hash = storage.get_root_hash_namespace(Namespace::User, 1).unwrap();
+    let new_user_root_hash = storage
+        .get_root_hash_namespace(ProvableNamespace::User, 1)
+        .unwrap();
     assert_eq!(kernel_root_hash, new_kernel_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 }
@@ -533,7 +545,7 @@ fn test_versioned_state_value_kernel_namespace() {
     let _ = state_value.get_current(&mut kernel_working_set);
     state_value.set_current(&22, &mut kernel_working_set);
 
-    let (cache_log, witness) = state_checkpoint.freeze();
+    let (cache_log, _, witness) = state_checkpoint.freeze();
 
     let _ = storage
         .validate_and_commit(cache_log, &witness)
@@ -541,16 +553,20 @@ fn test_versioned_state_value_kernel_namespace() {
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
-        .get_root_hash_namespace(Namespace::Kernel, 0)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
         .unwrap();
-    let user_root_hash = storage.get_root_hash_namespace(Namespace::User, 0).unwrap();
+    let user_root_hash = storage
+        .get_root_hash_namespace(ProvableNamespace::User, 0)
+        .unwrap();
     assert_eq!(kernel_root_hash, user_root_hash);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
-        .get_root_hash_namespace(Namespace::Kernel, 1)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
         .unwrap();
-    let new_user_root_hash = storage.get_root_hash_namespace(Namespace::User, 1).unwrap();
+    let new_user_root_hash = storage
+        .get_root_hash_namespace(ProvableNamespace::User, 1)
+        .unwrap();
     assert_eq!(user_root_hash, new_user_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 

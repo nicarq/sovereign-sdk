@@ -30,9 +30,9 @@ impl TestRollup {
             .light_client_finalized_height
             .set(&(height), &mut working_set);
 
-        let (mut checkpoint, _, _) = working_set.checkpoint();
+        let (checkpoint, _, _) = working_set.checkpoint();
 
-        let (reads_writes, _) = checkpoint.freeze();
+        let (reads_writes, _, _) = checkpoint.freeze();
 
         let storage = self.storage();
 

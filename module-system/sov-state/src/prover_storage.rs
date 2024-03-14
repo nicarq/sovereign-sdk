@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use anyhow::bail;
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::namespaces;
@@ -8,9 +7,10 @@ use sov_db::namespaces::{KernelNamespace as DBKernelNamespace, UserNamespace as 
 use sov_db::native_db::NativeDB;
 use sov_db::schema::ChangeSet;
 use sov_db::state_db::{JmtHandler, StateDB};
+use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, ProvableCompileTimeNamespace};
 use sov_modules_core::{
-    Namespace, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, StateUpdate, Storage,
-    StorageProof, Witness,
+    Namespace, NativeStorage, OrderedReadsAndWrites, ProvableNamespace, SlotKey, SlotValue,
+    StateAccesses, StateUpdate, Storage, StorageProof, Witness,
 };
 
 use crate::config::Config;
@@ -57,8 +57,12 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
-    fn read_value(&self, key: &SlotKey, version: Option<Version>) -> Option<SlotValue> {
-        match key.namespace() {
+    fn read_value<N: CompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<Version>,
+    ) -> Option<SlotValue> {
+        match N::NAMESPACE {
             Namespace::User => self.read_value_namespace::<DBUserNamespace>(key, version),
             Namespace::Kernel => self.read_value_namespace::<DBKernelNamespace>(key, version),
             Namespace::Accessory => self
@@ -81,13 +85,16 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     /// Return the root hash for a given namespace and version
     pub fn get_root_hash_namespace(
         &self,
-        namespace: Namespace,
+        namespace: ProvableNamespace,
         version: Version,
     ) -> anyhow::Result<jmt::RootHash> {
         match namespace {
-            Namespace::User => self.get_root_hash_namespace_helper::<DBUserNamespace>(version),
-            Namespace::Kernel => self.get_root_hash_namespace_helper::<DBKernelNamespace>(version),
-            Namespace::Accessory => bail!("Accessory namespace is not provable"),
+            ProvableNamespace::User => {
+                self.get_root_hash_namespace_helper::<DBUserNamespace>(version)
+            }
+            ProvableNamespace::Kernel => {
+                self.get_root_hash_namespace_helper::<DBKernelNamespace>(version)
+            }
         }
     }
 
@@ -192,6 +199,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 
     fn get_with_proof_namespace<N: namespaces::Namespace>(
         &self,
+        namespace: ProvableNamespace,
         key: SlotKey,
     ) -> StorageProof<<ProverStorage<S> as Storage>::Proof> {
         let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
@@ -206,6 +214,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             key,
             value: val_opt.map(SlotValue::from),
             proof: SparseMerkleProof::<S::Hasher>::from(proof),
+            namespace,
         }
     }
 }
@@ -240,9 +249,9 @@ pub struct ProverStateUpdate {
 }
 
 pub struct NamespacedStateUpdate {
-    pub(crate) user: ProverStateUpdate,
-    pub(crate) kernel: ProverStateUpdate,
-    pub(crate) accessory: OrderedReadsAndWrites,
+    pub user: ProverStateUpdate,
+    pub kernel: ProverStateUpdate,
+    pub accessory: OrderedReadsAndWrites,
 }
 
 impl StateUpdate for NamespacedStateUpdate {
@@ -273,47 +282,35 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type StateUpdate = NamespacedStateUpdate;
     type ChangeSet = ProverChangeSet;
 
-    fn get(
+    fn get<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
         version: Option<Version>,
         witness: &Self::Witness,
     ) -> Option<SlotValue> {
-        let val = self.read_value(key, version);
+        let val = self.read_value::<N>(key, version);
         witness.add_hint(val.clone());
         val
     }
 
-    #[cfg(feature = "native")]
     fn get_accessory(&self, key: &SlotKey, version: Option<Version>) -> Option<SlotValue> {
-        let version_to_use = version.unwrap_or_else(|| self.db.get_next_version() - 1);
-        self.native_db
-            .get_value_option(key.as_ref(), version_to_use)
-            .unwrap()
-            .map(Into::into)
+        self.read_value::<Accessory>(key, version)
     }
 
     fn compute_state_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_accesses: StateAccesses,
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
-        let (user_state_accesses, kernel_state_accesses, accessory_state_accesses) =
-            state_accesses.partition_ns().into();
-
         let (user_root, user_state_update) =
-            self.compute_state_update_namespace::<DBUserNamespace>(user_state_accesses, witness)?;
+            self.compute_state_update_namespace::<DBUserNamespace>(state_accesses.user, witness)?;
 
         let (kernel_root, kernel_state_update) = self
-            .compute_state_update_namespace::<DBKernelNamespace>(kernel_state_accesses, witness)?;
+            .compute_state_update_namespace::<DBKernelNamespace>(state_accesses.kernel, witness)?;
 
         Ok((
             StorageRoot::<S>::new(user_root, kernel_root),
-            NamespacedStateUpdate::new(
-                user_state_update,
-                kernel_state_update,
-                accessory_state_accesses,
-            ),
+            NamespacedStateUpdate::new(user_state_update, kernel_state_update, Default::default()),
         ))
     }
 
@@ -330,25 +327,27 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         state_root: Self::Root,
         state_proof: StorageProof<Self::Proof>,
     ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error> {
-        let StorageProof { key, value, proof } = state_proof;
+        let StorageProof {
+            key,
+            value,
+            proof,
+            namespace,
+        } = state_proof;
         let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
 
         // We need to verify the proof against the correct root hash
         // Hence we match the key against its namespace
-        match key.namespace() {
-            Namespace::User => proof.inner().verify(
+        match namespace {
+            ProvableNamespace::User => proof.inner().verify(
                 state_root.user_hash(),
                 key_hash,
                 value.as_ref().map(|v| v.value()),
             )?,
-            Namespace::Kernel => proof.inner().verify(
+            ProvableNamespace::Kernel => proof.inner().verify(
                 state_root.kernel_hash(),
                 key_hash,
                 value.as_ref().map(|v| v.value()),
             )?,
-            Namespace::Accessory => {
-                bail!("Accessory namespace is not provable")
-            }
         }
 
         Ok((key, value))
@@ -367,13 +366,17 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 }
 
 impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
-    fn get_with_proof(&self, key: SlotKey) -> StorageProof<Self::Proof> {
-        match key.namespace() {
-            Namespace::User => self.get_with_proof_namespace::<DBUserNamespace>(key),
-            Namespace::Kernel => self.get_with_proof_namespace::<DBKernelNamespace>(key),
-            // TODO(@preston-evans98): change this API to prevent panics
-            Namespace::Accessory => {
-                panic!("Accessory namespace is not provable")
+    fn get_with_proof<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: SlotKey,
+    ) -> StorageProof<Self::Proof> {
+        let namespace = N::PROVABLE_NAMESPACE;
+        match namespace {
+            ProvableNamespace::User => {
+                self.get_with_proof_namespace::<DBUserNamespace>(namespace, key)
+            }
+            ProvableNamespace::Kernel => {
+                self.get_with_proof_namespace::<DBKernelNamespace>(namespace, key)
             }
         }
     }

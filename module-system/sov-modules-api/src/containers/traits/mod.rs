@@ -9,9 +9,9 @@ pub use value::{StateValueAccessor, StateValueError};
 pub use vec::tests as vec_tests;
 pub use vec::{StateVecAccessor, StateVecError, StateVecPrivateAccessor};
 
-use super::map::GenericStateMap;
-use super::value::GenericStateValue;
-use super::vec::GenericStateVec;
+use super::map::NamespacedStateMap;
+use super::value::NamespacedStateValue;
+use super::vec::NamespacedStateVec;
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
@@ -26,23 +26,23 @@ use super::vec::GenericStateVec;
 ///
 ///
 /// ```
-pub trait GenericStateAccessor<N: CompileTimeNamespace>: StateReaderAndWriter<N> {}
+pub trait NamespacedStateAccessor<N: CompileTimeNamespace>: StateReaderAndWriter<N> {}
 
-impl<T, N: CompileTimeNamespace> GenericStateAccessor<N> for T where T: StateReaderAndWriter<N> {}
-pub trait StateAccessor: GenericStateAccessor<User> {}
+impl<T, N: CompileTimeNamespace> NamespacedStateAccessor<N> for T where T: StateReaderAndWriter<N> {}
+pub trait StateAccessor: NamespacedStateAccessor<User> {}
 
-impl<T> StateAccessor for T where T: GenericStateAccessor<User> {}
+impl<T> StateAccessor for T where T: NamespacedStateAccessor<User> {}
 
 pub trait AccessoryStateAccessor: StateReaderAndWriter<Accessory> {}
 
-impl<T> AccessoryStateAccessor for T where T: GenericStateAccessor<Accessory> {}
+impl<T> AccessoryStateAccessor for T where T: NamespacedStateAccessor<Accessory> {}
 
 impl<S, N: CompileTimeNamespace, V, Codec> StateValueAccessor<N, V, Codec, S>
-    for GenericStateValue<N, V, Codec>
+    for NamespacedStateValue<N, V, Codec>
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateValueCodec<V>,
-    S: GenericStateAccessor<N>,
+    S: NamespacedStateAccessor<N>,
 {
     fn prefix(&self) -> &Prefix {
         &self.prefix
@@ -53,13 +53,13 @@ where
     }
 }
 
-impl<N, S, K, V, Codec> StateMapAccessor<N, K, V, Codec, S> for GenericStateMap<N, K, V, Codec>
+impl<N, S, K, V, Codec> StateMapAccessor<N, K, V, Codec, S> for NamespacedStateMap<N, K, V, Codec>
 where
     Codec: StateCodec,
     Codec::KeyCodec: StateKeyCodec<K>,
     Codec::ValueCodec: StateValueCodec<V>,
     N: CompileTimeNamespace,
-    S: GenericStateAccessor<N>,
+    S: NamespacedStateAccessor<N>,
 {
     /// Returns a reference to the codec used by this [`StateMap`].
     fn codec(&self) -> &Codec {
@@ -72,17 +72,17 @@ where
     }
 }
 
-impl<N, S, V, Codec> StateVecPrivateAccessor<N, V, Codec, S> for GenericStateVec<N, V, Codec>
+impl<N, S, V, Codec> StateVecPrivateAccessor<N, V, Codec, S> for NamespacedStateVec<N, V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    S: GenericStateAccessor<N>,
+    S: NamespacedStateAccessor<N>,
     N: CompileTimeNamespace,
 {
-    type ElemsMap = GenericStateMap<N, usize, V, Codec>;
+    type ElemsMap = NamespacedStateMap<N, usize, V, Codec>;
 
-    type LenValue = GenericStateValue<N, usize, Codec>;
+    type LenValue = NamespacedStateValue<N, usize, Codec>;
 
     fn set_len(&self, length: usize, state_checkpoint: &mut S) {
         self.len_value.set(&length, state_checkpoint);
@@ -97,12 +97,12 @@ where
     }
 }
 
-impl<N, S, V, Codec> StateVecAccessor<N, V, Codec, S> for GenericStateVec<N, V, Codec>
+impl<N, S, V, Codec> StateVecAccessor<N, V, Codec, S> for NamespacedStateVec<N, V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    S: GenericStateAccessor<N>,
+    S: NamespacedStateAccessor<N>,
     N: CompileTimeNamespace,
 {
     /// Returns the prefix used when this [`StateVec`] was created.

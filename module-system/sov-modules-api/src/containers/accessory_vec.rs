@@ -1,11 +1,11 @@
 use sov_modules_core::namespaces::Accessory;
 use sov_state::codec::BorshCodec;
 
-use super::vec::GenericStateVec;
+use super::vec::NamespacedStateVec;
 
 /// A variant of [`StateVec`](crate::StateVec) that stores its elements as
 /// "accessory" state, instead of in the JMT.
-pub type AccessoryStateVec<V, Codec = BorshCodec> = GenericStateVec<Accessory, V, Codec>;
+pub type AccessoryStateVec<V, Codec = BorshCodec> = NamespacedStateVec<Accessory, V, Codec>;
 
 #[cfg(all(test, feature = "native"))]
 mod test {

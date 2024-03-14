@@ -1,5 +1,6 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
+use sov_modules_api::namespaces::User;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::storage::{NativeStorage, SlotKey, Storage, StorageProof};
 
@@ -47,7 +48,7 @@ where
         let prefix = self.bonded_attesters.prefix();
         let codec = self.bonded_attesters.codec();
         // Maybe we will need to store the namespace somewhere in the rollup
-        SlotKey::new(self.bonded_attesters.namespace(), prefix, &address, codec)
+        SlotKey::new(prefix, &address, codec)
     }
 
     /// Used by attesters to get a proof that they were bonded before starting to produce attestations.
@@ -61,7 +62,7 @@ where
     where
         S::Storage: NativeStorage,
     {
-        working_set.get_with_proof(self.get_attester_storage_key(address))
+        working_set.get_with_proof::<User>(self.get_attester_storage_key(address))
     }
 
     /// TODO: Make the unbonding amount queryable:

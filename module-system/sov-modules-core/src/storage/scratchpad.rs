@@ -3,21 +3,23 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::any::Any;
-use core::{fmt, mem};
+use core::fmt;
 
 pub use kernel_state::{KernelWorkingSet, VersionedStateReadWriter};
 use sov_rollup_interface::maybestd::collections::HashMap;
 
 use crate::common::{GasMeter, Prefix};
 use crate::module::{Context, Spec};
-use crate::namespaces::{Accessory, CompileTimeNamespace, User};
-use crate::storage::{
-    EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, StateCodec,
-    StateValueCodec, Storage, StorageInternalCache, StorageProof,
+use crate::namespaces::{
+    self, Accessory, CompileTimeNamespace, ProvableCompileTimeNamespace, User,
 };
-use crate::Gas;
+use crate::storage::{
+    EncodeKeyLike, NativeStorage, ProvableStorageCache, SlotKey, SlotValue, StateCodec,
+    StateValueCodec, Storage, StorageProof,
+};
+use crate::{Gas, Namespace, StateAccesses};
 
-/// A storage reader and writer
+/// A storage reader and writer which can access a particular namespace.
 pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
     /// Get a value from the storage.
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue>;
@@ -41,7 +43,7 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(N::NAMESPACE, prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
         let storage_value = SlotValue::new(value, codec.value_codec());
         self.set(&storage_key, storage_value);
     }
@@ -53,7 +55,7 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(N::NAMESPACE, prefix);
+        let storage_key = SlotKey::singleton(prefix);
         let storage_value = SlotValue::new(value, codec.value_codec());
         self.set(&storage_key, storage_value);
     }
@@ -86,7 +88,7 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(N::NAMESPACE, prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
         self.get_decoded(&storage_key, codec)
     }
 
@@ -96,7 +98,7 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(N::NAMESPACE, prefix);
+        let storage_key = SlotKey::singleton(prefix);
         self.get_decoded(&storage_key, codec)
     }
 
@@ -113,7 +115,7 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::new(N::NAMESPACE, prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
         let storage_value = self.get_decoded(&storage_key, codec)?;
         self.delete(&storage_key);
         Some(storage_value)
@@ -125,7 +127,7 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
     {
-        let storage_key = SlotKey::singleton(N::NAMESPACE, prefix);
+        let storage_key = SlotKey::singleton(prefix);
         let storage_value = self.get_decoded(&storage_key, codec)?;
         self.delete(&storage_key);
         Some(storage_value)
@@ -138,23 +140,36 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
     {
-        let storage_key = SlotKey::new(N::NAMESPACE, prefix, storage_key, codec.key_codec());
+        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
         self.delete(&storage_key);
     }
 
     /// Deletes a singleton from the storage. For more information, check [SlotKey::singleton].
     fn delete_singleton(&mut self, prefix: &Prefix) {
-        let storage_key = SlotKey::singleton(N::NAMESPACE, prefix);
+        let storage_key = SlotKey::singleton(prefix);
         self.delete(&storage_key);
     }
 }
 
-/// A working set accumulates reads and writes on top of the underlying DB,
-/// automating witness creation.
+trait UniversalStateAccessor {
+    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue>;
+    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue);
+    fn delete(&mut self, namespace: Namespace, key: &SlotKey);
+}
+
+/// A [`Delta`] is a diff over an underlying `Storage` instance. When queried, it first checks
+/// whether the value is in its local cache and, if so, returns it. Otherwise, it queries the
+/// underlying storage for the requested key, adds it to the Witness, and populates the value Into
+/// its own local cache before returning.
+///
+/// Writes are always performed on the local cache, and are only committed to the underlying storage
+/// when the `Delta` is frozen.
 pub struct Delta<S: Storage> {
     inner: S,
     witness: S::Witness,
-    cache: StorageInternalCache,
+    kernel_cache: ProvableStorageCache<namespaces::Kernel>,
+    user_cache: ProvableStorageCache<User>,
+    accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
     version: Option<u64>,
 }
 
@@ -167,16 +182,75 @@ impl<S: Storage> Delta<S> {
         Self {
             inner,
             witness,
-            cache: Default::default(),
+            user_cache: Default::default(),
+            kernel_cache: Default::default(),
+            accessory_writes: Default::default(),
             version,
         }
     }
 
-    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
-        let cache = mem::take(&mut self.cache);
-        let witness = mem::take(&mut self.witness);
+    fn freeze(self) -> (StateAccesses, AccessoryDelta<S>, S::Witness) {
+        let Self {
+            inner,
+            user_cache,
+            kernel_cache,
+            accessory_writes,
+            witness,
+            version,
+        } = self;
 
-        (cache.into(), witness)
+        (
+            StateAccesses {
+                user: user_cache.into(),
+                kernel: kernel_cache.into(),
+            },
+            AccessoryDelta {
+                version,
+                writes: accessory_writes,
+                storage: inner,
+            },
+            witness,
+        )
+    }
+}
+
+impl<S: Storage> UniversalStateAccessor for Delta<S> {
+    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
+        match namespace {
+            Namespace::User => {
+                self.user_cache
+                    .get_or_fetch(key, &self.inner, &self.witness, self.version)
+            }
+            Namespace::Kernel => {
+                self.kernel_cache
+                    .get_or_fetch(key, &self.inner, &self.witness, self.version)
+            }
+            Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
+                Some(Some(value)) => Some(value),
+                Some(None) => None,
+                None => self.inner.get_accessory(key, self.version),
+            },
+        }
+    }
+
+    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
+        match namespace {
+            Namespace::User => self.user_cache.set(key, value),
+            Namespace::Kernel => self.kernel_cache.set(key, value),
+            Namespace::Accessory => {
+                self.accessory_writes.insert(key.clone(), Some(value));
+            }
+        }
+    }
+
+    fn delete(&mut self, namespace: Namespace, key: &SlotKey) {
+        match namespace {
+            Namespace::User => self.user_cache.delete(key),
+            Namespace::Kernel => self.kernel_cache.delete(key),
+            Namespace::Accessory => {
+                self.accessory_writes.remove(key);
+            }
+        }
     }
 }
 
@@ -186,75 +260,37 @@ impl<S: Storage> fmt::Debug for Delta<S> {
     }
 }
 
-impl<S: Storage> StateReaderAndWriter<User> for Delta<S> {
-    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-        self.cache
-            .get_or_fetch(key, &self.inner, &self.witness, self.version)
-    }
-
-    fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.cache.set(key, value);
-    }
-
-    fn delete(&mut self, key: &SlotKey) {
-        self.cache.delete(key);
-    }
-}
-
-// type RevertableWrites = HashMap<SlotKey, Option<SlotValue>>;
-
-#[derive(Default)]
-struct RevertableWrites {
-    pub cache: HashMap<SlotKey, Option<SlotValue>>,
-    pub version: Option<u64>,
-}
-
-struct AccessoryDelta<S: Storage> {
+/// A delta containing *only* the accessory state.
+pub struct AccessoryDelta<S: Storage> {
     // This inner storage is never accessed inside the zkVM because reads are
     // not allowed, so it can result as dead code.
     #[allow(dead_code)]
+    version: Option<u64>,
+    writes: HashMap<SlotKey, Option<SlotValue>>,
     storage: S,
-    writes: RevertableWrites,
 }
 
 impl<S: Storage> AccessoryDelta<S> {
-    fn new(storage: S, version: Option<u64>) -> Self {
-        let writes = match version {
-            None => Default::default(),
-            Some(v) => RevertableWrites {
-                cache: Default::default(),
-                version: Some(v),
-            },
-        };
-        Self { storage, writes }
-    }
-
-    fn freeze(&mut self) -> OrderedReadsAndWrites {
-        let mut reads_and_writes = OrderedReadsAndWrites::default();
-        let writes = mem::take(&mut self.writes);
-
-        for write in writes.cache {
-            reads_and_writes.ordered_writes.push((write.0, write.1));
-        }
-
-        reads_and_writes
+    /// Freeze the accessory delta, preventing further accesses.
+    pub fn freeze(self) -> Vec<(SlotKey, Option<SlotValue>)> {
+        self.writes.into_iter().collect()
     }
 }
 
 impl<S: Storage> StateReaderAndWriter<Accessory> for AccessoryDelta<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-        if let Some(value) = self.writes.cache.get(key) {
+        if let Some(value) = self.writes.get(key) {
             return value.clone().map(Into::into);
         }
-        self.storage.get_accessory(key, self.writes.version)
+        self.storage.get_accessory(key, self.version)
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.writes.cache.insert(key.clone(), Some(value));
+        self.writes.insert(key.clone(), Some(value));
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.writes.cache.insert(key.clone(), None);
+        self.writes.insert(key.clone(), None);
     }
 }
 
@@ -265,7 +301,6 @@ impl<S: Storage> StateReaderAndWriter<Accessory> for AccessoryDelta<S> {
 ///  2. With [`WorkingSet::revert`].
 pub struct StateCheckpoint<S: Spec> {
     delta: Delta<S::Storage>,
-    accessory_delta: AccessoryDelta<S::Storage>,
 }
 
 impl<S: Spec> StateCheckpoint<S> {
@@ -274,7 +309,6 @@ impl<S: Spec> StateCheckpoint<S> {
     pub fn new(inner: S::Storage) -> Self {
         Self {
             delta: Delta::new(inner.clone(), None),
-            accessory_delta: AccessoryDelta::new(inner, None),
         }
     }
 
@@ -302,7 +336,6 @@ impl<S: Spec> StateCheckpoint<S> {
     pub fn with_witness(inner: S::Storage, witness: <S::Storage as Storage>::Witness) -> Self {
         Self {
             delta: Delta::with_witness(inner.clone(), witness, None),
-            accessory_delta: AccessoryDelta::new(inner, None),
         }
     }
 
@@ -310,7 +343,6 @@ impl<S: Spec> StateCheckpoint<S> {
     pub fn to_revertable(self, gas_meter: GasMeter<S::Gas>) -> WorkingSet<S> {
         WorkingSet {
             delta: RevertableWriter::new(self.delta),
-            accessory_delta: RevertableWriter::new(self.accessory_delta),
             events: Default::default(),
             gas_meter,
         }
@@ -321,32 +353,31 @@ impl<S: Spec> StateCheckpoint<S> {
     /// You can then use these to call [`Storage::validate_and_commit`] or some
     /// of the other related [`Storage`] methods. Note that this data is moved
     /// **out** of the [`StateCheckpoint`] i.e. it can't be extracted twice.
-    pub fn freeze(&mut self) -> (OrderedReadsAndWrites, <S::Storage as Storage>::Witness) {
+    pub fn freeze(
+        self,
+    ) -> (
+        StateAccesses,
+        AccessoryDelta<S::Storage>,
+        <S::Storage as Storage>::Witness,
+    ) {
         self.delta.freeze()
-    }
-
-    /// Extracts ordered reads and writes of accessory state from this
-    /// [`StateCheckpoint`].
-    ///
-    /// You can then use these to call
-    /// [`Storage::validate_and_commit_with_accessory_update`], together with
-    /// the data extracted with [`StateCheckpoint::freeze`].
-    pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
-        self.accessory_delta.freeze()
     }
 }
 
-impl<S: Spec> StateReaderAndWriter<User> for StateCheckpoint<S> {
+impl<N, S: Spec> StateReaderAndWriter<N> for StateCheckpoint<S>
+where
+    N: CompileTimeNamespace,
+{
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-        self.delta.get(key)
+        self.delta.get(N::NAMESPACE, key)
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.delta.set(key, value);
+        self.delta.set(N::NAMESPACE, key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.delta.delete(key);
+        self.delta.delete(N::NAMESPACE, key);
     }
 }
 
@@ -414,7 +445,6 @@ impl<S: Spec> TypedEvent<S> {
 /// 2. By using the revert method, where the most recent changes are reverted and the previous `StateCheckpoint` is returned.
 pub struct WorkingSet<S: Spec> {
     delta: RevertableWriter<Delta<S::Storage>>,
-    accessory_delta: RevertableWriter<AccessoryDelta<S::Storage>>,
     events: Vec<TypedEvent<S>>,
     gas_meter: GasMeter<S::Gas>,
 }
@@ -434,7 +464,6 @@ impl<S: Spec> WorkingSet<S> {
         let storage = self.delta.inner.inner.clone();
         Self {
             delta: RevertableWriter::new(Delta::new(storage.clone(), Some(version))),
-            accessory_delta: RevertableWriter::new(AccessoryDelta::new(storage, Some(version))),
             events: Default::default(),
             gas_meter: Default::default(),
         }
@@ -483,7 +512,6 @@ impl<S: Spec> WorkingSet<S> {
         (
             StateCheckpoint {
                 delta: self.delta.commit(),
-                accessory_delta: self.accessory_delta.commit(),
             },
             self.gas_meter,
             self.events,
@@ -496,7 +524,6 @@ impl<S: Spec> WorkingSet<S> {
         (
             StateCheckpoint {
                 delta: self.delta.revert(),
-                accessory_delta: self.accessory_delta.revert(),
             },
             self.gas_meter,
         )
@@ -565,26 +592,30 @@ impl<S: Spec> WorkingSet<S> {
     }
 
     /// Fetches given value and provides a proof of it presence/absence.
-    pub fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<<S::Storage as Storage>::Proof>
+    pub fn get_with_proof<N>(
+        &mut self,
+        key: SlotKey,
+    ) -> StorageProof<<S::Storage as Storage>::Proof>
     where
         S::Storage: NativeStorage,
+        N: ProvableCompileTimeNamespace,
     {
         // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
-        self.delta.inner.inner.get_with_proof(key)
+        self.delta.inner.inner.get_with_proof::<N>(key)
     }
 }
 
 impl<S: Spec> StateReaderAndWriter<User> for WorkingSet<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-        self.delta.get(key)
+        self.delta.get(User::NAMESPACE, key)
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.delta.set(key, value);
+        self.delta.set(User::NAMESPACE, key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.delta.delete(key);
+        self.delta.delete(User::NAMESPACE, key);
     }
 }
 
@@ -599,16 +630,16 @@ impl<'a, S: Spec> StateReaderAndWriter<Accessory> for AccessoryWorkingSet<'a, S>
         if !cfg!(feature = "native") {
             None
         } else {
-            self.ws.accessory_delta.get(key)
+            self.ws.delta.get(Accessory::NAMESPACE, key)
         }
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.ws.accessory_delta.set(key, value);
+        self.ws.delta.set(Accessory::NAMESPACE, key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.ws.accessory_delta.delete(key);
+        self.ws.delta.delete(Accessory::NAMESPACE, key);
     }
 }
 
@@ -623,16 +654,16 @@ impl<'a, S: Spec> StateReaderAndWriter<Accessory> for AccessoryStateCheckpoint<'
         if !cfg!(feature = "native") {
             None
         } else {
-            self.checkpoint.accessory_delta.get(key)
+            self.checkpoint.delta.get(Accessory::NAMESPACE, key)
         }
     }
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.checkpoint.accessory_delta.set(key, value);
+        self.checkpoint.delta.set(Accessory::NAMESPACE, key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.checkpoint.accessory_delta.delete(key);
+        self.checkpoint.delta.delete(Accessory::NAMESPACE, key);
     }
 }
 
@@ -645,7 +676,7 @@ pub mod kernel_state {
     use crate::namespaces;
 
     /// A trait indicating that this working set is version aware
-    pub trait VersionReader: StateReaderAndWriter<crate::namespaces::Kernel> {
+    pub trait VersionReader: StateReaderAndWriter<namespaces::Kernel> {
         /// Returns the current version of the working set
         fn current_version(&self) -> u64;
     }
@@ -692,35 +723,35 @@ pub mod kernel_state {
         }
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter<crate::namespaces::Kernel>
+    impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel>
         for VersionedStateReadWriter<'a, StateCheckpoint<S>>
     {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-            self.ws.delta.get(key)
+            self.ws.delta.get(namespaces::Kernel::NAMESPACE, key)
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.ws.delta.set(key, value);
+            self.ws.delta.set(namespaces::Kernel::NAMESPACE, key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.ws.delta.delete(key);
+            self.ws.delta.delete(namespaces::Kernel::NAMESPACE, key);
         }
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter<crate::namespaces::Kernel>
+    impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel>
         for VersionedStateReadWriter<'a, WorkingSet<S>>
     {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-            self.ws.delta.get(key)
+            self.ws.delta.get(namespaces::Kernel::NAMESPACE, key)
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.ws.delta.set(key, value);
+            self.ws.delta.set(namespaces::Kernel::NAMESPACE, key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.ws.delta.delete(key);
+            self.ws.delta.delete(namespaces::Kernel::NAMESPACE, key);
         }
     }
 
@@ -732,29 +763,31 @@ pub mod kernel_state {
 
     impl<'a, S: Spec> StateReaderAndWriter<User> for BootstrapWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-            self.inner.delta.get(key)
+            self.inner.delta.get(User::NAMESPACE, key)
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.inner.delta.set(key, value);
+            self.inner.delta.set(User::NAMESPACE, key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.inner.delta.delete(key);
+            self.inner.delta.delete(User::NAMESPACE, key);
         }
     }
 
     impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel> for BootstrapWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-            self.inner.delta.get(key)
+            self.inner.delta.get(namespaces::Kernel::NAMESPACE, key)
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.inner.delta.set(key, value);
+            self.inner
+                .delta
+                .set(namespaces::Kernel::NAMESPACE, key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.inner.delta.delete(key);
+            self.inner.delta.delete(namespaces::Kernel::NAMESPACE, key);
         }
     }
 
@@ -828,36 +861,38 @@ pub mod kernel_state {
 
     impl<'a, S: Spec> StateReaderAndWriter<User> for KernelWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-            self.inner.delta.get(key)
+            self.inner.delta.get(User::NAMESPACE, key)
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.inner.delta.set(key, value);
+            self.inner.delta.set(User::NAMESPACE, key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.inner.delta.delete(key);
+            self.inner.delta.delete(User::NAMESPACE, key);
         }
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter<crate::namespaces::Kernel> for KernelWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel> for KernelWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-            self.inner.delta.get(key)
+            self.inner.delta.get(namespaces::Kernel::NAMESPACE, key)
         }
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
-            self.inner.delta.set(key, value);
+            self.inner
+                .delta
+                .set(namespaces::Kernel::NAMESPACE, key, value);
         }
 
         fn delete(&mut self, key: &SlotKey) {
-            self.inner.delta.delete(key);
+            self.inner.delta.delete(namespaces::Kernel::NAMESPACE, key);
         }
     }
 }
 
 struct RevertableWriter<T> {
     inner: T,
-    writes: HashMap<SlotKey, Option<SlotValue>>,
+    writes: HashMap<(SlotKey, Namespace), Option<SlotValue>>,
 }
 
 impl<T: fmt::Debug> fmt::Debug for RevertableWriter<T> {
@@ -877,12 +912,12 @@ impl<T> RevertableWriter<T> {
     }
 
     /// Commit all items from `RevertableWriter` returning the inner storage.
-    fn commit<N: CompileTimeNamespace>(mut self) -> T
+    fn commit(mut self) -> T
     where
-        T: StateReaderAndWriter<N>,
+        T: UniversalStateAccessor,
     {
-        for (k, v) in self.writes.into_iter() {
-            Self::commit_entry(&mut self.inner, k, v);
+        for ((key, namespace), value) in self.writes.into_iter() {
+            Self::commit_entry(&mut self.inner, namespace, key, value);
         }
 
         self.inner
@@ -892,34 +927,34 @@ impl<T> RevertableWriter<T> {
         self.inner
     }
 
-    fn commit_entry<N: CompileTimeNamespace>(inner: &mut T, key: SlotKey, value: Option<SlotValue>)
+    fn commit_entry(inner: &mut T, namespace: Namespace, key: SlotKey, value: Option<SlotValue>)
     where
-        T: StateReaderAndWriter<N>,
+        T: UniversalStateAccessor,
     {
         match value {
-            Some(value) => inner.set(&key, value),
-            None => inner.delete(&key),
+            Some(value) => inner.set(namespace, &key, value),
+            None => inner.delete(namespace, &key),
         }
     }
 }
 
-impl<T, N: CompileTimeNamespace> StateReaderAndWriter<N> for RevertableWriter<T>
+impl<T> UniversalStateAccessor for RevertableWriter<T>
 where
-    T: StateReaderAndWriter<N>,
+    T: UniversalStateAccessor,
 {
-    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
-        if let Some(value) = self.writes.get(key) {
+    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
+        if let Some(value) = self.writes.get(&(key.clone(), namespace)) {
             value.as_ref().cloned().map(Into::into)
         } else {
-            self.inner.get(key)
+            self.inner.get(namespace, key)
         }
     }
 
-    fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.writes.insert(key.clone(), Some(value));
+    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
+        self.writes.insert((key.clone(), namespace), Some(value));
     }
 
-    fn delete(&mut self, key: &SlotKey) {
-        self.writes.insert(key.clone(), None);
+    fn delete(&mut self, namespace: Namespace, key: &SlotKey) {
+        self.writes.insert((key.clone(), namespace), None);
     }
 }

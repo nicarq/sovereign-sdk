@@ -4,8 +4,8 @@ use sov_modules_core::namespaces::{CompileTimeNamespace, User};
 use sov_modules_core::{Prefix, StateValueCodec};
 use sov_state::codec::BorshCodec;
 
-use super::map::GenericStateMap;
-use super::value::GenericStateValue;
+use super::map::NamespacedStateMap;
+use super::value::NamespacedStateValue;
 
 /// A growable array of values stored as JMT-backed state.
 #[derive(
@@ -17,24 +17,24 @@ use super::value::GenericStateValue;
     serde::Serialize,
     serde::Deserialize,
 )]
-pub struct GenericStateVec<N, V, Codec = BorshCodec> {
+pub struct NamespacedStateVec<N, V, Codec = BorshCodec> {
     _phantom: PhantomData<(N, V)>,
     pub(crate) prefix: Prefix,
-    pub(crate) len_value: GenericStateValue<N, usize, Codec>,
-    pub(crate) elems: GenericStateMap<N, usize, V, Codec>,
+    pub(crate) len_value: NamespacedStateValue<N, usize, Codec>,
+    pub(crate) elems: NamespacedStateMap<N, usize, V, Codec>,
 }
 
-pub type StateVec<V, Codec = BorshCodec> = GenericStateVec<User, V, Codec>;
+pub type StateVec<V, Codec = BorshCodec> = NamespacedStateVec<User, V, Codec>;
 
-impl<N: CompileTimeNamespace, V, Codec: Clone> GenericStateVec<N, V, Codec> {
+impl<N: CompileTimeNamespace, V, Codec: Clone> NamespacedStateVec<N, V, Codec> {
     /// Creates a new [`StateVec`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         // Differentiating the prefixes for the length and the elements
         // shouldn't be necessary, but it's best not to rely on implementation
         // details of `StateValue` and `StateMap` as they both have the right to
         // reserve the whole key space for themselves.
-        let len_value = GenericStateValue::with_codec(prefix.extended(b"l"), codec.clone());
-        let elems = GenericStateMap::with_codec(prefix.extended(b"e"), codec);
+        let len_value = NamespacedStateValue::with_codec(prefix.extended(b"l"), codec.clone());
+        let elems = NamespacedStateMap::with_codec(prefix.extended(b"e"), codec);
         Self {
             _phantom: PhantomData,
             prefix,
@@ -44,7 +44,7 @@ impl<N: CompileTimeNamespace, V, Codec: Clone> GenericStateVec<N, V, Codec> {
     }
 }
 
-impl<N, V> GenericStateVec<N, V>
+impl<N, V> NamespacedStateVec<N, V>
 where
     BorshCodec: StateValueCodec<V>,
     N: CompileTimeNamespace,

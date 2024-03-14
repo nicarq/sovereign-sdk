@@ -250,7 +250,7 @@ where
 
         // We have to check that the storage key is the same as the external key
         ensure!(
-            storage_key == SlotKey::new(storage_key.namespace(), prefix, expected_key, codec),
+            storage_key == SlotKey::new(prefix, expected_key, codec),
             "The storage key from the proof doesn't match the expected storage key."
         );
 

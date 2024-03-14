@@ -10,7 +10,8 @@ use rand::{Rng, SeedableRng};
 use sov_mock_da::MockBlockHeader;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_state::storage::{Namespace, SlotKey, SlotValue};
+use sov_state::storage::namespaces::User;
+use sov_state::storage::{SlotKey, SlotValue, StateAccesses};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 type Da = sov_mock_da::MockDaSpec;
 type S = sov_state::DefaultStorageSpec;
@@ -81,7 +82,7 @@ fn setup_storage(
                 .zip(old_values.into_iter())
             {
                 ordered_writes.push((
-                    SlotKey::from_bytes(Namespace::User, key.clone()),
+                    SlotKey::from_bytes(key.clone()),
                     Some(SlotValue::from(value)),
                 ));
             }
@@ -90,10 +91,7 @@ fn setup_storage(
         // New writes
         for (key, value) in new_keys.into_iter().zip(new_values.into_iter()) {
             old_writes.push(key.clone());
-            ordered_writes.push((
-                SlotKey::from_bytes(Namespace::User, key),
-                Some(SlotValue::from(value)),
-            ));
+            ordered_writes.push((SlotKey::from_bytes(key), Some(SlotValue::from(value))));
         }
 
         let state_operations = OrderedReadsAndWrites {
@@ -101,9 +99,14 @@ fn setup_storage(
             ordered_writes,
         };
 
+        let state_accesses = StateAccesses {
+            user: state_operations,
+            kernel: Default::default(),
+        };
+
         let witness = ArrayWitness::default();
         let (_, state_update) = stf_state
-            .compute_state_update(state_operations, &witness)
+            .compute_state_update(state_accesses, &witness)
             .unwrap();
         stf_state.commit(&state_update);
 
@@ -153,7 +156,7 @@ fn bench_random_read(
     );
     let block = MockBlockHeader::from_height(rollup_height + 1);
     let storage = storage_manager.create_state_for(&block).unwrap();
-    let cache_key = SlotKey::from_bytes(Namespace::User, random_key);
+    let cache_key = SlotKey::from_bytes(random_key);
     let storage_key = cache_key;
     let id = format!(
         "random/new_writes={}/old_writes={}/height=",
@@ -166,7 +169,7 @@ fn bench_random_read(
             b.iter(|| {
                 let ((stf_state, _), random_key) = i;
                 let witness = ArrayWitness::default();
-                let result = black_box(stf_state.get(random_key, None, &witness));
+                let result = black_box(stf_state.get::<User>(random_key, None, &witness));
                 assert!(result.is_some());
                 black_box(result);
             });
@@ -195,7 +198,7 @@ fn bench_not_found_read(
     );
     let block = MockBlockHeader::from_height(rollup_height + 1);
     let storage = storage_manager.create_state_for(&block).unwrap();
-    let cache_key = SlotKey::from_bytes(Namespace::User, non_existing_key);
+    let cache_key = SlotKey::from_bytes(non_existing_key);
     let storage_key = cache_key;
     let id = format!(
         "not_found/new_writes={}/old_writes={}/height",
@@ -208,7 +211,7 @@ fn bench_not_found_read(
             b.iter(|| {
                 let ((storage, _), random_key) = i;
                 let witness = ArrayWitness::default();
-                let result = black_box(storage.get(random_key, None, &witness));
+                let result = black_box(storage.get::<User>(random_key, None, &witness));
                 assert!(result.is_none());
                 black_box(result);
             });

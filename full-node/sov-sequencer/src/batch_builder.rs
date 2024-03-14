@@ -348,7 +348,7 @@ mod tests {
             100_000,
         );
         runtime.genesis(&config, &mut working_set).unwrap();
-        let (log, witness) = working_set.checkpoint().0.freeze();
+        let (log, _, witness) = working_set.checkpoint().0.freeze();
         storage.validate_and_commit(log, &witness).unwrap();
     }
 

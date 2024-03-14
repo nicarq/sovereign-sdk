@@ -7,7 +7,7 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::da::Time;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::macros::DefaultRuntime;
-use sov_modules_api::namespaces::Accessory;
+use sov_modules_api::namespaces::{Accessory, User};
 use sov_modules_api::runtime::capabilities::{
     ContextResolver, GasEnforcer, Kernel, TransactionDeduplicator,
 };
@@ -442,7 +442,7 @@ impl TestRollup {
 
         for i in 0..rounds {
             let state_proof = attester_address.map(|attester_address| {
-                self.storage().get_with_proof(
+                self.storage().get_with_proof::<User>(
                     self.stf()
                         .runtime()
                         .attester_incentives

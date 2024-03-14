@@ -20,7 +20,7 @@ fn test_value_setter() {
         test_value_setter_helper(context, &config, &mut working_set);
     }
 
-    let (_, witness) = working_set.checkpoint().0.freeze();
+    let (_, _, witness) = working_set.checkpoint().0.freeze();
 
     // Test Zk-Context
     {
@@ -83,7 +83,7 @@ fn test_err_on_sender_is_not_admin() {
         let context = Context::<TestSpec>::new(sender, sequencer, 1);
         test_err_on_sender_is_not_admin_helper(context, &config, &mut prover_working_set);
     }
-    let (_, witness) = prover_working_set.checkpoint().0.freeze();
+    let (_, _, witness) = prover_working_set.checkpoint().0.freeze();
 
     // Test Zk-Context
     {

@@ -35,7 +35,7 @@ fn nested_module_call_test() {
         ]
     );
 
-    let (log, witness) = working_set.checkpoint().0.freeze();
+    let (log, _, witness) = working_set.checkpoint().0.freeze();
     prover_storage
         .validate_and_commit(log, &witness)
         .expect("State update is valid");
