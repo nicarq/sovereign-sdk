@@ -3,11 +3,12 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkVerifier;
+use sov_modules_api::namespaces::User;
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
-use sov_state::storage::{Namespace, NativeStorage, SlotKey, SlotValue};
+use sov_state::storage::{NativeStorage, SlotKey, SlotValue, StateAccesses};
 use sov_state::{
     ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverChangeSet,
     ProverStorage, Storage,
@@ -27,9 +28,9 @@ impl<Cond> HashStf<Cond> {
         }
     }
 
-    fn hash_key(namespace: Namespace) -> SlotKey {
+    fn hash_key() -> SlotKey {
         let prefix = Prefix::new(b"root".to_vec());
-        SlotKey::singleton(namespace, &prefix)
+        SlotKey::singleton(&prefix)
     }
 
     fn save_from_hasher(
@@ -39,16 +40,20 @@ impl<Cond> HashStf<Cond> {
     ) -> ([u8; 32], ProverChangeSet) {
         let result = hasher.finalize();
 
-        let hash_key = HashStf::<Cond>::hash_key(Namespace::User);
+        let hash_key = HashStf::<Cond>::hash_key();
         let hash_value = SlotValue::from(result.as_slice().to_vec());
 
         let ordered_reads_writes = OrderedReadsAndWrites {
             ordered_reads: Vec::default(),
             ordered_writes: vec![(hash_key, Some(hash_value))],
         };
+        let state_accesses = StateAccesses {
+            user: ordered_reads_writes,
+            kernel: Default::default(),
+        };
 
         let (jmt_root_hash, state_update) = storage
-            .compute_state_update(ordered_reads_writes, witness)
+            .compute_state_update(state_accesses, witness)
             .unwrap();
 
         storage.commit(&state_update);
@@ -104,8 +109,8 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
         let mut hasher = sha2::Sha256::new();
 
-        let hash_key = HashStf::<Cond>::hash_key(Namespace::User);
-        let existing_cache = pre_state.get(&hash_key, None, &witness).unwrap();
+        let hash_key = HashStf::<Cond>::hash_key();
+        let existing_cache = pre_state.get::<User>(&hash_key, None, &witness).unwrap();
         tracing::trace!(
             pre_state_root = hex::encode(pre_state_root),
             existing_cache = hex::encode(existing_cache.value()),

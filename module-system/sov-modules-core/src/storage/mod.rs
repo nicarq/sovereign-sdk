@@ -18,6 +18,8 @@ pub use cache::*;
 pub use codec::*;
 pub use scratchpad::*;
 
+use self::namespaces::ProvableCompileTimeNamespace;
+
 #[derive(
     Clone,
     Copy,
@@ -43,6 +45,28 @@ pub enum Namespace {
     Accessory,
 }
 
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    BorshSerialize,
+    BorshDeserialize,
+    Serialize,
+    Deserialize,
+)]
+/// Namespaces which can be merkle proven.
+pub enum ProvableNamespace {
+    /// The user namespace.
+    User,
+    /// The kernel namespace.
+    Kernel,
+}
+
 /// Defines type-level representations of  namespaces.
 pub mod namespaces {
     use crate::Namespace;
@@ -53,45 +77,41 @@ pub mod namespaces {
         const NAMESPACE: Namespace;
     }
 
-    /// A type-level representation fo the user namespace
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    /// Converts a type into a Provable Namespace at compile time.
+    pub trait ProvableCompileTimeNamespace: CompileTimeNamespace {
+        /// The runtime namespace variant associated with the type.
+        const PROVABLE_NAMESPACE: crate::ProvableNamespace;
+    }
+
+    /// A type-level representation of the user namespace
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
     pub struct User;
 
     impl CompileTimeNamespace for User {
         const NAMESPACE: Namespace = Namespace::User;
     }
 
-    impl From<User> for Namespace {
-        fn from(_: User) -> Namespace {
-            Namespace::User
-        }
+    impl ProvableCompileTimeNamespace for User {
+        const PROVABLE_NAMESPACE: crate::ProvableNamespace = crate::ProvableNamespace::User;
     }
-    /// A type-level representation fo the kernel namespace
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    /// A type-level representation of the kernel namespace
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
     pub struct Kernel;
 
     impl CompileTimeNamespace for Kernel {
         const NAMESPACE: Namespace = Namespace::Kernel;
     }
 
-    impl From<Kernel> for Namespace {
-        fn from(_: Kernel) -> Namespace {
-            Namespace::Kernel
-        }
+    impl ProvableCompileTimeNamespace for Kernel {
+        const PROVABLE_NAMESPACE: crate::ProvableNamespace = crate::ProvableNamespace::Kernel;
     }
 
-    /// A type-level representation fo the accessory namespace
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    /// A type-level representation of the accessory namespace
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
     pub struct Accessory;
 
     impl CompileTimeNamespace for Accessory {
         const NAMESPACE: Namespace = Namespace::Accessory;
-    }
-
-    impl From<Accessory> for Namespace {
-        fn from(_: Accessory) -> Namespace {
-            Namespace::Accessory
-        }
     }
 }
 
@@ -155,16 +175,10 @@ impl<T> From<Namespaced<T>> for (T, T, T) {
     derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
 )]
 pub struct SlotKey {
-    namespace: Namespace,
     key: RefCount<Vec<u8>>,
 }
 
 impl SlotKey {
-    /// Returns the namespace of the key.
-    pub fn namespace(&self) -> Namespace {
-        self.namespace
-    }
-
     /// Returns a new [`RefCount`] reference to the bytes of this key.
     pub fn key(&self) -> RefCount<Vec<u8>> {
         self.key.clone()
@@ -190,7 +204,7 @@ impl fmt::Display for SlotKey {
 
 impl SlotKey {
     /// Creates a new [`SlotKey`] that combines a prefix and a key.
-    pub fn new<K, Q, KC>(namespace: Namespace, prefix: &Prefix, key: &Q, codec: &KC) -> Self
+    pub fn new<K, Q, KC>(prefix: &Prefix, key: &Q, codec: &KC) -> Self
     where
         KC: EncodeKeyLike<Q, K>,
         Q: ?Sized,
@@ -204,32 +218,28 @@ impl SlotKey {
         full_key.extend(&encoded_key);
 
         Self {
-            namespace,
             key: RefCount::new(full_key.into_inner()),
         }
     }
 
     /// Build a storage key from raw bytes
-    pub fn from_bytes(namespace: Namespace, bytes: Vec<u8>) -> Self {
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
         Self {
-            namespace,
             key: RefCount::new(bytes),
         }
     }
 
     /// Used only in tests.
-    /// Builds a storage key from a string
-    pub fn from_str(namespace: Namespace, key: &str) -> Self {
+    /// Builds a storage key from a byte slice
+    pub fn from_slice(key: &[u8]) -> Self {
         Self {
-            namespace,
-            key: RefCount::new(key.as_bytes().to_vec()),
+            key: RefCount::new(key.to_vec()),
         }
     }
 
     /// Creates a new [`SlotKey`] that combines a prefix and a key.
-    pub fn singleton(namespace: Namespace, prefix: &Prefix) -> Self {
+    pub fn singleton(prefix: &Prefix) -> Self {
         Self {
-            namespace,
             key: RefCount::new(prefix.as_aligned_vec().clone().into_inner()),
         }
     }
@@ -291,13 +301,23 @@ pub struct StorageProof<P> {
     pub value: Option<SlotValue>,
     /// The cryptographic proof
     pub proof: P,
+    /// The namespace of the key.
+    pub namespace: ProvableNamespace,
 }
 
 /// A trait implemented by state updates that can be committed to the database.
 pub trait StateUpdate {
-    /// Allows the addition of non-provable ("accessory") state changes to the
-    /// state update after the rest of eh update is finalized.
+    /// Adds a non-provable ("accessory") state change to the
+    /// state update after the rest of the update is finalized.
     fn add_accessory_item(&mut self, key: SlotKey, value: Option<SlotValue>);
+
+    /// Adds a collection of non-provable ("accessory") state changes to the
+    /// state update after the rest of the update is finalized.
+    fn add_accessory_items(&mut self, items: Vec<(SlotKey, Option<SlotValue>)>) {
+        for (key, value) in items {
+            self.add_accessory_item(key, value);
+        }
+    }
 }
 
 impl StateUpdate for () {
@@ -350,7 +370,7 @@ pub trait Storage: Clone {
     type ChangeSet;
 
     /// Returns the value corresponding to the key or None if key is absent.
-    fn get(
+    fn get<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
         version: Option<Version>,
@@ -371,7 +391,7 @@ pub trait Storage: Clone {
     /// Calculates new state root but does not commit any changes to the database.
     fn compute_state_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_accesses: StateAccesses,
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error>;
 
@@ -381,12 +401,12 @@ pub trait Storage: Clone {
     /// A version of [`Storage::validate_and_commit`] that allows for "accessory" non-JMT updates.
     fn validate_and_commit_with_accessory_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_accesses: StateAccesses,
         witness: &Self::Witness,
-        accessory_updates: OrderedReadsAndWrites,
+        accessory_updates: Vec<(SlotKey, Option<SlotValue>)>,
     ) -> Result<Self::Root, anyhow::Error> {
         let (root_hash, mut node_batch) = self.compute_state_update(state_accesses, witness)?;
-        for write in accessory_updates.ordered_writes {
+        for write in accessory_updates {
             node_batch.add_accessory_item(write.0, write.1);
         }
         self.commit(&node_batch);
@@ -400,7 +420,7 @@ pub trait Storage: Clone {
     /// `self.compute_state_update & self.commit`
     fn validate_and_commit(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_accesses: StateAccesses,
         witness: &Self::Witness,
     ) -> Result<Self::Root, anyhow::Error> {
         Self::validate_and_commit_with_accessory_update(
@@ -440,7 +460,10 @@ impl From<&str> for SlotValue {
 pub trait NativeStorage: Storage {
     /// Returns the value corresponding to the key or None if key is absent and a proof to
     /// get the value.
-    fn get_with_proof(&self, key: SlotKey) -> StorageProof<Self::Proof>;
+    fn get_with_proof<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: SlotKey,
+    ) -> StorageProof<Self::Proof>;
 
     /// Get the *global* root hash of the tree at the requested version
     fn get_root_hash(&self, version: Version) -> Result<Self::Root, anyhow::Error>;

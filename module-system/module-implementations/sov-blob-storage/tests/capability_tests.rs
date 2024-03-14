@@ -796,7 +796,7 @@ impl TestRuntime<S, MockDaSpec> {
             )
             .unwrap();
 
-        let (reads_writes, witness) = working_set.checkpoint().0.freeze();
+        let (reads_writes, _, witness) = working_set.checkpoint().0.freeze();
         let genesis_root = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
         // let root = storage.validate_and_commit()

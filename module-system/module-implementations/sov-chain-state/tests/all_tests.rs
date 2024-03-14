@@ -38,7 +38,7 @@ fn test_simple_chain_state() {
             &mut KernelWorkingSet::uninitialized(&mut state_checkpoint),
         )
         .unwrap();
-    let (reads_writes, witness) = state_checkpoint.freeze();
+    let (reads_writes, _, witness) = state_checkpoint.freeze();
     let genesis_root = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
     // Computes the initial, post genesis, working set
@@ -118,7 +118,7 @@ fn test_simple_chain_state() {
     );
 
     // We now commit the new state (which updates the root hash)
-    let (reads_writes, witness) = base_checkpoint.freeze();
+    let (reads_writes, _, witness) = base_checkpoint.freeze();
     let new_root_hash = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
     // Computes the new working set

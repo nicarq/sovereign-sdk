@@ -524,7 +524,9 @@ mod tests {
     use sov_rollup_interface::zk::aggregated_proof::{
         AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
     };
-    use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
+    use sov_state::storage::namespaces::User;
+    use sov_state::storage::{StateAccesses, StateUpdate};
+    use sov_state::{ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Storage};
 
     use super::*;
 
@@ -896,15 +898,7 @@ mod tests {
 
         let witness = ArrayWitness::default();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(3, 4));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(50, 60));
-            let (_, state_update) = stf_state
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state.commit(&state_update);
+            do_writes(&stf_state, &witness, &[(3, Some(4))], &[(50, Some(60))]);
         }
 
         storage_manager
@@ -921,7 +915,7 @@ mod tests {
         let check_storage_after_values = || {
             assert_eq!(
                 Some(value_from(4)),
-                stf_state_after.get(&key_from(3), None, &witness)
+                stf_state_after.get::<User>(&key_from(3), None, &witness)
             );
             assert_eq!(
                 Some(value_from(60)),
@@ -992,15 +986,7 @@ mod tests {
         {
             let (stf_state, ledger_state) =
                 storage_manager.create_state_for(&genesis_block).unwrap();
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(1, 2));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(30, 40));
-            let (_, state_update) = stf_state
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state.commit(&state_update);
+            do_writes(&stf_state, &witness, &[(1, Some(2))], &[(30, Some(40))]);
 
             let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
@@ -1035,7 +1021,10 @@ mod tests {
             let (bootstrap_stf, bootstrap_ledger) =
                 storage_manager.create_bootstrap_state().unwrap();
 
-            assert_eq!(None, bootstrap_stf.get(&key_from(1), None, &witness));
+            assert_eq!(
+                None,
+                bootstrap_stf.get::<User>(&key_from(1), None, &witness)
+            );
             assert_eq!(None, bootstrap_stf.get_accessory(&key_from(30), None));
 
             let ledger_db = LedgerDB::with_cache_db(bootstrap_ledger).unwrap();
@@ -1064,7 +1053,7 @@ mod tests {
 
             assert_eq!(
                 Some(value_from(2)),
-                bootstrap_stf.get(&key_from(1), None, &witness)
+                bootstrap_stf.get::<User>(&key_from(1), None, &witness)
             );
             assert_eq!(
                 Some(value_from(40)),
@@ -1093,11 +1082,11 @@ mod tests {
 
     // ------------
     // More sophisticated tests
-    use sov_state::storage::{Namespace, SlotKey, SlotValue};
+    use sov_state::storage::{SlotKey, SlotValue};
 
     fn key_from(value: u64) -> SlotKey {
         let x = value.to_be_bytes().to_vec();
-        SlotKey::from_bytes(Namespace::User, x)
+        SlotKey::from_bytes(x)
     }
 
     fn value_from(value: u64) -> SlotValue {
@@ -1105,26 +1094,35 @@ mod tests {
         SlotValue::from(x)
     }
 
-    fn write_op(key: u64, value: u64) -> (SlotKey, Option<SlotValue>) {
-        (key_from(key), Some(value_from(value)))
+    fn write_op(key: u64, value: Option<u64>) -> (SlotKey, Option<SlotValue>) {
+        (key_from(key), value.map(value_from))
     }
 
-    fn accessory_write_op(key: u64, value: u64) -> (SlotKey, Option<SlotValue>) {
-        (
-            SlotKey::from_bytes(Namespace::Accessory, key.to_be_bytes().to_vec()),
-            Some(value_from(value)),
-        )
+    fn to_state_accesses(user_state_accesses: OrderedReadsAndWrites) -> StateAccesses {
+        StateAccesses {
+            user: user_state_accesses,
+            kernel: OrderedReadsAndWrites::default(),
+        }
     }
 
-    fn accessory_delete_op(key: u64) -> (SlotKey, Option<SlotValue>) {
-        (
-            SlotKey::from_bytes(Namespace::Accessory, key.to_be_bytes().to_vec()),
-            None,
-        )
-    }
-
-    fn delete_op(key: u64) -> (SlotKey, Option<SlotValue>) {
-        (key_from(key), None)
+    fn do_writes(
+        storage: &ProverStorage<DefaultStorageSpec>,
+        witness: &ArrayWitness,
+        state_writes: &[(u64, Option<u64>)],
+        accessory_writes: &[(u64, Option<u64>)],
+    ) {
+        let mut state_operations = OrderedReadsAndWrites::default();
+        for (key, val) in state_writes {
+            state_operations.ordered_writes.push(write_op(*key, *val));
+        }
+        let (_, mut state_update) = storage
+            .compute_state_update(to_state_accesses(state_operations), witness)
+            .unwrap();
+        for (key, val) in accessory_writes {
+            let (key, value) = write_op(*key, *val);
+            state_update.add_accessory_item(key, value);
+        }
+        storage.commit(&state_update);
     }
 
     #[test]
@@ -1231,15 +1229,7 @@ mod tests {
         let (stf_state_a, ledger_state_a) = storage_manager.create_state_for(&block_a).unwrap();
         let witness = ArrayWitness::default();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(1, 2));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(30, 40));
-            let (_, state_update) = stf_state_a
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state_a.commit(&state_update);
+            do_writes(&stf_state_a, &witness, &[(1, Some(2))], &[(30, Some(40))]);
         }
         storage_manager
             .save_change_set(
@@ -1251,15 +1241,7 @@ mod tests {
 
         let (stf_state_b, ledger_state_b) = storage_manager.create_state_for(&block_b).unwrap();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(3, 4));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(50, 60));
-            let (_, state_update) = stf_state_b
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state_b.commit(&state_update);
+            do_writes(&stf_state_b, &witness, &[(3, Some(4))], &[(50, Some(60))]);
         }
         storage_manager
             .save_change_set(
@@ -1275,11 +1257,11 @@ mod tests {
 
         assert_eq!(
             Some(value_from(2)),
-            stf_state_c.get(&key_from(1), None, &witness)
+            stf_state_c.get::<User>(&key_from(1), None, &witness)
         );
         assert_eq!(
             Some(value_from(4)),
-            stf_state_c.get(&key_from(3), None, &witness)
+            stf_state_c.get::<User>(&key_from(3), None, &witness)
         );
         assert_eq!(
             Some(value_from(40)),
@@ -1411,17 +1393,12 @@ mod tests {
         // A
         let (stf_state_a, ledger_state_a) = storage_manager.create_state_for(&block_a).unwrap();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(1, 3));
-            state_operations.ordered_writes.push(write_op(3, 4));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(3, 40));
-
-            let (_, state_update) = stf_state_a
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state_a.commit(&state_update);
+            do_writes(
+                &stf_state_a,
+                &witness,
+                &[(1, Some(3)), (3, Some(4))],
+                &[(3, Some(40))],
+            );
         }
 
         storage_manager
@@ -1434,15 +1411,7 @@ mod tests {
         // B
         let (stf_state_b, ledger_state_b) = storage_manager.create_state_for(&block_b).unwrap();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(3, 2));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(3, 50));
-            let (_, state_update) = stf_state_b
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state_b.commit(&state_update);
+            do_writes(&stf_state_b, &witness, &[(3, Some(2))], &[(3, Some(50))]);
         }
         storage_manager
             .save_change_set(
@@ -1454,16 +1423,12 @@ mod tests {
         // C
         let (stf_state_c, ledger_state_c) = storage_manager.create_state_for(&block_c).unwrap();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(delete_op(1));
-            state_operations.ordered_writes.push(write_op(4, 5));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(1, 60));
-            let (_, state_update) = stf_state_c
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state_c.commit(&state_update);
+            do_writes(
+                &stf_state_c,
+                &witness,
+                &[(1, None), (4, Some(5))],
+                &[(1, Some(60))],
+            );
         }
         storage_manager
             .save_change_set(
@@ -1475,12 +1440,7 @@ mod tests {
         // D
         let (stf_state_d, ledger_state_d) = storage_manager.create_state_for(&block_d).unwrap();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(3, 6));
-            let (_, state_update) = stf_state_d
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state_d.commit(&state_update);
+            do_writes(&stf_state_d, &witness, &[(3, Some(6))], &[]);
         }
         storage_manager
             .save_change_set(
@@ -1492,17 +1452,12 @@ mod tests {
         // F
         let (stf_state_f, ledger_state_f) = storage_manager.create_state_for(&block_f).unwrap();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(1, 7));
-            state_operations.ordered_writes.push(delete_op(3));
-            state_operations.ordered_writes.push(accessory_delete_op(1));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(3, 70));
-            let (_, state_update) = stf_state_f
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state_f.commit(&state_update);
+            do_writes(
+                &stf_state_f,
+                &witness,
+                &[(1, Some(7)), (3, None)],
+                &[(1, None), (3, Some(70))],
+            );
         }
         storage_manager
             .save_change_set(
@@ -1514,15 +1469,7 @@ mod tests {
         // G
         let (stf_state_g, ledger_state_g) = storage_manager.create_state_for(&block_g).unwrap();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(1, 8));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(2, 9));
-            let (_, state_update) = stf_state_g
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state_g.commit(&state_update);
+            do_writes(&stf_state_g, &witness, &[(1, Some(8))], &[(2, Some(9))]);
         }
         storage_manager
             .save_change_set(
@@ -1534,12 +1481,7 @@ mod tests {
         // L
         let (storage_l, ledger_l) = storage_manager.create_state_for(&block_l).unwrap();
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-            state_operations.ordered_writes.push(write_op(1, 10));
-            let (_, state_update) = storage_l
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            storage_l.commit(&state_update);
+            do_writes(&storage_l, &witness, &[(1, Some(10))], &[]);
         }
         storage_manager
             .save_change_set(&block_l, storage_l.try_into().unwrap(), ledger_l.into())
@@ -1582,15 +1524,15 @@ mod tests {
         let (stf_state_k, ledger_state_k) = storage_manager.create_state_for(&block_k).unwrap();
 
         let assert_main_fork = || {
-            assert_eq!(None, stf_state_e.get(&key_from(1), None, &witness));
-            assert_eq!(None, stf_state_e.get(&key_from(2), None, &witness));
+            assert_eq!(None, stf_state_e.get::<User>(&key_from(1), None, &witness));
+            assert_eq!(None, stf_state_e.get::<User>(&key_from(2), None, &witness));
             assert_eq!(
                 Some(value_from(6)),
-                stf_state_e.get(&key_from(3), None, &witness)
+                stf_state_e.get::<User>(&key_from(3), None, &witness)
             );
             assert_eq!(
                 Some(value_from(5)),
-                stf_state_e.get(&key_from(4), None, &witness)
+                stf_state_e.get::<User>(&key_from(4), None, &witness)
             );
             assert_eq!(
                 Some(value_from(60)),
@@ -1606,14 +1548,14 @@ mod tests {
         let assert_storage_m = || {
             assert_eq!(
                 Some(value_from(10)),
-                stf_state_m.get(&key_from(1), None, &witness)
+                stf_state_m.get::<User>(&key_from(1), None, &witness)
             );
-            assert_eq!(None, stf_state_m.get(&key_from(2), None, &witness));
+            assert_eq!(None, stf_state_m.get::<User>(&key_from(2), None, &witness));
             assert_eq!(
                 Some(value_from(2)),
-                stf_state_m.get(&key_from(3), None, &witness)
+                stf_state_m.get::<User>(&key_from(3), None, &witness)
             );
-            assert_eq!(None, stf_state_m.get(&key_from(4), None, &witness));
+            assert_eq!(None, stf_state_m.get::<User>(&key_from(4), None, &witness));
             assert_eq!(None, stf_state_m.get_accessory(&key_from(1), None));
             assert_eq!(None, stf_state_m.get_accessory(&key_from(2), None));
             assert_eq!(
@@ -1625,14 +1567,14 @@ mod tests {
         let assert_storage_h = || {
             assert_eq!(
                 Some(value_from(8)),
-                stf_state_h.get(&key_from(1), None, &witness)
+                stf_state_h.get::<User>(&key_from(1), None, &witness)
             );
-            assert_eq!(None, stf_state_h.get(&key_from(2), None, &witness));
+            assert_eq!(None, stf_state_h.get::<User>(&key_from(2), None, &witness));
             assert_eq!(
                 Some(value_from(2)),
-                stf_state_h.get(&key_from(3), None, &witness)
+                stf_state_h.get::<User>(&key_from(3), None, &witness)
             );
-            assert_eq!(None, stf_state_h.get(&key_from(4), None, &witness));
+            assert_eq!(None, stf_state_h.get::<User>(&key_from(4), None, &witness));
             assert_eq!(None, stf_state_h.get_accessory(&key_from(1), None));
             assert_eq!(
                 Some(value_from(9)),
@@ -1649,11 +1591,11 @@ mod tests {
         // Storage K
         assert_eq!(
             Some(value_from(7)),
-            stf_state_k.get(&key_from(1), None, &witness)
+            stf_state_k.get::<User>(&key_from(1), None, &witness)
         );
-        assert_eq!(None, stf_state_k.get(&key_from(2), None, &witness));
-        assert_eq!(None, stf_state_k.get(&key_from(3), None, &witness));
-        assert_eq!(None, stf_state_k.get(&key_from(4), None, &witness));
+        assert_eq!(None, stf_state_k.get::<User>(&key_from(2), None, &witness));
+        assert_eq!(None, stf_state_k.get::<User>(&key_from(3), None, &witness));
+        assert_eq!(None, stf_state_k.get::<User>(&key_from(4), None, &witness));
         assert_eq!(None, stf_state_k.get_accessory(&key_from(1), None));
         assert_eq!(None, stf_state_k.get_accessory(&key_from(2), None));
         assert_eq!(
@@ -1703,7 +1645,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             Some(value_from(6)),
-            storage_last.get(&key_from(3), None, &witness)
+            storage_last.get::<User>(&key_from(3), None, &witness)
         );
         assert_eq!(
             Some(value_from(50)),
@@ -1713,31 +1655,28 @@ mod tests {
 
     fn fill_storage_for_height(height: u64, stf_state: &ProverStorage<S>) {
         let witness = ArrayWitness::default();
-        let mut state_operations = OrderedReadsAndWrites::default();
+        let mut state_ops = vec![];
+        let mut accessory_ops = vec![];
+
         for x in height * 10..((height + 1) * 10) {
             if x % 2 == 0 {
-                state_operations.ordered_writes.push(write_op(x, x));
+                state_ops.push((x, Some(x)));
             } else {
-                state_operations
-                    .ordered_writes
-                    .push(accessory_write_op(x, x));
+                accessory_ops.push((x, Some(x)));
             }
         }
-        let (_, state_update) = stf_state
-            .compute_state_update(state_operations, &witness)
-            .unwrap();
-        stf_state.commit(&state_update);
+        do_writes(stf_state, &witness, &state_ops, &accessory_ops);
     }
 
     fn check_storage_for_height(height: u64, stf_state: &ProverStorage<S>) {
         let witness = ArrayWitness::default();
         for x in height * 10..((height + 1) * 10) {
             if x % 2 == 0 {
-                let state_value = stf_state.get(&key_from(x), None, &witness);
+                let state_value = stf_state.get::<User>(&key_from(x), None, &witness);
                 assert_eq!(Some(value_from(x)), state_value);
                 assert_eq!(None, stf_state.get_accessory(&key_from(x), None));
             } else {
-                assert_eq!(None, stf_state.get(&key_from(x), None, &witness));
+                assert_eq!(None, stf_state.get::<User>(&key_from(x), None, &witness));
                 let accessory_value = stf_state.get_accessory(&key_from(x), None);
                 assert_eq!(Some(value_from(x)), accessory_value);
             }
@@ -1789,25 +1728,12 @@ mod tests {
         let witness = ArrayWitness::default();
         // Fill some special data for E
         {
-            let mut state_operations = OrderedReadsAndWrites::default();
-
-            state_operations
-                .ordered_writes
-                .push(write_op(30_000_000, 100));
-            state_operations
-                .ordered_writes
-                .push(write_op(40_000_000, 200));
-
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(50_000_000, 300));
-            state_operations
-                .ordered_writes
-                .push(accessory_write_op(60_000_000, 400));
-            let (_, state_update) = stf_state
-                .compute_state_update(state_operations, &witness)
-                .unwrap();
-            stf_state.commit(&state_update);
+            do_writes(
+                &stf_state,
+                &witness,
+                &[(30_000_000, Some(100)), (40_000_000, Some(200))],
+                &[(50_000_000, Some(300)), (60_000_000, Some(400))],
+            );
         }
 
         storage_manager
@@ -1828,11 +1754,11 @@ mod tests {
             check_storage_for_height(1, &stf_state);
             assert_eq!(
                 Some(value_from(100)),
-                stf_state.get(&key_from(30_000_000), None, &witness)
+                stf_state.get::<User>(&key_from(30_000_000), None, &witness)
             );
             assert_eq!(
                 Some(value_from(200)),
-                stf_state.get(&key_from(40_000_000), None, &witness)
+                stf_state.get::<User>(&key_from(40_000_000), None, &witness)
             );
             assert_eq!(
                 Some(value_from(300)),

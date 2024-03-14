@@ -176,7 +176,7 @@ where
         self.runtime.end_slot_hook(&mut checkpoint);
         self.kernel.end_slot_hook(gas_used, &mut checkpoint);
 
-        let (cache_log, witness) = checkpoint.freeze();
+        let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
 
         let (root_hash, mut state_update) = storage
             .compute_state_update(cache_log, &witness)
@@ -185,14 +185,9 @@ where
         let visible_root_hash = <S as Spec>::VisibleHash::from(root_hash.clone());
 
         self.runtime
-            .finalize_hook(visible_root_hash, &mut checkpoint.accessory_state());
+            .finalize_hook(visible_root_hash, &mut accessory_delta);
 
-        // TODO(@preston-evans98): Unify the accessory state with the regular state
-        let accessory_log = checkpoint.freeze_non_provable();
-        for (key, value) in accessory_log.ordered_writes.into_iter() {
-            state_update.add_accessory_item(key, value);
-        }
-
+        state_update.add_accessory_items(accessory_delta.freeze());
         storage.commit(&state_update);
 
         (root_hash, witness, storage)
@@ -241,8 +236,8 @@ where
             .genesis(&params.runtime, &mut working_set)
             .expect("Runtime initialization must succeed");
 
-        let mut checkpoint = working_set.checkpoint().0;
-        let (log, witness) = checkpoint.freeze();
+        let checkpoint = working_set.checkpoint().0;
+        let (log, mut accessory_delta, witness) = checkpoint.freeze();
 
         let (genesis_hash, mut state_update) = pre_state
             .compute_state_update(log, &witness)
@@ -251,17 +246,9 @@ where
         let visible_genesis_hash = <S as Spec>::VisibleHash::from(genesis_hash.clone());
 
         self.runtime
-            .finalize_hook(visible_genesis_hash, &mut checkpoint.accessory_state());
+            .finalize_hook(visible_genesis_hash, &mut accessory_delta);
 
-        // TODO(@preston-evans98): Unify the accessory state with the regular state
-        let accessory_log = checkpoint.freeze_non_provable();
-        for (key, value) in accessory_log.ordered_writes.into_iter() {
-            state_update.add_accessory_item(key, value);
-        }
-        // HACK: Drop the old checkpoint to ensure that it's RC is not active during commit.
-        // This will be resolved as part of https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/132
-        drop(checkpoint);
-
+        state_update.add_accessory_items(accessory_delta.freeze());
         // TODO: Commit here for now, but probably this can be done outside of STF
         // TODO: Commit is fine
 

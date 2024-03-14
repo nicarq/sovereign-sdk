@@ -93,7 +93,7 @@ where
         self.get(key, working_set).ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
-                SlotKey::new(N::NAMESPACE, self.prefix(), key, self.codec().key_codec()),
+                SlotKey::new(self.prefix(), key, self.codec().key_codec()),
             )
         })
     }
@@ -124,7 +124,7 @@ where
         self.remove(key, working_set).ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
-                SlotKey::new(N::NAMESPACE, self.prefix(), key, self.codec().key_codec()),
+                SlotKey::new(self.prefix(), key, self.codec().key_codec()),
             )
         })
     }

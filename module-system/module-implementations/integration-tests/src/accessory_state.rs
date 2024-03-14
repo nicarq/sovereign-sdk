@@ -57,16 +57,19 @@ fn test_accessory_value_setter() {
 
     module.genesis(&(), &mut ws1).unwrap();
 
-    let (reads_writes, witness) = ws1.checkpoint().0.freeze();
+    let (reads_writes, _, witness) = ws1.checkpoint().0.freeze();
     let state_root_hash_initial = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
     module.accessory_state.set(&42, &mut ws2.accessory_state());
 
-    let mut checkpoint = ws2.checkpoint();
-    let (reads_writes, witness) = checkpoint.0.freeze();
-    let accessory_writes = checkpoint.0.freeze_non_provable();
+    let checkpoint = ws2.checkpoint();
+    let (reads_writes, accessory_writes, witness) = checkpoint.0.freeze();
     let state_root_hash_after = storage
-        .validate_and_commit_with_accessory_update(reads_writes, &witness, accessory_writes)
+        .validate_and_commit_with_accessory_update(
+            reads_writes,
+            &witness,
+            accessory_writes.freeze(),
+        )
         .unwrap();
 
     assert_eq!(state_root_hash_initial, state_root_hash_after);

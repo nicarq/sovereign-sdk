@@ -468,7 +468,7 @@ fn test_tx_max_gas_price() {
             .chain_state()
             .set_gas_price_state(&gas_price_state, &mut working_set);
 
-        let (rw, witnesses) = working_set.checkpoint().0.freeze();
+        let (rw, _, witnesses) = working_set.checkpoint().0.freeze();
         stf_state.validate_and_commit(rw, &witnesses).unwrap();
 
         let apply_block_result = stf.apply_slot(

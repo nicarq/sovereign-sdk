@@ -163,7 +163,6 @@ mod as_kernel_value {
 mod as_kernel_map {
 
     use sov_modules_core::namespaces::Kernel;
-    use sov_modules_core::Namespace;
 
     use super::*;
     use crate::StateMapAccessor;
@@ -226,7 +225,6 @@ mod as_kernel_map {
                 crate::StateMapError::MissingValue(
                     self.prefix().clone(),
                     sov_modules_core::SlotKey::new(
-                        Namespace::Kernel,
                         self.prefix(),
                         key,
                         StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(
@@ -268,7 +266,6 @@ mod as_kernel_map {
                 crate::StateMapError::MissingValue(
                     self.prefix().clone(),
                     sov_modules_core::SlotKey::new(
-                        Namespace::Kernel,
                         self.prefix(),
                         key,
                         StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(

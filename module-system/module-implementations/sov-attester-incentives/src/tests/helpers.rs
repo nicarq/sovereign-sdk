@@ -3,6 +3,7 @@ use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
 };
 use sov_mock_zkvm::MockCodeCommitment;
+use sov_modules_api::namespaces::User;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Address, CryptoSpec, Genesis, KernelModule, KernelWorkingSet, Spec, WorkingSet,
@@ -28,9 +29,9 @@ pub const INIT_HEIGHT: u64 = 0;
 /// `storage` must be the underlying storage defined on the working set for this method to work.
 pub(crate) fn commit_get_new_state_checkpoint(
     storage: &ProverStorage<DefaultStorageSpec>,
-    mut checkpoint: StateCheckpoint<S>,
+    checkpoint: StateCheckpoint<S>,
 ) -> (StorageRoot<DefaultStorageSpec>, StateCheckpoint<S>) {
-    let (reads_writes, witness) = checkpoint.freeze();
+    let (reads_writes, _, witness) = checkpoint.freeze();
 
     let new_root = storage
         .validate_and_commit(reads_writes, &witness)
@@ -175,7 +176,8 @@ pub(crate) fn execution_simulation(
         let (root_hash, w_set) = commit_get_new_state_checkpoint(storage, state_checkpoint);
         state_checkpoint = w_set;
 
-        let bond_proof = storage.get_with_proof(module.get_attester_storage_key(attester_address));
+        let bond_proof =
+            storage.get_with_proof::<User>(module.get_attester_storage_key(attester_address));
 
         ret_exec_vars.push(ExecutionSimulationVars {
             state_root: root_hash,

@@ -6,8 +6,9 @@ use sov_rollup_interface::maybestd::collections::hash_map::Entry;
 use sov_rollup_interface::maybestd::collections::HashMap;
 
 use crate::common::{MergeError, ReadError};
+use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::Storage;
-use crate::{Namespaced, SlotKey, SlotValue};
+use crate::{SlotKey, SlotValue};
 
 /// `Access` represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
@@ -335,14 +336,17 @@ impl CacheLog {
 /// from an external source represented by the `ValueReader` trait. On following reads,
 /// the cache checks if the value we read was inserted before.
 #[derive(Default)]
-pub struct StorageInternalCache {
+pub struct ProvableStorageCache<N> {
     /// Transaction cache.
     pub tx_cache: CacheLog,
     /// Ordered reads and writes.
     pub ordered_db_reads: Vec<(SlotKey, Option<SlotValue>)>,
+    phantom: core::marker::PhantomData<N>,
 }
 
-impl StorageInternalCache {
+// We implement these methods only for *provable* state values because the internal cache
+// does extra bookkeeping which is not useful for accessory state.
+impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     /// Gets a value from the cache or reads it from the provided `ValueReader`.
     pub fn get_or_fetch<S: Storage>(
         &mut self,
@@ -357,7 +361,7 @@ impl StorageInternalCache {
             ValueExists::Yes(cache_value_exists) => cache_value_exists.map(Into::into),
             // If the value does not exist in the cache, then fetch it from an external source.
             ValueExists::No => {
-                let storage_value = value_reader.get(key, version, witness);
+                let storage_value = value_reader.get::<N>(key, version, witness);
                 self.add_read(key.clone(), storage_value.clone());
                 storage_value
             }
@@ -383,17 +387,17 @@ impl StorageInternalCache {
         self.tx_cache.get_value(key)
     }
 
-    /// Merges the provided `StorageInternalCache` into this one.
+    /// Merges the provided `ProvableStorageCache` into this one.
     pub fn merge_left(&mut self, rhs: Self) -> Result<(), MergeError> {
         self.tx_cache.merge_left(rhs.tx_cache)
     }
 
-    /// Merges the reads of the provided `StorageInternalCache` into this one.
+    /// Merges the reads of the provided `ProvableStorageCache` into this one.
     pub fn merge_reads_left(&mut self, rhs: Self) -> Result<(), MergeError> {
         self.tx_cache.merge_reads_left(rhs.tx_cache)
     }
 
-    /// Merges the writes of the provided `StorageInternalCache` into this one.
+    /// Merges the writes of the provided `ProvableStorageCache` into this one.
     pub fn merge_writes_left(&mut self, rhs: Self) -> Result<(), MergeError> {
         self.tx_cache.merge_writes_left(rhs.tx_cache)
     }
@@ -417,29 +421,18 @@ pub struct OrderedReadsAndWrites {
     pub ordered_writes: Vec<(SlotKey, Option<SlotValue>)>,
 }
 
-impl OrderedReadsAndWrites {
-    /// Partitions the ordered reads and writes on a namespace
-    pub fn partition_ns(self) -> Namespaced<OrderedReadsAndWrites> {
-        let mut output: Namespaced<OrderedReadsAndWrites> = Default::default();
-        for (key, value) in self.ordered_reads.into_iter() {
-            output
-                .get_mut(key.namespace)
-                .ordered_reads
-                .push((key.clone(), value.clone()));
-        }
+/// A struct that contains the read/write sets for the user and kernel namespaces.
 
-        for (key, value) in self.ordered_writes.into_iter() {
-            output
-                .get_mut(key.namespace)
-                .ordered_writes
-                .push((key.clone(), value.clone()));
-        }
-        output
-    }
+#[derive(Debug, Default)]
+pub struct StateAccesses {
+    /// The reads and writes to the user namespace
+    pub user: OrderedReadsAndWrites,
+    /// The reads and writes to the user namespace
+    pub kernel: OrderedReadsAndWrites,
 }
 
-impl From<StorageInternalCache> for OrderedReadsAndWrites {
-    fn from(val: StorageInternalCache) -> Self {
+impl<N> From<ProvableStorageCache<N>> for OrderedReadsAndWrites {
+    fn from(val: ProvableStorageCache<N>) -> Self {
         let mut writes = val.tx_cache.take_writes();
         // TODO: Make this more efficient
         writes.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
@@ -456,11 +449,9 @@ mod tests {
     use sov_rollup_interface::maybestd::RefCount;
 
     use super::*;
-    use crate::Namespace;
 
     pub fn create_key(key: u8) -> SlotKey {
         SlotKey {
-            namespace: Namespace::User,
             key: RefCount::new(alloc::vec![key]),
         }
     }

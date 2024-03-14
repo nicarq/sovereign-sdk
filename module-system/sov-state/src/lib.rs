@@ -24,7 +24,7 @@ pub use zk_storage::ZkStorage;
 
 pub mod config;
 pub use sov_modules_core::{
-    storage, AlignedVec, CacheLog, OrderedReadsAndWrites, Prefix, Storage, StorageInternalCache,
+    storage, AlignedVec, CacheLog, OrderedReadsAndWrites, Prefix, ProvableStorageCache, Storage,
     Witness,
 };
 use sov_rollup_interface::digest::Digest;

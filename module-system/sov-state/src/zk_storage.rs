@@ -1,11 +1,14 @@
 use std::marker::PhantomData;
 
-use anyhow::bail;
 use jmt::KeyHash;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
+use sov_modules_core::namespaces::CompileTimeNamespace;
+#[cfg(feature = "native")]
+use sov_modules_core::namespaces::ProvableCompileTimeNamespace;
 use sov_modules_core::{
-    Namespace, OrderedReadsAndWrites, SlotKey, SlotValue, Storage, StorageProof, Witness,
+    OrderedReadsAndWrites, ProvableNamespace, SlotKey, SlotValue, StateAccesses, Storage,
+    StorageProof, Witness,
 };
 
 use crate::storage_internals::SparseMerkleProof;
@@ -106,7 +109,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type StateUpdate = ();
     type ChangeSet = ();
 
-    fn get(
+    fn get<N: CompileTimeNamespace>(
         &self,
         _key: &SlotKey,
         _version: Option<u64>,
@@ -117,14 +120,11 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
 
     fn compute_state_update(
         &self,
-        state_accesses: OrderedReadsAndWrites,
+        state_accesses: StateAccesses,
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
-        let (user_state_accesses, kernel_state_accesses, _accessory_state_updates) =
-            state_accesses.partition_ns().into();
-
-        let user_root = self.compute_state_update_namespace(user_state_accesses, witness)?;
-        let kernel_root = self.compute_state_update_namespace(kernel_state_accesses, witness)?;
+        let user_root = self.compute_state_update_namespace(state_accesses.user, witness)?;
+        let kernel_root = self.compute_state_update_namespace(state_accesses.kernel, witness)?;
 
         Ok((StorageRoot::<S>::new(user_root, kernel_root), ()))
     }
@@ -136,25 +136,27 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         state_root: Self::Root,
         state_proof: StorageProof<Self::Proof>,
     ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error> {
-        let StorageProof { key, value, proof } = state_proof;
+        let StorageProof {
+            key,
+            value,
+            proof,
+            namespace,
+        } = state_proof;
         let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
 
         // We need to verify the proof against the correct root hash
         // Hence we match the key against its namespace
-        match key.namespace() {
-            Namespace::User => proof.inner().verify(
+        match namespace {
+            ProvableNamespace::User => proof.inner().verify(
                 state_root.user_hash(),
                 key_hash,
                 value.as_ref().map(|v| v.value()),
             )?,
-            Namespace::Kernel => proof.inner().verify(
+            ProvableNamespace::Kernel => proof.inner().verify(
                 state_root.kernel_hash(),
                 key_hash,
                 value.as_ref().map(|v| v.value()),
             )?,
-            Namespace::Accessory => {
-                bail!("Accessory namespace is not provable")
-            }
         }
 
         Ok((key, value))
@@ -169,7 +171,10 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
 
 #[cfg(feature = "native")]
 impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
-    fn get_with_proof(&self, _key: SlotKey) -> StorageProof<Self::Proof> {
+    fn get_with_proof<N: ProvableCompileTimeNamespace>(
+        &self,
+        _key: SlotKey,
+    ) -> StorageProof<Self::Proof> {
         unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 
