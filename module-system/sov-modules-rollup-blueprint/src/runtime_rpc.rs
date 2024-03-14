@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::sequencer_db::SequencerDB;
@@ -8,10 +6,11 @@ use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEff
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_sequencer::{FiFoStrictBatchBuilder, Sequencer};
+use tokio::sync::watch;
 
 /// Register rollup's default rpc methods.
 pub fn register_rpc<RT, S, Da>(
-    storage: Arc<RwLock<S::Storage>>,
+    storage: watch::Receiver<S::Storage>,
     ledger_db: &LedgerDB,
     sequencer_db: &SequencerDB,
     da_service: &Da,
@@ -42,7 +41,7 @@ where
             1024 * 100,
             u32::MAX as usize,
             RT::default(),
-            storage.clone(),
+            storage,
             sequencer,
             sequencer_db.clone(),
         );

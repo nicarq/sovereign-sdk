@@ -20,6 +20,7 @@ thiserror = { workspace = true }
 borsh = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
+tokio = { workspace = true, features = ["sync"], optional = true }
 hex = { workspace = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
@@ -51,5 +52,6 @@ native = [
 	"sov-modules-core/native",
 	"sov-rollup-interface/native",
 	"sov-state/native",
+	"tokio",
 ]
 test-utils = []

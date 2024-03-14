@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{get_genesis_token_address, Bank, BankConfig, Coins, TokenConfig};
 use sov_chain_state::ChainStateConfig;
@@ -28,6 +26,7 @@ use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::{DefaultStorageSpec, Storage};
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
+use tokio::sync::watch;
 
 type TestStf = StfBlueprint<
     S,
@@ -125,9 +124,11 @@ impl Default for BankParams {
 impl<S: Spec, Da: DaSpec> Runtime<S, Da> for TestRuntime<S, Da> {
     type GenesisConfig = GenesisConfig<S, Da>;
     type GenesisPaths = ();
-    fn rpc_methods(_storage: Arc<RwLock<S::Storage>>) -> jsonrpsee::RpcModule<()> {
+
+    fn rpc_methods(_storage: watch::Receiver<S::Storage>) -> jsonrpsee::RpcModule<()> {
         unimplemented!()
     }
+
     fn genesis_config(
         _genesis_paths: &Self::GenesisPaths,
     ) -> Result<Self::GenesisConfig, anyhow::Error> {

@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use std::sync::{Arc, RwLock};
 
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
@@ -18,6 +17,7 @@ use sov_stf_runner::{
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
+use tokio::sync::watch;
 
 use crate::helpers::hash_stf::HashStf;
 
@@ -132,7 +132,7 @@ pub fn initialize_runner(
     let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_block).unwrap();
 
     let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
-    let rpc_storage = Arc::new(RwLock::new(genesis_storage.clone()));
+    let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
     let vm = MockZkvm::new(MockValidityCond::default());
     let verifier = MockDaVerifier::default();
@@ -160,7 +160,7 @@ pub fn initialize_runner(
             ledger_db.clone(),
             stf,
             storage_manager,
-            rpc_storage,
+            rpc_storage_sender,
             init_variant,
             Some(prover_service),
         )

@@ -4,7 +4,6 @@
 mod runtime_rpc;
 mod wallet;
 use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 pub use runtime_rpc::*;
@@ -23,7 +22,7 @@ use sov_state::Storage;
 use sov_stf_runner::{
     InitVariant, ProverService, RollupConfig, RollupProverConfig, StateTransitionRunner,
 };
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
@@ -76,7 +75,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
-        storage: Arc<RwLock<<Self::NativeSpec as Spec>::Storage>>,
+        storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
         ledger_db: &LedgerDB,
         sequencer_db: &SequencerDB,
         da_service: &Self::DaService,
@@ -189,20 +188,20 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
+        let rpc_storage = tokio::sync::watch::channel(prover_storage);
         // We pass "bootstrap" storage here,
         // as it will be replaced with the latest on after first processed block.
-        let rpc_storage = Arc::new(RwLock::new(prover_storage));
         let rpc_methods =
-            self.create_rpc_methods(rpc_storage.clone(), &ledger_db, &sequencer_db, &da_service)?;
-        let native_stf = StfBlueprint::new();
+            self.create_rpc_methods(rpc_storage.1, &ledger_db, &sequencer_db, &da_service)?;
 
+        let native_stf = StfBlueprint::new();
         let runner = StateTransitionRunner::new(
             rollup_config.runner,
             da_service,
             ledger_db,
             native_stf,
             storage_manager,
-            rpc_storage,
+            rpc_storage.0,
             init_variant,
             prover_service,
         )?;

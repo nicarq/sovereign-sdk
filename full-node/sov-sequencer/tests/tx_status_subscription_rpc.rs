@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use borsh::BorshSerialize;
 use sov_db::sequencer_db::SequencerDB;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
@@ -18,6 +16,7 @@ use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
 use sov_test_utils::{MessageGenerator, MockZkVerifier, TestPrivateKey, TestSpec};
 use tempfile::TempDir;
+use tokio::sync::watch;
 
 type Blueprint = StfBlueprint<
     TestSpec,
@@ -100,7 +99,7 @@ fn new_sequencer(
         usize::MAX,
         usize::MAX,
         runtime,
-        Arc::new(RwLock::new(stf_state)),
+        watch::Sender::new(stf_state).subscribe(),
         sequencer_addr.into(),
         sequencer_db,
     );

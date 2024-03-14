@@ -12,7 +12,7 @@ pub use sov_evm::DevSigner;
 
 #[cfg(feature = "experimental")]
 pub mod experimental {
-    use std::sync::{Arc, Mutex, RwLock};
+    use std::sync::{Arc, Mutex};
 
     use borsh::ser::BorshSerialize;
     use demo_stf::runtime::Runtime;
@@ -33,6 +33,7 @@ pub mod experimental {
     use sov_modules_api::{CryptoSpec, EncodeCall, PrivateKey, WorkingSet};
     use sov_rollup_interface::da::DaSpec;
     use sov_rollup_interface::services::da::DaService;
+    use tokio::sync::watch;
 
     use super::batch_builder::EthBatchBuilder;
     #[cfg(feature = "local")]
@@ -55,7 +56,7 @@ pub mod experimental {
     pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService>(
         da_service: Da,
         eth_rpc_config: EthRpcConfig<S>,
-        storage: Arc<RwLock<S::Storage>>,
+        storage: watch::Receiver<S::Storage>,
     ) -> RpcModule<Ethereum<S, Da>> {
         // Unpack config
         let EthRpcConfig {
@@ -68,20 +69,12 @@ pub mod experimental {
 
         // Fetch nonce from storage
         let accounts = sov_accounts::Accounts::<S>::default();
-        let sov_tx_signer_account = {
-            let storage = {
-                let storage_guard = storage
-                    .read()
-                    .expect("Ethereum Storage lock must not be poisoned");
-                storage_guard.clone()
-            };
-            accounts
-                .get_account(
-                    sov_tx_signer_priv_key.pub_key(),
-                    &mut WorkingSet::<S>::new(storage),
-                )
-                .unwrap()
-        };
+        let sov_tx_signer_account = accounts
+            .get_account(
+                sov_tx_signer_priv_key.pub_key(),
+                &mut WorkingSet::<S>::new(storage.borrow().clone()),
+            )
+            .unwrap();
         let sov_tx_signer_nonce: u64 = match sov_tx_signer_account {
             sov_accounts::Response::AccountExists { nonce, .. } => nonce,
             sov_accounts::Response::AccountEmpty { .. } => 0,
@@ -110,7 +103,7 @@ pub mod experimental {
         gas_price_oracle: GasPriceOracle<S, Da::Spec>,
         #[cfg(feature = "local")]
         eth_signer: DevSigner,
-        storage: Arc<RwLock<S::Storage>>,
+        storage: watch::Receiver<S::Storage>,
     }
 
     impl<S: sov_modules_api::Spec, Da: DaService> Ethereum<S, Da> {
@@ -119,7 +112,7 @@ pub mod experimental {
             batch_builder: Arc<Mutex<EthBatchBuilder<S>>>,
             gas_price_oracle_config: GasPriceOracleConfig,
             #[cfg(feature = "local")] eth_signer: DevSigner,
-            storage: Arc<RwLock<S::Storage>>,
+            storage: watch::Receiver<S::Storage>,
         ) -> Self {
             let evm = Evm::<S, Da::Spec>::default();
             let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
@@ -212,14 +205,7 @@ pub mod experimental {
     ) -> Result<(), jsonrpsee::core::Error> {
         rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
             let price = {
-                let storage = {
-                    let storage_guard = ethereum
-                        .storage
-                        .read()
-                        .expect("Ethereum Storage lock must not be poisoned");
-                    storage_guard.clone()
-                };
-                let mut working_set = WorkingSet::<S>::new(storage);
+                let mut working_set = WorkingSet::<S>::new(ethereum.storage.borrow().clone());
 
                 let suggested_tip = ethereum
                     .gas_price_oracle
@@ -300,14 +286,7 @@ pub mod experimental {
             }
 
             let raw_evm_tx = {
-                let storage = {
-                    let storage_guard = ethereum
-                        .storage
-                        .read()
-                        .expect("Ethereum Storage lock must not be poisoned");
-                    storage_guard.clone()
-                };
-                let mut working_set = WorkingSet::<S>::new(storage);
+                let mut working_set = WorkingSet::<S>::new(ethereum.storage.borrow().clone());
 
                 // set nonce if none
                 if transaction_request.nonce.is_none() {

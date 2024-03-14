@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -11,7 +11,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmGuest, ZkvmHost};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 use tracing::{debug, info};
 
 use crate::{ProofManager, ProverService, RunnerConfig, StateTransitionInfo};
@@ -37,7 +37,7 @@ where
     da_service: Arc<Da>,
     stf: Stf,
     storage_manager: Sm,
-    rpc_storage: Arc<RwLock<Sm::StfState>>,
+    rpc_storage_sender: watch::Sender<Sm::StfState>,
     ledger_db: LedgerDB,
     state_root: StateRoot<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>,
     listen_address: SocketAddr,
@@ -150,7 +150,7 @@ where
         mut ledger_db: LedgerDB,
         stf: Stf,
         mut storage_manager: Sm,
-        rpc_storage: Arc<RwLock<Sm::StfState>>,
+        rpc_storage_sender: watch::Sender<Sm::StfState>,
         init_variant: InitVariant<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da>,
         prover_service: Option<Ps>,
     ) -> Result<Self, anyhow::Error> {
@@ -207,13 +207,14 @@ where
         debug!(%last_slot_processed_before_shutdown, %runner_config.genesis_height, %first_unprocessed_height_at_startup, "Initializing StfRunner");
 
         let da_service = Arc::new(da_service);
+
         Ok(Self {
             first_unprocessed_height_at_startup,
             da_polling_interval_ms: runner_config.da_polling_interval_ms,
             da_service: da_service.clone(),
             stf,
             storage_manager,
-            rpc_storage,
+            rpc_storage_sender,
             ledger_db: ledger_db.clone(),
             state_root: prev_state_root,
             listen_address,
@@ -456,11 +457,12 @@ where
         let (new_rpc_storage, _) = self
             .storage_manager
             .create_state_after(filtered_block_header)?;
-        let mut rpc_storage = self
-            .rpc_storage
-            .write()
-            .expect("RPC Storage RwLock poisoned");
-        *rpc_storage = new_rpc_storage;
+        // `send_replace` is superior to `send` for our use case. It never fails
+        // because it doesn't need to notify all receivers, unlike `send`, which
+        // we don't need. It will also keep working even if there are no
+        // receivers currently alive, which makes it easier to reason about the
+        // code.
+        self.rpc_storage_sender.send_replace(new_rpc_storage);
 
         Ok(())
     }

@@ -1,4 +1,3 @@
-use std::sync::{Arc, RwLock};
 mod helpers;
 use helpers::hash_stf::{get_result_from_blocks, HashStf, S};
 use sov_db::ledger_db::LedgerDB;
@@ -16,6 +15,7 @@ use sov_stf_runner::{
     InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
+use tokio::sync::watch;
 
 type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaService>;
 #[tokio::test]
@@ -144,7 +144,7 @@ async fn runner_execution(
     let genesis_block = MockBlockHeader::from_height(0);
     let (genesis_storage, ledger_genesis) =
         storage_manager.create_state_for(&genesis_block).unwrap();
-    let rpc_storage = Arc::new(RwLock::new(genesis_storage.clone()));
+    let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
     let ledger_db = LedgerDB::with_cache_db(ledger_genesis).unwrap();
 
     let vm = MockZkvm::new(MockValidityCond::default());
@@ -170,7 +170,7 @@ async fn runner_execution(
             ledger_db,
             stf,
             storage_manager,
-            rpc_storage,
+            rpc_storage_sender,
             init_variant,
             Some(prover_service),
         )

@@ -61,9 +61,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
 
     #[cfg(feature = "native")]
     /// Default RPC methods.
-    fn rpc_methods(
-        storage: std::sync::Arc<std::sync::RwLock<S::Storage>>,
-    ) -> jsonrpsee::RpcModule<()>;
+    fn rpc_methods(storage: tokio::sync::watch::Receiver<S::Storage>) -> jsonrpsee::RpcModule<()>;
 
     #[cfg(feature = "native")]
     /// Reads genesis configs.
