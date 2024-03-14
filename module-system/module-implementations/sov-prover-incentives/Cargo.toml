@@ -30,11 +30,12 @@ bincode = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
+thiserror = { workspace = true }
 
 sov-bank = { path = "../sov-bank", version = "0.3" }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
-
+sov-chain-state = { path = "../sov-chain-state", version = "0.3" }
 
 [features]
 default = []
@@ -42,6 +43,7 @@ native = [
 	"schemars",
 	"serde_json",
 	"sov-bank/native",
+	"sov-chain-state/native",
 	"sov-mock-da/native",
 	"sov-mock-zkvm/native",
 	"sov-modules-api/native",

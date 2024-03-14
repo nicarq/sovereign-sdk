@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateAccessor, StateMap, StateMapAccessor};
 use sov_state::codec::BcsCodec;
 
-use crate::{StateTransitionId, TransitionHeight};
+use crate::{StateTransition, TransitionHeight};
 
 /// The parameters for the state based gas price computation.
 #[derive(
@@ -36,7 +36,7 @@ impl<S: Spec> GasPriceState<S> {
     pub fn update<Da: DaSpec>(
         mut self,
         height: TransitionHeight,
-        historical_transitions: &StateMap<TransitionHeight, StateTransitionId<S, Da>, BcsCodec>,
+        historical_transitions: &StateMap<TransitionHeight, StateTransition<S, Da>, BcsCodec>,
         state_checkpoint: &mut impl StateAccessor,
     ) -> Option<Self> {
         let genesis_height = 0;
@@ -92,7 +92,7 @@ mod tests {
 
     use super::*;
     type W = WorkingSet<TestSpec>;
-    type M = StateMap<TransitionHeight, StateTransitionId<TestSpec, MockDaSpec>, BcsCodec>;
+    type M = StateMap<TransitionHeight, StateTransition<TestSpec, MockDaSpec>, BcsCodec>;
     type DefaultGasPriceState = GasPriceState<TestSpec>;
 
     #[test]
@@ -174,7 +174,7 @@ mod tests {
 
         ht.set(
             &1,
-            &StateTransitionId::new(
+            &StateTransition::new(
                 [1; 32].into(),
                 StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
@@ -218,7 +218,7 @@ mod tests {
 
         ht.set(
             &1,
-            &StateTransitionId::new(
+            &StateTransition::new(
                 [1; 32].into(),
                 StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
@@ -230,7 +230,7 @@ mod tests {
 
         ht.set(
             &2,
-            &StateTransitionId::new(
+            &StateTransition::new(
                 [1; 32].into(),
                 StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
@@ -274,7 +274,7 @@ mod tests {
 
         ht.set(
             &1,
-            &StateTransitionId::new(
+            &StateTransition::new(
                 [1; 32].into(),
                 StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
@@ -286,7 +286,7 @@ mod tests {
 
         ht.set(
             &2,
-            &StateTransitionId::new(
+            &StateTransition::new(
                 [1; 32].into(),
                 StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },
@@ -298,7 +298,7 @@ mod tests {
 
         ht.set(
             &3,
-            &StateTransitionId::new(
+            &StateTransition::new(
                 [1; 32].into(),
                 StorageRoot::new(RootHash([2; 32]), RootHash([1; 32])),
                 MockValidityCond { is_valid: true },

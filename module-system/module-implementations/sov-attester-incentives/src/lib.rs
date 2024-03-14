@@ -60,8 +60,6 @@ where
     pub bonding_token_address: sov_modules_api::StateValue<S::Address>,
 
     /// The address of the account holding the reward token supply
-    /// TODO: maybe mint the token before transferring it? The mint method is private in bank
-    /// so we need a reward address that contains the supply.
     #[state]
     pub reward_token_supply_address: sov_modules_api::StateValue<S::Address>,
 

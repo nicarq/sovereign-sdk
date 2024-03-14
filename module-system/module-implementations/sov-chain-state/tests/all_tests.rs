@@ -1,4 +1,4 @@
-use sov_chain_state::{ChainState, ChainStateConfig, StateTransitionId, TransitionInProgress};
+use sov_chain_state::{ChainState, ChainStateConfig, StateTransition, TransitionInProgress};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::da::{BlockHeaderTrait, Time};
 use sov_modules_api::{Gas, GasPrice, GasUnit, KernelModule, KernelWorkingSet, Spec};
@@ -179,10 +179,10 @@ fn test_simple_chain_state() {
     );
 
     // Check the transition stored
-    let last_tx_stored: StateTransitionId<TestSpec, MockDaSpec> = chain_state
+    let last_tx_stored: StateTransition<TestSpec, MockDaSpec> = chain_state
         .get_historical_transitions(1, working_set.inner)
         .unwrap();
-    let expected_tx_stored: StateTransitionId<TestSpec, MockDaSpec> = StateTransitionId::new(
+    let expected_tx_stored: StateTransition<TestSpec, MockDaSpec> = StateTransition::new(
         [1; 32].into(),
         new_root_hash,
         MockValidityCond { is_valid: true },

@@ -11,7 +11,7 @@ fn main() -> io::Result<()> {
     store_json_schema::<sov_bank::Bank<S>>("sov-bank.json")?;
     store_json_schema::<sov_accounts::Accounts<S>>("sov-accounts.json")?;
     store_json_schema::<sov_value_setter::ValueSetter<S>>("sov-value-setter.json")?;
-    store_json_schema::<sov_prover_incentives::ProverIncentives<S, sov_mock_zkvm::MockZkVerifier>>(
+    store_json_schema::<sov_prover_incentives::ProverIncentives<S, MockDaSpec>>(
         "sov-prover-incentives.json",
     )?;
     store_json_schema::<sov_sequencer_registry::SequencerRegistry<S, MockDaSpec>>(

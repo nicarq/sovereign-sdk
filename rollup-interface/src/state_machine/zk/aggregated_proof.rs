@@ -1,4 +1,6 @@
 //! Defines types that are related to the `AggregatedProof`.
+use alloc::vec::Vec;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +23,7 @@ impl core::fmt::Display for CodeCommitment {
 }
 
 /// Public input of an aggregated proof.
+/// TODO: update the public inputs `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/265>`
 #[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 pub struct AggregatedProofPublicInput {
     /// Contains the validity conditions for each block in the aggregated proof.

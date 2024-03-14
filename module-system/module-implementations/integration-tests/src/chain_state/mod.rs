@@ -1,4 +1,4 @@
-use sov_chain_state::{ChainState, StateTransitionId, TransitionInProgress};
+use sov_chain_state::{ChainState, StateTransition, TransitionInProgress};
 use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{Gas, GasArray, GasPrice, KernelWorkingSet, StateCheckpoint, WorkingSet};
@@ -160,12 +160,12 @@ fn test_simple_value_setter_with_chain_state() {
             "The new transition has not been correctly stored"
         );
 
-        let last_tx_stored: StateTransitionId<S, MockDaSpec> = chain_state_ref
+        let last_tx_stored: StateTransition<S, MockDaSpec> = chain_state_ref
             .get_historical_transitions(1, &mut state_checkpoint)
             .unwrap();
 
-        let expected_tx_stored: StateTransitionId<S, MockDaSpec> =
-            StateTransitionId::<S, MockDaSpec>::new(
+        let expected_tx_stored: StateTransition<S, MockDaSpec> =
+            StateTransition::<S, MockDaSpec>::new(
                 [10; 32].into(),
                 first_root,
                 MockValidityCond::default(),

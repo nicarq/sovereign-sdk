@@ -9002,6 +9002,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-bank",
+ "sov-chain-state",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -9009,6 +9010,7 @@ dependencies = [
  "sov-prover-storage-manager",
  "sov-state",
  "tempfile",
+ "thiserror",
 ]
 
 [[package]]

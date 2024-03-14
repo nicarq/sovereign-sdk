@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::{DaSpec, StateMapAccessor, WorkingSet};
 
 use super::ProverIncentives;
 
@@ -10,7 +10,7 @@ pub struct Response {
     pub value: u64,
 }
 
-impl<S: sov_modules_api::Spec, Vm: sov_modules_api::Zkvm> ProverIncentives<S, Vm> {
+impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// Queries the state of the module and returns the bond amount of the address `address`.
     /// If the `address` is not bonded, returns a default value.
     pub fn get_bond_amount(

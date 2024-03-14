@@ -4,7 +4,7 @@ use sov_modules_api::{Gas, Spec};
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
 
-use crate::{ChainState, StateTransitionId, TransitionInProgress};
+use crate::{ChainState, StateTransition, TransitionInProgress};
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     /// Update the chain state at the beginning of the slot. Compute the next gas price
@@ -20,7 +20,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             // first transition right after the genesis block
             self.genesis_hash.set(pre_state_root, working_set.inner);
         } else {
-            let transition: StateTransitionId<S, Da> = {
+            let transition: StateTransition<S, Da> = {
                 let TransitionInProgress {
                     slot_hash,
                     validity_condition,
@@ -31,12 +31,12 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
                     .get_current(working_set)
                     .expect("There should always be a transition in progress");
 
-                StateTransitionId {
+                StateTransition {
                     slot_hash,
                     post_state_root: pre_state_root.clone(),
                     validity_condition,
                     gas_used,
-                    gas_price,
+                    base_fee_per_gas: gas_price,
                 }
             };
 
