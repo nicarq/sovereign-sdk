@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::sync::{Arc, RwLock};
 
 use anyhow::Context as _;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
@@ -7,6 +6,7 @@ use sov_ethereum::experimental::EthRpcConfig;
 use sov_ethereum::GasPriceOracleConfig;
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::services::da::DaService;
+use tokio::sync::watch;
 
 const TX_SIGNER_PRIV_KEY_PATH: &str = "../test-data/keys/tx_signer_private_key.json";
 
@@ -25,7 +25,7 @@ fn read_sov_tx_signer_priv_key<S: Spec>(
 // register ethereum methods.
 pub(crate) fn register_ethereum<S: Spec, Da: DaService>(
     da_service: Da,
-    storage: Arc<RwLock<<S as Spec>::Storage>>,
+    storage: watch::Receiver<<S as Spec>::Storage>,
     methods: &mut jsonrpsee::RpcModule<()>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {

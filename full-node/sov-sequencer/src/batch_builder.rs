@@ -1,7 +1,5 @@
 //! Concrete implementation(s) of [`BatchBuilder`].
 
-use std::sync::{Arc, RwLock};
-
 use anyhow::{bail, Context as ErrorContext};
 use borsh::BorshDeserialize;
 use sov_db::sequencer_db::{MempoolTx, SequencerDB};
@@ -12,6 +10,7 @@ use sov_modules_api::{CryptoSpec, Gas, GasArray, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::{apply_tx, ExecutionMode, Runtime, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
+use tokio::sync::watch;
 
 use crate::TxHash;
 
@@ -21,7 +20,7 @@ pub struct FiFoStrictBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>> {
     mempool_max_txs_count: usize,
     runtime: R,
     max_batch_size_bytes: usize,
-    current_storage: Arc<RwLock<S::Storage>>,
+    current_storage: watch::Receiver<S::Storage>,
     sequencer: Da::Address,
     sequencer_db: SequencerDB,
 }
@@ -37,7 +36,7 @@ where
         max_batch_size_bytes: usize,
         mempool_max_txs_count: usize,
         runtime: R,
-        current_storage: Arc<RwLock<S::Storage>>,
+        current_storage: watch::Receiver<<S as Spec>::Storage>,
         sequencer: Da::Address,
         sequencer_db: SequencerDB,
     ) -> Self {
@@ -121,14 +120,7 @@ where
     /// Only transactions, which are dispatched successfully are included in the batch
     fn get_next_blob(&mut self, height: u64) -> anyhow::Result<Vec<TxWithHash>> {
         tracing::debug!("get_next_blob has been called");
-        let storage = {
-            let storage_guard = self
-                .current_storage
-                .read()
-                .expect("Internal storage lock is poisoned");
-            storage_guard.clone()
-        };
-        let mut state_checkpoint = StateCheckpoint::new(storage);
+        let mut state_checkpoint = StateCheckpoint::new(self.current_storage.borrow().clone());
 
         let mut txs = Vec::new();
         let mut current_batch_size = 0;
@@ -321,7 +313,7 @@ mod tests {
     ) -> FiFoStrictBatchBuilder<S, MockDaSpec, TestRuntime<S, MockDaSpec>> {
         let state_path = tmpdir.path().join("state");
         let sequencer_db_path = tmpdir.path().join("mempool");
-        let storage = Arc::new(RwLock::new(new_orphan_storage(state_path).unwrap()));
+        let storage = watch::Sender::new(new_orphan_storage(state_path).unwrap()).subscribe();
         let sequencer_db = SequencerDB::new(sequencer_db_path).unwrap();
         FiFoStrictBatchBuilder::new(
             batch_size_bytes,
@@ -339,7 +331,7 @@ mod tests {
         admin_da_address: MockAddress,
     ) {
         let runtime = TestRuntime::<S, MockDaSpec>::default();
-        let storage = { batch_builder.current_storage.read().unwrap().clone() };
+        let storage = batch_builder.current_storage.borrow().clone();
         let mut working_set = WorkingSet::new(storage.clone());
 
         let admin = admin.unwrap_or_else(|| {
@@ -358,10 +350,6 @@ mod tests {
         runtime.genesis(&config, &mut working_set).unwrap();
         let (log, witness) = working_set.checkpoint().0.freeze();
         storage.validate_and_commit(log, &witness).unwrap();
-        {
-            let mut current_storage = batch_builder.current_storage.write().unwrap();
-            *current_storage = storage;
-        }
     }
 
     mod accept_tx {

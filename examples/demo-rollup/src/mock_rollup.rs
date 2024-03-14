@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use async_trait::async_trait;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
@@ -18,6 +16,7 @@ use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
+use tokio::sync::watch;
 
 /// Rollup with MockDa
 pub struct MockDemoRollup {}
@@ -56,7 +55,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     fn create_rpc_methods(
         &self,
-        storage: Arc<RwLock<<Self::NativeSpec as Spec>::Storage>>,
+        storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
         ledger_db: &LedgerDB,
         sequencer_db: &SequencerDB,
         da_service: &Self::DaService,
@@ -80,7 +79,7 @@ impl RollupBlueprint for MockDemoRollup {
         #[cfg(feature = "experimental")]
         crate::eth::register_ethereum::<Self::NativeSpec, Self::DaService>(
             da_service.clone(),
-            storage.clone(),
+            storage,
             &mut rpc_methods,
         )?;
 

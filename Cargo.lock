@@ -2324,6 +2324,7 @@ dependencies = [
  "sov-test-utils",
  "sov-value-setter",
  "tempfile",
+ "tokio",
  "tracing",
 ]
 
@@ -4205,6 +4206,7 @@ dependencies = [
  "sov-test-utils",
  "sov-value-setter",
  "tempfile",
+ "tokio",
  "tracing",
 ]
 
@@ -8963,6 +8965,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 
@@ -9248,6 +9251,7 @@ dependencies = [
  "sov-sequencer-registry",
  "sov-state",
  "sov-value-setter",
+ "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",
 ]

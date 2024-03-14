@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use demo_stf::genesis_config::StorageConfig;
@@ -21,6 +20,7 @@ use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
+use tokio::sync::watch;
 
 use crate::{ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE};
 
@@ -61,7 +61,7 @@ impl RollupBlueprint for CelestiaDemoRollup {
 
     fn create_rpc_methods(
         &self,
-        storage: Arc<RwLock<<Self::NativeSpec as Spec>::Storage>>,
+        storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
         ledger_db: &LedgerDB,
         sequencer_db: &SequencerDB,
         da_service: &Self::DaService,

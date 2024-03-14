@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 pub use sov_bank::{get_genesis_token_address, Bank, BankConfig, Coins, TokenConfig};
 pub use sov_chain_state::ChainStateConfig;
 use sov_modules_api::batch::BatchWithId;
@@ -17,6 +15,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::{Runtime, SequencerOutcome};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
+use tokio::sync::watch;
 
 #[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
 #[serialization(
@@ -97,7 +96,7 @@ impl<S: Spec, Da: DaSpec> Runtime<S, Da> for TestRuntime<S, Da> {
 
     type GenesisPaths = ();
 
-    fn rpc_methods(_storage: Arc<RwLock<S::Storage>>) -> jsonrpsee::RpcModule<()> {
+    fn rpc_methods(_storage: watch::Receiver<S::Storage>) -> jsonrpsee::RpcModule<()> {
         todo!()
     }
 

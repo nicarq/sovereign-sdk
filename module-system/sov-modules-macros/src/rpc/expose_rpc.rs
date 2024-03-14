@@ -47,7 +47,7 @@ impl ExposeRpcMacro {
 
         let rpc_storage_struct = quote! {
             struct RpcStorage #impl_generics #where_clause {
-                storage: ::std::sync::Arc<::std::sync::RwLock<#spec_type::Storage>>,
+                storage: ::jsonrpsee::tokio::sync::watch::Receiver<#spec_type::Storage>,
                 // Function pointers are always Send + Sync, regardless of
                 // whether the return type is. The alternative would be to
                 // `unsafe impl Send/Sync` for `RpcStorage`, but this seems
@@ -106,10 +106,7 @@ impl ExposeRpcMacro {
                     /// Get a working set on top of the current storage
                     fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<#spec_type>
                     {
-                        let storage = {
-                            let current_storage = self.storage.read().expect("Storage RwLock is poisoned").clone();
-                            current_storage
-                        };
+                        let storage = self.storage.borrow().clone();
                         ::sov_modules_api::WorkingSet::new(storage)
                     }
                 }
@@ -120,7 +117,7 @@ impl ExposeRpcMacro {
 
         let get_rpc_methods: proc_macro2::TokenStream = quote! {
             /// Returns a [`jsonrpsee::RpcModule`] with all the RPC methods exposed by the module
-            pub fn get_rpc_methods #impl_generics (storage: ::std::sync::Arc<::std::sync::RwLock<<#spec_type as ::sov_modules_api::Spec>::Storage>>) -> ::jsonrpsee::RpcModule<()> #where_clause {
+            pub fn get_rpc_methods #impl_generics (storage: ::jsonrpsee::tokio::sync::watch::Receiver<<#spec_type as ::sov_modules_api::Spec>::Storage>) -> ::jsonrpsee::RpcModule<()> #where_clause {
                 let mut module = ::jsonrpsee::RpcModule::new(());
                 let r = RpcStorage:: #ty_generics  {
                     storage: storage.clone(),
