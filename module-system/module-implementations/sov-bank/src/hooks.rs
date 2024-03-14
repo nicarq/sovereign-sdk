@@ -46,6 +46,7 @@ impl<S: Spec> Bank<S> {
         {
             bail!("The maximum gas price ({:?}) was insufficient to cover the current price ({:?}) for ", tx.max_gas_price(), gas_price)
         }
+        // TODO(@theochap) This should be moved to sequencer registry
         let amount = tx.gas_limit().saturating_add(tx.gas_tip());
         if amount > 0 {
             let token_address = S::Address::from_str(GAS_TOKEN_ADDRESS)
@@ -59,7 +60,6 @@ impl<S: Spec> Bank<S> {
             // TODO(@preston-evans98) - in zk mode, this transfer should be earmarked for the prover
             self.transfer_from(from, to, coins, state_checkpoint)?;
         }
-        // TODO(@vlopes11) - fix confusion between available tokens and gas limit
         let gas_meter = GasMeter::new(tx.gas_limit(), gas_price.clone());
 
         Ok(gas_meter)

@@ -1,0 +1,505 @@
+use borsh::BorshSerialize;
+use sov_mock_da::MockValidityCond;
+use sov_mock_zkvm::MockProof;
+use sov_modules_api::{AggregatedProofPublicInput, CodeCommitment, Context, Spec, WorkingSet};
+
+use super::helpers::{get_transition_unwrap, simulate_chain_state_execution};
+use crate::event::SlashingReason;
+use crate::tests::helpers::{setup, MOCK_CODE_COMMITMENT, S};
+use crate::Event;
+
+const FIRST_SLOT_NUM: u64 = 1;
+const LAST_SLOT_NUM: u64 = 2;
+
+/// Setups the slashing tests
+fn slashing_setup() -> (
+    crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
+    <S as Spec>::Address,
+    <S as Spec>::Address,
+    WorkingSet<S>,
+) {
+    let (module, prover_address, sequencer, working_set) = setup();
+
+    // Simulate execution of the chain-state
+
+    let (mut state_checkpoint, meter, _) = working_set.checkpoint();
+    let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
+    // The first transition is the genesis transition
+    // Then we have two more transitions
+    simulate_chain_state_execution(
+        &module,
+        ((LAST_SLOT_NUM - FIRST_SLOT_NUM + 1) + 1)
+            .try_into()
+            .unwrap(),
+        &gas_used_per_step,
+        &mut state_checkpoint,
+    );
+    let working_set = state_checkpoint.to_revertable(meter);
+
+    (module, prover_address, sequencer, working_set)
+}
+
+/// Proves a transition log
+fn prove_transition_log(
+    log: AggregatedProofPublicInput,
+    prover_address: <S as Spec>::Address,
+    sequencer: <S as Spec>::Address,
+    module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
+    working_set: &mut WorkingSet<S>,
+) {
+    let context = Context::<S>::new(prover_address, sequencer, 1);
+
+    let serialized_log = log
+        .try_to_vec()
+        .expect("Should be able to serialize the log");
+
+    let proof = MockProof {
+        program_id: MOCK_CODE_COMMITMENT,
+        is_valid: true,
+        log: &serialized_log,
+    };
+
+    module
+        .process_proof(proof.encode_to_vec().as_ref(), &context, working_set)
+        .expect("An invalid proof is not an error");
+}
+
+/// Checks if the prover has been slashed for the correct reason.
+fn check_prover_slashed(
+    reason: SlashingReason,
+    prover_address: <S as Spec>::Address,
+    module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
+    working_set: &mut WorkingSet<S>,
+) {
+    // Check that the prover is slashed
+    assert_eq!(working_set.events().len(), 1);
+    let event: Event<S> = working_set.take_event(0).unwrap().downcast().unwrap();
+    assert_eq!(
+        event,
+        Event::ProverSlashed {
+            prover: prover_address,
+            reason
+        }
+    );
+
+    // Assert that the prover's bond amount has been burned
+    assert_eq!(module.get_bond_amount(prover_address, working_set).value, 0);
+}
+
+#[test]
+/// The prover gets slashed if they submit an invalid zk-proof
+fn test_slash_on_invalid_proof() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    // Process an invalid proof
+    {
+        let context = Context::<S>::new(prover_address, sequencer, 1);
+        let proof = MockProof {
+            program_id: MOCK_CODE_COMMITMENT,
+            is_valid: false,
+            log: &[],
+        };
+        module
+            .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
+            .expect("An invalid proof is not an error");
+    }
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::ProofInvalid,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for an invalid genesis_hash
+fn test_slash_on_invalid_genesis_hash() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    let genesis_hash = module
+        .chain_state
+        .get_genesis_hash(&mut working_set)
+        .expect("Genesis hash must be set at genesis");
+
+    // Process an invalid proof
+    let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, &module, &mut working_set);
+    let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
+
+    let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+    let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+        validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+        initial_slot_number: FIRST_SLOT_NUM,
+        final_slot_number: LAST_SLOT_NUM,
+        genesis_state_root: first_transition.post_state_root().as_ref().to_vec(),
+        initial_state_root: genesis_hash.as_ref().to_vec(),
+        final_state_root: last_transition.post_state_root().as_ref().to_vec(),
+        initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+        final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
+        code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+    };
+
+    prove_transition_log(
+        log_with_wrong_initial_state_root,
+        prover_address,
+        sequencer,
+        &module,
+        &mut working_set,
+    );
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::IncorrectGenesisHash,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for an invalid final slot hash
+fn test_slash_on_invalid_initial_state_root() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    // Process an invalid proof
+    {
+        let genesis_hash = module
+            .chain_state
+            .get_genesis_hash(&mut working_set)
+            .expect("Genesis hash must be set at genesis");
+
+        let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, &module, &mut working_set);
+        let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
+
+        let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+            validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+            initial_slot_number: FIRST_SLOT_NUM,
+            final_slot_number: LAST_SLOT_NUM,
+            genesis_state_root: genesis_hash.as_ref().to_vec(),
+            initial_state_root: last_transition.post_state_root().as_ref().to_vec(),
+            final_state_root: last_transition.post_state_root().as_ref().to_vec(),
+            initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+            final_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+            code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        };
+
+        prove_transition_log(
+            log_with_wrong_initial_state_root,
+            prover_address,
+            sequencer,
+            &module,
+            &mut working_set,
+        );
+    }
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::IncorrectInitialStateRoot,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for an invalid final slot hash
+fn test_slash_on_invalid_final_slot_hash() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    // Process an invalid proof
+    {
+        let genesis_hash = module
+            .chain_state
+            .get_genesis_hash(&mut working_set)
+            .expect("Genesis hash must be set at genesis");
+
+        let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, &module, &mut working_set);
+        let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
+
+        let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+            validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+            initial_slot_number: FIRST_SLOT_NUM,
+            final_slot_number: LAST_SLOT_NUM,
+            genesis_state_root: genesis_hash.as_ref().to_vec(),
+            initial_state_root: genesis_hash.as_ref().to_vec(),
+            final_state_root: last_transition.post_state_root().as_ref().to_vec(),
+            initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+            final_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+            code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        };
+
+        prove_transition_log(
+            log_with_wrong_initial_state_root,
+            prover_address,
+            sequencer,
+            &module,
+            &mut working_set,
+        );
+    }
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::IncorrectFinalSlotHash,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for an invalid final state root
+fn test_slash_on_invalid_final_state_root() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    // Process an invalid proof
+
+    let genesis_hash = module
+        .chain_state
+        .get_genesis_hash(&mut working_set)
+        .expect("Genesis hash must be set at genesis");
+
+    let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, &module, &mut working_set);
+    let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
+
+    let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+    let log_with_wrong_final_state_root = AggregatedProofPublicInput {
+        validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+        initial_slot_number: FIRST_SLOT_NUM,
+        final_slot_number: LAST_SLOT_NUM,
+        genesis_state_root: genesis_hash.as_ref().to_vec(),
+        initial_state_root: genesis_hash.as_ref().to_vec(),
+        final_state_root: first_transition.post_state_root().as_ref().to_vec(),
+        initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+        final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
+        code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+    };
+
+    prove_transition_log(
+        log_with_wrong_final_state_root,
+        prover_address,
+        sequencer,
+        &module,
+        &mut working_set,
+    );
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::IncorrectFinalStateRoot,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for an invalid initial slot hash
+fn test_slash_on_invalid_initial_slot_hash() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    let genesis_hash = module
+        .chain_state
+        .get_genesis_hash(&mut working_set)
+        .expect("Genesis hash must be set at genesis");
+
+    let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
+
+    let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+    let log_with_wrong_initial_slot_hash = AggregatedProofPublicInput {
+        validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+        initial_slot_number: FIRST_SLOT_NUM,
+        final_slot_number: LAST_SLOT_NUM,
+        genesis_state_root: genesis_hash.as_ref().to_vec(),
+        initial_state_root: genesis_hash.as_ref().to_vec(),
+        final_state_root: last_transition.post_state_root().as_ref().to_vec(),
+        initial_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
+        final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
+        code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+    };
+
+    prove_transition_log(
+        log_with_wrong_initial_slot_hash,
+        prover_address,
+        sequencer,
+        &module,
+        &mut working_set,
+    );
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::IncorrectInitialSlotHash,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for an invalid initial transition
+fn test_slash_on_invalid_initial_transition() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    // Process an invalid proof
+    {
+        let genesis_hash = module
+            .chain_state
+            .get_genesis_hash(&mut working_set)
+            .expect("Genesis hash must be set at genesis");
+
+        let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, &module, &mut working_set);
+        let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
+
+        let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+            validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+            initial_slot_number: LAST_SLOT_NUM + 1,
+            final_slot_number: LAST_SLOT_NUM,
+            genesis_state_root: genesis_hash.as_ref().to_vec(),
+            initial_state_root: genesis_hash.as_ref().to_vec(),
+            final_state_root: last_transition.post_state_root().as_ref().to_vec(),
+            initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+            final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
+            code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        };
+
+        prove_transition_log(
+            log_with_wrong_initial_state_root,
+            prover_address,
+            sequencer,
+            &module,
+            &mut working_set,
+        );
+    }
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::InitialTransitionDoesNotExist,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for an invalid final transition
+fn test_slash_on_invalid_final_transition() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    // Process an invalid proof
+    {
+        let genesis_hash = module
+            .chain_state
+            .get_genesis_hash(&mut working_set)
+            .expect("Genesis hash must be set at genesis");
+
+        let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, &module, &mut working_set);
+        let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
+
+        let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+            validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+            initial_slot_number: FIRST_SLOT_NUM,
+            final_slot_number: LAST_SLOT_NUM + 1,
+            genesis_state_root: genesis_hash.as_ref().to_vec(),
+            initial_state_root: genesis_hash.as_ref().to_vec(),
+            final_state_root: last_transition.post_state_root().as_ref().to_vec(),
+            initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+            final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
+            code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        };
+
+        prove_transition_log(
+            log_with_wrong_initial_state_root,
+            prover_address,
+            sequencer,
+            &module,
+            &mut working_set,
+        );
+    }
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::FinalTransitionDoesNotExist,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for which the output cannot be deserialized properly
+fn test_slash_on_invalid_output_format() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    // Process an invalid proof
+    {
+        let context = Context::<S>::new(prover_address, sequencer, 1);
+
+        let proof = MockProof {
+            program_id: MOCK_CODE_COMMITMENT,
+            is_valid: true,
+            log: &[],
+        };
+
+        module
+            .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
+            .expect("An invalid proof is not an error");
+    }
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::ImpossibleToDeserializeProofOutput,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// The prover gets slashed if they submit a valid proof for which the validity conditions are not correctly stored in the chain-state
+fn test_slash_on_invalid_validity_cond() {
+    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+
+    // Process an invalid proof
+    {
+        let genesis_hash = module
+            .chain_state
+            .get_genesis_hash(&mut working_set)
+            .expect("Genesis hash must be set at genesis");
+
+        let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, &module, &mut working_set);
+        let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
+
+        let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+        let vec_false_validity_cond = MockValidityCond { is_valid: false }.try_to_vec().unwrap();
+        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+            validity_conditions: vec![vec_validity_cond.clone(), vec_false_validity_cond],
+            initial_slot_number: FIRST_SLOT_NUM,
+            final_slot_number: LAST_SLOT_NUM,
+            initial_state_root: genesis_hash.as_ref().to_vec(),
+            genesis_state_root: genesis_hash.as_ref().to_vec(),
+            final_state_root: last_transition.post_state_root().as_ref().to_vec(),
+            initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
+            final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
+            code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        };
+
+        prove_transition_log(
+            log_with_wrong_initial_state_root,
+            prover_address,
+            sequencer,
+            &module,
+            &mut working_set,
+        );
+    }
+
+    // Check that the prover is slashed
+    check_prover_slashed(
+        SlashingReason::IncorrectValidityConditions,
+        prover_address,
+        &module,
+        &mut working_set,
+    );
+}

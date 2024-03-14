@@ -21,7 +21,9 @@ pub struct Transaction<S: Spec> {
     pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     runtime_msg: Vec<u8>,
     chain_id: u64,
+    /// TODO(@theochap) - `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/284>` Must be a gas unit
     gas_tip: u64,
+    /// TODO(@theochap) - `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/284>` Must be a gas unit
     gas_limit: u64,
     max_gas_price: Option<<S::Gas as Gas>::Price>,
     nonce: u64,
@@ -39,8 +41,10 @@ where
     /// The ID of the target chain
     pub chain_id: u64,
     /// The gas tip for the sequencer
+    /// TODO(@theochap) - `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/284>` Must be a gas unit
     pub gas_tip: u64,
     /// The gas limit for the transaction execution
+    /// TODO(@theochap) - `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/284>` Must be a gas unit
     pub gas_limit: u64,
     /// The maximum gas price in which this transaction will be executed
     pub max_gas_price: Option<<S::Gas as Gas>::Price>,

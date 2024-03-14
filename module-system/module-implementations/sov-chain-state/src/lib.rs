@@ -47,15 +47,15 @@ pub type VirtualSlotNumber = u64;
     Eq(bound = "S: Spec, Da: DaSpec")
 )]
 /// Structure that contains the information needed to represent a single state transition.
-pub struct StateTransitionId<S: Spec, Da: DaSpec> {
+pub struct StateTransition<S: Spec, Da: DaSpec> {
     slot_hash: Da::SlotHash,
     post_state_root: <S::Storage as Storage>::Root,
     validity_condition: Da::ValidityCondition,
-    gas_price: <S::Gas as Gas>::Price,
+    base_fee_per_gas: <S::Gas as Gas>::Price,
     gas_used: S::Gas,
 }
 
-impl<S: Spec, Da: DaSpec> StateTransitionId<S, Da> {
+impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
     /// Creates a new state transition. Only available for testing as we only want to create
     /// new state transitions from existing [`TransitionInProgress`].
     pub fn new(
@@ -69,13 +69,13 @@ impl<S: Spec, Da: DaSpec> StateTransitionId<S, Da> {
             slot_hash,
             post_state_root,
             validity_condition,
-            gas_price,
+            base_fee_per_gas: gas_price,
             gas_used,
         }
     }
 }
 
-impl<S: Spec, Da: DaSpec> StateTransitionId<S, Da> {
+impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
     /// Compare the transition block hash and state root with the provided input couple. If
     /// the pairs are equal, return [`true`].
     pub fn compare_hashes(
@@ -103,7 +103,7 @@ impl<S: Spec, Da: DaSpec> StateTransitionId<S, Da> {
 
     /// Returns the gas price computed for the block execution
     pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        &self.gas_price
+        &self.base_fee_per_gas
     }
 
     /// Returns the validity condition associated with the transition
@@ -189,7 +189,7 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     // TODO: This should be a `VersionedStateMap`, so that recent values are not visible to user-space
     #[state]
     historical_transitions:
-        sov_modules_api::StateMap<TransitionHeight, StateTransitionId<S, Da>, BcsCodec>,
+        sov_modules_api::StateMap<TransitionHeight, StateTransition<S, Da>, BcsCodec>,
 
     /// The transition that is currently processed
     #[state]
@@ -266,7 +266,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         &self,
         transition_num: TransitionHeight,
         working_set: &mut impl StateAccessor,
-    ) -> Option<StateTransitionId<S, Da>> {
+    ) -> Option<StateTransition<S, Da>> {
         self.historical_transitions
             .get(&transition_num, working_set)
     }
