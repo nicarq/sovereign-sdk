@@ -147,7 +147,7 @@ async fn runner_execution(
     let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
     let ledger_db = LedgerDB::with_cache_db(ledger_genesis).unwrap();
 
-    let vm = MockZkvm::new(MockValidityCond::default());
+    let vm = MockZkvm::new();
     let verifier = MockDaVerifier::default();
     let prover_config = RollupProverConfig::Skip;
 
@@ -163,18 +163,17 @@ async fn runner_execution(
         Default::default(),
     );
 
-    let mut runner: StateTransitionRunner<_, _, _, MockZkvm<MockValidityCond>, _> =
-        StateTransitionRunner::new(
-            rollup_config.runner,
-            da_service,
-            ledger_db,
-            stf,
-            storage_manager,
-            rpc_storage_sender,
-            init_variant,
-            Some(prover_service),
-        )
-        .unwrap();
+    let mut runner: StateTransitionRunner<_, _, _, MockZkvm, _> = StateTransitionRunner::new(
+        rollup_config.runner,
+        da_service,
+        ledger_db,
+        stf,
+        storage_manager,
+        rpc_storage_sender,
+        init_variant,
+        Some(prover_service),
+    )
+    .unwrap();
 
     let before = *runner.get_state_root();
     let end = runner.run_in_process().await;

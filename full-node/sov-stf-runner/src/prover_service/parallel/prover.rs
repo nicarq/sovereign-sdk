@@ -10,7 +10,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
 };
-use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
+use sov_rollup_interface::zk::{StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
 use tracing::{debug, error, info};
 
 use super::state::{ProverState, ProverStatus};
@@ -243,7 +243,7 @@ fn make_proof<V, Vm, Da>(
     config: Arc<RollupProverConfig>,
     zk_storage: V::PreState,
     stf_verifier: &StateTransitionVerifier<V, Da::Verifier, Vm::Guest>,
-) -> Result<Proof, anyhow::Error>
+) -> Result<Vec<u8>, anyhow::Error>
 where
     Da: DaService,
     Vm: ZkvmHost + 'static,
@@ -254,10 +254,10 @@ where
     V::PreState: Send + Sync + 'static,
 {
     let result = match config.deref() {
-        RollupProverConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
+        RollupProverConfig::Skip => Ok(Vec::default()),
         RollupProverConfig::Simulate => stf_verifier
             .run_block(vm.simulate_with_hints(), zk_storage)
-            .map(|_| Proof::PublicInput(Vec::default()))
+            .map(|_| Vec::default())
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
         RollupProverConfig::Execute => {
             info!(
@@ -274,7 +274,7 @@ where
     match result {
         Ok(ref proof) => {
             info!(
-                bytes = proof.size(),
+                bytes = proof.len(),
                 "Proof generation completed successfully"
             );
         }

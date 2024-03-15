@@ -15,9 +15,6 @@ pub enum SlashingReason {
     /// The genesis hash supplied is incorrect
     IncorrectGenesisHash,
 
-    /// The ouptut of the proof is not deserializable to an [`sov_modules_api::AggregatedStateTransition`]
-    ImpossibleToDeserializeProofOutput,
-
     /// The initial state root contained in the [`sov_modules_api::AggregatedStateTransition`] outputs is incorrect
     IncorrectInitialStateRoot,
 

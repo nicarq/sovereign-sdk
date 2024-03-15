@@ -279,10 +279,10 @@ struct TestProver {
         StateRoot,
         Vec<u8>,
         MockDaService,
-        MockZkvm<MockValidityCond>,
+        MockZkvm,
         MockStf<MockValidityCond>,
     >,
-    vm: MockZkvm<MockValidityCond>,
+    vm: MockZkvm,
     num_worker_threads: usize,
 }
 
@@ -292,7 +292,7 @@ async fn wait_for_aggregated_proof(
         StateRoot,
         Vec<u8>,
         MockDaService,
-        MockZkvm<MockValidityCond>,
+        MockZkvm,
         MockStf<MockValidityCond>,
     >,
 ) -> Result<ProofAggregationStatus, anyhow::Error> {
@@ -317,7 +317,7 @@ async fn wait_for_aggregated_proof(
 
 fn make_new_prover(jump: usize) -> TestProver {
     let num_threads = 10;
-    let vm = MockZkvm::new(MockValidityCond::default());
+    let vm = MockZkvm::new();
 
     let prover_config = RollupProverConfig::Execute;
     let zk_stf = MockStf::<MockValidityCond>::default();

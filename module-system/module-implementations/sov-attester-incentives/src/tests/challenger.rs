@@ -1,16 +1,17 @@
-use borsh::BorshSerialize;
 use sov_mock_da::{MockDaSpec, MockValidityCond};
-use sov_mock_zkvm::{MockCodeCommitment, MockProof};
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::GasMeter;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::zk::StateTransition;
 
-use crate::call::{AttesterIncentiveErrors, SlashingReason};
+use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
     execution_simulation, setup, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
 };
+use crate::SlashingReason;
+
 type S = sov_test_utils::TestSpec;
 
 /// Test that given an invalid transition, a challenger can successfully challenge it and get rewarded
@@ -70,19 +71,7 @@ fn test_valid_challenge() {
             validity_condition: MockValidityCond { is_valid: true },
         };
 
-        let serialized_transition = transition.try_to_vec().unwrap();
-
-        let commitment = module
-            .commitment_to_allowed_challenge_method
-            .get(&mut working_set)
-            .expect("Should be set at genesis");
-
-        let proof = &MockProof {
-            program_id: commitment,
-            is_valid: true,
-            log: serialized_transition.as_slice(),
-        }
-        .encode_to_vec();
+        let proof = &MockZkvm::create_serialized_proof(true, transition);
 
         module
             .process_challenge(
@@ -201,21 +190,9 @@ fn test_invalid_challenge() {
         validity_condition: MockValidityCond { is_valid: true },
     };
 
-    let serialized_transition = transition.try_to_vec().unwrap();
-
-    let commitment = module
-        .commitment_to_allowed_challenge_method
-        .get(&mut working_set)
-        .expect("Should be set at genesis");
-
     {
         // A valid proof
-        let proof = &MockProof {
-            program_id: commitment.clone(),
-            is_valid: true,
-            log: serialized_transition.as_slice(),
-        }
-        .encode_to_vec();
+        let proof = MockZkvm::create_serialized_proof(true, &transition);
 
         let err = module
             .process_challenge(
@@ -237,12 +214,7 @@ fn test_invalid_challenge() {
     // Invalid proofs
     {
         // An invalid proof
-        let proof = &MockProof {
-            program_id: commitment.clone(),
-            is_valid: false,
-            log: serialized_transition.as_slice(),
-        }
-        .encode_to_vec();
+        let proof = &MockZkvm::create_serialized_proof(false, &transition);
 
         invalid_proof_helper(
             &context,
@@ -259,17 +231,10 @@ fn test_invalid_challenge() {
             slot_hash: [2; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
-        }
-        .try_to_vec()
-        .unwrap();
+        };
 
         // An invalid proof
-        let proof = &MockProof {
-            program_id: commitment,
-            is_valid: true,
-            log: bad_transition.as_slice(),
-        }
-        .encode_to_vec();
+        let proof = &MockZkvm::create_serialized_proof(true, bad_transition);
 
         invalid_proof_helper(
             &context,
@@ -286,17 +251,9 @@ fn test_invalid_challenge() {
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: false },
-        }
-        .try_to_vec()
-        .unwrap();
+        };
 
-        // An invalid proof
-        let proof = &MockProof {
-            program_id: MockCodeCommitment([0; 32]),
-            is_valid: true,
-            log: bad_transition.as_slice(),
-        }
-        .encode_to_vec();
+        let proof = &MockZkvm::create_serialized_proof(true, bad_transition);
 
         invalid_proof_helper(
             &context,
@@ -313,17 +270,9 @@ fn test_invalid_challenge() {
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
-        }
-        .try_to_vec()
-        .unwrap();
+        };
 
-        // An invalid proof
-        let proof = &MockProof {
-            program_id: MockCodeCommitment([0; 32]),
-            is_valid: true,
-            log: bad_transition.as_slice(),
-        }
-        .encode_to_vec();
+        let proof = &MockZkvm::create_serialized_proof(true, bad_transition);
 
         invalid_proof_helper(
             &context,
