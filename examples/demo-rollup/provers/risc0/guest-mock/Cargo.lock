@@ -2913,6 +2913,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-metrics"
+version = "0.3.0"
+
+[[package]]
 name = "sov-mock-da"
 version = "0.3.0"
 dependencies = [
@@ -3109,6 +3113,7 @@ dependencies = [
  "num_cpus",
  "serde",
  "serde_json",
+ "sov-metrics",
  "sov-rollup-interface",
 ]
 

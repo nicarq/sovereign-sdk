@@ -7,6 +7,7 @@
 - sov-prover-storage-manager
 - sov-modules-macros # Requires --no-verify because it writes outside of OUT_DIR.
 - sov-modules-api
+- sov-metrics
 - sov-sequencer
 - sov-modules-stf-blueprint
 - sov-stf-runner

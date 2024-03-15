@@ -8777,6 +8777,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-metrics"
+version = "0.3.0"
+dependencies = [
+ "once_cell",
+ "prometheus 0.13.3",
+]
+
+[[package]]
 name = "sov-mock-da"
 version = "0.3.0"
 dependencies = [
@@ -9214,6 +9222,7 @@ dependencies = [
  "sov-bank",
  "sov-celestia-adapter",
  "sov-db",
+ "sov-metrics",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
