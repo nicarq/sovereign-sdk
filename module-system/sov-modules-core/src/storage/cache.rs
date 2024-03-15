@@ -17,168 +17,103 @@ use crate::{SlotKey, SlotValue};
 /// 2. If a read is preceded by a write, check that the value read matches the value written. Discard the read.
 /// 3. Otherwise, retain the read.
 /// 4. A write is retained unless it is followed by another write.
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub(crate) enum Access {
-    Read(Option<SlotValue>),
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Access {
+    Read {
+        original: Option<SlotValue>,
+    },
+    Write {
+        modified: Option<SlotValue>,
+    },
     ReadThenWrite {
         original: Option<SlotValue>,
         modified: Option<SlotValue>,
     },
-    Write(Option<SlotValue>),
 }
 
 impl Access {
-    pub fn last_value(&self) -> &Option<SlotValue> {
+    fn original(&self) -> Option<Option<&SlotValue>> {
         match self {
-            Access::Read(value)
-            | Access::Write(value)
-            | Access::ReadThenWrite {
-                modified: value, ..
-            } => value,
+            Access::Write { .. } => None,
+            Access::Read { original } | Access::ReadThenWrite { original, .. } => {
+                Some(original.as_ref())
+            }
         }
     }
 
-    pub fn write_value(&mut self, new_value: Option<SlotValue>) {
+    fn modified(&self) -> Option<Option<&SlotValue>> {
         match self {
-            // If we've already read this slot, turn it into a readThenWrite access
-            Access::Read(original) => {
-                // If we're resetting the key to its original value, we can just discard the write history
-                if original == &new_value {
-                    return;
-                }
-                // Otherwise, keep track of the original value and the new value
-                *self = Access::ReadThenWrite {
-                    original: original.take(),
-
-                    modified: new_value,
-                };
+            Access::Read { .. } => None,
+            Access::ReadThenWrite { modified, .. } | Access::Write { modified } => {
+                Some(modified.as_ref())
             }
-            // For ReadThenWrite override the modified value with a new value
-            Access::ReadThenWrite { original, modified } => {
-                // If we're resetting the key to its original value, we can just discard the write history
-                if original == &new_value {
-                    *self = Access::Read(new_value);
+        }
+    }
+
+    fn original_mut(&mut self) -> Option<&mut Option<SlotValue>> {
+        match self {
+            Access::Write { .. } => None,
+            Access::Read { original } | Access::ReadThenWrite { original, .. } => Some(original),
+        }
+    }
+
+    fn modified_mut(&mut self) -> Option<&mut Option<SlotValue>> {
+        match self {
+            Access::Read { .. } => None,
+            Access::ReadThenWrite { modified, .. } | Access::Write { modified } => Some(modified),
+        }
+    }
+
+    fn last_value(&self) -> Option<&SlotValue> {
+        // `.unwrap()`: if a write doesn't exist, then it's guaranteed to be a
+        // `Read`.
+        self.modified().unwrap_or_else(|| self.original().unwrap())
+    }
+
+    fn add_write(&mut self, write: Option<SlotValue>) {
+        match self {
+            Access::Read { original } => {
+                // A read with a new modified value becomes a `ReadThenWrite`.
+                // We add the write only if the new value is different from the
+                // original value.
+                if original != &write {
+                    *self = Access::ReadThenWrite {
+                        original: original.take(),
+                        modified: write,
+                    };
+                }
+            }
+            Access::ReadThenWrite { modified, .. } | Access::Write { modified } => {
+                // Simply override the modified value with the new modified
+                // value.
+                *modified = write;
+            }
+        }
+    }
+
+    fn merge(&mut self, mut rhs: Self) -> Result<(), MergeError> {
+        if let Some(r_read) = rhs.original_mut() {
+            let l_last = self.last_value();
+            if l_last != r_read.as_ref() {
+                if self.modified().is_some() {
+                    return Err(MergeError::WriteThenRead {
+                        write: l_last.cloned(),
+                        read: r_read.take(),
+                    });
                 } else {
-                    *modified = new_value;
+                    return Err(MergeError::ReadThenRead {
+                        left: l_last.cloned(),
+                        right: r_read.take(),
+                    });
                 }
             }
-            // For Write override the original value with a new value
-            // We can do this unconditionally, since overwriting a value with itself is a no-op
-            Access::Write(value) => *value = new_value,
         }
-    }
 
-    pub fn merge(&mut self, rhs: Self) -> Result<(), MergeError> {
-        // Pattern matching on (`self`, rhs) is a bit cleaner, but would move the `self` inside the tuple.
-        // We need the `self` later on for *self = Access.. therefore the nested solution.
-        match self {
-            Access::Read(left_read) => match rhs {
-                Access::Read(right_read) => {
-                    if left_read != &right_read {
-                        Err(MergeError::ReadThenRead {
-                            left: left_read.clone(),
-                            right: right_read,
-                        })
-                    } else {
-                        Ok(())
-                    }
-                }
-                Access::ReadThenWrite {
-                    original: right_original,
-                    modified: right_modified,
-                } => {
-                    if left_read != &right_original {
-                        Err(MergeError::ReadThenRead {
-                            left: left_read.clone(),
-                            right: right_original,
-                        })
-                    } else {
-                        *self = Access::ReadThenWrite {
-                            original: right_original,
-                            modified: right_modified,
-                        };
-
-                        Ok(())
-                    }
-                }
-                Access::Write(right_write) => {
-                    *self = Access::ReadThenWrite {
-                        original: left_read.take(),
-                        modified: right_write,
-                    };
-                    Ok(())
-                }
-            },
-            Access::ReadThenWrite {
-                original: left_original,
-                modified: left_modified,
-            } => match rhs {
-                Access::Read(right_read) => {
-                    if left_modified != &right_read {
-                        Err(MergeError::WriteThenRead {
-                            write: left_modified.clone(),
-                            read: right_read,
-                        })
-                    } else {
-                        Ok(())
-                    }
-                }
-                Access::ReadThenWrite {
-                    original: right_original,
-                    modified: right_modified,
-                } => {
-                    if left_modified != &right_original {
-                        Err(MergeError::WriteThenRead {
-                            write: left_modified.clone(),
-                            read: right_original,
-                        })
-                    } else {
-                        *self = Access::ReadThenWrite {
-                            original: left_original.take(),
-                            modified: right_modified,
-                        };
-                        Ok(())
-                    }
-                }
-                Access::Write(right_write) => {
-                    *self = Access::ReadThenWrite {
-                        original: left_original.take(),
-                        modified: right_write,
-                    };
-                    Ok(())
-                }
-            },
-            Access::Write(left_write) => match rhs {
-                Access::Read(right_read) => {
-                    if left_write != &right_read {
-                        Err(MergeError::WriteThenRead {
-                            write: left_write.clone(),
-                            read: right_read,
-                        })
-                    } else {
-                        Ok(())
-                    }
-                }
-                Access::ReadThenWrite {
-                    original: right_original,
-                    modified: right_modified,
-                } => {
-                    if left_write != &right_original {
-                        Err(MergeError::WriteThenRead {
-                            write: left_write.clone(),
-                            read: right_original,
-                        })
-                    } else {
-                        *self = Access::Write(right_modified);
-                        Ok(())
-                    }
-                }
-                Access::Write(right_write) => {
-                    *self = Access::Write(right_write);
-                    Ok(())
-                }
-            },
+        if let Some(r_write) = rhs.modified_mut() {
+            self.add_write(r_write.take());
         }
+
+        Ok(())
     }
 }
 
@@ -189,7 +124,7 @@ impl Access {
 ///      ValueExists::Yes(None)
 /// - Exists and contains a value:
 ///     ValueExists::Yes(Some(value))
-pub enum ValueExists {
+enum ValueExists {
     /// The key exists in the cache.
     Yes(Option<SlotValue>),
     /// The key does not exist in the cache.
@@ -200,17 +135,8 @@ pub enum ValueExists {
 /// By tracking original values, we can detect and eliminate write patterns where a key is
 /// changed temporarily and then reset to its original value
 #[derive(Default)]
-pub struct CacheLog {
+struct CacheLog {
     log: HashMap<SlotKey, Access>,
-}
-
-impl CacheLog {
-    /// Creates a cache log with the provided map capacity.
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            log: HashMap::with_capacity(capacity),
-        }
-    }
 }
 
 impl CacheLog {
@@ -218,18 +144,14 @@ impl CacheLog {
     pub fn take_writes(self) -> Vec<(SlotKey, Option<SlotValue>)> {
         self.log
             .into_iter()
-            .filter_map(|(k, v)| match v {
-                Access::Read(_) => None,
-                Access::ReadThenWrite { modified, .. } => Some((k, modified)),
-                Access::Write(write) => Some((k, write)),
-            })
+            .filter_map(|(k, mut access)| access.modified_mut().map(|value| (k, value.take())))
             .collect()
     }
 
     /// Returns a value corresponding to the key.
-    pub fn get_value(&self, key: &SlotKey) -> ValueExists {
+    fn get_value(&self, key: &SlotKey) -> ValueExists {
         match self.log.get(key) {
-            Some(value) => ValueExists::Yes(value.last_value().clone()),
+            Some(value) => ValueExists::Yes(value.last_value().cloned()),
             None => ValueExists::No,
         }
     }
@@ -237,33 +159,30 @@ impl CacheLog {
     /// The first read for a given key is inserted in the cache. For an existing cache entry
     /// checks if reads are consistent with previous reads/writes.
     pub fn add_read(&mut self, key: SlotKey, value: Option<SlotValue>) -> Result<(), ReadError> {
-        match self.log.entry(key) {
-            Entry::Occupied(existing) => {
-                let last_value = existing.get().last_value().clone();
+        if let Some(existing) = self.log.get(&key) {
+            let last_value = existing.last_value().cloned();
 
-                if last_value != value {
-                    return Err(ReadError::InconsistentRead {
-                        expected: last_value,
-                        found: value,
-                    });
-                }
-                Ok(())
+            if last_value != value {
+                return Err(ReadError::InconsistentRead {
+                    expected: last_value,
+                    found: value,
+                });
             }
-            Entry::Vacant(vacancy) => {
-                vacancy.insert(Access::Read(value));
-                Ok(())
-            }
+        } else {
+            self.log.insert(key, Access::Read { original: value });
         }
+
+        Ok(())
     }
 
     /// Adds a write entry to the cache.
     pub fn add_write(&mut self, key: SlotKey, value: Option<SlotValue>) {
         match self.log.entry(key) {
             Entry::Occupied(mut existing) => {
-                existing.get_mut().write_value(value);
+                existing.get_mut().add_write(value);
             }
             Entry::Vacant(vacancy) => {
-                vacancy.insert(Access::Write(value));
+                vacancy.insert(Access::Write { modified: value });
             }
         }
     }
@@ -290,18 +209,20 @@ impl CacheLog {
     /// Merges two cache logs in a way that preserves the first read (from self) and the last write (from rhs).
     pub fn merge_writes_left(&mut self, rhs: Self) -> Result<(), MergeError> {
         self.merge_left_with_filter_map(rhs, |(key, access)| match access {
-            Access::Read(_) => None,
-            Access::ReadThenWrite { modified, .. } => Some((key, Access::Write(modified))),
-            Access::Write(w) => Some((key, Access::Write(w))),
+            Access::Read { .. } => None,
+            Access::ReadThenWrite { modified, .. } | Access::Write { modified } => {
+                Some((key, Access::Write { modified }))
+            }
         })
     }
 
     /// Merges two cache logs in a way that preserves the first read (from self) and the last write (from rhs).
     pub fn merge_reads_left(&mut self, rhs: Self) -> Result<(), MergeError> {
         self.merge_left_with_filter_map(rhs, |(key, access)| match access {
-            Access::Read(read) => Some((key, Access::Read(read))),
-            Access::ReadThenWrite { original, .. } => Some((key, Access::Read(original))),
-            Access::Write(_) => None,
+            Access::Write { .. } => None,
+            Access::Read { original } | Access::ReadThenWrite { original, .. } => {
+                Some((key, Access::Read { original }))
+            }
         })
     }
 
@@ -320,16 +241,6 @@ impl CacheLog {
         }
         Ok(())
     }
-
-    /// Returns the number of entries in the cache.
-    pub fn len(&self) -> usize {
-        self.log.len()
-    }
-
-    /// Returns `true` if the cache is empty, `false` otherwise.
-    pub fn is_empty(&self) -> bool {
-        self.log.is_empty()
-    }
 }
 
 /// Caches reads and writes for a (key, value) pair. On the first read the value is fetched
@@ -338,7 +249,7 @@ impl CacheLog {
 #[derive(Default)]
 pub struct ProvableStorageCache<N> {
     /// Transaction cache.
-    pub tx_cache: CacheLog,
+    tx_cache: CacheLog,
     /// Ordered reads and writes.
     pub ordered_db_reads: Vec<(SlotKey, Option<SlotValue>)>,
     phantom: core::marker::PhantomData<N>,
@@ -355,9 +266,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         witness: &S::Witness,
         version: Option<u64>,
     ) -> Option<SlotValue> {
-        let cache_value = self.get_value_from_cache(key);
-
-        match cache_value {
+        match self.tx_cache.get_value(key) {
             ValueExists::Yes(cache_value_exists) => cache_value_exists.map(Into::into),
             // If the value does not exist in the cache, then fetch it from an external source.
             ValueExists::No => {
@@ -368,11 +277,6 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         }
     }
 
-    /// Gets a keyed value from the cache, returning a wrapper on whether it exists.
-    pub fn try_get(&self, key: &SlotKey) -> ValueExists {
-        self.get_value_from_cache(key)
-    }
-
     /// Replaces the keyed value on the storage.
     pub fn set(&mut self, key: &SlotKey, value: SlotValue) {
         self.tx_cache.add_write(key.clone(), Some(value));
@@ -381,10 +285,6 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     /// Deletes a keyed value from the cache.
     pub fn delete(&mut self, key: &SlotKey) {
         self.tx_cache.add_write(key.clone(), None);
-    }
-
-    fn get_value_from_cache(&self, key: &SlotKey) -> ValueExists {
-        self.tx_cache.get_value(key)
     }
 
     /// Merges the provided `ProvableStorageCache` into this one.
@@ -449,6 +349,16 @@ mod tests {
     use sov_rollup_interface::maybestd::RefCount;
 
     use super::*;
+
+    impl Access {
+        fn read(original: Option<SlotValue>) -> Self {
+            Access::Read { original }
+        }
+
+        fn write(modified: Option<SlotValue>) -> Self {
+            Access::Write { modified }
+        }
+    }
 
     pub fn create_key(key: u8) -> SlotKey {
         SlotKey {
@@ -736,14 +646,14 @@ mod tests {
     #[test]
     fn test_access_read_write() {
         let original_value = create_value(1);
-        let mut access = Access::Read(original_value.clone());
+        let mut access = Access::read(original_value.clone());
 
         // Check: Read => ReadThenWrite transition
         {
             let new_value = create_value(2);
-            access.write_value(new_value.clone());
+            access.add_write(new_value.clone());
 
-            assert_eq!(access.last_value(), &new_value);
+            assert_eq!(access.last_value(), new_value.as_ref());
             assert_eq!(
                 access,
                 Access::ReadThenWrite {
@@ -756,9 +666,9 @@ mod tests {
         // Check: ReadThenWrite => ReadThenWrite transition
         {
             let new_value = create_value(3);
-            access.write_value(new_value.clone());
+            access.add_write(new_value.clone());
 
-            assert_eq!(access.last_value(), &new_value);
+            assert_eq!(access.last_value(), new_value.as_ref());
             assert_eq!(
                 access,
                 Access::ReadThenWrite {
@@ -772,15 +682,15 @@ mod tests {
     #[test]
     fn test_access_write() {
         let original_value = create_value(1);
-        let mut access = Access::Write(original_value.clone());
+        let mut access = Access::write(original_value.clone());
 
         // Check: Write => Write transition
         {
-            assert_eq!(access.last_value(), &original_value);
+            assert_eq!(access.last_value(), original_value.as_ref());
             let new_value = create_value(3);
-            access.write_value(new_value.clone());
-            assert_eq!(access.last_value(), &new_value);
-            assert_eq!(access, Access::Write(new_value));
+            access.add_write(new_value.clone());
+            assert_eq!(access.last_value(), new_value.as_ref());
+            assert_eq!(access, Access::write(new_value));
         }
     }
 
@@ -788,14 +698,14 @@ mod tests {
     fn test_access_merge() {
         let first_read = 1;
         let mut value = create_value(first_read);
-        let mut left = Access::Read(value.clone());
+        let mut left = Access::read(value.clone());
 
         let last_write = 10;
         for i in 2..last_write + 1 {
-            left.merge(Access::Read(value.clone())).unwrap();
+            left.merge(Access::read(value.clone())).unwrap();
 
             value = create_value(i);
-            left.merge(Access::Write(value.clone())).unwrap();
+            left.merge(Access::write(value.clone())).unwrap();
         }
 
         assert_eq!(
@@ -811,13 +721,13 @@ mod tests {
     fn test_err_merge_left_read_neq_right_read() {
         let first_read = 1;
         let value = create_value(first_read);
-        let left = &mut Access::Read(value.clone());
+        let left = &mut Access::read(value.clone());
 
         let second_read = 2;
         let value2 = create_value(second_read);
 
         assert_eq!(
-            left.merge(Access::Read(value2.clone())),
+            left.merge(Access::read(value2.clone())),
             Err(MergeError::ReadThenRead {
                 left: value,
                 right: value2,
@@ -829,7 +739,7 @@ mod tests {
     fn test_err_merge_left_read_neq_right_orig() {
         let first_read = 1;
         let value = create_value(first_read);
-        let left = &mut Access::Read(value.clone());
+        let left = &mut Access::read(value.clone());
 
         let second_read = 2;
         let value2 = create_value(second_read);
@@ -860,7 +770,7 @@ mod tests {
             modified: value.clone(),
         };
 
-        let right = Access::Read(value2.clone());
+        let right = Access::read(value2.clone());
 
         assert_eq!(
             left.merge(right),
@@ -906,7 +816,7 @@ mod tests {
         let second_read = 2;
         let value2 = create_value(second_read);
 
-        let left = &mut Access::Write(value.clone());
+        let left = &mut Access::write(value.clone());
         let right = Access::ReadThenWrite {
             original: value2.clone(),
             modified: value.clone(),

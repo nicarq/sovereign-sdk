@@ -49,7 +49,7 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
     }
 
     /// Replaces a storage value with a singleton prefix. For more information, check
-    /// [SlotKey::singleton].
+    /// [`SlotKey::singleton`].
     fn set_singleton<V, Codec>(&mut self, prefix: &Prefix, value: &V, codec: &Codec)
     where
         Codec: StateCodec,
