@@ -1,0 +1,13 @@
+[package]
+name = "sov-metrics"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+prometheus = { version = "0.13.3", default-features = false, optional = true }
+once_cell = { version = "1.10.0", optional = true }
+
+[features]
+default = []
+native = [ "dep:once_cell", "dep:prometheus" ]

@@ -19,6 +19,7 @@ members = [
     "full-node/sov-ledger-rpc",
     "full-node/sov-stf-runner",
     "full-node/sov-prover-storage-manager",
+    "full-node/sov-metrics",
     # Utils
     "utils/rng-da-service",
     # Module System

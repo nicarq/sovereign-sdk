@@ -30,6 +30,7 @@ async-trait = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 sov-db = { path = "../sov-db", version = "0.3", optional = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-metrics = { path = "../sov-metrics" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
@@ -66,6 +67,7 @@ native = [
 	"sov-bank/native",
 	"sov-celestia-adapter/native",
 	"sov-db",
+	"sov-metrics/native",
 	"sov-mock-da/native",
 	"sov-mock-zkvm/native",
 	"sov-modules-api/native",

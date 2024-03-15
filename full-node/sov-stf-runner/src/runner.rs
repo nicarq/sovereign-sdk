@@ -6,6 +6,9 @@ use std::sync::Arc;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::{CacheDb, ChangeSet};
+use sov_metrics::{
+    inc_rollup_batches_processed, inc_rollup_transactions_processed, set_current_da_height,
+};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -290,6 +293,9 @@ where
         self.sync_state
             .target_da_height
             .store(target_height, std::sync::atomic::Ordering::Release);
+        set_current_da_height(next_da_height);
+        let mut transaction_count = 0;
+        let mut batch_count = 0;
 
         self.spawn_sync_status_updater(self.da_polling_interval_ms);
 
@@ -351,6 +357,8 @@ where
             );
 
             for receipt in slot_result.batch_receipts {
+                batch_count += 1;
+                transaction_count += receipt.tx_receipts.len();
                 data_to_commit.add_batch(receipt);
             }
 
@@ -411,6 +419,8 @@ where
                 last_finalized_height,
             )
             .await?;
+            inc_rollup_batches_processed(batch_count);
+            inc_rollup_transactions_processed(transaction_count);
         }
     }
 
