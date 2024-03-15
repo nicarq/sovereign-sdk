@@ -1,6 +1,6 @@
 use borsh::BorshSerialize;
 use sov_mock_da::MockValidityCond;
-use sov_mock_zkvm::MockProof;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
     AggregatedProofPublicInput, CodeCommitment, Context, Gas, GasPrice, Spec, StateValueAccessor,
     WorkingSet,
@@ -20,7 +20,7 @@ const LAST_SLOT_NUM: u64 = 2;
 fn build_proof_log(
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: &mut WorkingSet<S>,
-) -> Vec<u8> {
+) -> AggregatedProofPublicInput {
     let genesis_hash = module
         .chain_state
         .get_genesis_hash(working_set)
@@ -29,7 +29,7 @@ fn build_proof_log(
     let last_transition = get_transition_unwrap(LAST_SLOT_NUM, module, working_set);
 
     let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-    let log = AggregatedProofPublicInput {
+    AggregatedProofPublicInput {
         validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
         initial_slot_number: FIRST_SLOT_NUM,
         final_slot_number: LAST_SLOT_NUM,
@@ -39,9 +39,7 @@ fn build_proof_log(
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
-    };
-    log.try_to_vec()
-        .expect("Should be able to serialize the log")
+    }
 }
 
 /// Simulates the execution of the chain state and processes a valid proof of the transitions between
@@ -66,17 +64,13 @@ fn execute_txs_and_process_valid_proof(
     );
     let mut working_set = state_checkpoint.to_revertable(meter);
 
-    let serialized_log = build_proof_log(module, &mut working_set);
-    let proof = MockProof {
-        program_id: MOCK_CODE_COMMITMENT,
-        is_valid: true,
-        log: &serialized_log,
-    };
+    let aggregated_proof = &build_proof_log(module, &mut working_set);
 
+    let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
     let context = Context::<S>::new(prover_address, sequencer, LAST_SLOT_NUM + 1);
 
     module
-        .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
+        .process_proof(&proof, &context, &mut working_set)
         .expect("There should be no error processing a valid proof");
 
     working_set
@@ -154,15 +148,11 @@ fn check_penalization_if_proven_again(
     );
 
     let proof_log = build_proof_log(module, working_set);
-    let proof = MockProof {
-        program_id: MOCK_CODE_COMMITMENT,
-        is_valid: true,
-        log: &proof_log,
-    };
+    let proof = MockZkvm::create_serialized_proof(true, proof_log);
 
     let context = Context::<S>::new(prover_address, sequencer, LAST_SLOT_NUM + 2);
     module
-        .process_proof(proof.encode_to_vec().as_ref(), &context, working_set)
+        .process_proof(&proof, &context, working_set)
         .expect("The proof should not be rejected");
 
     // Assert that the working set contains a penalized event

@@ -1,8 +1,8 @@
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::zk::{Proof, StateTransition, StateTransitionData};
+use sov_rollup_interface::zk::{StateTransition, StateTransitionData};
 
 pub(crate) struct BlockProof<Da: DaSpec, Root> {
-    pub(crate) _proof: Proof,
+    pub(crate) _proof: Vec<u8>,
     pub(crate) slot_number: u64,
     pub(crate) st: StateTransition<Da, Root>,
 }

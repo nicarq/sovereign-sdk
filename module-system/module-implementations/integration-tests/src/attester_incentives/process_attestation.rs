@@ -1,13 +1,10 @@
-use borsh::BorshSerialize;
 use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::get_genesis_token_address;
 use sov_mock_da::{MockValidityCond, MockValidityCondChecker};
-use sov_mock_zkvm::{MockCodeCommitment, MockProof};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{
-    CryptoSpec, PrivateKey, Spec, StateTransition, StateValueAccessor, WorkingSet,
-};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec, StateTransition, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
@@ -434,21 +431,7 @@ fn test_byzantine_value_setter_process_attestation() {
         validity_condition: MockValidityCond { is_valid: true },
     };
 
-    let serialized_transition = transition.try_to_vec().unwrap();
-
-    let mut working_set = WorkingSet::<S>::new(rollup.storage());
-    let commitment = rollup
-        .attester_incentives()
-        .commitment_to_allowed_challenge_method
-        .get(&mut working_set)
-        .expect("Should be set at genesis");
-
-    let proof = MockProof {
-        program_id: commitment,
-        is_valid: true,
-        log: serialized_transition.as_slice(),
-    }
-    .encode_to_vec();
+    let proof = MockZkvm::create_serialized_proof(true, transition);
 
     // The challenger has to bond first, then he can send the attestation.
     let challenger_bond_blob = new_test_blob_from_batch(

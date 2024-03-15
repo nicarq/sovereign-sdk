@@ -1,6 +1,6 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
-use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, Receipt, Session};
+use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, Journal, Receipt, Session};
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 
 use crate::guest::Risc0Guest;
@@ -82,15 +82,16 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         Risc0Guest::with_hints(std::mem::take(&mut self.env))
     }
 
-    fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
-        if with_proof {
+    fn run(&mut self, with_proof: bool) -> Result<Vec<u8>, anyhow::Error> {
+        let proof = if with_proof {
             let receipt = self.run()?;
-            let data = bincode::serialize(&receipt)?;
-            Ok(Proof::Full(data))
+            Proof::<Receipt, Option<Journal>>::Full(receipt)
         } else {
             let session = self.run_without_proving()?;
-            let data = bincode::serialize(&session.journal)?;
-            Ok(Proof::PublicInput(data))
-        }
+            let data = session.journal;
+            Proof::<Receipt, Option<Journal>>::PublicInput(data)
+        };
+
+        Ok(bincode::serialize(&proof)?)
     }
 }

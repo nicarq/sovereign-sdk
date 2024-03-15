@@ -1,6 +1,6 @@
 use borsh::BorshSerialize;
 use sov_mock_da::MockValidityCond;
-use sov_mock_zkvm::MockProof;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{AggregatedProofPublicInput, CodeCommitment, Context, Spec, WorkingSet};
 
 use super::helpers::{get_transition_unwrap, simulate_chain_state_execution};
@@ -41,26 +41,17 @@ fn slashing_setup() -> (
 
 /// Proves a transition log
 fn prove_transition_log(
-    log: AggregatedProofPublicInput,
+    aggregated_proof: AggregatedProofPublicInput,
     prover_address: <S as Spec>::Address,
     sequencer: <S as Spec>::Address,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: &mut WorkingSet<S>,
 ) {
     let context = Context::<S>::new(prover_address, sequencer, 1);
-
-    let serialized_log = log
-        .try_to_vec()
-        .expect("Should be able to serialize the log");
-
-    let proof = MockProof {
-        program_id: MOCK_CODE_COMMITMENT,
-        is_valid: true,
-        log: &serialized_log,
-    };
+    let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
 
     module
-        .process_proof(proof.encode_to_vec().as_ref(), &context, working_set)
+        .process_proof(&proof, &context, working_set)
         .expect("An invalid proof is not an error");
 }
 
@@ -94,13 +85,9 @@ fn test_slash_on_invalid_proof() {
     // Process an invalid proof
     {
         let context = Context::<S>::new(prover_address, sequencer, 1);
-        let proof = MockProof {
-            program_id: MOCK_CODE_COMMITMENT,
-            is_valid: false,
-            log: &[],
-        };
+        let proof = &MockZkvm::create_serialized_proof(false, ());
         module
-            .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
+            .process_proof(proof, &context, &mut working_set)
             .expect("An invalid proof is not an error");
     }
 
@@ -436,21 +423,16 @@ fn test_slash_on_invalid_output_format() {
     // Process an invalid proof
     {
         let context = Context::<S>::new(prover_address, sequencer, 1);
-
-        let proof = MockProof {
-            program_id: MOCK_CODE_COMMITMENT,
-            is_valid: true,
-            log: &[],
-        };
+        let proof = MockZkvm::create_serialized_proof(true, ());
 
         module
-            .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
+            .process_proof(&proof, &context, &mut working_set)
             .expect("An invalid proof is not an error");
     }
 
     // Check that the prover is slashed
     check_prover_slashed(
-        SlashingReason::ImpossibleToDeserializeProofOutput,
+        SlashingReason::ProofInvalid,
         prover_address,
         &module,
         &mut working_set,

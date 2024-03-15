@@ -1,7 +1,7 @@
-use sov_mock_zkvm::MockProof;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{Context, StateValueAccessor};
 
-use crate::tests::helpers::{setup, BOND_AMOUNT, MOCK_CODE_COMMITMENT, S};
+use crate::tests::helpers::{setup, BOND_AMOUNT, S};
 use crate::ProverIncentiveErrors;
 
 #[test]
@@ -67,15 +67,11 @@ fn test_prover_not_bonded() {
 
     // Process a valid proof
     {
-        let proof = MockProof {
-            program_id: MOCK_CODE_COMMITMENT,
-            is_valid: true,
-            log: &[],
-        };
+        let proof = &MockZkvm::create_serialized_proof(true, ());
         // Assert that processing a valid proof fails
         assert_eq!(
             module
-                .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
+                .process_proof(proof, &context, &mut working_set)
                 .expect_err("The proof should be rejected"),
             ProverIncentiveErrors::BondNotHighEnough
         );

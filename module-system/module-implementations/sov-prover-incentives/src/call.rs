@@ -388,40 +388,24 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .set(context.sender(), &(old_balance - minimum_bond), working_set);
 
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
-        let verification_result = <S as Spec>::Zkvm::verify(proof, &code_commitment);
+        let verification_result =
+            <S as Spec>::Zkvm::verify::<AggregatedProofPublicInput>(proof, &code_commitment);
 
-        if verification_result.is_err() {
-            self.emit_event(
-                working_set,
-                "prover_slashed",
-                Event::<S>::ProverSlashed {
-                    prover: context.sender().clone(),
-                    reason: crate::event::SlashingReason::ProofInvalid,
-                },
-            );
+        let public_outputs = match verification_result {
+            Ok(public_outputs) => public_outputs,
+            Err(_) => {
+                self.emit_event(
+                    working_set,
+                    "prover_slashed",
+                    Event::<S>::ProverSlashed {
+                        prover: context.sender().clone(),
+                        reason: crate::event::SlashingReason::ProofInvalid,
+                    },
+                );
 
-            return Ok(CallResponse::default());
-        }
-
-        // We try to deserialize the public outputs
-        let public_outputs: AggregatedProofPublicInput =
-                    // TODO: We shouldn't harcode borsh. Will be fixed as part of PR #281 `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/281>`
-                    // We can safely unwrap here because we checked the error case right above
-                    match BorshDeserialize::deserialize(&mut verification_result.unwrap().as_ref()) {
-                        Err(_e) => {
-                            self.emit_event(
-                                working_set,
-                                "prover_slashed",
-                                Event::<S>::ProverSlashed {
-                                    prover: context.sender().clone(),
-                                    reason: SlashingReason::ImpossibleToDeserializeProofOutput,
-                                },
-                            );
-
-                            return Ok(CallResponse::default());
-                        }
-                        Ok(public_outputs) => public_outputs,
-                    };
+                return Ok(CallResponse::default());
+            }
+        };
 
         // Check that the public outputs are valid
         if let Err(err) = self.check_proof_outputs(&public_outputs, working_set) {

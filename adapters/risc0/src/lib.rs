@@ -6,9 +6,13 @@
 use crypto::{Risc0PublicKey, Risc0Signature};
 use risc0_zkvm::sha::Digest;
 #[cfg(not(target_os = "zkvm"))]
+use risc0_zkvm::Journal;
+#[cfg(not(target_os = "zkvm"))]
 use risc0_zkvm::Receipt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "zkvm"))]
+use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::zk::{CryptoSpec, Matches, Zkvm};
 
 pub mod crypto;
@@ -60,38 +64,22 @@ pub struct Risc0Verifier;
 #[cfg(not(target_os = "zkvm"))]
 impl Zkvm for Risc0Verifier {
     type CodeCommitment = Risc0MethodId;
-
+    type CryptoSpec = Risc0CryptoSpec;
     type Error = anyhow::Error;
 
-    fn verify(
+    fn verify<T: DeserializeOwned>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
-        verify_from_slice(serialized_proof, code_commitment)
+    ) -> Result<T, Self::Error> {
+        let proof: Proof<Receipt, Option<Journal>> = bincode::deserialize(serialized_proof)?;
+        match proof {
+            Proof::PublicInput(_) => anyhow::bail!("Risc0Verifier supports only full proofs"),
+            Proof::Full(receipt) => {
+                receipt.verify(code_commitment.0)?;
+                Ok(bincode::deserialize(&receipt.journal.bytes)?)
+            }
+        }
     }
-
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
-        serialized_proof: &[u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(&output)?)
-    }
-
-    type CryptoSpec = Risc0CryptoSpec;
-}
-
-#[cfg(not(target_os = "zkvm"))]
-fn verify_from_slice(
-    serialized_proof: &[u8],
-    code_commitment: &Risc0MethodId,
-) -> Result<Vec<u8>, anyhow::Error> {
-    let receipt: Receipt = bincode::deserialize(serialized_proof)?;
-    receipt.verify(code_commitment.0)?;
-    Ok(receipt.journal.bytes)
 }
 
 #[cfg(target_os = "zkvm")]
@@ -102,21 +90,11 @@ impl Zkvm for Risc0Verifier {
 
     type Error = anyhow::Error;
 
-    fn verify(
+    fn verify<T: DeserializeOwned>(
         _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         // Implement this method once risc0 supports recursion: issue #633
         todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
-    }
-
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        todo!()
     }
 }

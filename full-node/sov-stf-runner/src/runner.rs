@@ -546,7 +546,7 @@ mod tests {
     use crate::mock::MockStf;
 
     type Da = MockDaService;
-    type Vm = MockZkvm<MockValidityCond>;
+    type Vm = MockZkvm;
     type Stf = MockStf<MockValidityCond>;
     type StateRoot = <MockStf<MockValidityCond> as StateTransitionFunction<
         <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,

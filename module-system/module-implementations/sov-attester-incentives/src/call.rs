@@ -916,12 +916,10 @@ where
             }
         };
 
-        let public_outputs_opt: anyhow::Result<StateTransition<Da, <S::Storage as Storage>::Root>> =
-            <S::Zkvm as Zkvm>::verify_and_extract_output::<Da, <S::Storage as Storage>::Root>(
-                proof,
-                &code_commitment,
-            )
-            .map_err(|e| anyhow::format_err!("{:?}", e));
+        let public_outputs_opt = <S::Zkvm as Zkvm>::verify::<
+            StateTransition<Da, <S::Storage as Storage>::Root>,
+        >(proof, &code_commitment)
+        .map_err(|e| anyhow::format_err!("{:?}", e));
 
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         match public_outputs_opt {

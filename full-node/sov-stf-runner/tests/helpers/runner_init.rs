@@ -29,7 +29,7 @@ pub type MockProverService = ParallelProverService<
     [u8; 32],
     ArrayWitness,
     MockDaService,
-    MockZkvm<MockValidityCond>,
+    MockZkvm,
     HashStf<MockValidityCond>,
 >;
 
@@ -38,7 +38,7 @@ pub struct TestNode {
     proof_posted_in_da_sub: Receiver<()>,
     agg_proof_saved_in_db_sub: Receiver<AggregatedProofResponse>,
     da: MockDaService,
-    vm: MockZkvm<MockValidityCond>,
+    vm: MockZkvm,
     ledger_db: LedgerDB,
 }
 
@@ -95,7 +95,7 @@ pub fn initialize_runner(
         HashStf<MockValidityCond>,
         StorageManager,
         MockDaService,
-        MockZkvm<MockValidityCond>,
+        MockZkvm,
         MockProverService,
     >,
     TestNode,
@@ -134,7 +134,7 @@ pub fn initialize_runner(
     let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
     let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
-    let vm = MockZkvm::new(MockValidityCond::default());
+    let vm = MockZkvm::new();
     let verifier = MockDaVerifier::default();
 
     let prover_config = RollupProverConfig::Prove;
