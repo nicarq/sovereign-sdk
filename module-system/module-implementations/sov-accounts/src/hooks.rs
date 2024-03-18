@@ -1,6 +1,6 @@
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Context, CryptoSpec, PublicKey, Spec, StateAccessor, StateCheckpoint, StateMapAccessor,
+    CryptoSpec, PublicKey, Spec, StateAccessor, StateCheckpoint, StateMapAccessor,
 };
 
 use crate::{Account, Accounts};
@@ -47,7 +47,6 @@ where {
     pub fn check_uniqueness(
         &self,
         tx: &Transaction<S>,
-        _context: &Context<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<(), anyhow::Error> {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.

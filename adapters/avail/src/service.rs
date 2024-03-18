@@ -50,12 +50,12 @@ pub struct DaProvider {
 
 impl DaProvider {
     fn appdata_url(&self, block_num: u64) -> String {
-        let light_client_url = self.light_client_url.clone();
+        let light_client_url = &self.light_client_url;
         format!("{light_client_url}/v1/appdata/{block_num}")
     }
 
     fn confidence_url(&self, block_num: u64) -> String {
-        let light_client_url = self.light_client_url.clone();
+        let light_client_url = &self.light_client_url;
         format!("{light_client_url}/v1/confidence/{block_num}")
     }
 

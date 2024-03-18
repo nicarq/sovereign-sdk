@@ -167,16 +167,16 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
 impl<S: Spec, Da: DaSpec> TransactionDeduplicator<S, Da> for Runtime<S, Da> {
     /// The transaction type that the deduplicator knows how to parse.
     type Tx = Transaction<S>;
+
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
         &self,
         tx: &Self::Tx,
-        context: &Context<S>,
+        _context: &Context<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<(), anyhow::Error> {
-        self.accounts
-            .check_uniqueness(tx, context, state_checkpoint)
+        self.accounts.check_uniqueness(tx, state_checkpoint)
     }
 
     /// Marks a transaction as having been executed, preventing it from executing again.
