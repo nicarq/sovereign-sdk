@@ -36,7 +36,7 @@ use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleAddress,
     ProofUniqueId, SlotNumber, StoredAggregatedProof, StoredBatch, StoredSlot, StoredTransaction,
-    TxIncrId, TxNumber,
+    TxNumber,
 };
 use crate::sequencer_db::MempoolTx;
 
@@ -254,14 +254,9 @@ define_table_with_seek_key_codec!(
     (ProofByUniqueId) ProofUniqueId => StoredAggregatedProof
 );
 
-define_table_with_seek_key_codec!(
-    /// Transactions stored in the mempool, keyed by sequential ID.
-    (TxByIncrId) TxIncrId => MempoolTx
-);
-
 define_table_with_default_codec!(
-    /// Index over [`TxByIncrId`] for lookup by hash.
-    (TxIncrIdByHash) TxHash => TxIncrId
+    /// Transactions stored in the mempool, keyed by hash.
+    (MempoolTxByHash) TxHash => MempoolTx
 );
 
 define_table_without_codec!(

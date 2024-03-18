@@ -10,7 +10,7 @@ use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::utils::SimpleClient;
-use sov_sequencer::{FiFoStrictBatchBuilder, Sequencer, TxStatus};
+use sov_sequencer::{FairBatchBuilder, Sequencer, TxStatus};
 use sov_state::DefaultStorageSpec;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
@@ -29,7 +29,7 @@ type Blueprint = StfBlueprint<
 fn new_sequencer(
     dir: &TempDir,
 ) -> Sequencer<
-    FiFoStrictBatchBuilder<TestSpec, MockDaSpec, TestRuntime<TestSpec, MockDaSpec>>,
+    FairBatchBuilder<TestSpec, MockDaSpec, TestRuntime<TestSpec, MockDaSpec>>,
     MockDaService,
 > {
     let sequencer_addr = [42u8; 32];
@@ -95,14 +95,15 @@ fn new_sequencer(
         .expect("Getting first block storage failed");
 
     let da_service = MockDaService::new(sequencer_addr.into());
-    let batch_builder = FiFoStrictBatchBuilder::new(
+    let batch_builder = FairBatchBuilder::new(
         usize::MAX,
         usize::MAX,
         runtime,
         watch::Sender::new(stf_state).subscribe(),
         sequencer_addr.into(),
         sequencer_db,
-    );
+    )
+    .unwrap();
 
     Sequencer::new(batch_builder, da_service)
 }

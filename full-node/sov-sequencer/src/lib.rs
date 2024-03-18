@@ -5,10 +5,11 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 mod batch_builder;
+mod mempool;
 mod tx_status;
 pub mod utils;
 
-pub use batch_builder::FiFoStrictBatchBuilder;
+pub use batch_builder::FairBatchBuilder;
 use jsonrpsee::core::StringError;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
@@ -55,11 +56,26 @@ where
         rpc
     }
 
-    async fn submit_batch(&self) -> anyhow::Result<SubmittedBatchInfo> {
-        // Need to release lock before await, so the Future is `Send`.
-        // But potentially it can create blobs that are sent out of order.
-        // It can be improved with atomics,
-        // so a new batch is only created after previous was submitted.
+    async fn submit_batch(&self, txs: Vec<Vec<u8>>) -> anyhow::Result<SubmittedBatchInfo> {
+        // Acquire the lock before any DA operation, to avoid out-of-order
+        // batches and other potential issues.
+        let mut batch_builder = self.batch_builder.lock().await;
+
+        let mut accept_tx_results = vec![];
+        for tx in txs {
+            let result = batch_builder
+                .accept_tx(tx.clone())
+                .map(|tx_hash| {
+                    self.tx_status_notifier.notify(tx_hash, TxStatus::Submitted);
+                    AcceptTxResponse {
+                        tx,
+                        tx_hash: HexHash(tx_hash),
+                    }
+                })
+                .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR));
+            accept_tx_results.push(result);
+        }
+
         tracing::info!("Submit batch request has been received!");
 
         let da_height = self
@@ -68,13 +84,10 @@ where
             .await
             .map_err(|e| anyhow::anyhow!("Failed to fetch current head: {}", e))?
             .height();
-        let blob = {
-            let mut batch_builder = self.batch_builder.lock().await;
-            batch_builder.get_next_blob(da_height)?
-        };
 
-        let num_txs = blob.len();
-        let (blob, tx_hashes) = blob
+        let blob_txs = batch_builder.get_next_blob(da_height)?;
+        let num_txs = blob_txs.len();
+        let (blob, tx_hashes) = blob_txs
             .into_iter()
             .map(|tx| (tx.raw_tx, tx.hash))
             .unzip::<_, _, Vec<_>, Vec<_>>();
@@ -82,6 +95,7 @@ where
 
         let da_tx_id = match self.da_service.send_transaction(&blob).await {
             Ok(id) => id,
+            // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1090): retry on transient errors.
             Err(e) => anyhow::bail!("failed to submit batch: {}", e),
         };
 
@@ -98,21 +112,13 @@ where
     }
 
     async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
-        info!(tx = hex::encode(&tx), "Accepting transaction");
         let mut batch_builder = self.batch_builder.lock().await;
+
+        info!(tx = hex::encode(&tx), "Accepting transaction");
         let tx_hash = batch_builder.accept_tx(tx)?;
         self.tx_status_notifier.notify(tx_hash, TxStatus::Submitted);
-        Ok(tx_hash)
-    }
 
-    async fn accept_tx_rpc(&self, tx: Vec<u8>) -> Result<AcceptTxResponse, ErrorObjectOwned> {
-        self.accept_tx(tx.clone())
-            .await
-            .map(|tx_hash| AcceptTxResponse {
-                tx,
-                tx_hash: HexHash(tx_hash),
-            })
-            .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))
+        Ok(tx_hash)
     }
 
     async fn tx_status(
@@ -133,13 +139,12 @@ where
             "sequencer_publishBatch",
             |params, batch_builder| async move {
                 let mut params_iter = params.sequence();
-                let mut accept_tx_results = vec![];
-                while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
-                    let res = batch_builder.accept_tx_rpc(tx).await;
-                    accept_tx_results.push(res);
+                let mut txs = vec![];
+                while let Some(tx) = params_iter.optional_next()? {
+                    txs.push(tx);
                 }
                 let submitted_batch_info = batch_builder
-                    .submit_batch()
+                    .submit_batch(txs)
                     .await
                     .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
 
@@ -147,8 +152,16 @@ where
             },
         )?;
         rpc.register_async_method("sequencer_acceptTx", |params, sequencer| async move {
-            let tx: SubmitTransaction = params.one()?;
-            sequencer.accept_tx_rpc(tx.body).await
+            let tx = params.one::<SubmitTransaction>()?.body;
+
+            sequencer
+                .accept_tx(tx.clone())
+                .await
+                .map(|tx_hash| AcceptTxResponse {
+                    tx,
+                    tx_hash: HexHash(tx_hash),
+                })
+                .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))
         })?;
 
         rpc.register_async_method("sequencer_txStatus", |params, sequencer| async move {

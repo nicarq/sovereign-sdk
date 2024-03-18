@@ -5,7 +5,7 @@ use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_sequencer::{FiFoStrictBatchBuilder, Sequencer};
+use sov_sequencer::{FairBatchBuilder, Sequencer};
 use tokio::sync::watch;
 
 /// Register rollup's default rpc methods.
@@ -37,14 +37,14 @@ where
 
     // sequencer RPC.
     {
-        let batch_builder = FiFoStrictBatchBuilder::<S, Da::Spec, RT>::new(
+        let batch_builder = FairBatchBuilder::<S, Da::Spec, RT>::new(
             1024 * 100,
             u32::MAX as usize,
             RT::default(),
             storage,
             sequencer,
             sequencer_db.clone(),
-        );
+        )?;
 
         let sequencer_rpc = Sequencer::new(batch_builder, da_service.clone()).rpc();
         rpc_methods

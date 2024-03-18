@@ -118,9 +118,11 @@ impl TryFrom<String> for PublicKeyHex {
             anyhow::bail!("Bad hex conversion: odd input length")
         }
 
-        if let Some((index, c)) = hex.chars().enumerate().find(|(_, c)| {
-            !(matches!(c, '0'..='9' | 'a'..='f') || matches!(c, '0'..='9' | 'A'..='F'))
-        }) {
+        if let Some((index, c)) = hex
+            .chars()
+            .enumerate()
+            .find(|(_, c)| !c.is_ascii_hexdigit())
+        {
             anyhow::bail!(
                 "Bad hex conversion: wrong character `{}` at index {}",
                 c,
