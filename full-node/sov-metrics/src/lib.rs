@@ -13,7 +13,9 @@ use counters::*;
 /// Increment the counter `DA_BLOCKS_PROCESSED` by count
 /// if metrics are enabled. No-op otherwise
 pub fn inc_da_blocks_processed(count: usize) {
-    DA_BLOCKS_PROCESSED.inc_by(count as u64)
+    if count > 0 {
+        DA_BLOCKS_PROCESSED.inc_by(count as u64)
+    }
 }
 
 #[cfg(not(feature = "native"))]
@@ -27,7 +29,9 @@ pub fn inc_da_blocks_processed(_count: usize) {}
 /// Increment the counter `ROLLUP_BATCHES_PROCESSED` by count
 /// if metrics are enabled. No-op otherwise
 pub fn inc_rollup_batches_processed(count: usize) {
-    ROLLUP_BATCHES_PROCESSED.inc_by(count as u64)
+    if count > 0 {
+        ROLLUP_BATCHES_PROCESSED.inc_by(count as u64)
+    }
 }
 
 #[cfg(not(feature = "native"))]
@@ -41,7 +45,9 @@ pub fn inc_rollup_batches_processed(_count: usize) {}
 /// Increment the counter `ROLLUP_TRANSACTIONS_PROCESSED` by count
 /// if metrics are enabled. No-op otherwise
 pub fn inc_rollup_transactions_processed(count: usize) {
-    ROLLUP_TRANSACTIONS_PROCESSED.inc_by(count as u64)
+    if count > 0 {
+        ROLLUP_TRANSACTIONS_PROCESSED.inc_by(count as u64)
+    }
 }
 
 #[cfg(not(feature = "native"))]

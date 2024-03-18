@@ -67,7 +67,6 @@ async fn bank_tx_tests(test_case: TestCase) -> anyhow::Result<()> {
         )
         .await;
     });
-
     let port = port_rx.await.unwrap().port();
     let client = SimpleClient::new("localhost", port).await?;
 

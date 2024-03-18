@@ -293,15 +293,15 @@ where
         self.sync_state
             .target_da_height
             .store(target_height, std::sync::atomic::Ordering::Release);
-        set_current_da_height(next_da_height);
-        let mut transaction_count = 0;
-        let mut batch_count = 0;
 
         self.spawn_sync_status_updater(self.da_polling_interval_ms);
 
         let mut agg_block_hashes = Vec::default();
         loop {
             debug!(next_da_height, "Requesting DA block for");
+            set_current_da_height(next_da_height);
+            let mut transaction_count = 0;
+            let mut batch_count = 0;
             let mut filtered_block = self.da_service.get_block_at(next_da_height).await?;
 
             // Checking if reorg happened or not.
