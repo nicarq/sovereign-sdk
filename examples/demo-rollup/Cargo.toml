@@ -39,6 +39,7 @@ hex = { workspace = true, optional = true }
 tokio = { workspace = true }
 reth-primitives = { workspace = true, optional = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+prometheus_exporter = "0.8.5"
 
 sov-db = { path = "../../full-node/sov-db" }
 sov-ethereum = { path = "../../full-node/sov-ethereum", optional = true }

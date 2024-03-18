@@ -37,7 +37,7 @@ enum SupportedDaLayer {
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     initialize_logging();
-
+    prometheus_exporter::start("127.0.0.1:9845".parse()?).unwrap();
     let args = Args::parse();
     let rollup_config_path = args.rollup_config_path.as_str();
 
