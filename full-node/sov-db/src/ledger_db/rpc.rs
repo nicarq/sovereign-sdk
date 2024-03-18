@@ -360,22 +360,21 @@ impl LedgerRpcProvider for LedgerDB {
 
     fn get_events_by_txn_hash<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
         &self,
-        txn_hash: &str,
+        txn_hash: &[u8; 32],
     ) -> Result<Vec<EventResponse>, Error> {
-        let tx_vec = hex::decode(txn_hash)?;
-        if tx_vec.len() != 32 {
-            anyhow::bail!("Provided string does not match expected length of 32");
-        }
-        let mut tx_bytes = [0u8; 32];
-        tx_bytes.copy_from_slice(&tx_vec);
         let tid = self
             .db
-            .read::<TxByHash>(&tx_bytes)
-            .with_context(|| format!("Failed to query txn with hash: {}", txn_hash))?
-            .with_context(|| format!("Txn with hash: {} does not exist in storage", txn_hash))?;
-        let events_response = self
-            .get_events_by_txn_number::<E>(tid.0)
-            .with_context(|| format!("Failed to query txn with hash: {}", txn_hash))?;
+            .read::<TxByHash>(txn_hash)
+            .with_context(|| format!("Failed to query txn with hash: 0x{}", hex::encode(txn_hash)))?
+            .with_context(|| {
+                format!(
+                    "Txn with hash: 0x{} does not exist in storage",
+                    hex::encode(txn_hash)
+                )
+            })?;
+        let events_response = self.get_events_by_txn_number::<E>(tid.0).with_context(|| {
+            format!("Failed to query txn with hash: 0x{}", hex::encode(txn_hash))
+        })?;
         Ok(events_response)
     }
 

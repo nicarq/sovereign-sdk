@@ -138,9 +138,9 @@ where
     })?;
 
     rpc.register_method("ledger_getEventsByTxnHash", move |params, ledger| {
-        let args: &str = params.one()?;
+        let args: HexHash = params.one()?;
         ledger
-            .get_events_by_txn_hash::<E>(args)
+            .get_events_by_txn_hash::<E>(&args.0)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 

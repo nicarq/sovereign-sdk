@@ -342,7 +342,7 @@ pub trait LedgerRpcProvider {
     /// Get events by transaction hash.
     fn get_events_by_txn_hash<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
-        txn_hash: &str,
+        txn_hash: &[u8; 32],
     ) -> Result<Vec<EventResponse>, anyhow::Error>;
 
     /// Get events by transaction number.
