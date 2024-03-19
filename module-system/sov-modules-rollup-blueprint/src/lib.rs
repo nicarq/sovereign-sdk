@@ -79,6 +79,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         ledger_db: &LedgerDB,
         sequencer_db: &SequencerDB,
         da_service: &Self::DaService,
+        rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
@@ -173,7 +174,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
         let ledger_db = self.create_ledger_db(ledger_state)?;
 
-        let sequencer_db = SequencerDB::new(rollup_config.storage.path)?;
+        let sequencer_db = SequencerDB::new(&rollup_config.storage.path)?;
 
         let prev_root = ledger_db
             .get_head_slot()?
@@ -191,8 +192,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let rpc_storage = tokio::sync::watch::channel(prover_storage);
         // We pass "bootstrap" storage here,
         // as it will be replaced with the latest on after first processed block.
-        let rpc_methods =
-            self.create_rpc_methods(rpc_storage.1, &ledger_db, &sequencer_db, &da_service)?;
+        let rpc_methods = self.create_rpc_methods(
+            rpc_storage.1,
+            &ledger_db,
+            &sequencer_db,
+            &da_service,
+            &rollup_config,
+        )?;
 
         let native_stf = StfBlueprint::new();
         let runner = StateTransitionRunner::new(

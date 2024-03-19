@@ -146,9 +146,9 @@ impl BlockHeaderTrait for MockBlockHeader {
 /// The configuration for mock da
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct MockDaConfig {
-    /// The address to use to "submit" blobs on the mock da layer
+    /// The address to use to "submit" blobs on the mock da layer.
     pub sender_address: MockAddress,
-    /// How many blocks progress to finalization
+    /// How many blocks progress to finalization.
     #[serde(default)]
     pub finalization_blocks: u32,
     /// How many times try to wait for given block.
