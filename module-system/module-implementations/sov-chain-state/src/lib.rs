@@ -27,12 +27,10 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::namespaces::Kernel;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelStateValue, ValidityConditionChecker,
-    WorkingSet,
+    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, ValidityConditionChecker, WorkingSet,
 };
-use sov_state::codec::{BcsCodec, BorshCodec};
+use sov_state::codec::BcsCodec;
 use sov_state::storage::kernel_state::VersionReader;
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
@@ -211,7 +209,6 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Returns transition height in the current slot
     pub fn true_slot_number<T>(&self, working_set: &mut T) -> TransitionHeight
     where
-        KernelStateValue<u64>: StateValueAccessor<Kernel, u64, BorshCodec, T>,
         T: StateReaderAndWriter<Kernel>,
     {
         self.true_slot_number.get(working_set).unwrap_or_default()
@@ -220,7 +217,6 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Returns transition height for the next slot to start execution
     pub fn next_visible_slot_number<T>(&self, working_set: &mut T) -> TransitionHeight
     where
-        KernelStateValue<u64>: StateValueAccessor<Kernel, u64, BorshCodec, T>,
         T: StateReaderAndWriter<Kernel>,
     {
         self.next_visible_slot_number
@@ -231,7 +227,6 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Returns transition height in the current slot
     pub fn set_next_visible_slot_number<T>(&self, value: &u64, working_set: &mut T)
     where
-        KernelStateValue<u64>: StateValueAccessor<Kernel, u64, BorshCodec, T>,
         T: StateReaderAndWriter<Kernel>,
     {
         tracing::debug!(slot_number = value, "Setting next visible slot number");

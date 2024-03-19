@@ -1,4 +1,4 @@
-use sov_modules_api::{DaSpec, KernelWorkingSet, Spec, StateValueAccessor};
+use sov_modules_api::{DaSpec, KernelWorkingSet, Spec};
 
 use crate::{ChainState, TransitionInProgress};
 
@@ -16,6 +16,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         transition: TransitionInProgress<S, Da>,
         working_set: &mut KernelWorkingSet<S>,
     ) {
-        self.in_progress_transition.set(&transition, working_set);
+        self.in_progress_transition
+            .set_true_current(&transition, working_set);
     }
 }

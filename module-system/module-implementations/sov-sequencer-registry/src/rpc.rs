@@ -1,7 +1,7 @@
 //! Defines rpc queries exposed by the sequencer registry module, along with the relevant types
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{Spec, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Spec, WorkingSet};
 
 use crate::SequencerRegistry;
 

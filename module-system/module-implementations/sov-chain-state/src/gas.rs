@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateAccessor, StateMap, StateMapAccessor};
+use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateAccessor, StateMap};
 use sov_state::codec::BcsCodec;
 
 use crate::{StateTransition, TransitionHeight};

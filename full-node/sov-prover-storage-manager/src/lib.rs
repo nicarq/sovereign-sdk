@@ -897,9 +897,7 @@ mod tests {
         assert!(!storage_manager.is_empty());
 
         let witness = ArrayWitness::default();
-        {
-            do_writes(&stf_state, &witness, &[(3, Some(4))], &[(50, Some(60))]);
-        }
+        do_writes(&stf_state, &witness, &[(3, Some(4))], &[(50, Some(60))]);
 
         storage_manager
             .save_change_set(
@@ -1727,14 +1725,12 @@ mod tests {
         let (stf_state, ledger_state) = storage_manager.create_state_for(&block_e).unwrap();
         let witness = ArrayWitness::default();
         // Fill some special data for E
-        {
-            do_writes(
-                &stf_state,
-                &witness,
-                &[(30_000_000, Some(100)), (40_000_000, Some(200))],
-                &[(50_000_000, Some(300)), (60_000_000, Some(400))],
-            );
-        }
+        do_writes(
+            &stf_state,
+            &witness,
+            &[(30_000_000, Some(100)), (40_000_000, Some(200))],
+            &[(50_000_000, Some(300)), (60_000_000, Some(400))],
+        );
 
         storage_manager
             .save_change_set(&block_e, stf_state.try_into().unwrap(), ledger_state.into())

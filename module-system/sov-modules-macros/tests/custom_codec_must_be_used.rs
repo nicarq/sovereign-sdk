@@ -1,6 +1,5 @@
-use sov_modules_api::prelude::*;
 use sov_modules_api::{ModuleInfo, Spec, StateValue, WorkingSet};
-use sov_modules_core::{StateCodec, StateKeyCodec, StateValueCodec};
+use sov_modules_core::{StateCodec, StateItemCodec};
 use sov_state::{DefaultStorageSpec, ZkStorage};
 use std::panic::catch_unwind;
 
@@ -38,20 +37,14 @@ impl StateCodec for CustomCodec {
     }
 }
 
-impl<K> StateKeyCodec<K> for CustomCodec {
-    fn encode_key(&self, _key: &K) -> Vec<u8> {
-        unimplemented!()
-    }
-}
-
-impl<V> StateValueCodec<V> for CustomCodec {
+impl<V> StateItemCodec<V> for CustomCodec {
     type Error = String;
 
-    fn encode_value(&self, _value: &V) -> Vec<u8> {
+    fn encode(&self, _value: &V) -> Vec<u8> {
         unimplemented!()
     }
 
-    fn try_decode_value(&self, _bytes: &[u8]) -> Result<V, Self::Error> {
+    fn try_decode(&self, _bytes: &[u8]) -> Result<V, Self::Error> {
         unimplemented!()
     }
 }

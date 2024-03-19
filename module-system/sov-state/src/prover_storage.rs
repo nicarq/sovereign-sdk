@@ -201,13 +201,14 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         &self,
         namespace: ProvableNamespace,
         key: SlotKey,
+        version: Option<u64>,
     ) -> StorageProof<<ProverStorage<S> as Storage>::Proof> {
         let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
         let merkle = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
         let (val_opt, proof) = merkle
             .get_with_proof(
                 KeyHash::with::<S::Hasher>(key.as_ref()),
-                self.db.get_next_version() - 1,
+                version.unwrap_or_else(|| self.db.get_next_version() - 1),
             )
             .unwrap();
         StorageProof {
@@ -369,14 +370,15 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
         &self,
         key: SlotKey,
+        version: Option<u64>,
     ) -> StorageProof<Self::Proof> {
         let namespace = N::PROVABLE_NAMESPACE;
         match namespace {
             ProvableNamespace::User => {
-                self.get_with_proof_namespace::<DBUserNamespace>(namespace, key)
+                self.get_with_proof_namespace::<DBUserNamespace>(namespace, key, version)
             }
             ProvableNamespace::Kernel => {
-                self.get_with_proof_namespace::<DBKernelNamespace>(namespace, key)
+                self.get_with_proof_namespace::<DBKernelNamespace>(namespace, key, version)
             }
         }
     }

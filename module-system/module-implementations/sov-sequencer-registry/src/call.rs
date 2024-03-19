@@ -2,7 +2,6 @@ use anyhow::bail;
 use sov_bank::Amount;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, Context, StateAccessor, WorkingSet};
 
 use crate::{AllowedSequencer, SequencerRegistry};

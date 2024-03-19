@@ -4,8 +4,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_core::kernel_state::VersionReader;
 use sov_modules_core::namespaces::Kernel;
 use sov_modules_core::{
-    KernelWorkingSet, Namespace, Prefix, Spec, StateCodec, StateKeyCodec, StateReaderAndWriter,
-    StateValueCodec,
+    KernelWorkingSet, Namespace, Prefix, SlotKey, SlotValue, Spec, StateCodec, StateItemCodec,
+    StateReaderAndWriter,
 };
 use sov_state::codec::BorshCodec;
 
@@ -15,9 +15,7 @@ use sov_state::codec::BorshCodec;
 /// (where access is mediated by a [`KernelWorkingSet`]), all versions of this value are accessible.
 ///
 /// Under the hood, a versioned value is implemented as a map from a slot number to a value. From the kernel, any
-/// value can be accessed using the `StateMapAccessor` trait with the slot number as the key. For convenience,
-/// the value can also be accessed using the `StateValueAccessor` trait, which will interact with the value for the current
-/// slot number.
+/// value can be accessed
 // TODO: Automatically clear out old versions from state
 #[derive(
     Debug,
@@ -37,7 +35,7 @@ pub struct VersionedStateValue<V, Codec = BorshCodec> {
 
 impl<V> VersionedStateValue<V> {
     /// Crates a new [`VersionedStateValue`] with the given prefix and the default
-    /// [`StateValueCodec`] (i.e. [`BorshCodec`]).
+    /// [`StateItemCodec`] (i.e. [`BorshCodec`]).
     pub fn new(prefix: Prefix) -> Self {
         Self::with_codec(prefix, BorshCodec)
     }
@@ -62,234 +60,60 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
 }
 
 impl<V, Codec> VersionedStateValue<V, Codec> {
+    fn encode_key(&self, slot: &u64) -> SlotKey
+    where
+        Codec: StateCodec,
+        Codec::KeyCodec: StateItemCodec<u64>,
+    {
+        SlotKey::new(self.prefix(), slot, self.codec.key_codec())
+    }
+
     /// Any version_aware working set can read the current contents of a versioned value.
     pub fn get_current(&self, ws: &mut impl VersionReader) -> Option<V>
     where
         Codec: StateCodec,
-        Codec::ValueCodec: StateValueCodec<V>,
-        Codec::KeyCodec: StateKeyCodec<u64>,
+        Codec::ValueCodec: StateItemCodec<V>,
+        Codec::KeyCodec: StateItemCodec<u64>,
     {
-        ws.get_value(self.prefix(), &ws.current_version(), &self.codec)
+        ws.get_decoded(&self.encode_key(&ws.current_version()), &self.codec)
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set_current<S: Spec>(&self, value: &V, ws: &mut KernelWorkingSet<'_, S>)
+    pub fn set_true_current<S: Spec>(&self, value: &V, ws: &mut KernelWorkingSet<'_, S>)
     where
         Codec: StateCodec,
-        Codec::ValueCodec: StateValueCodec<V>,
-        Codec::KeyCodec: StateKeyCodec<u64>,
+        Codec::ValueCodec: StateItemCodec<V>,
+        Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateReaderAndWriter::<Kernel>::set_value(
+        StateReaderAndWriter::<Kernel>::set(
             ws,
-            self.prefix(),
-            &ws.current_version(),
-            value,
-            &self.codec,
+            &self.encode_key(&ws.current_version()),
+            SlotValue::new(value, self.codec.value_codec()),
         );
     }
-}
 
-mod as_kernel_value {
-
-    use sov_modules_core::namespaces::Kernel;
-
-    use super::*;
-    use crate::StateValueAccessor;
-
-    impl<'a, V, Codec, S: Spec> StateValueAccessor<Kernel, V, Codec, KernelWorkingSet<'a, S>>
-        for VersionedStateValue<V, Codec>
+    /// Only the kernel working set can write to versioned values
+    pub fn set<S: Spec>(&self, key: &u64, value: &V, ws: &mut KernelWorkingSet<'_, S>)
     where
         Codec: StateCodec,
-        Codec::ValueCodec: StateValueCodec<V>,
-        Codec::KeyCodec: StateKeyCodec<u64>,
+        Codec::ValueCodec: StateItemCodec<V>,
+        Codec::KeyCodec: StateItemCodec<u64>,
     {
-        fn prefix(&self) -> &Prefix {
-            &self.prefix
-        }
-
-        fn codec(&self) -> &Codec {
-            &self.codec
-        }
-
-        fn set(&self, value: &V, working_set: &mut KernelWorkingSet<'a, S>) {
-            self.set_current(value, working_set);
-        }
-
-        fn get(&self, working_set: &mut KernelWorkingSet<'a, S>) -> Option<V> {
-            StateReaderAndWriter::<Kernel>::get_value(
-                working_set,
-                self.prefix(),
-                &working_set.current_slot(),
-                StateValueAccessor::<Kernel, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
-            )
-        }
-
-        fn get_or_err(
-            &self,
-            working_set: &mut KernelWorkingSet<'a, S>,
-        ) -> Result<V, crate::StateValueError> {
-            self.get(working_set)
-                .ok_or_else(|| crate::StateValueError::MissingValue(self.prefix().clone()))
-        }
-
-        fn remove(&self, working_set: &mut KernelWorkingSet<'a, S>) -> Option<V> {
-            StateReaderAndWriter::<Kernel>::get_value(
-                working_set,
-                self.prefix(),
-                &working_set.current_slot(),
-                StateValueAccessor::<Kernel, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
-            )
-        }
-
-        fn remove_or_err(
-            &self,
-            working_set: &mut KernelWorkingSet<'a, S>,
-        ) -> Result<V, crate::StateValueError> {
-            self.remove(working_set)
-                .ok_or_else(|| crate::StateValueError::MissingValue(self.prefix().clone()))
-        }
-
-        fn delete(&self, working_set: &mut KernelWorkingSet<'a, S>) {
-            StateReaderAndWriter::<Kernel>::delete_value(
-                working_set,
-                self.prefix(),
-                &working_set.current_slot(),
-                StateValueAccessor::<Kernel, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
-            );
-        }
+        StateReaderAndWriter::<Kernel>::set(
+            ws,
+            &self.encode_key(key),
+            SlotValue::new(value, self.codec.value_codec()),
+        );
     }
-}
 
-mod as_kernel_map {
-
-    use sov_modules_core::namespaces::Kernel;
-
-    use super::*;
-    use crate::StateMapAccessor;
-    impl<'a, V, Codec, S: Spec> StateMapAccessor<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>
-        for VersionedStateValue<V, Codec>
+    /// Any version_aware working set can read the current contents of a versioned value.
+    pub fn get<S: Spec>(&self, key: &u64, ws: &mut KernelWorkingSet<'_, S>) -> Option<V>
     where
         Codec: StateCodec,
-        Codec::ValueCodec: StateValueCodec<V>,
-        Codec::KeyCodec: StateKeyCodec<u64>,
+        Codec::ValueCodec: StateItemCodec<V>,
+        Codec::KeyCodec: StateItemCodec<u64>,
     {
-        fn prefix(&self) -> &Prefix {
-            &self.prefix
-        }
-
-        fn codec(&self) -> &Codec {
-            &self.codec
-        }
-
-        fn set<Q>(&self, key: &Q, value: &V, working_set: &mut KernelWorkingSet<'a, S>)
-        where
-            <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,
-            Q: ?Sized,
-        {
-            StateReaderAndWriter::<Kernel>::set_value(
-                working_set,
-                self.prefix(),
-                key,
-                value,
-                StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
-            );
-        }
-
-        fn get<Q>(&self, key: &Q, working_set: &mut KernelWorkingSet<'a, S>) -> Option<V>
-        where
-            Codec: StateCodec,
-            <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,
-            <Codec as StateCodec>::ValueCodec: StateValueCodec<V>,
-            Q: ?Sized,
-        {
-            StateReaderAndWriter::<Kernel>::get_value(
-                working_set,
-                self.prefix(),
-                key,
-                StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
-            )
-        }
-
-        fn get_or_err<Q>(
-            &self,
-            key: &Q,
-            working_set: &mut KernelWorkingSet<'a, S>,
-        ) -> Result<V, crate::StateMapError>
-        where
-            Codec: StateCodec,
-            <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,
-            <Codec as StateCodec>::ValueCodec: StateValueCodec<V>,
-            Q: ?Sized,
-        {
-            self.get(key, working_set).ok_or_else(|| {
-                crate::StateMapError::MissingValue(
-                    self.prefix().clone(),
-                    sov_modules_core::SlotKey::new(
-                        self.prefix(),
-                        key,
-                        StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(
-                            self,
-                        )
-                        .key_codec(),
-                    ),
-                )
-            })
-        }
-
-        fn remove<Q>(&self, key: &Q, working_set: &mut KernelWorkingSet<'a, S>) -> Option<V>
-        where
-            Codec: StateCodec,
-            <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,
-            <Codec as StateCodec>::ValueCodec: StateValueCodec<V>,
-            Q: ?Sized,
-        {
-            StateReaderAndWriter::<Kernel>::remove_value(
-                working_set,
-                self.prefix(),
-                key,
-                StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
-            )
-        }
-
-        fn remove_or_err<Q>(
-            &self,
-            key: &Q,
-            working_set: &mut KernelWorkingSet<'a, S>,
-        ) -> Result<V, crate::StateMapError>
-        where
-            Codec: StateCodec,
-            <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,
-            <Codec as StateCodec>::ValueCodec: StateValueCodec<V>,
-            Q: ?Sized,
-        {
-            self.remove(key, working_set).ok_or_else(|| {
-                crate::StateMapError::MissingValue(
-                    self.prefix().clone(),
-                    sov_modules_core::SlotKey::new(
-                        self.prefix(),
-                        key,
-                        StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(
-                            self,
-                        )
-                        .key_codec(),
-                    ),
-                )
-            })
-        }
-
-        fn delete<Q>(&self, key: &Q, working_set: &mut KernelWorkingSet<'a, S>)
-        where
-            Codec: StateCodec,
-            <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,
-            Q: ?Sized,
-        {
-            StateReaderAndWriter::<Kernel>::delete_value(
-                working_set,
-                self.prefix(),
-                key,
-                StateMapAccessor::<Kernel, u64, V, Codec, KernelWorkingSet<'a, S>>::codec(self),
-            );
-        }
+        StateReaderAndWriter::<Kernel>::get_decoded(ws, &self.encode_key(key), &self.codec)
     }
 }
 
@@ -304,7 +128,6 @@ mod tests {
     use crate::VersionedStateValue;
     #[test]
     fn test_kernel_state_value_as_value() {
-        use crate::StateValueAccessor;
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
         let mut working_set = StateCheckpoint::new(storage);
@@ -316,8 +139,8 @@ mod tests {
         {
             let kernel = MockKernel::<TestSpec, MockDaSpec>::new(4, 1);
             let mut kernel_state = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
-            value.set(&100, &mut kernel_state);
-            assert_eq!(value.get(&mut kernel_state), Some(100));
+            value.set_true_current(&100, &mut kernel_state);
+            assert_eq!(value.get_current(&mut kernel_state), Some(100));
         }
 
         let signer = Address::from([1; 32]);
@@ -349,11 +172,10 @@ mod tests {
 
         // Initialize a versioned value in the kernel state to be available starting at slot 2
         {
-            use crate::StateMapAccessor;
             let mut kernel_state = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
             value.set(&2, &100, &mut kernel_state);
             assert_eq!(value.get(&2, &mut kernel_state), Some(100));
-            value.set_current(&17, &mut kernel_state);
+            value.set_true_current(&17, &mut kernel_state);
         }
 
         let signer = Address::from([1; 32]);

@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use reth_primitives::Bytes;
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Address, Bytecode, B256, U256};
 use revm::Database;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::WorkingSet;
 use sov_state::codec::BcsCodec;
 
 use super::DbAccount;

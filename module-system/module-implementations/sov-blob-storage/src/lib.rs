@@ -16,7 +16,6 @@ use sov_modules_api::macros::config_constant;
 use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
     KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, StateCheckpoint, StateMap,
-    StateMapAccessor,
 };
 use sov_state::codec::BcsCodec;
 

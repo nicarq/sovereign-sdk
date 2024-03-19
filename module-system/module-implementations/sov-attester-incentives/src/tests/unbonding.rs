@@ -1,5 +1,4 @@
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::GasMeter;
 use sov_prover_storage_manager::new_orphan_storage;

@@ -3,10 +3,7 @@ use reth_primitives::{
     Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
     EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
-use sov_modules_api::{
-    KernelWorkingSet, StateCheckpoint, StateMapAccessor, StateValueAccessor, StateVecAccessor,
-    VersionedStateReadWriter,
-};
+use sov_modules_api::{KernelWorkingSet, StateCheckpoint, VersionedStateReadWriter};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
 

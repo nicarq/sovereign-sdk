@@ -1,6 +1,5 @@
 use sov_modules_api::{
-    AccessoryStateValue, CallResponse, Context, Module, ModuleError, ModuleInfo, Spec,
-    StateValueAccessor, WorkingSet,
+    AccessoryStateValue, CallResponse, Context, Module, ModuleError, ModuleInfo, Spec, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::Storage;

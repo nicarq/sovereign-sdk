@@ -95,7 +95,7 @@ fn burn_deployed_tokens() {
         message_1
     );
     let expected_error_part = format!(
-        "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and: storage key",
+        "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and storage key:",
         token_address
     );
     assert!(message_2.starts_with(&expected_error_part));
@@ -176,7 +176,7 @@ fn burn_deployed_tokens() {
     );
     // Note, no token address in root cause the message.
     let expected_error_part =
-        "Value not found for prefix: \"sov_bank/Bank/tokens/\" and: storage key";
+        "Value not found for prefix: \"sov_bank/Bank/tokens/\" and storage key:";
     assert!(message_2.starts_with(expected_error_part));
 }
 

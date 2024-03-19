@@ -541,9 +541,9 @@ fn test_versioned_state_value_kernel_namespace() {
 
     let mut state_checkpoint = working_set.checkpoint().0;
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
-    state_value.set_current(&11, &mut kernel_working_set);
+    state_value.set_true_current(&11, &mut kernel_working_set);
     let _ = state_value.get_current(&mut kernel_working_set);
-    state_value.set_current(&22, &mut kernel_working_set);
+    state_value.set_true_current(&22, &mut kernel_working_set);
 
     let (cache_log, _, witness) = state_checkpoint.freeze();
 

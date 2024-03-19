@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::batch::{Batch, BatchWithId};
-use sov_modules_api::prelude::*;
 use sov_modules_api::runtime::capabilities::BatchSelector;
 use sov_modules_api::{BlobReaderTrait, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
 use tracing::{error, info, warn};

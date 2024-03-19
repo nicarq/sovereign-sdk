@@ -1,7 +1,7 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
-    prelude::*, CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, WorkingSet,
+    CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, WorkingSet,
 };
 
 #[derive(ModuleInfo)]

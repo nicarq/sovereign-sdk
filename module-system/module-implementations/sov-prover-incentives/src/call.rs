@@ -3,7 +3,6 @@ use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::Coins;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{
     AggregatedProofPublicInput, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec, WorkingSet,
     Zkvm,

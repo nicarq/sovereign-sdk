@@ -2,8 +2,7 @@ use borsh::BorshSerialize;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
-    AggregatedProofPublicInput, CodeCommitment, Context, Gas, GasPrice, Spec, StateValueAccessor,
-    WorkingSet,
+    AggregatedProofPublicInput, CodeCommitment, Context, Gas, GasPrice, Spec, WorkingSet,
 };
 
 use super::helpers::get_transition_unwrap;

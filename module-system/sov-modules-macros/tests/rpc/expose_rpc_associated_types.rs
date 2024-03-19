@@ -1,8 +1,8 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::{
-    prelude::*, Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis,
-    MessageCodec, Module, ModuleInfo, Spec, StateValue, WorkingSet,
+    Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
+    ModuleInfo, Spec, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;

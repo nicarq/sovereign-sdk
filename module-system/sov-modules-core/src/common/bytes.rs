@@ -93,6 +93,12 @@ pub struct Prefix {
     prefix: AlignedVec,
 }
 
+impl AsRef<[u8]> for Prefix {
+    fn as_ref(&self) -> &[u8] {
+        self.prefix.as_ref()
+    }
+}
+
 impl fmt::Display for Prefix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let buf = self.prefix.as_ref();

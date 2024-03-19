@@ -1,7 +1,5 @@
 use anyhow::{ensure, Result};
-use sov_modules_api::{
-    CallResponse, Context, CryptoSpec, Signature, Spec, StateMapAccessor, WorkingSet,
-};
+use sov_modules_api::{CallResponse, Context, CryptoSpec, Signature, Spec, WorkingSet};
 
 use crate::Accounts;
 

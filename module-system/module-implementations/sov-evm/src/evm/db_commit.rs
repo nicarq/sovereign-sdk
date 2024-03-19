@@ -1,6 +1,5 @@
 use revm::primitives::{Account, Address, HashMap};
 use revm::DatabaseCommit;
-use sov_modules_api::StateMapAccessor;
 
 use super::db::EvmDb;
 use super::DbAccount;
