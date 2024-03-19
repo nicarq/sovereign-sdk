@@ -8,7 +8,6 @@ use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_mock_da::{MockBlockHeader, MockDaSpec};
 use sov_modules_api::da::Time;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{
     DaSpec, GasArray, GasMeter, GasPrice, KernelModule, KernelWorkingSet, Module, StateCheckpoint,
 };

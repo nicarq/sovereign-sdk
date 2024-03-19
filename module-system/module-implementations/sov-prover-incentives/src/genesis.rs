@@ -1,6 +1,5 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::prelude::*;
 use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
 
 use crate::{Amount, BurnRate, ProverIncentives};

@@ -1,5 +1,5 @@
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{Context, StateValueAccessor};
+use sov_modules_api::Context;
 
 use crate::tests::helpers::{setup, BOND_AMOUNT, S};
 use crate::ProverIncentiveErrors;

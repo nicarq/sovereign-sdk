@@ -1,5 +1,5 @@
 use sov_modules_api::{
-    prelude::*, CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, WorkingSet,
+    CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, WorkingSet,
 };
 
 pub mod first_test_module {

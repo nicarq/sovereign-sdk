@@ -5,7 +5,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
 use sov_state::Storage;
 

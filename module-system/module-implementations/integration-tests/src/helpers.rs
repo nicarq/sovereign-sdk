@@ -447,6 +447,7 @@ impl TestRollup {
                         .runtime()
                         .attester_incentives
                         .get_attester_storage_key(attester_address),
+                    None,
                 )
             });
 

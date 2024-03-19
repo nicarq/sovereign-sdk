@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sov_modules_api::{CallResponse, Context, Spec, StateMapAccessor, WorkingSet};
+use sov_modules_api::{CallResponse, Context, Spec, WorkingSet};
 
 use crate::address::UserAddress;
 use crate::offchain::{update_collection, update_nft};

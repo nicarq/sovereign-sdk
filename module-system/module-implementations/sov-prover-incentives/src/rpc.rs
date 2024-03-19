@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{DaSpec, StateMapAccessor, WorkingSet};
+use sov_modules_api::{DaSpec, WorkingSet};
 
 use super::ProverIncentives;
 

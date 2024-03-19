@@ -8,14 +8,13 @@ use core::fmt;
 pub use kernel_state::{KernelWorkingSet, VersionedStateReadWriter};
 use sov_rollup_interface::maybestd::collections::HashMap;
 
-use crate::common::{GasMeter, Prefix};
+use crate::common::GasMeter;
 use crate::module::{Context, Spec};
-use crate::namespaces::{
-    self, Accessory, CompileTimeNamespace, ProvableCompileTimeNamespace, User,
-};
+use crate::namespaces::{self, Accessory, CompileTimeNamespace, User};
+#[cfg(feature = "native")]
+use crate::storage::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
 use crate::storage::{
-    EncodeKeyLike, NativeStorage, ProvableStorageCache, SlotKey, SlotValue, StateCodec,
-    StateValueCodec, Storage, StorageProof,
+    ProvableStorageCache, SlotKey, SlotValue, StateCodec, StateItemCodec, Storage,
 };
 use crate::{Gas, Namespace, StateAccesses};
 
@@ -30,131 +29,53 @@ pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
     /// Deletes a storage value.
     fn delete(&mut self, key: &SlotKey);
 
-    /// Replaces a storage value with the provided prefix, using the provided codec.
-    fn set_value<Q, K, V, Codec>(
-        &mut self,
-        prefix: &Prefix,
-        storage_key: &Q,
-        value: &V,
-        codec: &Codec,
-    ) where
-        Q: ?Sized,
-        Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
-        Codec::ValueCodec: StateValueCodec<V>,
-    {
-        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
-        let storage_value = SlotValue::new(value, codec.value_codec());
-        self.set(&storage_key, storage_value);
-    }
-
-    /// Replaces a storage value with a singleton prefix. For more information, check
-    /// [`SlotKey::singleton`].
-    fn set_singleton<V, Codec>(&mut self, prefix: &Prefix, value: &V, codec: &Codec)
-    where
-        Codec: StateCodec,
-        Codec::ValueCodec: StateValueCodec<V>,
-    {
-        let storage_key = SlotKey::singleton(prefix);
-        let storage_value = SlotValue::new(value, codec.value_codec());
-        self.set(&storage_key, storage_value);
+    /// Removes a storage value
+    fn remove(&mut self, key: &SlotKey) -> Option<SlotValue> {
+        let value = self.get(key);
+        self.delete(key);
+        value
     }
 
     /// Get a decoded value from the storage.
     fn get_decoded<V, Codec>(&mut self, storage_key: &SlotKey, codec: &Codec) -> Option<V>
     where
         Codec: StateCodec,
-        Codec::ValueCodec: StateValueCodec<V>,
+        Codec::ValueCodec: StateItemCodec<V>,
     {
         let storage_value = self.get(storage_key)?;
 
-        Some(
-            codec
-                .value_codec()
-                .decode_value_unwrap(storage_value.value()),
-        )
+        Some(codec.value_codec().decode_unwrap(storage_value.value()))
     }
 
-    /// Get a value from the storage.
-    fn get_value<Q, K, V, Codec>(
-        &mut self,
-        prefix: &Prefix,
-        storage_key: &Q,
-        codec: &Codec,
-    ) -> Option<V>
-    where
-        Q: ?Sized,
-        Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
-        Codec::ValueCodec: StateValueCodec<V>,
-    {
-        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
-        self.get_decoded(&storage_key, codec)
-    }
-
-    /// Get a singleton value from the storage. For more information, check [SlotKey::singleton].
-    fn get_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
+    /// Remove a value from storage and decode the result
+    fn remove_decoded<V, Codec>(&mut self, key: &SlotKey, codec: &Codec) -> Option<V>
     where
         Codec: StateCodec,
-        Codec::ValueCodec: StateValueCodec<V>,
+        Codec::ValueCodec: StateItemCodec<V>,
     {
-        let storage_key = SlotKey::singleton(prefix);
-        self.get_decoded(&storage_key, codec)
-    }
-
-    /// Removes a value from the storage.
-    fn remove_value<Q, K, V, Codec>(
-        &mut self,
-        prefix: &Prefix,
-        storage_key: &Q,
-        codec: &Codec,
-    ) -> Option<V>
-    where
-        Q: ?Sized,
-        Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
-        Codec::ValueCodec: StateValueCodec<V>,
-    {
-        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
-        let storage_value = self.get_decoded(&storage_key, codec)?;
-        self.delete(&storage_key);
-        Some(storage_value)
-    }
-
-    /// Removes a singleton from the storage. For more information, check [SlotKey::singleton].
-    fn remove_singleton<V, Codec>(&mut self, prefix: &Prefix, codec: &Codec) -> Option<V>
-    where
-        Codec: StateCodec,
-        Codec::ValueCodec: StateValueCodec<V>,
-    {
-        let storage_key = SlotKey::singleton(prefix);
-        let storage_value = self.get_decoded(&storage_key, codec)?;
-        self.delete(&storage_key);
-        Some(storage_value)
-    }
-
-    /// Deletes a value from the storage.
-    fn delete_value<Q, K, Codec>(&mut self, prefix: &Prefix, storage_key: &Q, codec: &Codec)
-    where
-        Q: ?Sized,
-        Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
-    {
-        let storage_key = SlotKey::new(prefix, storage_key, codec.key_codec());
-        self.delete(&storage_key);
-    }
-
-    /// Deletes a singleton from the storage. For more information, check [SlotKey::singleton].
-    fn delete_singleton(&mut self, prefix: &Prefix) {
-        let storage_key = SlotKey::singleton(prefix);
-        self.delete(&storage_key);
+        let value = self.get_decoded(key, codec);
+        self.delete(key);
+        value
     }
 }
 
+/// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
 trait UniversalStateAccessor {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue>;
     fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue);
     fn delete(&mut self, namespace: Namespace, key: &SlotKey);
+}
+
+#[cfg(feature = "native")]
+/// Allows a type to retrieve state values with a proof of their presence/absence.
+pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWriter<N> {
+    /// The underlying storage whose proof is returned
+    type Proof;
+    /// Fetch the value with the requested key and provide a proof of its presence/absence.
+    fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof>
+    where
+        Self: StateReaderAndWriter<N>,
+        N: ProvableCompileTimeNamespace;
 }
 
 /// A [`Delta`] is a diff over an underlying `Storage` instance. When queried, it first checks
@@ -590,18 +511,20 @@ impl<S: Spec> WorkingSet<S> {
     pub const fn gas_used(&self) -> &S::Gas {
         self.gas_meter.gas_used()
     }
+}
 
-    /// Fetches given value and provides a proof of it presence/absence.
-    pub fn get_with_proof<N>(
-        &mut self,
-        key: SlotKey,
-    ) -> StorageProof<<S::Storage as Storage>::Proof>
-    where
-        S::Storage: NativeStorage,
-        N: ProvableCompileTimeNamespace,
-    {
-        // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
-        self.delta.inner.inner.get_with_proof::<N>(key)
+#[cfg(feature = "native")]
+impl<N: ProvableCompileTimeNamespace, S: Spec> ProvenStateAccessor<N> for WorkingSet<S>
+where
+    WorkingSet<S>: StateReaderAndWriter<N>,
+{
+    type Proof = <S::Storage as Storage>::Proof;
+
+    fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof> {
+        self.delta
+            .inner
+            .inner
+            .get_with_proof::<N>(key, self.delta.inner.version)
     }
 }
 

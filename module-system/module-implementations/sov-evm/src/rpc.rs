@@ -9,7 +9,6 @@ use revm::primitives::{
     KECCAK_EMPTY, U256,
 };
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{DaSpec, WorkingSet};
 use tracing::debug;
 

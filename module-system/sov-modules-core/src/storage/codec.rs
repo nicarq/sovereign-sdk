@@ -6,7 +6,7 @@ use core::fmt;
 
 /// A trait for types that can serialize and deserialize values for storage
 /// access.
-pub trait StateValueCodec<V> {
+pub trait StateItemCodec<V> {
     /// Error type that can arise during deserialization.
     type Error: fmt::Debug;
 
@@ -14,20 +14,20 @@ pub trait StateValueCodec<V> {
     ///
     /// This method **must** not panic as all instances of the value type are
     /// supposed to be serializable.
-    fn encode_value(&self, value: &V) -> Vec<u8>;
+    fn encode(&self, value: &V) -> Vec<u8>;
 
     /// Tries to deserialize a value from a bytes slice, and returns a
     /// [`Result`] with either the deserialized value or an error.
-    fn try_decode_value(&self, bytes: &[u8]) -> Result<V, Self::Error>;
+    fn try_decode(&self, bytes: &[u8]) -> Result<V, Self::Error>;
 
     /// Deserializes a value from a bytes slice.
     ///
     /// # Panics
-    /// Panics if the call to [`StateValueCodec::try_decode_value`] fails. Use
-    /// [`StateValueCodec::try_decode_value`] if you need to gracefully handle
+    /// Panics if the call to [`StateItemCodec::try_decode`] fails. Use
+    /// [`StateItemCodec::try_decode`] if you need to gracefully handle
     /// errors.
-    fn decode_value_unwrap(&self, bytes: &[u8]) -> V {
-        self.try_decode_value(bytes)
+    fn decode_unwrap(&self, bytes: &[u8]) -> V {
+        self.try_decode(bytes)
             .map_err(|err| {
                 format!(
                     "Failed to decode {:?} value 0x{}, error: {:?}",
@@ -40,40 +40,19 @@ pub trait StateValueCodec<V> {
     }
 }
 
-/// A trait for types that can serialize keys for storage
-/// access.
-///
-/// Note that, unlike [`StateValueCodec`], this trait does not provide
-/// deserialization logic as it's not needed nor supported.
-pub trait StateKeyCodec<K> {
-    /// Serializes a key into a bytes vector.
-    ///
-    /// # Determinism
-    ///
-    /// All implementations of this trait method **MUST** provide deterministic
-    /// serialization behavior:
-    ///
-    /// 1. Equal (as defined by [`Eq`]) values **MUST** be serialized to the same
-    ///    byte sequence.
-    /// 2. The serialization result **MUST NOT** depend on the compilation target
-    ///    and other runtime environment parameters. If that were the case, zkVM
-    ///    code and native code wouldn't produce the same keys.
-    fn encode_key(&self, key: &K) -> Vec<u8>;
-}
-
 /// A trait for types that can serialize keys and values, as well
 /// as deserializing values for storage access.
 ///
 /// # Type bounds
 /// There are no type bounds on [`StateCodec::KeyCodec`] and
 /// [`StateCodec::ValueCodec`], so they can be any type at well. That said,
-/// you'll find many APIs require these two to implement [`StateKeyCodec`] and
-/// [`StateValueCodec`] respectively.
+/// you'll find many APIs require these two to implement [`StateItemCodec`] and
+/// [`StateItemCodec`] respectively.
 pub trait StateCodec {
-    /// The codec used to serialize keys. See [`StateKeyCodec`].
+    /// The codec used to serialize keys. See [`StateItemCodec`].
     type KeyCodec;
     /// The codec used to serialize and deserialize values. See
-    /// [`StateValueCodec`].
+    /// [`StateItemCodec`].
     type ValueCodec;
 
     /// Returns a reference to the type's key codec.
@@ -96,9 +75,9 @@ pub trait EncodeKeyLike<Ref: ?Sized, Target> {
 // All items can be encoded like themselves by all codecs
 impl<C, T> EncodeKeyLike<T, T> for C
 where
-    C: StateKeyCodec<T>,
+    C: StateItemCodec<T>,
 {
     fn encode_key_like(&self, borrowed: &T) -> Vec<u8> {
-        self.encode_key(borrowed)
+        self.encode(borrowed)
     }
 }

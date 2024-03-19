@@ -1,5 +1,4 @@
 use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{Gas, Spec};
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
@@ -48,7 +47,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         // Since we increment the true slot number, we have to update the working set.
         self.increment_true_slot_number(working_set);
 
-        self.time.set_current(&slot_header.time(), working_set);
+        self.time.set_true_current(&slot_header.time(), working_set);
 
         let slot_number = self.true_slot_number(working_set);
 
@@ -58,7 +57,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             .update(slot_number, &self.historical_transitions, working_set.inner)
             .expect("the transition data must be available");
 
-        self.in_progress_transition.set_current(
+        self.in_progress_transition.set_true_current(
             &TransitionInProgress {
                 slot_hash: slot_header.hash(),
                 validity_condition: *validity_condition,
@@ -79,6 +78,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
 
         in_progress_transition.gas_used = gas_used.clone();
         self.in_progress_transition
-            .set_current(&in_progress_transition, working_set);
+            .set_true_current(&in_progress_transition, working_set);
     }
 }

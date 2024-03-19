@@ -28,8 +28,6 @@ use std::collections::{HashMap, HashSet};
 pub use clap;
 #[cfg(feature = "native")]
 pub use schemars;
-#[cfg(feature = "native")]
-pub use sov_modules_core::RuntimeEventDisplay;
 pub use sov_modules_core::{
     namespaces, runtime, AccessoryStateCheckpoint, AccessoryWorkingSet, Address, AddressBech32,
     CallResponse, Context, CryptoSpecExt, DispatchCall, EncodeCall, EventEmitter, Gas, GasArray,
@@ -38,6 +36,8 @@ pub use sov_modules_core::{
     PublicKeyExt, RuntimeEventProcessor, SignatureExt, Spec, StateCheckpoint, StateReaderAndWriter,
     TypedEvent, VersionedStateReadWriter, WorkingSet,
 };
+#[cfg(feature = "native")]
+pub use sov_modules_core::{ProvenStateAccessor, RuntimeEventDisplay};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 pub use sov_rollup_interface::crypto::{PublicKey, Signature};
@@ -49,11 +49,6 @@ pub use sov_rollup_interface::zk::{
     CryptoSpec, StateTransition, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
-
-pub mod prelude {
-    pub use super::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
-}
-
 pub mod optimistic {
     pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};
 }

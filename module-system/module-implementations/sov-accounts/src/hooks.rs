@@ -1,7 +1,5 @@
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{
-    CryptoSpec, PublicKey, Spec, StateAccessor, StateCheckpoint, StateMapAccessor,
-};
+use sov_modules_api::{CryptoSpec, PublicKey, Spec, StateAccessor, StateCheckpoint};
 
 use crate::{Account, Accounts};
 

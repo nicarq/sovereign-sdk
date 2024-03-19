@@ -1,5 +1,5 @@
 use sov_attester_incentives::Role;
-use sov_modules_api::{Spec, StateMapAccessor, StateValueAccessor, WorkingSet};
+use sov_modules_api::{Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::stf::TransactionReceipt;
 use sov_state::{DefaultStorageSpec, Storage, StorageRoot};

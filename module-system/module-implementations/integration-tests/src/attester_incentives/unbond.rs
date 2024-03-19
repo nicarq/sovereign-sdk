@@ -5,7 +5,7 @@ use sov_bank::get_genesis_token_address;
 use sov_mock_da::MockValidityCondChecker;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{PrivateKey, StateMapAccessor, WorkingSet};
+use sov_modules_api::{PrivateKey, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::value_setter_data::ValueSetterMessages;

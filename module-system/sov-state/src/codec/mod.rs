@@ -1,6 +1,6 @@
 //! Serialization and deserialization -related logic.
 
-use sov_modules_core::{StateCodec, StateKeyCodec, StateValueCodec};
+use sov_modules_core::{StateCodec, StateItemCodec};
 
 mod bcs_codec;
 mod borsh_codec;
@@ -31,7 +31,7 @@ mod tests {
             let codec = BorshCodec;
             assert_eq!(
                 <BorshCodec as EncodeKeyLike<[i32], Vec<i32>>>::encode_key_like(&codec, &vec[..]),
-                codec.encode_value(&vec)
+                codec.encode(&vec)
             );
         }
     }

@@ -72,7 +72,7 @@ pub mod namespaces {
     use crate::Namespace;
 
     /// Converts a type into a runtime namespace.
-    pub trait CompileTimeNamespace {
+    pub trait CompileTimeNamespace: core::fmt::Debug {
         /// The runtime namespace variant associated with the type.
         const NAMESPACE: Namespace;
     }
@@ -268,9 +268,9 @@ impl SlotValue {
     /// Create a new storage value by serializing the input with the given codec.
     pub fn new<V, VC>(value: &V, codec: &VC) -> Self
     where
-        VC: StateValueCodec<V>,
+        VC: StateItemCodec<V>,
     {
-        let encoded_value = codec.encode_value(value);
+        let encoded_value = codec.encode(value);
         Self {
             value: RefCount::new(encoded_value),
         }
@@ -463,6 +463,7 @@ pub trait NativeStorage: Storage {
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
         &self,
         key: SlotKey,
+        version: Option<u64>,
     ) -> StorageProof<Self::Proof>;
 
     /// Get the *global* root hash of the tree at the requested version

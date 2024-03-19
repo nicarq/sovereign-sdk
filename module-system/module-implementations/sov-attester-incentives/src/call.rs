@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::prelude::*;
 use sov_modules_api::{
     CallResponse, Context, DaSpec, EventEmitter, StateTransition, WorkingSet, Zkvm,
 };

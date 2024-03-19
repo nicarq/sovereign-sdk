@@ -1,7 +1,6 @@
 use anyhow::Result;
 use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered};
 use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
-use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, Context, DaSpec, WorkingSet};
 
 use crate::evm::db::EvmDb;

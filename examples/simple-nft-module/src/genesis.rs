@@ -1,6 +1,5 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::prelude::*;
 use sov_modules_api::{Spec, WorkingSet};
 
 use crate::NonFungibleToken;

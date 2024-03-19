@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::{Gas, KernelWorkingSet, Spec, StateValueAccessor};
+use sov_modules_api::{Gas, KernelWorkingSet, Spec};
 
 use crate::{ChainState, GasPriceState};
 
@@ -31,7 +31,8 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         self.true_slot_number.set(&0, working_set);
         self.next_visible_slot_number.set(&1, working_set);
 
-        self.time.set_current(&config.current_time, working_set);
+        self.time
+            .set_true_current(&config.current_time, working_set);
 
         self.gas_price_state.set(
             &GasPriceState {

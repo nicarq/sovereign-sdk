@@ -15,7 +15,7 @@ pub(crate) enum Event {
 }
 
 pub mod module_a {
-    use sov_modules_api::{Module, StateMapAccessor, StateValueAccessor};
+    use sov_modules_api::Module;
 
     use super::*;
 
@@ -61,7 +61,7 @@ pub mod module_a {
 }
 
 pub mod module_b {
-    use sov_modules_api::{Module, StateMapAccessor};
+    use sov_modules_api::Module;
 
     use super::*;
 

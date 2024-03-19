@@ -19,7 +19,6 @@ pub use genesis::*;
 pub use rpc::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins};
-use sov_modules_api::prelude::*;
 use sov_modules_api::{
     CallResponse, Context, Error, ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap,
     StateValue, WorkingSet,

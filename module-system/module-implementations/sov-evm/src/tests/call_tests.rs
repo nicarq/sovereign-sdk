@@ -2,8 +2,7 @@ use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Context, GasMeter, KernelWorkingSet, Module, StateCheckpoint, StateMapAccessor,
-    StateValueAccessor, StateVecAccessor, VersionedStateReadWriter,
+    Context, GasMeter, KernelWorkingSet, Module, StateCheckpoint, VersionedStateReadWriter,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;

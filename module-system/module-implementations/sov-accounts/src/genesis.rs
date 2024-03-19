@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use sov_modules_api::{CryptoSpec, Spec, StateMapAccessor, WorkingSet};
+use sov_modules_api::{CryptoSpec, Spec, WorkingSet};
 
 use crate::Accounts;
 

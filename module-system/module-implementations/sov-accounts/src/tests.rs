@@ -1,6 +1,4 @@
-use sov_modules_api::{
-    AddressBech32, Context, Module, PrivateKey, PublicKey, Spec, StateMapAccessor, WorkingSet,
-};
+use sov_modules_api::{AddressBech32, Context, Module, PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::rpc::{self, Response};

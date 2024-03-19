@@ -177,7 +177,7 @@ pub(crate) fn execution_simulation(
         state_checkpoint = w_set;
 
         let bond_proof =
-            storage.get_with_proof::<User>(module.get_attester_storage_key(attester_address));
+            storage.get_with_proof::<User>(module.get_attester_storage_key(attester_address), None);
 
         ret_exec_vars.push(ExecutionSimulationVars {
             state_root: root_hash,
