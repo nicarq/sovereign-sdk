@@ -74,7 +74,9 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
 mod tests {
     use std::io::Write;
     use std::path::PathBuf;
+    use std::str::FromStr;
 
+    use sov_celestia_adapter::verifier::address::CelestiaAddress;
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -92,6 +94,7 @@ mod tests {
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
             celestia_rpc_address = "http://localhost:11111/"
             max_celestia_response_body_size = 980
+            own_celestia_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
             [storage]
             path = "/tmp"
             [runner]
@@ -123,6 +126,10 @@ mod tests {
                 celestia_rpc_address: "http://localhost:11111/".into(),
                 max_celestia_response_body_size: 980,
                 celestia_rpc_timeout_seconds: 60,
+                own_celestia_address: CelestiaAddress::from_str(
+                    "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
+                )
+                .unwrap(),
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),

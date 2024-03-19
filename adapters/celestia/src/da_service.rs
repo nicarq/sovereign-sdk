@@ -18,6 +18,7 @@ use tracing::{debug, info, instrument, trace};
 use crate::shares::Blob;
 use crate::types::FilteredCelestiaBlock;
 use crate::utils::BoxError;
+use crate::verifier::address::CelestiaAddress;
 use crate::verifier::proofs::{CompletenessProof, CorrectnessProof};
 use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, PFB_NAMESPACE};
 use crate::{BlobWithSender, CelestiaHeader};
@@ -62,6 +63,8 @@ pub struct CelestiaConfig {
     /// The timeout for a Celestia RPC request, in seconds
     #[serde(default = "default_request_timeout_seconds")]
     pub celestia_rpc_timeout_seconds: u64,
+    /// Celestia address of connected node. Used as sequencer address in case of sequencer presented
+    pub own_celestia_address: CelestiaAddress,
 }
 
 fn default_rpc_addr() -> String {
@@ -300,6 +303,7 @@ fn get_gas_limit_for_bytes(n: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use std::time::Duration;
 
     use celestia_types::nmt::Namespace;
@@ -315,6 +319,7 @@ mod tests {
     use crate::parse_pfb_namespace;
     use crate::shares::NamespaceGroup;
     use crate::types::tests::{with_rollup_data, without_rollup_data};
+    use crate::verifier::address::CelestiaAddress;
     use crate::verifier::{CelestiaVerifier, RollupParams};
 
     const ROLLUP_ROWS_JSON: &str = with_rollup_data::ROLLUP_ROWS_JSON;
@@ -362,6 +367,10 @@ mod tests {
             celestia_rpc_address: mock_server.uri(),
             max_celestia_response_body_size: 120_000,
             celestia_rpc_timeout_seconds: timeout_sec,
+            own_celestia_address: CelestiaAddress::from_str(
+                "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
+            )
+            .unwrap(),
         };
         let rollup_batch_namespace = Namespace::new_v0(b"sov-test").unwrap();
         let rollup_proof_namespace = Namespace::new_v0(b"sov-proof").unwrap();
