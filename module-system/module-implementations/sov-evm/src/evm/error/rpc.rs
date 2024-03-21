@@ -7,10 +7,6 @@ use alloy_sol_types::decode_revert_reason;
 use reth_rpc_types::request::TransactionInputError;
 use revm::primitives::{Address, EVMError, HaltReason, InvalidHeader, U256};
 
-use super::pool::{
-    Eip4844PoolTransactionError, InvalidPoolTransactionError, PoolError, PoolTransactionError,
-};
-
 /// Result alias
 pub type EthResult<T> = Result<T, EthApiError>;
 
@@ -61,10 +57,6 @@ pub enum EthApiError {
     /// Thrown when an `AccountOverride` contains conflicting `state` and `stateDiff` fields
     #[error("Account {0:?} has both 'state' and 'stateDiff'")]
     BothStateAndStateDiffInOverride(Address),
-    /// Other internal error
-    #[cfg(feature = "native")]
-    #[error(transparent)]
-    Internal(reth_interfaces::RethError),
     /// Error related to signing
     #[error(transparent)]
     Signing(#[from] SignError),
@@ -123,7 +115,6 @@ impl From<EthApiError> for jsonrpsee::types::ErrorObject<'static> {
             EthApiError::PrevrandaoNotSet
             | EthApiError::ExcessBlobGasNotSet
             | EthApiError::InvalidBlockData(_)
-            | EthApiError::Internal(_)
             | EthApiError::TransactionNotFound
             | EthApiError::EvmCustom(_) => internal_rpc_err(error.to_string()),
             EthApiError::UnknownBlockNumber | EthApiError::UnknownBlockOrTxIndex => {
@@ -155,35 +146,6 @@ impl From<EthApiError> for jsonrpsee::types::ErrorObject<'static> {
 impl From<EthApiError> for jsonrpsee::core::Error {
     fn from(error: EthApiError) -> Self {
         jsonrpsee::core::Error::Call(error.into())
-    }
-}
-
-#[cfg(feature = "native")]
-impl From<reth_interfaces::RethError> for EthApiError {
-    fn from(error: reth_interfaces::RethError) -> Self {
-        match error {
-            reth_interfaces::RethError::Provider(err) => err.into(),
-            err => EthApiError::Internal(err),
-        }
-    }
-}
-
-#[cfg(feature = "native")]
-impl From<reth_interfaces::provider::ProviderError> for EthApiError {
-    fn from(error: reth_interfaces::provider::ProviderError) -> Self {
-        use reth_interfaces::provider::ProviderError;
-        match error {
-            ProviderError::HeaderNotFound(_)
-            | ProviderError::BlockHashNotFound(_)
-            | ProviderError::BestBlockNotFound
-            | ProviderError::BlockNumberForTransactionIndexNotFound
-            | ProviderError::TotalDifficultyNotFound { .. }
-            | ProviderError::UnknownBlockHash(_) => EthApiError::UnknownBlockNumber,
-            ProviderError::FinalizedBlockNotFound | ProviderError::SafeBlockNotFound => {
-                EthApiError::UnknownSafeOrFinalizedBlock
-            }
-            err => EthApiError::Internal(err.into()),
-        }
     }
 }
 
@@ -292,7 +254,7 @@ pub enum RpcInvalidTransactionError {
     /// The transaction is before Spurious Dragon and has a chain ID
     #[error("Transactions before Spurious Dragon should not have a chain ID.")]
     OldLegacyChainId,
-    /// The transitions is before Berlin and has access list
+    /// The transaction is before Berlin and has access list
     #[error("Transactions before Berlin should not have access list")]
     AccessListNotSupported,
     /// `max_fee_per_blob_gas` is not supported for blocks before the Cancun hard fork.
@@ -494,7 +456,7 @@ pub struct RevertError {
 impl RevertError {
     /// Wraps the output bytes
     ///
-    /// Note: this is intended to wrap an revm output
+    /// Note: this is intended to wrap a revm output
     pub fn new(output: bytes::Bytes) -> Self {
         if output.is_empty() {
             Self { output: None }
@@ -547,12 +509,6 @@ pub enum RpcPoolError {
     ExceedsMaxInitCodeSize,
     #[error(transparent)]
     Invalid(#[from] RpcInvalidTransactionError),
-    /// Custom pool error
-    #[error("{0:?}")]
-    PoolTransactionError(Box<dyn PoolTransactionError>),
-    /// Eip-4844 related error
-    #[error(transparent)]
-    Eip4844(#[from] Eip4844PoolTransactionError),
     /// Thrown if a conflicting transaction type is already in the pool
     ///
     /// In other words, thrown if a transaction with the same sender that violates the exclusivity
@@ -570,48 +526,6 @@ impl From<RpcPoolError> for jsonrpsee::types::ErrorObject<'static> {
             RpcPoolError::Invalid(err) => err.into(),
             error => internal_rpc_err(error.to_string()),
         }
-    }
-}
-
-impl From<PoolError> for RpcPoolError {
-    fn from(err: PoolError) -> RpcPoolError {
-        match err {
-            PoolError::ReplacementUnderpriced(_) => RpcPoolError::ReplaceUnderpriced,
-            PoolError::FeeCapBelowMinimumProtocolFeeCap(_, _) => RpcPoolError::Underpriced,
-            PoolError::SpammerExceededCapacity(_, _) => RpcPoolError::TxPoolOverflow,
-            PoolError::DiscardedOnInsert(_) => RpcPoolError::TxPoolOverflow,
-            PoolError::InvalidTransaction(_, err) => err.into(),
-            PoolError::Other(_, err) => RpcPoolError::Other(err),
-            PoolError::AlreadyImported(_) => RpcPoolError::AlreadyKnown,
-            PoolError::ExistingConflictingTransactionType(_, _, _) => {
-                RpcPoolError::AddressAlreadyReserved
-            }
-        }
-    }
-}
-
-impl From<InvalidPoolTransactionError> for RpcPoolError {
-    fn from(err: InvalidPoolTransactionError) -> RpcPoolError {
-        match err {
-            InvalidPoolTransactionError::Consensus(err) => RpcPoolError::Invalid(err.into()),
-            InvalidPoolTransactionError::ExceedsGasLimit(_, _) => RpcPoolError::ExceedsGasLimit,
-            InvalidPoolTransactionError::ExceedsMaxInitCodeSize(_, _) => {
-                RpcPoolError::ExceedsMaxInitCodeSize
-            }
-            InvalidPoolTransactionError::OversizedData(_, _) => RpcPoolError::OversizedData,
-            InvalidPoolTransactionError::Underpriced => RpcPoolError::Underpriced,
-            InvalidPoolTransactionError::Other(err) => RpcPoolError::PoolTransactionError(err),
-            InvalidPoolTransactionError::Eip4844(err) => RpcPoolError::Eip4844(err),
-            InvalidPoolTransactionError::Overdraft => {
-                RpcPoolError::Invalid(RpcInvalidTransactionError::InsufficientFunds)
-            }
-        }
-    }
-}
-
-impl From<PoolError> for EthApiError {
-    fn from(err: PoolError) -> Self {
-        EthApiError::PoolError(RpcPoolError::from(err))
     }
 }
 

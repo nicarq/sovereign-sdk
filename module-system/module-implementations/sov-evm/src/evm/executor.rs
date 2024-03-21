@@ -56,8 +56,8 @@ pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
         handler_cfg,
     };
 
-    let config = reth_revm::tracing::TracingInspectorConfig::all();
-    let mut inspector = reth_revm::tracing::TracingInspector::new(config);
+    let config = revm_inspectors::tracing::TracingInspectorConfig::all();
+    let mut inspector = revm_inspectors::tracing::TracingInspector::new(config);
 
     let mut evm = EvmBuilder::default()
         .with_external_context(&mut inspector)
