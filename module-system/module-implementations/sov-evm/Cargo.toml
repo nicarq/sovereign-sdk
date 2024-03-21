@@ -54,18 +54,15 @@ reth-rpc-types-compat = { workspace = true }
 revm-inspectors = { workspace = true, optional = true }
 revm-primitives = { workspace = true }
 
-# For test-utils
-ethereum-types = { workspace = true, optional = true }
-ethers-core = { workspace = true, optional = true }
-ethers-contract = { workspace = true, optional = true }
-ethers-signers = { workspace = true, optional = true }
-
 
 [dev-dependencies]
-sov-evm = { path = ".", features = ["smart_contracts"] }
+sov-evm = { path = ".", features = ["native"] }
 tokio = { workspace = true }
 tempfile = { workspace = true }
 bytes = { workspace = true }
+ethers-signers = { workspace = true }
+ethers-core = { workspace = true }
+
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-test-utils = { path = "../../sov-test-utils" }
@@ -88,12 +85,3 @@ native = [
 	"sov-state/native",
 ]
 experimental = [ "sov-evm/experimental" ]
-# For testing smart contract
-smart_contracts = [
-	"ethereum-types",
-	"ethers-contract",
-	"ethers-core",
-	"ethers-signers",
-	"experimental",
-	"native",
-]

@@ -12,9 +12,12 @@ use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
 
 pub mod attester_incentive_data;
 pub mod bank_data;
+mod evm;
 pub mod logging;
 pub mod runtime;
 pub mod value_setter_data;
+
+pub use evm::simple_smart_contract::SimpleStorageContract;
 
 pub type TestSpec = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier>;
 pub type ZkTestSpec = sov_modules_api::default_spec::ZkDefaultSpec<MockZkVerifier>;

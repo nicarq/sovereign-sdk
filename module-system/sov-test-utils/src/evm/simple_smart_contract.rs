@@ -8,7 +8,7 @@ fn test_data_path() -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src");
     path.push("evm");
-    path.push("test_data");
+    path.push("test-data");
     path
 }
 

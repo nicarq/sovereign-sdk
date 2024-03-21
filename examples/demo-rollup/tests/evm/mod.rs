@@ -6,10 +6,10 @@ use std::str::FromStr;
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
-use sov_evm::SimpleStorageContract;
 use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
+use sov_test_utils::SimpleStorageContract;
 use test_client::TestClient;
 
 use crate::test_helpers::start_rollup;
