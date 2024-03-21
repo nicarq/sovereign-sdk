@@ -8,13 +8,13 @@ use revm::{Database, DatabaseCommit};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::SimpleStorageContract;
 
 use super::db::EvmDb;
 use super::db_init::InitEvmDb;
 use super::executor;
 use crate::evm::primitive_types::BlockEnv;
 use crate::evm::AccountInfo;
-use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
 use crate::{Evm, SpecId};
 

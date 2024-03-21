@@ -57,7 +57,6 @@ sov-rollup-interface = { path = "../../rollup-interface", features = ["arbitrary
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../adapters/mock-da" }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
-sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = ["smart_contracts"] }
 sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module", features = ["native"] }
 sov-modules-macros = { path = "../../module-system/sov-modules-macros" }
@@ -97,7 +96,6 @@ experimental = [
 	"secp256k1",
 	"sov-ethereum/experimental",
 	"sov-ethereum/local",
-	"sov-evm/experimental",
 ]
 # TODO: Enable experimental for risc0 when it is ready
 #experimental = ["default", "sov-ethereum/experimental", "reth-primitives", "demo-stf/experimental", "sov-ethereum/local", "secp256k1", "risc0/experimental"]

@@ -6,13 +6,14 @@ use sov_modules_api::{
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
+use sov_test_utils::SimpleStorageContract;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
-use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::genesis_tests::setup;
 use crate::tests::test_signer::TestSigner;
 use crate::{AccountData, EvmConfig};
+
 type S = sov_test_utils::TestSpec;
 
 #[test]

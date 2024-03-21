@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
+
 #[cfg(feature = "experimental")]
 mod call;
 #[cfg(feature = "experimental")]
@@ -8,25 +9,28 @@ mod evm;
 mod genesis;
 #[cfg(feature = "experimental")]
 mod hooks;
+
 #[cfg(feature = "experimental")]
 pub use {call::*, error::rpc::*, evm::*, genesis::*};
+
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
 mod rpc;
+
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
 pub use rpc::*;
+
 #[cfg(feature = "experimental")]
 mod signer;
+
 #[cfg(feature = "experimental")]
 pub use signer::DevSigner;
-#[cfg(feature = "smart_contracts")]
-mod smart_contracts;
-#[cfg(feature = "smart_contracts")]
-pub use smart_contracts::SimpleStorageContract;
+
 #[cfg(feature = "experimental")]
 #[cfg(test)]
 mod tests;
+
 #[cfg(feature = "experimental")]
 pub use experimental::Evm;
 #[cfg(feature = "experimental")]

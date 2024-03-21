@@ -2947,6 +2947,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "835c052cb0c08c1acf6ffd71c022172e18723949c8282f2b9f27efbc51e64534"
 dependencies = [
+ "arbitrary",
  "byteorder",
  "rand 0.8.5",
  "rustc-hex",
@@ -7815,7 +7816,6 @@ dependencies = [
  "sov-cli",
  "sov-db",
  "sov-ethereum",
- "sov-evm",
  "sov-ledger-rpc",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -7871,8 +7871,6 @@ dependencies = [
  "bytes",
  "clap 4.5.3",
  "derive_more",
- "ethereum-types",
- "ethers-contract",
  "ethers-core",
  "ethers-signers",
  "hex",
@@ -8393,6 +8391,10 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh 0.10.3",
+ "ethereum-types",
+ "ethers-contract",
+ "ethers-core",
+ "hex",
  "jsonrpsee 0.20.3",
  "proptest",
  "serde",
@@ -10059,6 +10061,7 @@ version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76f64bba2c53b04fcab63c01a7d7427eadc821e3bc48c34dc9ba29c501164b52"
 dependencies = [
+ "arbitrary",
  "byteorder",
  "crunchy",
  "hex",

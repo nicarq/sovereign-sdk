@@ -12,8 +12,8 @@ use jsonrpsee::core::client::{ClientT, Subscription, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::Bytes;
-use sov_evm::SimpleStorageContract;
 use sov_sequencer::utils::SimpleClient;
+use sov_test_utils::SimpleStorageContract;
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
 const GAS: u64 = 900000u64;
