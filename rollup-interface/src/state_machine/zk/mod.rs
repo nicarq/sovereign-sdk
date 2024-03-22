@@ -7,7 +7,6 @@
 //! [risc0 adapter](https://github.com/Sovereign-Labs/sovereign-sdk/tree/main/adapters/risc0)
 //! maintained by the Sovereign Labs team.
 pub mod aggregated_proof;
-
 use alloc::vec::Vec;
 use core::fmt::Debug;
 

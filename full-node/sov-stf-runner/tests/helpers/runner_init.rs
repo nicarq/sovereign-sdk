@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
-    MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier,
-    MockValidityCond,
+    MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockValidityCond,
 };
-use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerRpcProvider};
 use sov_rollup_interface::services::da::DaService;
@@ -13,8 +14,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    InitVariant, ParallelProverService, ProofManager, ProverServiceConfig, RollupConfig,
+    RollupProverConfig, RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::watch;
@@ -30,6 +31,7 @@ pub type MockProverService = ParallelProverService<
     ArrayWitness,
     MockDaService,
     MockZkvm,
+    MockZkvm,
     HashStf<MockValidityCond>,
 >;
 
@@ -37,25 +39,26 @@ pub type MockProverService = ParallelProverService<
 pub struct TestNode {
     proof_posted_in_da_sub: Receiver<()>,
     agg_proof_saved_in_db_sub: Receiver<AggregatedProofResponse>,
-    da: MockDaService,
-    vm: MockZkvm,
+    da: Arc<MockDaService>,
+    inner_vm: MockZkvm,
+    outer_vm: MockZkvm,
     ledger_db: LedgerDB,
 }
 
 impl TestNode {
     /// Creates a DA block containing a transaction blob, optionally including an aggregated proof.
-    pub async fn send_transaction(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn send_transaction(&self) -> Result<(), anyhow::Error> {
         self.da.send_transaction(&[1, 2, 3]).await
     }
 
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.  
-    pub async fn try_send_aggregated_proof(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn try_send_aggregated_proof(&self) -> Result<(), anyhow::Error> {
         self.da.send_transaction(&[]).await
     }
 
     /// Unlocks the prover service worker thread and completes the block proof.
     pub fn make_block_proof(&self) {
-        self.vm.make_proof();
+        self.inner_vm.make_proof();
     }
 
     /// The aggregated proof was posted to DA and will be included in the NEXT block.
@@ -85,11 +88,12 @@ impl TestNode {
     }
 }
 
-#[allow(clippy::type_complexity)]
 pub fn initialize_runner(
+    da_service: Arc<MockDaService>,
+    path: &std::path::Path,
     init_variant: MockInitVariant,
     aggregated_proof_block_jump: usize,
-    nb_of_prover_threads: usize,
+    nb_of_prover_threads: Option<usize>,
 ) -> (
     StateTransitionRunner<
         HashStf<MockValidityCond>,
@@ -100,9 +104,6 @@ pub fn initialize_runner(
     >,
     TestNode,
 ) {
-    let temp = tempfile::tempdir().unwrap();
-    let path = temp.path();
-    let address = MockAddress::new([11u8; 32]);
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
             path: path.to_path_buf(),
@@ -115,13 +116,12 @@ pub fn initialize_runner(
                 bind_port: 0,
             },
         },
-        da: MockDaConfig::instant_with_sender(address),
+        da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump,
         },
     };
 
-    let da_service = MockDaService::new(address);
     let stf = HashStf::<MockValidityCond>::new();
 
     let storage_config = sov_state::config::Config {
@@ -134,25 +134,36 @@ pub fn initialize_runner(
     let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
     let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
-    let vm = MockZkvm::new();
+    let inner_vm = MockZkvm::new();
+    let outer_vm = MockZkvm::new_non_blocking();
     let verifier = MockDaVerifier::default();
 
     let prover_config = RollupProverConfig::Prove;
 
-    let prover_service = ParallelProverService::new(
-        vm.clone(),
-        stf.clone(),
-        verifier,
-        prover_config,
-        // Should be ZkStorage, but we don't need it for this test
-        genesis_storage,
-        nb_of_prover_threads,
-        rollup_config.prover_service,
-        Default::default(),
-    );
+    let prover_service = nb_of_prover_threads.map(|threads| {
+        ParallelProverService::new(
+            inner_vm.clone(),
+            outer_vm.clone(),
+            stf.clone(),
+            verifier,
+            prover_config,
+            // Should be ZkStorage, but we don't need it for this test
+            genesis_storage,
+            threads,
+            rollup_config.prover_service,
+            Default::default(),
+        )
+    });
 
     let proof_posted_in_da_sub = da_service.subscribe_proof_posted();
     let agg_proof_saved_in_db_sub = ledger_db.subscribe_proof_saved();
+
+    let proof_manager = ProofManager::new(
+        da_service.clone(),
+        prover_service,
+        ledger_db.clone(),
+        MockCodeCommitment::default(),
+    );
     (
         StateTransitionRunner::new(
             rollup_config.runner,
@@ -162,14 +173,15 @@ pub fn initialize_runner(
             storage_manager,
             rpc_storage_sender,
             init_variant,
-            Some(prover_service),
+            proof_manager,
         )
         .unwrap(),
         TestNode {
             proof_posted_in_da_sub,
             agg_proof_saved_in_db_sub,
             da: da_service,
-            vm,
+            inner_vm,
+            outer_vm,
             ledger_db,
         },
     )

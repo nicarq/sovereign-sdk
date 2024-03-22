@@ -8,7 +8,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
+    AggregatedProofPublicInput, CodeCommitment, SerializedAggregatedProof,
 };
 use sov_rollup_interface::zk::{StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
 use tracing::{debug, error, info};
@@ -66,17 +66,17 @@ where
         }
     }
 
-    pub(crate) fn start_proving<Vm, V>(
+    pub(crate) fn start_proving<InnerVm, V>(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
         config: Arc<RollupProverConfig>,
-        mut vm: Vm,
+        mut inner_vm: InnerVm,
         zk_storage: V::PreState,
-        verifier: Arc<Verifier<Da, Vm, V>>,
+        verifier: Arc<Verifier<Da, InnerVm, V>>,
     ) -> Result<ProofProcessingStatus, ProverServiceError>
     where
-        Vm: ZkvmHost + 'static,
-        V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>
+        InnerVm: ZkvmHost + 'static,
+        V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec>
             + Send
             + Sync
             + 'static,
@@ -94,15 +94,14 @@ where
                 let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
 
                 // Initiate a new proving job only if the prover is not busy.
-
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
-                    vm.add_hint(&state_transition_info.data);
+                    inner_vm.add_hint(&state_transition_info.data);
 
                     self.pool.spawn(move || {
                         tracing::info_span!("guest_execution").in_scope(|| {
-                            let proof = make_proof::<_, _, Da>(
-                                vm,
+                            let proof = make_inner_proof::<_, _, Da>(
+                                inner_vm,
                                 config,
                                 zk_storage,
                                 &verifier.stf_verifier,
@@ -170,8 +169,9 @@ where
         }
     }
 
-    pub(crate) fn create_aggregated_proof(
+    pub(crate) fn create_aggregated_proof<OuterVm: ZkvmHost + 'static>(
         &self,
+        mut outer_vm: OuterVm,
         jump: usize,
         block_header_hashes: &[<Da::Spec as DaSpec>::SlotHash],
     ) -> Result<ProofAggregationStatus, anyhow::Error> {
@@ -227,18 +227,23 @@ where
             final_slot_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
             code_commitment: self.code_commitment.clone(),
         };
-        debug!(%public_input, "generating aggregate proof");
 
-        let aggregated_proof = AggregatedProofData::new(public_input);
+        debug!(%public_input, "generating aggregate proof");
+        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/316
+        // `add_hint`  should take witness instead of the public input.
+        outer_vm.add_hint(public_input);
+        let serialized_aggregated_proof = SerializedAggregatedProof {
+            raw_aggregated_proof: outer_vm.run(false)?,
+        };
 
         for slot_hash in block_header_hashes {
             prover_state.remove(slot_hash);
         }
-        Ok(ProofAggregationStatus::Success(aggregated_proof))
+        Ok(ProofAggregationStatus::Success(serialized_aggregated_proof))
     }
 }
 
-fn make_proof<V, Vm, Da>(
+fn make_inner_proof<V, Vm, Da>(
     mut vm: Vm,
     config: Arc<RollupProverConfig>,
     zk_storage: V::PreState,

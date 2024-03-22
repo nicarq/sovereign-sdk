@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use borsh::BorshDeserialize;
 use rockbound::cache::cache_db::CacheDb;
 use rockbound::cache::change_set::ChangeSet;
 use rockbound::{Schema, SchemaBatch, SeekKeyEncoder};
@@ -17,8 +16,8 @@ use crate::schema::tables::{
     SlotByHash, SlotByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, EventNumber, ProofUniqueId, SlotNumber,
-    StoredAggregatedProof, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
+    split_tx_for_storage, BatchNumber, EventNumber, ProofUniqueId, SlotNumber, StoredBatch,
+    StoredSlot, StoredTransaction, TxNumber,
 };
 
 mod event_helper;
@@ -369,7 +368,7 @@ impl LedgerDB {
     /// Save the aggregated zk proof to the database.
     pub fn save_finalized_aggregated_proof(
         &self,
-        agg_proof: StoredAggregatedProof,
+        agg_proof: AggregatedProofData,
     ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
         let unique_id = 0;
@@ -377,10 +376,10 @@ impl LedgerDB {
 
         self.db.write_many(schema_batch)?;
         // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
-        let proof = AggregatedProofData::try_from_slice(&agg_proof.proof)?;
+
         let _ = self
             .proof_subscriptions
-            .send(AggregatedProofResponse { proof });
+            .send(AggregatedProofResponse { proof: agg_proof });
         Ok(())
     }
 }

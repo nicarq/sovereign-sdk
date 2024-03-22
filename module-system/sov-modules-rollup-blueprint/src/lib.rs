@@ -4,6 +4,7 @@
 mod runtime_rpc;
 mod wallet;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 pub use runtime_rpc::*;
@@ -12,7 +13,7 @@ use sov_db::schema::{CacheDb, ChangeSet};
 use sov_db::sequencer_db::SequencerDB;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
-use sov_modules_api::{DaSpec, Spec};
+use sov_modules_api::{DaSpec, Spec, Zkvm};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -20,7 +21,8 @@ use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
-    InitVariant, ProverService, RollupConfig, RollupProverConfig, StateTransitionRunner,
+    InitVariant, ProofManager, ProverService, RollupConfig, RollupProverConfig,
+    StateTransitionRunner,
 };
 use tokio::sync::{oneshot, watch};
 pub use wallet::*;
@@ -35,8 +37,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Data Availability config.
     type DaConfig: Send + Sync;
 
-    /// Host of a zkVM program.
-    type Vm: ZkvmHost + Send;
+    /// Host of the inner zkVM program.
+    type InnerVm: ZkvmHost + Send;
+
+    /// Host of the outer zkVM program.
+    type OuterVm: ZkvmHost + Send;
 
     /// Context for Zero Knowledge environment.
     type ZkSpec: Spec;
@@ -71,6 +76,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         Witness = <<Self::NativeSpec as Spec>::Storage as Storage>::Witness,
         DaService = Self::DaService,
     >;
+
+    /// Creates code commitments for the outer zkVM program.
+    fn create_outer_code_commitment(
+        &self,
+    ) -> <<Self::ProverService as ProverService>::Verifier as Zkvm>::CodeCommitment;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
@@ -152,10 +162,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     where
         <Self::NativeSpec as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await;
+        let da_service = Arc::new(self.create_da_service(&rollup_config).await);
         let relative_da_genesis_block = da_service
             .get_block_at(rollup_config.runner.genesis_height)
             .await?;
+
         let prover_service = match prover_config {
             Some(c) => Some(
                 self.create_prover_service(c, &rollup_config, &da_service)
@@ -201,6 +212,14 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         )?;
 
         let native_stf = StfBlueprint::new();
+
+        let proof_manager = ProofManager::new(
+            da_service.clone(),
+            prover_service,
+            ledger_db.clone(),
+            self.create_outer_code_commitment(),
+        );
+
         let runner = StateTransitionRunner::new(
             rollup_config.runner,
             da_service,
@@ -209,7 +228,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             storage_manager,
             rpc_storage.0,
             init_variant,
-            prover_service,
+            proof_manager,
         )?;
 
         Ok(Rollup {
@@ -227,13 +246,13 @@ pub struct Rollup<S: RollupBlueprint> {
         StfBlueprint<
             S::NativeSpec,
             S::DaSpec,
-            <<S::Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+            <<S::InnerVm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
             S::NativeRuntime,
             S::NativeKernel,
         >,
         S::StorageManager,
         S::DaService,
-        S::Vm,
+        S::InnerVm,
         S::ProverService,
     >,
     /// RPC methods for the rollup.

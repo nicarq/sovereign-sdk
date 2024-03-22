@@ -9,11 +9,14 @@ use sov_bank::event::Event as BankEvent;
 use sov_bank::Coins;
 use sov_ledger_rpc::client::RpcClient;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, PrivateKey, Spec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, BatchResponse, SlotResponse, TxResponse};
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
+use sov_rollup_interface::zk::aggregated_proof::{
+    AggregateProofVerifier, AggregatedProofPublicInput,
+};
 use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{TestPrivateKey, TestSpec};
@@ -219,6 +222,9 @@ async fn assert_aggregated_proof(
     .await?
     .expect("Proof missing in the ledger db");
 
+    let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
+    verifier.verify(&proof_resp.proof)?;
+
     let proof_pub_input = proof_resp.proof.public_input();
     // We test inequality because proofs are saved asynchronously in the db.
     assert!(initial_slot <= proof_pub_input.initial_slot_number);
@@ -234,6 +240,7 @@ async fn assert_aggregated_proof(
 
     assert!(initial_slot <= proof_data_info_resp.initial_slot_number);
     assert!(final_slot <= proof_data_info_resp.final_slot_number);
+
     Ok(())
 }
 

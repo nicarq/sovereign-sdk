@@ -516,13 +516,12 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
 
-    use borsh::ser::BorshSerialize;
-    use sov_db::schema::types::StoredAggregatedProof;
     use sov_mock_da::{MockBlockHeader, MockHash};
+    use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::da::Time;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
-        AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
+        AggregatedProofData, AggregatedProofPublicInput, CodeCommitment, SerializedAggregatedProof,
     };
     use sov_state::storage::namespaces::User;
     use sov_state::storage::{StateAccesses, StateUpdate};
@@ -969,7 +968,7 @@ mod tests {
         // Save something to the DB, so bootstrap storage can read it
         let witness = ArrayWitness::default();
         let genesis_block = MockBlockHeader::from_height(0);
-        let proof = AggregatedProofData::new(AggregatedProofPublicInput {
+        let public_input = AggregatedProofPublicInput {
             validity_conditions: vec![],
             initial_slot_number: 10,
             final_slot_number: 12,
@@ -979,7 +978,7 @@ mod tests {
             initial_slot_hash: vec![5],
             final_slot_hash: vec![6],
             code_commitment: CodeCommitment::default(),
-        });
+        };
 
         {
             let (stf_state, ledger_state) =
@@ -988,9 +987,15 @@ mod tests {
 
             let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
-            let agg_proof = StoredAggregatedProof {
-                proof: proof.try_to_vec().unwrap(),
-            };
+            let raw_aggregated_proof =
+                MockZkvm::create_serialized_proof(true, public_input.clone());
+            let agg_proof = AggregatedProofData::new(
+                SerializedAggregatedProof {
+                    raw_aggregated_proof,
+                },
+                public_input.clone(),
+            );
+
             ledger_db
                 .save_finalized_aggregated_proof(agg_proof)
                 .unwrap();
@@ -1065,7 +1070,7 @@ mod tests {
                 .unwrap()
                 .proof;
 
-            assert_eq!(proof, actual_proof);
+            assert_eq!(&public_input, actual_proof.public_input());
 
             storage_manager
                 .save_change_set(

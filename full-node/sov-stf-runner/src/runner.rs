@@ -149,13 +149,13 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
-        da_service: Da,
+        da_service: Arc<Da>,
         mut ledger_db: LedgerDB,
         stf: Stf,
         mut storage_manager: Sm,
         rpc_storage_sender: watch::Sender<Sm::StfState>,
         init_variant: InitVariant<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da>,
-        prover_service: Option<Ps>,
+        proof_manager: ProofManager<Ps>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -209,8 +209,6 @@ where
         let first_unprocessed_height_at_startup = da_height_processed + 1;
         debug!(%last_slot_processed_before_shutdown, %runner_config.genesis_height, %first_unprocessed_height_at_startup, "Initializing StfRunner");
 
-        let da_service = Arc::new(da_service);
-
         Ok(Self {
             first_unprocessed_height_at_startup,
             da_polling_interval_ms: runner_config.da_polling_interval_ms,
@@ -221,7 +219,8 @@ where
             ledger_db: ledger_db.clone(),
             state_root: prev_state_root,
             listen_address,
-            proof_manager: ProofManager::new(da_service, prover_service, ledger_db),
+            proof_manager,
+
             sync_state: Arc::new(DaSyncState {
                 synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(u64::MAX),

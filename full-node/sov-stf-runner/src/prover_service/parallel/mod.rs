@@ -31,37 +31,42 @@ where
 }
 
 /// Prover service that generates proofs in parallel.
-pub struct ParallelProverService<StateRoot, Witness, Da, Vm, V>
+pub struct ParallelProverService<StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
     Witness: Serialize + DeserializeOwned,
     Da: DaService,
-    Vm: ZkvmHost,
-    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
+    InnerVm: ZkvmHost,
+    OuterVm: ZkvmHost,
+    V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
 {
-    vm: Vm,
+    inner_vm: InnerVm,
+    outer_vm: OuterVm,
     prover_config: Arc<RollupProverConfig>,
 
     zk_storage: V::PreState,
     prover_state: Prover<StateRoot, Witness, Da>,
 
-    verifier: Arc<Verifier<Da, Vm, V>>,
+    verifier: Arc<Verifier<Da, InnerVm, V>>,
     jump: usize,
 }
 
-impl<StateRoot, Witness, Da, Vm, V> ParallelProverService<StateRoot, Witness, Da, Vm, V>
+impl<StateRoot, Witness, Da, InnerVm, OuterVm, V>
+    ParallelProverService<StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
-    Vm: ZkvmHost,
-    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
+    InnerVm: ZkvmHost,
+    OuterVm: ZkvmHost,
+    V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
     V::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        vm: Vm,
+        inner_vm: InnerVm,
+        outer_vm: OuterVm,
         zk_stf: V,
         da_verifier: Da::Verifier,
         config: RollupProverConfig,
@@ -70,8 +75,10 @@ where
         prover_service_config: ProverServiceConfig,
         code_commitment: CodeCommitment,
     ) -> Self {
-        let stf_verifier =
-            StateTransitionVerifier::<V, Da::Verifier, Vm::Guest>::new(zk_stf, da_verifier.clone());
+        let stf_verifier = StateTransitionVerifier::<V, Da::Verifier, InnerVm::Guest>::new(
+            zk_stf,
+            da_verifier.clone(),
+        );
 
         let verifier = Arc::new(Verifier {
             da_verifier,
@@ -79,7 +86,8 @@ where
         });
 
         Self {
-            vm,
+            inner_vm,
+            outer_vm,
             prover_config: Arc::new(config),
             prover_state: Prover::new(num_threads, code_commitment),
             jump: prover_service_config.aggregated_proof_block_jump,
@@ -89,8 +97,10 @@ where
     }
 
     /// Creates a new prover.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_default_workers(
-        vm: Vm,
+        inner_vm: InnerVm,
+        outer_vm: OuterVm,
         zk_stf: V,
         da_verifier: Da::Verifier,
         config: RollupProverConfig,
@@ -102,7 +112,8 @@ where
         assert!(num_cpus > 1, "Unable to create parallel prover service");
 
         Self::new(
-            vm,
+            inner_vm,
+            outer_vm,
             zk_stf,
             da_verifier,
             config,
@@ -115,14 +126,15 @@ where
 }
 
 #[async_trait]
-impl<StateRoot, Witness, Da, Vm, V> ProverService
-    for ParallelProverService<StateRoot, Witness, Da, Vm, V>
+impl<StateRoot, Witness, Da, InnerVm, OuterVm, V> ProverService
+    for ParallelProverService<StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
-    Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>
+    InnerVm: ZkvmHost + 'static,
+    OuterVm: ZkvmHost + 'static,
+    V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec>
         + Send
         + Sync
         + 'static,
@@ -133,6 +145,8 @@ where
     type Witness = Witness;
 
     type DaService = Da;
+
+    type Verifier = <OuterVm::Guest as ZkvmGuest>::Verifier;
 
     fn aggregated_proof_block_jump(&self) -> usize {
         self.jump
@@ -154,13 +168,13 @@ where
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> Result<ProofProcessingStatus, ProverServiceError> {
-        let vm = self.vm.clone();
+        let inner_vm = self.inner_vm.clone();
         let zk_storage = self.zk_storage.clone();
 
         self.prover_state.start_proving(
             block_header_hash,
             self.prover_config.clone(),
-            vm,
+            inner_vm,
             zk_storage,
             self.verifier.clone(),
         )
@@ -170,7 +184,10 @@ where
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
     ) -> Result<ProofAggregationStatus, anyhow::Error> {
-        self.prover_state
-            .create_aggregated_proof(self.jump, block_header_hashes)
+        self.prover_state.create_aggregated_proof(
+            self.outer_vm.clone(),
+            self.jump,
+            block_header_hashes,
+        )
     }
 }

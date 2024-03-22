@@ -41,12 +41,23 @@ impl Matches<MockCodeCommitment> for MockCodeCommitment {
 pub struct MockZkvm {
     notification_manager: NotificationManager,
     committed_data: VecDeque<Vec<u8>>,
+    wait_for_proof: bool,
 }
 
 impl MockZkvm {
-    /// Creates a new MockZkvm
+    /// Creates a new MockZkvm.
     pub fn new() -> Self {
         Self {
+            wait_for_proof: true,
+            notification_manager: Default::default(),
+            committed_data: Default::default(),
+        }
+    }
+
+    /// Creates a new MockZkvm, the `ZkvmHost::run` will return immediately.
+    pub fn new_non_blocking() -> Self {
+        Self {
+            wait_for_proof: false,
             notification_manager: Default::default(),
             committed_data: Default::default(),
         }
@@ -133,7 +144,9 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
     }
 
     fn run(&mut self, _with_proof: bool) -> Result<Vec<u8>, anyhow::Error> {
-        self.notification_manager.wait();
+        if self.wait_for_proof {
+            self.notification_manager.wait();
+        }
         let data = self.committed_data.pop_front().unwrap_or_default();
         Ok(bincode::serialize(&sov_rollup_interface::zk::Proof::<
             Empty,
