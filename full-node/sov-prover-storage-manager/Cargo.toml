@@ -25,6 +25,7 @@ tracing = { workspace = true }
 [dev-dependencies]
 borsh = { workspace = true }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
 rockbound = { workspace = true, features = ["test-utils"] }
 tempfile = { workspace = true }
 criterion = "0.5.1"

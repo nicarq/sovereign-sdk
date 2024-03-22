@@ -69,14 +69,6 @@ pub struct StoredSlot {
     pub batches: std::ops::Range<BatchNumber>,
 }
 
-/// /// The on-disk format for the aggregated proof.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
-#[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
-pub struct StoredAggregatedProof {
-    /// Aggregated proof data.
-    pub proof: Vec<u8>,
-}
-
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions
 /// included in the batch.
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]

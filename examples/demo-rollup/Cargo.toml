@@ -16,6 +16,7 @@ workspace = true
 # non-optional dependencies
 sov-celestia-adapter = { path = "../../adapters/celestia", features = ["native"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 const-rollup-config = { path = "../const-rollup-config" }
 sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = ["native"] }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }

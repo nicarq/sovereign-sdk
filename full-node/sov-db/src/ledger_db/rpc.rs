@@ -7,7 +7,6 @@ use sov_rollup_interface::rpc::{
     EventResponse, ItemOrHash, LedgerRpcProvider, PaginatedEventResponse, QueryMode,
     SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofData;
 use tokio::sync::broadcast::Receiver;
 
 use crate::ledger_db::event_helper::{
@@ -468,10 +467,7 @@ impl LedgerRpcProvider for LedgerDB {
         let agg_proof_data = self.db.get_largest::<ProofByUniqueId>();
 
         match agg_proof_data? {
-            Some(data) => {
-                let proof = AggregatedProofData::try_from_slice(&data.1.proof)?;
-                Ok(Some(AggregatedProofResponse { proof }))
-            }
+            Some((_, proof)) => Ok(Some(AggregatedProofResponse { proof })),
             None => Ok(None),
         }
     }
@@ -640,17 +636,17 @@ impl LedgerDB {
 mod tests {
     use std::sync::{Arc, RwLock};
 
-    use borsh::BorshSerialize;
     use rand::Rng;
     use rockbound::cache::cache_container::CacheContainer;
     use rockbound::cache::cache_db::CacheDb;
     use rockbound::SchemaBatch;
     use sov_mock_da::{MockBlob, MockBlock};
+    use sov_mock_zkvm::MockZkvm;
     use sov_modules_api::utils::generate_address;
     use sov_modules_api::AddressBech32;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
-        AggregatedProofData, AggregatedProofPublicInput, CodeCommitment,
+        AggregatedProofData, AggregatedProofPublicInput, CodeCommitment, SerializedAggregatedProof,
     };
     use sov_test_utils::TestSpec;
 
@@ -659,7 +655,6 @@ mod tests {
         NUM_EVENTS_PER_TXN, NUM_MODULES, NUM_TXNS_PER_MODULE,
     };
     use crate::ledger_db::{LedgerDB, SlotCommit};
-    use crate::schema::types::StoredAggregatedProof;
 
     #[test]
     fn test_slot_subscription() {
@@ -934,7 +929,7 @@ mod tests {
         assert_eq!(None, proof_from_db);
 
         for i in 0..10 {
-            let proof = AggregatedProofData::new(AggregatedProofPublicInput {
+            let public_input = AggregatedProofPublicInput {
                 validity_conditions: vec![],
                 initial_slot_number: i as u64,
                 final_slot_number: i as u64,
@@ -944,18 +939,24 @@ mod tests {
                 initial_slot_hash: vec![i + 2],
                 final_slot_hash: vec![i + 3],
                 code_commitment: CodeCommitment::default(),
-            });
-
-            let agg_proof = StoredAggregatedProof {
-                proof: proof.try_to_vec().unwrap(),
             };
 
+            let raw_aggregated_proof =
+                MockZkvm::create_serialized_proof(true, public_input.clone());
+
+            let agg_proof = AggregatedProofData::new(
+                SerializedAggregatedProof {
+                    raw_aggregated_proof,
+                },
+                public_input.clone(),
+            );
+
             ledger_db
-                .save_finalized_aggregated_proof(agg_proof.clone())
+                .save_finalized_aggregated_proof(agg_proof)
                 .unwrap();
 
             let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap().unwrap();
-            assert_eq!(proof, proof_from_db.proof);
+            assert_eq!(&public_input, proof_from_db.proof.public_input());
         }
     }
 }

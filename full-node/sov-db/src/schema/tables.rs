@@ -32,11 +32,11 @@ use rockbound::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use rockbound::{CodecError, SeekKeyEncoder};
 use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofData;
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleAddress,
-    ProofUniqueId, SlotNumber, StoredAggregatedProof, StoredBatch, StoredSlot, StoredTransaction,
-    TxNumber,
+    ProofUniqueId, SlotNumber, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
 };
 use crate::sequencer_db::MempoolTx;
 
@@ -251,7 +251,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// The primary source for proof data
-    (ProofByUniqueId) ProofUniqueId => StoredAggregatedProof
+    (ProofByUniqueId) ProofUniqueId => AggregatedProofData
 );
 
 define_table_with_default_codec!(

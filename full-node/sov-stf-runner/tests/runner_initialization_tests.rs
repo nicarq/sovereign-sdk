@@ -1,4 +1,6 @@
-use sov_mock_da::{MockBlock, MockDaService, MockValidityCond};
+use std::sync::Arc;
+
+use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockValidityCond};
 use sov_mock_zkvm::MockZkVerifier;
 use sov_stf_runner::InitVariant;
 mod helpers;
@@ -19,15 +21,20 @@ async fn init_and_restart() {
         genesis_params: vec![1],
     };
 
+    let tmpdir = tempfile::tempdir().unwrap();
+    let path = tmpdir.path();
+
+    let da_service = Arc::new(MockDaService::new(MockAddress::new([11u8; 32])));
+
     let state_root_after_genesis = {
-        let (runner, _) = initialize_runner(init_variant, 1, 1);
+        let (runner, _) = initialize_runner(da_service.clone(), path, init_variant, 1, None);
         *runner.get_state_root()
     };
 
     let init_variant_2 = InitVariant::Initialized(state_root_after_genesis);
 
     let state_root_2 = {
-        let (runner_2, _) = initialize_runner(init_variant_2, 1, 1);
+        let (runner_2, _) = initialize_runner(da_service, path, init_variant_2, 1, None);
         *runner_2.get_state_root()
     };
 

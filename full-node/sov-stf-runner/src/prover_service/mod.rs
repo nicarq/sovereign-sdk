@@ -3,12 +3,15 @@ mod parallel;
 
 mod stf_info;
 use async_trait::async_trait;
-pub(crate) use manager::ProofManager;
+pub use manager::ProofManager;
 pub use parallel::ParallelProverService;
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofData;
+use sov_rollup_interface::zk::aggregated_proof::{
+    AggregatedProofPublicInput, SerializedAggregatedProof,
+};
+use sov_rollup_interface::zk::Zkvm;
 pub use stf_info::StateTransitionInfo;
 use thiserror::Error;
 
@@ -38,7 +41,7 @@ pub enum WitnessSubmissionStatus {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ProofAggregationStatus {
     /// Indicates successful proof generation.
-    Success(AggregatedProofData),
+    Success(SerializedAggregatedProof),
     /// Indicates that proof generation is currently in progress.
     ProofGenerationInProgress,
 }
@@ -78,6 +81,9 @@ pub trait ProverService {
     type Witness: Serialize;
     /// Data Availability service.
     type DaService: DaService;
+
+    /// Verifier for the aggregated proof.
+    type Verifier: Zkvm;
 
     /// The number of block proofs in the aggregated proof.
     fn aggregated_proof_block_jump(&self) -> usize;

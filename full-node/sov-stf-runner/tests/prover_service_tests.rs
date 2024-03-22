@@ -2,8 +2,10 @@ mod helpers;
 use sov_mock_da::{
     MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash, MockValidityCond,
 };
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
+use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::Time;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
 use sov_rollup_interface::zk::StateTransitionData;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
@@ -18,7 +20,9 @@ type StateRoot = Vec<u8>;
 #[tokio::test]
 async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     let TestProver {
-        prover_service, vm, ..
+        prover_service,
+        inner_vm,
+        ..
     } = make_new_prover(1);
 
     let header_hash = MockHash::from([0; 32]);
@@ -27,7 +31,8 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
         .await;
     prover_service.prove(header_hash).await?;
 
-    vm.make_proof();
+    inner_vm.make_proof();
+
     let status = wait_for_aggregated_proof(&[header_hash], &prover_service)
         .await
         .unwrap();
@@ -52,7 +57,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     let TestProver {
         prover_service,
-        vm,
+        inner_vm,
         num_worker_threads,
         ..
     } = make_new_prover(1);
@@ -109,7 +114,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     }
 
     for _ in 0..header_hashes.len() {
-        vm.make_proof();
+        inner_vm.make_proof();
     }
 
     for header_hash in header_hashes.clone() {
@@ -193,7 +198,9 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
     let end_block = jump + 1;
 
     let TestProver {
-        prover_service, vm, ..
+        prover_service,
+        inner_vm,
+        ..
     } = make_new_prover(jump);
 
     let header_hashes: Vec<_> = (0..total_nb_of_blocks)
@@ -221,7 +228,7 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         // Make proof for each submitted block.
         for _ in 0..end_block {
-            vm.make_proof();
+            inner_vm.make_proof();
         }
 
         let status = wait_for_aggregated_proof(&header_hashes[0..jump], &prover_service)
@@ -230,8 +237,13 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                assert_eq!(proof.public_input().initial_slot_number, 0);
-                assert_eq!(proof.public_input().final_slot_number, (jump - 1) as u64);
+                let public_input = <MockZkVerifier as Zkvm>::verify::<AggregatedProofPublicInput>(
+                    proof.raw_aggregated_proof.as_ref(),
+                    &MockCodeCommitment::default(),
+                )
+                .unwrap();
+                assert_eq!(public_input.initial_slot_number, 0);
+                assert_eq!(public_input.final_slot_number, (jump - 1) as u64);
             }
             ProofAggregationStatus::ProofGenerationInProgress => panic!("Prover should succeed"),
         }
@@ -251,7 +263,7 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
                 .await;
 
             prover_service.prove(*hash).await?;
-            vm.make_proof();
+            inner_vm.make_proof();
         }
 
         let status =
@@ -261,9 +273,14 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                assert_eq!(proof.public_input().initial_slot_number as usize, jump);
+                let public_input = <MockZkVerifier as Zkvm>::verify::<AggregatedProofPublicInput>(
+                    proof.raw_aggregated_proof.as_ref(),
+                    &MockCodeCommitment::default(),
+                )
+                .unwrap();
+                assert_eq!(public_input.initial_slot_number as usize, jump);
                 assert_eq!(
-                    proof.public_input().final_slot_number as usize,
+                    public_input.final_slot_number as usize,
                     total_nb_of_blocks - 1
                 );
             }
@@ -280,9 +297,10 @@ struct TestProver {
         Vec<u8>,
         MockDaService,
         MockZkvm,
+        MockZkvm,
         MockStf<MockValidityCond>,
     >,
-    vm: MockZkvm,
+    inner_vm: MockZkvm,
     num_worker_threads: usize,
 }
 
@@ -292,6 +310,7 @@ async fn wait_for_aggregated_proof(
         StateRoot,
         Vec<u8>,
         MockDaService,
+        MockZkvm,
         MockZkvm,
         MockStf<MockValidityCond>,
     >,
@@ -317,14 +336,16 @@ async fn wait_for_aggregated_proof(
 
 fn make_new_prover(jump: usize) -> TestProver {
     let num_threads = 10;
-    let vm = MockZkvm::new();
+    let inner_vm = MockZkvm::new();
+    let outer_vm = MockZkvm::new_non_blocking();
 
     let prover_config = RollupProverConfig::Execute;
     let zk_stf = MockStf::<MockValidityCond>::default();
     let da_verifier = MockDaVerifier::default();
     TestProver {
         prover_service: ParallelProverService::new(
-            vm.clone(),
+            inner_vm.clone(),
+            outer_vm,
             zk_stf,
             da_verifier,
             prover_config,
@@ -335,7 +356,7 @@ fn make_new_prover(jump: usize) -> TestProver {
             },
             Default::default(),
         ),
-        vm,
+        inner_vm,
         num_worker_threads: num_threads,
     }
 }

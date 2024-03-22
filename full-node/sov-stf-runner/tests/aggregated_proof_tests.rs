@@ -1,4 +1,6 @@
-use sov_mock_da::{MockBlock, MockBlockHeader};
+use std::sync::Arc;
+
+use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
 use sov_stf_runner::InitVariant;
 mod helpers;
@@ -109,7 +111,14 @@ fn spawn(jump: usize, nb_of_threads: usize) -> TestNode {
         genesis_params: vec![1],
     };
 
-    let (mut runner, test_node) = initialize_runner(init_variant, jump, nb_of_threads);
+    let tmpdir = tempfile::tempdir().unwrap();
+    let path = tmpdir.path();
+
+    let da_service = Arc::new(MockDaService::new(MockAddress::new([11u8; 32])));
+
+    let (mut runner, test_node) =
+        initialize_runner(da_service, path, init_variant, jump, Some(nb_of_threads));
+
     tokio::spawn(async move {
         runner.run_in_process().await.unwrap();
     });

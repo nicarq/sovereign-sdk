@@ -1,26 +1,27 @@
 mod helpers;
+use std::sync::Arc;
+
 use helpers::hash_stf::{get_result_from_blocks, HashStf, S};
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
-    MockDaVerifier, MockValidityCond, PlannedFork,
+    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockValidityCond,
+    PlannedFork,
 };
-use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
+use sov_mock_zkvm::MockZkVerifier;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ProverStorage, Storage};
-use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
-};
-use tokio::sync::watch;
+use sov_stf_runner::InitVariant;
+use tempfile::TempDir;
+
+use crate::helpers::runner_init::initialize_runner;
 
 type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaService>;
 #[tokio::test]
 async fn test_simple_reorg_case() {
-    let tmpdir = tempfile::tempdir().unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
     let sequencer_address = MockAddress::new([11u8; 32]);
     let genesis_params = vec![1, 2, 3, 4, 5];
 
@@ -52,6 +53,7 @@ async fn test_simple_reorg_case() {
     let planned_fork = PlannedFork::new(5, 2, fork_blobs.clone());
     da_service.set_planned_fork(planned_fork).await.unwrap();
 
+    let da_service = Arc::new(da_service);
     for b in &main_chain_blobs {
         da_service.send_transaction(b).await.unwrap();
     }
@@ -66,12 +68,9 @@ async fn test_simple_reorg_case() {
         genesis_params,
     };
 
-    let (before, after) = runner_execution(tmpdir.path(), init_variant, da_service).await;
-    assert_ne!(before, after);
-    assert_eq!(expected_state_root, after);
+    check_runner(da_service, &tmp_dir, init_variant, expected_state_root).await;
 
-    let committed_root_hash = get_saved_root_hash(tmpdir.path()).unwrap().unwrap();
-
+    let committed_root_hash = get_saved_root_hash(tmp_dir.path()).unwrap().unwrap();
     assert_eq!(expected_committed_root_hash.unwrap(), committed_root_hash);
 }
 
@@ -81,11 +80,11 @@ async fn test_several_reorgs() {}
 
 #[tokio::test]
 async fn test_instant_finality_data_stored() {
-    let tmpdir = tempfile::tempdir().unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
     let sequencer_address = MockAddress::new([11u8; 32]);
     let genesis_params = vec![1, 2, 3, 4, 5];
 
-    let da_service = MockDaService::new(sequencer_address).with_wait_attempts(2);
+    let da_service = Arc::new(MockDaService::new(sequencer_address).with_wait_attempts(2));
 
     let genesis_block = da_service.get_block_at(0).await.unwrap();
 
@@ -103,84 +102,26 @@ async fn test_instant_finality_data_stored() {
         genesis_params,
     };
 
-    let (before, after) = runner_execution(tmpdir.path(), init_variant, da_service).await;
-    assert_ne!(before, after);
-    assert_eq!(expected_state_root, after);
+    check_runner(da_service, &tmp_dir, init_variant, expected_state_root).await;
 
-    let saved_root_hash = get_saved_root_hash(tmpdir.path()).unwrap().unwrap();
-
+    let saved_root_hash = get_saved_root_hash(tmp_dir.path()).unwrap().unwrap();
     assert_eq!(expected_root_hash.unwrap(), saved_root_hash);
 }
 
-async fn runner_execution(
-    path: &std::path::Path,
+async fn check_runner(
+    da_service: Arc<MockDaService>,
+    tmpdir: &TempDir,
     init_variant: MockInitVariant,
-    da_service: MockDaService,
-) -> ([u8; 32], [u8; 32]) {
-    let rollup_config = RollupConfig::<MockDaConfig> {
-        storage: StorageConfig {
-            path: path.to_path_buf(),
-        },
-        runner: RunnerConfig {
-            genesis_height: 0,
-            da_polling_interval_ms: 150,
-            rpc_config: RpcConfig {
-                bind_host: "127.0.0.1".to_string(),
-                bind_port: 0,
-            },
-        },
-        da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
-        prover_service: ProverServiceConfig {
-            aggregated_proof_block_jump: 1,
-        },
-    };
-
-    let stf = HashStf::<MockValidityCond>::new();
-
-    let storage_config = sov_state::config::Config {
-        path: rollup_config.storage.path.clone(),
-    };
-    let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
-    let genesis_block = MockBlockHeader::from_height(0);
-    let (genesis_storage, ledger_genesis) =
-        storage_manager.create_state_for(&genesis_block).unwrap();
-    let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
-    let ledger_db = LedgerDB::with_cache_db(ledger_genesis).unwrap();
-
-    let vm = MockZkvm::new();
-    let verifier = MockDaVerifier::default();
-    let prover_config = RollupProverConfig::Skip;
-
-    let prover_service = ParallelProverService::new(
-        vm,
-        stf.clone(),
-        verifier,
-        prover_config,
-        // Should be ZkStorage, but we don't need it for this test
-        genesis_storage,
-        1,
-        rollup_config.prover_service,
-        Default::default(),
-    );
-
-    let mut runner: StateTransitionRunner<_, _, _, MockZkvm, _> = StateTransitionRunner::new(
-        rollup_config.runner,
-        da_service,
-        ledger_db,
-        stf,
-        storage_manager,
-        rpc_storage_sender,
-        init_variant,
-        Some(prover_service),
-    )
-    .unwrap();
-
+    expected_state_root: [u8; 32],
+) {
+    let (mut runner, _) = initialize_runner(da_service, tmpdir.path(), init_variant, 1, None);
     let before = *runner.get_state_root();
     let end = runner.run_in_process().await;
     assert!(end.is_err());
     let after = *runner.get_state_root();
 
-    (before, after)
+    assert_ne!(before, after);
+    assert_eq!(expected_state_root, after);
 }
 
 fn get_saved_root_hash(
