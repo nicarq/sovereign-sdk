@@ -137,20 +137,22 @@ ethers-providers = { version = "=2.0.10", default-features = false }
 ethers-signers = { version = "=2.0.10", default-features = false }
 ethers-middleware = { version = "=2.0.10", default-features = false }
 
-# https://github.com/paradigmxyz/reth/tree/c0655fed8915490f82d4acf8900a16a10554cbfb
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed8915490f82d4acf8900a16a10554cbfb", default-features = false }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed8915490f82d4acf8900a16a10554cbfb" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "c0655fed8915490f82d4acf8900a16a10554cbfb" }
-revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "b63ec73" }
+# https://github.com/paradigmxyz/reth/tree/66c9403ea1d3d03938eafc099e64e789aadc3616
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "66c9403ea1d3d03938eafc099e64e789aadc3616", default-features = false }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "66c9403ea1d3d03938eafc099e64e789aadc3616" }
 
-alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", rev = "a4453d4" }
+alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", rev = "9ac2c90" }
 
 # Matches reth dependency. Using exact revision for matching our tightly coupled usage of both reth and revm crates
-revm = { version = "5.0.0", default-features = false, features = ["serde"] }
-# Used just to be safe about breaking changes
-revm-primitives = { version = "=2.0.0", default-features = false }
-secp256k1 = { version = "0.27", default-features = false, features = ["global-context", "rand-std", "recovery"] }
+# orig: revm = { version = "7.1.0", features = ["std", "secp256k1"], default-features = false }
+revm = { version = "7.1.0", features = ["serde"], default-features = false }
+# revm = { version = "7.1.0", features = ["std", "secp256k1"], default-features = false }
+# orig: revm-primitives = { version = "3.0.0", features = ["std"], default-features = false }
+revm-primitives = { version = "3.0.0", default-features = false }
+revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "1f935e7" }
 
+secp256k1 = { version = "0.27", default-features = false, features = ["global-context", "rand-std", "recovery"] }
+# End of EVM dependencies
 
 [patch.'https://github.com/eigerco/celestia-node-rs.git']
 # Uncomment to apply local changes

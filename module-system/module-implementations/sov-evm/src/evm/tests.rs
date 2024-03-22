@@ -50,7 +50,12 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
     // We are not supporting CANCUN yet
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    let cfg_env_with_handler = CfgEnvWithHandlerCfg::new(CfgEnv::default(), SpecId::SHANGHAI);
+    let cfg_env_with_handler = CfgEnvWithHandlerCfg::new(
+        CfgEnv::default(),
+        revm_primitives::HandlerCfg {
+            spec_id: SpecId::SHANGHAI,
+        },
+    );
 
     let contract_address: Address = {
         let tx = dev_signer
