@@ -83,7 +83,7 @@ fn call_test() {
         [
             Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 132943,
                     logs: vec![]
@@ -94,7 +94,7 @@ fn call_test() {
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 176673,
                     logs: vec![]

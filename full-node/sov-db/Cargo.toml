@@ -54,6 +54,7 @@ arbitrary = [
 	"dep:proptest-derive",
 	"dep:tempfile",
 	"rockbound/arbitrary",
+	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-modules-core/arbitrary",
 	"sov-rollup-interface/arbitrary",

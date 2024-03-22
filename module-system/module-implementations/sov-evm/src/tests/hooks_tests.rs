@@ -169,7 +169,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
                     max_fee_per_gas: 2000u64 as u128,
                     max_priority_fee_per_gas: 3000u64 as u128,
                     to: reth_primitives::TransactionKind::Call(Address::from([3u8; 20])),
-                    value: U256::from(4000u64).into(),
+                    value: U256::from(4000u64),
                     access_list: reth_primitives::AccessList::default(),
                     input: Bytes::from([4u8; 20]),
                 }),
@@ -178,7 +178,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
         },
         receipt: Receipt {
             receipt: reth_primitives::Receipt {
-                tx_type: reth_primitives::TxType::EIP1559,
+                tx_type: reth_primitives::TxType::Eip1559,
                 success: true,
                 cumulative_gas_used: 100u64 * index,
                 logs: vec![],

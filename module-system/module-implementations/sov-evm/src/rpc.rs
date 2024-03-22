@@ -2,8 +2,6 @@ use std::array::TryFromSliceError;
 
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{TransactionKind, TransactionSignedEcRecovered, U128, U64};
-use reth_rpc_types_compat::block::from_primitive_with_hash;
-use reth_rpc_types_compat::transaction::from_recovered_with_block_context;
 use revm::primitives::{
     Address, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, B256,
     KECCAK_EMPTY, U256,
@@ -18,7 +16,9 @@ use crate::evm::db::EvmDb;
 use crate::evm::executor;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
-use crate::helpers::prepare_call_env;
+use crate::helpers::{
+    from_primitive_with_hash, from_recovered_with_block_context, prepare_call_env,
+};
 use crate::{EthApiError, Evm};
 
 #[rpc_gen(client, server)]
@@ -125,10 +125,8 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
         };
 
         // Build rpc block response
-        let total_difficulty = Some(block.header.difficulty);
         let block = reth_rpc_types::Block {
             header,
-            total_difficulty,
             transactions,
             uncles: Default::default(),
             size: Default::default(),

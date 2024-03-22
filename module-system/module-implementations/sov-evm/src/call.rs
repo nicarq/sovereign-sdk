@@ -53,8 +53,9 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
 
         let receipt = match result {
             Ok(result) => {
-                let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
+                let is_success = result.is_success();
                 let gas_used = result.gas_used();
+                let logs: Vec<_> = result.into_logs().into_iter().map(into_reth_log).collect();
                 tracing::debug!(
                     hash = hex::encode(evm_tx_recovered.hash()),
                     gas_used,
@@ -63,7 +64,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
                 Receipt {
                     receipt: reth_primitives::Receipt {
                         tx_type: evm_tx_recovered.tx_type(),
-                        success: result.is_success(),
+                        success: is_success,
                         cumulative_gas_used: previous_transaction_cumulative_gas_used + gas_used,
                         logs,
                     },
@@ -120,7 +121,7 @@ pub(crate) fn get_cfg_env_with_handler(
     cfg_env.chain_id = cfg.chain_id;
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
     let spec_id = get_spec_id(cfg.spec, block_env.number);
-    CfgEnvWithHandlerCfg::new(cfg_env, spec_id)
+    CfgEnvWithHandlerCfg::new(cfg_env, revm_primitives::HandlerCfg { spec_id })
 }
 
 /// Get spec id for a given block number
