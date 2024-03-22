@@ -66,6 +66,7 @@ ethers-core = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-test-utils = { path = "../../sov-test-utils" }
+sov-eth-dev-signer = { path = "../../../full-node/sov-eth-dev-signer" }
 
 
 [features]

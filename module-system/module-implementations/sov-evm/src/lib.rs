@@ -13,19 +13,11 @@ mod hooks;
 #[cfg(feature = "experimental")]
 pub use {call::*, error::rpc::*, evm::*, genesis::*};
 
-#[cfg(feature = "native")]
-#[cfg(feature = "experimental")]
+#[cfg(all(feature = "experimental", feature = "native"))]
 mod rpc;
 
-#[cfg(feature = "native")]
-#[cfg(feature = "experimental")]
+#[cfg(all(feature = "experimental", feature = "native"))]
 pub use rpc::*;
-
-#[cfg(feature = "experimental")]
-mod signer;
-
-#[cfg(feature = "experimental")]
-pub use signer::DevSigner;
 
 #[cfg(feature = "experimental")]
 #[cfg(test)]
@@ -38,8 +30,7 @@ pub use revm::primitives::SpecId;
 
 #[cfg(feature = "experimental")]
 mod event;
-#[cfg(feature = "native")]
-#[cfg(feature = "experimental")]
+#[cfg(all(feature = "experimental", feature = "native"))]
 mod helpers;
 
 #[cfg(feature = "experimental")]
