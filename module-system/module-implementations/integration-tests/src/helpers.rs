@@ -304,6 +304,10 @@ impl TestRollup {
         &self.stf
     }
 
+    pub(crate) fn kernel(&self) -> &TestKernel<S, Da> {
+        self.stf().kernel()
+    }
+
     pub(crate) fn attester_incentives(&self) -> &AttesterIncentives<S, Da> {
         &self.stf().runtime().attester_incentives
     }
