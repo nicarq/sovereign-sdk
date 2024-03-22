@@ -43,11 +43,11 @@ on:
   # - https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#how-merge-queues-work
   # - https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#merge_group
   merge_group:
-    types: [ "checks_requested" ]
+    types: ["checks_requested"]
   push:
-    branches: [ "nightly", "stable" ]
+    branches: ["nightly", "stable"]
   pull_request:
-    branches: [ "nightly", "stable" ]
+    branches: ["nightly", "stable"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -78,6 +78,7 @@ jobs:
       - doctests
       - hack
       - nextest
+      - nextest_all_features
       - doctests
       - coverage
       - check-licenses
@@ -310,6 +311,36 @@ jobs:
       - name: cargo hack
         run: make check-features
 
+  nextest_all_features:
+    name: nextest_all_features
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.20
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version v2024-02-08.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # `cargo-nextest` is much faster than standard `cargo test`.
+      - uses: taiki-e/install-action@nextest
+      - name: Install Rust
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-provider: "buildjet"
+          save-if: ${{ github.ref == 'refs/heads/nightly' }}
+      - run: cargo nextest run --workspace --all-features
+
   nextest:
     name: nextest
     runs-on: buildjet-8vcpu-ubuntu-2204
@@ -338,7 +369,7 @@ jobs:
         with:
           cache-provider: "buildjet"
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - run: cargo nextest run --workspace --all-features
+      - run: cargo nextest run --workspace
 
   doctests:
     name: doctests
@@ -497,7 +528,9 @@ jobs:
 
   check-demo-rollup-bash-commands:
     runs-on: buildjet-4vcpu-ubuntu-2204
-    needs: nextest
+    needs:
+      - nextest
+      - nextest_all_features
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
@@ -537,7 +570,9 @@ jobs:
 
   check-demo-rollup-bash-commands-mock-da:
     runs-on: buildjet-4vcpu-ubuntu-2204
-    needs: nextest
+    needs:
+      - nextest
+      - nextest_all_features
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
