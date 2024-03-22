@@ -4,9 +4,9 @@ use reth_primitives::{Address, Bytes as RethBytes, TransactionKind, U256, U64};
 use reth_rpc_types::transaction::EIP1559TransactionRequest;
 use reth_rpc_types::TypedTransactionRequest;
 use secp256k1::{PublicKey, SecretKey};
+use sov_eth_dev_signer::{DevSigner, SignError};
 
 use crate::evm::RlpEvmTransaction;
-use crate::signer::{DevSigner, SignError};
 
 /// ETH transactions signer used in tests.
 pub(crate) struct TestSigner {

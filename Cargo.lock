@@ -7840,6 +7840,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-eth-dev-signer"
+version = "0.3.0"
+dependencies = [
+ "reth-primitives",
+ "reth-rpc-types",
+ "revm",
+ "secp256k1 0.27.0",
+ "thiserror",
+]
+
+[[package]]
 name = "sov-ethereum"
 version = "0.3.0"
 dependencies = [
@@ -7854,6 +7865,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-accounts",
+ "sov-eth-dev-signer",
  "sov-evm",
  "sov-modules-api",
  "sov-rollup-interface",
@@ -7887,6 +7899,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-chain-state",
+ "sov-eth-dev-signer",
  "sov-evm",
  "sov-mock-da",
  "sov-modules-api",

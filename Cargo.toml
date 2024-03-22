@@ -20,6 +20,7 @@ members = [
     "full-node/sov-stf-runner",
     "full-node/sov-prover-storage-manager",
     "full-node/sov-metrics",
+    "full-node/sov-eth-dev-signer",
     # Utils
     "utils/rng-da-service",
     # Module System

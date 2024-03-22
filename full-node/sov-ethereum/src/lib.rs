@@ -1,14 +1,14 @@
 #[cfg(feature = "experimental")]
-mod batch_builder;
-#[cfg(feature = "experimental")]
-mod gas_price;
-
-#[cfg(feature = "experimental")]
 pub use experimental::{get_ethereum_rpc, Ethereum};
 #[cfg(feature = "experimental")]
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 #[cfg(feature = "experimental")]
-pub use sov_evm::DevSigner;
+pub use sov_eth_dev_signer::DevSigner;
+
+#[cfg(feature = "experimental")]
+mod batch_builder;
+#[cfg(feature = "experimental")]
+mod gas_price;
 
 #[cfg(feature = "experimental")]
 pub mod experimental {
