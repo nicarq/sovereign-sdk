@@ -28,6 +28,7 @@ rand = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+sov-mock-zkvm = { path = ".", features = ["native"] }
 
 [features]
 default = []
