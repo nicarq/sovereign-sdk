@@ -1,5 +1,10 @@
+use std::str::FromStr;
+
 use helpers::generate_address;
-use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
+use sov_bank::{
+    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId,
+    TotalSupplyResponse, GAS_TOKEN_ID,
+};
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -16,8 +21,6 @@ fn burn_deployed_tokens() {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let empty_bank_config = BankConfig::<S> { tokens: vec![] };
-    bank.genesis(&empty_bank_config, &mut working_set).unwrap();
 
     let sender_address = generate_address("just_sender");
     let sequencer_address = generate_address("sequencer");
@@ -28,31 +31,27 @@ fn burn_deployed_tokens() {
     let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<S>(&token_name, &minter_address, salt);
+    let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
 
-    // ---
-    // Deploying token
-    let mint_message = CallMessage::CreateToken {
-        salt,
-        token_name,
-        initial_balance,
-        minter_address,
-        authorized_minters: vec![minter_address],
+    let bank_config = BankConfig::<S> {
+        gas_token_config: GasTokenConfig {
+            token_name,
+            address_and_balances: vec![(minter_address, initial_balance)],
+            authorized_minters: vec![minter_address],
+        },
+        tokens: vec![],
     };
-    bank.call(mint_message, &minter_context, &mut working_set)
-        .expect("Failed to mint token");
-    // Create token event should be present
-    assert_eq!(working_set.events().len(), 1);
+    bank.genesis(&bank_config, &mut working_set).unwrap();
 
     let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
         let total_supply: TotalSupplyResponse =
-            bank.supply_of(None, token_address, working_set).unwrap();
+            bank.supply_of(None, token_id, working_set).unwrap();
         total_supply.amount
     };
 
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_address, working_set)
+            bank.get_balance_of(user_address, token_id, working_set)
         };
 
     let previous_total_supply = query_total_supply(&mut working_set);
@@ -64,7 +63,7 @@ fn burn_deployed_tokens() {
     let burn_message = CallMessage::Burn {
         coins: Coins {
             amount: burn_amount,
-            token_address,
+            token_id,
         },
     };
 
@@ -89,14 +88,14 @@ fn burn_deployed_tokens() {
     assert!(chain.next().is_none());
     assert_eq!(
         format!(
-            "Failed to burn coins(token_address={} amount={}) from owner {}",
-            token_address, burn_amount, sender_address
+            "Failed to burn coins(token_id={} amount={}) from owner {}",
+            token_id, burn_amount, sender_address
         ),
         message_1
     );
     let expected_error_part = format!(
         "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and storage key:",
-        token_address
+        token_id
     );
     assert!(message_2.starts_with(&expected_error_part));
 
@@ -110,13 +109,13 @@ fn burn_deployed_tokens() {
     let burn_zero_message = CallMessage::Burn {
         coins: Coins {
             amount: 0,
-            token_address,
+            token_id,
         },
     };
 
     bank.call(burn_zero_message, &minter_context, &mut working_set)
         .expect("Failed to burn token");
-    assert_eq!(working_set.events().len(), 1);
+    assert_eq!(working_set.events().len(), 2);
     let minter_balance_after = query_user_balance(minter_address, &mut working_set);
     assert_eq!(minter_balance, minter_balance_after);
 
@@ -125,7 +124,7 @@ fn burn_deployed_tokens() {
     let burn_message = CallMessage::Burn {
         coins: Coins {
             amount: initial_balance + 10,
-            token_address,
+            token_id,
         },
     };
 
@@ -138,8 +137,8 @@ fn burn_deployed_tokens() {
     assert!(chain.next().is_none());
     assert_eq!(
         format!(
-            "Failed to burn coins(token_address={} amount={}) from owner {}",
-            token_address,
+            "Failed to burn coins(token_id={} amount={}) from owner {}",
+            token_id,
             initial_balance + 10,
             minter_address
         ),
@@ -152,11 +151,11 @@ fn burn_deployed_tokens() {
 
     // ---
     // Try to burn non-existing token
-    let token_address = get_token_address::<S>("NotRealToken2", &minter_address, salt);
+    let token_id = get_token_id::<S>("NotRealToken2", &minter_address, salt);
     let burn_message = CallMessage::Burn {
         coins: Coins {
             amount: 1,
-            token_address,
+            token_id,
         },
     };
 
@@ -169,12 +168,12 @@ fn burn_deployed_tokens() {
     assert!(chain.next().is_none());
     assert_eq!(
         format!(
-            "Failed to burn coins(token_address={} amount={}) from owner {}",
-            token_address, 1, minter_address
+            "Failed to burn coins(token_id={} amount={}) from owner {}",
+            token_id, 1, minter_address
         ),
         message_1
     );
-    // Note, no token address in root cause the message.
+    // Note, no token ID in root cause the message.
     let expected_error_part =
         "Value not found for prefix: \"sov_bank/Bank/tokens/\" and storage key:";
     assert!(message_2.starts_with(expected_error_part));
@@ -189,13 +188,13 @@ fn burn_initial_tokens() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_address = bank_config.tokens[0].token_address;
-    let sender_address = bank_config.tokens[0].address_and_balances[0].0;
-    let sequencer_address = bank_config.tokens[0].address_and_balances[1].0;
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let sender_address = bank_config.gas_token_config.address_and_balances[0].0;
+    let sequencer_address = bank_config.gas_token_config.address_and_balances[1].0;
 
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_address, working_set)
+            bank.get_balance_of(user_address, token_id, working_set)
         };
 
     let balance_before = query_user_balance(sender_address, &mut working_set);
@@ -205,14 +204,14 @@ fn burn_initial_tokens() {
     let burn_message = CallMessage::Burn {
         coins: Coins {
             amount: burn_amount,
-            token_address,
+            token_id,
         },
     };
 
     let context = Context::<S>::new(sender_address, sequencer_address, 1);
     bank.call(burn_message, &context, &mut working_set)
         .expect("Failed to burn token");
-    assert!(working_set.events().is_empty());
+    assert_eq!(working_set.events().len(), 1);
 
     let balance_after = query_user_balance(sender_address, &mut working_set);
     assert_eq!(Some(initial_balance - burn_amount), balance_after);

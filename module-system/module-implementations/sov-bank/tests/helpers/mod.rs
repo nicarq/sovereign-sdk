@@ -1,4 +1,4 @@
-use sov_bank::{BankConfig, TokenConfig};
+use sov_bank::{BankConfig, GasTokenConfig};
 use sov_modules_api::utils::generate_address as gen_address_generic;
 use sov_modules_api::Address;
 
@@ -25,15 +25,13 @@ pub fn create_bank_config_with_token(
         .collect();
 
     let token_name = "InitialToken".to_owned();
-    let token_address = generate_address(&token_name);
-    let token_config = TokenConfig {
-        token_name,
-        token_address,
-        address_and_balances,
-        authorized_minters: vec![],
-    };
 
     BankConfig {
-        tokens: vec![token_config],
+        gas_token_config: GasTokenConfig {
+            token_name,
+            address_and_balances,
+            authorized_minters: vec![],
+        },
+        tokens: vec![],
     }
 }

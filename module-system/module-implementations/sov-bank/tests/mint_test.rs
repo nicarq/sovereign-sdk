@@ -1,4 +1,9 @@
-use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
+use std::str::FromStr;
+
+use sov_bank::{
+    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId,
+    TotalSupplyResponse, GAS_TOKEN_ID,
+};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -14,46 +19,38 @@ fn mint_token() {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let empty_bank_config = BankConfig::<S> { tokens: vec![] };
-    bank.genesis(&empty_bank_config, &mut working_set).unwrap();
 
     let minter_address = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");
     let minter_context = Context::<S>::new(minter_address, sequencer_address, 1);
 
-    let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<S>(&token_name, &minter_address, salt);
+    let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
 
-    // ---
-    // Deploying token
-    let mint_message = CallMessage::CreateToken {
-        salt,
-        token_name: token_name.clone(),
-        initial_balance,
-        minter_address,
-        authorized_minters: vec![minter_address],
+    let bank_config = BankConfig::<S> {
+        gas_token_config: GasTokenConfig {
+            token_name: token_name.clone(),
+            address_and_balances: vec![(minter_address, initial_balance)],
+            authorized_minters: vec![minter_address],
+        },
+
+        tokens: vec![],
     };
-    let _minted = bank
-        .call(mint_message, &minter_context, &mut working_set)
-        .expect("Failed to mint token");
-    // Create token event should be present
-    assert_eq!(working_set.events().len(), 1);
+    bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let query_total_supply =
-        |token_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            let total_supply: TotalSupplyResponse =
-                bank.supply_of(None, token_address, working_set).unwrap();
-            total_supply.amount
-        };
+    let query_total_supply = |token_id: TokenId, working_set: &mut WorkingSet<S>| -> Option<u64> {
+        let total_supply: TotalSupplyResponse =
+            bank.supply_of(None, token_id, working_set).unwrap();
+        total_supply.amount
+    };
 
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_address, working_set)
+            bank.get_balance_of(user_address, token_id, working_set)
         };
 
-    let previous_total_supply = query_total_supply(token_address, &mut working_set);
+    let previous_total_supply = query_total_supply(token_id, &mut working_set);
     assert_eq!(Some(initial_balance), previous_total_supply);
 
     // -----
@@ -63,7 +60,7 @@ fn mint_token() {
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,
-            token_address,
+            token_id,
         },
         minter_address: new_holder,
     };
@@ -71,10 +68,8 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message.clone(), &minter_context, &mut working_set)
         .expect("Failed to mint token");
-    // Create token event should be present
-    assert_eq!(working_set.events().len(), 1);
 
-    let total_supply = query_total_supply(token_address, &mut working_set);
+    let total_supply = query_total_supply(token_id, &mut working_set);
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
 
     // check user balance after minting
@@ -102,8 +97,8 @@ fn mint_token() {
 
     assert_eq!(
         format!(
-            "Failed mint coins(token_address={} amount={}) to {} by authorizer {}",
-            token_address, mint_amount, new_holder, unauthorized_address
+            "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
+            token_id, mint_amount, new_holder, unauthorized_address
         ),
         message_1
     );
@@ -119,7 +114,7 @@ fn mint_token() {
     let salt = 0;
     let token_name = "Token_New".to_owned();
     let initial_balance = 100;
-    let token_address = get_token_address::<S>(&token_name, &minter_address, salt);
+    let token_id = get_token_id::<S>(&token_name, &minter_address, salt);
     let authorized_minter_address_1 = generate_address::<S>("authorized_minter_1");
     let authorized_minter_address_2 = generate_address::<S>("authorized_minter_2");
     let sequencer_address = generate_address::<S>("sequencer");
@@ -135,7 +130,7 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message, &minter_context, &mut working_set)
         .expect("Failed to mint token");
-    assert_eq!(working_set.events().len(), 2);
+    assert_eq!(working_set.events().len(), 1);
 
     // Try to mint new token with original token creator, in this case minter_context
     let mint_amount = 10;
@@ -143,7 +138,7 @@ fn mint_token() {
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,
-            token_address,
+            token_id,
         },
         minter_address: new_holder,
     };
@@ -158,8 +153,8 @@ fn mint_token() {
     assert!(chain.next().is_none());
     assert_eq!(
         format!(
-            "Failed mint coins(token_address={} amount={}) to {} by authorizer {}",
-            token_address, mint_amount, new_holder, minter_address,
+            "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
+            token_id, mint_amount, new_holder, minter_address,
         ),
         message_1
     );
@@ -176,7 +171,7 @@ fn mint_token() {
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,
-            token_address,
+            token_id,
         },
         minter_address: new_holder,
     };
@@ -184,8 +179,8 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message, &authorized_minter_2_context, &mut working_set)
         .expect("Failed to mint token");
-    let supply = query_total_supply(token_address, &mut working_set);
-    assert_eq!(working_set.events().len(), 2);
+    let supply = query_total_supply(token_id, &mut working_set);
+    assert_eq!(working_set.events().len(), 1);
     assert_eq!(Some(110), supply);
 
     // Try to mint new token with authorized sender 1
@@ -194,7 +189,7 @@ fn mint_token() {
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,
-            token_address,
+            token_id,
         },
         minter_address: new_holder,
     };
@@ -202,15 +197,15 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message, &authorized_minter_1_context, &mut working_set)
         .expect("Failed to mint token");
-    let supply = query_total_supply(token_address, &mut working_set);
-    assert_eq!(working_set.events().len(), 2);
+    let supply = query_total_supply(token_id, &mut working_set);
+    assert_eq!(working_set.events().len(), 1);
     assert_eq!(Some(120), supply);
 
     // Overflow test - account balance
     let overflow_mint_message = CallMessage::Mint {
         coins: Coins {
             amount: u64::MAX,
-            token_address,
+            token_id,
         },
         minter_address: new_holder,
     };
@@ -228,8 +223,8 @@ fn mint_token() {
     assert!(chain.next().is_none());
     assert_eq!(
         format!(
-            "Failed mint coins(token_address={} amount={}) to {} by authorizer {}",
-            token_address,
+            "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
+            token_id,
             u64::MAX,
             new_holder,
             authorized_minter_address_1,
@@ -241,7 +236,7 @@ fn mint_token() {
         message_2,
     );
     // assert that the supply is unchanged after the overflow mint
-    let supply = query_total_supply(token_address, &mut working_set);
+    let supply = query_total_supply(token_id, &mut working_set);
     assert_eq!(Some(120), supply);
 
     // Overflow test 2 - total supply
@@ -249,7 +244,7 @@ fn mint_token() {
     let overflow_mint_message = CallMessage::Mint {
         coins: Coins {
             amount: u64::MAX - 1,
-            token_address,
+            token_id,
         },
         minter_address: new_holder,
     };
@@ -267,8 +262,8 @@ fn mint_token() {
     assert!(chain.next().is_none());
     assert_eq!(
         format!(
-            "Failed mint coins(token_address={} amount={}) to {} by authorizer {}",
-            token_address,
+            "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
+            token_id,
             u64::MAX - 1,
             new_holder,
             authorized_minter_address_1,
@@ -281,6 +276,6 @@ fn mint_token() {
     );
 
     // assert that the supply is unchanged after the overflow mint
-    let supply = query_total_supply(token_address, &mut working_set);
+    let supply = query_total_supply(token_id, &mut working_set);
     assert_eq!(Some(120), supply);
 }

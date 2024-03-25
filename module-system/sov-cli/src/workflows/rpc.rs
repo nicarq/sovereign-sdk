@@ -9,7 +9,7 @@ use jsonrpsee::http_client::HttpClientBuilder;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_accounts::AccountsRpcClient;
-use sov_bank::{BalanceResponse, BankRpcClient};
+use sov_bank::{BalanceResponse, BankRpcClient, TokenId};
 use sov_modules_api::{clap, CryptoSpec};
 use sov_rollup_interface::digest::Digest;
 
@@ -41,7 +41,7 @@ pub enum RpcWorkflows<S: sov_modules_api::Spec> {
         /// In the case of genesis token, it can be looked up in genesis config JSON.
         /// Check the server logs if it does not match.
         deployer_address: S::Address,
-        /// A salt used in the token address derivation.
+        /// A salt used in the token ID derivation.
         salt: u64,
     },
     /// Query the rpc server for the token balance of an account
@@ -49,8 +49,8 @@ pub enum RpcWorkflows<S: sov_modules_api::Spec> {
         /// (Optional) The account to query the balance of (default: the active account)
         #[clap(subcommand)]
         account: Option<KeyIdentifier<S>>,
-        /// The address of the token to query for
-        token_address: S::Address,
+        /// The ID of the token to query for
+        token_id: TokenId,
     },
     /// Sign all transactions from the current batch and submit them to the rollup.
     /// Nonces will be set automatically.
@@ -135,13 +135,13 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
             }
             RpcWorkflows::GetBalance {
                 account: _,
-                token_address,
+                token_id,
             } => {
                 let BalanceResponse { amount } = BankRpcClient::<S>::balance_of(
                     &client,
                     None,
                     account.address.clone(),
-                    token_address.clone(),
+                    *token_id,
                 )
                 .await
                 .context(BAD_RPC_URL)?;
@@ -189,7 +189,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                 salt,
                 ..
             } => {
-                let address = BankRpcClient::<S>::token_address(
+                let address = BankRpcClient::<S>::token_id(
                     &client,
                     token_name.clone(),
                     owner_address.clone(),

@@ -1,4 +1,6 @@
-use sov_bank::{BankConfig, TokenConfig};
+use std::str::FromStr;
+
+use sov_bank::{BankConfig, GasTokenConfig, TokenId, GAS_TOKEN_ID};
 use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
 };
@@ -21,7 +23,6 @@ type S = sov_test_utils::TestSpec;
 pub const TOKEN_NAME: &str = "TEST_TOKEN";
 pub const BOND_AMOUNT: u64 = 1000;
 pub const INITIAL_BOND_AMOUNT: u64 = 5 * BOND_AMOUNT;
-pub const SALT: u64 = 5;
 pub const DEFAULT_ROLLUP_FINALITY: u64 = 3;
 pub const INIT_HEIGHT: u64 = 0;
 
@@ -42,7 +43,6 @@ pub(crate) fn commit_get_new_state_checkpoint(
 
 pub(crate) fn create_bank_config_with_token(
     token_name: String,
-    salt: u64,
     addresses_count: usize,
     initial_balance: u64,
 ) -> (BankConfig<S>, Vec<Address>) {
@@ -54,18 +54,16 @@ pub(crate) fn create_bank_config_with_token(
         })
         .collect();
 
-    let token_address = sov_bank::get_genesis_token_address::<S>(&token_name, salt);
-
-    let token_config = TokenConfig {
+    let token_config = GasTokenConfig {
         token_name,
-        token_address,
         address_and_balances: address_and_balances.clone(),
         authorized_minters: vec![address_and_balances.first().unwrap().0],
     };
 
     (
         BankConfig {
-            tokens: vec![token_config],
+            gas_token_config: token_config,
+            tokens: vec![],
         },
         address_and_balances
             .into_iter()
@@ -81,7 +79,7 @@ pub(crate) fn setup(
     mut working_set: WorkingSet<S>,
 ) -> (
     AttesterIncentives<S, MockDaSpec>,
-    Address,
+    TokenId,
     Address,
     Address,
     Address,
@@ -89,7 +87,7 @@ pub(crate) fn setup(
 ) {
     // Initialize bank
     let (bank_config, mut addresses) =
-        create_bank_config_with_token(TOKEN_NAME.to_string(), SALT, 3, INITIAL_BOND_AMOUNT);
+        create_bank_config_with_token(TOKEN_NAME.to_string(), 3, INITIAL_BOND_AMOUNT);
     let bank = sov_bank::Bank::<S>::default();
     bank.genesis(&bank_config, &mut working_set)
         .expect("bank genesis must succeed");
@@ -99,7 +97,7 @@ pub(crate) fn setup(
     let reward_supply = addresses.pop().unwrap();
     let sequencer = generate_address::<S>("sequencer");
 
-    let token_address = sov_bank::get_genesis_token_address::<S>(TOKEN_NAME, SALT);
+    let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
 
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig {
@@ -123,7 +121,7 @@ pub(crate) fn setup(
     // initialize prover incentives
     let module = AttesterIncentives::<S, MockDaSpec>::default();
     let config = crate::AttesterIncentivesConfig {
-        bonding_token_address: token_address,
+        bonding_token_id: token_id,
         reward_token_supply_address: reward_supply,
         minimum_attester_bond: BOND_AMOUNT,
         minimum_challenger_bond: BOND_AMOUNT,
@@ -142,7 +140,7 @@ pub(crate) fn setup(
 
     (
         module,
-        token_address,
+        token_id,
         attester_address,
         challenger_address,
         sequencer,

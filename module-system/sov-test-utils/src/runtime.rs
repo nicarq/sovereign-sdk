@@ -1,4 +1,6 @@
-pub use sov_bank::{get_genesis_token_address, Bank, BankConfig, Coins, TokenConfig};
+use std::str::FromStr;
+
+pub use sov_bank::{Bank, BankConfig, Coins, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
@@ -194,14 +196,13 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     admin_da_address: Da::Address,
     seq_stake_amount: u64,
     token_name: String,
-    salt: u64,
     init_balance: u64,
 ) -> GenesisConfig<S, Da> {
     assert!(
         init_balance >= seq_stake_amount,
         "sequencer cannot stake more than its initial balance"
     );
-    let token_address = get_genesis_token_address::<S>(&token_name, salt);
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).expect("failed to parse token id");
     GenesisConfig {
         value_setter: ValueSetterConfig {
             admin: admin.clone(),
@@ -211,17 +212,17 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
             seq_da_address: admin_da_address,
             coins_to_lock: Coins {
                 amount: seq_stake_amount,
-                token_address: token_address.clone(),
+                token_id,
             },
             is_preferred_sequencer: true,
         },
         bank: BankConfig {
-            tokens: vec![TokenConfig {
-                token_name,
-                token_address,
+            gas_token_config: sov_bank::GasTokenConfig {
+                token_name: token_name.clone(),
                 address_and_balances: vec![(admin.clone(), init_balance)],
                 authorized_minters: vec![admin.clone()],
-            }],
+            },
+            tokens: vec![],
         },
     }
 }

@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use jsonrpsee::core::RpcResult;
+use sov_bank::TokenId;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{Address, CryptoSpec, DaSpec, Module, Spec, StateAccessor, WorkingSet};
@@ -49,7 +52,7 @@ impl TestSequencer {
     ) -> RpcResult<sov_bank::BalanceResponse> {
         let amount = self.bank.get_balance_of(
             self.sequencer_config.seq_rollup_address,
-            self.sequencer_config.coins_to_lock.token_address,
+            self.sequencer_config.coins_to_lock.token_id,
             working_set,
         );
         Ok(sov_bank::BalanceResponse { amount })
@@ -64,7 +67,7 @@ impl TestSequencer {
         self.bank.balance_of(
             None,
             user_address,
-            self.sequencer_config.coins_to_lock.token_address,
+            self.sequencer_config.coins_to_lock.token_id,
             working_set,
         )
     }
@@ -99,11 +102,9 @@ impl TestSequencer {
 
 pub fn create_bank_config() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
     let seq_address = generate_address(GENESIS_SEQUENCER_KEY);
-    let token_address = generate_address(GENESIS_TOKEN_NAME);
 
-    let token_config = sov_bank::TokenConfig {
+    let gas_token_config = sov_bank::GasTokenConfig {
         token_name: GENESIS_TOKEN_NAME.to_owned(),
-        token_address,
         address_and_balances: vec![
             (seq_address, INITIAL_BALANCE),
             (generate_address(ANOTHER_SEQUENCER_KEY), INITIAL_BALANCE),
@@ -115,7 +116,8 @@ pub fn create_bank_config() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
 
     (
         sov_bank::BankConfig {
-            tokens: vec![token_config],
+            gas_token_config,
+            tokens: vec![],
         },
         seq_address,
     )
@@ -124,11 +126,9 @@ pub fn create_bank_config() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
 #[allow(dead_code)]
 pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<S>, <S as Spec>::Address) {
     let seq_address = generate_address(GENESIS_SEQUENCER_KEY);
-    let token_address = generate_address(GENESIS_TOKEN_NAME);
 
-    let token_config = sov_bank::TokenConfig {
+    let gas_token_config = sov_bank::GasTokenConfig {
         token_name: GENESIS_TOKEN_NAME.to_owned(),
-        token_address,
         address_and_balances: vec![
             (seq_address, INITIAL_BALANCE_LARGE),
             (
@@ -146,7 +146,8 @@ pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<S>, <S as Spe
 
     (
         sov_bank::BankConfig {
-            tokens: vec![token_config],
+            gas_token_config,
+            tokens: vec![],
         },
         seq_address,
     )
@@ -154,14 +155,14 @@ pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<S>, <S as Spe
 
 pub fn create_sequencer_config(
     seq_rollup_address: <S as Spec>::Address,
-    token_address: <S as Spec>::Address,
+    token_id: TokenId,
 ) -> SequencerConfig<S, Da> {
     SequencerConfig {
         seq_rollup_address,
         seq_da_address: MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
         coins_to_lock: sov_bank::Coins {
             amount: LOCKED_AMOUNT,
-            token_address,
+            token_id,
         },
         is_preferred_sequencer: false,
     }
@@ -171,10 +172,10 @@ pub fn create_test_sequencer() -> TestSequencer {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_address = bank_config.tokens[0].token_address;
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
 
     let registry = SequencerRegistry::<S, Da>::default();
-    let sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
+    let sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
 
     TestSequencer {
         bank,
@@ -189,10 +190,10 @@ pub fn create_test_sequencer_large_balance() -> TestSequencer {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config_large_balance();
 
-    let token_address = bank_config.tokens[0].token_address;
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
 
     let registry = SequencerRegistry::<S, Da>::default();
-    let sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
+    let sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
 
     TestSequencer {
         bank,

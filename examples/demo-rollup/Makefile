@@ -10,7 +10,6 @@ SOV_CLI_REL_PATH := $(PROJECT_ROOT)/target/debug/sov-cli
 
 P2P_NETWORK := private
 KEY_NAME := bridge-0
-GENESIS_DEPLOYER := sov1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0xu3qn
 
 JWT_TOKEN_PATH := $(CREDENTIALS_DIR)/$(KEY_NAME).jwt
 get_token := $(DOCKER_COMPOSE) exec -it sequencer-0 celestia bridge auth admin --p2p.network "private"

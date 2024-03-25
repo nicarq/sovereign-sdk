@@ -8,7 +8,7 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::Storage;
-use sov_test_utils::bank_data::get_default_token_address;
+use sov_test_utils::bank_data::get_default_token_id;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestPrivateKey, TestSpec};
 
 use super::{
@@ -110,7 +110,7 @@ fn test_tx_revert() {
             .balance_of(
                 None,
                 admin_address,
-                get_default_token_address::<TestSpec>(&admin_address),
+                get_default_token_id::<TestSpec>(&admin_address),
                 &mut working_set,
             )
             .unwrap();
@@ -322,11 +322,7 @@ fn test_tx_bad_serialization() {
 
             runtime
                 .bank
-                .get_balance_of(
-                    sequencer_rollup_address,
-                    coins.token_address,
-                    &mut working_set,
-                )
+                .get_balance_of(sequencer_rollup_address, coins.token_id, &mut working_set)
                 .unwrap()
         };
         (genesis_root, balance)
@@ -399,11 +395,7 @@ fn test_tx_bad_serialization() {
             .get_coins_to_lock(&mut working_set);
         let sequencer_balance_after = runtime
             .bank
-            .get_balance_of(
-                sequencer_rollup_address,
-                coins.token_address,
-                &mut working_set,
-            )
+            .get_balance_of(sequencer_rollup_address, coins.token_id, &mut working_set)
             .unwrap();
         assert_eq!(sequencer_balance_before, sequencer_balance_after);
     }

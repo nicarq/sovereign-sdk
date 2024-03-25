@@ -1,7 +1,8 @@
+use std::str::FromStr;
+
 use sov_bank::{
-    get_genesis_token_address, Bank, BankConfig, BankGasConfig, CallMessage, TokenConfig,
+    Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, TokenId, GAS_TOKEN_ID,
 };
-use sov_modules_api::macros::config_constant;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Gas, GasArray, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -115,29 +116,25 @@ pub struct BankGasTestCase {
 
 impl BankGasTestCase {
     pub fn init(sender_balance: u64) -> Self {
-        #[config_constant]
-        const GAS_TOKEN_ADDRESS: &'static str;
         let tmpdir = tempfile::tempdir().unwrap();
 
         // create a base token with an initial balance to pay for the gas
         let base_token_name = "sov-gas-token";
         let salt = 0;
 
-        // sanity check the token address
-        let base_token_address = get_genesis_token_address::<S>(base_token_name, salt);
-        assert_eq!(&base_token_address.to_string(), GAS_TOKEN_ADDRESS);
+        // sanity check the token ID
+        let base_token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
 
         // generate a token configuration with the provided arguments
         let sender_address = generate_address::<S>("sender");
         let address_and_balances = vec![(sender_address, sender_balance)];
-        let authorized_minters = vec![];
         let bank_config: BankConfig<S> = BankConfig {
-            tokens: vec![TokenConfig {
+            gas_token_config: GasTokenConfig {
                 token_name: base_token_name.to_string(),
-                token_address: base_token_address,
                 address_and_balances,
-                authorized_minters,
-            }],
+                authorized_minters: vec![],
+            },
+            tokens: vec![],
         };
 
         // create a context using the generated account as sender
@@ -153,7 +150,7 @@ impl BankGasTestCase {
         bank.genesis(&bank_config, &mut ws).unwrap();
 
         // sanity test the sender balance
-        let balance = bank.get_balance_of(sender_address, base_token_address, &mut ws);
+        let balance = bank.get_balance_of(sender_address, base_token_id, &mut ws);
         assert_eq!(balance, Some(sender_balance));
 
         // generate a create dummy token message

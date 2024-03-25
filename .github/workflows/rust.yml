@@ -71,7 +71,6 @@ jobs:
       # which should be required to pass before merging a PR, don't forget to
       # update this list!
       - check
-      - check_no_std
       - prover_bench_check
       - bench_check
       - rollup_bench_check
@@ -137,30 +136,6 @@ jobs:
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
-
-  check_no_std:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Rust Bare Metal
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.75
-          target: thumbv6m-none-eabi
-          override: true
-      - name: Install Rust WASM
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.75
-          target: wasm32-unknown-unknown
-          override: true
-      - name: cargo install cargo-hack
-        uses: taiki-e/install-action@cargo-hack
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - name: Run check
-        run: make check-no-std
 
   prover_bench_check:
     name: prover_bench_check

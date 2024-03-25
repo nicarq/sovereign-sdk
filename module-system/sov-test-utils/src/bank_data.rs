@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use sov_bank::{get_token_address, Bank, CallMessage, Coins};
+use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{CryptoSpec, PrivateKey as _, PublicKey, Spec};
 
@@ -10,7 +10,7 @@ type PrivateKey<S> = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 pub struct TransferData<S: Spec> {
     pub sender_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     pub receiver_address: S::Address,
-    pub token_address: S::Address,
+    pub token_id: TokenId,
     pub transfer_amount: u64,
 }
 
@@ -24,8 +24,8 @@ pub struct MintData<S: Spec> {
 }
 
 impl<S: Spec> MintData<S> {
-    fn get_token_address(&self) -> <S as Spec>::Address {
-        get_token_address::<S>(&self.token_name, &self.minter_address, self.salt)
+    fn get_token_id(&self) -> TokenId {
+        get_token_id::<S>(&self.token_name, &self.minter_address, self.salt)
     }
 }
 
@@ -38,10 +38,8 @@ const DEFAULT_TOKEN_NAME: &str = "Token1";
 const DEFAULT_SALT: u64 = 10;
 const DEFAULT_INIT_BALANCE: u64 = 1000000;
 
-pub fn get_default_token_address<S: Spec>(
-    minter_address: &<S as Spec>::Address,
-) -> <S as Spec>::Address {
-    get_token_address::<S>(DEFAULT_TOKEN_NAME, minter_address, DEFAULT_SALT)
+pub fn get_default_token_id<S: Spec>(minter_address: &<S as Spec>::Address) -> TokenId {
+    get_token_id::<S>(DEFAULT_TOKEN_NAME, minter_address, DEFAULT_SALT)
 }
 
 impl<S: Spec> BankMessageGenerator<S> {
@@ -71,11 +69,10 @@ impl<S: Spec> BankMessageGenerator<S> {
     /// The token generator is returned in the first position.
     pub fn generate_token_and_random_transfers(num_transfers: u64) -> (Self, Self) {
         let mut generator_with_token = Self::random_create_token_generator();
-        let token_address = generator_with_token.token_mint_txs[0].get_token_address();
+        let token_id = generator_with_token.token_mint_txs[0].get_token_id();
         let priv_key: PrivateKey<S> =
             Rc::make_mut(&mut generator_with_token.token_mint_txs[0].minter_pkey).clone();
-        let transfer_generator =
-            Self::generate_random_transfers(num_transfers, token_address, priv_key);
+        let transfer_generator = Self::generate_random_transfers(num_transfers, token_id, priv_key);
 
         (generator_with_token, transfer_generator)
     }
@@ -102,11 +99,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     }
 
     /// Generates random transfers between the default sender and random receivers.
-    pub fn generate_random_transfers(
-        n: u64,
-        token_address: <S as Spec>::Address,
-        sender_pk: PrivateKey<S>,
-    ) -> Self {
+    pub fn generate_random_transfers(n: u64, token_id: TokenId, sender_pk: PrivateKey<S>) -> Self {
         let mut transfer_txs = vec![];
         for _ in 1..(n + 1) {
             let priv_key = PrivateKey::<S>::generate();
@@ -115,7 +108,7 @@ impl<S: Spec> BankMessageGenerator<S> {
             transfer_txs.push(TransferData {
                 sender_pkey: Rc::new(sender_pk.clone()),
                 receiver_address: address,
-                token_address: token_address.clone(),
+                token_id,
                 transfer_amount: 1,
             });
         }
@@ -144,7 +137,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 sender_pkey: Rc::new(minter_key),
                 transfer_amount: 15,
                 receiver_address: generate_address::<S>("just_receiver"),
-                token_address: get_token_address::<S>(&token_name, &minter_address, salt),
+                token_id: get_token_id::<S>(&token_name, &minter_address, salt),
             }]),
         }
     }
@@ -172,22 +165,14 @@ impl BankMessageGenerator<TestSpec> {
                     sender_pkey: Rc::new(minter_key.clone()),
                     transfer_amount: 15,
                     receiver_address: generate_address::<TestSpec>("just_receiver"),
-                    token_address: get_token_address::<TestSpec>(
-                        &token_name,
-                        &minter_address,
-                        salt,
-                    ),
+                    token_id: get_token_id::<TestSpec>(&token_name, &minter_address, salt),
                 },
                 TransferData {
                     sender_pkey: Rc::new(minter_key.clone()),
                     // invalid transfer because transfer_amount > minted supply
                     transfer_amount: 5000,
                     receiver_address: generate_address::<TestSpec>("just_receiver"),
-                    token_address: get_token_address::<TestSpec>(
-                        &token_name,
-                        &minter_address,
-                        salt,
-                    ),
+                    token_id: get_token_id::<TestSpec>(&token_name, &minter_address, salt),
                 },
             ]),
         }
@@ -209,7 +194,7 @@ pub(crate) fn transfer_token_tx<S: Spec>(transfer_data: &TransferData<S>) -> Cal
         to: transfer_data.receiver_address.clone(),
         coins: Coins {
             amount: transfer_data.transfer_amount,
-            token_address: transfer_data.token_address.clone(),
+            token_id: transfer_data.token_id,
         },
     }
 }

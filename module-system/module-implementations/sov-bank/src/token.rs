@@ -7,7 +7,7 @@ use std::num::ParseIntError;
 
 use anyhow::{bail, Context};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateAccessor, WorkingSet};
+use sov_modules_api::{impl_hash32_type, StateAccessor, WorkingSet};
 use sov_state::Prefix;
 #[cfg(feature = "native")]
 use thiserror::Error;
@@ -17,15 +17,12 @@ use crate::call::prefix_from_address_with_parent;
 /// Type alias to store an amount of token.
 pub type Amount = u64;
 
+impl_hash32_type!(TokenId, TokenIdBech32, "token_");
+
 /// Structure that stores information specifying
-/// a given `amount` (type [`Amount`]) of coins stored at a `token_address`
-/// (type [`sov_modules_api::Spec::Address`]).
-#[cfg_attr(
-    feature = "native",
-    derive(clap::Parser),
-    derive(schemars::JsonSchema),
-    schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "Coins")
-)]
+/// a given `amount` (type [`Amount`]) of coins stored at a `token_id`
+/// (type [`crate::TokenId`]).
+#[cfg_attr(feature = "native", derive(clap::Parser), derive(schemars::JsonSchema))]
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -36,11 +33,11 @@ pub type Amount = u64;
     PartialEq,
     Eq,
 )]
-pub struct Coins<S: sov_modules_api::Spec> {
-    /// An `amount` of coins stored.
+pub struct Coins {
+    /// The number of tokens
     pub amount: Amount,
-    /// The address where the tokens are stored.
-    pub token_address: S::Address,
+    /// The ID of the token
+    pub token_id: TokenId,
 }
 
 /// The errors that might arise when parsing a `Coins` struct from a string.
@@ -51,25 +48,25 @@ pub enum CoinsFromStrError {
     #[error("Could not parse {input} as a valid amount: {err}")]
     InvalidAmount { input: String, err: ParseIntError },
     /// The input string was malformed, so the `amount` substring could not be extracted.
-    #[error("No amount was provided. Make sure that your input is in the format: amount,token_address. Example: 100,sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqmlyjd6")]
+    #[error("No amount was provided. Make sure that your input is in the format: amount,token_id. Example: 100,sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqmlyjd6")]
     NoAmountProvided,
-    /// The token address could not be parsed as a valid address.
+    /// The token ID could not be parsed as a valid address.
     #[error("Could not parse {input} as a valid address: {err}")]
     InvalidTokenAddress { input: String, err: anyhow::Error },
-    /// The input string was malformed, so the `token_address` substring could not be extracted.
-    #[error("No token address was provided. Make sure that your input is in the format: amount,token_address. Example: 100,sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqmlyjd6")]
+    /// The input string was malformed, so the `token_id` substring could not be extracted.
+    #[error("No token ID was provided. Make sure that your input is in the format: amount,token_id. Example: 100,sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqmlyjd6")]
     NoTokenAddressProvided,
 }
 
 #[cfg(feature = "native")]
-impl<S: sov_modules_api::Spec> FromStr for Coins<S> {
+impl FromStr for Coins {
     type Err = CoinsFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.splitn(2, ',');
 
         let amount_str = parts.next().ok_or(CoinsFromStrError::NoAmountProvided)?;
-        let token_address_str = parts
+        let token_id_str = parts
             .next()
             .ok_or(CoinsFromStrError::NoTokenAddressProvided)?;
 
@@ -80,27 +77,20 @@ impl<S: sov_modules_api::Spec> FromStr for Coins<S> {
                     input: amount_str.into(),
                     err,
                 })?;
-        let token_address = S::Address::from_str(token_address_str).map_err(|err| {
+        let token_id = TokenId::from_str(token_id_str).map_err(|err| {
             CoinsFromStrError::InvalidTokenAddress {
-                input: token_address_str.into(),
+                input: token_id_str.into(),
                 err,
             }
         })?;
 
-        Ok(Self {
-            amount,
-            token_address,
-        })
+        Ok(Self { amount, token_id })
     }
 }
-impl<S: sov_modules_api::Spec> std::fmt::Display for Coins<S> {
+impl std::fmt::Display for Coins {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // implement Display for Coins
-        write!(
-            f,
-            "token_address={} amount={}",
-            self.token_address, self.amount
-        )
+        write!(f, "token_id={} amount={}", self.token_id, self.amount)
     }
 }
 
@@ -237,9 +227,9 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
     /// Creates a token from a given set of parameters.
     /// The `token_name`, `sender` address (as a `u8` slice), and the `salt` (`u64` number) are used as an input
-    /// to an hash function that computes the token address. Then the initial accounts and balances are populated
+    /// to an hash function that computes the token ID. Then the initial accounts and balances are populated
     /// from the `address_and_balances` slice and the `total_supply` of tokens is updated each time.
-    /// Returns a tuple containing the computed `token_address` and the created `token` object.
+    /// Returns a tuple containing the computed `token_id` and the created `token` object.
     pub(crate) fn create(
         token_name: &str,
         address_and_balances: &[(S::Address, u64)],
@@ -248,17 +238,17 @@ impl<S: sov_modules_api::Spec> Token<S> {
         salt: u64,
         parent_prefix: &Prefix,
         working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<(S::Address, Self)> {
-        let token_address = super::get_token_address::<S>(token_name, sender, salt);
+    ) -> anyhow::Result<(TokenId, Self)> {
+        let token_id = super::get_token_id::<S>(token_name, sender, salt);
         let token = Self::create_with_address(
             token_name,
             address_and_balances,
             authorized_minters,
-            &token_address,
+            &token_id,
             parent_prefix,
             working_set,
         )?;
-        Ok((token_address, token))
+        Ok((token_id, token))
     }
 
     /// Shouldn't be used directly, only by genesis call
@@ -266,11 +256,11 @@ impl<S: sov_modules_api::Spec> Token<S> {
         token_name: &str,
         address_and_balances: &[(S::Address, u64)],
         authorized_minters: &[S::Address],
-        token_address: &S::Address,
+        token_id: &TokenId,
         parent_prefix: &Prefix,
         working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<Token<S>> {
-        let token_prefix = prefix_from_address_with_parent::<S>(parent_prefix, token_address);
+        let token_prefix = prefix_from_address_with_parent(parent_prefix, token_id);
         let balances = sov_modules_api::StateMap::new(token_prefix);
 
         let mut total_supply: Option<u64> = Some(0);

@@ -15,8 +15,7 @@ fn test_process_valid_attestation() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, token_address, attester_address, _, sequencer, mut working_set) =
-        setup(working_set);
+    let (module, token_id, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
     // Assert that the attester has the correct bond amount before processing the proof
     assert_eq!(
@@ -92,7 +91,7 @@ fn test_process_valid_attestation() {
     assert_eq!(
         module
             .bank
-            .get_balance_of(attester_address, token_address, &mut working_set)
+            .get_balance_of(attester_address, token_id, &mut working_set)
             .unwrap(),
         // The attester is bonded at the beginning so he loses BOND_AMOUNT
         INITIAL_BOND_AMOUNT - BOND_AMOUNT + 2 * BOND_AMOUNT
@@ -104,8 +103,7 @@ fn test_burn_on_invalid_attestation() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, _token_address, attester_address, _, sequencer, mut working_set) =
-        setup(working_set);
+    let (module, _token_id, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
     // Assert that the prover has the correct bond amount before processing the proof
     assert_eq!(

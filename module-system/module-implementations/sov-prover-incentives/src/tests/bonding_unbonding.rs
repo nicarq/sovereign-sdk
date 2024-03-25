@@ -9,16 +9,16 @@ use crate::ProverIncentiveErrors;
 fn test_unbonding() {
     let (module, prover_address, sequencer, mut working_set) = setup();
     let context = Context::<S>::new(prover_address, sequencer, 1);
-    let token_address = module
-        .bonding_token_address
+    let token_id = module
+        .bonding_token_id
         .get(&mut working_set)
-        .expect("bonding token address was set at genesis");
+        .expect("bonding token ID was set at genesis");
 
     // Get their *unlocked* balance before undbonding
     let initial_unlocked_balance = {
         module
             .bank
-            .get_balance_of(prover_address, token_address, &mut working_set)
+            .get_balance_of(prover_address, token_id, &mut working_set)
             .unwrap_or_default()
     };
 
@@ -36,10 +36,9 @@ fn test_unbonding() {
     );
 
     // Assert that the prover's unlocked balance has increased by the amount they unbonded
-    let unlocked_balance =
-        module
-            .bank
-            .get_balance_of(prover_address, token_address, &mut working_set);
+    let unlocked_balance = module
+        .bank
+        .get_balance_of(prover_address, token_id, &mut working_set);
     assert_eq!(
         unlocked_balance,
         Some(BOND_AMOUNT + initial_unlocked_balance)

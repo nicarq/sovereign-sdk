@@ -53,10 +53,6 @@ check-features: ## Checks that project compiles with all combinations of feature
 check-fuzz: ## Checks that fuzz member compiles
 	$(MAKE) -C fuzz check
 
-check-no-std: ## Checks that project compiles without std
-	$(MAKE) -C ./rollup-interface $@
-	$(MAKE) -C ./module-system/sov-modules-core $@
-
 find-unused-deps: ## Prints unused dependencies for project. Note: requires nightly
 	cargo +nightly udeps --all-targets --all-features
 

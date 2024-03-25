@@ -70,7 +70,7 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
     /// Only sequencers in the [`SequencerRegistry::allowed_sequencers`] list are
     /// allowed to exit.
     #[state]
-    pub(crate) coins_to_lock: StateValue<Coins<S>>,
+    pub(crate) coins_to_lock: StateValue<Coins>,
 }
 
 /// Result of applying a blob, from sequencer's point of view.
@@ -131,7 +131,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// Returns the configured amount of [Coins] to lock.
-    pub fn get_coins_to_lock(&self, working_set: &mut impl StateAccessor) -> Coins<S> {
+    pub fn get_coins_to_lock(&self, working_set: &mut impl StateAccessor) -> Coins {
         self.coins_to_lock.get(working_set).expect(
             "The coins to lock is set and genesis and must always be available. This is a bug!",
         )
@@ -219,7 +219,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
 
     /// Update the amount of coins to stake.
     ///
-    /// Will override only the coins amount, leaving the token address intact.
+    /// Will override only the coins amount, leaving the token ID intact.
     ///
     /// To ensure the impracticability of protocol-level attacks, a sufficient stake is required.
     /// One such expense includes the cost for transaction deserialization and signature

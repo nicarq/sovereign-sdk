@@ -29,12 +29,13 @@ pub use clap;
 #[cfg(feature = "native")]
 pub use schemars;
 pub use sov_modules_core::{
-    namespaces, runtime, AccessoryStateCheckpoint, AccessoryWorkingSet, Address, AddressBech32,
-    CallResponse, Context, CryptoSpecExt, DispatchCall, EncodeCall, EventEmitter, Gas, GasArray,
-    GasMeter, GasPrice, GasUnit, Genesis, KernelModule, KernelWorkingSet, Module,
-    ModuleCallJsonSchema, ModuleError, ModuleError as Error, ModuleInfo, ModulePrefix,
-    PublicKeyExt, RuntimeEventProcessor, SignatureExt, Spec, StateCheckpoint, StateReaderAndWriter,
-    TypedEvent, VersionedStateReadWriter, WorkingSet,
+    impl_bech32_conversion, impl_hash32_type, namespaces, runtime, AccessoryStateCheckpoint,
+    AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context, CryptoSpecExt,
+    DispatchCall, EncodeCall, EventEmitter, Gas, GasArray, GasMeter, GasPrice, GasUnit, Genesis,
+    KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
+    ModuleError as Error, ModuleInfo, ModulePrefix, PublicKeyExt, RuntimeEventProcessor,
+    SignatureExt, Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent,
+    VersionedStateReadWriter, WorkingSet,
 };
 #[cfg(feature = "native")]
 pub use sov_modules_core::{ProvenStateAccessor, RuntimeEventDisplay};

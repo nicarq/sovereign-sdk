@@ -6,12 +6,12 @@ use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::rpc_params;
 use serde_json::{from_value, Value};
 use sov_bank::event::Event as BankEvent;
-use sov_bank::Coins;
+use sov_bank::{Coins, TokenId};
 use sov_ledger_rpc::client::RpcClient;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Address, PrivateKey, Spec};
+use sov_modules_api::{PrivateKey, Spec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::zk::aggregated_proof::{
@@ -108,7 +108,7 @@ fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSp
 
 fn build_transfer_token_tx(
     key: &TestPrivateKey,
-    token_address: Address,
+    token_id: TokenId,
     recipient: <TestSpec as Spec>::Address,
     amount: u64,
     nonce: u64,
@@ -116,10 +116,7 @@ fn build_transfer_token_tx(
     let msg =
         RuntimeCall::<TestSpec, MockDaSpec>::bank(sov_bank::CallMessage::<TestSpec>::Transfer {
             to: recipient,
-            coins: Coins {
-                amount,
-                token_address,
-            },
+            coins: Coins { amount, token_id },
         });
     let chain_id = 0;
     let gas_tip = 0;
@@ -139,7 +136,7 @@ fn build_transfer_token_tx(
 fn build_multiple_transfers(
     amounts: &[u64],
     signer_key: &TestPrivateKey,
-    token_address: Address,
+    token_id: TokenId,
     recipient: <TestSpec as Spec>::Address,
     start_nonce: u64,
 ) -> Vec<Transaction<TestSpec>> {
@@ -147,11 +144,7 @@ fn build_multiple_transfers(
     let mut nonce = start_nonce;
     for amt in amounts {
         txs.push(build_transfer_token_tx(
-            signer_key,
-            token_address,
-            recipient,
-            *amt,
-            nonce,
+            signer_key, token_id, recipient, *amt, nonce,
         ));
         nonce += 1;
     }
@@ -194,7 +187,7 @@ async fn subscribe_proof(
 async fn assert_balance(
     client: &SimpleClient,
     assert_amount: u64,
-    token_address: Address,
+    token_id: TokenId,
     user_address: <TestSpec as Spec>::Address,
     version: Option<u64>,
 ) -> Result<(), anyhow::Error> {
@@ -202,7 +195,7 @@ async fn assert_balance(
         client.http(),
         version,
         user_address,
-        token_address,
+        token_id,
     )
     .await?;
     assert_eq!(balance_response.amount.unwrap_or_default(), assert_amount);
@@ -256,7 +249,7 @@ fn assert_aggregated_proof_public_input(
 async fn assert_bank_event(
     client: &SimpleClient,
     event_number: u64,
-    expected_event: BankEvent<TestSpec>,
+    expected_event: BankEvent,
 ) -> Result<(), anyhow::Error> {
     let response_event = <HttpClient as RpcClient<String, String, String>>::get_event_by_number(
         client.http(),
@@ -268,9 +261,9 @@ async fn assert_bank_event(
         // Ensure "bank" is present in response json
         assert_eq!(map.get("module_name").unwrap(), "bank");
         // Attempt to deserialize the "body" of the bank key in the response to the Event type
-        let bank_event = from_value::<BankEvent<TestSpec>>(map.get("event_value").unwrap().clone())
+        let bank_event = from_value::<BankEvent>(map.get("event_value").unwrap().clone())
             .expect("Unable to deserialize Bank event");
-        // Ensure the event generated is a TokenCreated event with the correct token_address
+        // Ensure the event generated is a TokenCreated event with the correct token_id
         assert_eq!(bank_event, expected_event);
         assert_eq!(
             map.get("module_address").unwrap(),
@@ -289,13 +282,12 @@ async fn send_test_bank_txs(
     let key = TestPrivateKey::generate();
     let user_address: <TestSpec as Spec>::Address = key.to_address();
 
-    let token_address =
-        sov_bank::get_token_address::<TestSpec>(TOKEN_NAME, &user_address, TOKEN_SALT);
+    let token_id = sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, &user_address, TOKEN_SALT);
 
     let recipient_key = TestPrivateKey::generate();
     let recipient_address: <TestSpec as Spec>::Address = recipient_key.to_address();
 
-    let token_address_response = sov_bank::BankRpcClient::<TestSpec>::token_address(
+    let token_id_response = sov_bank::BankRpcClient::<TestSpec>::token_id(
         client.http(),
         TOKEN_NAME.to_owned(),
         user_address,
@@ -304,44 +296,43 @@ async fn send_test_bank_txs(
     .await?;
 
     let mut aggregated_proof_subscription = subscribe_proof(&client).await?;
-    assert_eq!(token_address, token_address_response);
+    assert_eq!(token_id, token_id_response);
 
     // create token. height 2
     let tx = build_create_token_tx(&key, 0);
     send_transactions_and_wait_slot(&client, vec![tx]).await?;
-    assert_balance(&client, 1000, token_address, user_address, None).await?;
+    assert_balance(&client, 1000, token_id, user_address, None).await?;
 
     // transfer 100 tokens. assert sender balance. height 3
-    let tx = build_transfer_token_tx(&key, token_address, recipient_address, 100, 1);
+    let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
     send_transactions_and_wait_slot(&client, vec![tx]).await?;
-    assert_balance(&client, 900, token_address, user_address, None).await?;
+    assert_balance(&client, 900, token_id, user_address, None).await?;
 
     // transfer 200 tokens. assert sender balance. height 4
-    let tx = build_transfer_token_tx(&key, token_address, recipient_address, 200, 2);
+    let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
     send_transactions_and_wait_slot(&client, vec![tx]).await?;
-    assert_balance(&client, 700, token_address, user_address, None).await?;
+    assert_balance(&client, 700, token_id, user_address, None).await?;
 
     // assert sender balance at height 2.
-    assert_balance(&client, 1000, token_address, user_address, Some(2)).await?;
+    assert_balance(&client, 1000, token_id, user_address, Some(2)).await?;
 
     // assert sender balance at height 3.
-    assert_balance(&client, 900, token_address, user_address, Some(3)).await?;
+    assert_balance(&client, 900, token_id, user_address, Some(3)).await?;
 
     // assert sender balance at height 4.
-    assert_balance(&client, 700, token_address, user_address, Some(4)).await?;
+    assert_balance(&client, 700, token_id, user_address, Some(4)).await?;
 
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();
-    let txs =
-        build_multiple_transfers(&transfer_amounts, &key, token_address, recipient_address, 3);
+    let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
     send_transactions_and_wait_slot(&client, txs).await?;
 
-    assert_bank_event(&client, 0, BankEvent::TokenCreated { token_address }).await?;
+    assert_bank_event(&client, 0, BankEvent::TokenCreated { token_id }).await?;
     assert_bank_event(
         &client,
         1,
         BankEvent::TokenTransferred {
-            token_address,
+            token_id,
             amount: 100,
         },
     )
@@ -350,7 +341,7 @@ async fn send_test_bank_txs(
         &client,
         2,
         BankEvent::TokenTransferred {
-            token_address,
+            token_id,
             amount: 200,
         },
     )

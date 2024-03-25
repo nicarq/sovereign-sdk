@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use helpers::*;
+use sov_bank::TokenId;
 use sov_mock_da::MockAddress;
 use sov_modules_api::{Context, Error, Module, ModuleInfo, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -130,10 +133,10 @@ fn test_registration_not_enough_funds() {
 
     assert_eq!(
         format!(
-            "Failed transfer from={} to={} of coins(token_address={} amount={})",
+            "Failed transfer from={} to={} of coins(token_id={} amount={})",
             sequencer_address,
             test_sequencer.registry.address(),
-            test_sequencer.sequencer_config.coins_to_lock.token_address,
+            test_sequencer.sequencer_config.coins_to_lock.token_id,
             LOCKED_AMOUNT,
         ),
         message_1
@@ -247,10 +250,10 @@ fn test_preferred_sequencer_returned_and_removed() {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_address = bank_config.tokens[0].token_address;
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
 
     let registry = SequencerRegistry::<S, Da>::default();
-    let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
+    let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
 
     sequencer_config.is_preferred_sequencer = true;
 
@@ -297,7 +300,11 @@ fn test_registration_balance_increase() {
 
     // created settings
 
-    let initial_balance = test_sequencer.bank_config.tokens[0].address_and_balances[0].1;
+    let initial_balance = test_sequencer
+        .bank_config
+        .gas_token_config
+        .address_and_balances[0]
+        .1;
     let stake_amount = test_sequencer.sequencer_config.coins_to_lock.amount;
     let stake_increase = 1;
 
@@ -385,7 +392,11 @@ fn test_balance_increase_fails_if_insufficient_funds() {
 
     // created settings
 
-    let initial_balance = test_sequencer.bank_config.tokens[0].address_and_balances[0].1;
+    let initial_balance = test_sequencer
+        .bank_config
+        .gas_token_config
+        .address_and_balances[0]
+        .1;
     let stake_amount = test_sequencer.sequencer_config.coins_to_lock.amount;
     let stake_increase = initial_balance;
 
