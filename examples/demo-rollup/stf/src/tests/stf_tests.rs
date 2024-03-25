@@ -5,7 +5,7 @@ use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_test_utils::bank_data::get_default_token_address;
+use sov_test_utils::bank_data::get_default_token_id;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestPrivateKey, TestSpec};
 
 use crate::runtime::Runtime;
@@ -87,7 +87,7 @@ fn test_demo_values_in_db() {
             .bank
             .supply_of(
                 None,
-                get_default_token_address::<S>(&admin_address),
+                get_default_token_id::<S>(&admin_address),
                 &mut working_set,
             )
             .unwrap();
@@ -171,7 +171,7 @@ fn test_demo_values_in_cache() {
         .bank
         .supply_of(
             None,
-            get_default_token_address::<S>(&admin_address),
+            get_default_token_id::<S>(&admin_address),
             &mut working_set,
         )
         .unwrap();
@@ -251,7 +251,7 @@ fn test_demo_values_not_in_db() {
             .bank
             .supply_of(
                 None,
-                get_default_token_address::<TestSpec>(&value_setter_admin_address),
+                get_default_token_id::<TestSpec>(&value_setter_admin_address),
                 &mut working_set,
             )
             .unwrap();

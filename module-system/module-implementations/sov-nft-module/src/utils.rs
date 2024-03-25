@@ -3,7 +3,7 @@ use sov_modules_api::CryptoSpec;
 
 use crate::{CallMessage, CollectionAddress, UserAddress};
 
-/// Derives token address from `collection_name`, `sender`
+/// Derives token ID from `collection_name`, `sender`
 pub fn get_collection_address<S: sov_modules_api::Spec>(
     collection_name: &str,
     sender: &[u8],

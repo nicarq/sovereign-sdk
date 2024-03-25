@@ -1,5 +1,5 @@
 use helpers::*;
-use sov_bank::{get_token_address, Bank, CallMessage};
+use sov_bank::{get_token_id, Bank, CallMessage};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -22,7 +22,7 @@ fn initial_and_deployed_token() {
     let initial_balance = 500;
     let token_name = "Token1".to_owned();
     let salt = 1;
-    let token_address = get_token_address::<S>(&token_name, &sender_address, salt);
+    let token_id = get_token_id::<S>(&token_name, &sender_address, salt);
     let create_token_message = CallMessage::CreateToken::<S> {
         salt,
         token_name: token_name.clone(),
@@ -37,19 +37,19 @@ fn initial_and_deployed_token() {
     // Create token event should be present
     assert_eq!(working_set.events().len(), 1);
 
-    let sender_balance = bank.get_balance_of(sender_address, token_address, &mut working_set);
+    let sender_balance = bank.get_balance_of(sender_address, token_id, &mut working_set);
     assert!(sender_balance.is_none());
 
     let observed_token_name = bank
-        .get_token_name(&token_address, &mut working_set)
+        .get_token_name(&token_id, &mut working_set)
         .expect("Token is missing its name");
     assert_eq!(&token_name, &observed_token_name);
 
-    let minter_balance = bank.get_balance_of(minter_address, token_address, &mut working_set);
+    let minter_balance = bank.get_balance_of(minter_address, token_id, &mut working_set);
     assert_eq!(Some(initial_balance), minter_balance);
 
     let total_supply = bank
-        .get_total_supply_of(&token_address, &mut working_set)
+        .get_total_supply_of(&token_id, &mut working_set)
         .unwrap();
     assert_eq!(initial_balance, total_supply);
 }

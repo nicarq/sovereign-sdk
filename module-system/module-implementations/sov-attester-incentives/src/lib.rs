@@ -19,7 +19,7 @@ mod event;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_bank::Amount;
+use sov_bank::{Amount, TokenId};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{Context, DaSpec, Error, ModuleInfo, Spec, WorkingSet, Zkvm};
 use sov_state::codec::BcsCodec;
@@ -55,9 +55,9 @@ where
     #[state]
     pub rollup_finality_period: sov_modules_api::StateValue<TransitionHeight>,
 
-    /// The address of the token used for bonding provers
+    /// The ID of the token used for bonding provers
     #[state]
-    pub bonding_token_address: sov_modules_api::StateValue<S::Address>,
+    pub bonding_token_id: sov_modules_api::StateValue<TokenId>,
 
     /// The address of the account holding the reward token supply
     #[state]

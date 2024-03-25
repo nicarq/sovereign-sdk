@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use helpers::*;
+use sov_bank::TokenId;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
@@ -178,9 +181,9 @@ fn end_blob_hook_slash_preferred_sequencer() {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_address = bank_config.tokens[0].token_address;
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
     let registry = SequencerRegistry::<S, Da>::default();
-    let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_address);
+    let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
 
     sequencer_config.is_preferred_sequencer = true;
 
@@ -332,10 +335,14 @@ fn slashed_sequencer_should_not_preserve_balance() {
 
     // created settings
 
-    let initial_balance = test_sequencer.bank_config.tokens[0].address_and_balances[0].1;
+    let initial_balance = test_sequencer
+        .bank_config
+        .gas_token_config
+        .address_and_balances[0]
+        .1;
     let deposit_amount = 100;
     let stake_amount = test_sequencer.sequencer_config.coins_to_lock.amount;
-    let token_address = test_sequencer.sequencer_config.coins_to_lock.token_address;
+    let token_id = test_sequencer.sequencer_config.coins_to_lock.token_id;
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
     // sanity check the balance
@@ -344,12 +351,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let balance_after_genesis = initial_balance - stake_amount;
     let balance = test_sequencer
         .bank
-        .balance_of(
-            None,
-            genesis_sequencer_address,
-            token_address,
-            &mut working_set,
-        )
+        .balance_of(None, genesis_sequencer_address, token_id, &mut working_set)
         .unwrap()
         .amount
         .unwrap();
@@ -379,12 +381,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let balance_after_deposit = balance_after_genesis - deposit_amount;
     let balance = test_sequencer
         .bank
-        .balance_of(
-            None,
-            genesis_sequencer_address,
-            token_address,
-            &mut working_set,
-        )
+        .balance_of(None, genesis_sequencer_address, token_id, &mut working_set)
         .unwrap()
         .amount
         .unwrap();
@@ -439,12 +436,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
 
     let balance = test_sequencer
         .bank
-        .balance_of(
-            None,
-            genesis_sequencer_address,
-            token_address,
-            &mut working_set,
-        )
+        .balance_of(None, genesis_sequencer_address, token_id, &mut working_set)
         .unwrap()
         .amount
         .unwrap();
@@ -475,12 +467,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let balance_after_re_register = balance_after_deposit - stake_amount;
     let balance = test_sequencer
         .bank
-        .balance_of(
-            None,
-            genesis_sequencer_address,
-            token_address,
-            &mut working_set,
-        )
+        .balance_of(None, genesis_sequencer_address, token_id, &mut working_set)
         .unwrap()
         .amount
         .unwrap();

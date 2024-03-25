@@ -61,11 +61,10 @@ environment
 variable in each terminal you run. By default, demo-rollup disables proving. If you want to enable proving, several options
 are available:
 
-* `export SOV_PROVER_MODE=skip` Skips verification logic.
-* `export SOV_PROVER_MODE=simulate` Run the rollup verification logic inside the current process.
-* `export SOV_PROVER_MODE=execute` Run the rollup verifier in a zkVM executor.
-* `export SOV_PROVER_MODE=prove` Run the rollup verifier and create a SNARK of execution.
-
+- `export SOV_PROVER_MODE=skip` Skips verification logic.
+- `export SOV_PROVER_MODE=simulate` Run the rollup verification logic inside the current process.
+- `export SOV_PROVER_MODE=execute` Run the rollup verifier in a zkVM executor.
+- `export SOV_PROVER_MODE=prove` Run the rollup verifier and create a SNARK of execution.
 
 ### Run a local DA layer instance
 
@@ -77,7 +76,7 @@ This setup works with an in-memory DA that is easy to set up for testing purpose
 
 ```shell,test-ci
 $ cd examples/demo-rollup/
-$ make build 
+$ make build
 ```
 
 2. Clean up the existing database.
@@ -90,7 +89,7 @@ $ make clean
 3. Now run the demo-rollup full node, as shown below.
 
 ```sh,test-ci
-export SOV_PROVER_MODE=execute 
+$ export SOV_PROVER_MODE=execute
 ```
 
 ```sh,test-ci,bashtestmd:long-running
@@ -119,11 +118,11 @@ this case have the TokenCreated Event
 
 ```sh,test-ci
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%
+{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%
 ```
 
-We can see the TokenCreated event which contains the address of the token
-created - `sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72`
+We can see the TokenCreated event which contains the id of the token
+created - `token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6`
 
 ### How to Submit Transactions
 
@@ -156,12 +155,13 @@ example, let's consider the `Bank` module's `CallMessage`:
 ```rust
 use sov_bank::CallMessage::Transfer;
 use sov_bank::Coins;
+use sov_bank::TokenId;
 use sov_bank::Amount;
 
 pub enum CallMessage<S: sov_modules_api::Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
-        /// Random value used to create a unique token address.
+        /// Random value used to create a unique token ID.
         salt: u64,
         /// The name of the new token.
         token_name: String,
@@ -178,19 +178,19 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
         /// The address to which the tokens will be transferred.
         to: S::Address,
         /// The amount of tokens to transfer.
-        coins: Coins::<S>,
+        coins: Coins,
     },
 
     /// Burns a specified amount of tokens.
     Burn {
         /// The amount of tokens to burn.
-        coins: Coins::<S>,
+        coins: Coins,
     },
 
     /// Mints a specified amount of tokens.
     Mint {
         /// The amount of tokens to mint.
-        coins: Coins::<S>,
+        coins: Coins,
         /// Address to mint tokens to
         minter_address: S::Address,
     },
@@ -198,7 +198,7 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
     /// Freeze a token so that the supply is frozen
     Freeze {
         /// Address of the token to be frozen
-        token_address: S::Address,
+        token_id: TokenId,
     },
 }
 ```
@@ -216,7 +216,7 @@ struct Transfer<S: sov_modules_api::Spec> {
     /// The address to which the tokens will be transferred.
     to: S::Address,
     /// The amount of tokens to transfer.
-    coins: Coins<S>,
+    coins: Coins,
 }
 ```
 
@@ -228,7 +228,7 @@ Here's an example of a JSON representing the above call:
     "to": "sov1zgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfqve8h6h",
     "coins": {
       "amount": 200,
-      "token_address": "sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"
+      "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
     }
   }
 }
@@ -279,7 +279,7 @@ Adding the following transaction to batch:
         "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
         "coins": {
           "amount": 200,
-          "token_address": "sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"
+          "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
         }
       }
     }
@@ -304,7 +304,7 @@ $ cargo run --bin sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2n
 #### Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_address":"sov1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27svq9m72"},"id":1}' http://127.0.0.1:12345
+$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":{"amount":1000000},"id":1}
 ```
 

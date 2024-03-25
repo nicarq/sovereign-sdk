@@ -13,7 +13,7 @@ pub enum Bech32ParseError {
     Bech32(#[cfg_attr(feature = "std", from)] bech32::Error),
     /// The provided "Human-Readable Part" is invalid.
     #[cfg_attr(feature = "std", error("Wrong HRP: {0}"))]
-    WrongHPR(String),
+    WrongHRP(String),
 }
 
 #[cfg(not(feature = "std"))]

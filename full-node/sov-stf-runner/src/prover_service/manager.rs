@@ -40,8 +40,8 @@ where
 
     /// Stores the `AggregatedProof` posted on DA into the database.
     pub(crate) async fn save_aggregated_proof(&self, height: u64) -> Result<(), anyhow::Error> {
-        info!(%height, "Saving aggregated proof");
         let aggregated_proofs = self.da_service.get_aggregated_proofs_at(height).await?;
+        info!(%height, num_proofs=aggregated_proofs.len(), "Saving available aggregated proofs");
         for raw_aggregated_proof in aggregated_proofs {
             // Verify aggregated proof before storing it into the database.
             let public_input: AggregatedProofPublicInput = match <Ps::Verifier as Zkvm>::verify(

@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use sov_bank::TokenId;
 use sov_chain_state::StateTransition;
 use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
@@ -37,8 +40,7 @@ fn create_bank_config() -> (
     let minter_address = generate_address("minter_pub_key");
     let sequencer_address = generate_address("sequencer_pub_key");
 
-    let token_config = sov_bank::TokenConfig {
-        token_address: sov_bank::get_genesis_token_address::<S>("InitialToken", 0),
+    let token_config = sov_bank::GasTokenConfig {
         token_name: "InitialToken".to_owned(),
         address_and_balances: vec![(prover_address, INITIAL_PROVER_BALANCE)],
         authorized_minters: vec![minter_address],
@@ -46,7 +48,8 @@ fn create_bank_config() -> (
 
     (
         sov_bank::BankConfig {
-            tokens: vec![token_config],
+            gas_token_config: token_config,
+            tokens: vec![],
         },
         prover_address,
         minter_address,
@@ -90,8 +93,7 @@ fn setup_helper(
     bank.genesis(&bank_config, &mut working_set)
         .expect("bank genesis must succeed");
 
-    let token_address =
-        sov_bank::get_genesis_token_address::<S>(&bank_config.tokens[0].token_name, 0);
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
 
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig::<S> {
@@ -114,7 +116,7 @@ fn setup_helper(
     // initialize prover incentives
     let module = ProverIncentives::<S, Da>::default();
     let config = crate::ProverIncentivesConfig {
-        bonding_token_address: token_address,
+        bonding_token_id: token_id,
         reward_token_supply_address: minter_address,
         reward_burn_rate: BurnRate::new(10).unwrap(),
         proving_penalty: BOND_AMOUNT / 2,

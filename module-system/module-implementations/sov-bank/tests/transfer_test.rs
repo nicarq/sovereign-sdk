@@ -1,7 +1,12 @@
 mod helpers;
 
+use std::str::FromStr;
+
 use helpers::*;
-use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
+use sov_bank::{
+    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId,
+    TotalSupplyResponse,
+};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -15,27 +20,27 @@ fn transfer_initial_token() {
     let initial_balance = 100;
     let transfer_amount = 10;
     let bank_config = create_bank_config_with_token(4, initial_balance);
-    let token_name = bank_config.tokens[0].token_name.clone();
+    let token_name = bank_config.gas_token_config.token_name.clone();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_address = bank_config.tokens[0].token_address;
-    let sender_address = bank_config.tokens[0].address_and_balances[0].0;
-    let receiver_address = bank_config.tokens[0].address_and_balances[1].0;
-    let sequencer_address = bank_config.tokens[0].address_and_balances[3].0;
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let sender_address = bank_config.gas_token_config.address_and_balances[0].0;
+    let receiver_address = bank_config.gas_token_config.address_and_balances[1].0;
+    let sequencer_address = bank_config.gas_token_config.address_and_balances[3].0;
     assert_ne!(sender_address, receiver_address);
 
     // Preparation
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_address, working_set)
+            bank.get_balance_of(user_address, token_id, working_set)
         };
 
     let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
         let total_supply: TotalSupplyResponse =
-            bank.supply_of(None, token_address, working_set).unwrap();
+            bank.supply_of(None, token_id, working_set).unwrap();
         total_supply.amount
     };
 
@@ -53,7 +58,7 @@ fn transfer_initial_token() {
             to: receiver_address,
             coins: Coins {
                 amount: transfer_amount,
-                token_address,
+                token_id,
             },
         };
 
@@ -83,7 +88,7 @@ fn transfer_initial_token() {
             to: receiver_address,
             coins: Coins {
                 amount: initial_balance + 1,
-                token_address,
+                token_id,
             },
         };
         let result = bank.call(transfer_message, &sender_context, &mut working_set);
@@ -96,10 +101,10 @@ fn transfer_initial_token() {
         assert!(chain.next().is_none());
         assert_eq!(
             format!(
-                "Failed transfer from={} to={} of coins(token_address={} amount={})",
+                "Failed transfer from={} to={} of coins(token_id={} amount={})",
                 sender_address,
                 receiver_address,
-                token_address,
+                token_id,
                 initial_balance + 1,
             ),
             message_1
@@ -121,13 +126,13 @@ fn transfer_initial_token() {
     {
         let salt = 13;
         let token_name = "NonExistingToken".to_owned();
-        let token_address = get_token_address::<S>(&token_name, &sender_address, salt);
+        let token_id = get_token_id::<S>(&token_name, &sender_address, salt);
 
         let transfer_message = CallMessage::Transfer {
             to: receiver_address,
             coins: Coins {
                 amount: 1,
-                token_address,
+                token_id,
             },
         };
 
@@ -140,8 +145,8 @@ fn transfer_initial_token() {
         assert!(chain.next().is_none());
         assert_eq!(
             format!(
-                "Failed transfer from={} to={} of coins(token_address={} amount={})",
-                sender_address, receiver_address, token_address, 1,
+                "Failed transfer from={} to={} of coins(token_id={} amount={})",
+                sender_address, receiver_address, token_id, 1,
             ),
             message_1
         );
@@ -164,7 +169,7 @@ fn transfer_initial_token() {
             to: receiver_address,
             coins: Coins {
                 amount: 1,
-                token_address,
+                token_id,
             },
         };
 
@@ -179,8 +184,8 @@ fn transfer_initial_token() {
 
         assert_eq!(
             format!(
-                "Failed transfer from={} to={} of coins(token_address={} amount={})",
-                unknown_sender, receiver_address, token_address, 1,
+                "Failed transfer from={} to={} of coins(token_id={} amount={})",
+                unknown_sender, receiver_address, token_id, 1,
             ),
             message_1
         );
@@ -194,7 +199,7 @@ fn transfer_initial_token() {
 
         let expected_message_part = format!(
             "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and storage key:",
-            token_address
+            token_id
         );
 
         assert!(message_3.contains(&expected_message_part));
@@ -214,7 +219,7 @@ fn transfer_initial_token() {
             to: unknown_receiver,
             coins: Coins {
                 amount: 1,
-                token_address,
+                token_id,
             },
         };
 
@@ -236,7 +241,7 @@ fn transfer_initial_token() {
             to: sender_address,
             coins: Coins {
                 amount: 1,
-                token_address,
+                token_id,
             },
         };
         let resp = bank.call(transfer_message, &sender_context, &mut working_set);
@@ -256,52 +261,39 @@ fn transfer_deployed_token() {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let empty_bank_config = BankConfig::<S> { tokens: vec![] };
-    bank.genesis(&empty_bank_config, &mut working_set).unwrap();
 
     let sender_address = generate_address::<S>("just_sender");
     let receiver_address = generate_address::<S>("just_receiver");
     let sequencer_address = generate_address::<S>("just_sequencer");
 
-    let salt = 10;
     let token_name = "Token1".to_owned();
     let initial_balance = 1000;
-    let token_address = get_token_address::<S>(&token_name, &sender_address, salt);
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+
+    let bank_config = BankConfig::<S> {
+        gas_token_config: GasTokenConfig {
+            token_name: token_name.clone(),
+            authorized_minters: vec![sender_address],
+            address_and_balances: vec![(sender_address, initial_balance)],
+        },
+        tokens: vec![],
+    };
+    bank.genesis(&bank_config, &mut working_set).unwrap();
 
     assert_ne!(sender_address, receiver_address);
 
     // Preparation
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_address, working_set)
+            bank.get_balance_of(user_address, token_id, working_set)
         };
 
     let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
         let total_supply: TotalSupplyResponse =
-            bank.supply_of(None, token_address, working_set).unwrap();
+            bank.supply_of(None, token_id, working_set).unwrap();
         total_supply.amount
     };
 
-    let sender_balance_before = query_user_balance(sender_address, &mut working_set);
-    let receiver_balance_before = query_user_balance(receiver_address, &mut working_set);
-    let total_supply_before = query_total_supply(&mut working_set);
-    assert!(total_supply_before.is_none());
-
-    assert!(sender_balance_before.is_none());
-    assert!(receiver_balance_before.is_none());
-    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
-
-    let mint_message = CallMessage::CreateToken {
-        salt,
-        token_name,
-        initial_balance,
-        minter_address: sender_address,
-        authorized_minters: vec![sender_address],
-    };
-    bank.call(mint_message, &sender_context, &mut working_set)
-        .expect("Failed to mint token");
-    // Create token event should be present
-    assert_eq!(working_set.events().len(), 1);
     let total_supply_before = query_total_supply(&mut working_set);
     assert!(total_supply_before.is_some());
 
@@ -316,14 +308,15 @@ fn transfer_deployed_token() {
         to: receiver_address,
         coins: Coins {
             amount: transfer_amount,
-            token_address,
+            token_id,
         },
     };
 
+    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
     bank.call(transfer_message, &sender_context, &mut working_set)
         .expect("Transfer call failed");
-    // Transfer token event should be present (along with create)
-    assert_eq!(working_set.events().len(), 2);
+    // Transfer token event should be present
+    assert_eq!(working_set.events().len(), 1);
 
     let sender_balance_after = query_user_balance(sender_address, &mut working_set);
     let receiver_balance_after = query_user_balance(receiver_address, &mut working_set);

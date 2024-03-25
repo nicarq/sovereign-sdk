@@ -18,6 +18,7 @@ pub use genesis::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use serde::{Deserialize, Serialize};
+use sov_bank::TokenId;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{Context, DaSpec, Error, ModuleInfo, Spec, WorkingSet, Zkvm};
 use sov_state::codec::BcsCodec;
@@ -65,9 +66,9 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     #[state]
     pub reward_token_supply_address: sov_modules_api::StateValue<S::Address>,
 
-    /// The address of the token used for bonding provers
+    /// The ID of the token used for bonding provers
     #[state]
-    pub bonding_token_address: sov_modules_api::StateValue<S::Address>,
+    pub bonding_token_id: sov_modules_api::StateValue<TokenId>,
 
     /// The code commitment to be used for verifying proofs
     #[state]

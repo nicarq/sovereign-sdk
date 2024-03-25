@@ -15,8 +15,7 @@ fn test_transition_invariant() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, _token_address, attester_address, _, sequencer, mut working_set) =
-        setup(working_set);
+    let (module, _token_id, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
     // Assert that the attester has the correct bond amount before processing the proof
     assert_eq!(

@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_bank::TokenConfig;
+use sov_bank::{GasTokenConfig, TokenId};
 use sov_blob_storage::{PreferredBatch, DEFERRED_SLOTS_COUNT};
 use sov_chain_state::ChainStateConfig;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
@@ -10,7 +11,6 @@ use sov_modules_api::da::Time;
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::tx_verifier::RawTx;
-use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasArray, GasPrice, KernelWorkingSet,
     MessageCodec, Module, Spec, StateCheckpoint, WorkingSet,
@@ -40,10 +40,8 @@ fn get_bank_config(
     regular_sequencer: <S as Spec>::Address,
 ) -> sov_bank::BankConfig<S> {
     let token_name = "InitialToken".to_owned();
-    let token_address = generate_address::<S>(&token_name);
-    let token_config: TokenConfig<S> = TokenConfig {
+    let gas_token_config = GasTokenConfig {
         token_name,
-        token_address,
         address_and_balances: vec![
             (preferred_sequencer, LOCKED_AMOUNT * 3),
             (regular_sequencer, LOCKED_AMOUNT * 3),
@@ -52,7 +50,8 @@ fn get_bank_config(
     };
 
     sov_bank::BankConfig {
-        tokens: vec![token_config],
+        gas_token_config,
+        tokens: vec![],
     }
 }
 
@@ -806,14 +805,14 @@ impl TestRuntime<S, MockDaSpec> {
     fn build_genesis_config(with_preferred_sequencer: bool) -> GenesisConfig<S, MockDaSpec> {
         let bank_config = get_bank_config(PREFERRED_SEQUENCER_ROLLUP, REGULAR_SEQUENCER_ROLLUP);
 
-        let token_address = bank_config.tokens[0].token_address;
+        let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
 
         let sequencer_registry_config = SequencerConfig {
             seq_rollup_address: PREFERRED_SEQUENCER_ROLLUP,
             seq_da_address: PREFERRED_SEQUENCER_DA,
             coins_to_lock: sov_bank::Coins {
                 amount: LOCKED_AMOUNT,
-                token_address,
+                token_id,
             },
             is_preferred_sequencer: with_preferred_sequencer,
         };

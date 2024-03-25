@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_bank::Amount;
+use sov_bank::{Amount, TokenId};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
 use sov_state::Storage;
@@ -17,8 +17,8 @@ where
     S: Spec,
     Da: DaSpec,
 {
-    /// The address of the token to be used for bonding.
-    pub bonding_token_address: S::Address,
+    /// The ID of the token to be used for bonding.
+    pub bonding_token_id: TokenId,
     /// The address of the account holding the reward token supply
     pub reward_token_supply_address: S::Address,
     /// The minimum bond for an attester.
@@ -69,8 +69,8 @@ where
         self.rollup_finality_period
             .set(&config.rollup_finality_period, working_set);
 
-        self.bonding_token_address
-            .set(&config.bonding_token_address, working_set);
+        self.bonding_token_id
+            .set(&config.bonding_token_id, working_set);
 
         self.reward_token_supply_address
             .set(&config.reward_token_supply_address, working_set);

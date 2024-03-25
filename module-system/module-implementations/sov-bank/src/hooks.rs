@@ -1,25 +1,10 @@
 use core::str::FromStr;
 
 use anyhow::bail;
-use sov_modules_api::macros::config_constant;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Gas, GasMeter, ModuleInfo, Spec, StateCheckpoint};
 
-use crate::{Bank, Coins};
-
-#[config_constant]
-// This constant is a fixed value, expected to be generated as
-//
-// ```rust
-// let token_name = "sov-gas-token";
-// let deployer = DEPLOYER_ADDRESS;
-// let salt = 0;
-// let computed = super::get_token_address::<DefaultContext>(token_name, &deployer, salt);
-// ```
-//
-// TODO: fetch address as constant
-// https://github.com/Sovereign-Labs/sovereign-sdk/issues/1234
-const GAS_TOKEN_ADDRESS: &'static str;
+use crate::{Bank, Coins, TokenId, GAS_TOKEN_ID};
 
 /// The computed addresses of a pre-dispatch tx hook.
 pub struct BankTxHook<S: Spec> {
@@ -49,14 +34,11 @@ impl<S: Spec> Bank<S> {
         // TODO(@theochap) This should be moved to sequencer registry
         let amount = tx.gas_limit().saturating_add(tx.gas_tip());
         if amount > 0 {
-            let token_address = S::Address::from_str(GAS_TOKEN_ADDRESS)
-                .map_err(|_| anyhow::anyhow!("failed to parse gas token address"))?;
+            let token_id = TokenId::from_str(GAS_TOKEN_ID)
+                .map_err(|_| anyhow::anyhow!("failed to parse gas token ID"))?;
             let from = payer;
             let to = self.address();
-            let coins = Coins {
-                amount,
-                token_address,
-            };
+            let coins = Coins { amount, token_id };
             // TODO(@preston-evans98) - in zk mode, this transfer should be earmarked for the prover
             self.transfer_from(from, to, coins, state_checkpoint)?;
         }
@@ -76,15 +58,12 @@ impl<S: Spec> Bank<S> {
         let amount = gas_meter.remaining_funds();
 
         if amount > 0 {
-            let token_address = S::Address::from_str(GAS_TOKEN_ADDRESS)
-                .map_err(|_| "The rollup is misconfigured: the gas token address is invalid")
-                .expect("failed to parse gas token address");
+            let token_id = TokenId::from_str(GAS_TOKEN_ID)
+                .map_err(|_| "The rollup is misconfigured: the gas token ID is invalid")
+                .expect("failed to parse gas token ID");
             let from = self.address();
             let to = payer;
-            let coins = Coins {
-                amount,
-                token_address,
-            };
+            let coins = Coins { amount, token_id };
             self.transfer_from(from, to, coins, state_checkpoint)
                 .expect("Refunding unspent gas is infallible");
         }

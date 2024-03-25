@@ -14,8 +14,7 @@ fn test_two_phase_unbonding() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, token_address, attester_address, _, sequencer, mut working_set) =
-        setup(working_set);
+    let (module, token_id, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
     // Assert that the attester has the correct bond amount before processing the proof
     assert_eq!(
@@ -127,7 +126,7 @@ fn test_two_phase_unbonding() {
     {
         let initial_account_balance = module
             .bank
-            .get_balance_of(attester_address, token_address, &mut working_set)
+            .get_balance_of(attester_address, token_id, &mut working_set)
             .unwrap();
 
         // Start unbonding the user: should succeed
@@ -160,7 +159,7 @@ fn test_two_phase_unbonding() {
             initial_account_balance + BOND_AMOUNT,
             module
                 .bank
-                .get_balance_of(attester_address, token_address, &mut working_set)
+                .get_balance_of(attester_address, token_id, &mut working_set)
                 .unwrap(),
             "The initial and final account balance don't match"
         );

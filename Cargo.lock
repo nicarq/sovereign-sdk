@@ -7614,6 +7614,7 @@ name = "sov-bank"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "bech32",
  "borsh 0.10.3",
  "clap 4.5.3",
  "jsonrpsee 0.20.3",

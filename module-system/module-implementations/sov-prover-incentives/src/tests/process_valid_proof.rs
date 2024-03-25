@@ -110,9 +110,9 @@ fn check_reward(
     // Assert that the prover has been rewarded on his account
     // The outstanding balance is the initial balance plus the reward minus the bond amount
     let token_addr = module
-        .bonding_token_address
+        .bonding_token_id
         .get(working_set)
-        .expect("bonding token address was set at genesis");
+        .expect("bonding token ID was set at genesis");
 
     assert_eq!(
         module

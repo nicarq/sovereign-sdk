@@ -1,18 +1,16 @@
 {
-  "tokens": [
-    {
-      "token_name": "sov-integration-test-token",
-      "token_address": "sov1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0xu3qn",
-      "address_and_balances": [
-        [
-          "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
-          100000000
-        ]
-      ],
-      "authorized_minters": [
-        "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
-      ],
-      "salt": 0
-    }
-  ]
+  "gas_token_config": {
+    "token_name": "sov-integration-test-token",
+    "address_and_balances": [
+      [
+        "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+        100000000
+      ]
+    ],
+    "authorized_minters": [
+      "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
+    ],
+    "salt": 0
+  },
+  "tokens": []
 }

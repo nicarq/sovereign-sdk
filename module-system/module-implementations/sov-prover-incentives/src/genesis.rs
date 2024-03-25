@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use sov_bank::TokenId;
 use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
 
 use crate::{Amount, BurnRate, ProverIncentives};
@@ -18,8 +19,8 @@ pub struct ProverIncentivesConfig<S: sov_modules_api::Spec> {
     pub reward_burn_rate: BurnRate,
     /// A penalty for provers who submit a proof for transitions that were already proven
     pub proving_penalty: Amount,
-    /// The address of the token to be used for bonding.
-    pub bonding_token_address: S::Address,
+    /// The ID of the token to be used for bonding.
+    pub bonding_token_id: TokenId,
     /// The minimum bond for a prover.
     pub minimum_bond: u64,
     /// A code commitment to be used for verifying proofs
@@ -31,7 +32,7 @@ pub struct ProverIncentivesConfig<S: sov_modules_api::Spec> {
 impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// Init the [`ProverIncentives`] module using the provided `config`.
     /// Sets the minimum amount necessary to bond, the commitment to the verifier circuit
-    /// the bonding token address and builds the set of initial provers.
+    /// the bonding token ID and builds the set of initial provers.
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
@@ -45,8 +46,8 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         self.minimum_bond.set(&config.minimum_bond, working_set);
         self.commitment_of_allowed_verifier_method
             .set(&config.commitment_of_allowed_verifier_method, working_set);
-        self.bonding_token_address
-            .set(&config.bonding_token_address, working_set);
+        self.bonding_token_id
+            .set(&config.bonding_token_id, working_set);
         self.reward_token_supply_address
             .set(&config.reward_token_supply_address, working_set);
         self.reward_burn_rate

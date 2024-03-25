@@ -388,7 +388,6 @@ mod tests {
             admin_da_address,
             100,
             "BatchBuilderTestToken".to_string(),
-            10,
             100_000,
         );
         runtime.genesis(&config, &mut working_set).unwrap();

@@ -26,7 +26,7 @@ pub struct SequencerConfig<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec
     ///
     /// Only sequencers that are [`SequencerRegistry::is_sender_allowed`] list are
     /// allowed to exit.
-    pub coins_to_lock: sov_bank::Coins<S>,
+    pub coins_to_lock: sov_bank::Coins,
     /// Determines whether this sequencer is *regular* or *preferred*.
     ///
     /// Batches from the preferred sequencer are always processed first in
@@ -61,7 +61,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
 mod tests {
     use std::str::FromStr;
 
-    use sov_bank::Coins;
+    use sov_bank::{Coins, TokenId};
     use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::{AddressBech32, Spec};
     use sov_test_utils::TestSpec;
@@ -76,15 +76,13 @@ mod tests {
         .unwrap()
         .into();
 
-        let token_address: <TestSpec as Spec>::Address = AddressBech32::from_str(
-            "sov1zsnx7n2wjvtkr0ttscfgt06pjca3v2e6stxeu49qwynavmk7a8xqlxkkjp",
-        )
-        .unwrap()
-        .into();
+        let token_id =
+            TokenId::from_str("token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6")
+                .unwrap();
 
-        let coins = Coins::<TestSpec> {
+        let coins = Coins {
             amount: 50,
-            token_address,
+            token_id,
         };
 
         let seq_da_addreess = MockAddress::from_str(
@@ -105,7 +103,7 @@ mod tests {
             "seq_da_address":"0000000000000000000000000000000000000000000000000000000000000000",
             "coins_to_lock":{
                 "amount":50,
-                "token_address":"sov1zsnx7n2wjvtkr0ttscfgt06pjca3v2e6stxeu49qwynavmk7a8xqlxkkjp"
+                "token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
             },
             "is_preferred_sequencer":true
         }"#;

@@ -205,11 +205,11 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub(crate) fn balance_of(
         &self,
         user_address: S::Address,
-        token_address: S::Address,
+        token_id: TokenId,
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<BalanceResponse> {
         Ok(BalanceResponse {
-            amount: self.get_balance_of(user_address, token_address, working_set),
+            amount: self.get_balance_of(user_address, token_id, working_set),
         })
     }
 }
@@ -222,7 +222,7 @@ This will generate a public trait in the bank crate called `BankRpcImpl`, which 
   "jsonrpc": "2.0",
   "id": 2,
   "method": "bank_balanceOf",
-  "params": { "user_address": "SOME_ADDRESS", "token_address": "SOME_ADDRESS" }
+  "params": { "user_address": "SOME_ADDRESS", "token_id": "SOME_ADDRESS" }
 }
 ```
 
@@ -347,28 +347,31 @@ Now, the `schemars::derive` understands that it is sufficient for only `S::Addre
 
 If `CallMessage` in your module uses an associated type from `Context` you might need to provide a similar hint.
 
-
 ### Emitting Typed Events from modules
+
 The module system allows for creating Typed Events and emitting them within the module call logic. To create the types of events to be emitted, first declare an enum with all the variants that could be emitted:
+
 ```rust
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "native", derive(serde::Serialize, serde::Deserialize))]
 pub enum Event<S: sov_modules_api::Spec> {
     /// Event for Token Creation
     TokenCreated {
-        /// The address of the token that has been created
-        token_address: S::Address,
+        /// The ID of the token that has been created
+        token_id: TokenId,
     },
     /// Event for Token Transfer
     TokenTransferred {
-        /// The address of the token that was transferred
-        token_address: S::Address,
+        /// The ID of the token that was transferred
+        token_id: TokenId,
         /// The quantity of the token that was transferred
         amount: u64,
     },
 }
 ```
+
 In the above example, the Event enum is generic over the Spec to support emitting the address as part of the variants, but this is not necessary and events can be simpler:
+
 ```rust
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "native", derive(serde::Serialize, serde::Deserialize))]
@@ -377,16 +380,18 @@ pub enum Event {
     NewValue(u32),
 }
 ```
-The above event is from the simple `sov-value-setter` module. 
-Event variants can also be structs which allow for richer expressiveness and  type safety.
+
+The above event is from the simple `sov-value-setter` module.
+Event variants can also be structs which allow for richer expressiveness and type safety.
 
 Once the Event is created, it needs to be set as the associated type `Event` for the `sov_modules_api::Module` trait implementation
+
 ```rust
 impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
     // Remaining associated types elided
     type Spec = S;
     type Event = Event<S>;
-    
+
     // Functions elided
 }
 ```
@@ -394,14 +399,16 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 Once set, you can use a value of the type Event inside any call function and emit it as needed.
 `emit_event` has the following signature `fn emit_event(&self, working_set: &mut WorkingSet<Self::Spec>, event_key: &str, event: Self::Event)`
 
-Some things to note - 
-* `emit_event` will not compile if the event is not of the type `Self::Event` which is set when the `sov_modules_api::Module` trait is implemented
-* The internal logic of `emit_event` is built to only emit events when in a native context, so this does not impact code that needs to be proven
-* `emit_event` is provided as a blanket trait `EventEmitter` which is implemented for any type that also implements `Module` and `ModuleInfo` traits (refer to previous steps)
-* `emit_event` also takes an `event_key` parameter of type `&str`. This key is added to a secondary index internally and makes it easier to narrow down the event search.
-* The `event_key` is not constrained to be unique (although it can be if the application requires it). If not unique, the RPC supports pagination (as described later)
+Some things to note -
+
+- `emit_event` will not compile if the event is not of the type `Self::Event` which is set when the `sov_modules_api::Module` trait is implemented
+- The internal logic of `emit_event` is built to only emit events when in a native context, so this does not impact code that needs to be proven
+- `emit_event` is provided as a blanket trait `EventEmitter` which is implemented for any type that also implements `Module` and `ModuleInfo` traits (refer to previous steps)
+- `emit_event` also takes an `event_key` parameter of type `&str`. This key is added to a secondary index internally and makes it easier to narrow down the event search.
+- The `event_key` is not constrained to be unique (although it can be if the application requires it). If not unique, the RPC supports pagination (as described later)
 
 To emit an event inside a specific call function, we do the following
+
 ```rust
 // Import the EventEmitter trait
 use sov_modules_api::EventEmitter;
@@ -410,7 +417,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub fn transfer(
         &self,
         to: S::Address,
-        coins: Coins<S>,
+        coins: Coins,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
@@ -421,7 +428,7 @@ q
             working_set,
             "token_transfer",
             Event::TokenTransferred {
-                token_address: coins.token_address,
+                token_id: coins.token_id,
                 amount: coins.amount,
             },
         );
@@ -429,4 +436,5 @@ q
     }
 }
 ```
+
 Querying events from the node is covered [here](./RPC_WALKTHROUGH.md)

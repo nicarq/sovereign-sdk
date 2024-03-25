@@ -19,7 +19,7 @@ fn test_valid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, token_address, attester_address, challenger_address, sequencer, working_set) =
+    let (module, token_id, attester_address, challenger_address, sequencer, working_set) =
         setup(working_set);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
@@ -85,7 +85,7 @@ fn test_valid_challenge() {
         assert_eq!(
             module
                 .bank
-                .get_balance_of(challenger_address, token_address, &mut working_set)
+                .get_balance_of(challenger_address, token_id, &mut working_set)
                 .unwrap(),
             INITIAL_BOND_AMOUNT - BOND_AMOUNT + BOND_AMOUNT / 2,
             "The challenger should have been rewarded"
@@ -111,7 +111,7 @@ fn test_valid_challenge() {
         assert_eq!(
             module
                 .bank
-                .get_balance_of(challenger_address, token_address, &mut working_set)
+                .get_balance_of(challenger_address, token_id, &mut working_set)
                 .unwrap(),
             INITIAL_BOND_AMOUNT + BOND_AMOUNT / 2,
             "The challenger should have been unbonded"
@@ -162,7 +162,7 @@ fn test_invalid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, _token_address, attester_address, challenger_address, sequencer, working_set) =
+    let (module, _token_id, attester_address, challenger_address, sequencer, working_set) =
         setup(working_set);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.

@@ -63,10 +63,10 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         // Transfer the bond amount from the sender to the module's address.
         // On failure, no state is changed
         let coins = Coins {
-            token_address: self
-                .bonding_token_address
+            token_id: self
+                .bonding_token_id
                 .get(working_set)
-                .expect("Bonding token address must be set"),
+                .expect("Bonding token ID must be set"),
             amount: bond_amount,
         };
         self.bank
@@ -117,10 +117,10 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // Transfer the bond amount from the sender to the module's address.
             // On failure, no state is changed
             let coins = Coins {
-                token_address: self
-                    .bonding_token_address
+                token_id: self
+                    .bonding_token_id
                     .get(working_set)
-                    .expect("Bonding token address must be set"),
+                    .expect("Bonding token ID must be set"),
                 amount: old_balance,
             };
             // Try to unbond the entire balance
@@ -250,10 +250,10 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .expect("The reward supply address must be set at genesis");
 
         let coins = Coins {
-            token_address: self
-                .bonding_token_address
+            token_id: self
+                .bonding_token_id
                 .get(working_set)
-                .expect("Bonding token address must be set at genesis"),
+                .expect("Bonding token ID must be set at genesis"),
             amount: total_reward,
         };
 

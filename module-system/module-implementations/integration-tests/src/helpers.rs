@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
-use sov_bank::{get_genesis_token_address, Bank, BankConfig, Coins, TokenConfig};
+use sov_bank::{Bank, BankConfig, Coins, GasTokenConfig, TokenId, GAS_TOKEN_ID};
 use sov_chain_state::ChainStateConfig;
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
@@ -330,8 +332,7 @@ impl TestRollup {
         bank_params: BankParams,
         attester_params: AttesterIncentivesParams<S, Da>,
     ) -> GenesisParams<GenesisConfig<S, Da>, BasicKernelGenesisConfig<S, Da>> {
-        let token_address =
-            get_genesis_token_address::<S>(&bank_params.token_name, bank_params.salt);
+        let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
         let runtime_config: <TestRuntime<S, Da> as Runtime<S, Da>>::GenesisConfig = GenesisConfig {
             value_setter: ValueSetterConfig {
                 admin: admin_pub_key,
@@ -341,14 +342,13 @@ impl TestRollup {
                 seq_da_address: seq_params.da_address,
                 coins_to_lock: Coins {
                     amount: seq_params.stake_amount,
-                    token_address,
+                    token_id,
                 },
                 is_preferred_sequencer: true,
             },
             bank: BankConfig {
-                tokens: vec![TokenConfig {
+                gas_token_config: GasTokenConfig {
                     token_name: bank_params.token_name.clone(),
-                    token_address,
                     address_and_balances: {
                         let mut address_and_balances: Vec<(<S as Spec>::Address, u64)> =
                             bank_params
@@ -368,11 +368,12 @@ impl TestRollup {
                     },
 
                     authorized_minters: vec![seq_params.rollup_address],
-                }],
+                },
+                tokens: vec![],
             },
             attester_incentives: AttesterIncentivesConfig {
                 initial_attesters: attester_params.initial_attesters,
-                bonding_token_address: token_address,
+                bonding_token_id: token_id,
                 reward_token_supply_address: attester_params.reward_token_supply_address,
                 rollup_finality_period: attester_params.rollup_finality_period,
                 minimum_attester_bond: attester_params.minimum_attester_bond,

@@ -13,17 +13,22 @@ pub mod utils;
 pub use call::*;
 pub use genesis::*;
 pub use hooks::BankTxHook;
+use sov_modules_api::macros::config_constant;
 use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleInfo, WorkingSet};
 use token::Token;
 /// Specifies an interface to interact with tokens.
-pub use token::{Amount, Coins};
-/// Methods to get a token address.
-pub use utils::{get_genesis_token_address, get_token_address};
+pub use token::{Amount, Coins, TokenId, TokenIdBech32};
+/// Methods to get a token ID.
+pub use utils::get_token_id;
 
 /// Event definition from module exported
 /// This can be useful for deserialization from RPC and similar cases
 pub mod event;
 use crate::event::Event;
+
+#[config_constant]
+/// The [`TokenId`] of the rollup's gas token.
+pub const GAS_TOKEN_ID: &'static str;
 
 /// Gas configuration for the bank module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -59,9 +64,9 @@ pub struct Bank<S: sov_modules_api::Spec> {
     #[gas]
     pub(crate) gas: BankGasConfig<S::Gas>,
 
-    /// A mapping of addresses to tokens in the sov-bank.
+    /// A mapping of [`TokenId`]s to tokens in the sov-bank.
     #[state]
-    pub(crate) tokens: sov_modules_api::StateMap<S::Address, Token<S>>,
+    pub(crate) tokens: sov_modules_api::StateMap<TokenId, Token<S>>,
 }
 
 impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
@@ -71,7 +76,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 
     type CallMessage = call::CallMessage<S>;
 
-    type Event = Event<S>;
+    type Event = Event;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
@@ -123,9 +128,9 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
                 Ok(CallResponse::default())
             }
 
-            call::CallMessage::Freeze { token_address } => {
+            call::CallMessage::Freeze { token_id } => {
                 self.charge_gas(working_set, &self.gas.freeze)?;
-                Ok(self.freeze(token_address, context, working_set)?)
+                Ok(self.freeze(token_id, context, working_set)?)
             }
         }
     }

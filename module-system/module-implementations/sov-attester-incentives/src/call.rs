@@ -337,10 +337,10 @@ where
             .expect("The reward supply address must be set at genesis");
 
         let coins = Coins {
-            token_address: self
-                .bonding_token_address
+            token_id: self
+                .bonding_token_id
                 .get(working_set)
-                .expect("Bonding token address must be set"),
+                .expect("Bonding token ID must be set"),
             amount,
         };
 
@@ -374,10 +374,10 @@ where
         // Transfer the bond amount from the module's token minting address to the sender.
         // On failure, no state is changed
         let coins = Coins {
-            token_address: self
-                .bonding_token_address
+            token_id: self
+                .bonding_token_id
                 .get(working_set)
-                .expect("Bonding token address must be set"),
+                .expect("Bonding token ID must be set"),
             amount: bond_amount,
         };
 

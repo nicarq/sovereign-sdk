@@ -1,7 +1,9 @@
 mod helpers;
 
+use std::str::FromStr;
+
 use helpers::*;
-use sov_bank::{Amount, Bank, CallMessage, Coins};
+use sov_bank::{Amount, Bank, CallMessage, Coins, TokenId};
 use sov_modules_api::{Address, Context, Module, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::storage::{SlotKey, SlotValue, StateUpdate};
@@ -19,15 +21,15 @@ fn transfer_initial_token() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_address = bank_config.tokens[0].token_address;
-    let sender_address = bank_config.tokens[0].address_and_balances[0].0;
-    let sequencer_address = bank_config.tokens[0].address_and_balances[3].0;
-    let receiver_address = bank_config.tokens[0].address_and_balances[1].0;
+    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let sender_address = bank_config.gas_token_config.address_and_balances[0].0;
+    let sequencer_address = bank_config.gas_token_config.address_and_balances[3].0;
+    let receiver_address = bank_config.gas_token_config.address_and_balances[1].0;
     assert_ne!(sender_address, receiver_address);
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut working_set,
@@ -39,7 +41,7 @@ fn transfer_initial_token() {
 
     transfer(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         sequencer_address,
         receiver_address,
@@ -48,7 +50,7 @@ fn transfer_initial_token() {
     );
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut working_set,
@@ -61,7 +63,7 @@ fn transfer_initial_token() {
 
     transfer(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         sequencer_address,
         receiver_address,
@@ -70,7 +72,7 @@ fn transfer_initial_token() {
     );
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut working_set,
@@ -86,7 +88,7 @@ fn transfer_initial_token() {
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut archival,
@@ -96,7 +98,7 @@ fn transfer_initial_token() {
     // modify in archival
     transfer(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         sequencer_address,
         receiver_address,
@@ -106,7 +108,7 @@ fn transfer_initial_token() {
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut archival,
@@ -118,7 +120,7 @@ fn transfer_initial_token() {
     let mut archival = working_set.get_archival_at(archival_slot);
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut archival,
@@ -127,7 +129,7 @@ fn transfer_initial_token() {
 
     transfer(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         sequencer_address,
         receiver_address,
@@ -137,7 +139,7 @@ fn transfer_initial_token() {
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut archival,
@@ -146,7 +148,7 @@ fn transfer_initial_token() {
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut working_set,
@@ -157,7 +159,7 @@ fn transfer_initial_token() {
 
     transfer(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         sequencer_address,
         receiver_address,
@@ -166,7 +168,7 @@ fn transfer_initial_token() {
     );
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut working_set,
@@ -185,7 +187,7 @@ fn transfer_initial_token() {
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     transfer(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         sequencer_address,
         receiver_address,
@@ -194,7 +196,7 @@ fn transfer_initial_token() {
     );
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
-        token_address,
+        token_id,
         sender_address,
         receiver_address,
         &mut working_set,
@@ -229,23 +231,23 @@ fn transfer_initial_token() {
 
 fn query_sender_receiver_balances(
     bank: &Bank<S>,
-    token_address: Address,
+    token_id: TokenId,
     sender_address: Address,
     receiver_address: Address,
     working_set: &mut WorkingSet<S>,
 ) -> (u64, u64) {
     let sender_balance = bank
-        .get_balance_of(sender_address, token_address, working_set)
+        .get_balance_of(sender_address, token_id, working_set)
         .unwrap();
     let receiver_balance = bank
-        .get_balance_of(receiver_address, token_address, working_set)
+        .get_balance_of(receiver_address, token_id, working_set)
         .unwrap();
     (sender_balance, receiver_balance)
 }
 
 fn transfer(
     bank: &Bank<S>,
-    token_address: Address,
+    token_id: TokenId,
     sender_address: Address,
     sequencer_address: Address,
     receiver_address: Address,
@@ -256,7 +258,7 @@ fn transfer(
         to: receiver_address,
         coins: Coins {
             amount: transfer_amount,
-            token_address,
+            token_id,
         },
     };
 

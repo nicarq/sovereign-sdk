@@ -49,14 +49,12 @@ fn new_sequencer(
 
     // Config
     let token_name = "SovereignToken".to_string();
-    let salt = 42;
 
     let genesis_config = create_genesis_config(
         sequencer_rollup_addr,
         sequencer_addr.into(),
         100,
         token_name.clone(),
-        salt,
         10_000_000,
     );
 
