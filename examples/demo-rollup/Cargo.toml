@@ -16,7 +16,6 @@ workspace = true
 # non-optional dependencies
 sov-celestia-adapter = { path = "../../adapters/celestia", features = ["native"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 const-rollup-config = { path = "../const-rollup-config" }
 sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = ["native"] }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
@@ -46,6 +45,7 @@ sov-db = { path = "../../full-node/sov-db" }
 sov-ethereum = { path = "../../full-node/sov-ethereum", optional = true }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils", optional = true } # Only needed for nft script
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 sov-cli = { path = "../../module-system/sov-cli" }
@@ -57,7 +57,6 @@ sov-rng-da-service = { path = "../../utils/rng-da-service" }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["arbitrary"] }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../adapters/mock-da" }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module", features = ["native"] }
 sov-modules-macros = { path = "../../module-system/sov-modules-macros" }
