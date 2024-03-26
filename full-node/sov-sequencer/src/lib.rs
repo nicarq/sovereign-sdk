@@ -65,6 +65,7 @@ where
         for tx in txs {
             let result = batch_builder
                 .accept_tx(tx.clone())
+                .await
                 .map(|tx_hash| {
                     self.tx_status_notifier.notify(tx_hash, TxStatus::Submitted);
                     AcceptTxResponse {
@@ -85,7 +86,7 @@ where
             .map_err(|e| anyhow::anyhow!("Failed to fetch current head: {}", e))?
             .height();
 
-        let blob_txs = batch_builder.get_next_blob(da_height)?;
+        let blob_txs = batch_builder.get_next_blob(da_height).await?;
         let num_txs = blob_txs.len();
         let (blob, tx_hashes) = blob_txs
             .into_iter()
@@ -115,7 +116,7 @@ where
         let mut batch_builder = self.batch_builder.lock().await;
 
         info!(tx = hex::encode(&tx), "Accepting transaction");
-        let tx_hash = batch_builder.accept_tx(tx)?;
+        let tx_hash = batch_builder.accept_tx(tx).await?;
         self.tx_status_notifier.notify(tx_hash, TxStatus::Submitted);
 
         Ok(tx_hash)
@@ -125,7 +126,7 @@ where
         &self,
         tx_hash: &TxHash,
     ) -> anyhow::Result<Option<TxStatus<Da::TransactionId>>> {
-        let is_in_mempool = self.batch_builder.lock().await.contains(tx_hash)?;
+        let is_in_mempool = self.batch_builder.lock().await.contains(tx_hash).await?;
 
         if is_in_mempool {
             Ok(Some(TxStatus::Submitted))
@@ -262,6 +263,7 @@ impl SubmitTransaction {
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use sov_mock_da::{MockAddress, MockDaService};
     use sov_rollup_interface::da::BlobReaderTrait;
     use sov_rollup_interface::services::batch_builder::TxWithHash;
@@ -283,17 +285,18 @@ mod tests {
 
     // It only takes the first byte of the tx, when submits it.
     // This allows to show effect of batch builder
+    #[async_trait]
     impl BatchBuilder for MockBatchBuilder {
-        fn accept_tx(&mut self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
+        async fn accept_tx(&mut self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
             self.mempool.push(tx);
             Ok([0; 32])
         }
 
-        fn contains(&self, _tx_hash: &TxHash) -> anyhow::Result<bool> {
+        async fn contains(&self, _tx_hash: &TxHash) -> anyhow::Result<bool> {
             unimplemented!("MockBatchBuilder::contains is not implemented")
         }
 
-        fn get_next_blob(&mut self, _height: u64) -> anyhow::Result<Vec<TxWithHash>> {
+        async fn get_next_blob(&mut self, _height: u64) -> anyhow::Result<Vec<TxWithHash>> {
             if self.mempool.is_empty() {
                 anyhow::bail!("Mock mempool is empty");
             }
