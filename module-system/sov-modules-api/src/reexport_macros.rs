@@ -95,6 +95,8 @@ pub use sov_modules_macros::ModuleInfo;
 /// Procedural macros to assist with creating new modules.
 #[cfg(feature = "macros")]
 pub mod macros {
+    /// Sets the value of a constant at compile time by reading from the Manifest file and decoding from bech32.
+    pub use sov_modules_macros::config_bech32_constant;
     /// Sets the value of a constant at compile time by reading from the Manifest file.
     pub use sov_modules_macros::config_constant;
     /// The macro exposes RPC endpoints from all modules in the runtime.

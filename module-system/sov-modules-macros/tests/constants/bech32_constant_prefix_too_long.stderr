@@ -1,0 +1,25 @@
+error[E0080]: evaluation of constant value failed
+ --> tests/constants/bech32_constant_prefix_too_long.rs:7:1
+  |
+7 | #[config_bech32_constant]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^ the evaluated program panicked at 'Error decoding constants: The value of `TEST_TOKEN_ID` located at `$WORKSPACE/constants.test.json` is not a valid bech32m value for type `MyTokenId`.
+
+  Help: The value `token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm` is a valid bech32m string, but the prefix `token_` does not match the expected prefix for values of type `MyTokenId`.
+    Consult the documentation for `MyTokenId` to find the correct value
+', $DIR/tests/constants/bech32_constant_prefix_too_long.rs:7:1
+  |
+  = note: this error originates in the macro `$crate::panic::panic_2021` which comes from the expansion of the macro `assert` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+note: erroneous constant encountered
+  --> tests/constants/bech32_constant_prefix_too_long.rs:12:16
+   |
+12 |     assert_eq!(TEST_TOKEN_ID, MyTokenId::from([0; 32]));
+   |                ^^^^^^^^^^^^^
+
+note: erroneous constant encountered
+  --> tests/constants/bech32_constant_prefix_too_long.rs:12:5
+   |
+12 |     assert_eq!(TEST_TOKEN_ID, MyTokenId::from([0; 32]));
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this note originates in the macro `assert_eq` (in Nightly builds, run with -Z macro-backtrace for more info)

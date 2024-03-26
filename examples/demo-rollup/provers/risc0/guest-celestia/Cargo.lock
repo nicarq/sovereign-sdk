@@ -2360,6 +2360,7 @@ name = "sov-modules-macros"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "bech32 0.11.0",
  "borsh 0.10.3",
  "proc-macro2",
  "quote",

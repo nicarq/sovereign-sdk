@@ -72,5 +72,10 @@ fn constants_from_manifests_test() {
     set_constants_manifest();
     let t: trybuild::TestCases = trybuild::TestCases::new();
 
+    // TOOD: Add compile fail on address prefix and mismatched prefix and invalid bech3
     t.pass("tests/constants/create_constant.rs");
+    t.compile_fail("tests/constants/bech32_constant_invalid_checksum.rs");
+    t.compile_fail("tests/constants/bech32_constant_prefix_too_short.rs");
+    t.compile_fail("tests/constants/bech32_constant_prefix_too_long.rs");
+    t.compile_fail("tests/constants/bech32_constant_not_a_string.rs");
 }

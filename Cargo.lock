@@ -8066,6 +8066,7 @@ name = "sov-modules-macros"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "bech32 0.11.0",
  "borsh 0.10.3",
  "clap 4.5.3",
  "jsonrpsee 0.20.3",

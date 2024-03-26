@@ -210,8 +210,14 @@ macro_rules! impl_hash32_type {
             }
 
             /// Returns the human readable prefix for the bech32 representation
-            pub fn bech32_prefix() -> &'static str {
+            pub const fn bech32_prefix() -> &'static str {
                 $human_readable_prefix
+            }
+
+            /// Creates a new $id containing the given bytes. This function is needed in addition
+            /// to the `From` trait to allow for const conversions
+            pub const fn from_const_slice(addr: [u8; 32]) -> Self {
+                Self(addr)
             }
         }
 
@@ -262,6 +268,14 @@ impl<'a> TryFrom<&'a [u8]> for Address {
 
 impl From<[u8; 32]> for Address {
     fn from(addr: [u8; 32]) -> Self {
+        Self { addr }
+    }
+}
+
+impl Address {
+    /// Creates a new $id containing the given bytes. This function is needed in addition
+    /// to the `From` trait to allow for const conversions
+    pub const fn from_const_slice(addr: [u8; 32]) -> Self {
         Self { addr }
     }
 }

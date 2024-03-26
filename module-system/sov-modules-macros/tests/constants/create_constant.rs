@@ -1,3 +1,5 @@
+use sov_bank::TokenId;
+use sov_modules_api::macros::config_bech32_constant;
 use sov_modules_api::macros::config_constant;
 #[config_constant]
 pub const TEST_U32: u32;
@@ -19,6 +21,9 @@ pub const TEST_BOOL: bool;
 /// This one is not visible
 const TEST_STRING: &str;
 
+#[config_bech32_constant]
+const TEST_TOKEN_ID: TokenId;
+
 fn main() {
     assert_eq!(TEST_U32, 42);
     assert_eq!(TEST_ARRAY_OF_U8, [11; 32]);
@@ -26,4 +31,5 @@ fn main() {
     assert_eq!(TEST_NESTED_ARRAY, [[7; 3]; 2]);
     assert_eq!(TEST_BOOL, true);
     assert_eq!(TEST_STRING, "Some Other String");
+    assert_eq!(TEST_TOKEN_ID, TokenId::from([0; 32]));
 }
