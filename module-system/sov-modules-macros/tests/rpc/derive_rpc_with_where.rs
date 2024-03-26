@@ -32,6 +32,7 @@ where
         + borsh::BorshDeserialize
         + serde::Serialize
         + serde::de::DeserializeOwned
+        + std::marker::Send
         + 'static,
 {
     #[rpc_method(name = "firstMethod")]

@@ -8,9 +8,9 @@ use crate::SlotValue;
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 pub enum Bech32ParseError {
-    /// Bech32 decoding error represented via [bech32::Error].
+    /// Bech32 decoding error represented via [bech32::primitives::decode::CheckedHrpstringError].
     #[cfg_attr(feature = "std", error("Bech32 error: {0}"))]
-    Bech32(#[cfg_attr(feature = "std", from)] bech32::Error),
+    Bech32(#[cfg_attr(feature = "std", from)] bech32::primitives::decode::CheckedHrpstringError),
     /// The provided "Human-Readable Part" is invalid.
     #[cfg_attr(feature = "std", error("Wrong HRP: {0}"))]
     WrongHRP(String),

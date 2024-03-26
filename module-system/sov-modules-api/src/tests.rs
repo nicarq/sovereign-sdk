@@ -8,7 +8,7 @@ use crate::ModuleInfo;
 #[test]
 fn test_account_bech32m_display() {
     let expected_addr: Vec<u8> = (1..=32).collect();
-    let account = crate::AddressBech32::try_from(expected_addr.as_slice()).unwrap();
+    let account = crate::Address::try_from(expected_addr.as_slice()).unwrap();
     assert_eq!(
         account.to_string(),
         "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"
@@ -101,7 +101,7 @@ fn test_sorting_modules_missing_module() {
 
     assert!(sorted_modules.is_err());
     let error_string = sorted_modules.err().unwrap().to_string();
-    assert_eq!("Module not found: AddressBech32 { value: \"sov1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs259tk3\" }", error_string);
+    assert_eq!("Module not found: AddressBech32(\"sov1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs259tk3\")", error_string);
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn test_sorting_modules_cycle() {
 
     assert!(sorted_modules.is_err());
     let error_string = sorted_modules.err().unwrap().to_string();
-    assert_eq!("Cyclic dependency of length 2 detected: [AddressBech32 { value: \"sov1qszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqnu4g3u\" }, AddressBech32 { value: \"sov1q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zskwvj87\" }]", error_string);
+    assert_eq!("Cyclic dependency of length 2 detected: [AddressBech32(\"sov1qszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqnu4g3u\"), AddressBech32(\"sov1q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zskwvj87\")]", error_string);
 }
 
 #[test]

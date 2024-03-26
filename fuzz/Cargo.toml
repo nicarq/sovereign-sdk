@@ -34,14 +34,14 @@ test = false
 doc = false
 
 [[bin]]
-name = "address_bech_32_parse_serde"
-path = "fuzz_targets/address_bech_32_parse_serde.rs"
+name = "address_parse_serde"
+path = "fuzz_targets/address_parse_serde.rs"
 test = false
 doc = false
 
 [[bin]]
-name = "address_bech_32_try_from_bytes"
-path = "fuzz_targets/address_bech_32_try_from_bytes.rs"
+name = "address_try_from_bytes"
+path = "fuzz_targets/address_try_from_bytes.rs"
 test = false
 doc = false
 
