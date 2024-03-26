@@ -915,7 +915,7 @@ where
             }
         };
 
-        let public_outputs_opt = <S::Zkvm as Zkvm>::verify::<
+        let public_outputs_opt = <S::InnerZkvm as Zkvm>::verify::<
             StateTransition<Da, <S::Storage as Storage>::Root>,
         >(proof, &code_commitment)
         .map_err(|e| anyhow::format_err!("{:?}", e));

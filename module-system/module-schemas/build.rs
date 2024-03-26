@@ -5,7 +5,7 @@ use sov_mock_da::verifier::MockDaSpec;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::ModuleCallJsonSchema;
 
-type S = DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type S = DefaultSpec<sov_mock_zkvm::MockZkVerifier, sov_mock_zkvm::MockZkVerifier>;
 
 fn main() -> io::Result<()> {
     store_json_schema::<sov_bank::Bank<S>>("sov-bank.json")?;

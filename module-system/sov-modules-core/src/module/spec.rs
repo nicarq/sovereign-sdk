@@ -57,8 +57,13 @@ pub trait Spec: Debug + Clone + Send + Sync + PartialEq + 'static {
     #[cfg(feature = "native")]
     type Storage: Storage + crate::NativeStorage + Send + Sync;
 
-    /// The Zkvm which runs the rollup.
-    type Zkvm: Zkvm;
+    /// The Zkvm which verifies the inner circuit, where
+    /// the `inner` circuit proves the correctness of the state transition for individual DA blocks.
+    type InnerZkvm: Zkvm;
+
+    /// The Zkvm which verifies the outer circuit, where
+    /// the `outer` circuit proves the correctness of the state transition for the whole chain since genesis.
+    type OuterZkvm: Zkvm;
 
     /// The hash type accessible by the execution environment of the rollup.
     /// In the case of a rollup compatible with soft-confirmations, this is the hash of the `User` space.

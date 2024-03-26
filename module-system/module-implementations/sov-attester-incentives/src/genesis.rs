@@ -26,7 +26,7 @@ where
     /// The minimum bond for a challenger.
     pub minimum_challenger_bond: Amount,
     /// A code commitment to be used for verifying proofs
-    pub commitment_to_allowed_challenge_method: <S::Zkvm as Zkvm>::CodeCommitment,
+    pub commitment_to_allowed_challenge_method: <S::InnerZkvm as Zkvm>::CodeCommitment,
     /// A list of initial attesters and their bonded amount.
     pub initial_attesters: Vec<(S::Address, Amount)>,
     /// The finality period of the rollup (constant) in the number of DA layer slots processed.

@@ -3,3 +3,5 @@
 
 - #306 simplifies the API of VersionedStateValue. Now it only has a method `get_current` (for any type implementing the `VersionReader` trait)
   and get/set implemented directly on `KernelWorkingSet`
+
+- #329 adds `InnerZkvm` and `OuterZkvm` associated types to the `Spec` trait.

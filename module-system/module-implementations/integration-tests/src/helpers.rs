@@ -38,9 +38,9 @@ type TestStf = StfBlueprint<
     BasicKernel<S, MockDaSpec>,
 >;
 type BatchReceiptContents =
-    <TestStf as StateTransitionFunction<<S as Spec>::Zkvm, Da>>::BatchReceiptContents;
+    <TestStf as StateTransitionFunction<MockZkVerifier, Da>>::BatchReceiptContents;
 type TxReceiptContents =
-    <TestStf as StateTransitionFunction<<S as Spec>::Zkvm, Da>>::TxReceiptContents;
+    <TestStf as StateTransitionFunction<MockZkVerifier, Da>>::TxReceiptContents;
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
@@ -85,7 +85,7 @@ pub struct AttesterIncentivesParams<S: Spec, Da: DaSpec> {
     pub minimum_challenger_bond: u64,
     pub maximum_attested_height: u64,
     pub light_client_finalized_height: u64,
-    pub commitment_to_allowed_challenge_method: <S::Zkvm as Zkvm>::CodeCommitment,
+    pub commitment_to_allowed_challenge_method: <S::InnerZkvm as Zkvm>::CodeCommitment,
     pub validity_condition_checker: Da::Checker,
 }
 

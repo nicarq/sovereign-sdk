@@ -12,6 +12,7 @@ risc0-zkvm = { version = "0.20", default-features = false, features = ["std"] }
 risc0-zkvm-platform = "0.20"
 demo-stf = { path = "../../../stf" }
 sov-risc0-adapter = { path = "../../../../../adapters/risc0" }
+sov-mock-zkvm = { path = "../../../../../adapters/mock-zkvm" }
 const-rollup-config = { path = "../../../../const-rollup-config" }
 sov-celestia-adapter = { path = "../../../../../adapters/celestia" }
 sov-modules-api = { path = "../../../../../module-system/sov-modules-api" }

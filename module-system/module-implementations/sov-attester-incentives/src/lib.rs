@@ -66,7 +66,7 @@ where
     /// The code commitment to be used for verifying proofs
     #[state]
     pub commitment_to_allowed_challenge_method:
-        sov_modules_api::StateValue<<S::Zkvm as Zkvm>::CodeCommitment, BcsCodec>,
+        sov_modules_api::StateValue<<S::InnerZkvm as Zkvm>::CodeCommitment, BcsCodec>,
 
     /// The set of bonded attesters and their bonded amount.
     #[state]

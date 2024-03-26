@@ -12,7 +12,6 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
-use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
@@ -27,12 +26,17 @@ impl RollupBlueprint for MockDemoRollup {
     type DaService = MockDaService;
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
-    type InnerVm = Risc0Host<'static>;
-    type OuterVm = MockZkvm;
+    type InnerZkvmHost = Risc0Host<'static>;
+    type OuterZkvmHost = MockZkvm;
 
-    type ZkSpec = ZkDefaultSpec<Risc0Verifier>;
-    type NativeSpec = DefaultSpec<Risc0Verifier>;
-
+    type ZkSpec = ZkDefaultSpec<
+        <<Self::InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+        <<Self::OuterZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+    >;
+    type NativeSpec = DefaultSpec<
+        <<Self::InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+        <<Self::OuterZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+    >;
     type StorageManager = ProverStorageManager<MockDaSpec, DefaultStorageSpec>;
 
     type ZkRuntime = Runtime<Self::ZkSpec, Self::DaSpec>;
@@ -45,12 +49,12 @@ impl RollupBlueprint for MockDemoRollup {
         <<Self::NativeSpec as Spec>::Storage as Storage>::Root,
         <<Self::NativeSpec as Spec>::Storage as Storage>::Witness,
         Self::DaService,
-        Self::InnerVm,
-        Self::OuterVm,
+        Self::InnerZkvmHost,
+        Self::OuterZkvmHost,
         StfBlueprint<
             Self::ZkSpec,
             Self::DaSpec,
-            <<Self::InnerVm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+            <<Self::InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
             Self::ZkRuntime,
             Self::ZkKernel,
         >,
