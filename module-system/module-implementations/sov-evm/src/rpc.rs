@@ -373,13 +373,13 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
     /// Handler for: `eth_blockNumber`
     #[rpc_method(name = "eth_blockNumber")]
     pub fn block_number(&self, working_set: &mut WorkingSet<S>) -> RpcResult<U256> {
-        debug!("EVM module JSON-RPC request to `eth_blockNumber`");
+        let block_number = self
+            .blocks
+            .len(&mut working_set.accessory_state())
+            .saturating_sub(1);
+        debug!(%block_number, "EVM module JSON-RPC request to `eth_blockNumber`");
 
-        Ok(U256::from(
-            self.blocks
-                .len(&mut working_set.accessory_state())
-                .saturating_sub(1),
-        ))
+        Ok(U256::from(block_number))
     }
 
     /// Handler for: `eth_estimateGas`
@@ -584,6 +584,10 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
         }
 
+        tracing::debug!(
+            %highest_gas_limit,
+            "EVM module JSON-RPC response from `eth_estimateGas`"
+        );
         Ok(U64::from(highest_gas_limit))
     }
 

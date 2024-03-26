@@ -1,8 +1,8 @@
 require('dotenv').config()
 const fs = require('fs');
-const { promisify } = require('util');
+const {promisify} = require('util');
 
-const { providers, Contract, utils, constants } = require('ethers');
+const {providers, Contract, utils, constants} = require('ethers');
 const routerArtifact = require('@uniswap/v2-periphery/build/UniswapV2Router02.json')
 const usdtArtifact = require("../artifacts/contracts/Tether.sol/Tether.json")
 const usdcArtifact = require("../artifacts/contracts/UsdCoin.sol/UsdCoin.json")
@@ -13,7 +13,6 @@ WETH_ADDRESS = process.env.WETH_ADDRESS
 FACTORY_ADDRESS = process.env.FACTORY_ADDRESS
 PAIR_ADDRESS = process.env.PAIR_ADDRESS
 ROUTER_ADDRESS = process.env.ROUTER_ADDRESS
-
 
 
 const provider = new providers.JsonRpcProvider('http://127.0.0.1:8545/')
@@ -49,14 +48,20 @@ const logBalance = async (signerObj) => {
         usdtBalance: usdtBalance,
         usdcBalance: usdcBalance,
     }
-    console.log('balances', balances)
+    console.log(`balances of ${signerObj.address}`, balances)
 
 }
 
 const main = async () => {
     const [owner, trader] = await ethers.getSigners()
+    if (!owner || !owner.address || !trader || !trader.address) {
+        throw new Error('Could not get owner and trader addresses');
+    }
 
-    await logBalance(trader)
+    console.log(`Starting with owner=${owner.address} and trader=${trader.address}`);
+
+    await logBalance(owner);
+    await logBalance(trader);
 
     const tx = await router.connect(trader).swapExactTokensForTokens(
         utils.parseUnits('2', 18),
