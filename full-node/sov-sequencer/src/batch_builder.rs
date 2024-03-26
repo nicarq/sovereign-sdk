@@ -1,6 +1,7 @@
 //! Concrete implementation(s) of [`BatchBuilder`].
 
 use anyhow::{bail, Context as ErrorContext};
+use async_trait::async_trait;
 use borsh::BorshDeserialize;
 use sov_db::sequencer_db::{MempoolTx, SequencerDB};
 use sov_modules_api::digest::Digest;
@@ -122,6 +123,7 @@ where
     }
 }
 
+#[async_trait]
 impl<S, Da, R> BatchBuilder for FairBatchBuilder<S, Da, R>
 where
     S: Spec,
@@ -133,7 +135,7 @@ where
     /// The transaction is discarded if:
     /// - mempool is full
     /// - transaction is invalid (deserialization, verification or decoding of the runtime message failed)
-    fn accept_tx(&mut self, raw: Vec<u8>) -> anyhow::Result<TxHash> {
+    async fn accept_tx(&mut self, raw: Vec<u8>) -> anyhow::Result<TxHash> {
         tracing::trace!(raw_tx = hex::encode(&raw), "`accept_tx` has been called");
 
         if raw.len() > self.max_batch_size_bytes {
@@ -171,13 +173,13 @@ where
         Ok(hash)
     }
 
-    fn contains(&self, hash: &TxHash) -> anyhow::Result<bool> {
+    async fn contains(&self, hash: &TxHash) -> anyhow::Result<bool> {
         Ok(self.mempool.contains(hash))
     }
 
     /// Builds a new batch of valid transactions in order they were added to mempool
     /// Only transactions, which are dispatched successfully are included in the batch
-    fn get_next_blob(&mut self, height: u64) -> anyhow::Result<Vec<TxWithHash>> {
+    async fn get_next_blob(&mut self, height: u64) -> anyhow::Result<Vec<TxWithHash>> {
         tracing::debug!("get_next_blob has been called");
 
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/224
@@ -398,19 +400,19 @@ mod tests {
     mod accept_tx {
         use super::*;
 
-        #[test]
-        fn accept_valid_tx() {
+        #[tokio::test]
+        async fn accept_valid_tx() {
             let tx = generate_random_valid_tx();
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
                 create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
-            batch_builder.accept_tx(tx).unwrap();
+            batch_builder.accept_tx(tx).await.unwrap();
         }
 
-        #[test]
-        fn reject_tx_too_big() {
+        #[tokio::test]
+        async fn reject_tx_too_big() {
             let tx = generate_random_valid_tx();
             let tx_size = tx.len();
             let batch_size = tx.len().saturating_sub(1);
@@ -419,7 +421,7 @@ mod tests {
             let mut batch_builder =
                 create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
-            let accept_result = batch_builder.accept_tx(tx);
+            let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
             assert_eq!(
                 format!("Transaction is too big. Max allowed size: {batch_size}, submitted size: {tx_size}"),
@@ -427,34 +429,34 @@ mod tests {
             );
         }
 
-        #[test]
-        fn new_tx_on_full_mempool_causes_evictions() {
+        #[tokio::test]
+        async fn new_tx_on_full_mempool_causes_evictions() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
                 create_batch_builder(usize::MAX, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
             for _ in 0..MAX_TX_POOL_SIZE {
                 let tx = generate_random_valid_tx();
-                batch_builder.accept_tx(tx).unwrap();
+                batch_builder.accept_tx(tx).await.unwrap();
             }
 
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
 
             let tx = generate_random_valid_tx();
-            batch_builder.accept_tx(tx).unwrap();
+            batch_builder.accept_tx(tx).await.unwrap();
 
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
         }
 
-        #[test]
-        fn reject_random_bytes_tx() {
+        #[tokio::test]
+        async fn reject_random_bytes_tx() {
             let tx = generate_random_bytes();
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
                 create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
-            let accept_result = batch_builder.accept_tx(tx);
+            let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
             assert!(accept_result
                 .unwrap_err()
@@ -462,8 +464,8 @@ mod tests {
                 .starts_with("Failed to deserialize transaction"));
         }
 
-        #[test]
-        fn reject_signed_tx_with_invalid_payload() {
+        #[tokio::test]
+        async fn reject_signed_tx_with_invalid_payload() {
             let private_key = TestPrivateKey::generate();
             let tx = generate_signed_tx_with_invalid_payload(&private_key);
 
@@ -471,7 +473,7 @@ mod tests {
             let mut batch_builder =
                 create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
 
-            let accept_result = batch_builder.accept_tx(tx);
+            let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
             assert!(accept_result
                 .unwrap_err()
@@ -479,8 +481,8 @@ mod tests {
                 .starts_with("Failed to decode message"));
         }
 
-        #[test]
-        fn zero_sized_mempool_cant_accept_tx() {
+        #[tokio::test]
+        async fn zero_sized_mempool_cant_accept_tx() {
             let tx = generate_random_valid_tx();
 
             let tmpdir = tempfile::tempdir().unwrap();
@@ -488,7 +490,7 @@ mod tests {
                 create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
             batch_builder.mempool.mempool_max_txs_count = 0;
 
-            batch_builder.accept_tx(tx).unwrap();
+            batch_builder.accept_tx(tx).await.unwrap();
             assert_eq!(
                 batch_builder.mempool.len(),
                 0,
@@ -500,13 +502,13 @@ mod tests {
     mod build_batch {
         use super::*;
 
-        #[test]
-        fn error_on_empty_mempool() {
+        #[tokio::test]
+        async fn error_on_empty_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder = create_batch_builder(10, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
             setup_runtime(&mut batch_builder, None, DEFAULT_SEQUENCER_ADDRESS);
 
-            let build_result = batch_builder.get_next_blob(1);
+            let build_result = batch_builder.get_next_blob(1).await;
             assert!(build_result.is_err());
             assert_eq!(
                 "No valid transactions are available out of 0 were in the pool",
@@ -514,9 +516,9 @@ mod tests {
             );
         }
 
-        #[test]
+        #[tokio::test]
         #[should_panic = "Sequencer is no longer registered by the time of context resolution. This is a bug"]
-        fn build_batch_invalidates_everything_on_missed_genesis() {
+        async fn build_batch_invalidates_everything_on_missed_genesis() {
             let value_setter_admin = TestPrivateKey::generate();
             let txs = [
                 // Should be included: 113 bytes
@@ -531,16 +533,16 @@ mod tests {
             // Skipping runtime setup
 
             for tx in &txs {
-                batch_builder.accept_tx(tx.clone()).unwrap();
+                batch_builder.accept_tx(tx.clone()).await.unwrap();
             }
 
             assert_eq!(txs.len(), batch_builder.mempool.len());
 
-            let _ = batch_builder.get_next_blob(1);
+            batch_builder.get_next_blob(1).await.ok();
         }
 
-        #[test]
-        fn builds_batch_skipping_invalid_txs() {
+        #[tokio::test]
+        async fn builds_batch_skipping_invalid_txs() {
             let value_setter_admin = TestPrivateKey::generate();
             let txs = [
                 // Should be included
@@ -569,12 +571,12 @@ mod tests {
             );
 
             for tx in &txs {
-                batch_builder.accept_tx(tx.clone()).unwrap();
+                batch_builder.accept_tx(tx.clone()).await.unwrap();
             }
 
             assert_eq!(txs.len(), batch_builder.mempool.len());
 
-            let build_result = batch_builder.get_next_blob(1);
+            let build_result = batch_builder.get_next_blob(1).await;
             let blob = build_result
                 .unwrap()
                 .iter()
