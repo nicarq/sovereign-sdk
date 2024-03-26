@@ -3,7 +3,10 @@ use std::marker::PhantomData;
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::namespaces;
-use sov_db::namespaces::{KernelNamespace as DBKernelNamespace, UserNamespace as DBUserNamespace};
+use sov_db::namespaces::{
+    KernelNamespace as DBKernelNamespace, KernelNamespace, UserNamespace as DBUserNamespace,
+    UserNamespace,
+};
 use sov_db::native_db::NativeDB;
 use sov_db::schema::ChangeSet;
 use sov_db::state_db::{JmtHandler, StateDB};
@@ -33,11 +36,39 @@ pub struct ProverStorage<S: MerkleProofSpec> {
 impl<S: MerkleProofSpec> ProverStorage<S> {
     /// Creates a new [`ProverStorage`] instance from specified db handles
     pub fn with_db_handles(db: StateDB, native_db: NativeDB) -> Self {
+        let user_written = Self::init_empty_root_hash_if_needed::<UserNamespace>(&db);
+        let kernel_written = Self::init_empty_root_hash_if_needed::<KernelNamespace>(&db);
+        assert_eq!(
+            user_written, kernel_written,
+            "Discrepancy between kernel and user JMTs, probably a bug"
+        );
         Self {
             db,
             native_db,
             _phantom_hasher: Default::default(),
         }
+    }
+
+    // return true if empty root hash has been written
+    fn init_empty_root_hash_if_needed<N: namespaces::Namespace>(db: &StateDB) -> bool {
+        let jmt_handler: JmtHandler<N> = db.get_jmt_handler();
+        let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
+        let latest_version = db.get_next_version() - 1;
+
+        // Handle empty jmt
+        if jmt.get_root_hash_option(latest_version).unwrap().is_none() {
+            assert_eq!(latest_version, 0);
+            let empty_batch = Vec::default().into_iter();
+            let (_, tree_update) = jmt
+                .put_value_set(empty_batch, latest_version)
+                .expect("JMT update must succeed");
+
+            jmt_handler
+                .write_node_batch(&tree_update.node_batch)
+                .expect("db write must succeed");
+            return true;
+        }
+        false
     }
 
     fn read_value_namespace<N: namespaces::Namespace>(
@@ -103,27 +134,13 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         state_accesses: OrderedReadsAndWrites,
         witness: &<ProverStorage<S> as Storage>::Witness,
     ) -> Result<(jmt::RootHash, ProverStateUpdate), anyhow::Error> {
-        let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
-        let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
+        let jmt_handler: JmtHandler<N> = self.db.get_jmt_handler();
+        let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
         let latest_version = self.db.get_next_version() - 1;
 
-        // Handle empty jmt
-        // TODO: Fix this before introducing snapshots!
-        if jmt.get_root_hash_option(latest_version)?.is_none() {
-            assert_eq!(latest_version, 0);
-            let empty_batch = Vec::default().into_iter();
-            let (_, tree_update) = jmt
-                .put_value_set(empty_batch, latest_version)
-                .expect("JMT update must succeed");
-
-            self.db
-                .get_jmt_handler::<N>()
-                .write_node_batch(&tree_update.node_batch)
-                .expect("db write must succeed");
-        }
         let prev_root = jmt
             .get_root_hash(latest_version)
-            .expect("Previous root hash was just populated");
+            .expect("Previous root hash was not populated");
         witness.add_hint(prev_root.0);
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints

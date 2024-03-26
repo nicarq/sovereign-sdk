@@ -63,6 +63,7 @@ impl StateDB {
             .unwrap_or_default()
             .checked_add(1)
             .expect("JMT Version overflow. Is is over");
+
         Ok(next_version)
     }
 
@@ -206,19 +207,20 @@ impl<'a, N: Namespace> HasPreimage for JmtHandler<'a, N> {
 
 #[cfg(test)]
 mod state_db_tests {
+    use std::path;
     use std::sync::{Arc, RwLock};
 
     use jmt::storage::{NodeBatch, TreeReader, TreeWriter};
     use jmt::KeyHash;
     use rockbound::cache::cache_container::CacheContainer;
     use rockbound::cache::cache_db::CacheDb;
+    use sha2::Sha256;
 
-    use crate::namespaces::{KernelNamespace, UserNamespace};
+    use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
     use crate::state_db::{JmtHandler, StateDB};
 
-    fn init_cache_db() -> CacheDb {
-        let tempdir = tempfile::tempdir().unwrap();
-        let db = StateDB::setup_schema_db(tempdir.path()).unwrap();
+    fn init_cache_db(path: &path::Path) -> CacheDb {
+        let db = StateDB::setup_schema_db(path).unwrap();
         let cache_container =
             CacheContainer::new(db, Arc::new(RwLock::new(Default::default())).into());
 
@@ -227,7 +229,8 @@ mod state_db_tests {
 
     #[test]
     fn test_simple() {
-        let db_snapshot = init_cache_db();
+        let tempdir = tempfile::tempdir().unwrap();
+        let db_snapshot = init_cache_db(tempdir.path());
         let state_db = &StateDB::with_cache_db(db_snapshot).unwrap();
         let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
         let key_hash = KeyHash([1u8; 32]);
@@ -253,7 +256,8 @@ mod state_db_tests {
 
     #[test]
     fn test_namespace() {
-        let db_snapshot = init_cache_db();
+        let tempdir = tempfile::tempdir().unwrap();
+        let db_snapshot = init_cache_db(tempdir.path());
         let state_db = StateDB::with_cache_db(db_snapshot).unwrap();
         let user_state_db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
         let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = state_db.get_jmt_handler();
@@ -303,5 +307,28 @@ mod state_db_tests {
                 value
             );
         }
+    }
+
+    #[test]
+    fn test_root_hash_at_init() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let db_snapshot = init_cache_db(tempdir.path());
+        let db = StateDB::with_cache_db(db_snapshot).unwrap();
+        let latest_version = db.get_next_version() - 1;
+        assert_eq!(0, latest_version);
+
+        let user_state_db_handler: JmtHandler<'_, UserNamespace> = db.get_jmt_handler();
+        check_root_hash_at_init_handler(&user_state_db_handler);
+        let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = db.get_jmt_handler();
+
+        check_root_hash_at_init_handler(&kernel_state_db_handler);
+    }
+
+    fn check_root_hash_at_init_handler<N: Namespace>(handler: &JmtHandler<N>) {
+        let jmt = jmt::JellyfishMerkleTree::<JmtHandler<N>, Sha256>::new(handler);
+
+        // Just pointing out the obvious.
+        let root_hash = jmt.get_root_hash_option(0).unwrap();
+        assert!(root_hash.is_none());
     }
 }
