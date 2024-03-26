@@ -362,6 +362,19 @@ fn add_server_bounds_attr_if_missing(attrs: &mut Vec<syn::NestedMeta>) {
     )));
 }
 
+fn add_client_bounds_attr_if_missing(attrs: &mut Vec<syn::NestedMeta>) {
+    for attr in attrs.iter() {
+        if let syn::NestedMeta::Meta(syn::Meta::List(syn::MetaList { path, .. })) = attr {
+            if path.is_ident("client_bounds") {
+                return;
+            }
+        }
+    }
+    attrs.push(syn::NestedMeta::Meta(syn::Meta::List(
+        syn::parse_quote! { client_bounds() },
+    )));
+}
+
 fn build_rpc_trait(
     mut attrs: Vec<syn::NestedMeta>,
     type_name: Ident,
@@ -371,6 +384,7 @@ fn build_rpc_trait(
     // If the user hasn't directly provided trait bounds, override jsonrpsee's defaults
     // with an empty bound. This prevents spurious compilation errors like `Spec does not implement DeserializeOwned`
     add_server_bounds_attr_if_missing(&mut attrs);
+    add_client_bounds_attr_if_missing(&mut attrs);
 
     let wrapped_attr_args = quote! {
         ( #(#attrs),* )

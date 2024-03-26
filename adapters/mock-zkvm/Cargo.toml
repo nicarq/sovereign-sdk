@@ -36,6 +36,11 @@ native = [
 	"ed25519-dalek/default",
 	"ed25519-dalek/rand_core",
 	"rand",
+	"sov-mock-zkvm/native",
 	"sov-rollup-interface/native",
 ]
-arbitrary = [ "dep:arbitrary", "sov-rollup-interface/arbitrary" ]
+arbitrary = [
+	"dep:arbitrary",
+	"sov-mock-zkvm/arbitrary",
+	"sov-rollup-interface/arbitrary",
+]

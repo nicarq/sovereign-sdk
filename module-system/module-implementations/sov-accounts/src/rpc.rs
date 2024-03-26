@@ -1,21 +1,18 @@
 //! Defines rpc queries exposed by the accounts module, along with the relevant types
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{AddressBech32, CryptoSpec, Spec, WorkingSet};
+use sov_modules_api::{CryptoSpec, Spec, WorkingSet};
 
 use crate::{Account, Accounts};
 
 /// This is the response returned from the accounts_getAccount endpoint.
 #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
-#[cfg_attr(
-    feature = "arbitrary",
-    derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
-)]
-pub enum Response {
+#[serde(bound = "Addr: serde::Serialize + serde::de::DeserializeOwned")]
+pub enum Response<Addr> {
     /// The account corresponding to the given public key exists.
     AccountExists {
         /// The address of the account,
-        addr: AddressBech32,
+        addr: Addr,
         /// The nonce of the account.
         nonce: u64,
     },
@@ -31,12 +28,9 @@ impl<S: Spec> Accounts<S> {
         &self,
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         working_set: &mut WorkingSet<S>,
-    ) -> RpcResult<Response> {
+    ) -> RpcResult<Response<S::Address>> {
         let response = match self.accounts.get(&pub_key, working_set) {
-            Some(Account { addr, nonce }) => Response::AccountExists {
-                addr: addr.into(),
-                nonce,
-            },
+            Some(Account { addr, nonce }) => Response::AccountExists { addr, nonce },
             None => Response::AccountEmpty,
         };
 

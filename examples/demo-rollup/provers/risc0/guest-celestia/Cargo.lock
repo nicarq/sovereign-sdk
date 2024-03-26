@@ -348,6 +348,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
+name = "bech32"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d965446196e3b7decd44aa7ee49e31d630118f90ef12f97900f262eb915c951d"
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -541,7 +547,7 @@ version = "0.1.0"
 source = "git+https://github.com/eigerco/celestia-node-rs.git?rev=66b7c6c#66b7c6cd58213c0cbf79207ba549cef82764ddca"
 dependencies = [
  "base64",
- "bech32",
+ "bech32 0.9.1",
  "bytes",
  "celestia-proto",
  "cid",
@@ -2197,7 +2203,7 @@ name = "sov-bank"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bech32",
+ "bech32 0.11.0",
  "borsh 0.10.3",
  "serde",
  "sov-modules-api",
@@ -2228,7 +2234,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bech32",
+ "bech32 0.9.1",
  "borsh 0.10.3",
  "celestia-proto",
  "celestia-types",
@@ -2315,7 +2321,7 @@ name = "sov-modules-api"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bech32",
+ "bech32 0.11.0",
  "borsh 0.10.3",
  "derive_more",
  "hex",
@@ -2334,7 +2340,7 @@ name = "sov-modules-core"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bech32",
+ "bech32 0.11.0",
  "borsh 0.10.3",
  "derivative",
  "derive_more",

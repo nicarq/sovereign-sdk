@@ -1,8 +1,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use sov_modules_api::AddressBech32;
+use sov_modules_api::Address;
 
 fuzz_target!(|data: &[u8]| {
-    let _ = AddressBech32::try_from(data);
+    let _ = Address::try_from(data);
 });

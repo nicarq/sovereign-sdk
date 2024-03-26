@@ -1,4 +1,4 @@
-use sov_modules_api::{AddressBech32, Context, Module, PrivateKey, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{Address, Context, Module, PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::rpc::{self, Response};
@@ -27,7 +27,7 @@ fn test_config_account() {
     assert_eq!(
         query_response,
         rpc::Response::AccountExists {
-            addr: AddressBech32::from(&init_pub_key_addr),
+            addr: init_pub_key_addr,
             nonce: 0
         }
     );
@@ -57,7 +57,7 @@ fn test_update_account() {
         assert_eq!(
             query_response,
             rpc::Response::AccountExists {
-                addr: AddressBech32::try_from(sender_addr.as_ref()).unwrap(),
+                addr: sender_addr,
                 nonce: 0
             }
         );
@@ -87,7 +87,7 @@ fn test_update_account() {
         assert_eq!(
             query_response,
             rpc::Response::AccountExists {
-                addr: AddressBech32::try_from(sender_addr.as_ref()).unwrap(),
+                addr: sender_addr,
                 nonce: 0
             }
         );
@@ -156,8 +156,10 @@ fn test_get_account_after_pub_key_update() {
 fn test_response_serialization() {
     let addr: Vec<u8> = (1..=32).collect();
     let nonce = 123456789;
-    let response = Response::AccountExists {
-        addr: AddressBech32::try_from(addr.as_slice()).unwrap(),
+    let mut addr_array = [0u8; 32];
+    addr_array.copy_from_slice(&addr);
+    let response = Response::AccountExists::<<S as Spec>::Address> {
+        addr: Address::from(addr_array),
         nonce,
     };
 
@@ -171,11 +173,13 @@ fn test_response_serialization() {
 #[test]
 fn test_response_deserialization() {
     let json = r#"{"AccountExists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm","nonce":123456789}}"#;
-    let response: Response = serde_json::from_str(json).unwrap();
+    let response: Response<<S as Spec>::Address> = serde_json::from_str(json).unwrap();
 
     let expected_addr: Vec<u8> = (1..=32).collect();
-    let expected_response = Response::AccountExists {
-        addr: AddressBech32::try_from(expected_addr.as_slice()).unwrap(),
+    let mut addr_array = [0u8; 32];
+    addr_array.copy_from_slice(&expected_addr);
+    let expected_response = Response::AccountExists::<<S as Spec>::Address> {
+        addr: Address::from(addr_array),
         nonce: 123456789,
     };
 
@@ -185,7 +189,8 @@ fn test_response_deserialization() {
 #[test]
 fn test_response_deserialization_on_wrong_hrp() {
     let json = r#"{"AccountExists":{"addr":"hax1qypqx68ju0l","nonce":123456789}}"#;
-    let response: Result<Response, serde_json::Error> = serde_json::from_str(json);
+    let response: Result<Response<<S as Spec>::Address>, serde_json::Error> =
+        serde_json::from_str(json);
     match response {
         Ok(response) => panic!("Expected error, got {:?}", response),
         Err(err) => {

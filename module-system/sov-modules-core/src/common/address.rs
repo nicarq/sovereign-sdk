@@ -10,7 +10,7 @@ use sov_rollup_interface::{BasicAddress, RollupAddress};
 macro_rules! impl_bech32_conversion {
     // We make this function generic because the Address type will eventually need a generic
     ($id:ident $( < $generic:ident >)?, $bech32_version:ident, $human_readable_prefix:expr) => {
-        /// Implements bech32 display for $id
+        /// A pre-validated bech32 representation of $id
         #[derive(
             serde::Serialize,
             serde::Deserialize,
@@ -21,14 +21,11 @@ macro_rules! impl_bech32_conversion {
             Clone,
             Eq,
         )]
-        #[cfg_attr(
-            feature = "arbitrary",
-            derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
-        )]
         #[serde(try_from = "String", into = "String")]
-        pub struct $bech32_version {
-            value: String,
-        }
+        pub struct $bech32_version (
+            /// A validated bech32 string
+            String,
+        );
 
         const __BECH32_HRP: &str = $human_readable_prefix;
 
@@ -38,31 +35,19 @@ macro_rules! impl_bech32_conversion {
             use super:: __BECH32_HRP;
             use std::fmt;
             use std::str::FromStr;
-            use bech32::{Error, FromBase32, ToBase32};
-            /// Converts bytes into a bech32m address, using the provided "Human-Readable Part".
-            fn vec_to_bech32m(vec: &[u8], hrp: &str) -> Result<String, Error> {
-                let data = vec.to_base32();
-                let bech32_addr = bech32::encode(hrp, data, bech32::Variant::Bech32m)?;
-                Ok(bech32_addr)
-            }
+            use bech32::primitives::decode::{UncheckedHrpstring, CheckedHrpstring};
+            use bech32::{Bech32m, Hrp};
 
             impl From<$bech32_version> for String {
                 fn from(bech: $bech32_version) -> Self {
-                    bech.value
+                    bech.0
                 }
             }
 
             impl core::fmt::Display for $bech32_version {
                 fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                    write!(f, "{}", self.value)
+                    write!(f, "{}", self.0)
                 }
-            }
-
-            /// Converts a bech32m address into bytes, also returning the "Human-Readable Part".
-            fn bech32m_to_decoded_vec(bech32_addr: &str) -> Result<(String, Vec<u8>), Error> {
-                let (hrp, data, _) = bech32::decode(bech32_addr)?;
-                let vec = Vec::<u8>::from_base32(&data)?;
-                Ok((hrp, vec))
             }
 
             impl $(< $generic > )? FromStr for $id $(< $generic > )?{
@@ -80,15 +65,15 @@ macro_rules! impl_bech32_conversion {
                 type Err = $crate::common::Bech32ParseError;
 
                 fn from_str(s: &str) -> Result<Self, $crate::common::Bech32ParseError> {
-                    let (hrp, _) = bech32m_to_decoded_vec(s)?;
+                    let hrp_string = CheckedHrpstring::new::<Bech32m>(s)?;
 
-                    if hrp != __BECH32_HRP {
-                        return Err($crate::common::Bech32ParseError::WrongHRP(hrp));
+                    if hrp_string.hrp().as_str() != __BECH32_HRP {
+                        return Err($crate::common::Bech32ParseError::WrongHRP(hrp_string.hrp().to_string()));
                     }
 
-                    Ok($bech32_version {
-                        value: s.to_string(),
-                    })
+                    Ok($bech32_version (
+                        s.to_string(),
+                    ))
                 }
             }
 
@@ -140,15 +125,14 @@ macro_rules! impl_bech32_conversion {
 
             impl $bech32_version {
                 pub(crate) fn to_byte_array(&self) -> [u8; 32] {
-                    let (_, data) = bech32m_to_decoded_vec(&self.value).unwrap();
-
-                    if data.len() != 32 {
-                        panic!("Invalid length {}, should be 32", data.len())
-                    }
+                    let hrp_string = UncheckedHrpstring::new(&self.0)
+                        .expect("Bech32 was validated at construction")
+                        .remove_checksum::<Bech32m>();
 
                     let mut addr_bytes = [0u8; 32];
-                    addr_bytes.copy_from_slice(&data);
-
+                    for (l, r) in addr_bytes.iter_mut().zip(hrp_string.byte_iter()) {
+                        *l = r;
+                    }
                     addr_bytes
                 }
 
@@ -158,31 +142,18 @@ macro_rules! impl_bech32_conversion {
                 }
             }
 
-
-            impl TryFrom<&[u8]> for $bech32_version {
-                type Error = bech32::Error;
-
-                fn try_from(addr: &[u8]) -> Result<Self, bech32::Error> {
-                    if addr.len() != 32 {
-                        return Err(bech32::Error::InvalidLength);
-                    }
-                    let string = vec_to_bech32m(addr, __BECH32_HRP)?;
-                    Ok($bech32_version { value: string })
-                }
-            }
-
             impl $(< $generic > )? From<$id $(< $generic > )?> for $bech32_version {
                 fn from(addr: $id $(< $generic > )?) -> Self {
-                    let string = vec_to_bech32m(addr.as_ref(), __BECH32_HRP).unwrap();
-                    $bech32_version { value: string }
+                    let string = bech32::encode::<Bech32m>(Hrp::parse_unchecked(__BECH32_HRP), addr.as_ref()).expect("Encoding to string is infallible");
+                    $bech32_version(string)
                 }
             }
 
 
             impl $(< $generic > )? From<& $id $(< $generic > )?> for $bech32_version {
                 fn from(addr: & $id $(< $generic > )?) -> Self {
-                    let string = vec_to_bech32m(addr.as_ref(), __BECH32_HRP).unwrap();
-                    $bech32_version { value: string }
+                    let string = bech32::encode::<Bech32m>(Hrp::parse_unchecked(__BECH32_HRP), addr.as_ref()).expect("Encoding to string is infallible");
+                    $bech32_version(string)
                 }
             }
 
@@ -208,6 +179,10 @@ macro_rules! impl_hash32_type {
             Clone, Copy, PartialEq, Eq, Hash, borsh::BorshDeserialize, borsh::BorshSerialize,
         )]
         #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
+        #[cfg_attr(
+            feature = "arbitrary",
+            derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
+        )]
         /// A globally unique identifier.
         pub struct $id([u8; 32]);
 
@@ -250,7 +225,6 @@ impl_bech32_conversion!(Address, AddressBech32, ADDRESS_PREFIX);
 #[cfg_attr(all(feature = "native", feature = "std"), derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(PartialEq, Hash, Clone, Copy, Eq, BorshDeserialize, BorshSerialize)]
-
 pub struct Address {
     addr: [u8; 32],
 }
@@ -303,6 +277,8 @@ const ADDRESS_PREFIX: &str = "sov";
 #[cfg(test)]
 mod test {
 
+    use core::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -316,5 +292,15 @@ mod test {
             deserialized_address.to_string(),
             "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
         );
+    }
+
+    #[test]
+    /// Enforces that we reject the original (less secure) `bech32` encoding for our address type.
+    /// Our addresses should use bech32m only.
+    fn test_rejects_non_m_bech32_variant() {
+        assert!(Address::from_str(
+            "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqklh0qh"
+        )
+        .is_err());
     }
 }

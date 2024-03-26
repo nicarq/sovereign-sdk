@@ -30,7 +30,7 @@ proptest-derive = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 sha2 = { workspace = true }
-bech32 = { workspace = true, default-features = true }
+bech32 = { workspace = true }
 derive_more = { workspace = true, default-features = true }
 serde_json = { workspace = true, optional = true }
 hex = { workspace = true }
