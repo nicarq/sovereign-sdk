@@ -11,4 +11,4 @@
 4. Deploy `uniswap-v2` contracts and add liquidity with:
 `npx hardhat run --network localhost scripts/01_deploy.js`
 3. Execute a swap:
-`npx hardhat run --network localhost scripts/02_swap.js` 
+`npx hardhat run --network localhost scripts/02_swap.js`
