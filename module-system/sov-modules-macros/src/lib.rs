@@ -31,7 +31,7 @@ use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
 use dispatch::message_codec::MessageCodec;
 use event::EventMacro;
-use make_constants::{make_const, PartialItemConst};
+use make_constants::{make_const, make_const_from_bech32, PartialItemConst};
 use module_call_json_schema::derive_module_call_json_schema;
 use module_info::ModuleType;
 use new_types::address_type_helper;
@@ -111,6 +111,16 @@ pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as PartialItemConst);
     handle_macro_error(
         make_const(&input.ident, &input.ty, input.vis, &input.attrs).map(|ok| ok.into()),
+    )
+}
+
+/// Sets a constant by decoding bech32 from the manifest file.
+#[proc_macro_attribute]
+pub fn config_bech32_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as PartialItemConst);
+    handle_macro_error(
+        make_const_from_bech32(&input.ident, &input.ty, input.vis, &input.attrs)
+            .map(|ok| ok.into()),
     )
 }
 

@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::{env, fmt, fs, ops, process};
 
+use bech32::primitives::decode::CheckedHrpstring;
+use bech32::Bech32m;
 use proc_macro2::{Ident, TokenStream};
 use quote::format_ident;
 use serde_json::{Map, Value};
@@ -285,6 +287,12 @@ impl<'a> Manifest<'a> {
         field: &Ident,
         vis: syn::Visibility,
         attrs: &[syn::Attribute],
+        value_extractor_fn: impl Fn(
+            &Self,
+            &Ident,
+            &serde_json::Value,
+            &Type,
+        ) -> Result<TokenStream, syn::Error>,
     ) -> Result<TokenStream, syn::Error> {
         let root = self.get_object(field, "constants")?;
         let value = root.get(&field.to_string()).ok_or_else(|| {
@@ -294,7 +302,7 @@ impl<'a> Manifest<'a> {
                 format!("manifest does not contain a `{}` attribute", field),
             )
         })?;
-        let value = self.value_to_tokens(field, value, ty)?;
+        let value = value_extractor_fn(self, field, value, ty)?;
 
         if let Type::Reference(tr) = ty {
             if tr.lifetime.is_none() {
@@ -312,7 +320,46 @@ impl<'a> Manifest<'a> {
         })
     }
 
-    fn value_to_tokens(
+    pub fn value_from_bech32(
+        &self,
+        field: &Ident,
+        value: &serde_json::Value,
+        ty: &Type,
+    ) -> Result<TokenStream, syn::Error> {
+        let type_name = quote::quote! { #ty };
+        let err_msg = format!("Error decoding constants: The value of `{}` located at `{}` is not a valid bech32m value for type `{}`.", field, self.path.display(), &type_name);
+        if let Value::String(s) = value {
+            let hrp_string = CheckedHrpstring::new::<Bech32m>(s).map_err(|e| {
+                Self::err(
+                    &self.path,
+                    field,
+                    format!("{}\n\n Bech32m decoding of the provided value `{}` failed with the following error: {}", err_msg, s, e),
+                )
+            })?;
+            let values = hrp_string.byte_iter();
+            let found_prefix = hrp_string.hrp().to_string();
+            let mut assertions = vec![];
+            let bad_prefix_err_msg = format!("{}\n\n  Help: The value `{}` is a valid bech32m string, but the prefix `{}` does not match the expected prefix for values of type `{}`.\n    Consult the documentation for `{}` to find the correct value\n", err_msg, s, &found_prefix, &type_name, &type_name);
+
+            assertions.push(quote::quote!(assert!(#ty::bech32_prefix().len() == #found_prefix.len(), #bad_prefix_err_msg);));
+            for (idx, byte) in found_prefix.as_bytes().iter().enumerate() {
+                assertions.push(quote::quote!(assert!(#byte == #ty::bech32_prefix().as_bytes()[#idx], #bad_prefix_err_msg);));
+            }
+
+            let res = quote::quote!( {
+                #(#assertions)*
+                #ty::from_const_slice( [#(#values,)*])
+            } );
+            Ok(res)
+        } else {
+            Err(Self::err(
+                &self.path,
+                field,
+                format!("{}\n\n`{}` is not a bech32 encoded string", err_msg, value),
+            ))
+        }
+    }
+    pub fn value_to_tokens(
         &self,
         field: &Ident,
         value: &serde_json::Value,

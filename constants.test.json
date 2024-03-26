@@ -3,6 +3,8 @@
   "constants": {
     "DEFERRED_SLOTS_COUNT": 2,
     "GAS_TOKEN_ID": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
+    "TEST_TOKEN_ID": "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm",
+    "TEST_TOKEN_ID_INVALID_CHECKSUM": "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqabcdef",
     "GAS_TX_FIXED_COST": [
       0,
       0

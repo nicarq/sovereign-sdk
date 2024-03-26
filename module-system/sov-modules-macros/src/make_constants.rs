@@ -34,5 +34,26 @@ pub(crate) fn make_const(
     vis: syn::Visibility,
     attrs: &[syn::Attribute],
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
-    Manifest::read_constants(field_ident)?.parse_constant(ty, field_ident, vis, attrs)
+    Manifest::read_constants(field_ident)?.parse_constant(
+        ty,
+        field_ident,
+        vis,
+        attrs,
+        Manifest::value_to_tokens,
+    )
+}
+
+pub(crate) fn make_const_from_bech32(
+    field_ident: &Ident,
+    ty: &Type,
+    vis: syn::Visibility,
+    attrs: &[syn::Attribute],
+) -> Result<proc_macro2::TokenStream, syn::Error> {
+    Manifest::read_constants(field_ident)?.parse_constant(
+        ty,
+        field_ident,
+        vis,
+        attrs,
+        Manifest::value_from_bech32,
+    )
 }
