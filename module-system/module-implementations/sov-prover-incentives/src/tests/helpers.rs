@@ -16,7 +16,7 @@ use sov_state::{DefaultStorageSpec, StorageRoot};
 
 use crate::{BurnRate, ProverIncentives};
 
-pub(crate) type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier>;
+pub(crate) type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
 pub(crate) type Da = MockDaSpec;
 
 pub(crate) const BOND_AMOUNT: u64 = 1000;

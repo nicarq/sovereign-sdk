@@ -11,7 +11,10 @@ use sov_rollup_interface::services::da::DaService;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::MessageGenerator;
 
-type S = sov_modules_api::default_spec::DefaultSpec<sov_risc0_adapter::Risc0Verifier>;
+type S = sov_modules_api::default_spec::DefaultSpec<
+    sov_risc0_adapter::Risc0Verifier,
+    sov_mock_zkvm::MockZkVerifier,
+>;
 type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 type DefaultPublicKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 

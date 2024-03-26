@@ -1,39 +1,44 @@
 use sov_modules_core::{Address, GasUnit, Spec};
+use sov_rollup_interface::zk::Zkvm;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 
 #[cfg(feature = "native")]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(bound = "")]
-pub struct DefaultSpec<Zkvm>(std::marker::PhantomData<Zkvm>);
+pub struct DefaultSpec<InnerZkvm, OuterZkvm>(std::marker::PhantomData<(InnerZkvm, OuterZkvm)>);
 
 #[cfg(feature = "native")]
 mod default_impls {
     use super::DefaultSpec;
 
-    impl<Zkvm> Clone for DefaultSpec<Zkvm> {
+    impl<InnerZkvm, OuterZkvm> Clone for DefaultSpec<InnerZkvm, OuterZkvm> {
         fn clone(&self) -> Self {
             Self(std::marker::PhantomData)
         }
     }
 
-    impl<Zkvm> PartialEq<Self> for DefaultSpec<Zkvm> {
+    impl<InnerZkvm, OuterZkvm> PartialEq<Self> for DefaultSpec<InnerZkvm, OuterZkvm> {
         fn eq(&self, _other: &Self) -> bool {
             true
         }
     }
 
-    impl<Zkvm> core::fmt::Debug for DefaultSpec<Zkvm> {
+    impl<InnerZkvm, OuterZkvm> core::fmt::Debug for DefaultSpec<InnerZkvm, OuterZkvm> {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(f, "DefaultSpec<{}>", std::any::type_name::<Zkvm>())
+            write!(
+                f,
+                "DefaultSpec<{}>",
+                std::any::type_name::<(InnerZkvm, OuterZkvm)>()
+            )
         }
     }
 }
 
 #[cfg(feature = "native")]
-impl<Zkvm: sov_rollup_interface::zk::Zkvm> Spec for DefaultSpec<Zkvm>
+impl<InnerZkvm: Zkvm, OuterZkvm: Zkvm> Spec for DefaultSpec<InnerZkvm, OuterZkvm>
 where
-    Zkvm::CryptoSpec: sov_modules_core::CryptoSpecExt,
+    InnerZkvm::CryptoSpec: sov_modules_core::CryptoSpecExt,
 {
     type Address = Address;
     type Gas = GasUnit<2>;
@@ -42,9 +47,10 @@ where
 
     type VisibleHash = sov_state::VisibleHash;
 
-    type Zkvm = Zkvm;
+    type InnerZkvm = InnerZkvm;
+    type OuterZkvm = OuterZkvm;
 
-    type CryptoSpec = Zkvm::CryptoSpec;
+    type CryptoSpec = InnerZkvm::CryptoSpec;
 
     type Witness = ArrayWitness;
 }
@@ -52,11 +58,11 @@ where
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(bound = "")]
-pub struct ZkDefaultSpec<Zkvm>(std::marker::PhantomData<Zkvm>);
+pub struct ZkDefaultSpec<InnerZkvm, OuterZkvm>(std::marker::PhantomData<(InnerZkvm, OuterZkvm)>);
 
-impl<Zkvm: sov_rollup_interface::zk::Zkvm> Spec for ZkDefaultSpec<Zkvm>
+impl<InnerZkvm: Zkvm, OuterZkvm: Zkvm> Spec for ZkDefaultSpec<InnerZkvm, OuterZkvm>
 where
-    Zkvm::CryptoSpec: sov_modules_core::CryptoSpecExt,
+    InnerZkvm::CryptoSpec: sov_modules_core::CryptoSpecExt,
 {
     type Address = Address;
     type Gas = GasUnit<2>;
@@ -65,9 +71,10 @@ where
 
     type VisibleHash = sov_state::VisibleHash;
 
-    type Zkvm = Zkvm;
+    type InnerZkvm = InnerZkvm;
+    type OuterZkvm = OuterZkvm;
 
-    type CryptoSpec = Zkvm::CryptoSpec;
+    type CryptoSpec = InnerZkvm::CryptoSpec;
 
     type Witness = ArrayWitness;
 }
@@ -75,21 +82,25 @@ where
 mod default_zk_impls {
     use super::ZkDefaultSpec;
 
-    impl<Zkvm> Clone for ZkDefaultSpec<Zkvm> {
+    impl<InnerZkvm, OuterZkvm> Clone for ZkDefaultSpec<InnerZkvm, OuterZkvm> {
         fn clone(&self) -> Self {
             Self(std::marker::PhantomData)
         }
     }
 
-    impl<Zkvm> PartialEq<Self> for ZkDefaultSpec<Zkvm> {
+    impl<InnerZkvm, OuterZkvm> PartialEq<Self> for ZkDefaultSpec<InnerZkvm, OuterZkvm> {
         fn eq(&self, _other: &Self) -> bool {
             true
         }
     }
 
-    impl<Zkvm> core::fmt::Debug for ZkDefaultSpec<Zkvm> {
+    impl<InnerZkvm, OuterZkvm> core::fmt::Debug for ZkDefaultSpec<InnerZkvm, OuterZkvm> {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(f, "DefaultSpec<{}>", std::any::type_name::<Zkvm>())
+            write!(
+                f,
+                "DefaultSpec<{}>",
+                std::any::type_name::<(InnerZkvm, OuterZkvm)>()
+            )
         }
     }
 }

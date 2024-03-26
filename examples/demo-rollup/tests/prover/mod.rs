@@ -22,7 +22,10 @@ use tempfile::TempDir;
 
 use crate::prover::datagen::{generate_genesis_config, get_blocks_from_da};
 
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<sov_mock_zkvm::MockZkVerifier>;
+type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
+    sov_risc0_adapter::Risc0Verifier,
+    sov_mock_zkvm::MockZkVerifier,
+>;
 
 mod datagen;
 

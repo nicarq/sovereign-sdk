@@ -24,7 +24,7 @@ pub struct ProverIncentivesConfig<S: sov_modules_api::Spec> {
     /// The minimum bond for a prover.
     pub minimum_bond: u64,
     /// A code commitment to be used for verifying proofs
-    pub commitment_of_allowed_verifier_method: <<S as Spec>::Zkvm as Zkvm>::CodeCommitment,
+    pub commitment_of_allowed_verifier_method: <<S as Spec>::OuterZkvm as Zkvm>::CodeCommitment,
     /// A list of initial provers and their bonded amount.
     pub initial_provers: Vec<(S::Address, u64)>,
 }

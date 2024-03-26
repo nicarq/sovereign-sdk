@@ -73,7 +73,7 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     /// The code commitment to be used for verifying proofs
     #[state]
     pub commitment_of_allowed_verifier_method:
-        sov_modules_api::StateValue<<S::Zkvm as Zkvm>::CodeCommitment, BcsCodec>,
+        sov_modules_api::StateValue<<S::OuterZkvm as Zkvm>::CodeCommitment, BcsCodec>,
 
     /// The set of registered provers and their bonded amount.
     #[state]

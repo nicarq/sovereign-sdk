@@ -38,10 +38,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type DaConfig: Send + Sync;
 
     /// Host of the inner zkVM program.
-    type InnerVm: ZkvmHost + Send;
+    type InnerZkvmHost: ZkvmHost + Send;
 
     /// Host of the outer zkVM program.
-    type OuterVm: ZkvmHost + Send;
+    type OuterZkvmHost: ZkvmHost + Send;
 
     /// Context for Zero Knowledge environment.
     type ZkSpec: Spec;
@@ -246,13 +246,13 @@ pub struct Rollup<S: RollupBlueprint> {
         StfBlueprint<
             S::NativeSpec,
             S::DaSpec,
-            <<S::InnerVm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+            <<S::InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
             S::NativeRuntime,
             S::NativeKernel,
         >,
         S::StorageManager,
         S::DaService,
-        S::InnerVm,
+        S::InnerZkvmHost,
         S::ProverService,
     >,
     /// RPC methods for the rollup.
