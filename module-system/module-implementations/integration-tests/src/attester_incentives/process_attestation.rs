@@ -6,7 +6,7 @@ use sov_mock_da::{MockValidityCond, MockValidityCondChecker};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec, StateTransition, WorkingSet};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec, StateTransitionPublicData, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
@@ -424,7 +424,7 @@ fn test_byzantine_value_setter_process_attestation() {
 
     // A challenger can now claim the stake from the bad attestation
     // We build the challenge
-    let transition = StateTransition::<Da, _> {
+    let transition = StateTransitionPublicData::<Da, _> {
         initial_state_root: init_state_root,
         slot_hash: [10; 32].into(),
         final_state_root: fst_state_root,

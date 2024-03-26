@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService};
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_stf_runner::InitVariant;
 mod helpers;
 use helpers::runner_init::{initialize_runner, TestNode};
@@ -43,12 +43,12 @@ async fn run_make_proof_sync(
     let mut init_slot = 1;
     for _ in (0..nb_of_batches).step_by(jump) {
         let resp = test_node.wait_for_aggregated_proof_saved_in_db().await?;
-        let pub_input = resp.proof.public_input();
-        init_slot = calculate_and_check_slot_number(init_slot, jump, pub_input);
+        let pub_data = resp.proof.public_data();
+        init_slot = calculate_and_check_slot_number(init_slot, jump, pub_data);
     }
 
-    let public_input = test_node.get_latest_public_input_proof()?.unwrap();
-    test_case.assert(&public_input);
+    let public_data = test_node.get_latest_public_data()?.unwrap();
+    test_case.assert(&public_data);
     Ok(())
 }
 
@@ -78,24 +78,24 @@ async fn run_make_proof_async(
     let mut init_slot = 1;
     for _ in (0..nb_of_batches).step_by(jump) {
         let resp = test_node.wait_for_aggregated_proof_saved_in_db().await?;
-        let pub_input = resp.proof.public_input();
-        init_slot = calculate_and_check_slot_number(init_slot, jump, pub_input);
+        let pub_data = resp.proof.public_data();
+        init_slot = calculate_and_check_slot_number(init_slot, jump, pub_data);
     }
 
-    let public_input = test_node.get_latest_public_input_proof()?.unwrap();
-    test_case.assert(&public_input);
+    let public_data = test_node.get_latest_public_data()?.unwrap();
+    test_case.assert(&public_data);
     Ok(())
 }
 
 fn calculate_and_check_slot_number(
     init_slot: u64,
     jump: usize,
-    pub_input: &AggregatedProofPublicInput,
+    pub_data: &AggregatedProofPublicData,
 ) -> u64 {
-    assert_eq!(init_slot, pub_input.initial_slot_number);
+    assert_eq!(init_slot, pub_data.initial_slot_number);
 
     let final_slot = init_slot + jump as u64 - 1;
-    assert_eq!(final_slot, pub_input.final_slot_number);
+    assert_eq!(final_slot, pub_data.final_slot_number);
 
     final_slot + 1
 }
@@ -169,12 +169,12 @@ impl TestCase {
         self.output.initial_slot_number + (self.input.jump as u64) - 1
     }
 
-    fn assert(&self, public_input: &AggregatedProofPublicInput) {
+    fn assert(&self, public_data: &AggregatedProofPublicData) {
         assert_eq!(
             self.output.initial_slot_number,
-            public_input.initial_slot_number,
+            public_data.initial_slot_number,
         );
 
-        assert_eq!(self.final_slot_number(), public_input.final_slot_number);
+        assert_eq!(self.final_slot_number(), public_data.final_slot_number);
     }
 }

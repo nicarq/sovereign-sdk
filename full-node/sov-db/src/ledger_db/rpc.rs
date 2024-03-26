@@ -646,7 +646,7 @@ mod tests {
     use sov_modules_api::AddressBech32;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
-        AggregatedProofData, AggregatedProofPublicInput, CodeCommitment, SerializedAggregatedProof,
+        AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
     };
     use sov_test_utils::TestSpec;
 
@@ -929,7 +929,7 @@ mod tests {
         assert_eq!(None, proof_from_db);
 
         for i in 0..10 {
-            let public_input = AggregatedProofPublicInput {
+            let public_data = AggregatedProofPublicData {
                 validity_conditions: vec![],
                 initial_slot_number: i as u64,
                 final_slot_number: i as u64,
@@ -941,14 +941,13 @@ mod tests {
                 code_commitment: CodeCommitment::default(),
             };
 
-            let raw_aggregated_proof =
-                MockZkvm::create_serialized_proof(true, public_input.clone());
+            let raw_aggregated_proof = MockZkvm::create_serialized_proof(true, public_data.clone());
 
-            let agg_proof = AggregatedProofData::new(
+            let agg_proof = AggregatedProof::new(
                 SerializedAggregatedProof {
                     raw_aggregated_proof,
                 },
-                public_input.clone(),
+                public_data.clone(),
             );
 
             ledger_db
@@ -956,7 +955,7 @@ mod tests {
                 .unwrap();
 
             let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap().unwrap();
-            assert_eq!(&public_input, proof_from_db.proof.public_input());
+            assert_eq!(&public_data, proof_from_db.proof.public_data());
         }
     }
 }

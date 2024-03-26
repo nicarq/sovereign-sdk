@@ -2,7 +2,7 @@ use borsh::BorshSerialize;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
-    AggregatedProofPublicInput, CodeCommitment, Context, Gas, GasPrice, Spec, WorkingSet,
+    AggregatedProofPublicData, CodeCommitment, Context, Gas, GasPrice, Spec, WorkingSet,
 };
 
 use super::helpers::get_transition_unwrap;
@@ -19,7 +19,7 @@ const LAST_SLOT_NUM: u64 = 2;
 fn build_proof_log(
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: &mut WorkingSet<S>,
-) -> AggregatedProofPublicInput {
+) -> AggregatedProofPublicData {
     let genesis_hash = module
         .chain_state
         .get_genesis_hash(working_set)
@@ -28,7 +28,7 @@ fn build_proof_log(
     let last_transition = get_transition_unwrap(LAST_SLOT_NUM, module, working_set);
 
     let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-    AggregatedProofPublicInput {
+    AggregatedProofPublicData {
         validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
         initial_slot_number: FIRST_SLOT_NUM,
         final_slot_number: LAST_SLOT_NUM,

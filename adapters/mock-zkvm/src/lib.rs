@@ -51,7 +51,7 @@ struct Inner {
     /// Is proof valid.
     is_valid: bool,
     /// Public input.
-    pub_input: Vec<u8>,
+    pub_data: Vec<u8>,
 }
 
 /// The verifier for mock zk proofs.
@@ -71,9 +71,9 @@ impl sov_rollup_interface::zk::Zkvm for MockZkVerifier {
     ) -> Result<T, Self::Error> {
         let proof: Proof<Empty, Inner> = bincode::deserialize(serialized_proof)?;
         match proof {
-            Proof::PublicInput(Inner {
+            Proof::PublicData(Inner {
                 is_valid,
-                pub_input: input,
+                pub_data: input,
             }) => {
                 if is_valid {
                     Ok(bincode::deserialize(&input)?)
@@ -93,41 +93,41 @@ mod tests {
     use super::*;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-    struct TestPublicInput {
+    struct TestPublicData {
         hint: String,
     }
 
     #[test]
     fn test_mock_vm() -> Result<(), anyhow::Error> {
-        let pub_input = TestPublicInput {
+        let pub_data = TestPublicData {
             hint: "Test".to_owned(),
         };
 
         let mut vm = MockZkvm::new();
-        vm.add_hint(&pub_input);
+        vm.add_hint(&pub_data);
         vm.make_proof();
 
         let proof = vm.run(false).unwrap();
-        let verified_pub_input =
-            MockZkVerifier::verify::<TestPublicInput>(&proof, &Default::default())?;
+        let verified_pub_data =
+            MockZkVerifier::verify::<TestPublicData>(&proof, &Default::default())?;
 
-        assert_eq!(verified_pub_input, pub_input);
+        assert_eq!(verified_pub_data, pub_data);
         Ok(())
     }
 
     #[test]
     fn test_proof_serialization() -> Result<(), anyhow::Error> {
         let proof = MockZkvm::create_serialized_proof(true, "Valid");
-        let verified_pub_input =
-            MockZkVerifier::verify::<TestPublicInput>(&proof, &Default::default());
+        let verified_pub_data =
+            MockZkVerifier::verify::<TestPublicData>(&proof, &Default::default());
 
-        assert!(verified_pub_input.is_ok());
+        assert!(verified_pub_data.is_ok());
 
         let proof = MockZkvm::create_serialized_proof(false, "Invalid");
-        let verified_pub_input =
-            MockZkVerifier::verify::<TestPublicInput>(&proof, &Default::default());
+        let verified_pub_data =
+            MockZkVerifier::verify::<TestPublicData>(&proof, &Default::default());
 
-        assert!(verified_pub_input.is_err());
+        assert!(verified_pub_data.is_err());
 
         Ok(())
     }

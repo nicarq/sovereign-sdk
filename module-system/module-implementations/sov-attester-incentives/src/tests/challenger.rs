@@ -3,7 +3,7 @@ use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::GasMeter;
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_rollup_interface::zk::StateTransition;
+use sov_rollup_interface::zk::StateTransitionPublicData;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
@@ -63,7 +63,7 @@ fn test_valid_challenge() {
     let context = Context::<S>::new(challenger_address, sequencer, INIT_HEIGHT + 2);
 
     {
-        let transition = StateTransition::<MockDaSpec, _> {
+        let transition = StateTransitionPublicData::<MockDaSpec, _> {
             initial_state_root: initial_transition.state_root,
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
@@ -182,7 +182,7 @@ fn test_invalid_challenge() {
         .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut working_set);
 
     let context = Context::<S>::new(challenger_address, sequencer, INIT_HEIGHT + 2);
-    let transition: StateTransition<MockDaSpec, _> = StateTransition {
+    let transition: StateTransitionPublicData<MockDaSpec, _> = StateTransitionPublicData {
         initial_state_root: initial_transition.state_root,
         slot_hash: [1; 32].into(),
         final_state_root: transition_1.state_root,
@@ -225,7 +225,7 @@ fn test_invalid_challenge() {
         );
 
         // Bad slot hash
-        let bad_transition = StateTransition::<MockDaSpec, _> {
+        let bad_transition = StateTransitionPublicData::<MockDaSpec, _> {
             initial_state_root: initial_transition.state_root,
             slot_hash: [2; 32].into(),
             final_state_root: transition_1.state_root,
@@ -245,7 +245,7 @@ fn test_invalid_challenge() {
         );
 
         // Bad validity condition
-        let bad_transition = StateTransition::<MockDaSpec, _> {
+        let bad_transition = StateTransitionPublicData::<MockDaSpec, _> {
             initial_state_root: initial_transition.state_root,
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
@@ -264,7 +264,7 @@ fn test_invalid_challenge() {
         );
 
         // Bad initial root
-        let bad_transition = StateTransition::<MockDaSpec, _> {
+        let bad_transition = StateTransitionPublicData::<MockDaSpec, _> {
             initial_state_root: transition_1.state_root,
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,

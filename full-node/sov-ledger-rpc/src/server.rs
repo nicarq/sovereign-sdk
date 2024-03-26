@@ -184,17 +184,17 @@ where
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))?;
 
         let info = aggregated_proof.map(|resp| {
-            let public_input = resp.proof.public_input();
+            let public_data = resp.proof.public_data();
             ProofInfoResponse {
-                initial_slot_number: public_input.initial_slot_number,
-                final_slot_number: public_input.final_slot_number,
+                initial_slot_number: public_data.initial_slot_number,
+                final_slot_number: public_data.final_slot_number,
             }
         });
 
         Ok::<_, ErrorObjectOwned>(info)
     })?;
 
-    rpc.register_method("ledger_getAggregatedProofData", move |_params, ledger| {
+    rpc.register_method("ledger_getAggregatedProof", move |_params, ledger| {
         ledger
             .get_latest_aggregated_proof()
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))

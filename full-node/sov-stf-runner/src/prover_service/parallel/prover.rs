@@ -8,9 +8,11 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregatedProofPublicInput, CodeCommitment, SerializedAggregatedProof,
+    AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
-use sov_rollup_interface::zk::{StateTransition, StateTransitionData, ZkvmGuest, ZkvmHost};
+use sov_rollup_interface::zk::{
+    StateTransitionPublicData, StateTransitionWitness, ZkvmGuest, ZkvmHost,
+};
 use tracing::{debug, error, info};
 
 use super::state::{ProverState, ProverStatus};
@@ -110,7 +112,7 @@ where
                             let mut prover_state =
                                 prover_state_clone.write().expect("Lock was poisoned");
 
-                            let StateTransitionData {
+                            let StateTransitionWitness {
                                 initial_state_root,
                                 final_state_root,
                                 da_block_header,
@@ -132,7 +134,7 @@ where
 
                             let block_proof = proof.map(|p| BlockProof {
                                 _proof: p,
-                                st: StateTransition {
+                                st: StateTransitionPublicData {
                                     initial_state_root,
                                     final_state_root,
                                     slot_hash: block_header_hash.clone(),
@@ -207,7 +209,7 @@ where
         let initial_block_proof = block_proofs_data.first().unwrap();
         let final_block_proof = block_proofs_data.last().unwrap();
 
-        let public_input = AggregatedProofPublicInput {
+        let public_data = AggregatedProofPublicData {
             validity_conditions: block_proofs_data
                 .iter()
                 .map(|bp| {
@@ -228,10 +230,10 @@ where
             code_commitment: self.code_commitment.clone(),
         };
 
-        debug!(%public_input, "generating aggregate proof");
+        debug!(%public_data, "generating aggregate proof");
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/316
         // `add_hint`  should take witness instead of the public input.
-        outer_vm.add_hint(public_input);
+        outer_vm.add_hint(public_data);
         let serialized_aggregated_proof = SerializedAggregatedProof {
             raw_aggregated_proof: outer_vm.run(false)?,
         };

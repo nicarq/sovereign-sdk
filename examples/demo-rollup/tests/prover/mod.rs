@@ -15,7 +15,7 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
+use sov_rollup_interface::zk::{StateTransitionWitness, ZkvmHost};
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
 use tempfile::TempDir;
@@ -119,7 +119,7 @@ async fn test_proof_generation() {
             &mut blob_txs,
         );
 
-        let data = StateTransitionData::<
+        let data = StateTransitionWitness::<
             <TestSTF as StateTransitionFunction<Risc0Verifier, MockDaSpec>>::StateRoot,
             <TestSTF as StateTransitionFunction<Risc0Verifier, MockDaSpec>>::Witness,
             MockDaSpec,
@@ -128,7 +128,7 @@ async fn test_proof_generation() {
             da_block_header: filtered_block.header().clone(),
             inclusion_proof,
             completeness_proof,
-            state_transition_witness: result.witness,
+            witness: result.witness,
             blobs: blob_txs,
             final_state_root: result.state_root,
         };

@@ -1,7 +1,7 @@
 use borsh::BorshSerialize;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{AggregatedProofPublicInput, CodeCommitment, Context, Spec, WorkingSet};
+use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, Context, Spec, WorkingSet};
 
 use super::helpers::{get_transition_unwrap, simulate_chain_state_execution};
 use crate::event::SlashingReason;
@@ -41,7 +41,7 @@ fn slashing_setup() -> (
 
 /// Proves a transition log
 fn prove_transition_log(
-    aggregated_proof: AggregatedProofPublicInput,
+    aggregated_proof: AggregatedProofPublicData,
     prover_address: <S as Spec>::Address,
     sequencer: <S as Spec>::Address,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
@@ -115,7 +115,7 @@ fn test_slash_on_invalid_genesis_hash() {
     let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
 
     let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-    let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+    let log_with_wrong_initial_state_root = AggregatedProofPublicData {
         validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
         initial_slot_number: FIRST_SLOT_NUM,
         final_slot_number: LAST_SLOT_NUM,
@@ -160,7 +160,7 @@ fn test_slash_on_invalid_initial_state_root() {
         let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
 
         let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+        let log_with_wrong_initial_state_root = AggregatedProofPublicData {
             validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
             initial_slot_number: FIRST_SLOT_NUM,
             final_slot_number: LAST_SLOT_NUM,
@@ -206,7 +206,7 @@ fn test_slash_on_invalid_final_slot_hash() {
         let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
 
         let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+        let log_with_wrong_initial_state_root = AggregatedProofPublicData {
             validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
             initial_slot_number: FIRST_SLOT_NUM,
             final_slot_number: LAST_SLOT_NUM,
@@ -252,7 +252,7 @@ fn test_slash_on_invalid_final_state_root() {
     let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
 
     let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-    let log_with_wrong_final_state_root = AggregatedProofPublicInput {
+    let log_with_wrong_final_state_root = AggregatedProofPublicData {
         validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
         initial_slot_number: FIRST_SLOT_NUM,
         final_slot_number: LAST_SLOT_NUM,
@@ -294,7 +294,7 @@ fn test_slash_on_invalid_initial_slot_hash() {
     let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
 
     let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-    let log_with_wrong_initial_slot_hash = AggregatedProofPublicInput {
+    let log_with_wrong_initial_slot_hash = AggregatedProofPublicData {
         validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
         initial_slot_number: FIRST_SLOT_NUM,
         final_slot_number: LAST_SLOT_NUM,
@@ -339,7 +339,7 @@ fn test_slash_on_invalid_initial_transition() {
         let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
 
         let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+        let log_with_wrong_initial_state_root = AggregatedProofPublicData {
             validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
             initial_slot_number: LAST_SLOT_NUM + 1,
             final_slot_number: LAST_SLOT_NUM,
@@ -385,7 +385,7 @@ fn test_slash_on_invalid_final_transition() {
         let last_transition = get_transition_unwrap(LAST_SLOT_NUM, &module, &mut working_set);
 
         let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+        let log_with_wrong_initial_state_root = AggregatedProofPublicData {
             validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
             initial_slot_number: FIRST_SLOT_NUM,
             final_slot_number: LAST_SLOT_NUM + 1,
@@ -456,7 +456,7 @@ fn test_slash_on_invalid_validity_cond() {
 
         let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
         let vec_false_validity_cond = MockValidityCond { is_valid: false }.try_to_vec().unwrap();
-        let log_with_wrong_initial_state_root = AggregatedProofPublicInput {
+        let log_with_wrong_initial_state_root = AggregatedProofPublicData {
             validity_conditions: vec![vec_validity_cond.clone(), vec_false_validity_cond],
             initial_slot_number: FIRST_SLOT_NUM,
             final_slot_number: LAST_SLOT_NUM,

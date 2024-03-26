@@ -521,7 +521,7 @@ mod tests {
     use sov_rollup_interface::da::Time;
     use sov_rollup_interface::rpc::LedgerRpcProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
-        AggregatedProofData, AggregatedProofPublicInput, CodeCommitment, SerializedAggregatedProof,
+        AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
     };
     use sov_state::storage::namespaces::User;
     use sov_state::storage::{StateAccesses, StateUpdate};
@@ -968,7 +968,7 @@ mod tests {
         // Save something to the DB, so bootstrap storage can read it
         let witness = ArrayWitness::default();
         let genesis_block = MockBlockHeader::from_height(0);
-        let public_input = AggregatedProofPublicInput {
+        let public_data = AggregatedProofPublicData {
             validity_conditions: vec![],
             initial_slot_number: 10,
             final_slot_number: 12,
@@ -987,13 +987,12 @@ mod tests {
 
             let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
 
-            let raw_aggregated_proof =
-                MockZkvm::create_serialized_proof(true, public_input.clone());
-            let agg_proof = AggregatedProofData::new(
+            let raw_aggregated_proof = MockZkvm::create_serialized_proof(true, public_data.clone());
+            let agg_proof = AggregatedProof::new(
                 SerializedAggregatedProof {
                     raw_aggregated_proof,
                 },
-                public_input.clone(),
+                public_data.clone(),
             );
 
             ledger_db
@@ -1070,7 +1069,7 @@ mod tests {
                 .unwrap()
                 .proof;
 
-            assert_eq!(&public_input, actual_proof.public_input());
+            assert_eq!(&public_data, actual_proof.public_data());
 
             storage_manager
                 .save_change_set(

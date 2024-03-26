@@ -32,7 +32,7 @@ use rockbound::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use rockbound::{CodecError, SeekKeyEncoder};
 use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofData;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleAddress,
@@ -251,7 +251,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// The primary source for proof data
-    (ProofByUniqueId) ProofUniqueId => AggregatedProofData
+    (ProofByUniqueId) ProofUniqueId => AggregatedProof
 );
 
 define_table_with_default_codec!(

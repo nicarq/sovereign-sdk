@@ -41,9 +41,9 @@ impl MockZkvm {
     /// Create a proof for MockZkvm
     pub fn create_serialized_proof<T: Serialize>(is_valid: bool, transition: T) -> Vec<u8> {
         let data = bincode::serialize(&transition).unwrap();
-        bincode::serialize(&Proof::<(), Inner>::PublicInput(Inner {
+        bincode::serialize(&Proof::<(), Inner>::PublicData(Inner {
             is_valid,
-            pub_input: data,
+            pub_data: data,
         }))
         .unwrap()
     }
@@ -75,9 +75,9 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         Ok(bincode::serialize(&sov_rollup_interface::zk::Proof::<
             Empty,
             _,
-        >::PublicInput(Inner {
+        >::PublicData(Inner {
             is_valid: true,
-            pub_input: data,
+            pub_data: data,
         }))?)
     }
 }

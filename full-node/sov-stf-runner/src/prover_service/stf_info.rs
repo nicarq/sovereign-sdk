@@ -1,23 +1,23 @@
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::zk::{StateTransition, StateTransitionData};
+use sov_rollup_interface::zk::{StateTransitionPublicData, StateTransitionWitness};
 
 pub(crate) struct BlockProof<Da: DaSpec, Root> {
     pub(crate) _proof: Vec<u8>,
     pub(crate) slot_number: u64,
-    pub(crate) st: StateTransition<Da, Root>,
+    pub(crate) st: StateTransitionPublicData<Da, Root>,
 }
 
 /// Holds all the necessary data for the creation of a block zk-proof.
 pub struct StateTransitionInfo<StateRoot, Witness, Da: DaSpec> {
     /// Public input to the per block zk proof.
-    pub(crate) data: StateTransitionData<StateRoot, Witness, Da>,
+    pub(crate) data: StateTransitionWitness<StateRoot, Witness, Da>,
     /// Slot number.
     pub(crate) slot_number: u64,
 }
 
 impl<StateRoot, Witness, Da: DaSpec> StateTransitionInfo<StateRoot, Witness, Da> {
     /// StateTransitionInfo constructor.
-    pub fn new(data: StateTransitionData<StateRoot, Witness, Da>, slot_number: u64) -> Self {
+    pub fn new(data: StateTransitionWitness<StateRoot, Witness, Da>, slot_number: u64) -> Self {
         Self { data, slot_number }
     }
 

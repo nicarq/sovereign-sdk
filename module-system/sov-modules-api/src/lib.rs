@@ -45,9 +45,9 @@ pub use sov_rollup_interface::crypto::{PublicKey, Signature};
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::stf::StoredEvent;
-pub use sov_rollup_interface::zk::aggregated_proof::{AggregatedProofPublicInput, CodeCommitment};
+pub use sov_rollup_interface::zk::aggregated_proof::{AggregatedProofPublicData, CodeCommitment};
 pub use sov_rollup_interface::zk::{
-    CryptoSpec, StateTransition, ValidityCondition, ValidityConditionChecker, Zkvm,
+    CryptoSpec, StateTransitionPublicData, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
 pub mod optimistic {

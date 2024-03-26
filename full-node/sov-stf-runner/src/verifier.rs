@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{StateTransition, StateTransitionData, ZkvmGuest};
+use sov_rollup_interface::zk::{StateTransitionPublicData, StateTransitionWitness, ZkvmGuest};
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da, Zk>
 where
@@ -32,7 +32,7 @@ where
 
     /// Verify the next block
     pub fn run_block(&self, zkvm: Zk, pre_state: Stf::PreState) -> Result<(), Da::Error> {
-        let mut data: StateTransitionData<_, _, Da::Spec> = zkvm.read_from_host();
+        let mut data: StateTransitionWitness<_, _, Da::Spec> = zkvm.read_from_host();
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header,
             &data.blobs,
@@ -43,13 +43,13 @@ where
         let result = self.app.apply_slot(
             &data.initial_state_root,
             pre_state,
-            data.state_transition_witness,
+            data.witness,
             &data.da_block_header,
             &validity_condition,
             &mut data.blobs,
         );
 
-        let out: StateTransition<Da::Spec, _> = StateTransition {
+        let out: StateTransitionPublicData<Da::Spec, _> = StateTransitionPublicData {
             initial_state_root: data.initial_state_root,
             final_state_root: result.state_root,
             slot_hash: data.da_block_header.hash(),

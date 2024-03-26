@@ -5,3 +5,9 @@
   and get/set implemented directly on `KernelWorkingSet`
 
 - #329 adds `InnerZkvm` and `OuterZkvm` associated types to the `Spec` trait.
+
+- #347 renames the following types:
+`StateTransitionData` to `StateTransitionWitness`
+`StateTransition` to `StateTransitionPublicData`
+`AggregatedProofPublicInput` to `AggregatedProofPublicData`
+   
