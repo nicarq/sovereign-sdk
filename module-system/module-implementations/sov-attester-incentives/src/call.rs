@@ -10,7 +10,7 @@ use sov_bank::{Amount, Coins};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, EventEmitter, StateTransition, WorkingSet, Zkvm,
+    CallResponse, Context, DaSpec, EventEmitter, StateTransitionPublicData, WorkingSet, Zkvm,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use thiserror::Error;
@@ -822,7 +822,7 @@ where
 
     fn check_challenge_outputs_against_transition(
         &self,
-        public_outputs: StateTransition<Da, <S::Storage as Storage>::Root>,
+        public_outputs: StateTransitionPublicData<Da, <S::Storage as Storage>::Root>,
         height: &TransitionHeight,
         working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<(), SlashingReason> {
@@ -916,7 +916,7 @@ where
         };
 
         let public_outputs_opt = <S::InnerZkvm as Zkvm>::verify::<
-            StateTransition<Da, <S::Storage as Storage>::Root>,
+            StateTransitionPublicData<Da, <S::Storage as Storage>::Root>,
         >(proof, &code_commitment)
         .map_err(|e| anyhow::format_err!("{:?}", e));
 

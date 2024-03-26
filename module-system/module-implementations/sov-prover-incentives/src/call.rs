@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::Coins;
 use sov_modules_api::{
-    AggregatedProofPublicInput, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec, WorkingSet,
+    AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec, WorkingSet,
     Zkvm,
 };
 use thiserror::Error;
@@ -149,7 +149,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// Check that the initial and final state values of the proof output are valid against the chain state module
     fn check_proof_outputs(
         &self,
-        public_outputs: &AggregatedProofPublicInput,
+        public_outputs: &AggregatedProofPublicData,
         working_set: &mut WorkingSet<S>,
     ) -> Result<(), SlashingReason> {
         let expected_genesis_hash = self
@@ -388,7 +388,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         let verification_result =
-            <S as Spec>::OuterZkvm::verify::<AggregatedProofPublicInput>(proof, &code_commitment);
+            <S as Spec>::OuterZkvm::verify::<AggregatedProofPublicData>(proof, &code_commitment);
 
         let public_outputs = match verification_result {
             Ok(public_outputs) => public_outputs,

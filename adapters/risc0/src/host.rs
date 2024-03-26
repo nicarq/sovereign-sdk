@@ -89,7 +89,7 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         } else {
             let session = self.run_without_proving()?;
             let data = session.journal;
-            Proof::<Receipt, Option<Journal>>::PublicInput(data)
+            Proof::<Receipt, Option<Journal>>::PublicData(data)
         };
 
         Ok(bincode::serialize(&proof)?)

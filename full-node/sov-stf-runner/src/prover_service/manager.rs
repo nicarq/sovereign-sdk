@@ -4,11 +4,11 @@ use std::time::Duration;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::aggregated_proof::{AggregatedProofData, SerializedAggregatedProof};
+use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use sov_rollup_interface::zk::Zkvm;
 use tracing::{debug, info};
 
-use crate::prover_service::AggregatedProofPublicInput;
+use crate::prover_service::AggregatedProofPublicData;
 use crate::{ProofAggregationStatus, ProofProcessingStatus, ProverService, StateTransitionInfo};
 
 /// Manages the lifecycle of the `AggregatedProof`.
@@ -44,11 +44,11 @@ where
         info!(%height, num_proofs=aggregated_proofs.len(), "Saving available aggregated proofs");
         for raw_aggregated_proof in aggregated_proofs {
             // Verify aggregated proof before storing it into the database.
-            let public_input: AggregatedProofPublicInput = match <Ps::Verifier as Zkvm>::verify(
+            let public_data: AggregatedProofPublicData = match <Ps::Verifier as Zkvm>::verify(
                 &raw_aggregated_proof,
                 &self.outer_code_commitment,
             ) {
-                Ok(public_input) => public_input,
+                Ok(public_data) => public_data,
                 Err(err) => {
                     debug!(?err, "Received invalid aggregated proof for the DA");
                     return Ok(());
@@ -56,11 +56,11 @@ where
             };
 
             self.ledger_db
-                .save_finalized_aggregated_proof(AggregatedProofData::new(
+                .save_finalized_aggregated_proof(AggregatedProof::new(
                     SerializedAggregatedProof {
                         raw_aggregated_proof,
                     },
-                    public_input,
+                    public_data,
                 ))?;
         }
 

@@ -11,7 +11,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerRpcProvider};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
     InitVariant, ParallelProverService, ProofManager, ProverServiceConfig, RollupConfig,
@@ -80,11 +80,11 @@ impl TestNode {
         self.ledger_db.get_latest_aggregated_proof()
     }
 
-    pub fn get_latest_public_input_proof(
+    pub fn get_latest_public_data(
         &self,
-    ) -> Result<Option<AggregatedProofPublicInput>, anyhow::Error> {
+    ) -> Result<Option<AggregatedProofPublicData>, anyhow::Error> {
         let proof_from_db = self.ledger_db.get_latest_aggregated_proof()?;
-        Ok(proof_from_db.map(|p| p.proof.public_input().clone()))
+        Ok(proof_from_db.map(|p| p.proof.public_data().clone()))
     }
 }
 

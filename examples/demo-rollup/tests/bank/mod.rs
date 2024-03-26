@@ -15,7 +15,7 @@ use sov_modules_api::{PrivateKey, Spec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregateProofVerifier, AggregatedProofPublicInput,
+    AggregateProofVerifier, AggregatedProofPublicData,
 };
 use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
@@ -218,10 +218,10 @@ async fn assert_aggregated_proof(
     let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
     verifier.verify(&proof_resp.proof)?;
 
-    let proof_pub_input = proof_resp.proof.public_input();
+    let proof_pub_data = proof_resp.proof.public_data();
     // We test inequality because proofs are saved asynchronously in the db.
-    assert!(initial_slot <= proof_pub_input.initial_slot_number);
-    assert!(final_slot <= proof_pub_input.final_slot_number);
+    assert!(initial_slot <= proof_pub_data.initial_slot_number);
+    assert!(final_slot <= proof_pub_data.final_slot_number);
 
     let proof_data_info_resp = RpcClient::<
         SlotResponse<u32, u32>,
@@ -237,13 +237,13 @@ async fn assert_aggregated_proof(
     Ok(())
 }
 
-fn assert_aggregated_proof_public_input(
+fn assert_aggregated_proof_public_data(
     initial_slot: u64,
     final_slot: u64,
-    pub_input: &AggregatedProofPublicInput,
+    pub_data: &AggregatedProofPublicData,
 ) {
-    assert_eq!(initial_slot, pub_input.initial_slot_number);
-    assert_eq!(final_slot, pub_input.final_slot_number);
+    assert_eq!(initial_slot, pub_data.initial_slot_number);
+    assert_eq!(final_slot, pub_data.final_slot_number);
 }
 
 async fn assert_bank_event(
@@ -349,8 +349,8 @@ async fn send_test_bank_txs(
 
     if test_case.wait_for_aggregated_proof {
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
-        let pub_input = aggregated_proof_resp.proof.public_input();
-        assert_aggregated_proof_public_input(1, 1, pub_input);
+        let pub_data = aggregated_proof_resp.proof.public_data();
+        assert_aggregated_proof_public_data(1, 1, pub_data);
         assert_aggregated_proof(1, 1, &client).await?;
     }
 

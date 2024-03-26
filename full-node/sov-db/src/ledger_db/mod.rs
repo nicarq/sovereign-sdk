@@ -8,7 +8,7 @@ use serde::Serialize;
 use sov_rollup_interface::rpc::AggregatedProofResponse;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent};
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofData;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
@@ -368,7 +368,7 @@ impl LedgerDB {
     /// Save the aggregated zk proof to the database.
     pub fn save_finalized_aggregated_proof(
         &self,
-        agg_proof: AggregatedProofData,
+        agg_proof: AggregatedProof,
     ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
         let unique_id = 0;

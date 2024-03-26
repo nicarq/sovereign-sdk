@@ -25,9 +25,9 @@ impl core::fmt::Display for CodeCommitment {
     }
 }
 
-/// Public input of an aggregated proof.
+/// Public data of an aggregated proof.
 #[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
-pub struct AggregatedProofPublicInput {
+pub struct AggregatedProofPublicData {
     /// Contains the validity conditions for each block in the aggregated proof.
     pub validity_conditions: Vec<SerializedValidityCondition>,
     /// Initial slot number.
@@ -48,11 +48,11 @@ pub struct AggregatedProofPublicInput {
     pub code_commitment: CodeCommitment,
 }
 
-impl core::fmt::Display for AggregatedProofPublicInput {
+impl core::fmt::Display for AggregatedProofPublicData {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "AggregatedProofPublicInput(initial_slot_number: {}, final_slot_number: {}, genesis_state_root: {}, initial_state_root: 0x{}, final_state_root: 0x{}, initial_slot_hash: 0x{}, final_slot_hash: 0x{}, code_commitment: {})",
+            "AggregatedProofPublicData(initial_slot_number: {}, final_slot_number: {}, genesis_state_root: {}, initial_state_root: 0x{}, final_state_root: 0x{}, initial_slot_hash: 0x{}, final_slot_hash: 0x{}, code_commitment: {})",
             self.initial_slot_number,
             self.final_slot_number,
             hex::encode(&self.genesis_state_root),
@@ -67,25 +67,25 @@ impl core::fmt::Display for AggregatedProofPublicInput {
 
 /// Represents an aggregated proof with the public input.
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone, BorshDeserialize, BorshSerialize)]
-pub struct AggregatedProofData {
+pub struct AggregatedProof {
     pub(crate) serialized_proof: SerializedAggregatedProof,
-    pub(crate) public_input: AggregatedProofPublicInput,
+    pub(crate) public_data: AggregatedProofPublicData,
 }
 
-impl AggregatedProofData {
+impl AggregatedProof {
     /// Creates AggregatedProofData
     pub fn new(
         serialized_proof: SerializedAggregatedProof,
-        public_input: AggregatedProofPublicInput,
+        public_data: AggregatedProofPublicData,
     ) -> Self {
         Self {
             serialized_proof,
-            public_input,
+            public_data,
         }
     }
     /// Public input of the aggregated proof.
-    pub fn public_input(&self) -> &AggregatedProofPublicInput {
-        &self.public_input
+    pub fn public_data(&self) -> &AggregatedProofPublicData {
+        &self.public_data
     }
 }
 
@@ -112,13 +112,13 @@ impl<Vm: Zkvm> AggregateProofVerifier<Vm> {
     }
 
     /// Verifies whether an `AggregatedProofData` contains a valid proof.
-    pub fn verify(&self, proof_data: &AggregatedProofData) -> Result<(), Vm::Error> {
-        let public_input = Vm::verify::<AggregatedProofPublicInput>(
+    pub fn verify(&self, proof_data: &AggregatedProof) -> Result<(), Vm::Error> {
+        let public_data = Vm::verify::<AggregatedProofPublicData>(
             proof_data.serialized_proof.raw_aggregated_proof.as_slice(),
             &self.outer_proof_code_commitment,
         )?;
 
-        assert_eq!(public_input, proof_data.public_input);
+        assert_eq!(public_data, proof_data.public_data);
         Ok(())
     }
 }

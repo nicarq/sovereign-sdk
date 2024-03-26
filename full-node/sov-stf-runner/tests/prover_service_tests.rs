@@ -5,8 +5,8 @@ use sov_mock_da::{
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::Time;
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicInput;
-use sov_rollup_interface::zk::StateTransitionData;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
+use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
     ParallelProverService, ProofAggregationStatus, ProofProcessingStatus, ProverService,
@@ -237,13 +237,13 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                let public_input = <MockZkVerifier as Zkvm>::verify::<AggregatedProofPublicInput>(
+                let public_data = <MockZkVerifier as Zkvm>::verify::<AggregatedProofPublicData>(
                     proof.raw_aggregated_proof.as_ref(),
                     &MockCodeCommitment::default(),
                 )
                 .unwrap();
-                assert_eq!(public_input.initial_slot_number, 0);
-                assert_eq!(public_input.final_slot_number, (jump - 1) as u64);
+                assert_eq!(public_data.initial_slot_number, 0);
+                assert_eq!(public_data.final_slot_number, (jump - 1) as u64);
             }
             ProofAggregationStatus::ProofGenerationInProgress => panic!("Prover should succeed"),
         }
@@ -273,14 +273,14 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                let public_input = <MockZkVerifier as Zkvm>::verify::<AggregatedProofPublicInput>(
+                let public_data = <MockZkVerifier as Zkvm>::verify::<AggregatedProofPublicData>(
                     proof.raw_aggregated_proof.as_ref(),
                     &MockCodeCommitment::default(),
                 )
                 .unwrap();
-                assert_eq!(public_input.initial_slot_number as usize, jump);
+                assert_eq!(public_data.initial_slot_number as usize, jump);
                 assert_eq!(
-                    public_input.final_slot_number as usize,
+                    public_data.final_slot_number as usize,
                     total_nb_of_blocks - 1
                 );
             }
@@ -366,7 +366,7 @@ fn make_transition_info(
     height: u64,
 ) -> StateTransitionInfo<StateRoot, Vec<u8>, MockDaSpec> {
     StateTransitionInfo::new(
-        StateTransitionData {
+        StateTransitionWitness {
             initial_state_root: Vec::default(),
             final_state_root: Vec::default(),
             da_block_header: MockBlockHeader {
@@ -378,7 +378,7 @@ fn make_transition_info(
             inclusion_proof: [0; 32],
             completeness_proof: (),
             blobs: vec![],
-            state_transition_witness: vec![],
+            witness: vec![],
         },
         height,
     )

@@ -151,7 +151,7 @@ where
     ) -> RpcResult<Vec<Option<Batch>>>;
 
     /// Gets the latest aggregated proof.
-    #[method(name = "getAggregatedProofData")]
+    #[method(name = "getAggregatedProof")]
     fn get_aggregated_proof(&self) -> RpcResult<Option<AggregatedProofResponse>>;
 
     /// Gets the latest aggregated proof data info.

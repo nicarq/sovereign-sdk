@@ -13,7 +13,7 @@ use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmGuest, ZkvmHost};
+use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm, ZkvmGuest, ZkvmHost};
 use tokio::sync::{oneshot, watch};
 use tracing::{debug, info};
 
@@ -366,8 +366,8 @@ where
                 .get_extraction_proof(&filtered_block, &blobs)
                 .await;
 
-            let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-                StateTransitionData {
+            let transition_data: StateTransitionWitness<Stf::StateRoot, Stf::Witness, Da::Spec> =
+                StateTransitionWitness {
                     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
                     initial_state_root: self.state_root.clone(),
                     final_state_root: slot_result.state_root.clone(),
@@ -375,7 +375,7 @@ where
                     inclusion_proof,
                     completeness_proof,
                     blobs,
-                    state_transition_witness: slot_result.witness,
+                    witness: slot_result.witness,
                 };
 
             // Post apply slot machinery
@@ -708,14 +708,14 @@ mod tests {
         let final_state_root = vec![0, 1, height as u8];
 
         StateTransitionInfo {
-            data: StateTransitionData {
+            data: StateTransitionWitness {
                 initial_state_root,
                 final_state_root,
                 da_block_header: header,
                 inclusion_proof: Default::default(),
                 completeness_proof: Default::default(),
                 blobs,
-                state_transition_witness: Default::default(),
+                witness: Default::default(),
             },
             slot_number: height,
         }

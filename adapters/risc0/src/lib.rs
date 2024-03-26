@@ -73,7 +73,7 @@ impl Zkvm for Risc0Verifier {
     ) -> Result<T, Self::Error> {
         let proof: Proof<Receipt, Option<Journal>> = bincode::deserialize(serialized_proof)?;
         match proof {
-            Proof::PublicInput(_) => anyhow::bail!("Risc0Verifier supports only full proofs"),
+            Proof::PublicData(_) => anyhow::bail!("Risc0Verifier supports only full proofs"),
             Proof::Full(receipt) => {
                 receipt.verify(code_commitment.0)?;
                 Ok(bincode::deserialize(&receipt.journal.bytes)?)

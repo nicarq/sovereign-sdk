@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 use crate::stf::EventKey;
-use crate::zk::aggregated_proof::AggregatedProofData;
+use crate::zk::aggregated_proof::AggregatedProof;
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -212,8 +212,8 @@ pub struct ProofInfoResponse {
 /// An RPC response for the latest aggregated proof.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AggregatedProofResponse {
-    /// Aggregated proof data.
-    pub proof: AggregatedProofData,
+    /// Aggregated proof..
+    pub proof: AggregatedProof,
 }
 
 /// An RPC response for the module specific event

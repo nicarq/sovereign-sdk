@@ -9,7 +9,7 @@ use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregatedProofPublicInput, SerializedAggregatedProof,
+    AggregatedProofPublicData, SerializedAggregatedProof,
 };
 use sov_rollup_interface::zk::Zkvm;
 pub use stf_info::StateTransitionInfo;

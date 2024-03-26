@@ -313,7 +313,7 @@ $ make wait_20
 ```
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl --silent -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getAggregatedProofData","id":1}' http://127.0.0.1:12345 | jq '.result.proof.public_input.initial_slot_number'
+$ curl --silent -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getAggregatedProof","id":1}' http://127.0.0.1:12345 | jq '.result.proof.public_data.initial_slot_number'
 1
 ```
 
