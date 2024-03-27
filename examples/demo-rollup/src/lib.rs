@@ -18,7 +18,6 @@ mod celestia_rollup;
 
 pub use celestia_rollup::*;
 
-#[cfg(feature = "experimental")]
 mod eth;
 
 /// The rollup stores its data in the namespace b"sov-test" on Celestia

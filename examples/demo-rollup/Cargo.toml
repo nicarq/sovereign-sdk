@@ -38,12 +38,11 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true, optional = true }
 tokio = { workspace = true }
-reth-primitives = { workspace = true, optional = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 prometheus_exporter = "0.8.5"
 
 sov-db = { path = "../../full-node/sov-db" }
-sov-ethereum = { path = "../../full-node/sov-ethereum", optional = true }
+sov-ethereum = { path = "../../full-node/sov-ethereum", features = ["local"] }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
@@ -51,7 +50,7 @@ sov-test-utils = { path = "../../module-system/sov-test-utils", optional = true 
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 sov-cli = { path = "../../module-system/sov-cli" }
 clap = { workspace = true }
-secp256k1 = { workspace = true, optional = true }
+secp256k1 = { workspace = true }
 
 [dev-dependencies]
 sov-rng-da-service = { path = "../../utils/rng-da-service" }
@@ -63,6 +62,7 @@ sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-mo
 sov-modules-macros = { path = "../../module-system/sov-modules-macros" }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
 humantime = "2.1"
+reth-primitives = { workspace = true }
 
 hex = { workspace = true }
 bincode = { workspace = true }
@@ -90,16 +90,6 @@ regex = "1.10"
 
 [features]
 default = []
-experimental = [
-	"default",
-	"demo-stf/experimental",
-	"reth-primitives",
-	"secp256k1",
-	"sov-ethereum/experimental",
-	"sov-ethereum/local",
-]
-# TODO: Enable experimental for risc0 when it is ready
-#experimental = ["default", "sov-ethereum/experimental", "reth-primitives", "demo-stf/experimental", "sov-ethereum/local", "secp256k1", "risc0/experimental"]
 nft-script = [ "sov-test-utils" ]
 
 bench = [

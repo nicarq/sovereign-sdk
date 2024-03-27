@@ -96,7 +96,7 @@ jobs:
 
   check:
     name: check
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: buildjet-8vcpu-ubuntu-2204
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
@@ -288,8 +288,10 @@ jobs:
 
   nextest_all_features:
     name: nextest_all_features
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: buildjet-16vcpu-ubuntu-2204
     timeout-minutes: 60
+    env:
+      RISC0_DEV_MODE: "true"
     steps:
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
@@ -314,12 +316,14 @@ jobs:
         with:
           cache-provider: "buildjet"
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - run: cargo nextest run --workspace --all-features
+      - run: cargo nextest run --workspace --all-features --status-level skip
 
   nextest:
     name: nextest
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: buildjet-16vcpu-ubuntu-2204
     timeout-minutes: 60
+    env:
+      RISC0_DEV_MODE: "true"
     steps:
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
@@ -344,7 +348,7 @@ jobs:
         with:
           cache-provider: "buildjet"
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - run: cargo nextest run --workspace
+      - run: cargo nextest run --workspace --status-level skip
 
   doctests:
     name: doctests
@@ -381,6 +385,8 @@ jobs:
     name: coverage
     runs-on: buildjet-16vcpu-ubuntu-2204
     timeout-minutes: 90
+    env:
+      SKIP_GUEST_BUILD: "1"
     steps:
       - uses: actions/checkout@v3
         with:

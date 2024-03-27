@@ -22,8 +22,8 @@ sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] 
 
 sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
-sov-modules-api = { path = "../../module-system/sov-modules-api" }
-sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
+sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
+sov-accounts = { path = "../../module-system/module-implementations/sov-accounts", features = ["native"] }
 sov-eth-dev-signer = { path = "../sov-eth-dev-signer" }
 
 borsh = { workspace = true }
@@ -44,11 +44,3 @@ proptest = { workspace = true }
 [features]
 default = []
 local = []
-experimental = [ "demo-stf/experimental", "local", "sov-evm/experimental" ]
-native = [
-	"demo-stf/native",
-	"sov-accounts/native",
-	"sov-evm/native",
-	"sov-modules-api/native",
-	"sov-rollup-interface/native",
-]

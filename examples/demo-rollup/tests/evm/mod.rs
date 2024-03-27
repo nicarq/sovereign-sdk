@@ -12,21 +12,23 @@ use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::SimpleStorageContract;
 use test_client::TestClient;
 
-use crate::test_helpers::start_rollup;
+use crate::test_helpers::{get_appropriate_rollup_prover_config, start_rollup};
 
-#[cfg(feature = "experimental")]
 #[tokio::test]
 async fn evm_tx_tests_instant_finality() -> anyhow::Result<()> {
-    evm_tx_test(0).await
+    let rollup_prover_config = get_appropriate_rollup_prover_config();
+    evm_tx_test(0, rollup_prover_config).await
 }
 
-#[cfg(feature = "experimental")]
 #[tokio::test]
 async fn evm_tx_tests_non_instant_finality() -> anyhow::Result<()> {
-    evm_tx_test(3).await
+    evm_tx_test(3, RollupProverConfig::Skip).await
 }
 
-async fn evm_tx_test(finalization_blocks: u32) -> anyhow::Result<()> {
+async fn evm_tx_test(
+    finalization_blocks: u32,
+    rollup_prover_config: RollupProverConfig,
+) -> anyhow::Result<()> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async move {
@@ -37,7 +39,7 @@ async fn evm_tx_test(finalization_blocks: u32) -> anyhow::Result<()> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Skip,
+            rollup_prover_config,
             MockDaConfig {
                 // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
                 // Otherwise batches are going to be rejected

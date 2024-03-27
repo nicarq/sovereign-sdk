@@ -66,3 +66,12 @@ pub async fn start_rollup(
     // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
     temp_dir.close().unwrap();
 }
+
+pub fn get_appropriate_rollup_prover_config() -> RollupProverConfig {
+    let skip_guest_build = std::env::var("SKIP_GUEST_BUILD").unwrap_or_else(|_| "0".to_string());
+    if skip_guest_build == "1" {
+        RollupProverConfig::Skip
+    } else {
+        RollupProverConfig::Execute
+    }
+}

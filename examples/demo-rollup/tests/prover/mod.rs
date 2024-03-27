@@ -41,6 +41,7 @@ type TestSTF<'a> = StfBlueprint<
 
 /// This test reproduces the proof generation process for the rollup used in benchmarks.
 #[tokio::test]
+#[cfg_attr(skip_guest_build, ignore)]
 async fn test_proof_generation() {
     let genesis_conf_dir = String::from(DEFAULT_GENESIS_CONFIG_DIR);
 

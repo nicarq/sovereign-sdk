@@ -62,6 +62,7 @@ tempfile = { workspace = true }
 bytes = { workspace = true }
 ethers-signers = { workspace = true }
 ethers-core = { workspace = true }
+secp256k1 = { workspace = true, features = ["rand-std"] }
 
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
@@ -86,4 +87,3 @@ native = [
 	"sov-modules-api/native",
 	"sov-state/native",
 ]
-experimental = [ "sov-evm/experimental" ]

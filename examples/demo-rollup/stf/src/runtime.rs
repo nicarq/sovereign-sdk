@@ -36,7 +36,6 @@ use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
 #[cfg(feature = "native")]
 use sov_bank::{BankRpcImpl, BankRpcServer};
 #[cfg(feature = "native")]
-#[cfg(feature = "experimental")]
 use sov_evm::{EvmRpcImpl, EvmRpcServer};
 use sov_modules_api::macros::DefaultRuntime;
 #[cfg(feature = "native")]
@@ -73,7 +72,6 @@ pub struct Runtime<S: Spec, Da: DaSpec> {
     pub accounts: sov_accounts::Accounts<S>,
     /// The NFT module.
     pub nft: sov_nft_module::NonFungibleToken<S>,
-    #[cfg(feature = "experimental")]
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<S, Da>,

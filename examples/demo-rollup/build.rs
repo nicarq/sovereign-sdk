@@ -12,4 +12,9 @@ fn main() {
             .args(["install", "cargo-risczero"])
             .status();
     }
+
+    let skip_guest_build = std::env::var("SKIP_GUEST_BUILD").unwrap_or_else(|_| "0".to_string());
+    if skip_guest_build == "1" {
+        println!("cargo:rustc-cfg=skip_guest_build");
+    }
 }

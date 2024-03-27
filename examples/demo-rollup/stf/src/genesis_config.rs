@@ -10,7 +10,6 @@ pub use sov_accounts::AccountConfig;
 use sov_bank::GAS_TOKEN_ID;
 pub use sov_bank::{BankConfig, Coins, TokenConfig};
 pub use sov_chain_state::ChainStateConfig;
-#[cfg(feature = "experimental")]
 pub use sov_evm::EvmConfig;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
@@ -37,7 +36,6 @@ pub struct GenesisPaths {
     pub accounts_genesis_path: PathBuf,
     /// NFT genesis path.
     pub nft_path: PathBuf,
-    #[cfg(feature = "experimental")]
     /// EVM genesis path.
     pub evm_genesis_path: PathBuf,
 }
@@ -55,7 +53,6 @@ impl GenesisPaths {
             value_setter_genesis_path: dir.as_ref().join("value_setter.json"),
             accounts_genesis_path: dir.as_ref().join("accounts.json"),
             nft_path: dir.as_ref().join("nft.json"),
-            #[cfg(feature = "experimental")]
             evm_genesis_path: dir.as_ref().join("evm.json"),
         }
     }
@@ -103,7 +100,6 @@ fn create_genesis_config<S: Spec, Da: DaSpec>(
 
     let nft_config: NonFungibleTokenConfig = read_json_file(&genesis_paths.nft_path)?;
 
-    #[cfg(feature = "experimental")]
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
 
     Ok(GenesisConfig::new(
@@ -112,7 +108,6 @@ fn create_genesis_config<S: Spec, Da: DaSpec>(
         value_setter_config,
         accounts_config,
         nft_config,
-        #[cfg(feature = "experimental")]
         evm_config,
     ))
 }
