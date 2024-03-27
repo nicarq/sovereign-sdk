@@ -4,6 +4,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::GasTokenConfig;
 use sov_blob_storage::{PreferredBatch, DEFERRED_SLOTS_COUNT};
 use sov_chain_state::ChainStateConfig;
+use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_kernels::soft_confirmations::{
+    SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
+};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::da::Time;
@@ -14,12 +18,8 @@ use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasArray, GasPrice, KernelWorkingSet,
     MessageCodec, Module, Spec, StateCheckpoint, WorkingSet,
 };
-use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::SequencerConfig;
-use sov_soft_confirmations_kernel::{
-    SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
-};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_test_utils::new_test_blob_from_batch;
 use tracing::{debug, info};

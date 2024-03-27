@@ -35,6 +35,7 @@ sov-test-utils = { path = "../../sov-test-utils" }
 sov-rollup-interface = { path = "../../../rollup-interface", features = ["native"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
+sov-kernels = { path = "../../sov-kernels", features = ["native"] }
 
 sov-attester-incentives = { path = "../sov-attester-incentives" }
 sov-chain-state = { path = "../sov-chain-state", features = ["native"] }
@@ -50,6 +51,7 @@ native = [
 	"sov-attester-incentives/native",
 	"sov-bank/native",
 	"sov-chain-state/native",
+	"sov-kernels/native",
 	"sov-mock-da/native",
 	"sov-mock-zkvm/native",
 	"sov-modules-api/native",

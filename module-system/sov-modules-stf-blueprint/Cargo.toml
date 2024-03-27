@@ -23,6 +23,7 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
 hex = { workspace = true }
 
+# WARNING: The `stf-blueprint` crate should NOT depend on any Sovereign module.
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-state = { path = "../sov-state", version = "0.3" }
 sov-modules-core = { path = "../sov-modules-core", version = "0.3" }
@@ -31,8 +32,6 @@ risc0-cycle-macros = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["server"], optional = true }
-sov-chain-state = { path = "../module-implementations/sov-chain-state" }
-sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 
 [features]
 bench = [
@@ -46,8 +45,6 @@ bench = [
 default = []
 native = [
 	"jsonrpsee",
-	"sov-blob-storage/native",
-	"sov-chain-state/native",
 	"sov-modules-api/native",
 	"sov-modules-core/native",
 	"sov-rollup-interface/native",

@@ -2,11 +2,9 @@ use std::net::SocketAddr;
 
 use demo_stf::genesis_config::GenesisPaths;
 use sov_demo_rollup::MockDemoRollup;
+use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::kernels::basic::{
-    BasicKernelGenesisConfig, BasicKernelGenesisPaths,
-};
 use sov_stf_runner::{
     ProverServiceConfig, RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, StorageConfig,
 };
