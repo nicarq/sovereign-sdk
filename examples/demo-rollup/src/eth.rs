@@ -2,8 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context as _;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_ethereum::experimental::EthRpcConfig;
-use sov_ethereum::GasPriceOracleConfig;
+use sov_ethereum::{EthRpcConfig, GasPriceOracleConfig};
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::watch;

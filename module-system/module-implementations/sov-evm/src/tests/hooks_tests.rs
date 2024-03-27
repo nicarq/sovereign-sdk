@@ -11,8 +11,8 @@ use super::genesis_tests::{setup, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
-use crate::experimental::PendingTransaction;
 use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH};
+use crate::PendingTransaction;
 
 pub(crate) const DA_ROOT_HASH: B256 = B256::new([10u8; 32]);
 

@@ -5,8 +5,7 @@ use sov_modules_api::{DaSpec, StateCheckpoint, StateReaderAndWriter};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
-use crate::experimental::PendingTransaction;
-use crate::Evm;
+use crate::{Evm, PendingTransaction};
 
 impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da>
 where

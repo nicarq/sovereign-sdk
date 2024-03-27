@@ -14,10 +14,10 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test:  ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features
+	@cargo nextest run --workspace --all-features --status-level skip
 
 test-default-features:  ## Runs test suite using default features
-	@cargo nextest run --workspace
+	@cargo nextest run --workspace --status-level skip
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov

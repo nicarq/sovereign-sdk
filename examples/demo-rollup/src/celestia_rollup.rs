@@ -94,7 +94,8 @@ impl RollupBlueprint for CelestiaDemoRollup {
             sequencer,
         )?;
 
-        #[cfg(feature = "experimental")]
+        // TODO: Add issue for Sequencer level RPC injection:
+        //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
         crate::eth::register_ethereum::<Self::NativeSpec, Self::DaService>(
             da_service.clone(),
             storage.clone(),

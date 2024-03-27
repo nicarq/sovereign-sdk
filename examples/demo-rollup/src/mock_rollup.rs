@@ -87,7 +87,8 @@ impl RollupBlueprint for MockDemoRollup {
             rollup_config.da.sender_address,
         )?;
 
-        #[cfg(feature = "experimental")]
+        // TODO: Add issue for Sequencer level RPC injection:
+        //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
         crate::eth::register_ethereum::<Self::NativeSpec, Self::DaService>(
             da_service.clone(),
             storage,

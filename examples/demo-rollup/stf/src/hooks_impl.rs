@@ -91,22 +91,14 @@ impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
 
     fn begin_slot_hook(
         &self,
-        #[allow(unused_variables)] pre_state_root: <S as Spec>::VisibleHash,
-        #[allow(unused_variables)]
-        versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<
-            StateCheckpoint<S>,
-        >,
+        pre_state_root: <S as Spec>::VisibleHash,
+        versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
-        #[cfg(feature = "experimental")]
         self.evm
             .begin_slot_hook(pre_state_root, versioned_working_set);
     }
 
-    fn end_slot_hook(
-        &self,
-        #[allow(unused_variables)] working_set: &mut sov_modules_api::StateCheckpoint<S>,
-    ) {
-        #[cfg(feature = "experimental")]
+    fn end_slot_hook(&self, working_set: &mut sov_modules_api::StateCheckpoint<S>) {
         self.evm.end_slot_hook(working_set);
     }
 }
@@ -119,7 +111,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
         #[allow(unused_variables)] root_hash: S::VisibleHash,
         #[allow(unused_variables)] accessory_state: &mut impl StateReaderAndWriter<Accessory>,
     ) {
-        #[cfg(all(feature = "experimental", feature = "native"))]
+        #[cfg(feature = "native")]
         self.evm.finalize_hook(root_hash, accessory_state);
     }
 }

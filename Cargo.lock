@@ -1347,9 +1347,9 @@ checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "chrono"
-version = "0.4.36"
+version = "0.4.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3313f40d6fa9e783bbb01e814800bde9618da2207c72e9782f35e8dc7c77dabc"
+checksum = "8a0d04d43504c61aa6c7531f1871dd0d418d91130162063b789da00fd7057a5e"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -5440,9 +5440,9 @@ checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
 
 [[package]]
 name = "platforms"
-version = "3.3.0"
+version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "626dec3cac7cc0e1577a2ec3fc496277ec2baa084bebad95bb6fdbfae235f84c"
+checksum = "db23d408679286588f4d4644f965003d056e3dd5abcaaa938116871d7ce2fee7"
 
 [[package]]
 name = "plotters"
@@ -6147,7 +6147,7 @@ checksum = "4389f1d5789befaf6029ebd9f7dac4af7f7e3d61b69d4f30e2ac02b57e7712b0"
 [[package]]
 name = "reth-codecs"
 version = "0.2.0-beta.1"
-source = "git+https://github.com/paradigmxyz/reth?rev=66c9403ea1d3d03938eafc099e64e789aadc3616#66c9403ea1d3d03938eafc099e64e789aadc3616"
+source = "git+https://github.com/Sovereign-Labs/reth?rev=fb971d14f4ed08699f1b627fb6ea2e8522399f4d#fb971d14f4ed08699f1b627fb6ea2e8522399f4d"
 dependencies = [
  "alloy-primitives",
  "bytes",
@@ -6157,7 +6157,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs-derive"
 version = "0.2.0-beta.1"
-source = "git+https://github.com/paradigmxyz/reth?rev=66c9403ea1d3d03938eafc099e64e789aadc3616#66c9403ea1d3d03938eafc099e64e789aadc3616"
+source = "git+https://github.com/Sovereign-Labs/reth?rev=fb971d14f4ed08699f1b627fb6ea2e8522399f4d#fb971d14f4ed08699f1b627fb6ea2e8522399f4d"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -6168,7 +6168,7 @@ dependencies = [
 [[package]]
 name = "reth-ethereum-forks"
 version = "0.2.0-beta.1"
-source = "git+https://github.com/paradigmxyz/reth?rev=66c9403ea1d3d03938eafc099e64e789aadc3616#66c9403ea1d3d03938eafc099e64e789aadc3616"
+source = "git+https://github.com/Sovereign-Labs/reth?rev=fb971d14f4ed08699f1b627fb6ea2e8522399f4d#fb971d14f4ed08699f1b627fb6ea2e8522399f4d"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -6181,7 +6181,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives"
 version = "0.2.0-beta.1"
-source = "git+https://github.com/paradigmxyz/reth?rev=66c9403ea1d3d03938eafc099e64e789aadc3616#66c9403ea1d3d03938eafc099e64e789aadc3616"
+source = "git+https://github.com/Sovereign-Labs/reth?rev=fb971d14f4ed08699f1b627fb6ea2e8522399f4d#fb971d14f4ed08699f1b627fb6ea2e8522399f4d"
 dependencies = [
  "alloy-chains",
  "alloy-eips",
@@ -6207,17 +6207,14 @@ dependencies = [
  "secp256k1 0.27.0",
  "serde",
  "serde_json",
- "sha2 0.10.8",
  "strum 0.26.2",
- "tempfile",
  "thiserror",
- "zstd",
 ]
 
 [[package]]
 name = "reth-rpc-types"
 version = "0.2.0-beta.1"
-source = "git+https://github.com/paradigmxyz/reth?rev=66c9403ea1d3d03938eafc099e64e789aadc3616#66c9403ea1d3d03938eafc099e64e789aadc3616"
+source = "git+https://github.com/Sovereign-Labs/reth?rev=fb971d14f4ed08699f1b627fb6ea2e8522399f4d#fb971d14f4ed08699f1b627fb6ea2e8522399f4d"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -11033,25 +11030,6 @@ dependencies = [
  "crc32fast",
  "crossbeam-utils",
  "flate2",
-]
-
-[[package]]
-name = "zstd"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a27595e173641171fc74a1232b7b1c7a7cb6e18222c11e9dfb9888fa424c53c"
-dependencies = [
- "zstd-safe",
-]
-
-[[package]]
-name = "zstd-safe"
-version = "6.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee98ffd0b48ee95e6c5168188e44a54550b1564d9d530ee21d5f0eaed1069581"
-dependencies = [
- "libc",
- "zstd-sys",
 ]
 
 [[package]]

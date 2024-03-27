@@ -21,7 +21,7 @@ use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
-use crate::test_helpers::start_rollup;
+use crate::test_helpers::{get_appropriate_rollup_prover_config, start_rollup};
 
 const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
@@ -37,7 +37,8 @@ async fn bank_tx_tests_instant_finality() -> Result<(), anyhow::Error> {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,
     };
-    bank_tx_tests(test_case).await
+    let rollup_prover_config = get_appropriate_rollup_prover_config();
+    bank_tx_tests(test_case, rollup_prover_config).await
 }
 
 #[tokio::test]
@@ -46,10 +47,13 @@ async fn bank_tx_tests_non_instant_finality() -> Result<(), anyhow::Error> {
         wait_for_aggregated_proof: false,
         finalization_blocks: 3,
     };
-    bank_tx_tests(test_case).await
+    bank_tx_tests(test_case, RollupProverConfig::Skip).await
 }
 
-async fn bank_tx_tests(test_case: TestCase) -> anyhow::Result<()> {
+async fn bank_tx_tests(
+    test_case: TestCase,
+    rollup_prover_config: RollupProverConfig,
+) -> anyhow::Result<()> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async move {
@@ -59,7 +63,7 @@ async fn bank_tx_tests(test_case: TestCase) -> anyhow::Result<()> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Skip,
+            rollup_prover_config,
             MockDaConfig {
                 // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
                 // Otherwise batches are going to be rejected

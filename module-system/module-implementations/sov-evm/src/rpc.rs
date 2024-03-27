@@ -15,11 +15,10 @@ use crate::error::rpc::{ensure_success, RevertError, RpcInvalidTransactionError}
 use crate::evm::db::EvmDb;
 use crate::evm::executor;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
-use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 use crate::helpers::{
     from_primitive_with_hash, from_recovered_with_block_context, prepare_call_env,
 };
-use crate::{EthApiError, Evm};
+use crate::{EthApiError, Evm, MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 
 #[rpc_gen(client, server)]
 impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
