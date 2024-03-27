@@ -79,7 +79,7 @@ ethers-providers = { workspace = true }
 ethers-signers = { workspace = true }
 revm = { workspace = true }
 
-reqwest = "0.11"
+reqwest = { version = "0.12", features = ["rustls-tls", "http2"], default-features = false }
 tendermint = "0.32"
 prometheus = "0.11.0"
 prettytable-rs = "^0.10"
