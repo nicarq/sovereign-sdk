@@ -22,6 +22,7 @@ sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] 
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager" }
 
 sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
+sov-kernels = { path = "../../module-system/sov-kernels" }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = ["native"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module" }

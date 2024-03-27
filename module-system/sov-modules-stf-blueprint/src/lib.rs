@@ -1,7 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-pub mod kernels;
 mod stf_blueprint;
 
 #[cfg(feature = "test-utils")]

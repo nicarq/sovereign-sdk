@@ -1,9 +1,9 @@
 use borsh::BorshSerialize;
 use sov_db::sequencer_db::SequencerDB;
+use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{Address, CryptoSpec, GasPrice, PrivateKey, Spec};
-use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::batch_builder::TxHash;

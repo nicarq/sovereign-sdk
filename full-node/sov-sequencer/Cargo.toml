@@ -41,6 +41,7 @@ rand = { workspace = true }
 async-trait = { workspace = true }
 rockbound = { workspace = true }
 sov-value-setter = { path = "../../module-system/module-implementations/sov-value-setter", features = ["native"] }
+sov-kernels = { path = "../../module-system/sov-kernels", version = "0.3", features = ["native"] }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }

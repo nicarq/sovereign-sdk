@@ -1,10 +1,10 @@
 #![no_main]
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
+use sov_kernels::basic::BasicKernel;
 use sov_mock_da::MockDaVerifier;
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::default_spec::ZkDefaultSpec;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_risc0_adapter::Risc0Verifier;

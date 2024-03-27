@@ -41,7 +41,7 @@ sov-bank = { path = "../sov-bank" }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
-sov-soft-confirmations-kernel = { path = "../../sov-soft-confirmations-kernel", features = ["native", "test-utils"] }
+sov-kernels = { path = "../../sov-kernels", features = ["native", "test-utils"] }
 
 [features]
 default = []
@@ -53,10 +53,10 @@ native = [
 	"sov-bank/native",
 	"sov-blob-storage/native",
 	"sov-chain-state/native",
+	"sov-kernels/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
 	"sov-sequencer-registry/native",
-	"sov-soft-confirmations-kernel/native",
 	"sov-state/native",
 ]

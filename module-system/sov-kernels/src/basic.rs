@@ -17,6 +17,18 @@ pub struct BasicKernel<S: Spec, Da: DaSpec> {
     pub(crate) blob_storage: BlobStorage<S, Da>,
 }
 
+impl<S: Spec, Da: DaSpec> BasicKernel<S, Da> {
+    /// Gets a reference to the kernel's ChainState module.
+    pub fn chain_state(&self) -> &sov_chain_state::ChainState<S, Da> {
+        &self.chain_state
+    }
+
+    /// Gets a reference to the kernel's BlobStorage module.
+    pub fn blob_storage(&self) -> &sov_blob_storage::BlobStorage<S, Da> {
+        &self.blob_storage
+    }
+}
+
 impl<S: Spec, Da: DaSpec> Default for BasicKernel<S, Da> {
     fn default() -> Self {
         Self {

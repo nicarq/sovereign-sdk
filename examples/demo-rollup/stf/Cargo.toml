@@ -28,7 +28,7 @@ sov-sequencer-registry = { path = "../../../module-system/module-implementations
 sov-blob-storage = { path = "../../../module-system/module-implementations/sov-blob-storage" }
 sov-bank = { path = "../../../module-system/module-implementations/sov-bank" }
 sov-nft-module = { path = "../../../module-system/module-implementations/sov-nft-module" }
-sov-soft-confirmations-kernel = { path = "../../../module-system/sov-soft-confirmations-kernel" }
+sov-kernels = { path = "../../../module-system/sov-kernels" }
 
 sov-mock-da = { path = "../../../adapters/mock-da" }
 sov-chain-state = { path = "../../../module-system/module-implementations/sov-chain-state" }
@@ -66,6 +66,7 @@ native = [
 	"sov-chain-state/native",
 	"sov-cli",
 	"sov-evm/native",
+	"sov-kernels/native",
 	"sov-mock-da/native",
 	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
@@ -73,7 +74,6 @@ native = [
 	"sov-nft-module/native",
 	"sov-rollup-interface/native",
 	"sov-sequencer-registry/native",
-	"sov-soft-confirmations-kernel/native",
 	"sov-state/native",
 	"sov-stf-runner/native",
 	"sov-value-setter/native",

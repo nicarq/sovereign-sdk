@@ -6,8 +6,9 @@
 
 - #329 adds `InnerZkvm` and `OuterZkvm` associated types to the `Spec` trait.
 
+- #340 moves the Kernels' implementation (currently the `BasicKernel` and the `SoftConfirmationsKernel`) to a dedicated `sov-kernel` crate.
+
 - #347 renames the following types:
-`StateTransitionData` to `StateTransitionWitness`
-`StateTransition` to `StateTransitionPublicData`
-`AggregatedProofPublicInput` to `AggregatedProofPublicData`
-   
+  `StateTransitionData` to `StateTransitionWitness`
+  `StateTransition` to `StateTransitionPublicData`
+  `AggregatedProofPublicInput` to `AggregatedProofPublicData`

@@ -764,13 +764,13 @@ dependencies = [
  "sov-bank",
  "sov-blob-storage",
  "sov-chain-state",
+ "sov-kernels",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nft-module",
  "sov-rollup-interface",
  "sov-sequencer-registry",
- "sov-soft-confirmations-kernel",
  "sov-state",
  "sov-stf-runner",
  "sov-value-setter",
@@ -2276,10 +2276,23 @@ dependencies = [
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-celestia-adapter",
+ "sov-kernels",
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-risc0-adapter",
+ "sov-state",
+]
+
+[[package]]
+name = "sov-kernels"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "sov-blob-storage",
+ "sov-chain-state",
+ "sov-modules-api",
+ "sov-modules-core",
  "sov-state",
 ]
 
@@ -2377,8 +2390,6 @@ dependencies = [
  "borsh 0.10.3",
  "hex",
  "serde",
- "sov-blob-storage",
- "sov-chain-state",
  "sov-modules-api",
  "sov-modules-core",
  "sov-rollup-interface",
@@ -2446,17 +2457,6 @@ dependencies = [
  "borsh 0.10.3",
  "serde",
  "sov-bank",
- "sov-modules-api",
- "sov-state",
-]
-
-[[package]]
-name = "sov-soft-confirmations-kernel"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "sov-blob-storage",
- "sov-chain-state",
  "sov-modules-api",
  "sov-state",
 ]

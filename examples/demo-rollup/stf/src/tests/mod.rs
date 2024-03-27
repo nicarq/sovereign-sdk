@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use sov_cli::wallet_state::PrivateKeyAndAddress;
+use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{DaSpec, Spec};
-use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_state::DefaultStorageSpec;

@@ -2134,6 +2134,7 @@ dependencies = [
  "sov-chain-state",
  "sov-cli",
  "sov-evm",
+ "sov-kernels",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -2142,7 +2143,6 @@ dependencies = [
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-sequencer-registry",
- "sov-soft-confirmations-kernel",
  "sov-state",
  "sov-stf-runner",
  "sov-test-utils",
@@ -3835,6 +3835,7 @@ dependencies = [
  "sov-attester-incentives",
  "sov-bank",
  "sov-chain-state",
+ "sov-kernels",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -7653,12 +7654,12 @@ dependencies = [
  "sov-bank",
  "sov-blob-storage",
  "sov-chain-state",
+ "sov-kernels",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-sequencer-registry",
- "sov-soft-confirmations-kernel",
  "sov-state",
  "sov-test-utils",
  "tempfile",
@@ -7814,6 +7815,7 @@ dependencies = [
  "sov-cli",
  "sov-db",
  "sov-ethereum",
+ "sov-kernels",
  "sov-ledger-rpc",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -7908,6 +7910,18 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "sov-kernels"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "sov-blob-storage",
+ "sov-chain-state",
+ "sov-modules-api",
+ "sov-modules-core",
+ "sov-state",
 ]
 
 [[package]]
@@ -8123,8 +8137,6 @@ dependencies = [
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
- "sov-blob-storage",
- "sov-chain-state",
  "sov-modules-api",
  "sov-modules-core",
  "sov-rollup-interface",
@@ -8282,6 +8294,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-db",
+ "sov-kernels",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
@@ -8321,17 +8334,6 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "tempfile",
-]
-
-[[package]]
-name = "sov-soft-confirmations-kernel"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "sov-blob-storage",
- "sov-chain-state",
- "sov-modules-api",
- "sov-state",
 ]
 
 [[package]]

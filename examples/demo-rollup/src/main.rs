@@ -2,11 +2,9 @@ use anyhow::Context as _;
 use clap::Parser;
 use demo_stf::genesis_config::GenesisPaths;
 use sov_demo_rollup::{initialize_logging, CelestiaDemoRollup, MockDemoRollup};
+use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_modules_stf_blueprint::kernels::basic::{
-    BasicKernelGenesisConfig, BasicKernelGenesisPaths,
-};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::debug;
 

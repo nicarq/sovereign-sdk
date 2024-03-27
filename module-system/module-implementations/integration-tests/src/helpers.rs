@@ -1,6 +1,7 @@
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, Coins, GasTokenConfig, GAS_TOKEN_ID};
 use sov_chain_state::ChainStateConfig;
+use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::batch::BatchWithId;
@@ -16,7 +17,6 @@ use sov_modules_api::{
     Context, DaSpec, DispatchCall, Event, Gas, GasArray, Genesis, MessageCodec, PublicKey, Spec,
     StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
 };
-use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_stf_blueprint::{
     BatchReceipt, GenesisParams, Runtime, SequencerOutcome, StfBlueprint,
 };
