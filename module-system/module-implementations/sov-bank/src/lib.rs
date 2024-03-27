@@ -13,7 +13,7 @@ pub mod utils;
 pub use call::*;
 pub use genesis::*;
 pub use hooks::BankTxHook;
-use sov_modules_api::macros::config_constant;
+use sov_modules_api::macros::config_bech32_constant;
 use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleInfo, WorkingSet};
 use token::Token;
 /// Specifies an interface to interact with tokens.
@@ -26,9 +26,9 @@ pub use utils::get_token_id;
 pub mod event;
 use crate::event::Event;
 
-#[config_constant]
+#[config_bech32_constant]
 /// The [`TokenId`] of the rollup's gas token.
-pub const GAS_TOKEN_ID: &'static str;
+pub const GAS_TOKEN_ID: TokenId;
 
 /// Gas configuration for the bank module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

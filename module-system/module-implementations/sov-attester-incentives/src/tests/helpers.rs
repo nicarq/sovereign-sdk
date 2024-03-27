@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use sov_bank::{BankConfig, GasTokenConfig, TokenId, GAS_TOKEN_ID};
 use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
@@ -97,7 +95,7 @@ pub(crate) fn setup(
     let reward_supply = addresses.pop().unwrap();
     let sequencer = generate_address::<S>("sequencer");
 
-    let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
+    let token_id = GAS_TOKEN_ID;
 
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig {

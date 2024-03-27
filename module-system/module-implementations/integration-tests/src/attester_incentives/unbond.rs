@@ -1,8 +1,7 @@
 use std::rc::Rc;
-use std::str::FromStr;
 
 use sov_attester_incentives::{CallMessage, Role, UnbondingInfo};
-use sov_bank::{TokenId, GAS_TOKEN_ID};
+use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockValidityCondChecker;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::batch::BatchWithId;
@@ -34,7 +33,7 @@ fn test_honest_unbonding() {
     let seq_params = SequencerParams::default();
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::default();
-    let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
+    let token_id = GAS_TOKEN_ID;
 
     let rollup_finality_period = 2;
 

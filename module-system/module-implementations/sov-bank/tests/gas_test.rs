@@ -1,8 +1,4 @@
-use std::str::FromStr;
-
-use sov_bank::{
-    Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, TokenId, GAS_TOKEN_ID,
-};
+use sov_bank::{Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, GAS_TOKEN_ID};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Gas, GasArray, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -123,7 +119,7 @@ impl BankGasTestCase {
         let salt = 0;
 
         // sanity check the token ID
-        let base_token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
+        let base_token_id = GAS_TOKEN_ID;
 
         // generate a token configuration with the provided arguments
         let sender_address = generate_address::<S>("sender");

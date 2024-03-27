@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use jsonrpsee::core::RpcResult;
 use sov_bank::TokenId;
 use sov_mock_da::{MockAddress, MockDaSpec};
@@ -172,7 +170,7 @@ pub fn create_test_sequencer() -> TestSequencer {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let token_id = sov_bank::GAS_TOKEN_ID;
 
     let registry = SequencerRegistry::<S, Da>::default();
     let sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
@@ -190,7 +188,7 @@ pub fn create_test_sequencer_large_balance() -> TestSequencer {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config_large_balance();
 
-    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let token_id = sov_bank::GAS_TOKEN_ID;
 
     let registry = SequencerRegistry::<S, Da>::default();
     let sequencer_config = create_sequencer_config(seq_rollup_address, token_id);

@@ -1,7 +1,4 @@
-use std::str::FromStr;
-
 use helpers::*;
-use sov_bank::TokenId;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
@@ -181,7 +178,7 @@ fn end_blob_hook_slash_preferred_sequencer() {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let token_id = sov_bank::GAS_TOKEN_ID;
     let registry = SequencerRegistry::<S, Da>::default();
     let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
 

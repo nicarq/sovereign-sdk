@@ -1,11 +1,8 @@
 mod helpers;
 
-use std::str::FromStr;
-
 use helpers::*;
 use sov_bank::{
-    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId,
-    TotalSupplyResponse,
+    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TotalSupplyResponse,
 };
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
@@ -26,7 +23,7 @@ fn transfer_initial_token() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let token_id = sov_bank::GAS_TOKEN_ID;
     let sender_address = bank_config.gas_token_config.address_and_balances[0].0;
     let receiver_address = bank_config.gas_token_config.address_and_balances[1].0;
     let sequencer_address = bank_config.gas_token_config.address_and_balances[3].0;
@@ -268,7 +265,7 @@ fn transfer_deployed_token() {
 
     let token_name = "Token1".to_owned();
     let initial_balance = 1000;
-    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let token_id = sov_bank::GAS_TOKEN_ID;
 
     let bank_config = BankConfig::<S> {
         gas_token_config: GasTokenConfig {
