@@ -6,7 +6,8 @@ describe("solana_da_programs", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
 
-  const program = anchor.workspace.SolanaDaPrograms as Program<SolanaDaPrograms>;
+  const program = anchor.workspace
+    .SolanaDaPrograms as Program<SolanaDaPrograms>;
 
   it("Is initialized!", async () => {
     // Add your test here.
