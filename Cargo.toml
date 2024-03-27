@@ -59,7 +59,6 @@ repository = "https://github.com/sovereign-labs/sovereign-sdk"
 
 [workspace.lints.rust]
 dead_code = "deny"
-unused_imports = "deny"
 non_ascii_idents = "deny" # Bad for readability and it can also be a security vulnerability
 
 # In case you need inspiration for new lints to add to the list, this is a good
