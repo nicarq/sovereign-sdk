@@ -1,9 +1,7 @@
-use std::str::FromStr;
-
 use helpers::generate_address;
 use sov_bank::{
-    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId,
-    TotalSupplyResponse, GAS_TOKEN_ID,
+    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TotalSupplyResponse,
+    GAS_TOKEN_ID,
 };
 use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -31,7 +29,7 @@ fn burn_deployed_tokens() {
     let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
+    let token_id = GAS_TOKEN_ID;
 
     let bank_config = BankConfig::<S> {
         gas_token_config: GasTokenConfig {
@@ -188,7 +186,7 @@ fn burn_initial_tokens() {
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
-    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let token_id = sov_bank::GAS_TOKEN_ID;
     let sender_address = bank_config.gas_token_config.address_and_balances[0].0;
     let sequencer_address = bank_config.gas_token_config.address_and_balances[1].0;
 

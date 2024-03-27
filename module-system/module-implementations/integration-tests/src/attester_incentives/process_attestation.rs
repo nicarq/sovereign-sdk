@@ -1,7 +1,5 @@
-use std::str::FromStr;
-
 use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
-use sov_bank::{TokenId, GAS_TOKEN_ID};
+use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockValidityCond, MockValidityCondChecker};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_modules_api::batch::BatchWithId;
@@ -42,7 +40,7 @@ fn test_honest_value_setter_process_attestation() {
     let seq_params = SequencerParams::default();
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::default();
-    let token_addr = TokenId::from_str(GAS_TOKEN_ID).unwrap();
+    let token_addr = GAS_TOKEN_ID;
 
     let attester_params = AttesterIncentivesParams {
         initial_attesters: vec![(honest_attester_addr, honest_attester_stake)],
@@ -302,7 +300,7 @@ fn test_byzantine_value_setter_process_attestation() {
         init_balance: 1000000,
         addresses_and_balances: vec![(challenger_addr, challenger_stake)],
     };
-    let token_addr = TokenId::from_str(GAS_TOKEN_ID).unwrap();
+    let token_addr = GAS_TOKEN_ID;
 
     let attester_params = AttesterIncentivesParams {
         initial_attesters: vec![(attester_addr, attester_stake)],

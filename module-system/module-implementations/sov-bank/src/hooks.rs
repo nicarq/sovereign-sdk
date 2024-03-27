@@ -1,10 +1,8 @@
-use core::str::FromStr;
-
 use anyhow::bail;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Gas, GasMeter, ModuleInfo, Spec, StateCheckpoint};
 
-use crate::{Bank, Coins, TokenId, GAS_TOKEN_ID};
+use crate::{Bank, Coins, GAS_TOKEN_ID};
 
 /// The computed addresses of a pre-dispatch tx hook.
 pub struct BankTxHook<S: Spec> {
@@ -34,8 +32,7 @@ impl<S: Spec> Bank<S> {
         // TODO(@theochap) This should be moved to sequencer registry
         let amount = tx.gas_limit().saturating_add(tx.gas_tip());
         if amount > 0 {
-            let token_id = TokenId::from_str(GAS_TOKEN_ID)
-                .map_err(|_| anyhow::anyhow!("failed to parse gas token ID"))?;
+            let token_id = GAS_TOKEN_ID;
             let from = payer;
             let to = self.address();
             let coins = Coins { amount, token_id };
@@ -58,9 +55,7 @@ impl<S: Spec> Bank<S> {
         let amount = gas_meter.remaining_funds();
 
         if amount > 0 {
-            let token_id = TokenId::from_str(GAS_TOKEN_ID)
-                .map_err(|_| "The rollup is misconfigured: the gas token ID is invalid")
-                .expect("failed to parse gas token ID");
+            let token_id = GAS_TOKEN_ID;
             let from = self.address();
             let to = payer;
             let coins = Coins { amount, token_id };

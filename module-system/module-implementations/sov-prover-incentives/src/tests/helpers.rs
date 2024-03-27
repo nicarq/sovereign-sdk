@@ -1,6 +1,3 @@
-use std::str::FromStr;
-
-use sov_bank::TokenId;
 use sov_chain_state::StateTransition;
 use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
@@ -93,7 +90,7 @@ fn setup_helper(
     bank.genesis(&bank_config, &mut working_set)
         .expect("bank genesis must succeed");
 
-    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+    let token_id = sov_bank::GAS_TOKEN_ID;
 
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig::<S> {

@@ -1,7 +1,5 @@
-use std::str::FromStr;
-
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
-use sov_bank::{Bank, BankConfig, Coins, GasTokenConfig, TokenId, GAS_TOKEN_ID};
+use sov_bank::{Bank, BankConfig, Coins, GasTokenConfig, GAS_TOKEN_ID};
 use sov_chain_state::ChainStateConfig;
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
@@ -332,7 +330,7 @@ impl TestRollup {
         bank_params: BankParams,
         attester_params: AttesterIncentivesParams<S, Da>,
     ) -> GenesisParams<GenesisConfig<S, Da>, BasicKernelGenesisConfig<S, Da>> {
-        let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
+        let token_id = GAS_TOKEN_ID;
         let runtime_config: <TestRuntime<S, Da> as Runtime<S, Da>>::GenesisConfig = GenesisConfig {
             value_setter: ValueSetterConfig {
                 admin: admin_pub_key,

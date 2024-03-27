@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_bank::{GasTokenConfig, TokenId};
+use sov_bank::GasTokenConfig;
 use sov_blob_storage::{PreferredBatch, DEFERRED_SLOTS_COUNT};
 use sov_chain_state::ChainStateConfig;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
@@ -805,7 +804,7 @@ impl TestRuntime<S, MockDaSpec> {
     fn build_genesis_config(with_preferred_sequencer: bool) -> GenesisConfig<S, MockDaSpec> {
         let bank_config = get_bank_config(PREFERRED_SEQUENCER_ROLLUP, REGULAR_SEQUENCER_ROLLUP);
 
-        let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).unwrap();
+        let token_id = sov_bank::GAS_TOKEN_ID;
 
         let sequencer_registry_config = SequencerConfig {
             seq_rollup_address: PREFERRED_SEQUENCER_ROLLUP,

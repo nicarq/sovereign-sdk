@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 pub use sov_bank::{Bank, BankConfig, Coins, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
 use sov_modules_api::batch::BatchWithId;
@@ -202,7 +200,7 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
         init_balance >= seq_stake_amount,
         "sequencer cannot stake more than its initial balance"
     );
-    let token_id = TokenId::from_str(sov_bank::GAS_TOKEN_ID).expect("failed to parse token id");
+    let token_id = sov_bank::GAS_TOKEN_ID;
     GenesisConfig {
         value_setter: ValueSetterConfig {
             admin: admin.clone(),

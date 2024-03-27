@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use anyhow::{bail, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -76,7 +74,7 @@ impl<S: sov_modules_api::Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
     fn from(gas_token_config: GasTokenConfig<S>) -> Self {
         TokenConfig {
             token_name: gas_token_config.token_name,
-            token_id: TokenId::from_str(crate::GAS_TOKEN_ID).unwrap(),
+            token_id: crate::GAS_TOKEN_ID,
             address_and_balances: gas_token_config.address_and_balances,
             authorized_minters: gas_token_config.authorized_minters,
         }

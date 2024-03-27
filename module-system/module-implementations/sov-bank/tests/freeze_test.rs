@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use sov_bank::{
     get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId,
     TotalSupplyResponse, GAS_TOKEN_ID,
@@ -26,7 +24,7 @@ fn freeze_token() {
     let salt = 0;
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
-    let token_id = TokenId::from_str(GAS_TOKEN_ID).unwrap();
+    let token_id = GAS_TOKEN_ID;
 
     let bank_config = BankConfig::<S> {
         gas_token_config: GasTokenConfig {
