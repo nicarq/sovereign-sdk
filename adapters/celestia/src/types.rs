@@ -259,72 +259,10 @@ fn get_rows_containing_namespace<'a>(
 
 #[cfg(test)]
 pub mod tests {
-    use celestia_types::nmt::Namespace;
-    use celestia_types::{ExtendedDataSquare, ExtendedHeader, NamespacedShares};
-
-    use super::FilteredCelestiaBlock;
+    use crate::parse_pfb_namespace;
+    use crate::test_helper::files::*;
+    use crate::types::{NamespaceGroup, NamespacedShares};
     use crate::verifier::PFB_NAMESPACE;
-
-    pub const ROLLUP_NAMESPACE: Namespace = Namespace::const_v0(*b"\0\0sov-test");
-
-    pub mod with_rollup_data {
-        use super::*;
-
-        pub const HEADER_JSON: &str =
-            include_str!("../test_data/block_with_rollup_data/header.json");
-        pub const ROLLUP_ROWS_JSON: &str =
-            include_str!("../test_data/block_with_rollup_data/rollup_rows.json");
-        pub const ETX_ROWS_JSON: &str =
-            include_str!("../test_data/block_with_rollup_data/etx_rows.json");
-        pub const EDS_JSON: &str = include_str!("../test_data/block_with_rollup_data/eds.json");
-
-        pub fn filtered_block() -> FilteredCelestiaBlock {
-            filtered_block_from_jsons(
-                ROLLUP_NAMESPACE,
-                HEADER_JSON,
-                ROLLUP_ROWS_JSON,
-                ETX_ROWS_JSON,
-                EDS_JSON,
-            )
-        }
-    }
-
-    pub mod without_rollup_data {
-        use super::*;
-
-        pub const HEADER_JSON: &str =
-            include_str!("../test_data/block_without_rollup_data/header.json");
-        pub const ROLLUP_ROWS_JSON: &str =
-            include_str!("../test_data/block_without_rollup_data/rollup_rows.json");
-        pub const ETX_ROWS_JSON: &str =
-            include_str!("../test_data/block_without_rollup_data/etx_rows.json");
-        pub const EDS_JSON: &str = include_str!("../test_data/block_without_rollup_data/eds.json");
-
-        pub fn filtered_block() -> FilteredCelestiaBlock {
-            filtered_block_from_jsons(
-                ROLLUP_NAMESPACE,
-                HEADER_JSON,
-                ROLLUP_ROWS_JSON,
-                ETX_ROWS_JSON,
-                EDS_JSON,
-            )
-        }
-    }
-
-    fn filtered_block_from_jsons(
-        ns: Namespace,
-        header: &str,
-        rollup_rows: &str,
-        etx_rows: &str,
-        eds: &str,
-    ) -> FilteredCelestiaBlock {
-        let header: ExtendedHeader = serde_json::from_str(header).unwrap();
-        let rollup_rows: NamespacedShares = serde_json::from_str(rollup_rows).unwrap();
-        let etx_rows: NamespacedShares = serde_json::from_str(etx_rows).unwrap();
-        let eds: ExtendedDataSquare = serde_json::from_str(eds).unwrap();
-
-        FilteredCelestiaBlock::new(ns, header, rollup_rows, etx_rows, eds).unwrap()
-    }
 
     #[test]
     fn filtered_block_with_rollup_data() {
@@ -373,5 +311,34 @@ pub mod tests {
             .count();
         assert_eq!(pfbs_count, 2);
         assert_eq!(block.relevant_pfbs.len(), 0);
+    }
+
+    #[test]
+    fn test_get_pfbs() {
+        let path = make_test_path(with_rollup_data::DATA_PATH);
+        let rows: NamespacedShares = load_from_file(&path, ETX_ROWS_JSON).unwrap();
+
+        let pfb_ns = NamespaceGroup::from(&rows);
+        let pfbs = parse_pfb_namespace(pfb_ns).expect("failed to parse pfb shares");
+        assert_eq!(pfbs.len(), 3);
+    }
+
+    #[test]
+    fn test_get_rollup_data() {
+        let path = make_test_path(with_rollup_data::DATA_PATH);
+        let rows: NamespacedShares = load_from_file(&path, ROLLUP_ROWS_JSON).unwrap();
+
+        let rollup_ns_group = NamespaceGroup::from(&rows);
+        let mut blobs = rollup_ns_group.blobs();
+        let first_blob = blobs
+            .next()
+            .expect("iterator should contain exactly one blob");
+
+        // this is a batch submitted by sequencer, consisting of a single
+        // "CreateToken" transaction, but we verify only length there to
+        // not make this test depend on deserialization logic
+        assert_eq!(first_blob.data().count(), 252);
+
+        assert!(blobs.next().is_none());
     }
 }
