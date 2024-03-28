@@ -123,7 +123,6 @@ impl DaService for CelestiaService {
     #[instrument(skip(self), err)]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         let client = self.client.lock().await;
-        let rollup_namespace = self.rollup_batch_namespace;
 
         // Fetch the header and relevant shares via RPC
         debug!(height, "Fetching header at height...");
@@ -132,7 +131,9 @@ impl DaService for CelestiaService {
 
         // Fetch the rollup namespace shares, etx data and extended data square
         debug!("Fetching rollup data...");
-        let rollup_rows_future = client.share_get_shares_by_namespace(&header, rollup_namespace);
+        let rollup_rows_future =
+            client.share_get_shares_by_namespace(&header, self.rollup_batch_namespace);
+
         let etx_rows_future = client.share_get_shares_by_namespace(&header, PFB_NAMESPACE);
         let data_square_future = client.share_get_eds(&header);
 
@@ -307,7 +308,7 @@ mod tests {
     use std::time::Duration;
 
     use celestia_types::nmt::Namespace;
-    use celestia_types::{Blob as JsonBlob, NamespacedShares};
+    use celestia_types::Blob as JsonBlob;
     use serde_json::json;
     use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
     use sov_rollup_interface::services::da::DaService;
@@ -316,43 +317,9 @@ mod tests {
 
     use super::default_request_timeout_seconds;
     use crate::da_service::{get_gas_limit_for_bytes, CelestiaConfig, CelestiaService, GAS_PRICE};
-    use crate::parse_pfb_namespace;
-    use crate::shares::NamespaceGroup;
-    use crate::types::tests::{with_rollup_data, without_rollup_data};
+    use crate::test_helper::files::*;
     use crate::verifier::address::CelestiaAddress;
     use crate::verifier::{CelestiaVerifier, RollupParams};
-
-    const ROLLUP_ROWS_JSON: &str = with_rollup_data::ROLLUP_ROWS_JSON;
-    const ETX_ROWS_JSON: &str = with_rollup_data::ETX_ROWS_JSON;
-
-    #[test]
-    fn test_get_pfbs() {
-        let rows: NamespacedShares =
-            serde_json::from_str(ETX_ROWS_JSON).expect("failed to deserialize pfb shares");
-
-        let pfb_ns = NamespaceGroup::from(&rows);
-        let pfbs = parse_pfb_namespace(pfb_ns).expect("failed to parse pfb shares");
-        assert_eq!(pfbs.len(), 3);
-    }
-
-    #[test]
-    fn test_get_rollup_data() {
-        let rows: NamespacedShares =
-            serde_json::from_str(ROLLUP_ROWS_JSON).expect("failed to deserialize pfb shares");
-
-        let rollup_ns_group = NamespaceGroup::from(&rows);
-        let mut blobs = rollup_ns_group.blobs();
-        let first_blob = blobs
-            .next()
-            .expect("iterator should contain exactly one blob");
-
-        // this is a batch submitted by sequencer, consisting of a single
-        // "CreateToken" transaction, but we verify only length there to
-        // not make this test depend on deserialization logic
-        assert_eq!(first_blob.data().count(), 252);
-
-        assert!(blobs.next().is_none());
-    }
 
     // Last return value is namespace
     async fn setup_service(

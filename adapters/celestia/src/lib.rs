@@ -2,6 +2,8 @@ pub mod celestia;
 #[cfg(feature = "native")]
 mod da_service;
 pub mod shares;
+#[cfg(test)]
+mod test_helper;
 pub mod types;
 mod utils;
 pub mod verifier;
