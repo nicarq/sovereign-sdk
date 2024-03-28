@@ -6,31 +6,30 @@ use rockbound::cache::change_set::ChangeSet;
 use rockbound::SchemaBatch;
 
 use crate::rocks_db_config::gen_rocksdb_options;
-use crate::schema::tables::{ModuleAccessoryState, NATIVE_TABLES};
+use crate::schema::tables::{ModuleAccessoryState, ACCESSORY_TABLES};
 use crate::schema::types::AccessoryKey;
 
 /// Specifies a particular version of the Accessory state.
 pub type Version = u64;
 
 /// Typesafe wrapper for Data, that is not part of the provable state
-/// TODO: Rename to AccessoryDb
 #[derive(Clone, Debug)]
-pub struct NativeDB {
+pub struct AccessoryDb {
     /// Pointer to [`CacheDb`] for up to date state
     db: Arc<CacheDb>,
 }
 
-impl NativeDB {
-    const DB_PATH_SUFFIX: &'static str = "native";
-    const DB_NAME: &'static str = "native-db";
+impl AccessoryDb {
+    const DB_PATH_SUFFIX: &'static str = "accessory";
+    const DB_NAME: &'static str = "accessory-db";
 
-    /// Initialize [`rockbound::DB`] that matches tables and columns for [`NativeDB`]
+    /// Initialize [`rockbound::DB`] that matches tables and columns for [`AccessoryDb`]
     pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<rockbound::DB> {
         let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
         rockbound::DB::open(
             path,
             Self::DB_NAME,
-            NATIVE_TABLES.iter().copied(),
+            ACCESSORY_TABLES.iter().copied(),
             &gen_rocksdb_options(&Default::default(), false),
         )
     }
@@ -38,18 +37,18 @@ impl NativeDB {
     /// Convert it to [`ChangeSet`] which cannot be edited anymore
     pub fn freeze(self) -> anyhow::Result<ChangeSet> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
-            "NativeDB underlying DbSnapshot has more than 1 strong references"
+            "AccessoryDB's underlying DbSnapshot has more than 1 strong references"
         ))?;
         Ok(ChangeSet::from(inner))
     }
 
-    /// Create instance of [`NativeDB`] from [`CacheDb`]
+    /// Create instance of [`AccessoryDb`] from [`CacheDb`]
     pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
         // We keep Result type, just for future archival state integration
         Ok(Self { db: Arc::new(db) })
     }
 
-    /// Queries for a value in the [`NativeDB`], given a key.
+    /// Queries for a value in the [`AccessoryDb`], given a key.
     pub fn get_value_option(
         &self,
         key: &AccessoryKey,
@@ -71,7 +70,7 @@ impl NativeDB {
         }
     }
 
-    /// Sets a sequence of key-value pairs in the [`NativeDB`]. The write is atomic.
+    /// Sets a sequence of key-value pairs in the [`AccessoryDb`]. The write is atomic.
     pub fn set_values(
         &self,
         key_value_pairs: impl IntoIterator<Item = (Vec<u8>, Option<Vec<u8>>)>,
@@ -96,15 +95,15 @@ mod tests {
 
     use super::*;
 
-    fn setup_db(path: &Path) -> NativeDB {
-        let db = NativeDB::setup_schema_db(path).unwrap();
+    fn setup_db(path: &Path) -> AccessoryDb {
+        let db = AccessoryDb::setup_schema_db(path).unwrap();
         let to_parent = Arc::new(RwLock::new(HashMap::new()));
         let cache_container = Arc::new(RwLock::new(CacheContainer::new(
             db,
             to_parent.clone().into(),
         )));
         let db_snapshot = CacheDb::new(0, cache_container.into());
-        NativeDB::with_cache_db(db_snapshot).unwrap()
+        AccessoryDb::with_cache_db(db_snapshot).unwrap()
     }
 
     #[test]

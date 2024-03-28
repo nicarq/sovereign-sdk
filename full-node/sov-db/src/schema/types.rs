@@ -40,11 +40,11 @@ impl AsRef<[u8]> for DbBytes {
 
 /// The "key" half of a key/value pair from accessory state.
 ///
-/// See [`NativeDB`](crate::native_db::NativeDB) for more information.
+/// See [`AccessoryDb`](crate::accessory_db::AccessoryDb) for more information.
 pub type AccessoryKey = Vec<u8>;
 /// The "value" half of a key/value pair from accessory state.
 ///
-/// See [`NativeDB`](crate::native_db::NativeDB) for more information.
+/// See [`AccessoryDb`](crate::accessory_db::AccessoryDb) for more information.
 pub type AccessoryStateValue = Option<Vec<u8>>;
 
 /// A hash stored in the database

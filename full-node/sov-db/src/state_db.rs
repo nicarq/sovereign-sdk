@@ -16,20 +16,20 @@ use crate::schema::namespace::{JmtNodes, JmtValues, KeyHashToKey};
 /// A typed wrapper around the db for storing rollup state. Internally,
 /// this is roughly just an [`Arc<rockbound::CacheDB>`].
 #[derive(Debug, Clone)]
-pub struct StateDB {
+pub struct StateDb {
     /// The underlying [`CacheDb`] that plays as local cache and pointer to previous snapshots and/or [`rockbound::DB`]
     db: Arc<CacheDb>,
     /// The [`Version`] that will be used for the next batch of writes to the DB
     /// This [`Version`] is also used for querying data,
-    /// so if this instance of StateDB is used as read only, it won't see newer data.
+    /// so if this instance of StateDb is used as read only, it won't see newer data.
     next_version: Arc<Mutex<Version>>,
 }
 
-impl StateDB {
+impl StateDb {
     const DB_PATH_SUFFIX: &'static str = "state";
     const DB_NAME: &'static str = "state-db";
 
-    /// Create a new instance of [`StateDB`] from a given [`rockbound::DB`]
+    /// Create a new instance of [`StateDb`] from a given [`rockbound::DB`]
     pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
         let next_version = Self::next_version_from(&db)?;
         Ok(Self {
@@ -85,7 +85,7 @@ impl StateDB {
     /// Convert it to [`ChangeSet`] which cannot be edited anymore
     pub fn freeze(self) -> anyhow::Result<ChangeSet> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
-            "StateDB underlying CacheDb has more than 1 strong references"
+            "StateDb underlying CacheDb has more than 1 strong references"
         ))?;
         Ok(ChangeSet::from(inner))
     }
@@ -138,14 +138,14 @@ impl StateDB {
     }
 }
 
-/// A simple wrapper around [`StateDB`] that implements [`TreeReader`] and [`TreeWriter`] for a given namespace.
+/// A simple wrapper around [`StateDb`] that implements [`TreeReader`] and [`TreeWriter`] for a given namespace.
 #[derive(Debug)]
 pub struct JmtHandler<'a, N: Namespace> {
-    state_db: &'a StateDB,
+    state_db: &'a StateDb,
     phantom: std::marker::PhantomData<N>,
 }
 
-/// Default implementations of TreeReader for StateDB
+/// Default implementations of [`TreeReader`] for [`StateDb`]
 impl<'a, N: Namespace> TreeReader for JmtHandler<'a, N> {
     fn get_node_option(
         &self,
@@ -171,11 +171,11 @@ impl<'a, N: Namespace> TreeReader for JmtHandler<'a, N> {
     fn get_rightmost_leaf(
         &self,
     ) -> anyhow::Result<Option<(jmt::storage::NodeKey, jmt::storage::LeafNode)>> {
-        todo!("StateDB does not support [`TreeReader::get_rightmost_leaf`] yet")
+        todo!("StateDb does not support [`TreeReader::get_rightmost_leaf`] yet")
     }
 }
 
-/// Default implementation of TreeWriter for StateDB
+/// Default implementation of [`TreeWriter`] for [`StateDb`]
 impl<'a, N: Namespace> TreeWriter for JmtHandler<'a, N> {
     fn write_node_batch(&self, node_batch: &jmt::storage::NodeBatch) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
@@ -190,7 +190,7 @@ impl<'a, N: Namespace> TreeWriter for JmtHandler<'a, N> {
                     .db
                     .read::<KeyHashToKey<N>>(&key_hash.0)?
                     .ok_or(anyhow::format_err!(
-                                    "Could not find preimage for key hash {key_hash:?}. Has `StateDB::put_preimage` been called for this key?"
+                                    "Could not find preimage for key hash {key_hash:?}. Has `StateDb::put_preimage` been called for this key?"
                                 ))?;
             batch.put::<JmtValues<N>>(&(key_preimage, *version), value)?;
         }
@@ -217,10 +217,10 @@ mod state_db_tests {
     use sha2::Sha256;
 
     use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
-    use crate::state_db::{JmtHandler, StateDB};
+    use crate::state_db::{JmtHandler, StateDb};
 
     fn init_cache_db(path: &path::Path) -> CacheDb {
-        let db = StateDB::setup_schema_db(path).unwrap();
+        let db = StateDb::setup_schema_db(path).unwrap();
         let cache_container =
             CacheContainer::new(db, Arc::new(RwLock::new(Default::default())).into());
 
@@ -231,7 +231,7 @@ mod state_db_tests {
     fn test_simple() {
         let tempdir = tempfile::tempdir().unwrap();
         let db_snapshot = init_cache_db(tempdir.path());
-        let state_db = &StateDB::with_cache_db(db_snapshot).unwrap();
+        let state_db = &StateDb::with_cache_db(db_snapshot).unwrap();
         let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
         let key_hash = KeyHash([1u8; 32]);
         let key = vec![2u8; 100];
@@ -258,7 +258,7 @@ mod state_db_tests {
     fn test_namespace() {
         let tempdir = tempfile::tempdir().unwrap();
         let db_snapshot = init_cache_db(tempdir.path());
-        let state_db = StateDB::with_cache_db(db_snapshot).unwrap();
+        let state_db = StateDb::with_cache_db(db_snapshot).unwrap();
         let user_state_db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
         let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = state_db.get_jmt_handler();
 
@@ -313,7 +313,7 @@ mod state_db_tests {
     fn test_root_hash_at_init() {
         let tempdir = tempfile::tempdir().unwrap();
         let db_snapshot = init_cache_db(tempdir.path());
-        let db = StateDB::with_cache_db(db_snapshot).unwrap();
+        let db = StateDb::with_cache_db(db_snapshot).unwrap();
         let latest_version = db.get_next_version() - 1;
         assert_eq!(0, latest_version);
 

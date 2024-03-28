@@ -2,14 +2,14 @@ use std::marker::PhantomData;
 
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
+use sov_db::accessory_db::AccessoryDb;
 use sov_db::namespaces;
 use sov_db::namespaces::{
     KernelNamespace as DBKernelNamespace, KernelNamespace, UserNamespace as DBUserNamespace,
     UserNamespace,
 };
-use sov_db::native_db::NativeDB;
 use sov_db::schema::ChangeSet;
-use sov_db::state_db::{JmtHandler, StateDB};
+use sov_db::state_db::{JmtHandler, StateDb};
 use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, ProvableCompileTimeNamespace};
 use sov_modules_core::{
     Namespace, NativeStorage, OrderedReadsAndWrites, ProvableNamespace, SlotKey, SlotValue,
@@ -28,14 +28,14 @@ use crate::MerkleProofSpec;
     Debug(bound = "S: MerkleProofSpec")
 )]
 pub struct ProverStorage<S: MerkleProofSpec> {
-    db: StateDB,
-    native_db: NativeDB,
+    db: StateDb,
+    accessory_db: AccessoryDb,
     _phantom_hasher: PhantomData<S::Hasher>,
 }
 
 impl<S: MerkleProofSpec> ProverStorage<S> {
     /// Creates a new [`ProverStorage`] instance from specified db handles
-    pub fn with_db_handles(db: StateDB, native_db: NativeDB) -> Self {
+    pub fn with_db_handles(db: StateDb, accessory_db: AccessoryDb) -> Self {
         let user_written = Self::init_empty_root_hash_if_needed::<UserNamespace>(&db);
         let kernel_written = Self::init_empty_root_hash_if_needed::<KernelNamespace>(&db);
         assert_eq!(
@@ -44,13 +44,13 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         );
         Self {
             db,
-            native_db,
+            accessory_db,
             _phantom_hasher: Default::default(),
         }
     }
 
     // return true if empty root hash has been written
-    fn init_empty_root_hash_if_needed<N: namespaces::Namespace>(db: &StateDB) -> bool {
+    fn init_empty_root_hash_if_needed<N: namespaces::Namespace>(db: &StateDb) -> bool {
         let jmt_handler: JmtHandler<N> = db.get_jmt_handler();
         let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
         let latest_version = db.get_next_version() - 1;
@@ -97,9 +97,9 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             Namespace::User => self.read_value_namespace::<DBUserNamespace>(key, version),
             Namespace::Kernel => self.read_value_namespace::<DBKernelNamespace>(key, version),
             Namespace::Accessory => self
-                .native_db
+                .accessory_db
                 .get_value_option(key.as_ref(), version.unwrap_or(u64::MAX))
-                .expect("Unable to read from nativeDB")
+                .expect("Unable to read from AccessoryDb")
                 .map(Into::into),
         }
     }
@@ -194,7 +194,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             .expect("Preimage put must succeed");
 
         // Write the state values last, since we base our view of what has been touched
-        // on state. If the node crashes between the `native_db` update and this update,
+        // on state. If the node crashes between the `accessory_db` update and this update,
         // then the whole `commit` will be re-run later so no data can be lost.
         self.db
             .get_jmt_handler::<N>()
@@ -204,14 +204,14 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 
     fn commit_accessory(&self, accessory_writes: &OrderedReadsAndWrites) {
         let latest_version = self.db.get_next_version() - 1;
-        self.native_db
+        self.accessory_db
             .set_values(
                 accessory_writes.ordered_writes.iter().map(|(k, v_opt)| {
                     (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))
                 }),
                 latest_version,
             )
-            .expect("native db write must succeed");
+            .expect("accessory db write must succeed");
     }
 
     fn get_with_proof_namespace<N: namespaces::Namespace>(
@@ -250,9 +250,11 @@ impl<S: MerkleProofSpec> TryFrom<ProverStorage<S>> for ProverChangeSet {
 
     fn try_from(prover_storage: ProverStorage<S>) -> Result<Self, Self::Error> {
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/122
-        let ProverStorage { db, native_db, .. } = prover_storage;
+        let ProverStorage {
+            db, accessory_db, ..
+        } = prover_storage;
         let state_change_set = db.freeze()?;
-        let accessory_change_set = native_db.freeze()?;
+        let accessory_change_set = accessory_db.freeze()?;
         Ok(ProverChangeSet {
             state_change_set,
             accessory_change_set,
