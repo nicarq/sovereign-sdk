@@ -8,9 +8,9 @@ use rockbound::cache::cache_db::CacheDb;
 use rockbound::cache::change_set::ChangeSet;
 use rockbound::cache::SnapshotId;
 use rockbound::ReadOnlyLock;
+use sov_db::accessory_db::AccessoryDb;
 use sov_db::ledger_db::LedgerDB;
-use sov_db::native_db::NativeDB;
-use sov_db::state_db::StateDB;
+use sov_db::state_db::StateDb;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::{MerkleProofSpec, ProverChangeSet, ProverStorage};
@@ -49,7 +49,7 @@ where
 {
     fn with_db_handles(
         state_db: rockbound::DB,
-        native_db: rockbound::DB,
+        accessory_db: rockbound::DB,
         ledger_db: rockbound::DB,
     ) -> Self {
         let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
@@ -59,7 +59,7 @@ where
         let state_cache_container =
             CacheContainer::new(state_db, read_only_snapshot_id_to_parent.clone());
         let accessory_cache_container =
-            CacheContainer::new(native_db, read_only_snapshot_id_to_parent.clone());
+            CacheContainer::new(accessory_db, read_only_snapshot_id_to_parent.clone());
         let ledger_cache_container =
             CacheContainer::new(ledger_db, read_only_snapshot_id_to_parent.clone());
 
@@ -84,11 +84,11 @@ where
     /// Create new [`ProverStorageManager`] from state config
     pub fn new(config: sov_state::config::Config) -> anyhow::Result<Self> {
         let path = config.path;
-        let state_db = StateDB::setup_schema_db(&path)?;
-        let native_db = NativeDB::setup_schema_db(&path)?;
+        let state_db = StateDb::setup_schema_db(&path)?;
+        let accessory_db = AccessoryDb::setup_schema_db(&path)?;
         let ledger_db = LedgerDB::setup_schema_db(&path)?;
 
-        Ok(Self::with_db_handles(state_db, native_db, ledger_db))
+        Ok(Self::with_db_handles(state_db, accessory_db, ledger_db))
     }
 
     #[cfg(test)]
@@ -106,14 +106,14 @@ where
     ) -> anyhow::Result<(ProverStorage<S>, CacheDb)> {
         let CacheDbGroup {
             state: state_cache_db,
-            accessory: native_cache_db,
+            accessory: accessory_cache_db,
             ledger: ledger_cache_db,
         } = self.cache_containers.get_cache_db_group(snapshot_id);
 
-        let state_db = StateDB::with_cache_db(state_cache_db)?;
-        let native_db = NativeDB::with_cache_db(native_cache_db)?;
+        let state_db = StateDb::with_cache_db(state_cache_db)?;
+        let accessory_db = AccessoryDb::with_cache_db(accessory_cache_db)?;
         Ok((
-            ProverStorage::with_db_handles(state_db, native_db),
+            ProverStorage::with_db_handles(state_db, accessory_db),
             ledger_cache_db,
         ))
     }
@@ -233,11 +233,11 @@ where
             ledger: ledger_cache_db,
         } = self.cache_containers.get_cache_db_group(new_snapshot_id);
 
-        let state_db = StateDB::with_cache_db(state_cache_db)?;
-        let native_db = NativeDB::with_cache_db(accessory_cache_db)?;
+        let state_db = StateDb::with_cache_db(state_cache_db)?;
+        let accessory_db = AccessoryDb::with_cache_db(accessory_cache_db)?;
 
         Ok((
-            ProverStorage::with_db_handles(state_db, native_db),
+            ProverStorage::with_db_handles(state_db, accessory_db),
             ledger_cache_db,
         ))
     }
@@ -338,11 +338,11 @@ where
             ledger: ledger_cache_db,
         } = self.cache_containers.get_cache_db_group(new_snapshot_id);
 
-        let state_db = StateDB::with_cache_db(state_cache_db)?;
-        let native_db = NativeDB::with_cache_db(accessory_cache_db)?;
+        let state_db = StateDb::with_cache_db(state_cache_db)?;
+        let accessory_db = AccessoryDb::with_cache_db(accessory_cache_db)?;
 
         Ok((
-            ProverStorage::with_db_handles(state_db, native_db),
+            ProverStorage::with_db_handles(state_db, accessory_db),
             ledger_cache_db,
         ))
     }
@@ -436,15 +436,15 @@ where
 pub fn new_orphan_storage<S: MerkleProofSpec>(
     path: impl AsRef<std::path::Path>,
 ) -> anyhow::Result<ProverStorage<S>> {
-    let state_db_raw = StateDB::setup_schema_db(path.as_ref())?;
+    let state_db_raw = StateDb::setup_schema_db(path.as_ref())?;
     let state_db_sm = Arc::new(RwLock::new(CacheContainer::orphan(state_db_raw)));
     let state_db_snapshot = CacheDb::new(0, state_db_sm.into());
-    let state_db = StateDB::with_cache_db(state_db_snapshot)?;
-    let native_db_raw = NativeDB::setup_schema_db(path.as_ref())?;
-    let native_db_sm = Arc::new(RwLock::new(CacheContainer::orphan(native_db_raw)));
-    let native_db_snapshot = CacheDb::new(0, native_db_sm.into());
-    let native_db = NativeDB::with_cache_db(native_db_snapshot)?;
-    Ok(ProverStorage::with_db_handles(state_db, native_db))
+    let state_db = StateDb::with_cache_db(state_db_snapshot)?;
+    let accessory_db_raw = AccessoryDb::setup_schema_db(path.as_ref())?;
+    let accessory_db_sm = Arc::new(RwLock::new(CacheContainer::orphan(accessory_db_raw)));
+    let accessory_db_snapshot = CacheDb::new(0, accessory_db_sm.into());
+    let accessory_db = AccessoryDb::with_cache_db(accessory_db_snapshot)?;
+    Ok(ProverStorage::with_db_handles(state_db, accessory_db))
 }
 
 #[cfg(feature = "test-utils")]
@@ -456,8 +456,8 @@ pub struct SimpleStorageManager<S: MerkleProofSpec> {
 #[cfg(feature = "test-utils")]
 impl<S: MerkleProofSpec> SimpleStorageManager<S> {
     pub fn new(path: impl AsRef<std::path::Path>) -> Self {
-        let state_db = StateDB::setup_schema_db(&path).unwrap();
-        let native_db = NativeDB::setup_schema_db(&path).unwrap();
+        let state_db = StateDb::setup_schema_db(&path).unwrap();
+        let accessory_db = AccessoryDb::setup_schema_db(&path).unwrap();
         let ledger_db = LedgerDB::setup_schema_db(&path).unwrap();
 
         let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
@@ -467,7 +467,7 @@ impl<S: MerkleProofSpec> SimpleStorageManager<S> {
         let state_cache_container =
             CacheContainer::new(state_db, read_only_snapshot_id_to_parent.clone());
         let accessory_cache_container =
-            CacheContainer::new(native_db, read_only_snapshot_id_to_parent.clone());
+            CacheContainer::new(accessory_db, read_only_snapshot_id_to_parent.clone());
         let ledger_cache_container =
             CacheContainer::new(ledger_db, read_only_snapshot_id_to_parent.clone());
 
@@ -486,12 +486,12 @@ impl<S: MerkleProofSpec> SimpleStorageManager<S> {
     pub fn create_storage(&mut self) -> ProverStorage<S> {
         let CacheDbGroup {
             state: state_cache_db,
-            accessory: native_cache_db,
+            accessory: accessory_cache_db,
             ..
         } = self.cache_containers.get_cache_db_group(0);
-        let state_db = StateDB::with_cache_db(state_cache_db).unwrap();
-        let native_db = NativeDB::with_cache_db(native_cache_db).unwrap();
-        ProverStorage::with_db_handles(state_db, native_db)
+        let state_db = StateDb::with_cache_db(state_cache_db).unwrap();
+        let accessory_db = AccessoryDb::with_cache_db(accessory_cache_db).unwrap();
+        ProverStorage::with_db_handles(state_db, accessory_db)
     }
 
     // If we want it faster, can keep in memory
@@ -577,21 +577,21 @@ mod tests {
     }
 
     fn build_dbs(path: &std::path::Path) -> (rockbound::DB, rockbound::DB, rockbound::DB) {
-        let state_db = StateDB::setup_schema_db(path).unwrap();
-        let native_db = NativeDB::setup_schema_db(path).unwrap();
+        let state_db = StateDb::setup_schema_db(path).unwrap();
+        let accessory_db = AccessoryDb::setup_schema_db(path).unwrap();
         let ledger_db = LedgerDB::setup_schema_db(path).unwrap();
 
-        (state_db, native_db, ledger_db)
+        (state_db, accessory_db, ledger_db)
     }
 
     #[test]
     fn initiate_new() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
         validate_internal_consistency(&storage_manager);
     }
@@ -600,10 +600,10 @@ mod tests {
     fn get_new_storage() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -631,10 +631,10 @@ mod tests {
     fn try_get_new_storage_same_block() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -655,13 +655,13 @@ mod tests {
             accessory_change_set: accessory_snapshot_1,
         } = storage_1.to_change_set();
         // let state_snapshot_1 = FrozenDbSnapshot::from(state_db_1);
-        // let native_snapshot_1 = FrozenDbSnapshot::from(native_db_1);
+        // let accessory_snapshot_1 = FrozenDbSnapshot::from(accessory_db_1);
         let ProverChangeSet {
             state_change_set: state_snapshot_2,
             accessory_change_set: accessory_snapshot_2,
         } = storage_2.to_change_set();
         // let state_snapshot_2 = FrozenDbSnapshot::from(state_db_2);
-        // let native_snapshot_2 = FrozenDbSnapshot::from(native_db_2);
+        // let accessory_snapshot_2 = FrozenDbSnapshot::from(accessory_db_2);
 
         assert_eq!(state_snapshot_1.id(), state_snapshot_2.id());
         assert_eq!(accessory_snapshot_1.id(), accessory_snapshot_2.id());
@@ -679,10 +679,10 @@ mod tests {
     fn try_get_new_storage_corrupt_block() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -703,10 +703,10 @@ mod tests {
         // query data from block B, before adding snapshot A back to the manager!
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         let block_a = MockBlockHeader {
@@ -737,10 +737,10 @@ mod tests {
     fn save_change_set() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -780,15 +780,15 @@ mod tests {
         };
 
         let (snapshot_1, ledger_1) = {
-            let (state_db, native_db, ledger_db) = build_dbs(tmpdir_1.path());
+            let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir_1.path());
             let mut storage_manager_temp =
-                ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+                ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
             storage_manager_temp.create_state_for(&block_a).unwrap()
         };
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir_2.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir_2.path());
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
 
         let result = storage_manager.save_change_set(
             &block_a,
@@ -828,9 +828,9 @@ mod tests {
         };
 
         let ((state_alien_1, ledger_alien_1), (state_alien_2, ledger_alien_2)) = {
-            let (state_db, native_db, ledger_db) = build_dbs(tmpdir_1.path());
+            let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir_1.path());
             let mut storage_manager_temp =
-                ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+                ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
             // ID = 1
             let snapshot_a = storage_manager_temp.create_state_for(&block_a).unwrap();
             // ID = 2
@@ -838,9 +838,9 @@ mod tests {
             (snapshot_a, snapshot_b)
         };
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir_2.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir_2.path());
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
 
         let (state_own_a, ledger_own_a) = storage_manager.create_state_for(&block_a).unwrap();
         let _snapshot_own_b = storage_manager.create_state_for(&block_b).unwrap();
@@ -878,10 +878,10 @@ mod tests {
     fn create_storage_after() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -930,10 +930,10 @@ mod tests {
     fn try_create_storage_after_before_change_set_saved() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -959,10 +959,10 @@ mod tests {
         //  - bootstrap state can be "saved" back without error and without affecting data
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         // Save something to the DB, so bootstrap storage can read it
@@ -1131,10 +1131,10 @@ mod tests {
     fn linear_progression() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         let block_from_i = |i: u8| MockBlockHeader {
@@ -1164,10 +1164,10 @@ mod tests {
     fn parallel_forks() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         // 1    2    3
@@ -1217,10 +1217,10 @@ mod tests {
     fn finalize_non_earliest_block() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         // Blocks A -> B -> C
@@ -1290,10 +1290,10 @@ mod tests {
     fn lifecycle_simulation() {
         let tmpdir = tempfile::tempdir().unwrap();
 
-        let (state_db, native_db, ledger_db) = build_dbs(tmpdir.path());
+        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
 
         let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, native_db, ledger_db);
+            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
         assert!(storage_manager.is_empty());
 
         // Chains:

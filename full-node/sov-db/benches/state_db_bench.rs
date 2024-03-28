@@ -14,7 +14,7 @@ use rockbound::cache::cache_container::CacheContainer;
 use rockbound::cache::cache_db::CacheDb;
 use rockbound::{ReadOnlyLock, DB};
 use sov_db::namespaces::UserNamespace;
-use sov_db::state_db::{JmtHandler, StateDB};
+use sov_db::state_db::{JmtHandler, StateDb};
 
 // TODO: Improve for collisions
 fn generate_random_bytes(count: usize) -> Vec<Vec<u8>> {
@@ -38,7 +38,7 @@ struct TestData {
     largest_key: Vec<u8>,
     random_key: Vec<u8>,
     non_existing_key: Vec<u8>,
-    db: StateDB,
+    db: StateDb,
 }
 
 fn prepare_data(size: usize, db: DB) -> TestData {
@@ -49,7 +49,7 @@ fn prepare_data(size: usize, db: DB) -> TestData {
         to_parent.clone().into(),
     ))));
     let db_snapshot = CacheDb::new(0, manager);
-    let db = StateDB::with_cache_db(db_snapshot).unwrap();
+    let db = StateDb::with_cache_db(db_snapshot).unwrap();
     db.inc_next_version();
 
     let mut raw_data = generate_random_bytes(size * 2 + 1);
@@ -115,7 +115,7 @@ fn prepare_data(size: usize, db: DB) -> TestData {
 
 fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
     let tempdir = tempfile::tempdir().unwrap();
-    let state_db = StateDB::setup_schema_db(tempdir.path()).unwrap();
+    let state_db = StateDb::setup_schema_db(tempdir.path()).unwrap();
     let TestData { db, random_key, .. } = prepare_data(size, state_db);
     let version = db.get_next_version() - 1;
     g.bench_with_input(
@@ -137,7 +137,7 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
 
 fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
     let tempdir = tempfile::tempdir().unwrap();
-    let state_db = StateDB::setup_schema_db(tempdir.path()).unwrap();
+    let state_db = StateDb::setup_schema_db(tempdir.path()).unwrap();
     let TestData {
         db,
         largest_key: _largest_key,
@@ -163,7 +163,7 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
 
 fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
     let tempdir = tempfile::tempdir().unwrap();
-    let state_db = StateDB::setup_schema_db(tempdir.path()).unwrap();
+    let state_db = StateDb::setup_schema_db(tempdir.path()).unwrap();
     let TestData {
         db,
         non_existing_key,
@@ -188,7 +188,7 @@ fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
 }
 
 fn state_db_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("StateDB");
+    let mut group = c.benchmark_group("StateDb");
     group.noise_threshold(0.3);
     for size in [1000, 10_000, 30_000] {
         bench_random_read(&mut group, size);
