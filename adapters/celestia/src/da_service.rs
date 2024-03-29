@@ -185,6 +185,11 @@ impl DaService for CelestiaService {
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
         let mut output = Vec::new();
         for blob_ref in block.rollup_batch_data.group.blobs() {
+            if blob_ref.is_padding() {
+                debug!("Ignoring namespace padding blob. Sequence length 0.");
+                continue;
+            }
+
             let commitment = Commitment::from_shares(block.rollup_batch_data.namespace, blob_ref.0)
                 .expect("blob must be valid");
             info!(commitment = hex::encode(commitment.0), "Extracting blob");
@@ -322,12 +327,28 @@ mod tests {
     use super::default_request_timeout_seconds;
     use crate::da_service::{get_gas_limit_for_bytes, CelestiaConfig, CelestiaService, GAS_PRICE};
     use crate::test_helper::files::*;
+    use crate::types::FilteredCelestiaBlock;
     use crate::verifier::address::CelestiaAddress;
     use crate::verifier::{CelestiaVerifier, RollupParams};
+
+    async fn setup_test_service(
+        timeout_sec: Option<u64>,
+    ) -> (MockServer, CelestiaConfig, CelestiaService, RollupParams) {
+        setup_service(
+            timeout_sec,
+            CelestiaAddress::from_str("celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s").unwrap(),
+            b"sov-test",
+            b"sov-proof",
+        )
+        .await
+    }
 
     // Last return value is namespace
     async fn setup_service(
         timeout_sec: Option<u64>,
+        celestia_address: CelestiaAddress,
+        rollup_batch_namespace: &[u8],
+        rollup_proof_namespace: &[u8],
     ) -> (MockServer, CelestiaConfig, CelestiaService, RollupParams) {
         // Start a background HTTP server on a random local port
         let mock_server = MockServer::start().await;
@@ -338,13 +359,10 @@ mod tests {
             celestia_rpc_address: mock_server.uri(),
             max_celestia_response_body_size: 120_000,
             celestia_rpc_timeout_seconds: timeout_sec,
-            own_celestia_address: CelestiaAddress::from_str(
-                "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
-            )
-            .unwrap(),
+            own_celestia_address: celestia_address,
         };
-        let rollup_batch_namespace = Namespace::new_v0(b"sov-test").unwrap();
-        let rollup_proof_namespace = Namespace::new_v0(b"sov-proof").unwrap();
+        let rollup_batch_namespace = Namespace::new_v0(rollup_batch_namespace).unwrap();
+        let rollup_proof_namespace = Namespace::new_v0(rollup_proof_namespace).unwrap();
         let params = RollupParams {
             rollup_batch_namespace,
             rollup_proof_namespace,
@@ -365,7 +383,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_blob_correct() -> anyhow::Result<()> {
-        let (mock_server, config, da_service, rollup_params) = setup_service(None).await;
+        let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
 
         let blob = [1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
         let gas_limit = get_gas_limit_for_bytes(blob.len());
@@ -412,7 +430,7 @@ mod tests {
     #[tokio::test]
     async fn test_submit_blob_application_level_error() -> anyhow::Result<()> {
         // Our calculation of gas is off and gas limit exceeded, for example
-        let (mock_server, _config, da_service, _namespace) = setup_service(None).await;
+        let (mock_server, _config, da_service, _namespace) = setup_test_service(None).await;
 
         let blob: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
 
@@ -450,7 +468,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_blob_internal_server_error() -> anyhow::Result<()> {
-        let (mock_server, _config, da_service, _namespace) = setup_service(None).await;
+        let (mock_server, _config, da_service, _namespace) = setup_test_service(None).await;
 
         let error_response = ResponseTemplate::new(500).set_body_bytes("Internal Error".as_bytes());
 
@@ -483,7 +501,8 @@ mod tests {
     // Slower request timeout can be set
     async fn test_submit_blob_response_timeout() -> anyhow::Result<()> {
         let timeout = 1;
-        let (mock_server, _config, da_service, _namespace) = setup_service(Some(timeout)).await;
+        let (mock_server, _config, da_service, _namespace) =
+            setup_test_service(Some(timeout)).await;
 
         let response_json = json!({
             "jsonrpc": "2.0",
@@ -536,7 +555,7 @@ mod tests {
         ];
 
         for block in blocks {
-            let (_, _, da_service, rollup_params) = setup_service(None).await;
+            let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
             let txs = da_service.extract_relevant_blobs(&block);
             let (correctness_proof, completeness_proof) =
@@ -556,7 +575,7 @@ mod tests {
     #[tokio::test]
     async fn verification_fails_if_tx_missing() {
         let block = with_rollup_data::filtered_block();
-        let (_, _, da_service, rollup_params) = setup_service(None).await;
+        let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
         let txs = da_service.extract_relevant_blobs(&block);
         let (correctness_proof, completeness_proof) =
@@ -575,7 +594,7 @@ mod tests {
     #[tokio::test]
     async fn verification_fails_if_not_all_etxs_are_proven() {
         let block = with_rollup_data::filtered_block();
-        let (_, _, da_service, rollup_params) = setup_service(None).await;
+        let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
         let txs = da_service.extract_relevant_blobs(&block);
         let (mut correctness_proof, completeness_proof) =
@@ -594,9 +613,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_blobs_from_padded_namespace() {
+        let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
+        let (_, _, da_service, _) = setup_service(
+            None,
+            CelestiaAddress::from_str("celestia1g2hwtcldcwjnw0cy9ngs9hsewpduq4zuehqlqh").unwrap(),
+            b"sov-roll05",
+            b"sov-prov05",
+        )
+        .await;
+        let relevant_blobs = da_service.extract_relevant_blobs(&block);
+        assert_eq!(relevant_blobs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn verification_for_padded_namespace() {
+        let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
+        let (_, _, da_service, rollup_params) = setup_service(
+            None,
+            CelestiaAddress::from_str("celestia1g2hwtcldcwjnw0cy9ngs9hsewpduq4zuehqlqh").unwrap(),
+            b"sov-roll05",
+            b"sov-prov05",
+        )
+        .await;
+
+        let txs = da_service.extract_relevant_blobs(&block);
+        let (correctness_proof, completeness_proof) =
+            da_service.get_extraction_proof(&block, &txs).await;
+
+        let verifier = CelestiaVerifier::new(rollup_params);
+
+        let _validity_cond = verifier
+            .verify_relevant_tx_list(&block.header, &txs, correctness_proof, completeness_proof)
+            .unwrap();
+    }
+
+    #[tokio::test]
     async fn verification_fails_if_there_is_less_blobs_than_proofs() {
         let block = with_rollup_data::filtered_block();
-        let (_, _, da_service, rollup_params) = setup_service(None).await;
+        let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
         let txs = da_service.extract_relevant_blobs(&block);
         let (mut correctness_proof, completeness_proof) =
@@ -618,7 +673,7 @@ mod tests {
     #[should_panic]
     async fn verification_fails_for_incorrect_namespace() {
         let block = with_rollup_data::filtered_block();
-        let (_, _, da_service, _) = setup_service(None).await;
+        let (_, _, da_service, _) = setup_test_service(None).await;
 
         let txs = da_service.extract_relevant_blobs(&block);
         let (correctness_proof, completeness_proof) =
@@ -640,7 +695,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_proof() -> anyhow::Result<()> {
-        let (mock_server, config, da_service, rollup_params) = setup_service(None).await;
+        let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
 
         let zk_proof: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
         let gas_limit = get_gas_limit_for_bytes(zk_proof.len());

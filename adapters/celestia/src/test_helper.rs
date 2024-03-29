@@ -15,6 +15,7 @@ pub(crate) mod files {
     pub const ROLLUP_ROWS_JSON: &str = "rollup_rows.json";
     pub const ETX_ROWS_JSON: &str = "etx_rows.json";
     pub const EDS_JSON: &str = "eds.json";
+    pub mod with_proof_data {}
 
     pub mod with_rollup_data {
         use super::*;
@@ -23,6 +24,18 @@ pub(crate) mod files {
         pub fn filtered_block() -> FilteredCelestiaBlock {
             let path = make_test_path(DATA_PATH);
             filtered_block_from_path(ROLLUP_NAMESPACE, &path).unwrap()
+        }
+    }
+
+    pub mod with_namespace_padding {
+        use super::*;
+        pub const DATA_PATH: &str = "test_data/block_with_namespace_padding";
+
+        pub fn filtered_block() -> FilteredCelestiaBlock {
+            let path = make_test_path(DATA_PATH);
+            // sov-roll05 is the demo testnet rollup that faced the padding issue
+            // We use the exact mocha testnet block that caused the breakage
+            filtered_block_from_path(Namespace::const_v0(*b"sov-roll05"), &path).unwrap()
         }
     }
 
