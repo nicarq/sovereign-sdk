@@ -29,31 +29,44 @@ pub struct NamespaceWithShares {
 }
 
 impl NamespaceWithShares {
-    fn convert_to_namespace_data(self, pfbs: Vec<(MsgPayForBlobs, TxPosition)>) -> NamespaceData {
-        NamespaceData {
-            namespace: self.namespace,
-            group: NamespaceGroup::from(&self.rows),
-            relevant_pfbs: Self::make_pfb_map(pfbs, self.namespace),
-            rows: self.rows,
-        }
-    }
-
-    fn make_pfb_map(
-        pfbs: Vec<(MsgPayForBlobs, TxPosition)>,
-        ns: Namespace,
-    ) -> HashMap<Bytes, (MsgPayForBlobs, TxPosition)> {
+    fn convert_to_namespace_data(
+        pfbs: &Vec<(MsgPayForBlobs, TxPosition)>,
+        batch_shares: Self,
+        proof_shares: Self,
+    ) -> (NamespaceData, NamespaceData) {
         // Parse out the pfds and store them for later retrieval.
         debug!("Decoding pfb protobufs...");
-        let mut pbf_map = HashMap::new();
+        let mut batch_pbf_map = HashMap::new();
+        let mut proof_pbf_map = HashMap::new();
         for tx in pfbs {
             for (idx, nid) in tx.0.namespaces.iter().enumerate() {
-                if nid == ns.as_bytes() {
+                if nid == batch_shares.namespace.as_bytes() {
                     // TODO: Retool this map to avoid cloning txs
-                    pbf_map.insert(tx.0.share_commitments[idx].clone().into(), tx.clone());
+                    batch_pbf_map.insert(tx.0.share_commitments[idx].clone().into(), tx.clone());
+                }
+
+                if nid == proof_shares.namespace.as_bytes() {
+                    // TODO: Retool this map to avoid cloning txs
+                    proof_pbf_map.insert(tx.0.share_commitments[idx].clone().into(), tx.clone());
                 }
             }
         }
-        pbf_map
+
+        let rollup_batch_data = NamespaceData {
+            namespace: batch_shares.namespace,
+            group: NamespaceGroup::from(&batch_shares.rows),
+            relevant_pfbs: batch_pbf_map,
+            rows: batch_shares.rows,
+        };
+
+        let rollup_proof_data = NamespaceData {
+            namespace: proof_shares.namespace,
+            group: NamespaceGroup::from(&proof_shares.rows),
+            relevant_pfbs: proof_pbf_map,
+            rows: proof_shares.rows,
+        };
+
+        (rollup_batch_data, rollup_proof_data)
     }
 }
 
@@ -78,6 +91,9 @@ pub struct FilteredCelestiaBlock {
     pub(crate) pfb_rows: Vec<Row>,
     /// Batch related data.
     pub(crate) rollup_batch_data: NamespaceData,
+
+    /// Proof related data.
+    pub(crate) rollup_proof_data: NamespaceData,
 }
 
 impl SlotData for FilteredCelestiaBlock {
@@ -106,6 +122,7 @@ impl SlotData for FilteredCelestiaBlock {
 impl FilteredCelestiaBlock {
     pub fn new(
         rollup_batch_shares: NamespaceWithShares,
+        rollup_proof_shares: NamespaceWithShares,
         header: ExtendedHeader,
         etx_rows: NamespacedShares,
         data_square: ExtendedDataSquare,
@@ -120,10 +137,17 @@ impl FilteredCelestiaBlock {
         // validate the extended data square
         data_square.validate()?;
 
+        let (rollup_batch_data, rollup_proof_data) = NamespaceWithShares::convert_to_namespace_data(
+            &pfbs,
+            rollup_batch_shares,
+            rollup_proof_shares,
+        );
+
         Ok(FilteredCelestiaBlock {
             header: CelestiaHeader::new(header.dah, header.header.into()),
             pfb_rows,
-            rollup_batch_data: rollup_batch_shares.convert_to_namespace_data(pfbs),
+            rollup_batch_data,
+            rollup_proof_data,
         })
     }
 
@@ -292,8 +316,32 @@ pub mod tests {
     use crate::verifier::PFB_NAMESPACE;
 
     #[test]
-    fn filtered_block_with_rollup_data() {
-        let block = with_rollup_data::filtered_block();
+    fn filtered_block_with_prof_data() {
+        let block = with_rollup_proof_data::filtered_block();
+
+        // valid dah
+        block.header.validate_dah().unwrap();
+
+        let rollup_proof_data = block.rollup_proof_data;
+
+        assert_eq!(rollup_proof_data.group.shares().len(), 1);
+        assert_eq!(rollup_proof_data.rows.rows.len(), 1);
+        assert_eq!(rollup_proof_data.rows.rows[0].shares.len(), 1);
+        assert!(rollup_proof_data.rows.rows[0].proof.is_of_presence());
+
+        assert_eq!(block.pfb_rows.len(), 1);
+        let pfbs_count = block.pfb_rows[0]
+            .shares
+            .iter()
+            .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
+            .count();
+        assert_eq!(pfbs_count, 1);
+        assert_eq!(rollup_proof_data.relevant_pfbs.len(), 1);
+    }
+
+    #[test]
+    fn filtered_block_with_batch_data() {
+        let block = with_rollup_batch_data::filtered_block();
         // valid dah
         block.header.validate_dah().unwrap();
 
@@ -317,8 +365,8 @@ pub mod tests {
     }
 
     #[test]
-    fn filtered_block_without_rollup_data() {
-        let block = without_rollup_data::filtered_block();
+    fn filtered_block_without_batch_data() {
+        let block = without_rollup_batch_data::filtered_block();
 
         // valid dah
         block.header.validate_dah().unwrap();
@@ -345,7 +393,7 @@ pub mod tests {
 
     #[test]
     fn test_get_pfbs() {
-        let path = make_test_path(with_rollup_data::DATA_PATH);
+        let path = make_test_path(with_rollup_batch_data::DATA_PATH);
         let rows: NamespacedShares = load_from_file(&path, ETX_ROWS_JSON).unwrap();
 
         let pfb_ns = NamespaceGroup::from(&rows);
@@ -355,8 +403,8 @@ pub mod tests {
 
     #[test]
     fn test_get_rollup_data() {
-        let path = make_test_path(with_rollup_data::DATA_PATH);
-        let rows: NamespacedShares = load_from_file(&path, ROLLUP_ROWS_JSON).unwrap();
+        let path = make_test_path(with_rollup_batch_data::DATA_PATH);
+        let rows: NamespacedShares = load_from_file(&path, ROLLUP_BATCH_ROWS_JSON).unwrap();
 
         let rollup_ns_group = NamespaceGroup::from(&rows);
         let mut blobs = rollup_ns_group.blobs();

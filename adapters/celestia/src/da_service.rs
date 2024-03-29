@@ -138,8 +138,12 @@ impl DaService for CelestiaService {
         let rollup_batch_rows_future =
             client.share_get_shares_by_namespace(&header, self.rollup_batch_namespace);
 
-        let (batch_rows, etx_rows, data_square) = tokio::try_join!(
+        let rollup_proof_rows_future =
+            client.share_get_shares_by_namespace(&header, self.rollup_proof_namespace);
+
+        let (batch_rows, proof_rows, etx_rows, data_square) = tokio::try_join!(
             rollup_batch_rows_future,
+            rollup_proof_rows_future,
             etx_rows_future,
             data_square_future
         )?;
@@ -149,7 +153,18 @@ impl DaService for CelestiaService {
             rows: batch_rows,
         };
 
-        FilteredCelestiaBlock::new(rollup_batch_shares, header, etx_rows, data_square)
+        let rollup_proof_shares = NamespaceWithShares {
+            namespace: self.rollup_proof_namespace,
+            rows: proof_rows,
+        };
+
+        FilteredCelestiaBlock::new(
+            rollup_batch_shares,
+            rollup_proof_shares,
+            header,
+            etx_rows,
+            data_square,
+        )
     }
 
     async fn get_last_finalized_block_header(
@@ -338,7 +353,7 @@ mod tests {
             timeout_sec,
             CelestiaAddress::from_str("celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s").unwrap(),
             b"sov-test",
-            b"sov-proof",
+            b"sov-test-p",
         )
         .await
     }
@@ -361,8 +376,10 @@ mod tests {
             celestia_rpc_timeout_seconds: timeout_sec,
             own_celestia_address: celestia_address,
         };
+
         let rollup_batch_namespace = Namespace::new_v0(rollup_batch_namespace).unwrap();
         let rollup_proof_namespace = Namespace::new_v0(rollup_proof_namespace).unwrap();
+
         let params = RollupParams {
             rollup_batch_namespace,
             rollup_proof_namespace,
@@ -550,8 +567,8 @@ mod tests {
     #[tokio::test]
     async fn verification_succeeds_for_correct_blocks() {
         let blocks = [
-            with_rollup_data::filtered_block(),
-            without_rollup_data::filtered_block(),
+            with_rollup_batch_data::filtered_block(),
+            without_rollup_batch_data::filtered_block(),
         ];
 
         for block in blocks {
@@ -574,7 +591,7 @@ mod tests {
 
     #[tokio::test]
     async fn verification_fails_if_tx_missing() {
-        let block = with_rollup_data::filtered_block();
+        let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
         let txs = da_service.extract_relevant_blobs(&block);
@@ -593,7 +610,7 @@ mod tests {
 
     #[tokio::test]
     async fn verification_fails_if_not_all_etxs_are_proven() {
-        let block = with_rollup_data::filtered_block();
+        let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
         let txs = da_service.extract_relevant_blobs(&block);
@@ -650,7 +667,7 @@ mod tests {
 
     #[tokio::test]
     async fn verification_fails_if_there_is_less_blobs_than_proofs() {
-        let block = with_rollup_data::filtered_block();
+        let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
         let txs = da_service.extract_relevant_blobs(&block);
@@ -672,7 +689,7 @@ mod tests {
     #[tokio::test]
     #[should_panic]
     async fn verification_fails_for_incorrect_namespace() {
-        let block = with_rollup_data::filtered_block();
+        let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, _) = setup_test_service(None).await;
 
         let txs = da_service.extract_relevant_blobs(&block);

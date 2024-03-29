@@ -367,8 +367,8 @@ mod tests {
     use crate::{CelestiaHeader, CompactHeader};
 
     const HEADER_JSON_RESPONSES: &[&str] = &[
-        include_str!("../test_data/block_with_rollup_data/header.json"),
-        include_str!("../test_data/block_without_rollup_data/header.json"),
+        include_str!("../test_data/block_with_rollup_batch_data/header.json"),
+        include_str!("../test_data/block_without_rollup_batch_data/header.json"),
     ];
 
     #[test]
