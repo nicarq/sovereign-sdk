@@ -1,11 +1,14 @@
 //! Query the current state of the rollup and send transactions
 
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::Context;
 use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpsee::core::client::ClientT;
+use jsonrpsee::core::Error;
 use jsonrpsee::http_client::HttpClientBuilder;
+use jsonrpsee::tokio::time::sleep;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_accounts::AccountsRpcClient;
@@ -121,7 +124,28 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                 "No RPC url set. Use the `rpc set-url` subcommand to set one"
             ))?
             .clone();
-        let client = HttpClientBuilder::default().build(rpc_url)?;
+        let client = HttpClientBuilder::default().build(&rpc_url)?;
+
+        let wait_timeout = Duration::from_millis(500);
+        // 120 * 500ms = 60s
+        let attempts = 120;
+        for attempt_number in 0..attempts {
+            // Calling some non-existing method, at least we should get HTTP response
+            let response = client.request::<(), [u8; 0]>("health", []).await;
+
+            if let Err(Error::Transport(_)) = response {
+                if attempt_number > 3 {
+                    println!(
+                        "RPC endpoint {} is not responding, will wait for {:?}...",
+                        &rpc_url, wait_timeout
+                    );
+                }
+                sleep(wait_timeout).await;
+                continue;
+            }
+            break;
+        }
+
         let account = self.resolve_account(wallet_state)?;
 
         // Finally, run the workflow
