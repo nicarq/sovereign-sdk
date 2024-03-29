@@ -383,6 +383,9 @@ where
             self.state_root = next_state_root;
 
             self.ledger_db.commit_slot(data_to_commit)?;
+            self.proof_manager
+                .save_aggregated_proof(next_da_height)
+                .await?;
 
             // Save data back to StorageManager
             let ledger_change_set = self.ledger_db.clone_change_set();
@@ -433,16 +436,13 @@ where
     ) -> Result<(), anyhow::Error> {
         // Checking all seen blocks, in case if there was delay in getting last finalized header.
         while let Some(earliest_seen_state_transition_info) = seen_state_transition.front() {
-            let height = earliest_seen_state_transition_info
-                .da_block_header()
-                .height();
+            let earliest_header = earliest_seen_state_transition_info.da_block_header();
+            debug!(header = %earliest_header.display(), "Checking seen header");
+            let height = earliest_header.height();
 
-            debug!(height, "Checking seen header");
             if height <= last_finalized_height {
                 self.storage_manager
                     .finalize(earliest_seen_state_transition_info.da_block_header())?;
-
-                self.proof_manager.save_aggregated_proof(height).await?;
 
                 let transition_data = seen_state_transition.pop_front().unwrap();
 

@@ -13,7 +13,7 @@ use sov_modules_api::{CliWallet, GasArray};
 use crate::wallet_state::WalletState;
 
 #[derive(clap::Parser)]
-/// Generate, sign, and send transactions
+/// Generate, sign, and list transactions
 pub enum TransactionWorkflow<File: Subcommand, Json: Subcommand> {
     /// Import a transaction
     #[clap(subcommand)]
