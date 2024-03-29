@@ -16,7 +16,7 @@ use crate::{Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, Storage, Wor
 /// A simple implementation will simply process all blobs in the order that they appear,
 /// while a second will support a "preferred sequencer" with some limited power to reorder blobs
 /// in order to give out soft confirmations.
-pub trait Kernel<S: Spec, Da: DaSpec>: BatchSelector<Da, Spec = S> + Default {
+pub trait Kernel<S: Spec, Da: DaSpec>: BatchSelector<Da, Spec = S> + Default + Sync + Send {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
 

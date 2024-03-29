@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use borsh::BorshDeserialize;
 use sov_db::sequencer_db::{MempoolTx, SequencerDB};
 use sov_modules_api::digest::Digest;
+use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::tx_verifier::TransactionAndRawHash;
 use sov_modules_api::{CryptoSpec, Gas, GasArray, Spec, StateCheckpoint};
@@ -12,6 +13,7 @@ use sov_modules_stf_blueprint::{apply_tx, ExecutionMode, Runtime, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
 use sov_rollup_interface::stf::TransactionReceipt;
+use sov_state::storage::KernelWorkingSet;
 use tokio::sync::watch;
 
 use crate::mempool::{FairMempool, MempoolCursor};
@@ -23,15 +25,16 @@ use crate::TxHash;
 /// Transactions are included in batches by following a largest-first,
 /// least-recent-first priority. Only transactions that were successfully
 /// dispatched are included.
-pub struct FairBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>> {
+pub struct FairBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>, K> {
     runtime: R,
+    kernel: K,
     mempool: FairMempool,
     max_batch_size_bytes: usize,
     current_storage: watch::Receiver<S::Storage>,
     sequencer: Da::Address,
 }
 
-impl<S, Da, R> FairBatchBuilder<S, Da, R>
+impl<S, Da, R, K> FairBatchBuilder<S, Da, R, K>
 where
     S: Spec,
     Da: DaSpec,
@@ -42,6 +45,7 @@ where
         max_batch_size_bytes: usize,
         mempool_max_count_txs: usize,
         runtime: R,
+        kernel: K,
         current_storage: watch::Receiver<<S as Spec>::Storage>,
         sequencer: Da::Address,
         sequencer_db: SequencerDB,
@@ -50,6 +54,7 @@ where
             mempool: FairMempool::new(sequencer_db, mempool_max_count_txs)?,
             max_batch_size_bytes,
             runtime,
+            kernel,
             current_storage,
             sequencer,
         })
@@ -90,7 +95,7 @@ where
             &mut ctx.reward,
             ExecutionMode::Speculative,
             &ctx.gas_price,
-            ctx.height,
+            ctx.visible_height,
         );
         // ...and immediately store the new `StateCheckpoint`.
         ctx.state_checkpoint = Some(after_state_checkpoint);
@@ -124,11 +129,12 @@ where
 }
 
 #[async_trait]
-impl<S, Da, R> BatchBuilder for FairBatchBuilder<S, Da, R>
+impl<S, Da, R, K> BatchBuilder for FairBatchBuilder<S, Da, R, K>
 where
     S: Spec,
     Da: DaSpec,
     R: Runtime<S, Da>,
+    K: Kernel<S, Da> + Send + Sync,
 {
     /// Attempt to add transaction to the mempool.
     ///
@@ -179,7 +185,7 @@ where
 
     /// Builds a new batch of valid transactions in order they were added to mempool
     /// Only transactions, which are dispatched successfully are included in the batch
-    async fn get_next_blob(&mut self, height: u64) -> anyhow::Result<Vec<TxWithHash>> {
+    async fn get_next_blob(&mut self, _height: u64) -> anyhow::Result<Vec<TxWithHash>> {
         tracing::debug!("get_next_blob has been called");
 
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/224
@@ -191,13 +197,17 @@ where
         //     pre_state_root,
         //     state_checkpoint,
         // ););
+
+        let mut state_checkpoint = StateCheckpoint::new(self.current_storage.borrow().clone());
         let gas_price = <S::Gas as Gas>::Price::ZEROED;
+        let kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut state_checkpoint);
+        let visible_height = kernel_working_set.virtual_slot();
 
         let mut ctx = BatchConstructionContext {
-            height,
+            visible_height,
             reward: 0,
             gas_price,
-            state_checkpoint: Some(StateCheckpoint::new(self.current_storage.borrow().clone())),
+            state_checkpoint: Some(state_checkpoint),
             current_batch_size_in_bytes: 0,
         };
 
@@ -260,7 +270,7 @@ where
 }
 
 struct BatchConstructionContext<S: Spec> {
-    height: u64,
+    visible_height: u64,
     reward: i64,
     gas_price: <S::Gas as Gas>::Price,
     state_checkpoint: Option<StateCheckpoint<S>>,
@@ -275,6 +285,7 @@ fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
 mod tests {
     use borsh::BorshSerialize;
     use rand::Rng;
+    use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::transaction::Transaction;
     use sov_modules_api::{EncodeCall, Genesis, PrivateKey, PublicKey, WorkingSet};
@@ -355,7 +366,8 @@ mod tests {
         batch_size_bytes: usize,
         tmpdir: &TempDir,
         sequencer_address: MockAddress,
-    ) -> FairBatchBuilder<S, MockDaSpec, TestRuntime<S, MockDaSpec>> {
+    ) -> FairBatchBuilder<S, MockDaSpec, TestRuntime<S, MockDaSpec>, BasicKernel<S, MockDaSpec>>
+    {
         let state_path = tmpdir.path().join("state");
         let sequencer_db_path = tmpdir.path().join("mempool");
         let storage = watch::Sender::new(new_orphan_storage(state_path).unwrap()).subscribe();
@@ -364,6 +376,7 @@ mod tests {
             batch_size_bytes,
             MAX_TX_POOL_SIZE,
             TestRuntime::<S, MockDaSpec>::default(),
+            BasicKernel::default(),
             storage.clone(),
             sequencer_address,
             sequencer_db,
@@ -372,7 +385,12 @@ mod tests {
     }
 
     fn setup_runtime(
-        batch_builder: &mut FairBatchBuilder<S, MockDaSpec, TestRuntime<S, MockDaSpec>>,
+        batch_builder: &mut FairBatchBuilder<
+            S,
+            MockDaSpec,
+            TestRuntime<S, MockDaSpec>,
+            BasicKernel<S, MockDaSpec>,
+        >,
         admin: Option<TestPublicKey>,
         admin_da_address: MockAddress,
     ) {

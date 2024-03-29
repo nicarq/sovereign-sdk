@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::sequencer_db::SequencerDB;
+use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
 use sov_rollup_interface::da::DaSpec;
@@ -9,7 +10,7 @@ use sov_sequencer::{FairBatchBuilder, Sequencer};
 use tokio::sync::watch;
 
 /// Register rollup's default rpc methods.
-pub fn register_rpc<RT, S, Da>(
+pub fn register_rpc<RT, K, S, Da>(
     storage: watch::Receiver<S::Storage>,
     ledger_db: &LedgerDB,
     sequencer_db: &SequencerDB,
@@ -18,6 +19,7 @@ pub fn register_rpc<RT, S, Da>(
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
 where
     RT: RuntimeTrait<S, <Da as DaService>::Spec> + 'static + sov_modules_api::RuntimeEventDisplay,
+    K: Kernel<S, Da::Spec> + 'static,
     S: Spec,
     Da: DaService + Clone,
     Da::TransactionId: Clone + serde::Serialize + Send + Sync,
@@ -37,10 +39,11 @@ where
 
     // sequencer RPC.
     {
-        let batch_builder = FairBatchBuilder::<S, Da::Spec, RT>::new(
+        let batch_builder = FairBatchBuilder::<S, Da::Spec, RT, K>::new(
             1024 * 100,
             u32::MAX as usize,
             RT::default(),
+            K::default(),
             storage,
             sequencer,
             sequencer_db.clone(),
