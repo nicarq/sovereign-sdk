@@ -15,6 +15,7 @@ pub mod proofs;
 
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
+use tracing::debug;
 
 use self::address::CelestiaAddress;
 use self::proofs::*;
@@ -222,6 +223,10 @@ impl da::DaVerifier for CelestiaVerifier {
         let mut tx_proofs = inclusion_proof.into_iter();
         let square_size = block_header.dah.row_roots.len();
         for blob in verified_shares.blobs() {
+            if blob.is_padding() {
+                debug!("Ignoring namespace padding blob. Sequence length 0.");
+                continue;
+            }
             // Get the etx proof for this blob
             let Some(tx_proof) = tx_proofs.next() else {
                 return Err(ValidationError::InvalidEtxProof("not all blobs proven"));
