@@ -22,18 +22,62 @@ use crate::utils::BoxError;
 use crate::verifier::{ChainValidityCondition, PARITY_SHARES_NAMESPACE, PFB_NAMESPACE};
 use crate::{parse_pfb_namespace, CelestiaHeader, TxPosition};
 
+/// Celestia namespace and corresponding shares.
+pub struct NamespaceWithShares {
+    pub(crate) namespace: Namespace,
+    pub(crate) rows: NamespacedShares,
+}
+
+impl NamespaceWithShares {
+    fn convert_to_namespace_data(self, pfbs: Vec<(MsgPayForBlobs, TxPosition)>) -> NamespaceData {
+        NamespaceData {
+            namespace: self.namespace,
+            group: NamespaceGroup::from(&self.rows),
+            relevant_pfbs: Self::make_pfb_map(pfbs, self.namespace),
+            rows: self.rows,
+        }
+    }
+
+    fn make_pfb_map(
+        pfbs: Vec<(MsgPayForBlobs, TxPosition)>,
+        ns: Namespace,
+    ) -> HashMap<Bytes, (MsgPayForBlobs, TxPosition)> {
+        // Parse out the pfds and store them for later retrieval.
+        debug!("Decoding pfb protobufs...");
+        let mut pbf_map = HashMap::new();
+        for tx in pfbs {
+            for (idx, nid) in tx.0.namespaces.iter().enumerate() {
+                if nid == ns.as_bytes() {
+                    // TODO: Retool this map to avoid cloning txs
+                    pbf_map.insert(tx.0.share_commitments[idx].clone().into(), tx.clone());
+                }
+            }
+        }
+        pbf_map
+    }
+}
+
+/// Data that is required for extracting the relevant blobs from the namespace
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct NamespaceData {
+    /// Celestia namespace.
+    pub(crate) namespace: Namespace,
+    pub(crate) group: NamespaceGroup,
+    /// A mapping from blob commitment to the PFB containing that commitment
+    /// for each blob addressed to the relevant namespace.
+    pub(crate) relevant_pfbs: HashMap<Bytes, (MsgPayForBlobs, TxPosition)>,
+    /// All relevant rollup shares as they appear in extended data square, with proofs.
+    pub(crate) rows: NamespacedShares,
+}
+
 // TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct FilteredCelestiaBlock {
-    pub header: CelestiaHeader,
-    pub rollup_data: NamespaceGroup,
-    /// A mapping from blob commitment to the PFB containing that commitment
-    /// for each blob addressed to the rollup namespace
-    pub relevant_pfbs: HashMap<Bytes, (MsgPayForBlobs, TxPosition)>,
-    /// All rollup shares as they appear in extended data square, with proofs
-    pub rollup_rows: NamespacedShares,
+    pub(crate) header: CelestiaHeader,
     /// All rows in the extended data square which contain pfb data
-    pub pfb_rows: Vec<Row>,
+    pub(crate) pfb_rows: Vec<Row>,
+    /// Batch related data.
+    pub(crate) rollup_batch_data: NamespaceData,
 }
 
 impl SlotData for FilteredCelestiaBlock {
@@ -61,42 +105,25 @@ impl SlotData for FilteredCelestiaBlock {
 
 impl FilteredCelestiaBlock {
     pub fn new(
-        rollup_ns: Namespace,
+        rollup_batch_shares: NamespaceWithShares,
         header: ExtendedHeader,
-        rollup_rows: NamespacedShares,
         etx_rows: NamespacedShares,
         data_square: ExtendedDataSquare,
     ) -> Result<Self, BoxError> {
-        // validate the extended data square
-        data_square.validate()?;
-
-        let rollup_data = NamespaceGroup::from(&rollup_rows);
         let tx_data = NamespaceGroup::from(&etx_rows);
-
+        let pfbs = parse_pfb_namespace(tx_data)?;
         // Parse out all of the rows containing etxs
         debug!("Parsing namespaces...");
         let pfb_rows =
             get_rows_containing_namespace(PFB_NAMESPACE, &header.dah, data_square.rows()?)?;
 
-        // Parse out the pfds and store them for later retrieval
-        debug!("Decoding pfb protobufs...");
-        let pfbs = parse_pfb_namespace(tx_data)?;
-        let mut pfb_map = HashMap::new();
-        for tx in pfbs {
-            for (idx, nid) in tx.0.namespaces.iter().enumerate() {
-                if nid == rollup_ns.as_bytes() {
-                    // TODO: Retool this map to avoid cloning txs
-                    pfb_map.insert(tx.0.share_commitments[idx].clone().into(), tx.clone());
-                }
-            }
-        }
+        // validate the extended data square
+        data_square.validate()?;
 
         Ok(FilteredCelestiaBlock {
             header: CelestiaHeader::new(header.dah, header.header.into()),
-            rollup_data,
-            relevant_pfbs: pfb_map,
-            rollup_rows,
             pfb_rows,
+            rollup_batch_data: rollup_batch_shares.convert_to_namespace_data(pfbs),
         })
     }
 
@@ -267,15 +294,16 @@ pub mod tests {
     #[test]
     fn filtered_block_with_rollup_data() {
         let block = with_rollup_data::filtered_block();
-
         // valid dah
         block.header.validate_dah().unwrap();
 
+        let rollup_batch_data = block.rollup_batch_data;
+
         // single rollup share
-        assert_eq!(block.rollup_data.shares().len(), 1);
-        assert_eq!(block.rollup_rows.rows.len(), 1);
-        assert_eq!(block.rollup_rows.rows[0].shares.len(), 1);
-        assert!(block.rollup_rows.rows[0].proof.is_of_presence());
+        assert_eq!(rollup_batch_data.group.shares().len(), 1);
+        assert_eq!(rollup_batch_data.rows.rows.len(), 1);
+        assert_eq!(rollup_batch_data.rows.rows[0].shares.len(), 1);
+        assert!(rollup_batch_data.rows.rows[0].proof.is_of_presence());
 
         // 3 pfbs at all but only one belongs to rollup
         assert_eq!(block.pfb_rows.len(), 1);
@@ -285,7 +313,7 @@ pub mod tests {
             .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
             .count();
         assert_eq!(pfbs_count, 3);
-        assert_eq!(block.relevant_pfbs.len(), 1);
+        assert_eq!(rollup_batch_data.relevant_pfbs.len(), 1);
     }
 
     #[test]
@@ -295,12 +323,14 @@ pub mod tests {
         // valid dah
         block.header.validate_dah().unwrap();
 
+        let rollup_batch_data = block.rollup_batch_data;
+
         // no rollup shares
-        assert_eq!(block.rollup_data.shares().len(), 0);
+        assert_eq!(rollup_batch_data.group.shares().len(), 0);
         // we still get single row, but with absence proof and no shares
-        assert_eq!(block.rollup_rows.rows.len(), 1);
-        assert_eq!(block.rollup_rows.rows[0].shares.len(), 0);
-        assert!(block.rollup_rows.rows[0].proof.is_of_absence());
+        assert_eq!(rollup_batch_data.rows.rows.len(), 1);
+        assert_eq!(rollup_batch_data.rows.rows[0].shares.len(), 0);
+        assert!(rollup_batch_data.rows.rows[0].proof.is_of_absence());
 
         // 2 pfbs at all and no relevant
         assert_eq!(block.pfb_rows.len(), 1);
@@ -310,7 +340,7 @@ pub mod tests {
             .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
             .count();
         assert_eq!(pfbs_count, 2);
-        assert_eq!(block.relevant_pfbs.len(), 0);
+        assert_eq!(rollup_batch_data.relevant_pfbs.len(), 0);
     }
 
     #[test]
