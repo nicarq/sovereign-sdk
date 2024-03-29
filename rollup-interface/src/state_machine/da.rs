@@ -186,13 +186,13 @@ pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static 
 /// Trait with a collection of trait bounds for a block hash.
 pub trait BlockHashTrait:
     // so it is compatible with StorageManager implementation?
-    Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + AsRef<[u8]> + core::hash::Hash {
+    Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + AsRef<[u8]> + core::hash::Hash + core::fmt::Display {
 }
 
 /// A block header, typically used in the context of an underlying DA blockchain.
 pub trait BlockHeaderTrait: PartialEq + Debug + Clone + Serialize + DeserializeOwned {
     /// Each block header must have a unique canonical hash.
-    type Hash: Clone + core::fmt::Display;
+    type Hash: BlockHashTrait;
 
     /// Each block header must contain the hash of the previous block.
     fn prev_hash(&self) -> Self::Hash;
