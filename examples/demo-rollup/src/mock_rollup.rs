@@ -77,6 +77,7 @@ impl RollupBlueprint for MockDemoRollup {
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::NativeRuntime,
+            Self::NativeKernel,
             Self::NativeSpec,
             Self::DaService,
         >(

@@ -26,10 +26,16 @@ type Blueprint = StfBlueprint<
     BasicKernel<TestSpec, MockDaSpec>,
 >;
 
+#[allow(clippy::type_complexity)]
 fn new_sequencer(
     dir: &TempDir,
 ) -> Sequencer<
-    FairBatchBuilder<TestSpec, MockDaSpec, TestRuntime<TestSpec, MockDaSpec>>,
+    FairBatchBuilder<
+        TestSpec,
+        MockDaSpec,
+        TestRuntime<TestSpec, MockDaSpec>,
+        BasicKernel<TestSpec, MockDaSpec>,
+    >,
     MockDaService,
 > {
     let sequencer_addr = [42u8; 32];
@@ -97,6 +103,7 @@ fn new_sequencer(
         usize::MAX,
         usize::MAX,
         runtime,
+        BasicKernel::default(),
         watch::Sender::new(stf_state).subscribe(),
         sequencer_addr.into(),
         sequencer_db,
