@@ -26,7 +26,7 @@ pub struct CompletenessProof(pub NamespacedShares);
 
 impl CompletenessProof {
     pub fn from_filtered_block(block: &FilteredCelestiaBlock) -> Self {
-        Self(block.rollup_rows.clone())
+        Self(block.rollup_batch_data.rows.clone())
     }
 }
 
@@ -42,6 +42,7 @@ impl CorrectnessProof {
         // Extract (and clone) the position of each transaction
         for tx in blobs.iter() {
             let (_, position) = block
+                .rollup_batch_data
                 .relevant_pfbs
                 .get(tx.hash.as_slice())
                 .expect("commitment must exist in map");

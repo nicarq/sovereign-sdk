@@ -16,7 +16,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, info, instrument, trace};
 
 use crate::shares::Blob;
-use crate::types::FilteredCelestiaBlock;
+use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
 use crate::utils::BoxError;
 use crate::verifier::address::CelestiaAddress;
 use crate::verifier::proofs::{CompletenessProof, CorrectnessProof};
@@ -131,22 +131,25 @@ impl DaService for CelestiaService {
 
         // Fetch the rollup namespace shares, etx data and extended data square
         debug!("Fetching rollup data...");
-        let rollup_rows_future =
-            client.share_get_shares_by_namespace(&header, self.rollup_batch_namespace);
 
         let etx_rows_future = client.share_get_shares_by_namespace(&header, PFB_NAMESPACE);
         let data_square_future = client.share_get_eds(&header);
 
-        let (rollup_rows, etx_rows, data_square) =
-            tokio::try_join!(rollup_rows_future, etx_rows_future, data_square_future)?;
+        let rollup_batch_rows_future =
+            client.share_get_shares_by_namespace(&header, self.rollup_batch_namespace);
 
-        FilteredCelestiaBlock::new(
-            self.rollup_batch_namespace,
-            header,
-            rollup_rows,
-            etx_rows,
-            data_square,
-        )
+        let (batch_rows, etx_rows, data_square) = tokio::try_join!(
+            rollup_batch_rows_future,
+            etx_rows_future,
+            data_square_future
+        )?;
+
+        let rollup_batch_shares = NamespaceWithShares {
+            namespace: self.rollup_batch_namespace,
+            rows: batch_rows,
+        };
+
+        FilteredCelestiaBlock::new(rollup_batch_shares, header, etx_rows, data_square)
     }
 
     async fn get_last_finalized_block_header(
@@ -181,11 +184,12 @@ impl DaService for CelestiaService {
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
         let mut output = Vec::new();
-        for blob_ref in block.rollup_data.blobs() {
-            let commitment = Commitment::from_shares(self.rollup_batch_namespace, blob_ref.0)
+        for blob_ref in block.rollup_batch_data.group.blobs() {
+            let commitment = Commitment::from_shares(block.rollup_batch_data.namespace, blob_ref.0)
                 .expect("blob must be valid");
             info!(commitment = hex::encode(commitment.0), "Extracting blob");
             let sender = block
+                .rollup_batch_data
                 .relevant_pfbs
                 .get(&commitment.0[..])
                 .expect("blob must be relevant")

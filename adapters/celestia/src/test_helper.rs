@@ -7,7 +7,7 @@ pub(crate) mod files {
     use celestia_types::{ExtendedDataSquare, ExtendedHeader, NamespacedShares};
     use serde::de::DeserializeOwned;
 
-    use crate::types::FilteredCelestiaBlock;
+    use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
 
     pub const ROLLUP_NAMESPACE: Namespace = Namespace::const_v0(*b"\0\0sov-test");
 
@@ -15,8 +15,6 @@ pub(crate) mod files {
     pub const ROLLUP_ROWS_JSON: &str = "rollup_rows.json";
     pub const ETX_ROWS_JSON: &str = "etx_rows.json";
     pub const EDS_JSON: &str = "eds.json";
-
-    pub mod with_proof_data {}
 
     pub mod with_rollup_data {
         use super::*;
@@ -47,7 +45,12 @@ pub(crate) mod files {
         let etx_rows: NamespacedShares = load_from_file(path, ETX_ROWS_JSON)?;
         let eds: ExtendedDataSquare = load_from_file(path, EDS_JSON)?;
 
-        FilteredCelestiaBlock::new(ns, header, rollup_rows, etx_rows, eds)
+        let rollup_batch_data = NamespaceWithShares {
+            namespace: ns,
+            rows: rollup_rows,
+        };
+
+        FilteredCelestiaBlock::new(rollup_batch_data, header, etx_rows, eds)
     }
 
     pub(crate) fn make_test_path(data_path: &str) -> PathBuf {
