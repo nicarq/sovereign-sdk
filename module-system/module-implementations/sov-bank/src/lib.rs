@@ -17,7 +17,7 @@ use sov_modules_api::macros::config_bech32_constant;
 use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleInfo, WorkingSet};
 use token::Token;
 /// Specifies an interface to interact with tokens.
-pub use token::{Amount, Coins, TokenId, TokenIdBech32};
+pub use token::{Amount, BurnRate, Coins, TokenId, TokenIdBech32};
 /// Methods to get a token ID.
 pub use utils::get_token_id;
 

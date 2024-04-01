@@ -2,7 +2,8 @@ use std::cmp::max;
 use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_bank::Coins;
+use sov_bank::{BurnRate, Coins};
+use sov_modules_api::macros::config_constant;
 use sov_modules_api::{
     AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec, WorkingSet,
     Zkvm,
@@ -52,6 +53,15 @@ pub enum ProverIncentiveErrors {
 }
 
 impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
+    /// The burn rate of the reward price for the provers.
+    /// The burn rate is a percentage of the base fee that is burned - this prevents provers from proving empty blocks.
+    pub(crate) const fn burn_rate(&self) -> BurnRate {
+        #[config_constant]
+        const PERCENT_BASE_FEE_TO_BURN: u8;
+
+        BurnRate::new_unchecked(PERCENT_BASE_FEE_TO_BURN)
+    }
+
     /// A helper function for the `bond_prover` call. Also used to bond provers
     /// during genesis when no context is available.
     pub(super) fn bond_prover_helper(
@@ -308,14 +318,9 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .set(&max(first_available_reward, final_slot_num), working_set);
 
         if total_reward > 0 {
-            let burn_rate = self
-                .reward_burn_rate
-                .get(working_set)
-                .expect("The burn rate should be set at genesis");
-
             // We only reward a portion of the total reward - we burn some of it
             // to avoid the provers to collude to prove empty blocks.
-            let reward_amount = burn_rate.apply(total_reward);
+            let reward_amount = self.burn_rate().apply(total_reward);
             self.reward_prover(reward_amount, context, working_set)?;
 
             self.emit_event(
