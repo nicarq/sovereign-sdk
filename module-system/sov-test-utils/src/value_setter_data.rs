@@ -3,10 +3,6 @@ use sov_value_setter::ValueSetter;
 
 use super::*;
 
-const DEFAULT_CHAIN_ID: u64 = 0;
-const DEFAULT_GAS_TIP: u64 = 0;
-const DEFAULT_GAS_LIMIT: u64 = 0;
-
 pub struct ValueSetterMessage<S: Spec> {
     pub admin: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     pub messages: Vec<u32>,
@@ -49,9 +45,9 @@ impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
                 messages.push(Message::new(
                     admin.clone(),
                     set_value_msg,
-                    DEFAULT_CHAIN_ID,
-                    DEFAULT_GAS_TIP,
-                    DEFAULT_GAS_LIMIT,
+                    Self::DEFAULT_CHAIN_ID,
+                    Self::DEFAULT_GAS_TIP,
+                    Self::DEFAULT_GAS_LIMIT,
                     max_gas_price,
                     value_setter_admin_nonce.try_into().unwrap(),
                 ));

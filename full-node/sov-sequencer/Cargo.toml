@@ -45,6 +45,7 @@ sov-kernels = { path = "../../module-system/sov-kernels", version = "0.3", featu
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-db = { path = "../sov-db" }
 tempfile = { workspace = true }

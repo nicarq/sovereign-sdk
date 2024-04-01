@@ -72,7 +72,10 @@ fn test_stf_internal_updates() {
     let seq_params = SequencerParams::default();
     let seq_rollup_addr = seq_params.rollup_address;
     let seq_da_addr = seq_params.da_address;
-    let bank_params = BankParams::default();
+    let bank_params = BankParams::with_addresses_and_balances(vec![
+        (seq_params.rollup_address, 100),
+        (admin_pub_key, 100),
+    ]);
     let attester_params = AttesterIncentivesParams::default();
 
     // Genesis

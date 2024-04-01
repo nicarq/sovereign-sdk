@@ -286,9 +286,10 @@ mod tests {
     use borsh::BorshSerialize;
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
-    use sov_mock_da::{MockAddress, MockDaSpec};
+    use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCondChecker};
+    use sov_mock_zkvm::MockCodeCommitment;
     use sov_modules_api::transaction::Transaction;
-    use sov_modules_api::{EncodeCall, Genesis, PrivateKey, PublicKey, WorkingSet};
+    use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, PublicKey, WorkingSet};
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::services::batch_builder::BatchBuilder;
     use sov_state::Storage;
@@ -300,7 +301,8 @@ mod tests {
     use super::*;
 
     const MAX_TX_POOL_SIZE: usize = 20;
-    const DEFAULT_SEQUENCER_ADDRESS: MockAddress = MockAddress::new([0u8; 32]);
+    const DEFAULT_SEQUENCER_DA_ADDRESS: MockAddress = MockAddress::new([0u8; 32]);
+    const DEFAULT_SEQUENCER_ROLLUP_ADDRESS: Address = Address::new([0u8; 32]);
 
     type S = TestSpec;
 
@@ -392,7 +394,8 @@ mod tests {
             BasicKernel<S, MockDaSpec>,
         >,
         admin: Option<TestPublicKey>,
-        admin_da_address: MockAddress,
+        seq_da_address: MockAddress,
+        seq_rollup_address: Address,
     ) {
         let runtime = TestRuntime::<S, MockDaSpec>::default();
         let storage = batch_builder.current_storage.borrow().clone();
@@ -405,10 +408,13 @@ mod tests {
         let admin = admin.to_address();
         let config = create_genesis_config(
             admin,
-            admin_da_address,
+            seq_rollup_address,
+            seq_da_address,
             100,
             "BatchBuilderTestToken".to_string(),
             100_000,
+            MockValidityCondChecker::default(),
+            MockCodeCommitment::default(),
         );
         runtime.genesis(&config, &mut working_set).unwrap();
         let (log, _, witness) = working_set.checkpoint().0.freeze();
@@ -424,7 +430,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             batch_builder.accept_tx(tx).await.unwrap();
         }
@@ -437,7 +443,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -451,7 +457,7 @@ mod tests {
         async fn new_tx_on_full_mempool_causes_evictions() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(usize::MAX, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+                create_batch_builder(usize::MAX, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             for _ in 0..MAX_TX_POOL_SIZE {
                 let tx = generate_random_valid_tx();
@@ -472,7 +478,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -489,7 +495,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -505,7 +511,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
             batch_builder.mempool.mempool_max_txs_count = 0;
 
             batch_builder.accept_tx(tx).await.unwrap();
@@ -523,8 +529,13 @@ mod tests {
         #[tokio::test]
         async fn error_on_empty_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(10, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
-            setup_runtime(&mut batch_builder, None, DEFAULT_SEQUENCER_ADDRESS);
+            let mut batch_builder = create_batch_builder(10, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
+            setup_runtime(
+                &mut batch_builder,
+                None,
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
 
             let build_result = batch_builder.get_next_blob(1).await;
             assert!(build_result.is_err());
@@ -547,7 +558,7 @@ mod tests {
             let tmpdir = tempfile::tempdir().unwrap();
             let batch_size = txs[0].len() * 3 + 1;
             let mut batch_builder =
-                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
             // Skipping runtime setup
 
             for tx in &txs {
@@ -581,11 +592,12 @@ mod tests {
             let tmpdir = tempfile::tempdir().unwrap();
             let batch_size = txs[0].len() + txs[2].len() + 1;
             let mut batch_builder =
-                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_ADDRESS);
+                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
             setup_runtime(
                 &mut batch_builder,
                 Some(value_setter_admin.pub_key()),
-                DEFAULT_SEQUENCER_ADDRESS,
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
             );
 
             for tx in &txs {

@@ -1,3 +1,6 @@
+use std::marker::PhantomData;
+
+use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 pub use sov_bank::{Bank, BankConfig, Coins, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
 use sov_modules_api::batch::BatchWithId;
@@ -13,9 +16,15 @@ use sov_modules_api::{
     StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 use sov_modules_stf_blueprint::{Runtime, SequencerOutcome};
+use sov_rollup_interface::zk::Zkvm;
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use tokio::sync::watch;
+
+const MIN_USER_BOND: u64 = 10;
+const MAX_ATTESTED_HEIGHT: u64 = 0;
+const LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
+const ROLLUP_FINALITY_PERIOD: u64 = 1;
 
 #[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
 #[serialization(
@@ -27,6 +36,7 @@ use tokio::sync::watch;
 pub struct TestRuntime<S: Spec, Da: DaSpec> {
     pub value_setter: ValueSetter<S>,
     pub sequencer_registry: SequencerRegistry<S, Da>,
+    pub attester_incentives: AttesterIncentives<S, Da>,
     pub bank: Bank<S>,
 }
 
@@ -188,13 +198,18 @@ impl<S: Spec, Da: DaSpec> ContextResolver<S, Da> for TestRuntime<S, Da> {
     }
 }
 
-/// Admin: single address that will be used as admin, minter and sequencer
+/// Admin: single address that will be used as admin and minter.
+/// Sequencer is another address that will be used as sequencer.
+#[allow(clippy::too_many_arguments)]
 pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     admin: S::Address,
-    admin_da_address: Da::Address,
+    seq_rollup_address: S::Address,
+    seq_da_address: Da::Address,
     seq_stake_amount: u64,
     token_name: String,
     init_balance: u64,
+    validity_condition_checker: Da::Checker,
+    commitment_to_allowed_challenge_method: <<S as Spec>::InnerZkvm as Zkvm>::CodeCommitment,
 ) -> GenesisConfig<S, Da> {
     assert!(
         init_balance >= seq_stake_amount,
@@ -206,18 +221,35 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
             admin: admin.clone(),
         },
         sequencer_registry: SequencerConfig {
-            seq_rollup_address: admin.clone(),
-            seq_da_address: admin_da_address,
+            seq_rollup_address: seq_rollup_address.clone(),
+            seq_da_address,
             coins_to_lock: Coins {
                 amount: seq_stake_amount,
                 token_id,
             },
             is_preferred_sequencer: true,
         },
+        attester_incentives: AttesterIncentivesConfig {
+            bonding_token_id: token_id,
+            reward_token_supply_address: admin.clone(),
+            minimum_attester_bond: MIN_USER_BOND,
+            minimum_challenger_bond: MIN_USER_BOND,
+            commitment_to_allowed_challenge_method,
+            initial_attesters: vec![(admin.clone(), MIN_USER_BOND)],
+            rollup_finality_period: ROLLUP_FINALITY_PERIOD,
+            maximum_attested_height: MAX_ATTESTED_HEIGHT,
+            light_client_finalized_height: LIGHT_CLIENT_FINALIZED_HEIGHT,
+            validity_condition_checker,
+            phantom_data: PhantomData,
+        },
+
         bank: BankConfig {
             gas_token_config: sov_bank::GasTokenConfig {
                 token_name: token_name.clone(),
-                address_and_balances: vec![(admin.clone(), init_balance)],
+                address_and_balances: vec![
+                    (seq_rollup_address, init_balance),
+                    (admin.clone(), init_balance),
+                ],
                 authorized_minters: vec![admin.clone()],
             },
             tokens: vec![],

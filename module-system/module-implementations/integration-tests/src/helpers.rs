@@ -69,7 +69,7 @@ impl Default for SequencerParams<S, MockDaSpec> {
         SequencerParams {
             rollup_address: [1_u8; 32].into(),
             da_address: [1_u8; 32].into(),
-            stake_amount: 10000,
+            stake_amount: 100,
             is_preferred_sequencer: true,
         }
     }
@@ -108,6 +108,21 @@ pub struct BankParams {
     pub salt: u64,
     pub init_balance: u64,
     pub addresses_and_balances: Vec<(<S as Spec>::Address, u64)>,
+}
+
+impl BankParams {
+    /// Creates a new `BankParams` with a default `token_name` and `init_balance`.
+    /// The `addresses_and_balances` are used to initialize the token balances.
+    pub(crate) fn with_addresses_and_balances(
+        addresses_and_balances: Vec<(<S as Spec>::Address, u64)>,
+    ) -> Self {
+        Self {
+            token_name: String::from("TEST_TOKEN"),
+            salt: 0,
+            init_balance: 100000000,
+            addresses_and_balances,
+        }
+    }
 }
 
 impl Default for BankParams {
@@ -347,24 +362,7 @@ impl TestRollup {
             bank: BankConfig {
                 gas_token_config: GasTokenConfig {
                     token_name: bank_params.token_name.clone(),
-                    address_and_balances: {
-                        let mut address_and_balances: Vec<(<S as Spec>::Address, u64)> =
-                            bank_params
-                                .addresses_and_balances
-                                .clone()
-                                .into_iter()
-                                .collect();
-                        let mut attester_balances = attester_params
-                            .initial_attesters
-                            .clone()
-                            .into_iter()
-                            .collect::<Vec<(<S as Spec>::Address, u64)>>();
-                        attester_balances
-                            .push((seq_params.rollup_address, bank_params.init_balance));
-                        address_and_balances.append(&mut attester_balances);
-                        address_and_balances
-                    },
-
+                    address_and_balances: bank_params.addresses_and_balances,
                     authorized_minters: vec![seq_params.rollup_address],
                 },
                 tokens: vec![],
