@@ -11,7 +11,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
 use sov_state::{DefaultStorageSpec, StorageRoot};
 
-use crate::{BurnRate, ProverIncentives};
+use crate::ProverIncentives;
 
 pub(crate) type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
 pub(crate) type Da = MockDaSpec;
@@ -115,7 +115,6 @@ fn setup_helper(
     let config = crate::ProverIncentivesConfig {
         bonding_token_id: token_id,
         reward_token_supply_address: minter_address,
-        reward_burn_rate: BurnRate::new(10).unwrap(),
         proving_penalty: BOND_AMOUNT / 2,
         minimum_bond: BOND_AMOUNT,
         commitment_of_allowed_verifier_method: MockCodeCommitment([0u8; 32]),

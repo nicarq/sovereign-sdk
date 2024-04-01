@@ -6,16 +6,52 @@ use std::fmt::Formatter;
 use std::num::ParseIntError;
 
 use anyhow::{bail, Context};
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{impl_hash32_type, StateAccessor, WorkingSet};
 use sov_state::Prefix;
-#[cfg(feature = "native")]
 use thiserror::Error;
 
 use crate::call::prefix_from_address_with_parent;
 
 /// Type alias to store an amount of token.
 pub type Amount = u64;
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+/// A token burn rate. We need to burn some of it to avoid the system participants to
+/// be incentivized to prove and submit empty blocks.
+pub struct BurnRate(u8);
+
+#[derive(Debug, Error)]
+#[error("Burn rate must be less than or equal to 100")]
+pub struct BurnRateParsingError;
+
+impl BurnRate {
+    /// Creates a new burn rate. Panics if the burn rate is greater than 100.
+    pub const fn new_unchecked(burn_rate: u8) -> Self {
+        // We can panic here since the burn rate is a constant defined at genesis
+        if burn_rate > 100 {
+            panic!("Burn rate must be less than or equal to 100");
+        }
+
+        Self(burn_rate)
+    }
+
+    /// Creates a new burn rate from a u8 value.
+    /// Since we need a constant function we cannot implement the `TryFrom` trait.
+    pub const fn try_from_u8(value: u8) -> Result<Self, BurnRateParsingError> {
+        if value > 100 {
+            Err(BurnRateParsingError)
+        } else {
+            Ok(Self(value))
+        }
+    }
+
+    /// Applies the burn rate to the given amount.
+    pub fn apply(&self, amount: Amount) -> Amount {
+        amount * (100 - self.0 as u64) / 100
+    }
+}
 
 impl_hash32_type!(TokenId, TokenIdBech32, "token_");
 

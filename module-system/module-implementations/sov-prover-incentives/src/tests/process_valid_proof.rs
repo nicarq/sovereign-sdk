@@ -87,13 +87,8 @@ fn check_reward(
     // We have proven two transitions, so the total gas used is 2 * gas_used_per_step
     let total_gas_used = gas_used_per_step.value(&GasPrice::<2>::from([1_u64; 2])) * 2;
 
-    let reward_burn_rate = module
-        .reward_burn_rate
-        .get(working_set)
-        .expect("The reward burn rate should be set at genesis");
-
     // Reward = total_gas_used * gas_price * (1-burn_rate)%
-    let reward = reward_burn_rate.apply(total_gas_used);
+    let reward = module.burn_rate().apply(total_gas_used);
 
     // Assert that the working set contains a rewarded event
     assert_eq!(working_set.events().len(), 1);

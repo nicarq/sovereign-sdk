@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sov_bank::TokenId;
 use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
 
-use crate::{Amount, BurnRate, ProverIncentives};
+use crate::{Amount, ProverIncentives};
 
 /// Configuration of the prover incentives module. Specifies the
 /// address of the bonding token, the minimum bond, the commitment to
@@ -13,10 +13,6 @@ use crate::{Amount, BurnRate, ProverIncentives};
 pub struct ProverIncentivesConfig<S: sov_modules_api::Spec> {
     /// The address of the account holding the reward token supply
     pub reward_token_supply_address: S::Address,
-    /// The burn rate of the reward price for the provers.
-    /// The burn rate is a percentage of the base fee that is burned - this prevents provers from proving empty blocks.
-    /// This is a constant defined at genesis for now.
-    pub reward_burn_rate: BurnRate,
     /// A penalty for provers who submit a proof for transitions that were already proven
     pub proving_penalty: Amount,
     /// The ID of the token to be used for bonding.
@@ -50,8 +46,6 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .set(&config.bonding_token_id, working_set);
         self.reward_token_supply_address
             .set(&config.reward_token_supply_address, working_set);
-        self.reward_burn_rate
-            .set(&config.reward_burn_rate, working_set);
         self.proving_penalty
             .set(&config.proving_penalty, working_set);
         self.last_claimed_reward.set(&0, working_set);
