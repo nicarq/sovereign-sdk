@@ -8390,6 +8390,7 @@ dependencies = [
  "sov-db",
  "sov-kernels",
  "sov-mock-da",
+ "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",

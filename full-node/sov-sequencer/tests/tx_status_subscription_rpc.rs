@@ -1,7 +1,8 @@
 use borsh::BorshSerialize;
 use sov_db::sequencer_db::SequencerDB;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
+use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec, MockValidityCondChecker};
+use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{Address, CryptoSpec, GasPrice, PrivateKey, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
@@ -26,10 +27,7 @@ type Blueprint = StfBlueprint<
     BasicKernel<TestSpec, MockDaSpec>,
 >;
 
-#[allow(clippy::type_complexity)]
-fn new_sequencer(
-    dir: &TempDir,
-) -> Sequencer<
+type TestSequencer = Sequencer<
     FairBatchBuilder<
         TestSpec,
         MockDaSpec,
@@ -37,10 +35,18 @@ fn new_sequencer(
         BasicKernel<TestSpec, MockDaSpec>,
     >,
     MockDaService,
-> {
+>;
+
+struct TestSetupOutput {
+    pub(crate) sequencer: TestSequencer,
+    pub(crate) admin_private_key: <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
+}
+
+fn new_sequencer(dir: &TempDir) -> TestSetupOutput {
     let sequencer_addr = [42u8; 32];
     // Use "same" bytes for sequencer address and rollup address.
     let sequencer_rollup_addr = Address::from(sequencer_addr);
+    let admin_pkey = TestPrivateKey::generate();
     let runtime = TestRuntime::<TestSpec, MockDaSpec>::default();
 
     let storage_config = sov_state::config::Config {
@@ -57,11 +63,14 @@ fn new_sequencer(
     let token_name = "SovereignToken".to_string();
 
     let genesis_config = create_genesis_config(
+        admin_pkey.to_address(),
         sequencer_rollup_addr,
         sequencer_addr.into(),
         100,
         token_name.clone(),
         10_000_000,
+        MockValidityCondChecker::default(),
+        MockCodeCommitment::default(),
     );
 
     let blueprint = Blueprint::new();
@@ -110,26 +119,28 @@ fn new_sequencer(
     )
     .unwrap();
 
-    Sequencer::new(batch_builder, da_service)
+    TestSetupOutput {
+        sequencer: Sequencer::new(batch_builder, da_service),
+        admin_private_key: admin_pkey,
+    }
 }
 
 #[tokio::test]
 async fn subscribe() {
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
-    let sequencer = new_sequencer(&temp_dir);
+    let setup = new_sequencer(&temp_dir);
 
     let server = jsonrpsee::server::ServerBuilder::default()
         .build("127.0.0.1:0")
         .await
         .unwrap();
     let addr = server.local_addr().unwrap();
-    let server_rpc_module = sequencer.rpc();
+    let server_rpc_module = setup.sequencer.rpc();
     let _server_handle = server.start(server_rpc_module);
 
     let client = SimpleClient::new("127.0.0.1", addr.port()).await.unwrap();
 
-    let private_key = TestPrivateKey::generate();
-    let bank_generator = BankMessageGenerator::<TestSpec>::with_minter(private_key);
+    let bank_generator = BankMessageGenerator::<TestSpec>::with_minter(setup.admin_private_key);
     let messages_iter = bank_generator.create_messages().into_iter();
     let mut txs = Vec::default();
     for message in messages_iter {

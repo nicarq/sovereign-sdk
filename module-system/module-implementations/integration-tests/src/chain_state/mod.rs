@@ -12,6 +12,8 @@ use crate::helpers::{
 
 type S = sov_test_utils::TestSpec;
 
+const INITIAL_USER_BALANCE: u64 = 10000;
+
 /// This test generates a new mock rollup having a simple value setter module
 /// with an associated chain state, and checks that the height, the genesis hash
 /// and the state transitions are correctly stored and updated.
@@ -28,7 +30,10 @@ fn test_simple_value_setter_with_chain_state() {
 
     let seq_params = SequencerParams::default();
     let seq_da_addr = seq_params.da_address;
-    let bank_params = BankParams::default();
+    let bank_params = BankParams::with_addresses_and_balances(vec![
+        (admin_pub_key, INITIAL_USER_BALANCE),
+        (seq_params.rollup_address, INITIAL_USER_BALANCE),
+    ]);
     let attester_params = AttesterIncentivesParams::default();
 
     // Genesis
