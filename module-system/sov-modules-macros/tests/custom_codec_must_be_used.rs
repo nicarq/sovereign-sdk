@@ -1,5 +1,5 @@
-use sov_modules_api::{ModuleInfo, Spec, StateValue, WorkingSet};
-use sov_modules_core::{StateCodec, StateItemCodec};
+use sov_modules_api::{ModuleId, ModuleInfo, Spec, StateValue, WorkingSet};
+use sov_modules_core::{StateCodec, StateItemEncoder, StateItemDecoder};
 use sov_state::{DefaultStorageSpec, ZkStorage};
 use std::panic::catch_unwind;
 
@@ -11,10 +11,13 @@ where
     S: Spec,
 {
     #[address]
-    address: S::Address,
+    id: ModuleId,
 
     #[state(codec_builder = "crate::CustomCodec::new")]
     state_value: StateValue<u32, CustomCodec>,
+
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 #[derive(Default)]
@@ -37,12 +40,13 @@ impl StateCodec for CustomCodec {
     }
 }
 
-impl<V> StateItemCodec<V> for CustomCodec {
-    type Error = String;
-
+impl<V> StateItemEncoder<V> for CustomCodec {
     fn encode(&self, _value: &V) -> Vec<u8> {
         unimplemented!()
     }
+}
+impl<V> StateItemDecoder<V> for CustomCodec {
+    type Error = String;
 
     fn try_decode(&self, _bytes: &[u8]) -> Result<V, Self::Error> {
         unimplemented!()

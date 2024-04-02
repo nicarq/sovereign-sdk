@@ -17,8 +17,8 @@ pub use genesis::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use sov_bank::Amount;
-use sov_chain_state::TransitionHeight;
-use sov_modules_api::{Context, DaSpec, Error, ModuleInfo, Spec, WorkingSet, Zkvm};
+use sov_modules_api::hooks::TransitionHeight;
+use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, WorkingSet, Zkvm};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
@@ -32,7 +32,7 @@ use crate::event::Event;
 pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     /// Address of the module.
     #[address]
-    pub address: S::Address,
+    pub id: ModuleId,
 
     /// The code commitment to be used for verifying proofs
     #[state]

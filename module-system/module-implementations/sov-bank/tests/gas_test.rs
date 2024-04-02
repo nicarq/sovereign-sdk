@@ -146,7 +146,7 @@ impl BankGasTestCase {
         bank.genesis(&bank_config, &mut ws).unwrap();
 
         // sanity test the sender balance
-        let balance = bank.get_balance_of(sender_address, base_token_id, &mut ws);
+        let balance = bank.get_balance_of(&sender_address, base_token_id, &mut ws);
         assert_eq!(balance, Some(sender_balance));
 
         // generate a create dummy token message

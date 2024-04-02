@@ -271,7 +271,7 @@ async fn assert_bank_event(
         assert_eq!(bank_event, expected_event);
         assert_eq!(
             map.get("module_address").unwrap(),
-            "sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"
+            "module_1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sh0zjpk"
         );
     } else {
         panic!("Event from rpc not an object");

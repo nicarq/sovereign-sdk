@@ -118,7 +118,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%
+{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_address":"module_1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sh0zjpk"}],"id":1}%
 ```
 
 We can see the TokenCreated event which contains the id of the token

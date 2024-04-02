@@ -6,15 +6,21 @@ use core::fmt;
 
 /// A trait for types that can serialize and deserialize values for storage
 /// access.
-pub trait StateItemCodec<V> {
-    /// Error type that can arise during deserialization.
-    type Error: fmt::Debug;
+pub trait StateItemCodec<V>: StateItemEncoder<V> + StateItemDecoder<V> {}
 
+/// A trait for types that can serialize values into storage.
+pub trait StateItemEncoder<V> {
     /// Serializes a value into a bytes vector.
     ///
     /// This method **must** not panic as all instances of the value type are
     /// supposed to be serializable.
     fn encode(&self, value: &V) -> Vec<u8>;
+}
+
+/// A trait for types that can deserialize values from storage.
+pub trait StateItemDecoder<V> {
+    /// Error type that can arise during deserialization.
+    type Error: fmt::Debug;
 
     /// Tries to deserialize a value from a bytes slice, and returns a
     /// [`Result`] with either the deserialized value or an error.
@@ -23,8 +29,8 @@ pub trait StateItemCodec<V> {
     /// Deserializes a value from a bytes slice.
     ///
     /// # Panics
-    /// Panics if the call to [`StateItemCodec::try_decode`] fails. Use
-    /// [`StateItemCodec::try_decode`] if you need to gracefully handle
+    /// Panics if the call to [`StateItemDecoder::try_decode`] fails. Use
+    /// [`StateItemDecoder::try_decode`] if you need to gracefully handle
     /// errors.
     fn decode_unwrap(&self, bytes: &[u8]) -> V {
         self.try_decode(bytes)
@@ -39,6 +45,8 @@ pub trait StateItemCodec<V> {
             .unwrap()
     }
 }
+
+impl<C, V> StateItemCodec<V> for C where C: StateItemEncoder<V> + StateItemDecoder<V> {}
 
 /// A trait for types that can serialize keys and values, as well
 /// as deserializing values for storage access.

@@ -1,10 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde_json::Value;
-use sov_modules_api::utils::generate_address;
-use sov_modules_api::AddressBech32;
+use sov_modules_api::ModuleId;
 use sov_rollup_interface::rpc::Event;
 use sov_rollup_interface::stf::StoredEvent;
-use sov_test_utils::TestSpec;
 
 use crate::ledger_db::{LedgerDB, SchemaBatch};
 use crate::schema::types::{EventNumber, TxNumber};
@@ -45,9 +43,8 @@ pub(crate) fn generate_events(
     for _ in 0..num_modules {
         module_num += 1;
         let module_name = format!("module_{}", module_num);
-        let module_address = AddressBech32::from(generate_address::<TestSpec>(&module_name))
-            .try_to_vec()
-            .unwrap();
+        // Correctness - we can never have more than 255 modules or borsh will panic anyway
+        let module_address = ModuleId::from([module_num as u8; 32]);
         for _ in 0..num_txns_per_module {
             txn_num += 1;
             for _ in 0..num_events_per_txn {
@@ -65,7 +62,11 @@ pub(crate) fn generate_events(
                 };
 
                 events.push((
-                    StoredEvent::new(event_key.as_bytes(), &module_address, &event_value),
+                    StoredEvent::new(
+                        event_key.as_bytes(),
+                        module_address.as_bytes(),
+                        &event_value,
+                    ),
                     event_num,
                     txn_num,
                 ));

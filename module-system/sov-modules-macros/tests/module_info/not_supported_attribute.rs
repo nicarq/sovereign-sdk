@@ -1,9 +1,9 @@
-use sov_modules_api::{ModuleInfo, CryptoSpec, Spec, StateMap};
+use sov_modules_api::{CryptoSpec, ModuleId, ModuleInfo, Spec, StateMap};
 
 #[derive(ModuleInfo)]
 struct TestStruct<S: Spec> {
     #[address]
-    address: S::Address,
+    id: ModuleId,
 
     // Unsupported attributes should be ignored to guarantee compatibility with
     // other macros.

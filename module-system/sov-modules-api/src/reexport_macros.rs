@@ -22,16 +22,19 @@ pub use sov_modules_macros::MessageCodec;
 /// ```
 /// use std::marker::PhantomData;
 ///
-/// use sov_modules_api::{WorkingSet, Spec, Error, CallResponse, Context, Module, ModuleInfo, ModuleCallJsonSchema, StateMap};
+/// use sov_modules_api::{WorkingSet, ModuleId, Spec, Error, CallResponse, Context, Module, ModuleInfo, ModuleCallJsonSchema, StateMap};
 /// use sov_test_utils::ZkTestSpec;
 ///
 /// #[derive(ModuleInfo, ModuleCallJsonSchema)]
 /// struct TestModule<S: Spec> {
 ///     #[address]
-///     admin: S::Address,
+///     id: ModuleId,
 ///
 ///     #[state]
 ///     pub state_map: StateMap<String, u32>,
+///
+///     #[phantom]
+///     phantom: std::marker::PhantomData<S>,
 /// }
 ///
 /// impl<S: Spec> Module for TestModule<S> {
@@ -72,15 +75,18 @@ pub use sov_modules_macros::ModuleCallJsonSchema;
 /// ## Example
 ///
 /// ```
-/// use sov_modules_api::{Spec, ModuleInfo, StateMap};
+/// use sov_modules_api::{Spec, ModuleId, ModuleInfo, StateMap};
 ///
 /// #[derive(ModuleInfo)]
 /// struct TestModule<S: Spec> {
 ///     #[address]
-///     admin: S::Address,
+///     id: ModuleId,
 ///
 ///     #[state]
 ///     pub state_map: StateMap<String, u32>,
+///
+///     #[phantom]
+///     phantom: std::marker::PhantomData<S>,
 /// }
 ///
 /// // You can then get the prefix of `state_map` like this:

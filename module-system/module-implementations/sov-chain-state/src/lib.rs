@@ -7,7 +7,7 @@ mod gas;
 pub use gas::GasPriceState;
 #[cfg(test)]
 mod tests;
-use sov_modules_api::{Spec, StateAccessor, StateReaderAndWriter};
+use sov_modules_api::{ModuleId, Spec, StateAccessor, StateReaderAndWriter};
 
 mod genesis;
 pub use genesis::*;
@@ -162,9 +162,9 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
 /// The chain state module definition. Contains the current state of the da layer.
 #[derive(Clone, KernelModuleInfo)]
 pub struct ChainState<S: Spec, Da: DaSpec> {
-    /// Address of the module.
+    /// The ID of the module.
     #[address]
-    address: S::Address,
+    id: ModuleId,
 
     /// The height that should be loaded as the visible set at the start of the next block
     #[state]

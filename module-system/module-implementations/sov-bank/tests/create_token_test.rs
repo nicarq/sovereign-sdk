@@ -37,7 +37,7 @@ fn initial_and_deployed_token() {
     // Create token event should be present
     assert_eq!(working_set.events().len(), 1);
 
-    let sender_balance = bank.get_balance_of(sender_address, token_id, &mut working_set);
+    let sender_balance = bank.get_balance_of(&sender_address, token_id, &mut working_set);
     assert!(sender_balance.is_none());
 
     let observed_token_name = bank
@@ -45,7 +45,7 @@ fn initial_and_deployed_token() {
         .expect("Token is missing its name");
     assert_eq!(&token_name, &observed_token_name);
 
-    let minter_balance = bank.get_balance_of(minter_address, token_id, &mut working_set);
+    let minter_balance = bank.get_balance_of(&minter_address, token_id, &mut working_set);
     assert_eq!(Some(initial_balance), minter_balance);
 
     let total_supply = bank

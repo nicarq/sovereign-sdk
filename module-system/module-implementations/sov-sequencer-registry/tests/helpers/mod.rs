@@ -49,7 +49,7 @@ impl TestSequencer {
         working_set: &mut impl StateAccessor,
     ) -> RpcResult<sov_bank::BalanceResponse> {
         let amount = self.bank.get_balance_of(
-            self.sequencer_config.seq_rollup_address,
+            &self.sequencer_config.seq_rollup_address,
             self.sequencer_config.coins_to_lock.token_id,
             working_set,
         );

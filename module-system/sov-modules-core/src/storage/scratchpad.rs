@@ -14,9 +14,9 @@ use crate::namespaces::{self, Accessory, CompileTimeNamespace, User};
 #[cfg(feature = "native")]
 use crate::storage::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
 use crate::storage::{
-    ProvableStorageCache, SlotKey, SlotValue, StateCodec, StateItemCodec, Storage,
+    ProvableStorageCache, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage,
 };
-use crate::{Gas, Namespace, StateAccesses};
+use crate::{Gas, ModuleId, Namespace, StateAccesses};
 
 /// A storage reader and writer which can access a particular namespace.
 pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
@@ -312,23 +312,23 @@ where
 /// - `type_id`: The type identifier of the event, using [`core::any::TypeId`].
 /// - `boxed_event`: The event encapsulated in a box, implementing [`core::any::Any`] and [`core::marker::Send`].
 #[derive(Debug)]
-pub struct TypedEvent<S: Spec> {
+pub struct TypedEvent {
     event_key: Vec<u8>,
-    module_address: S::Address,
+    module_id: ModuleId,
     type_id: core::any::TypeId,
     boxed_event: alloc::boxed::Box<dyn core::any::Any + core::marker::Send>,
 }
 
-impl<S: Spec> TypedEvent<S> {
+impl TypedEvent {
     /// Created a Typed Event
     pub fn new<E: 'static + core::marker::Send>(
         event_key: &str,
-        module_address: S::Address,
+        module_id: &ModuleId,
         event: E,
     ) -> Self {
         TypedEvent {
             event_key: event_key.as_bytes().to_vec(),
-            module_address,
+            module_id: *module_id,
             type_id: event.type_id(),
             boxed_event: Box::new(event),
         }
@@ -355,8 +355,8 @@ impl<S: Spec> TypedEvent<S> {
     }
 
     /// Function to peek at the module address
-    pub fn module_address(&self) -> &S::Address {
-        &self.module_address
+    pub fn module_id(&self) -> &ModuleId {
+        &self.module_id
     }
 }
 
@@ -366,7 +366,7 @@ impl<S: Spec> TypedEvent<S> {
 /// 2. By using the revert method, where the most recent changes are reverted and the previous `StateCheckpoint` is returned.
 pub struct WorkingSet<S: Spec> {
     delta: RevertableWriter<Delta<S::Storage>>,
-    events: Vec<TypedEvent<S>>,
+    events: Vec<TypedEvent>,
     gas_meter: GasMeter<S::Gas>,
 }
 
@@ -429,7 +429,7 @@ impl<S: Spec> WorkingSet<S> {
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
     /// committing the changes to the underlying [`Storage`] via
     /// [`StateCheckpoint::freeze`].
-    pub fn checkpoint(self) -> (StateCheckpoint<S>, GasMeter<S::Gas>, Vec<TypedEvent<S>>) {
+    pub fn checkpoint(self) -> (StateCheckpoint<S>, GasMeter<S::Gas>, Vec<TypedEvent>) {
         (
             StateCheckpoint {
                 delta: self.delta.commit(),
@@ -454,20 +454,20 @@ impl<S: Spec> WorkingSet<S> {
     pub fn add_event<E: 'static + core::marker::Send>(
         &mut self,
         event_key: &str,
-        module_address: &S::Address,
+        module_id: &ModuleId,
         event: E,
     ) {
         self.events
-            .push(TypedEvent::new(event_key, module_address.clone(), event));
+            .push(TypedEvent::new(event_key, module_id, event));
     }
 
     /// Extracts all typed events from this working set.
-    pub fn take_events(&mut self) -> Vec<TypedEvent<S>> {
+    pub fn take_events(&mut self) -> Vec<TypedEvent> {
         core::mem::take(&mut self.events)
     }
 
     /// Extracts a typed event at index `index`
-    pub fn take_event(&mut self, index: usize) -> Option<TypedEvent<S>> {
+    pub fn take_event(&mut self, index: usize) -> Option<TypedEvent> {
         if index < self.events.len() {
             Some(self.events.remove(index))
         } else {
@@ -477,7 +477,7 @@ impl<S: Spec> WorkingSet<S> {
 
     /// Returns an immutable map of all typed events that have been previously
     /// written to this working set.
-    pub fn events(&self) -> &[TypedEvent<S>] {
+    pub fn events(&self) -> &[TypedEvent] {
         &self.events
     }
 

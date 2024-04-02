@@ -1,4 +1,4 @@
-use sov_modules_api::{Context,CryptoSpec, Module, ModuleInfo, Spec, StateMap, WorkingSet};
+use sov_modules_api::{Context,CryptoSpec, Module, ModuleId, ModuleInfo, Spec, StateMap, WorkingSet};
 use sov_test_utils::ZkTestSpec;
 
 pub mod first_test_module {
@@ -10,7 +10,7 @@ pub mod first_test_module {
         S: Spec,
     {
         #[address]
-        pub address: S::Address,
+        pub id: ModuleId,
 
         #[state]
         pub state_in_first_struct_1: StateMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u32>,
@@ -46,7 +46,7 @@ mod second_test_module {
     #[derive(ModuleInfo)]
     pub(crate) struct SecondTestStruct<S: Spec> {
         #[address]
-        pub address: S::Address,
+        pub id: ModuleId,
 
         #[state]
         pub state_in_second_struct_1: StateMap<String, u32>,
@@ -109,6 +109,6 @@ fn main() {
 
     assert_eq!(
         second_test_struct.dependencies(),
-        [second_test_struct.module_in_second_struct_1.address()]
+        [second_test_struct.module_in_second_struct_1.id()]
     );
 }

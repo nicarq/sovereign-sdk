@@ -6,6 +6,7 @@ use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
+use sov_modules_api::{LedgerRpcProviderExt, ModuleId};
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdentifier, EventIdentifier, LedgerRpcProvider,
     ProofInfoResponse, QueryMode, SlotIdentifier, TxIdentifier,
@@ -51,7 +52,7 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 /// ```
 pub fn rpc_module<T, B, Tx, E>(ledger: T) -> anyhow::Result<RpcModule<T>>
 where
-    T: LedgerRpcProvider + Send + Sync + 'static,
+    T: LedgerRpcProvider + LedgerRpcProviderExt + Send + Sync + 'static,
     B: serde::Serialize + DeserializeOwned + Clone + 'static,
     Tx: serde::Serialize + DeserializeOwned + Clone + 'static,
     E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
@@ -145,14 +146,15 @@ where
     })?;
 
     rpc.register_method("ledger_getEventsByKey", move |params, ledger| {
-        let params: (&str, Option<&str>, TxnRangeParam, usize, Option<&str>) = params.parse()?;
+        let params: (&str, Option<ModuleId>, TxnRangeParam, usize, Option<&str>) =
+            params.parse()?;
         ledger
             .get_events_by_key::<E>(params.0, params.1, params.2, params.3, params.4)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 
     rpc.register_method("ledger_getEventsByModuleAddress", move |params, ledger| {
-        let params: (&str, usize, Option<&str>) = params.parse()?;
+        let params: (ModuleId, usize, Option<&str>) = params.parse()?;
         ledger
             .get_events_by_module_address::<E>(params.0, params.1, params.2)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))

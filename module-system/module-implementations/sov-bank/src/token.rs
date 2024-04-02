@@ -13,6 +13,7 @@ use sov_state::Prefix;
 use thiserror::Error;
 
 use crate::call::prefix_from_address_with_parent;
+use crate::utils::{Payable, TokenHolder, TokenHolderRef};
 
 /// Type alias to store an amount of token.
 pub type Amount = u64;
@@ -138,7 +139,7 @@ pub struct Token<S: sov_modules_api::Spec> {
     /// Total supply of the coins.
     pub(crate) total_supply: u64,
     /// Mapping from user address to user balance.
-    pub(crate) balances: sov_modules_api::StateMap<S::Address, Amount>,
+    pub(crate) balances: sov_modules_api::StateMap<TokenHolder<S>, Amount>,
 
     /// Vector containing the authorized minters
     /// Empty vector indicates that the token supply is frozen
@@ -154,8 +155,8 @@ impl<S: sov_modules_api::Spec> Token<S> {
     /// the balances of the `from` and `to` accounts.
     pub(crate) fn transfer(
         &self,
-        from: &S::Address,
-        to: &S::Address,
+        from: TokenHolderRef<'_, S>,
+        to: TokenHolderRef<'_, S>,
         amount: Amount,
         working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
@@ -167,22 +168,22 @@ impl<S: sov_modules_api::Spec> Token<S> {
             .with_context(|| format!("Incorrect balance on={} for token={}", from, self.name))?;
 
         // We can't overflow here because the sum must be smaller or eq to `total_supply` which is u64.
-        let to_balance = self.balances.get(to, working_set).unwrap_or_default() + amount;
+        let to_balance = self.balances.get(&to, working_set).unwrap_or_default() + amount;
 
-        self.balances.set(from, &from_balance, working_set);
-        self.balances.set(to, &to_balance, working_set);
+        self.balances.set(&from, &from_balance, working_set);
+        self.balances.set(&to, &to_balance, working_set);
         Ok(())
     }
     /// Burns a specified `amount` of token from the address `from`. First check that the address has enough token to burn,
     /// if not returns an error. Otherwise, update the balances by substracting the amount burnt.
     pub(crate) fn burn(
         &mut self,
-        from: &S::Address,
+        from: TokenHolderRef<'_, S>,
         amount: Amount,
         working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
         let new_balance = self.check_balance(from, amount, working_set)?;
-        self.balances.set(from, &new_balance, working_set);
+        self.balances.set(&from, &new_balance, working_set);
 
         Ok(())
     }
@@ -206,7 +207,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
     pub(crate) fn mint(
         &mut self,
         authorizer: &S::Address,
-        mint_to_address: &S::Address,
+        mint_to_identity: TokenHolderRef<'_, S>,
         amount: Amount,
         working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
@@ -218,14 +219,15 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
         let to_balance: Amount = self
             .balances
-            .get(mint_to_address, working_set)
+            .get(&mint_to_identity, working_set)
             .unwrap_or_default()
             .checked_add(amount)
             .ok_or(anyhow::Error::msg(
                 "Account balance overflow in the mint method of bank module",
             ))?;
 
-        self.balances.set(mint_to_address, &to_balance, working_set);
+        self.balances
+            .set(&mint_to_identity, &to_balance, working_set);
         self.total_supply = self
             .total_supply
             .checked_add(amount)
@@ -250,11 +252,11 @@ impl<S: sov_modules_api::Spec> Token<S> {
     // Returns new balance after subtraction.
     fn check_balance(
         &self,
-        from: &S::Address,
+        from: TokenHolderRef<'_, S>,
         amount: Amount,
         working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<Amount> {
-        let balance = self.balances.get_or_err(from, working_set)?;
+        let balance = self.balances.get_or_err(&from, working_set)?;
         let new_balance = match balance.checked_sub(amount) {
             Some(from_balance) => from_balance,
             None => bail!("Insufficient funds for {}", from),
@@ -302,7 +304,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
         let mut total_supply: Option<u64> = Some(0);
         for (address, balance) in address_and_balances.iter() {
-            balances.set(address, balance, working_set);
+            balances.set(&address.as_token_holder(), balance, working_set);
             total_supply = total_supply.and_then(|ts| ts.checked_add(*balance));
         }
 

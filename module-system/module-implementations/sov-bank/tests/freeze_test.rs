@@ -175,7 +175,7 @@ fn freeze_token() {
         |token_id: TokenId,
          user_address: Address,
          working_set: &mut WorkingSet<S>|
-         -> Option<u64> { bank.get_balance_of(user_address, token_id, working_set) };
+         -> Option<u64> { bank.get_balance_of(&user_address, token_id, working_set) };
     let bal = query_user_balance(token_id_2, minter_address, &mut working_set);
 
     assert_eq!(Some(110), bal);

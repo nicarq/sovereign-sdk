@@ -85,8 +85,8 @@ impl EventMacro {
             impl #impl_generics ::sov_modules_api::RuntimeEventProcessor for #ident_name #type_generics {
                 type RuntimeEvent = #event_enum_name #type_generics;
 
-                fn convert_to_runtime_event<__S: ::sov_modules_api::Spec>(
-                    event: ::sov_modules_api::TypedEvent<__S>
+                fn convert_to_runtime_event(
+                    event: ::sov_modules_api::TypedEvent
                 ) -> Option<Self::RuntimeEvent> {
                     match event.type_id() {
                         #(#event_cases)*

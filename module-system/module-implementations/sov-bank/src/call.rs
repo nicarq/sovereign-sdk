@@ -4,6 +4,7 @@ use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, WorkingSet};
 
 use crate::event::Event;
+use crate::utils::Payable;
 use crate::{Amount, Bank, Coins, Token, TokenId};
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
 #[cfg_attr(
@@ -112,12 +113,12 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     /// Transfers the set of `coins` to the address specified by `to`.
     pub fn transfer(
         &self,
-        to: S::Address,
+        to: impl Payable<S>,
         coins: Coins,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
-        self.transfer_from(context.sender(), &to, coins.clone(), working_set)
+        self.transfer_from(context.sender(), to, coins.clone(), working_set)
             .map(|response| {
                 // TODO: move this back into the body of transfer_from once we create a trait for StateAccessor + EventEmitter
                 // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/168
@@ -141,10 +142,11 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub fn burn(
         &self,
         coins: Coins,
-        owner: &S::Address,
+        owner: impl Payable<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
-        let context_logger = || format!("Failed to burn coins({}) from owner {}", coins, owner,);
+        let owner = owner.as_token_holder();
+        let context_logger = || format!("Failed to burn coins({}) from owner {}", coins, owner);
         let mut token = self
             .tokens
             .get_or_err(&coins.token_id, working_set)
@@ -186,7 +188,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub fn mint_from_eoa(
         &self,
         coins: &Coins,
-        mint_to_address: &S::Address,
+        mint_to_address: impl Payable<S>,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
@@ -200,10 +202,11 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub fn mint(
         &self,
         coins: &Coins,
-        mint_to_address: &S::Address,
+        mint_to_address: impl Payable<S>,
         authorizer: &S::Address,
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
+        let mint_to_address = mint_to_address.as_token_holder();
         let context_logger = || {
             format!(
                 "Failed mint coins({}) to {} by authorizer {}",
@@ -258,15 +261,17 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     /// Returns an error if the token ID doesn't exist.
     pub fn transfer_from(
         &self,
-        from: &S::Address,
-        to: &S::Address,
+        from: impl Payable<S>,
+        to: impl Payable<S>,
         coins: Coins,
         working_set: &mut impl StateAccessor,
     ) -> Result<CallResponse> {
+        let from = from.as_token_holder();
+        let to = to.as_token_holder();
         let context_logger = || {
             format!(
                 "Failed transfer from={} to={} of coins({})",
-                from, to, coins
+                &from, &to, coins
             )
         };
         let token = self
@@ -284,10 +289,11 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     /// if the user doesn't have tokens of that type, return `None`. Otherwise, wrap the resulting balance in `Some`.
     pub fn get_balance_of(
         &self,
-        user_address: S::Address,
+        user_address: impl Payable<S>,
         token_id: TokenId,
         working_set: &mut impl StateAccessor,
     ) -> Option<u64> {
+        let user_address = user_address.as_token_holder();
         self.tokens
             .get(&token_id, working_set)
             .and_then(|token| token.balances.get(&user_address, working_set))

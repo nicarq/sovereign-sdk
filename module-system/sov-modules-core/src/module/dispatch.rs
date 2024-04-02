@@ -5,6 +5,7 @@ use sov_rollup_interface::maybestd::io;
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
 use crate::storage::WorkingSet;
+use crate::ModuleId;
 
 /// A trait that needs to be implemented for any call message.
 pub trait DispatchCall: Send + Sync {
@@ -26,5 +27,5 @@ pub trait DispatchCall: Send + Sync {
     ) -> Result<CallResponse, ModuleError>;
 
     /// Returns an address of the dispatched module.
-    fn module_address(&self, message: &Self::Decodable) -> &<Self::Spec as Spec>::Address;
+    fn module_id(&self, message: &Self::Decodable) -> &ModuleId;
 }

@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_bank::{BurnRate, Coins, GAS_TOKEN_ID};
+use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::{
     AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec, WorkingSet,
@@ -74,7 +74,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             amount: bond_amount,
         };
         self.bank
-            .transfer_from(prover, &self.address, coins, working_set)
+            .transfer_from(prover, self.id.to_payable(), coins, working_set)
             .map_err(|_| ProverIncentiveErrors::BondTransferFailure)?;
 
         // Update our record of the total bonded amount for the sender.
@@ -242,7 +242,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // We can transfer the reward from the `ProverIncentives` module to the prover's account.
         self.bank
-            .transfer_from(&self.address, context.sender(), coins, working_set)
+            .transfer_from(self.id.to_payable(), context.sender(), coins, working_set)
             .map_err(|_| ProverIncentiveErrors::TransferFailure)?;
 
         Ok(())

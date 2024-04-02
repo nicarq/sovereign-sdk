@@ -131,7 +131,7 @@ where
 #[cfg(feature = "native")]
 mod proofs {
     use sov_modules_core::namespaces::ProvableCompileTimeNamespace;
-    use sov_modules_core::{Spec, StateCodec, StateItemCodec, Storage};
+    use sov_modules_core::{Spec, StateCodec, StateItemCodec, StateItemDecoder, Storage};
 
     use super::NamespacedStateValue;
 

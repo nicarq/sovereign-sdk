@@ -1,6 +1,5 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
-use borsh::BorshDeserialize;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -309,35 +308,6 @@ pub trait LedgerRpcProvider {
         &self,
         number: u64,
     ) -> Result<Option<EventResponse>, anyhow::Error>;
-
-    /// Get events by key.
-    fn get_events_by_key<E: borsh::BorshDeserialize + Into<Event>>(
-        &self,
-        event_key: &str,
-        module_address: Option<&str>,
-        txn_range: Option<(u64, u64)>,
-        num_events: usize,
-        next: Option<&str>,
-    ) -> Result<PaginatedEventResponse, anyhow::Error>;
-
-    /// Get events by module address
-    fn get_events_by_module_address<E: borsh::BorshDeserialize + Into<Event>>(
-        &self,
-        module_address: &str,
-        num_events: usize,
-        next: Option<&str>,
-    ) -> Result<PaginatedEventResponse, anyhow::Error>;
-
-    /// Get events by a range of slots and key.
-    fn get_events_by_slot_range_key<E: BorshDeserialize + Into<Event>>(
-        &self,
-        event_key: &str,
-        module_address: &str,
-        slot_height_start: u64,
-        slot_height_end: u64,
-        num_events: usize,
-        next: Option<&str>,
-    ) -> Result<PaginatedEventResponse, anyhow::Error>;
 
     /// Get events by transaction hash.
     fn get_events_by_txn_hash<E: borsh::BorshDeserialize + Into<Event>>(

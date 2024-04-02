@@ -12,8 +12,6 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Gas, GasArray, Spec,
     StateCheckpoint,
 };
-#[cfg(feature = "native")]
-use sov_modules_core::AddressBech32;
 use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error};
@@ -492,7 +490,7 @@ where
 
 #[cfg(feature = "native")]
 pub(crate) fn convert_to_runtime_events<S, RT, Da>(
-    events: Vec<sov_modules_core::TypedEvent<S>>,
+    events: Vec<sov_modules_core::TypedEvent>,
 ) -> Vec<StoredEvent>
 where
     S: Spec,
@@ -510,10 +508,8 @@ where
             let key = typed_event.event_key().to_vec();
             StoredEvent::new(
                 &key,
-                &(Into::<AddressBech32>::into(typed_event.module_address().clone())
-                    .try_to_vec()
-                    .unwrap()),
-                &<RT as sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event::<S>(
+                &typed_event.module_id().as_bytes().clone(),
+                &<RT as sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event(
                     typed_event,
                 )
                 .expect("Unknown event type")
@@ -526,7 +522,7 @@ where
 
 #[cfg(not(feature = "native"))]
 fn convert_to_runtime_events<S, RT, Da>(
-    _events: Vec<sov_modules_core::TypedEvent<S>>,
+    _events: Vec<sov_modules_core::TypedEvent>,
 ) -> Vec<StoredEvent>
 where
     S: Spec,

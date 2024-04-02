@@ -456,9 +456,9 @@ fn build_rpc_trait(
             }
 
             /// Get the address of this module
-            #[method(name = "moduleAddress")]
+            #[method(name = "moduleId")]
             fn module_address(&self) -> ::jsonrpsee::core::RpcResult<String> {
-                Ok(<#type_name #ty_generics as ::sov_modules_api::ModuleInfo>::address(&<#type_name #ty_generics as ::core::default::Default>::default()).to_string())
+                Ok(<#type_name #ty_generics as ::sov_modules_api::ModuleInfo>::id(&<#type_name #ty_generics as ::core::default::Default>::default()).to_string())
             }
 
         }

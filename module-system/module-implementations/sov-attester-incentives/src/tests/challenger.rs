@@ -91,7 +91,7 @@ fn test_valid_challenge() {
         assert_eq!(
             module
                 .bank
-                .get_balance_of(challenger_address, GAS_TOKEN_ID, &mut working_set)
+                .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut working_set)
                 .unwrap(),
             INITIAL_BOND_AMOUNT - BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
             "The challenger should have been rewarded"
@@ -117,7 +117,7 @@ fn test_valid_challenge() {
         assert_eq!(
             module
                 .bank
-                .get_balance_of(challenger_address, GAS_TOKEN_ID, &mut working_set)
+                .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut working_set)
                 .unwrap(),
             INITIAL_BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
             "The challenger should have been unbonded"

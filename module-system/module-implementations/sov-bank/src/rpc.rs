@@ -32,9 +32,9 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<BalanceResponse> {
         let amount = if let Some(v) = version {
-            self.get_balance_of(user_address, token_id, &mut working_set.get_archival_at(v))
+            self.get_balance_of(&user_address, token_id, &mut working_set.get_archival_at(v))
         } else {
-            self.get_balance_of(user_address, token_id, working_set)
+            self.get_balance_of(&user_address, token_id, working_set)
         };
         Ok(BalanceResponse { amount })
     }

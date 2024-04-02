@@ -41,7 +41,10 @@ use proc_macro::TokenStream;
 use rpc::ExposeRpcMacro;
 use syn::{parse_macro_input, DeriveInput, ItemFn};
 
-#[proc_macro_derive(ModuleInfo, attributes(state, module, kernel_module, address, gas))]
+#[proc_macro_derive(
+    ModuleInfo,
+    attributes(state, module, kernel_module, address, gas, phantom)
+)]
 pub fn module_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
 
@@ -50,7 +53,7 @@ pub fn module_info(input: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(
     KernelModuleInfo,
-    attributes(state, module, kernel_module, address, gas)
+    attributes(state, module, kernel_module, address, gas, phantom)
 )]
 pub fn kernel_module_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
@@ -134,14 +137,16 @@ pub fn config_bech32_constant(_attr: TokenStream, item: TokenStream) -> TokenStr
 ///
 /// ## Example
 /// ```
-/// use sov_modules_api::{Spec, ModuleInfo};
+/// use sov_modules_api::{Spec, ModuleId, ModuleInfo};
 /// use sov_modules_api::macros::rpc_gen;
 /// use jsonrpsee::core::RpcResult;
 ///
 /// #[derive(ModuleInfo)]
 /// struct MyModule<S: Spec> {
 ///     #[address]
-///     addr: S::Address,
+///     id: ModuleId,
+///     #[phantom]
+///     phantom: std::marker::PhantomData<S>,
 ///     // ...
 /// }
 ///
@@ -157,14 +162,16 @@ pub fn config_bech32_constant(_attr: TokenStream, item: TokenStream) -> TokenStr
 /// This is exactly equivalent to hand-writing
 ///
 /// ```
-/// use sov_modules_api::{Spec, ModuleInfo, WorkingSet};
+/// use sov_modules_api::{Spec, ModuleId, ModuleInfo, WorkingSet};
 /// use sov_modules_api::macros::rpc_gen;
 /// use jsonrpsee::core::RpcResult;
 ///
 /// #[derive(ModuleInfo)]
 /// struct MyModule<S: Spec> {
 ///     #[address]
-///     addr: S::Address,
+///     id: ModuleId,
+///     #[phantom]
+///     phantom: std::marker::PhantomData<S>,
 ///     // ...
 /// };
 ///
@@ -186,7 +193,7 @@ pub fn config_bech32_constant(_attr: TokenStream, item: TokenStream) -> TokenStr
 ///
 ///     #[method(name = "moduleAddress")]
 ///     fn module_address(&self) -> ::jsonrpsee::core::RpcResult<String> {
-///        Ok(<MyModule<S> as ModuleInfo>::address(&<MyModule<S> as ::core::default::Default>::default()).to_string())
+///        Ok(<MyModule<S> as ModuleInfo>::id(&<MyModule<S> as ::core::default::Default>::default()).to_string())
 ///     }
 ///         
 /// }

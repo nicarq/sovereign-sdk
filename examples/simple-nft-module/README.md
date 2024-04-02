@@ -61,7 +61,7 @@ NFT module is defined as the following:
 #[derive(sov_modules_api::ModuleInfo, Clone)]
 pub struct NonFungibleToken<S: sov_modules_api::Spec> {
     #[address]
-    address: S::Address,
+    id: sov_modules_api::ModuleId,
 
     #[state]
     admin: sov_modules_api::StateValue<S::Address>,

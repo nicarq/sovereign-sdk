@@ -132,7 +132,7 @@ fn test_registration_not_enough_funds() {
         format!(
             "Failed transfer from={} to={} of coins(token_id={} amount={})",
             sequencer_address,
-            test_sequencer.registry.address(),
+            test_sequencer.registry.id(),
             test_sequencer.sequencer_config.coins_to_lock.token_id,
             LOCKED_AMOUNT,
         ),
