@@ -4,6 +4,7 @@
 //! See [`RpcClient`].
 
 use jsonrpsee::proc_macros::rpc;
+use sov_modules_api::ModuleId;
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdentifier, EventIdentifier, ProofInfoResponse, QueryMode,
     SlotIdentifier, TxIdentifier,
@@ -69,7 +70,7 @@ where
     async fn get_events_by_key(
         &self,
         key: &str,
-        module_address: Option<&str>,
+        module_address: Option<ModuleId>,
         txn_num: Option<u64>,
         num_events: u64,
         next: Option<&str>,

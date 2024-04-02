@@ -10,10 +10,14 @@ compile_error!("The `sync` feature is not supported on this architecture.");
 
 pub mod common;
 pub mod module;
+#[cfg(feature = "native")]
+pub mod rpc;
 pub mod runtime;
 pub mod storage;
 
 pub use common::*;
 pub use module::*;
+#[cfg(feature = "native")]
+pub use rpc::*;
 pub use runtime::*;
 pub use storage::*;

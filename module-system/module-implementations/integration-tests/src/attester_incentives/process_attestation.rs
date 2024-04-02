@@ -27,7 +27,7 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
             Some(self.attester_balance - self.attester_stake)
         );
     }
@@ -50,7 +50,7 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
             Some(honest_attester_new_balance)
         );
     }
@@ -158,7 +158,7 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
             // Formula: new_balance = old_balance + burn_rate * (gas_proved_first_attestation + gas_proved_second_attestation) - tx_cost
             Some(
                 honest_attester_balance

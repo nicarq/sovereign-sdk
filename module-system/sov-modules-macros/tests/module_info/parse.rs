@@ -1,4 +1,4 @@
-use sov_modules_api::{ModuleInfo, CryptoSpec, Spec, StateMap, StateValue};
+use sov_modules_api::{ModuleInfo, ModuleId, CryptoSpec, Spec, StateMap, StateValue};
 use sov_test_utils::ZkTestSpec;
 
 mod test_module {
@@ -7,7 +7,7 @@ mod test_module {
     #[derive(ModuleInfo)]
     pub(crate) struct TestStruct<S: Spec> {
         #[address]
-        pub address: S::Address,
+        pub id: ModuleId,
 
         // Comment
         #[state]
@@ -68,7 +68,7 @@ fn main() {
     let hash: [u8; 32] = hasher.finalize().into();
 
     assert_eq!(
-        &sov_modules_api::Address::try_from(hash).unwrap(),
-        test_struct.address()
+        &sov_modules_api::ModuleId::from(hash),
+        test_struct.id()
     );
 }

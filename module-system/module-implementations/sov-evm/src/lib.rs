@@ -27,7 +27,7 @@ mod event;
 mod helpers;
 
 use revm::primitives::Address;
-use sov_modules_api::{Context, DaSpec, Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
@@ -55,7 +55,7 @@ pub(crate) struct PendingTransaction {
 pub struct Evm<S: sov_modules_api::Spec, Da: DaSpec> {
     /// The address of the evm module.
     #[address]
-    pub(crate) address: S::Address,
+    pub(crate) id: ModuleId,
 
     /// Mapping from account address to account state.
     #[state]

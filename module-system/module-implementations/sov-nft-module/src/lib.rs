@@ -16,7 +16,7 @@ mod rpc;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleInfo, Spec, StateMap, WorkingSet,
+    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateMap, WorkingSet,
 };
 mod event;
 mod offchain;
@@ -32,8 +32,8 @@ use crate::event::Event;
 /// Each token is represented by a unique ID.
 pub struct NonFungibleToken<S: Spec> {
     #[address]
-    /// The address of the NonFungibleToken module.
-    address: S::Address,
+    /// The ID of the NonFungibleToken module.
+    id: ModuleId,
 
     #[state]
     /// Mapping of tokens to their owners

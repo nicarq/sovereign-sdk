@@ -26,7 +26,7 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
             Some(self.attester_balance - self.attester_stake)
         );
     }
@@ -178,7 +178,7 @@ impl AttesterIncentivesTestHandler {
             let gas_consumed = 2 * rollup.gas_per_transaction();
             assert_eq!(
                 rollup.bank().get_balance_of(
-                    self.challenger_private_key.to_address(),
+                    &self.challenger_private_key.to_address(),
                     GAS_TOKEN_ID,
                     &mut working_set
                 ),

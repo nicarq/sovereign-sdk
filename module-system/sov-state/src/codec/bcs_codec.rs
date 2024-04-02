@@ -1,18 +1,25 @@
-use super::{StateCodec, StateItemCodec};
+use sov_modules_core::{StateItemDecoder, StateItemEncoder};
+
+use super::StateCodec;
 
 /// A [`StateCodec`] that uses [`bcs`] for all keys and values.
 #[derive(Debug, Default, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BcsCodec;
 
-impl<V> StateItemCodec<V> for BcsCodec
+impl<V> StateItemEncoder<V> for BcsCodec
 where
-    V: serde::Serialize + for<'a> serde::Deserialize<'a>,
+    V: serde::Serialize,
 {
-    type Error = bcs::Error;
-
     fn encode(&self, value: &V) -> Vec<u8> {
         bcs::to_bytes(value).expect("Failed to serialize value")
     }
+}
+
+impl<V> StateItemDecoder<V> for BcsCodec
+where
+    V: for<'a> serde::Deserialize<'a>,
+{
+    type Error = bcs::Error;
 
     fn try_decode(&self, bytes: &[u8]) -> Result<V, Self::Error> {
         bcs::from_bytes(bytes)

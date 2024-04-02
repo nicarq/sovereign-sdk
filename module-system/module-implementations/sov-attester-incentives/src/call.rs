@@ -6,7 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_bank::{Amount, BurnRate, Coins, GAS_TOKEN_ID};
+use sov_bank::{Amount, BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::optimistic::Attestation;
@@ -358,7 +358,7 @@ where
 
         // The reward tokens are unlocked from the module's address.
         self.bank
-            .transfer_from(&self.address, context.sender(), coins, working_set)
+            .transfer_from(self.id.to_payable(), context.sender(), coins, working_set)
             .map_err(|_err| AttesterIncentiveErrors::RewardTransferFailure)?;
 
         Ok(CallResponse::default())
@@ -391,7 +391,7 @@ where
         };
 
         self.bank
-            .transfer_from(user_address, &self.address, coins, working_set)
+            .transfer_from(user_address, self.id.to_payable(), coins, working_set)
             .map_err(|_err| AttesterIncentiveErrors::BondTransferFailure)?;
 
         let balances = match role {

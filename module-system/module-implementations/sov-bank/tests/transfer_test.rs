@@ -32,7 +32,7 @@ fn transfer_initial_token() {
     // Preparation
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_id, working_set)
+            bank.get_balance_of(&user_address, token_id, working_set)
         };
 
     let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
@@ -282,7 +282,7 @@ fn transfer_deployed_token() {
     // Preparation
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_id, working_set)
+            bank.get_balance_of(&user_address, token_id, working_set)
         };
 
     let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {

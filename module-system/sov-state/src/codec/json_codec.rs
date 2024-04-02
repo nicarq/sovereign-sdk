@@ -1,20 +1,26 @@
 use serde_json;
+use sov_modules_core::{StateItemDecoder, StateItemEncoder};
 
-use super::{StateCodec, StateItemCodec};
+use super::StateCodec;
 
 /// A [`StateCodec`] that uses [`serde_json`] for all keys and values.
 #[derive(Debug, Default, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct JsonCodec;
 
-impl<V> StateItemCodec<V> for JsonCodec
+impl<V> StateItemEncoder<V> for JsonCodec
 where
-    V: serde::Serialize + for<'a> serde::Deserialize<'a>,
+    V: serde::Serialize,
 {
-    type Error = serde_json::Error;
-
     fn encode(&self, value: &V) -> Vec<u8> {
         serde_json::to_vec(value).expect("Failed to serialize value")
     }
+}
+
+impl<V> StateItemDecoder<V> for JsonCodec
+where
+    V: for<'a> serde::Deserialize<'a>,
+{
+    type Error = serde_json::Error;
 
     fn try_decode(&self, bytes: &[u8]) -> Result<V, Self::Error> {
         serde_json::from_slice(bytes)

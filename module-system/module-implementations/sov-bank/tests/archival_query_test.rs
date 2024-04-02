@@ -235,10 +235,10 @@ fn query_sender_receiver_balances(
     working_set: &mut WorkingSet<S>,
 ) -> (u64, u64) {
     let sender_balance = bank
-        .get_balance_of(sender_address, token_id, working_set)
+        .get_balance_of(&sender_address, token_id, working_set)
         .unwrap();
     let receiver_balance = bank
-        .get_balance_of(receiver_address, token_id, working_set)
+        .get_balance_of(&receiver_address, token_id, working_set)
         .unwrap();
     (sender_balance, receiver_balance)
 }

@@ -110,7 +110,7 @@ fn check_reward(
     assert_eq!(
         module
             .bank
-            .get_balance_of(prover_address, token_addr, working_set)
+            .get_balance_of(&prover_address, token_addr, working_set)
             .unwrap_or_default(),
         reward + INITIAL_PROVER_BALANCE - BOND_AMOUNT
     );
@@ -211,7 +211,7 @@ fn check_unbonding(
     assert_eq!(
         module
             .bank
-            .get_balance_of(prover_address, GAS_TOKEN_ID, working_set)
+            .get_balance_of(&prover_address, GAS_TOKEN_ID, working_set)
             .unwrap(),
         old_balance + expected_amount_withdrawn
     );

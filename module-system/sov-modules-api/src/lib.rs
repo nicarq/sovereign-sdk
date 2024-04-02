@@ -33,12 +33,12 @@ pub use sov_modules_core::{
     AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context, CryptoSpecExt,
     DispatchCall, EncodeCall, EventEmitter, Gas, GasArray, GasMeter, GasPrice, GasUnit, Genesis,
     KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
-    ModuleError as Error, ModuleInfo, ModulePrefix, PublicKeyExt, RuntimeEventProcessor,
-    SignatureExt, Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent,
+    ModuleError as Error, ModuleId, ModuleIdBech32, ModuleInfo, ModulePrefix, PublicKeyExt,
+    RuntimeEventProcessor, SignatureExt, Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent,
     VersionedStateReadWriter, WorkingSet,
 };
 #[cfg(feature = "native")]
-pub use sov_modules_core::{ProvenStateAccessor, RuntimeEventDisplay};
+pub use sov_modules_core::{LedgerRpcProviderExt, ProvenStateAccessor, RuntimeEventDisplay};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 pub use sov_rollup_interface::crypto::{PublicKey, Signature};
@@ -59,8 +59,8 @@ pub mod da {
 }
 
 struct ModuleVisitor<'a, S: Spec> {
-    visited: HashSet<&'a S::Address>,
-    visited_on_this_path: Vec<&'a S::Address>,
+    visited: HashSet<&'a ModuleId>,
+    visited_on_this_path: Vec<&'a ModuleId>,
     sorted_modules: std::vec::Vec<&'a dyn ModuleInfo<Spec = S>>,
 }
 
@@ -81,7 +81,7 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
         let mut module_map = HashMap::new();
 
         for module in &modules {
-            module_map.insert(module.address(), *module);
+            module_map.insert(module.id(), *module);
         }
 
         for module in modules {
@@ -96,16 +96,16 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
     fn visit_module(
         &mut self,
         module: &'a dyn ModuleInfo<Spec = S>,
-        module_map: &HashMap<&S::Address, &'a (dyn ModuleInfo<Spec = S>)>,
+        module_map: &HashMap<&'a ModuleId, &'a (dyn ModuleInfo<Spec = S>)>,
     ) -> Result<(), anyhow::Error> {
-        let address = module.address();
+        let id = module.id();
 
         // if the module have been visited on this path, then we have a cycle dependency
         if let Some((index, _)) = self
             .visited_on_this_path
             .iter()
             .enumerate()
-            .find(|(_, &x)| x == address)
+            .find(|(_, &x)| x == id)
         {
             let cycle = &self.visited_on_this_path[index..];
 
@@ -115,13 +115,13 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
                 cycle
             );
         } else {
-            self.visited_on_this_path.push(address);
+            self.visited_on_this_path.push(id);
         }
 
         // if the module hasn't been visited yet, visit it and its dependencies
-        if self.visited.insert(address) {
+        if self.visited.insert(id) {
             for dependency_address in module.dependencies() {
-                let dependency_module = *module_map.get(dependency_address).ok_or_else(|| {
+                let dependency_module = *module_map.get(&dependency_address).ok_or_else(|| {
                     anyhow::Error::msg(format!("Module not found: {:?}", dependency_address))
                 })?;
                 self.visit_module(dependency_module, module_map)?;
@@ -163,13 +163,13 @@ where
     let mut value_map = HashMap::new();
 
     for module in module_value_tuples {
-        let prev_entry = value_map.insert(module.0.address(), module.1);
-        anyhow::ensure!(prev_entry.is_none(), "Duplicate module address! Only one instance of each module is allowed in a given runtime. Module with address {} is duplicated", module.0.address());
+        let prev_entry = value_map.insert(module.0.id(), module.1);
+        anyhow::ensure!(prev_entry.is_none(), "Duplicate module address! Only one instance of each module is allowed in a given runtime. Module with address {} is duplicated", module.0.id());
     }
 
     let mut sorted_values = Vec::new();
     for module in sorted_modules {
-        sorted_values.push(value_map.get(module.address()).unwrap().clone());
+        sorted_values.push(value_map.get(&module.id()).unwrap().clone());
     }
 
     Ok(sorted_values)

@@ -1,6 +1,6 @@
 //! Serialization and deserialization -related logic.
 
-use sov_modules_core::{StateCodec, StateItemCodec};
+use sov_modules_core::StateCodec;
 
 mod bcs_codec;
 mod borsh_codec;
@@ -17,7 +17,7 @@ mod tests {
     use proptest::collection::vec;
     use proptest::prelude::any;
     use proptest::strategy::Strategy;
-    use sov_modules_core::EncodeKeyLike;
+    use sov_modules_core::{EncodeKeyLike, StateItemEncoder};
 
     use super::*;
 

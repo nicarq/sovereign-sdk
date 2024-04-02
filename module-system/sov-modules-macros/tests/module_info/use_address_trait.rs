@@ -2,12 +2,15 @@
 
 #![allow(unused_imports)]
 
-use sov_modules_api::{ModuleInfo, RollupAddress, Spec};
+use sov_modules_api::{ModuleInfo, ModuleId, RollupAddress, Spec};
 
 #[derive(ModuleInfo)]
 struct TestModule<S: Spec> {
     #[address]
-    admin: S::Address,
+    id: ModuleId,
+
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 fn main() {}

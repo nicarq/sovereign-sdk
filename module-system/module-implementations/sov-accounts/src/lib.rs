@@ -14,7 +14,7 @@ mod event;
 #[cfg(test)]
 mod tests;
 pub use call::{CallMessage, UPDATE_ACCOUNT_MSG};
-use sov_modules_api::{Context, CryptoSpec, Error, ModuleInfo, Spec, WorkingSet};
+use sov_modules_api::{Context, CryptoSpec, Error, ModuleId, ModuleInfo, Spec, WorkingSet};
 
 use crate::event::Event;
 
@@ -44,7 +44,7 @@ pub struct Account<S: Spec> {
 pub struct Accounts<S: Spec> {
     /// The address of the sov-accounts module.
     #[address]
-    pub address: S::Address,
+    pub id: ModuleId,
 
     /// Mapping from an account address to a corresponding public key.
     #[state]

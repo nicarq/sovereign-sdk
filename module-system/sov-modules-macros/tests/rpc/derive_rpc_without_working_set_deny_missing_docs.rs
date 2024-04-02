@@ -1,7 +1,7 @@
 //! Regression test for <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/163>.
 
 #![deny(missing_docs)]
-
+use sov_modules_api::ModuleId;
 use sov_modules_api::macros::rpc_gen;
 
 /// docs
@@ -9,7 +9,10 @@ use sov_modules_api::macros::rpc_gen;
 pub struct TestStruct<S: sov_modules_api::Spec> {
     /// docs
     #[address]
-    pub(crate) address: S::Address,
+    pub(crate) id: ModuleId,
+
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 #[rpc_gen(client, server, namespace = "test")]

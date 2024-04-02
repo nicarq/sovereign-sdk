@@ -322,7 +322,7 @@ fn test_tx_bad_serialization() {
 
             runtime
                 .bank
-                .get_balance_of(sequencer_rollup_address, coins.token_id, &mut working_set)
+                .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut working_set)
                 .unwrap()
         };
         (genesis_root, balance)
@@ -395,7 +395,7 @@ fn test_tx_bad_serialization() {
             .get_coins_to_lock(&mut working_set);
         let sequencer_balance_after = runtime
             .bank
-            .get_balance_of(sequencer_rollup_address, coins.token_id, &mut working_set)
+            .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut working_set)
             .unwrap();
         assert_eq!(sequencer_balance_before, sequencer_balance_after);
     }

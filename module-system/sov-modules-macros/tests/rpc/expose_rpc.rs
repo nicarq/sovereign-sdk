@@ -1,16 +1,19 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, WorkingSet,
+    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateValue, WorkingSet,
 };
 
 #[derive(ModuleInfo)]
 pub struct QueryModule<S: Spec> {
     #[address]
-    pub address: S::Address,
+    pub id: ModuleId,
 
     #[state]
     pub data: StateValue<u8>,
+
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 impl<S: Spec> Module for QueryModule<S> {

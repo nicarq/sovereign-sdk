@@ -13,12 +13,12 @@ pub mod utils;
 pub use call::*;
 pub use genesis::*;
 use sov_modules_api::macros::config_bech32_constant;
-use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleInfo, WorkingSet};
+use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleId, ModuleInfo, WorkingSet};
 use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, BurnRate, Coins, TokenId, TokenIdBech32};
 /// Methods to get a token ID.
-pub use utils::get_token_id;
+pub use utils::{get_token_id, IntoPayable, Payable};
 
 /// Event definition from module exported
 /// This can be useful for deserialization from RPC and similar cases
@@ -54,10 +54,12 @@ pub struct BankGasConfig<GU: Gas> {
 /// - Token burn.
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
+// #[derive(ModuleInfo, Clone)]
+
 pub struct Bank<S: sov_modules_api::Spec> {
-    /// The address of the sov-bank module.
+    /// The id of the sov-bank module.
     #[address]
-    pub(crate) address: S::Address,
+    pub(crate) id: ModuleId,
 
     /// The gas configuration of the sov-bank module.
     #[gas]
@@ -110,7 +112,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 
             call::CallMessage::Transfer { to, coins } => {
                 self.charge_gas(working_set, &self.gas.create_token)?;
-                Ok(self.transfer(to, coins, context, working_set)?)
+                Ok(self.transfer(&to, coins, context, working_set)?)
             }
 
             call::CallMessage::Burn { coins } => {

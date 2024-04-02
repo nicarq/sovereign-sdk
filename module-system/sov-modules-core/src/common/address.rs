@@ -198,6 +198,19 @@ macro_rules! impl_hash32_type {
             }
         }
 
+        impl<'a> TryFrom<&'a [u8]> for $id {
+            type Error = anyhow::Error;
+
+            fn try_from(id: &'a [u8]) -> Result<Self, Self::Error> {
+                if id.len() != 32 {
+                    anyhow::bail!("Id must be 32 bytes long");
+                }
+                let mut id_bytes = [0u8; 32];
+                id_bytes.copy_from_slice(id);
+                Ok(Self(id_bytes))
+            }
+        }
+
         impl $id {
             /// Exposes the inner bytes of $id
             pub const fn as_bytes(&self) -> &[u8; 32] {

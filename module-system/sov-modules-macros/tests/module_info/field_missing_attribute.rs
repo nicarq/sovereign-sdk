@@ -1,14 +1,17 @@
-use sov_modules_api::{Context, Module, ModuleInfo, Spec, StateMap, WorkingSet};
+use sov_modules_api::{Context, Module, ModuleId, ModuleInfo, Spec, StateMap, WorkingSet};
 
 #[derive(ModuleInfo)]
 struct TestStruct<S: Spec> {
     #[address]
-    pub address: S::Address,
+    pub id: ModuleId,
 
     test_state1: StateMap<u32, u32>,
 
     #[state]
     test_state2: StateMap<Vec<u8>, u64>,
+
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 impl<S: Spec> Module for TestStruct<S> {

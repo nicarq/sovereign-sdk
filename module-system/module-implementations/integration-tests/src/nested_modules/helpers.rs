@@ -15,20 +15,23 @@ pub(crate) enum Event {
 }
 
 pub mod module_a {
-    use sov_modules_api::Module;
+    use sov_modules_api::{Module, ModuleId};
 
     use super::*;
 
     #[derive(ModuleInfo)]
     pub(crate) struct ModuleA<S: Spec> {
         #[address]
-        pub address_module_a: S::Address,
+        pub id_module_a: ModuleId,
 
         #[state]
         pub(crate) state_1_a: StateMap<String, String>,
 
         #[state]
         pub(crate) state_2_a: StateValue<String>,
+
+        #[phantom]
+        phantom: std::marker::PhantomData<S>,
     }
 
     impl<S: Spec> Module for ModuleA<S> {
@@ -61,14 +64,14 @@ pub mod module_a {
 }
 
 pub mod module_b {
-    use sov_modules_api::Module;
+    use sov_modules_api::{Module, ModuleId};
 
     use super::*;
 
     #[derive(ModuleInfo)]
     pub(crate) struct ModuleB<S: Spec> {
         #[address]
-        pub address_module_b: S::Address,
+        pub id_module_b: ModuleId,
 
         #[state]
         state_1_b: StateMap<String, String>,
@@ -107,14 +110,14 @@ pub mod module_b {
 }
 
 pub(crate) mod module_c {
-    use sov_modules_api::Module;
+    use sov_modules_api::{Module, ModuleId};
 
     use super::*;
 
     #[derive(ModuleInfo)]
     pub(crate) struct ModuleC<S: Spec> {
         #[address]
-        pub address: S::Address,
+        pub id: ModuleId,
 
         #[module]
         pub(crate) mod_1_a: module_a::ModuleA<S>,

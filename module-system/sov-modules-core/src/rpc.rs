@@ -1,0 +1,36 @@
+//! Defines traits for interacting with the ledger when using the sov module system.
+use sov_rollup_interface::rpc::{Event, PaginatedEventResponse};
+
+use crate::ModuleId;
+
+/// A LedgerRpcProviderExt provides a way to query the ledger for events by module.
+pub trait LedgerRpcProviderExt {
+    /// Get events by key.
+    fn get_events_by_key<E: borsh::BorshDeserialize + Into<Event>>(
+        &self,
+        event_key: &str,
+        module_address: Option<ModuleId>,
+        txn_range: Option<(u64, u64)>,
+        num_events: usize,
+        next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, anyhow::Error>;
+
+    /// Get events by module address
+    fn get_events_by_module_address<E: borsh::BorshDeserialize + Into<Event>>(
+        &self,
+        module_address: ModuleId,
+        num_events: usize,
+        next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, anyhow::Error>;
+
+    /// Get events by a range of slots and key.
+    fn get_events_by_slot_range_key<E: borsh::BorshDeserialize + Into<Event>>(
+        &self,
+        event_key: &str,
+        module_address: ModuleId,
+        slot_height_start: u64,
+        slot_height_end: u64,
+        num_events: usize,
+        next: Option<&str>,
+    ) -> Result<PaginatedEventResponse, anyhow::Error>;
+}

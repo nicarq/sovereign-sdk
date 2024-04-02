@@ -137,7 +137,7 @@ fn test_honest_unbonding() {
         // for both the start and end unbonding messages
         assert_eq!(
             rollup.bank().get_balance_of(
-                test_handler.attester_addr(),
+                &test_handler.attester_addr(),
                 GAS_TOKEN_ID,
                 &mut working_set
             ),

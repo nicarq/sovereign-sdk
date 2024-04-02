@@ -98,7 +98,7 @@ fn test_process_valid_attestation() {
     assert_eq!(
         module
             .bank
-            .get_balance_of(attester_address, GAS_TOKEN_ID, &mut working_set)
+            .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut working_set)
             .unwrap(),
         // The attester is bonded at the beginning so he loses BOND_AMOUNT
         INITIAL_BOND_AMOUNT - BOND_AMOUNT

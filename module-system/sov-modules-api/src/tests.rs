@@ -1,9 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::Address;
 use sov_rollup_interface::crypto::{PrivateKey, Signature};
 use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSignature, TestSpec};
 
-use crate::ModuleInfo;
+use crate::{ModuleId, ModuleInfo};
 
 #[test]
 fn test_account_bech32m_display() {
@@ -39,22 +38,22 @@ fn test_signature_serialization() {
 }
 
 struct Module {
-    address: Address,
-    dependencies: Vec<Address>,
+    id: ModuleId,
+    dependencies: Vec<ModuleId>,
 }
 
 impl crate::ModuleInfo for Module {
     type Spec = TestSpec;
 
-    fn address(&self) -> &<Self::Spec as crate::Spec>::Address {
-        &self.address
+    fn id(&self) -> &ModuleId {
+        &self.id
     }
 
     fn prefix(&self) -> crate::ModulePrefix {
         crate::ModulePrefix::new_module(module_path!(), "Module")
     }
 
-    fn dependencies(&self) -> Vec<&<Self::Spec as crate::Spec>::Address> {
+    fn dependencies(&self) -> Vec<&ModuleId> {
         self.dependencies.iter().collect()
     }
 }
@@ -62,16 +61,16 @@ impl crate::ModuleInfo for Module {
 #[test]
 fn test_sorting_modules() {
     let module_a = Module {
-        address: Address::from([1; 32]),
+        id: ModuleId::from([1; 32]),
         dependencies: vec![],
     };
     let module_b = Module {
-        address: Address::from([2; 32]),
-        dependencies: vec![module_a.address],
+        id: ModuleId::from([2; 32]),
+        dependencies: vec![module_a.id],
     };
     let module_c = Module {
-        address: Address::from([3; 32]),
-        dependencies: vec![module_a.address, module_b.address],
+        id: ModuleId::from([3; 32]),
+        dependencies: vec![module_a.id, module_b.id],
     };
 
     let modules: Vec<(&dyn ModuleInfo<Spec = TestSpec>, i32)> =
@@ -84,14 +83,14 @@ fn test_sorting_modules() {
 
 #[test]
 fn test_sorting_modules_missing_module() {
-    let module_a_address = Address::from([1; 32]);
+    let module_a_id = ModuleId::from([1; 32]);
     let module_b = Module {
-        address: Address::from([2; 32]),
-        dependencies: vec![module_a_address],
+        id: ModuleId::from([2; 32]),
+        dependencies: vec![module_a_id],
     };
     let module_c = Module {
-        address: Address::from([3; 32]),
-        dependencies: vec![module_a_address, module_b.address],
+        id: ModuleId::from([3; 32]),
+        dependencies: vec![module_a_id, module_b.id],
     };
 
     let modules: Vec<(&dyn ModuleInfo<Spec = TestSpec>, i32)> =
@@ -101,27 +100,27 @@ fn test_sorting_modules_missing_module() {
 
     assert!(sorted_modules.is_err());
     let error_string = sorted_modules.err().unwrap().to_string();
-    assert_eq!("Module not found: AddressBech32(\"sov1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs259tk3\")", error_string);
+    assert_eq!("Module not found: ModuleIdBech32(\"module_1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqskvf3ds\")", error_string);
 }
 
 #[test]
 fn test_sorting_modules_cycle() {
-    let module_e_address = Address::from([5; 32]);
+    let module_e_id = ModuleId::from([5; 32]);
     let module_a = Module {
-        address: Address::from([1; 32]),
+        id: ModuleId::from([1; 32]),
         dependencies: vec![],
     };
     let module_b = Module {
-        address: Address::from([2; 32]),
-        dependencies: vec![module_a.address],
+        id: ModuleId::from([2; 32]),
+        dependencies: vec![module_a.id],
     };
     let module_d = Module {
-        address: Address::from([4; 32]),
-        dependencies: vec![module_e_address],
+        id: ModuleId::from([4; 32]),
+        dependencies: vec![module_e_id],
     };
     let module_e = Module {
-        address: module_e_address,
-        dependencies: vec![module_a.address, module_d.address],
+        id: module_e_id,
+        dependencies: vec![module_a.id, module_d.id],
     };
 
     let modules: Vec<(&dyn ModuleInfo<Spec = TestSpec>, i32)> = vec![
@@ -135,21 +134,21 @@ fn test_sorting_modules_cycle() {
 
     assert!(sorted_modules.is_err());
     let error_string = sorted_modules.err().unwrap().to_string();
-    assert_eq!("Cyclic dependency of length 2 detected: [AddressBech32(\"sov1qszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqnu4g3u\"), AddressBech32(\"sov1q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zskwvj87\")]", error_string);
+    assert_eq!("Cyclic dependency of length 2 detected: [ModuleIdBech32(\"module_1qszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszq0yej2a\"), ModuleIdBech32(\"module_1q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2pg9q5zs2kqgul\")]", error_string);
 }
 
 #[test]
 fn test_sorting_modules_duplicate() {
     let module_a = Module {
-        address: Address::from([1; 32]),
+        id: ModuleId::from([1; 32]),
         dependencies: vec![],
     };
     let module_b = Module {
-        address: Address::from([2; 32]),
-        dependencies: vec![module_a.address],
+        id: ModuleId::from([2; 32]),
+        dependencies: vec![module_a.id],
     };
     let module_a2 = Module {
-        address: Address::from([1; 32]),
+        id: ModuleId::from([1; 32]),
         dependencies: vec![],
     };
 
@@ -160,7 +159,7 @@ fn test_sorting_modules_duplicate() {
 
     assert!(sorted_modules.is_err());
     let error_string = sorted_modules.err().unwrap().to_string();
-    assert_eq!("Duplicate module address! Only one instance of each module is allowed in a given runtime. Module with address sov1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs259tk3 is duplicated", error_string);
+    assert_eq!("Duplicate module address! Only one instance of each module is allowed in a given runtime. Module with address module_1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqskvf3ds is duplicated", error_string);
 }
 
 #[test]

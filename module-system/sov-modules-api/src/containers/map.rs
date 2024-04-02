@@ -9,7 +9,7 @@ use sov_modules_core::{
     EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReaderAndWriter,
 };
 #[cfg(feature = "native")]
-use sov_modules_core::{ProvenStateAccessor, Spec, Storage};
+use sov_modules_core::{ProvenStateAccessor, Spec, StateItemDecoder, Storage};
 use sov_state::codec::BorshCodec;
 use thiserror::Error;
 

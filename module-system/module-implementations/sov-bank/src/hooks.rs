@@ -2,7 +2,7 @@ use anyhow::bail;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Gas, GasMeter, Spec, StateCheckpoint};
 
-use crate::{Bank, Coins, GAS_TOKEN_ID};
+use crate::{Bank, Coins, Payable, GAS_TOKEN_ID};
 
 impl<S: Spec> Bank<S> {
     /// Reserve the gas for a transaction and lock it at the address `locking_address`.
@@ -11,7 +11,7 @@ impl<S: Spec> Bank<S> {
         tx: &Transaction<S>,
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
-        locking_address: &S::Address,
+        locking_address: impl Payable<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<GasMeter<S::Gas>, anyhow::Error> {
         // TODO(@vlopes11) - this calculation diverges from EIP 1559
@@ -32,7 +32,7 @@ impl<S: Spec> Bank<S> {
         if amount > 0 {
             let token_id = GAS_TOKEN_ID;
             let from = payer;
-            let to = locking_address;
+            let to = locking_address.as_token_holder();
             let coins = Coins { amount, token_id };
             self.transfer_from(from, to, coins, state_checkpoint)?;
         }
@@ -47,14 +47,14 @@ impl<S: Spec> Bank<S> {
         _tx: &Transaction<S>,
         gas_meter: &sov_modules_api::GasMeter<S::Gas>,
         payer: &S::Address,
-        locking_address: &S::Address,
+        locking_address: impl Payable<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         let amount = gas_meter.remaining_funds();
 
         if amount > 0 {
             let token_id = GAS_TOKEN_ID;
-            let from = locking_address;
+            let from = locking_address.as_token_holder();
             let to = payer;
             let coins = Coins { amount, token_id };
             self.transfer_from(from, to, coins, state_checkpoint)

@@ -40,7 +40,7 @@ fn main() {
         >>::encode_call(message);
         let module = RT::decode_call(&serialized_message).unwrap();
 
-        assert_eq!(runtime.module_address(&module), runtime.first.address());
+        assert_eq!(runtime.module_id(&module), runtime.first.id());
         let _ = runtime
             .dispatch_call(module, working_set, &context)
             .unwrap();
@@ -59,7 +59,7 @@ fn main() {
         >>::encode_call(message);
         let module = RT::decode_call(&serialized_message).unwrap();
 
-        assert_eq!(runtime.module_address(&module), runtime.second.address());
+        assert_eq!(runtime.module_id(&module), runtime.second.id());
 
         let _ = runtime
             .dispatch_call(module, working_set, &context)

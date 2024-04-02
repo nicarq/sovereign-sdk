@@ -1,5 +1,6 @@
 use sov_modules_api::{
-    AccessoryStateValue, CallResponse, Context, Module, ModuleError, ModuleInfo, Spec, WorkingSet,
+    AccessoryStateValue, CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, Spec,
+    WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::Storage;
@@ -8,10 +9,13 @@ use sov_test_utils::TestSpec;
 #[derive(ModuleInfo)]
 pub struct TestModule<S: Spec> {
     #[address]
-    address: S::Address,
+    id: ModuleId,
 
     #[state]
     accessory_state: AccessoryStateValue<u32>,
+
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 impl<S: Spec> Module for TestModule<S> {

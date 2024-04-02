@@ -2,7 +2,7 @@ use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
-    ModuleInfo, Spec, StateValue, WorkingSet,
+    ModuleId, ModuleInfo, Spec, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -34,10 +34,13 @@ pub mod my_module {
     #[derive(ModuleInfo)]
     pub struct QueryModule<S: Spec, D: Data> {
         #[address]
-        pub address: S::Address,
+        pub id: ModuleId,
 
         #[state]
         pub data: StateValue<D>,
+
+        #[phantom]
+        phantom: std::marker::PhantomData<S>,
     }
 
     impl<S: Spec, D> Module for QueryModule<S, D>

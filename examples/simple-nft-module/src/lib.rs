@@ -10,7 +10,9 @@ pub use genesis::*;
 mod rpc;
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_modules_api::{CallResponse, Context, Error, Module, ModuleInfo, Spec, WorkingSet};
+use sov_modules_api::{
+    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, WorkingSet,
+};
 mod event;
 pub use crate::event::Event;
 
@@ -20,8 +22,8 @@ pub use crate::event::Event;
 /// Each token is represented by a unique ID.
 pub struct NonFungibleToken<S: Spec> {
     #[address]
-    /// The address of the NonFungibleToken module.
-    address: S::Address,
+    /// The id of the NonFungibleToken module.
+    id: ModuleId,
 
     #[state]
     /// Admin of the NonFungibleToken module.

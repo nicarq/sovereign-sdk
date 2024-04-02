@@ -4,14 +4,18 @@ use sov_modules_api::{
 
 pub mod first_test_module {
     use super::*;
+    use sov_modules_api::ModuleId;
 
     #[derive(ModuleInfo)]
     pub struct FirstTestStruct<S: Spec> {
         #[address]
-        pub address: S::Address,
+        pub address: ModuleId,
 
         #[state]
         pub state_in_first_struct: StateValue<u8>,
+
+        #[phantom]
+        phantom: std::marker::PhantomData<S>,
     }
 
     impl<S: Spec> FirstTestStruct<S> {
@@ -63,15 +67,19 @@ pub mod first_test_module {
 }
 
 pub mod second_test_module {
+    use sov_modules_api::ModuleId;
     use super::*;
 
     #[derive(ModuleInfo)]
     pub struct SecondTestStruct<S: Spec> {
         #[address]
-        pub address: S::Address,
+        pub address: ModuleId,
 
         #[state]
         pub state_in_second_struct: StateValue<u8>,
+
+        #[phantom]
+        phantom: std::marker::PhantomData<S>,
     }
 
     impl<S: Spec> SecondTestStruct<S> {
@@ -122,6 +130,7 @@ pub mod second_test_module {
 
 pub mod third_test_module {
     use super::*;
+    use sov_modules_api::ModuleId;
 
     pub trait ModuleThreeStorable:
         borsh::BorshSerialize + borsh::BorshDeserialize + core::fmt::Debug + Default + Send + Sync
@@ -133,10 +142,13 @@ pub mod third_test_module {
     #[derive(ModuleInfo)]
     pub struct ThirdTestStruct<S: Spec, OtherGeneric: ModuleThreeStorable> {
         #[address]
-        pub address: S::Address,
+        pub address: ModuleId,
 
         #[state]
         pub state_in_third_struct: StateValue<OtherGeneric>,
+
+        #[phantom]
+        phantom: std::marker::PhantomData<S>,
     }
 
     impl<S: Spec, OtherGeneric: ModuleThreeStorable> ThirdTestStruct<S, OtherGeneric> {

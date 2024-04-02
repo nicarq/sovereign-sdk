@@ -2,7 +2,7 @@ use std::hash::Hasher;
 
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{ModuleInfo, Spec, WorkingSet};
+use sov_modules_api::{ModuleInfo, ModuleId, Spec, WorkingSet};
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
 
@@ -18,9 +18,11 @@ where
         + 'static,
 {
     #[address]
-    pub(crate) address: S::Address,
+    pub(crate) id: ModuleId,
     #[state]
     pub(crate) data: ::sov_modules_api::StateValue<D>,
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 #[rpc_gen(client, server, namespace = "test")]

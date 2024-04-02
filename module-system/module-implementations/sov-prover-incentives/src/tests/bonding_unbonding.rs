@@ -16,7 +16,7 @@ fn test_unbonding() {
     let initial_unlocked_balance = {
         module
             .bank
-            .get_balance_of(prover_address, token_id, &mut working_set)
+            .get_balance_of(&prover_address, token_id, &mut working_set)
             .unwrap_or_default()
     };
 
@@ -37,7 +37,7 @@ fn test_unbonding() {
     // Assert that the prover's unlocked balance has increased by the amount they unbonded
     let unlocked_balance = module
         .bank
-        .get_balance_of(prover_address, token_id, &mut working_set);
+        .get_balance_of(&prover_address, token_id, &mut working_set);
     assert_eq!(
         unlocked_balance,
         Some(BOND_AMOUNT + initial_unlocked_balance)

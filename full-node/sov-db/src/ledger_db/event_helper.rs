@@ -1,8 +1,6 @@
-use std::str::FromStr;
-
-use anyhow::{Context, Error};
+use anyhow::Error;
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::AddressBech32;
+use sov_modules_core::ModuleId;
 use sov_rollup_interface::rpc::{
     EventIdentifier, EventResponse, LedgerRpcProvider, PaginatedEventResponse,
 };
@@ -32,28 +30,19 @@ fn event_match_helper(
     event_key_match && module_address_match && txn_num_match
 }
 
-pub(crate) fn extract_module_address_key_from_str(module_address: &str) -> anyhow::Result<Vec<u8>> {
-    AddressBech32::from_str(module_address)
-        .context("Failed to parse address from string")
-        .and_then(|addr| {
-            addr.try_to_vec()
-                .context("Failed to convert bech32 address to bytes")
-        })
-}
-
 pub(crate) fn get_events_by_key_helper<
     E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
 >(
     ledger_db: &LedgerDB,
     event_key: &str,
-    module_address: Option<&str>,
+    module_address: Option<ModuleId>,
     txn_range: Option<(u64, u64)>,
     num_events: usize,
     next: Option<&str>,
 ) -> Result<PaginatedEventResponse, Error> {
     let module_address_vec = match module_address {
         None => vec![],
-        Some(module_address) => extract_module_address_key_from_str(module_address)?,
+        Some(module_address) => module_address.as_bytes().to_vec(),
     };
 
     let scan_key_start = match next {
@@ -129,12 +118,11 @@ pub(crate) fn get_events_by_module_address_helper<
     E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
 >(
     ledger_db: &LedgerDB,
-    module_address: &str,
+    module_address: ModuleId,
     num_events: usize,
     next: Option<&str>,
 ) -> Result<PaginatedEventResponse, Error> {
-    let module_address_vec = extract_module_address_key_from_str(module_address)
-        .with_context(|| format!("Could not deserialize module_address: {}", module_address))?;
+    let module_address_vec = module_address.as_bytes().to_vec();
 
     let scan_key_start = match next {
         Some(start_key) => {

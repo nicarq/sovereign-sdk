@@ -133,7 +133,7 @@ fn test_two_phase_unbonding() {
     {
         let initial_account_balance = module
             .bank
-            .get_balance_of(attester_address, GAS_TOKEN_ID, &mut working_set)
+            .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut working_set)
             .unwrap();
 
         // Start unbonding the user: should succeed
@@ -166,7 +166,7 @@ fn test_two_phase_unbonding() {
             initial_account_balance + BOND_AMOUNT,
             module
                 .bank
-                .get_balance_of(attester_address, GAS_TOKEN_ID, &mut working_set)
+                .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut working_set)
                 .unwrap(),
             "The initial and final account balance don't match"
         );

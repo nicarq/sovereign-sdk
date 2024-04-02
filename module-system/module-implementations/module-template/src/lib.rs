@@ -8,7 +8,7 @@ pub use event::Event;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, WorkingSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExampleModuleConfig {}
@@ -24,9 +24,9 @@ pub struct ExampleModuleConfig {}
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo)]
 pub struct ExampleModule<S: sov_modules_api::Spec> {
-    /// Address of the module.
+    /// Id of the module.
     #[address]
-    pub address: S::Address,
+    pub id: ModuleId,
 
     /// Some value kept in the state.
     #[state]

@@ -49,7 +49,7 @@ fn burn_deployed_tokens() {
 
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_id, working_set)
+            bank.get_balance_of(&user_address, token_id, working_set)
         };
 
     let previous_total_supply = query_total_supply(&mut working_set);
@@ -192,7 +192,7 @@ fn burn_initial_tokens() {
 
     let query_user_balance =
         |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_id, working_set)
+            bank.get_balance_of(&user_address, token_id, working_set)
         };
 
     let balance_before = query_user_balance(sender_address, &mut working_set);

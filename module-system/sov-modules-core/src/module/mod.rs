@@ -8,6 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::common::{ModuleError, ModulePrefix};
 use crate::storage::WorkingSet;
+use crate::ModuleId;
 
 mod dispatch;
 mod event;
@@ -84,13 +85,13 @@ pub trait ModuleInfo {
     type Spec: Spec;
 
     /// Returns address of the module.
-    fn address(&self) -> &<Self::Spec as Spec>::Address;
+    fn id(&self) -> &ModuleId;
 
     /// Returns the prefix of the module.
     fn prefix(&self) -> ModulePrefix;
 
     /// Returns addresses of all the other modules this module is dependent on
-    fn dependencies(&self) -> Vec<&<Self::Spec as Spec>::Address>;
+    fn dependencies(&self) -> Vec<&ModuleId>;
 }
 
 /// Event Emitter trait for a blanket implementation
@@ -124,7 +125,7 @@ where
         #[allow(unused_variables)]
         let _ = || (&working_set, &event_key, &event);
         if cfg!(feature = "native") {
-            working_set.add_event(event_key, self.address(), event);
+            working_set.add_event(event_key, self.id(), event);
         }
     }
 }

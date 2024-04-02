@@ -1,5 +1,5 @@
 use anyhow::bail;
-use sov_bank::Amount;
+use sov_bank::{Amount, IntoPayable};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::{CallResponse, Context, StateAccessor, WorkingSet};
@@ -64,7 +64,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<CallResponse> {
-        let locker = &self.address;
+        let locker = &self.id;
 
         let sequencer = context.sender();
 
@@ -88,7 +88,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
 
         if coins.amount > 0 {
             self.bank
-                .transfer_from(locker, sequencer, coins, working_set)?;
+                .transfer_from(locker.to_payable(), sequencer, coins, working_set)?;
         }
 
         Ok(CallResponse::default())
@@ -127,7 +127,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             None => bail!("The provided sender `{}` is not allowed", sender),
         };
 
-        let locker = &self.address;
+        let locker = &self.id;
 
         let balance = match balance.checked_add(amount) {
             Some(b) => b,
@@ -142,7 +142,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         coins.amount = amount;
 
         self.bank
-            .transfer_from(&rollup_address, locker, coins, working_set)?;
+            .transfer_from(&rollup_address, locker.to_payable(), coins, working_set)?;
 
         self.allowed_sequencers.set(
             sender,

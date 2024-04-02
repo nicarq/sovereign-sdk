@@ -1,3 +1,4 @@
+use sov_bank::IntoPayable;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{DaSpec, Gas, GasMeter, Spec, StateCheckpoint};
 
@@ -15,8 +16,13 @@ impl<S: Spec, Da: DaSpec> AttesterIncentives<S, Da> {
         payer: &S::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<GasMeter<S::Gas>, anyhow::Error> {
-        self.bank
-            .reserve_gas_to_address(tx, gas_price, payer, &self.address, state_checkpoint)
+        self.bank.reserve_gas_to_address(
+            tx,
+            gas_price,
+            payer,
+            self.id.to_payable(),
+            state_checkpoint,
+        )
     }
 
     /// Refunds any remaining gas to the payer after the transaction is processed.
@@ -31,7 +37,7 @@ impl<S: Spec, Da: DaSpec> AttesterIncentives<S, Da> {
             tx,
             gas_meter,
             payer,
-            &self.address,
+            self.id.to_payable(),
             state_checkpoint,
         );
     }

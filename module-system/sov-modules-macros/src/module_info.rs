@@ -98,17 +98,21 @@ fn impl_module_info(
                 // This excludes the module from the dependency sorting that runs at genesis.
             }
             ModuleFieldAttribute::Address => {
-                impl_self_init.push(make_init_address(field, ident, generic_param)?);
+                impl_self_init.push(make_init_id(field, ident, generic_param)?);
                 impl_self_body.push(&field.ident);
             }
             ModuleFieldAttribute::Gas => {
                 impl_self_init.push(make_init_gas_config(ident, field)?);
                 impl_self_body.push(&field.ident);
             }
+            ModuleFieldAttribute::Phantom => {
+                impl_self_init.push(make_init_phantomdata(field));
+                impl_self_body.push(&field.ident);
+            }
         };
     }
 
-    let fn_address = make_fn_address(&module_address.ident)?;
+    let fn_id = make_fn_id(&module_address.ident)?;
     let fn_dependencies = make_fn_dependencies(modules);
     let fn_prefix = make_module_prefix_fn(ident);
 
@@ -128,7 +132,7 @@ fn impl_module_info(
 
             #fn_prefix
 
-            #fn_address
+            #fn_id
 
             #fn_dependencies
         }
@@ -163,12 +167,10 @@ fn prefix_func_ident(ident: &proc_macro2::Ident) -> proc_macro2::Ident {
     syn::Ident::new(&format!("_prefix_{ident}"), ident.span())
 }
 
-fn make_fn_address(
-    address_ident: &proc_macro2::Ident,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn make_fn_id(id_ident: &proc_macro2::Ident) -> Result<proc_macro2::TokenStream, syn::Error> {
     Ok(quote::quote! {
-        fn address(&self) -> &<Self::Spec as ::sov_modules_api::Spec>::Address {
-           &self.#address_ident
+        fn id(&self) -> &::sov_modules_api::ModuleId {
+           &self.#id_ident
         }
     })
 }
@@ -176,12 +178,12 @@ fn make_fn_address(
 fn make_fn_dependencies(modules: Vec<&proc_macro2::Ident>) -> proc_macro2::TokenStream {
     let address_tokens = modules.iter().map(|ident| {
         quote::quote! {
-            &self.#ident.address()
+            self.#ident.id()
         }
     });
 
     quote::quote! {
-        fn dependencies(&self) -> ::std::vec::Vec<&<Self::Spec as sov_modules_api::Spec>::Address> {
+        fn dependencies(&self) -> ::std::vec::Vec<&::sov_modules_api::ModuleId> {
             ::std::vec![#(#address_tokens),*]
         }
     }
@@ -256,6 +258,11 @@ fn make_init_gas_config(
     Manifest::read_constants(parent)?.parse_gas_config(ty, field_ident)
 }
 
+fn make_init_phantomdata(field: &ModuleField) -> proc_macro2::TokenStream {
+    let field_ident = &field.ident;
+    quote::quote! { let #field_ident = ::std::marker::PhantomData; }
+}
+
 fn make_module_prefix_fn(struct_ident: &Ident) -> proc_macro2::TokenStream {
     let body = make_module_prefix_fn_body(struct_ident);
     quote::quote! {
@@ -272,7 +279,7 @@ fn make_module_prefix_fn_body(struct_ident: &Ident) -> proc_macro2::TokenStream 
     }
 }
 
-fn make_init_address(
+fn make_init_id(
     field: &ModuleField,
     struct_ident: &Ident,
     generic_param: &Ident,
@@ -282,13 +289,13 @@ fn make_init_address(
 
     Ok(quote::quote! {
         use ::sov_modules_api::digest::Digest as _;
+        use ::sov_modules_api::ModuleId;
         let prefix = {
             #generate_prefix
         };
 
-        let #field_ident : <#generic_param as sov_modules_api::Spec>::Address =
-            <#generic_param as ::sov_modules_api::Spec>::Address::try_from(&prefix.hash::<#generic_param>())
-                .unwrap_or_else(|e| panic!("ModuleInfo macro error, unable to create an Address for module: {}", e));
+        let #field_ident : ModuleId =
+            prefix.hash::<#generic_param>().into();
     })
 }
 
@@ -347,6 +354,7 @@ pub mod parsing {
         State { codec_builder: Option<syn::Path> },
         Address,
         Gas,
+        Phantom,
     }
 
     impl ModuleFieldAttribute {
@@ -390,6 +398,16 @@ pub mod parsing {
                         Err(syn::Error::new_spanned(
                             attr,
                             "The `#[gas]` attribute does not accept any arguments.",
+                        ))
+                    }
+                }
+                "phantom" => {
+                    if attr.tokens.is_empty() {
+                        Ok(Self::Phantom)
+                    } else {
+                        Err(syn::Error::new_spanned(
+                            attr,
+                            "The `#[phantom]` attribute does not accept any arguments.",
                         ))
                     }
                 }
@@ -517,9 +535,9 @@ pub mod parsing {
         let mut attr = None;
         for a in field.attrs.iter() {
             match a.path.segments[0].ident.to_string().as_str() {
-                "state" | "module" | "address" | "gas" | "kernel_module" => {
+                "state" | "module" | "address" | "gas" | "kernel_module" | "phantom" => {
                     if attr.is_some() {
-                        return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, and #[gas] is allowed per field."));
+                        return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, `#[gas]`, and `#[phantom]` is allowed per field."));
                     } else {
                         attr = Some(a);
                     }
@@ -533,7 +551,7 @@ pub mod parsing {
         } else {
             Err(syn::Error::new_spanned(
                 ident,
-                format!("The field `{}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, or #[gas].", ident),
+                format!("The field `{}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, #[gas], or #[phantom].", ident),
             ))
         }
     }

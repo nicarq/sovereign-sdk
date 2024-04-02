@@ -1,21 +1,26 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::EncodeKeyLike;
+use sov_modules_core::{EncodeKeyLike, StateItemDecoder, StateItemEncoder};
 
-use super::{StateCodec, StateItemCodec};
+use super::StateCodec;
 
 /// A [`StateCodec`] that uses [`borsh`] for all keys and values.
 #[derive(Debug, Default, PartialEq, Eq, Clone, BorshDeserialize, borsh::BorshSerialize)]
 pub struct BorshCodec;
 
-impl<V> StateItemCodec<V> for BorshCodec
+impl<V> StateItemEncoder<V> for BorshCodec
 where
-    V: BorshSerialize + BorshDeserialize,
+    V: BorshSerialize,
 {
-    type Error = std::io::Error;
-
     fn encode(&self, value: &V) -> Vec<u8> {
         value.try_to_vec().expect("Failed to serialize value")
     }
+}
+
+impl<V> StateItemDecoder<V> for BorshCodec
+where
+    V: BorshDeserialize,
+{
+    type Error = std::io::Error;
 
     fn try_decode(&self, bytes: &[u8]) -> Result<V, Self::Error> {
         V::try_from_slice(bytes)

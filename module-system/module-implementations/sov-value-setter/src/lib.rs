@@ -13,7 +13,7 @@ pub use call::*;
 pub use genesis::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, WorkingSet};
 
 use crate::event::Event;
 
@@ -24,9 +24,9 @@ use crate::event::Event;
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo)]
 pub struct ValueSetter<S: sov_modules_api::Spec> {
-    /// Address of the module.
+    /// The ID of the module.
     #[address]
-    pub address: S::Address,
+    pub id: ModuleId,
 
     /// Some value kept in the state.
     #[state]
