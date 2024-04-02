@@ -9,7 +9,7 @@ use crate::SequencerRegistry;
 /// This `struct` must be passed as an argument to
 /// [`Module::genesis`](sov_modules_api::Module::genesis).
 ///
-// TODO: Should we allow multiple sequencers in genesis?
+// TODO: Allow multiple sequencers: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/278
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
 pub struct SequencerConfig<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> {

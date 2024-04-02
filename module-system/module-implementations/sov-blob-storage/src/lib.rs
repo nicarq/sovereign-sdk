@@ -3,12 +3,7 @@
 
 mod capabilities;
 
-#[cfg(feature = "native")]
-mod rpc;
-
 use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(feature = "native")]
-pub use rpc::*;
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
 use sov_modules_api::batch::BatchWithId;
@@ -110,7 +105,7 @@ pub struct PreferredBatch {
     /// The actual transactions of the batch
     pub txs: Vec<RawTx>,
 
-    /// The number of virtual slots to advance fter processing the batch. Minimum 1.
+    /// The number of virtual slots to advance after processing the batch. Minimum 1.
     pub virtual_slots_to_advance: u8,
 }
 

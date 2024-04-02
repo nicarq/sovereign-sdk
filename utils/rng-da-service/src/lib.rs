@@ -21,8 +21,6 @@ const DEFAULT_GAS_LIMIT: u64 = 0;
 const DEFAULT_MAX_GAS_PRICE: Option<GasPrice<2>> = None;
 
 pub fn sender_address_with_pkey() -> (Address, TestPrivateKey) {
-    // TODO: maybe generate address and private key randomly, instead of
-    // hard-coding them?
     let pk = TestPrivateKey::generate();
     let addr = pk.to_address();
     (addr, pk)
