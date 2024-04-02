@@ -165,7 +165,8 @@ fn compare_output() {
         let block = MockBlock {
             header: MockBlockHeader::from_height(idx as u64 + 1),
             validity_cond: MockValidityCond::default(),
-            blobs,
+            batch_blobs: blobs,
+            proof_blobs: Default::default(),
         };
         blocks.push(block);
     }
@@ -207,7 +208,7 @@ pub fn get_result_from_blocks(
     let l = blocks.len();
 
     for block in blocks {
-        let mut blobs = block.blobs.clone();
+        let mut blobs = block.batch_blobs.clone();
 
         let storage = storage_manager.create_storage();
         let result = <HashStf<MockValidityCond> as StateTransitionFunction<

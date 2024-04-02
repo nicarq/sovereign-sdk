@@ -345,7 +345,7 @@ mod tests {
         let _: serde_json::Value = rpc.call("sequencer_publishBatch", arg).await.unwrap();
 
         let mut submitted_block = da_service.get_block_at(1).await.unwrap();
-        let block_data = submitted_block.blobs[0].full_data();
+        let block_data = submitted_block.batch_blobs[0].full_data();
 
         // First bytes of each tx, flattened
         let blob: Vec<Vec<u8>> = vec![vec![tx1[0]], vec![tx2[0]]];
@@ -370,7 +370,7 @@ mod tests {
         let _: serde_json::Value = rpc.call("sequencer_publishBatch", arg).await.unwrap();
 
         let mut submitted_block = da_service.get_block_at(1).await.unwrap();
-        let block_data = submitted_block.blobs[0].full_data();
+        let block_data = submitted_block.batch_blobs[0].full_data();
 
         // First bytes of each tx, flattened
         let blob: Vec<Vec<u8>> = vec![vec![tx[0]]];

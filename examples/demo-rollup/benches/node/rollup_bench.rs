@@ -91,7 +91,8 @@ fn rollup_bench(_bench: &mut Criterion) {
         let filtered_block = MockBlock {
             header: MockBlockHeader::from_height(height),
             validity_cond: Default::default(),
-            blobs: Default::default(),
+            batch_blobs: Default::default(),
+            proof_blobs: Default::default(),
         };
         blocks.push(filtered_block.clone());
 

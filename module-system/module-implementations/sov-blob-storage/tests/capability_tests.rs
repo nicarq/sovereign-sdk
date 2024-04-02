@@ -250,7 +250,8 @@ fn do_deferred_blob_test(
                 time: Time::now(),
             },
             validity_cond: Default::default(),
-            blobs: slots_iterator.next().unwrap(),
+            batch_blobs: slots_iterator.next().unwrap(),
+            proof_blobs: Default::default(),
         };
 
         test_kernel.begin_slot_hook(
@@ -263,7 +264,7 @@ fn do_deferred_blob_test(
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
 
         let batches_to_execute = test_kernel
-            .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
+            .get_batches_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
             .unwrap();
 
         assert_eq!(kernel_working_set.current_slot(), slot_number);
@@ -452,7 +453,7 @@ fn test_recovery_mode() {
                 time: Time::now(),
             },
             validity_cond: Default::default(),
-            blobs: vec![
+            batch_blobs: vec![
                 make_blob(
                     vec![slot_number_u8],
                     REGULAR_SEQUENCER_DA,
@@ -464,6 +465,7 @@ fn test_recovery_mode() {
                     [slot_number_u8 + 128; 32],
                 ),
             ],
+            proof_blobs: Default::default(),
         };
         test_kernel.begin_slot_hook(
             &slot_data.header,
@@ -473,7 +475,7 @@ fn test_recovery_mode() {
         );
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
-            .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
+            .get_batches_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
             .unwrap();
         assert_eq!(kernel_working_set.virtual_slot(), 1);
         assert_eq!(blobs_to_execute.len(), 0);
@@ -496,7 +498,8 @@ fn test_recovery_mode() {
                 time: Time::now(),
             },
             validity_cond: Default::default(),
-            blobs: vec![],
+            batch_blobs: vec![],
+            proof_blobs: Default::default(),
         };
         test_kernel.begin_slot_hook(
             &slot_data.header,
@@ -506,7 +509,7 @@ fn test_recovery_mode() {
         );
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
-            .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
+            .get_batches_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
             .unwrap();
         let next_height = test_kernel
             .get_chain_state()
@@ -574,11 +577,12 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
                 time: Time::now(),
             },
             validity_cond: Default::default(),
-            blobs: if slot_number == 0 {
+            batch_blobs: if slot_number == 0 {
                 slot_1_blobs.clone()
             } else {
                 vec![]
             },
+            proof_blobs: Default::default(),
         };
         test_kernel.begin_slot_hook(
             &slot_data.header,
@@ -589,7 +593,7 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
 
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
-            .get_batches_for_this_slot(&mut slot_data.blobs, &mut kernel_working_set)
+            .get_batches_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
             .unwrap();
 
         for batch in blobs_to_execute {
@@ -650,7 +654,8 @@ fn test_based_sequencing() {
             time: Time::now(),
         },
         validity_cond: Default::default(),
-        blobs: slot_1_blobs,
+        batch_blobs: slot_1_blobs,
+        proof_blobs: Default::default(),
     };
     test_kernel.begin_slot_hook(
         &slot_1_data.header,
@@ -660,7 +665,7 @@ fn test_based_sequencing() {
     );
     kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
     let mut execute_in_slot_1 = test_kernel
-        .get_batches_for_this_slot(&mut slot_1_data.blobs, &mut kernel_working_set)
+        .get_batches_for_this_slot(&mut slot_1_data.batch_blobs, &mut kernel_working_set)
         .unwrap();
     assert_eq!(3, execute_in_slot_1.len());
     assert_blob_matches_batch(blob_1, execute_in_slot_1.remove(0), "slot 1", false);
@@ -682,7 +687,8 @@ fn test_based_sequencing() {
             time: Time::now(),
         },
         validity_cond: Default::default(),
-        blobs: Vec::new(),
+        batch_blobs: Vec::new(),
+        proof_blobs: Default::default(),
     };
     test_kernel.begin_slot_hook(
         &slot_2_data.header,
@@ -692,7 +698,7 @@ fn test_based_sequencing() {
     );
     kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
     let execute_in_slot_2 = test_kernel
-        .get_batches_for_this_slot(&mut slot_2_data.blobs, &mut kernel_working_set)
+        .get_batches_for_this_slot(&mut slot_2_data.batch_blobs, &mut kernel_working_set)
         .unwrap();
     assert_eq!(
         test_kernel

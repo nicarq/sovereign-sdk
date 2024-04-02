@@ -189,7 +189,8 @@ pub(crate) fn execution_simulation(
                 time: Time::now(),
             },
             validity_cond: MockValidityCond { is_valid: true },
-            blobs: Default::default(),
+            batch_blobs: Default::default(),
+            proof_blobs: Default::default(),
         };
         let kernel = MockKernel::<S, MockDaSpec>::new(i as u64, i as u64);
         module.chain_state.begin_slot_hook(

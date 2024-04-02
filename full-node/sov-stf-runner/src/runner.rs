@@ -599,7 +599,7 @@ mod tests {
                 let block = da_service.get_block_at(height).await.unwrap();
                 seen_state_transition_info.push_back(make_transition_info(
                     block.header.clone(),
-                    block.blobs,
+                    block.batch_blobs,
                     height,
                 ));
             } else {
@@ -611,7 +611,7 @@ mod tests {
                 };
                 // Just double it from "canonical" chain
                 let raw_blob = vec![height as u8; 64];
-                let blob = MockBlob::new_with_hash(raw_blob, Default::default(), sequencer_address);
+                let blob = MockBlob::new_with_hash(raw_blob, sequencer_address);
                 let mut header = header_from_height(height);
                 header.prev_hash = prev_header.hash;
 
@@ -676,7 +676,7 @@ mod tests {
             let prev_header = header_from_height(height - 1);
             // Just double it from "canonical" chain
             let raw_blob = vec![height as u8; 64];
-            let blob = MockBlob::new_with_hash(raw_blob, Default::default(), sequencer_address);
+            let blob = MockBlob::new_with_hash(raw_blob, sequencer_address);
             let mut header = header_from_height(height);
             header.prev_hash = prev_header.hash;
             seen_state_transition_info.push_back(make_transition_info(header, vec![blob], height));

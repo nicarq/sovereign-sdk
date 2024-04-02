@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
@@ -15,7 +14,7 @@ use tracing::debug;
 use crate::types::{default_wait_attempts, MockAddress, MockBlob, MockBlock, MockDaVerifier};
 use crate::utils::hash_to_array;
 use crate::verifier::MockDaSpec;
-use crate::{MockBlockHeader, MockDaConfig, MockHash, MockValidityCond, Proof, ProofBlob, TxBlob};
+use crate::{MockBlockHeader, MockDaConfig, MockHash, MockValidityCond, Proof};
 
 const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
     prev_hash: MockHash([0; 32]),
@@ -28,7 +27,8 @@ const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
 const GENESIS_BLOCK: MockBlock = MockBlock {
     header: GENESIS_HEADER,
     validity_cond: MockValidityCond { is_valid: true },
-    blobs: vec![],
+    batch_blobs: vec![],
+    proof_blobs: vec![],
 };
 
 /// Time in milliseconds to wait for the next block if it is not there yet.
@@ -175,8 +175,9 @@ impl MockDaService {
         }
         blocks.retain(|b| b.header().height <= height);
         for blob in tx_blobs {
-            let blob = self.make_blob(TxBlob(blob.to_vec()), ProofBlob(Vec::new()));
-            let _ = self.add_block(blob, &mut blocks)?;
+            let batch_blob = self.make_blob(blob.to_vec());
+            let proof_blob = self.make_blob(Default::default());
+            let _ = self.add_block(batch_blob, vec![proof_blob], &mut blocks)?;
         }
 
         Ok(())
@@ -207,15 +208,16 @@ impl MockDaService {
             .unwrap_or_default() as u64
     }
 
-    fn make_blob(&self, tx_blob: TxBlob, proof_blob: ProofBlob) -> MockBlob {
-        MockBlob::new_with_hash(
-            tx_blob.0,
-            proof_blob.try_to_vec().unwrap(),
-            self.sequencer_da_address,
-        )
+    fn make_blob(&self, blob: Vec<u8>) -> MockBlob {
+        MockBlob::new_with_hash(blob, self.sequencer_da_address)
     }
 
-    fn make_new_block(&self, blob: MockBlob, blocks: &mut VecDeque<MockBlock>) -> MockBlock {
+    fn make_new_block(
+        &self,
+        batch_blob: MockBlob,
+        proof_blobs: Vec<MockBlob>,
+        blocks: &mut VecDeque<MockBlock>,
+    ) -> MockBlock {
         let prev = blocks
             .iter()
             .last()
@@ -224,7 +226,10 @@ impl MockDaService {
 
         let height = prev.height() + 1;
 
-        let block_hash = block_hash(height, blob.hash, prev.hash().into());
+        let mut blob_hashes: Vec<_> = proof_blobs.iter().map(|b| b.hash).collect();
+        blob_hashes.push(batch_blob.hash);
+
+        let block_hash = block_hash(height, &blob_hashes, prev.hash().into());
 
         let header = MockBlockHeader {
             prev_hash: prev.hash(),
@@ -236,12 +241,19 @@ impl MockDaService {
         MockBlock {
             header,
             validity_cond: Default::default(),
-            blobs: vec![blob],
+            batch_blobs: vec![batch_blob],
+            proof_blobs,
         }
     }
 
-    fn add_block(&self, blob: MockBlob, blocks: &mut VecDeque<MockBlock>) -> anyhow::Result<u64> {
-        let block = self.make_new_block(blob, blocks);
+    /// In MockDa a single block contains only one batch blob and any number of proof blobs.
+    fn add_block(
+        &self,
+        batch_blob: MockBlob,
+        proof_blob: Vec<MockBlob>,
+        blocks: &mut VecDeque<MockBlock>,
+    ) -> anyhow::Result<u64> {
+        let block = self.make_new_block(batch_blob, proof_blob, blocks);
 
         let height = block.header.height;
         debug!("Creating block at height {}", height);
@@ -356,7 +368,7 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
-        block.blobs.clone()
+        block.batch_blobs.clone()
     }
 
     async fn get_extraction_proof(
@@ -371,17 +383,17 @@ impl DaService for MockDaService {
     }
 
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
-        let mut proof_blob = Vec::new();
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
-
+        let mut proof_blobs = Vec::new();
         while let Some(proof) = proof_buffer.pop_front() {
             debug!("Including buffered proof in block");
-            proof_blob.push(proof.0);
+            proof_blobs.push(self.make_blob(proof.0));
         }
 
         let mut blocks = self.blocks.write().await;
-        let blob = self.make_blob(TxBlob(blob.to_vec()), ProofBlob(proof_blob));
-        let _ = self.add_block(blob, &mut blocks)?;
+        let batch_blob = self.make_blob(blob.to_vec());
+
+        let _ = self.add_block(batch_blob, proof_blobs, &mut blocks)?;
         Ok(())
     }
 
@@ -396,18 +408,24 @@ impl DaService for MockDaService {
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
-        let blobs = self.get_block_at(height).await?.blobs;
+        let blobs = self.get_block_at(height).await?.proof_blobs;
         Ok(blobs
             .into_iter()
-            .flat_map(|b| ProofBlob::try_from_slice(&b.proof_blob).unwrap().0)
+            .map(|mut proof_blob| {
+                proof_blob.advance();
+                proof_blob.blob.accumulator().to_vec()
+            })
             .collect())
     }
 }
 
-fn block_hash(height: u64, blob_hash: [u8; 32], prev_hash: [u8; 32]) -> MockHash {
+fn block_hash(height: u64, blob_hashes: &[[u8; 32]], prev_hash: [u8; 32]) -> MockHash {
     let mut block_to_hash = height.to_be_bytes().to_vec();
 
-    block_to_hash.extend_from_slice(&blob_hash);
+    for blob_hash in blob_hashes {
+        block_to_hash.extend_from_slice(blob_hash);
+    }
+
     block_to_hash.extend_from_slice(&prev_hash);
 
     MockHash::from(hash_to_array(&block_to_hash))
@@ -486,8 +504,8 @@ mod tests {
             let mut block = da.get_block_at(height).await.unwrap();
 
             assert_eq!(height, block.header.height());
-            assert_eq!(1, block.blobs.len());
-            let blob = &mut block.blobs[0];
+            assert_eq!(1, block.batch_blobs.len());
+            let blob = &mut block.batch_blobs[0];
             let retrieved_data = blob.full_data().to_vec();
             assert_eq!(published_blob, retrieved_data);
 
@@ -548,7 +566,7 @@ mod tests {
             let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();
             assert_eq!(expected_finalized_height, last_finalized_header.height());
 
-            assert_eq!(&blob, fetched_block.blobs[0].full_data());
+            assert_eq!(&blob, fetched_block.batch_blobs[0].full_data());
 
             let head_block_header = da.get_head_block_header().await.unwrap();
             assert_eq!(expected_head_height, head_block_header.height());
