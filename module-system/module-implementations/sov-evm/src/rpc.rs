@@ -247,7 +247,6 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
     }
 
     /// Handler for: `eth_getTransactionByHash`
-    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
     #[rpc_method(name = "eth_getTransactionByHash")]
     pub fn get_transaction_by_hash(
         &self,
@@ -293,7 +292,6 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
     }
 
     /// Handler for: `eth_getTransactionReceipt`
-    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
     #[rpc_method(name = "eth_getTransactionReceipt")]
     pub fn get_transaction_receipt(
         &self,
@@ -662,7 +660,6 @@ pub(crate) fn build_rpc_receipt(
         cumulative_gas_used: U256::from(receipt.receipt.cumulative_gas_used),
         gas_used: Some(U256::from(receipt.gas_used)),
         // EIP-4844 related
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         blob_gas_used: None,
         blob_gas_price: None,
         contract_address: match transaction_kind {
@@ -697,7 +694,6 @@ pub(crate) fn build_rpc_receipt(
                 removed: false,
             })
             .collect(),
-        // TODO: can we put actual value
         other: Default::default(),
     }
 }

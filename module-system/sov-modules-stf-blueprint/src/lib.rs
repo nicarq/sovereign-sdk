@@ -248,8 +248,6 @@ where
             .finalize_hook(visible_genesis_hash, &mut accessory_delta);
 
         state_update.add_accessory_items(accessory_delta.freeze());
-        // TODO: Commit here for now, but probably this can be done outside of STF
-        // TODO: Commit is fine
 
         pre_state.commit(&state_update);
 

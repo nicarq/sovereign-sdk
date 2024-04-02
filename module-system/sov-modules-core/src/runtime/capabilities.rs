@@ -122,7 +122,7 @@ pub trait ContextResolver<S: Spec, Da: DaSpec> {
     /// The transaction type that the resolver knows how to parse.
     type Tx;
     /// Resolves the context for a transaction.
-    // TODO(@preston-evans98): This should be a read-only method
+    // TODO(@preston-evans98): This should be a read-only method https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384
     fn resolve_context(
         &self,
         tx: &Self::Tx,

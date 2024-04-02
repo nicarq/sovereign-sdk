@@ -96,7 +96,6 @@ where
 
         let da_tx_id = match self.da_service.send_transaction(&blob).await {
             Ok(id) => id,
-            // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1090): retry on transient errors.
             Err(e) => anyhow::bail!("failed to submit batch: {}", e),
         };
 

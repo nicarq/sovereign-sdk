@@ -36,9 +36,6 @@ sov-state = { path = "../sov-state" }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-modules-macros = { path = ".", features = ["native"] }
 sov-test-utils = { path = "../sov-test-utils" }
-# TODO(@dubbelosix): Remove these
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
-risc0-zkvm-platform = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }
@@ -58,11 +55,11 @@ anyhow = { workspace = true }
 [features]
 default = []
 native = [
-	"jsonrpsee",
-	"sov-bank/native",
-	"sov-modules-api/native",
-	"sov-modules-core/native",
-	"sov-modules-macros/native",
-	"sov-rollup-interface/native",
-	"sov-state/native",
+    "jsonrpsee",
+    "sov-bank/native",
+    "sov-modules-api/native",
+    "sov-modules-core/native",
+    "sov-modules-macros/native",
+    "sov-rollup-interface/native",
+    "sov-state/native",
 ]

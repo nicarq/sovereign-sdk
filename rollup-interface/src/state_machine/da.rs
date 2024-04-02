@@ -57,7 +57,6 @@ pub trait DaVerifier: Send + Sync {
     type Spec: DaSpec;
 
     /// The error type returned by the DA layer's verification function
-    /// TODO: Should we add `std::Error` bound so it can be `()?` ?
     type Error: Debug;
 
     /// Create a new da verifier with the given chain parameters

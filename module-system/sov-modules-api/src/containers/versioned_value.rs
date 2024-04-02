@@ -16,7 +16,7 @@ use sov_state::codec::BorshCodec;
 ///
 /// Under the hood, a versioned value is implemented as a map from a slot number to a value. From the kernel, any
 /// value can be accessed
-// TODO: Automatically clear out old versions from state
+// TODO: Automatically clear out old versions from state https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/383
 #[derive(
     Debug,
     PartialEq,

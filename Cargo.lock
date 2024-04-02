@@ -8180,8 +8180,6 @@ dependencies = [
  "jsonrpsee 0.20.3",
  "proc-macro2",
  "quote",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "schemars",
  "serde",
  "serde_json",

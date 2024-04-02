@@ -249,6 +249,7 @@ impl DaService for CelestiaService {
         debug!(bytes_count = blob.len(), "Sending raw data to Celestia");
 
         let gas_limit = get_gas_limit_for_bytes(blob.len()) as u64;
+        // TODO: Correct fee calculataiont: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
         let fee = gas_limit * GAS_PRICE as u64;
 
         let blob = JsonBlob::new(self.rollup_batch_namespace, blob.to_vec())?;
@@ -405,7 +406,7 @@ mod tests {
         let blob = [1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
         let gas_limit = get_gas_limit_for_bytes(blob.len());
 
-        // TODO: Fee is hardcoded for now
+        // TODO: Fee is hardcoded for now https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
         let expected_body = json!({
             "id": 0,
             "jsonrpc": "2.0",

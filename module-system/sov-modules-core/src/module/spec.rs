@@ -149,11 +149,9 @@ impl<C: CryptoHelper> CryptoSpecExt for C {}
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Context<S: Spec> {
     /// The sender address of the transaction.
-    // TODO: Make these private
-    pub sender: S::Address,
+    sender: S::Address,
     /// The rollup address of the sequencer who included the transaction.
-    // TODO: Make these private
-    pub sequencer: S::Address,
+    sequencer: S::Address,
     /// The height to report. This is set by the kernel when the context is created
     visible_height: u64,
     phantom: core::marker::PhantomData<S>,
