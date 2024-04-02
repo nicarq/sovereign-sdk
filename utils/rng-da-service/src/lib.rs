@@ -75,7 +75,8 @@ impl DaService for RngDaService {
                 time: Time::now(),
             },
             validity_cond: MockValidityCond { is_valid: true },
-            blobs: Default::default(),
+            batch_blobs: Default::default(),
+            proof_blobs: Default::default(),
         };
 
         Ok(block)

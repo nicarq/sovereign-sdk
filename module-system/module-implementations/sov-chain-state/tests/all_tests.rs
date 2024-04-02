@@ -68,7 +68,8 @@ fn test_simple_chain_state() {
             time: Time::now(),
         },
         validity_cond: MockValidityCond { is_valid: true },
-        blobs: Default::default(),
+        batch_blobs: Default::default(),
+        proof_blobs: Default::default(),
     };
 
     chain_state.begin_slot_hook(
@@ -134,7 +135,8 @@ fn test_simple_chain_state() {
             time: Time::now(),
         },
         validity_cond: MockValidityCond { is_valid: false },
-        blobs: Default::default(),
+        batch_blobs: Default::default(),
+        proof_blobs: Default::default(),
     };
 
     chain_state.begin_slot_hook(
@@ -222,7 +224,8 @@ fn test_simple_chain_state() {
             time: Time::now(),
         },
         validity_cond: MockValidityCond { is_valid: false },
-        blobs: Default::default(),
+        batch_blobs: Default::default(),
+        proof_blobs: Default::default(),
     };
 
     chain_state.begin_slot_hook(

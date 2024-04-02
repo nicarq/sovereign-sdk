@@ -157,7 +157,8 @@ async fn main() -> Result<(), anyhow::Error> {
         let filtered_block = MockBlock {
             header: MockBlockHeader::from_height(height),
             validity_cond: Default::default(),
-            blobs: Default::default(),
+            batch_blobs: Default::default(),
+            proof_blobs: Default::default(),
         };
         let blob_txs = da_service.extract_relevant_blobs(&filtered_block);
         blocks.push(filtered_block);

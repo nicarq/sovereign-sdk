@@ -152,11 +152,12 @@ fn get_expected_execution_hash_from(
         .map(|(idx, blob)| MockBlock {
             header: MockBlockHeader::from_height((idx + 1) as u64),
             validity_cond: MockValidityCond::default(),
-            blobs: vec![MockBlob::new(
+            batch_blobs: vec![MockBlob::new(
                 blob,
                 MockAddress::new([11u8; 32]),
                 [idx as u8; 32],
             )],
+            proof_blobs: Default::default(),
         })
         .collect();
 

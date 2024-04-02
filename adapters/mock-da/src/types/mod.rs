@@ -13,14 +13,6 @@ use sov_rollup_interface::Bytes;
 use crate::utils::hash_to_array;
 use crate::validity_condition::MockValidityCond;
 
-/// Serialized transactions blob.
-#[derive(BorshSerialize, BorshDeserialize)]
-pub struct TxBlob(pub(crate) Vec<u8>);
-
-/// Serialized proofs blob.
-#[derive(BorshSerialize, BorshDeserialize)]
-pub struct ProofBlob(pub(crate) Vec<Vec<u8>>);
-
 /// Serialized aggregated proof.
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Proof(pub(crate) Vec<u8>);
@@ -189,8 +181,7 @@ pub struct MockDaVerifier {}
 pub struct MockBlob {
     pub(crate) address: MockAddress,
     pub(crate) hash: [u8; 32],
-    pub(crate) tx_blob: CountedBufReader<Bytes>,
-    pub(crate) proof_blob: Vec<u8>,
+    pub(crate) blob: CountedBufReader<Bytes>,
 }
 
 impl MockBlob {
@@ -198,29 +189,25 @@ impl MockBlob {
     pub fn new(tx_blob: Vec<u8>, address: MockAddress, hash: [u8; 32]) -> Self {
         Self {
             address,
-            tx_blob: CountedBufReader::new(Bytes::from(tx_blob)),
-            proof_blob: Default::default(),
+            blob: CountedBufReader::new(Bytes::from(tx_blob)),
             hash,
         }
     }
 
     /// Build new blob, but calculates hash from input data
-    pub fn new_with_hash(tx_blob: Vec<u8>, proof_blob: Vec<u8>, address: MockAddress) -> Self {
-        let mut data_hash = hash_to_array(&tx_blob).to_vec();
-        let proof_hash = hash_to_array(&proof_blob);
-        data_hash.extend_from_slice(&proof_hash);
+    pub fn new_with_hash(blob: Vec<u8>, address: MockAddress) -> Self {
+        let data_hash = hash_to_array(&blob).to_vec();
         let blob_hash = hash_to_array(&data_hash);
         Self {
             address,
-            tx_blob: CountedBufReader::new(Bytes::from(tx_blob)),
-            proof_blob,
+            blob: CountedBufReader::new(Bytes::from(blob)),
             hash: blob_hash,
         }
     }
 
     /// Creates blob of transactions.
     pub fn advance(&mut self) {
-        self.tx_blob.advance(self.tx_blob.total_len());
+        self.blob.advance(self.blob.total_len());
     }
 }
 
@@ -231,8 +218,10 @@ pub struct MockBlock {
     pub header: MockBlockHeader,
     /// Validity condition
     pub validity_cond: MockValidityCond,
-    /// Blobs
-    pub blobs: Vec<MockBlob>,
+    /// Rollup's batch namespace.
+    pub batch_blobs: Vec<MockBlob>,
+    /// Rollup's proof namespace.
+    pub proof_blobs: Vec<MockBlob>,
 }
 
 impl SlotData for MockBlock {

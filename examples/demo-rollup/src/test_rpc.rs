@@ -124,7 +124,8 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             time: Time::now(),
         },
         validity_cond: Default::default(),
-        blobs: Default::default(),
+        batch_blobs: Default::default(),
+        proof_blobs: Default::default(),
     })];
 
     let batches = vec![
@@ -309,7 +310,8 @@ prop_compose! {
                 time: Time::now(),
                 },
                 validity_cond: Default::default(),
-                blobs: Default::default()
+                batch_blobs: Default::default(),
+                proof_blobs: Default::default()
             });
 
             total_num_batches += batches.len();

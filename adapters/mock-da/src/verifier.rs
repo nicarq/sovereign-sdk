@@ -16,16 +16,16 @@ impl BlobReaderTrait for MockBlob {
     }
 
     fn verified_data(&self) -> &[u8] {
-        self.tx_blob.accumulator()
+        self.blob.accumulator()
     }
 
     fn total_len(&self) -> usize {
-        self.tx_blob.total_len()
+        self.blob.total_len()
     }
 
     #[cfg(feature = "native")]
     fn advance(&mut self, num_bytes: usize) -> &[u8] {
-        self.tx_blob.advance(num_bytes);
+        self.blob.advance(num_bytes);
         self.verified_data()
     }
 }

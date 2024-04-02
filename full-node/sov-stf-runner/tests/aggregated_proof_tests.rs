@@ -104,7 +104,8 @@ fn spawn(jump: usize, nb_of_threads: usize) -> TestNode {
     let genesis_block = MockBlock {
         header: MockBlockHeader::from_height(0),
         validity_cond: Default::default(),
-        blobs: vec![],
+        batch_blobs: vec![],
+        proof_blobs: vec![],
     };
     let init_variant = InitVariant::Genesis {
         block: genesis_block,

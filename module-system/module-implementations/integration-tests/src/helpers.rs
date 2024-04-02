@@ -461,7 +461,8 @@ impl TestRollup {
                     time: Time::now(),
                 },
                 validity_cond: MockValidityCond::default(),
-                blobs: blobs.clone(),
+                batch_blobs: blobs.clone(),
+                proof_blobs: Default::default(),
             };
 
             let storage = self.storage();
@@ -476,7 +477,7 @@ impl TestRollup {
                 Default::default(),
                 &slot.header,
                 &slot.validity_cond,
-                &mut slot.blobs,
+                &mut slot.batch_blobs,
             );
 
             self.storage_manager.commit(change_set);

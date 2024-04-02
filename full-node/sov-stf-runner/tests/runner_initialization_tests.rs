@@ -14,7 +14,8 @@ async fn init_and_restart() {
     let genesis_block = MockBlock {
         header: Default::default(),
         validity_cond: Default::default(),
-        blobs: vec![],
+        batch_blobs: vec![],
+        proof_blobs: vec![],
     };
     let init_variant: MockInitVariant = InitVariant::Genesis {
         block: genesis_block,
