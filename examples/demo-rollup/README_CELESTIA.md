@@ -266,6 +266,7 @@ Commands:
   bank                A subcommand for the `bank` module
   sequencer-registry  A subcommand for the `sequencer_registry` module
   value-setter        A subcommand for the `value_setter` module
+  prover-incentives   A subcommand for the `prover_incentives` module
   accounts            A subcommand for the `accounts` module
   nft                 A subcommand for the `nft` module
   help                Print this message or the help of the given subcommand(s)

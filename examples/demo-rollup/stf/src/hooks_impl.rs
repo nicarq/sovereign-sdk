@@ -127,10 +127,12 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
         gas_price: &<S::Gas as Gas>::Price,
         mut state_checkpoint: StateCheckpoint<S>,
     ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        match self
-            .bank
-            .reserve_gas(tx, gas_price, context.sender(), &mut state_checkpoint)
-        {
+        match self.prover_incentives.reserve_gas(
+            tx,
+            gas_price,
+            context.sender(),
+            &mut state_checkpoint,
+        ) {
             Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
             Err(e) => {
                 tracing::debug!(
@@ -151,8 +153,12 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
         gas_meter: &sov_modules_api::GasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        self.bank
-            .refund_remaining_gas(tx, gas_meter, context.sender(), state_checkpoint);
+        self.prover_incentives.refund_remaining_gas(
+            tx,
+            gas_meter,
+            context.sender(),
+            state_checkpoint,
+        );
     }
 }
 

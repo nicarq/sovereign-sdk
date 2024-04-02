@@ -6,6 +6,10 @@ mod call;
 /// Methods used to instantiate the module
 mod genesis;
 
+/// Hooks for the module's incentives.
+/// Implement the associated `GasEnforcer` capability.
+pub mod hooks;
+
 pub use call::*;
 pub use genesis::*;
 
@@ -19,7 +23,7 @@ mod event;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_bank::{Amount, TokenId};
+use sov_bank::{Amount, BurnRate};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{Context, DaSpec, Error, ModuleInfo, Spec, WorkingSet, Zkvm};
 use sov_state::codec::BcsCodec;
@@ -55,14 +59,6 @@ where
     #[state]
     pub rollup_finality_period: sov_modules_api::StateValue<TransitionHeight>,
 
-    /// The ID of the token used for bonding provers
-    #[state]
-    pub bonding_token_id: sov_modules_api::StateValue<TokenId>,
-
-    /// The address of the account holding the reward token supply
-    #[state]
-    pub reward_token_supply_address: sov_modules_api::StateValue<S::Address>,
-
     /// The code commitment to be used for verifying proofs
     #[state]
     pub commitment_to_allowed_challenge_method:
@@ -92,16 +88,25 @@ where
     pub bonded_challengers: sov_modules_api::StateMap<S::Address, Amount>,
 
     /// The minimum bond for an attester to be eligble
+    /// This should always be above the maximum gas limit to avoid collusion.
+    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
     #[state]
     pub minimum_attester_bond: sov_modules_api::StateValue<Amount>,
 
     /// The minimum bond for an attester to be eligble
+    /// This should always be above the maximum gas limit to avoid collusion.
+    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
     #[state]
     pub minimum_challenger_bond: sov_modules_api::StateValue<Amount>,
 
     /// The height of the most recent block which light clients know to be finalized
     #[state]
     pub light_client_finalized_height: sov_modules_api::StateValue<TransitionHeight>,
+
+    /// The reward burn rate for the attester incentives module
+    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/285>`: This should be a constant.
+    #[state]
+    pub reward_burn_rate: sov_modules_api::StateValue<BurnRate>,
 
     /// Reference to the Bank module.
     #[module]
@@ -143,7 +148,6 @@ where
             call::CallMessage::BeginUnbondingAttester => self
                 .begin_unbond_attester(context, working_set)
                 .map_err(|error| error.into()),
-
             call::CallMessage::EndUnbondingAttester => self
                 .end_unbond_attester(context, working_set)
                 .map_err(|error| error.into()),

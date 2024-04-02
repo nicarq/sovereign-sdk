@@ -1,12 +1,13 @@
 use std::rc::Rc;
 
 use sov_attester_incentives::Role;
+use sov_bank::BurnRate;
 use sov_mock_da::MockValidityCondChecker;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::tx_verifier::RawTx;
-use sov_modules_api::{CryptoSpec, DaSpec, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::stf::TransactionReceipt;
 use sov_state::storage::StorageProof;
@@ -16,7 +17,7 @@ use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestPrivateKey}
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, ExecutionSimulationVars, SequencerParams, TestRollup,
-    TestRuntime, S,
+    TestRuntime, GAS_TX_FIXED_COST, MIN_GAS_PRICE, S,
 };
 
 mod byzantine_behavior;
@@ -43,6 +44,17 @@ fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionR
 }
 
 impl TestRollup {
+    pub(crate) fn burn_rate(&self) -> BurnRate {
+        self.attester_incentives().burn_rate()
+    }
+
+    /// We charge a fixed gas price for each transaction to simplify the tests.
+    pub(crate) fn gas_per_transaction(&mut self) -> u64 {
+        <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(
+            &<<S as Spec>::Gas as Gas>::Price::from_slice(&MIN_GAS_PRICE),
+        )
+    }
+
     pub(crate) fn increase_and_commit_light_client_attested_height(
         &mut self,
         height: u64,
@@ -132,6 +144,10 @@ struct AttesterIncentivesTestHandler {
 }
 
 impl AttesterIncentivesTestHandler {
+    pub fn num_value_setter_txs(&self) -> usize {
+        self.value_setter.len()
+    }
+
     pub fn attester_addr(&self) -> <S as Spec>::Address {
         self.attester_private_key.to_address()
     }
@@ -147,7 +163,6 @@ impl AttesterIncentivesTestHandler {
 
     pub fn bank_params(&self) -> BankParams {
         BankParams {
-            salt: 0,
             token_name: "TOKEN_TEST".to_string(),
             init_balance: 1000000,
             addresses_and_balances: vec![
@@ -168,7 +183,6 @@ impl AttesterIncentivesTestHandler {
     pub fn attester_incentives_params(&self) -> AttesterIncentivesParams<S, Da> {
         AttesterIncentivesParams {
             initial_attesters: vec![(self.attester_private_key.to_address(), self.attester_stake)],
-            reward_token_supply_address: self.seq_rollup_addr,
             rollup_finality_period: ROLLUP_FINALITY_PERIOD,
             minimum_attester_bond: USER_STAKE,
             minimum_challenger_bond: USER_STAKE,

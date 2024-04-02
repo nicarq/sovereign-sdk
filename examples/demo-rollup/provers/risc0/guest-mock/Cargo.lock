@@ -968,6 +968,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nft-module",
+ "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
@@ -2989,6 +2990,21 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-macros",
  "sov-state",
+]
+
+[[package]]
+name = "sov-prover-incentives"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "borsh 0.10.3",
+ "serde",
+ "sov-bank",
+ "sov-chain-state",
+ "sov-modules-api",
+ "sov-state",
+ "thiserror",
 ]
 
 [[package]]

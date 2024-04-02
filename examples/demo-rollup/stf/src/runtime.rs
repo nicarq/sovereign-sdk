@@ -43,6 +43,8 @@ use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
 #[cfg(feature = "native")]
 use sov_nft_module::{NonFungibleTokenRpcImpl, NonFungibleTokenRpcServer};
+#[cfg(feature = "native")]
+use sov_prover_incentives::{ProverIncentivesRpcImpl, ProverIncentivesRpcServer};
 use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
 use sov_sequencer_registry::{SequencerRegistryRpcImpl, SequencerRegistryRpcServer};
@@ -68,6 +70,8 @@ pub struct Runtime<S: Spec, Da: DaSpec> {
     pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S, Da>,
     /// The Value Setter module.
     pub value_setter: sov_value_setter::ValueSetter<S>,
+    /// The Prover Incentives module.
+    pub prover_incentives: sov_prover_incentives::ProverIncentives<S, Da>,
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<S>,
     /// The NFT module.

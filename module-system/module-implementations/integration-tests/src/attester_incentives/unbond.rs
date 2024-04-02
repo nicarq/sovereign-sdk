@@ -133,13 +133,15 @@ fn test_honest_unbonding() {
         );
 
         // We have to check that the attester has received the stake amount back
+        // We have to substract 2 * gas_per_transaction because the attester has to pay for the gas
+        // for both the start and end unbonding messages
         assert_eq!(
             rollup.bank().get_balance_of(
                 test_handler.attester_addr(),
                 GAS_TOKEN_ID,
                 &mut working_set
             ),
-            Some(USER_BALANCE)
+            Some(USER_BALANCE - 2 * rollup.gas_per_transaction())
         );
     }
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::WorkingSet;
 
 use crate::token::Token;
-use crate::{Bank, TokenId};
+use crate::{Bank, TokenId, GAS_TOKEN_ID};
 
 /// Initial configuration for sov-bank module.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -93,9 +93,7 @@ impl<S: sov_modules_api::Spec> core::fmt::Display for GasTokenConfig<S> {
         write!(
             f,
             "TokenConfig {{ token_name: {}, token_id: {}, address_and_balances: [{}] }}",
-            self.token_name,
-            crate::GAS_TOKEN_ID,
-            address_and_balances,
+            self.token_name, GAS_TOKEN_ID, address_and_balances,
         )
     }
 }

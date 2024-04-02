@@ -28,6 +28,7 @@ fn slashing_setup() -> (
     // Then we have two more transitions
     simulate_chain_state_execution(
         &module,
+        sequencer,
         ((LAST_SLOT_NUM - FIRST_SLOT_NUM + 1) + 1)
             .try_into()
             .unwrap(),
@@ -74,7 +75,13 @@ fn check_prover_slashed(
     );
 
     // Assert that the prover's bond amount has been burned
-    assert_eq!(module.get_bond_amount(prover_address, working_set).value, 0);
+    assert_eq!(
+        module
+            .get_bond_amount(prover_address, working_set)
+            .unwrap()
+            .value,
+        0
+    );
 }
 
 #[test]

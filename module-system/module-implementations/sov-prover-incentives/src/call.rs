@@ -2,7 +2,8 @@ use std::cmp::max;
 use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_bank::{BurnRate, Coins};
+use serde::{Deserialize, Serialize};
+use sov_bank::{BurnRate, Coins, GAS_TOKEN_ID};
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::{
     AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec, WorkingSet,
@@ -15,7 +16,7 @@ use crate::{Event, ProverIncentives};
 
 /// This enumeration represents the available call messages for interacting with the `ExampleModule` module.
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 // TODO: allow call messages to borrow data
 //     https://github.com/Sovereign-Labs/sovereign-sdk/issues/274
 pub enum CallMessage {
@@ -42,14 +43,10 @@ pub enum ProverIncentiveErrors {
     /// An error occurred when transferring funds to bond the prover
     BondTransferFailure,
 
-    #[error("Error occurred when transferring funds to unbond the prover. This module's account may not have enough funds.
+    #[error("Error occurred when transferring funds to unbond or reward the prover. This module's account may not have enough funds.
     This is a bug")]
-    /// An error occurred when transferring funds to unbond the prover
-    UnbondTransferFailure,
-
-    #[error("Error when trying to mint the reward token. The token minter may not be authorized. This is a bug")]
     /// An error occurred when trying to mint the reward token
-    RewardMintFailure,
+    TransferFailure,
 }
 
 impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
@@ -73,10 +70,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         // Transfer the bond amount from the sender to the module's address.
         // On failure, no state is changed
         let coins = Coins {
-            token_id: self
-                .bonding_token_id
-                .get(working_set)
-                .expect("Bonding token ID must be set"),
+            token_id: GAS_TOKEN_ID,
             amount: bond_amount,
         };
         self.bank
@@ -124,20 +118,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
     ) -> Result<sov_modules_api::CallResponse, ProverIncentiveErrors> {
         // Get the prover's old balance.
         if let Some(old_balance) = self.bonded_provers.get(context.sender(), working_set) {
-            // Transfer the bond amount from the sender to the module's address.
-            // On failure, no state is changed
-            let coins = Coins {
-                token_id: self
-                    .bonding_token_id
-                    .get(working_set)
-                    .expect("Bonding token ID must be set"),
-                amount: old_balance,
-            };
-            // Try to unbond the entire balance
-            // If the unbonding fails, no state is changed
-            self.bank
-                .transfer_from(&self.address, context.sender(), coins, working_set)
-                .map_err(|_| ProverIncentiveErrors::UnbondTransferFailure)?;
+            self.transfer_to_prover(old_balance, context, working_set)?;
 
             // Update our internal tracking of the total bonded amount for the sender.
             self.bonded_provers.set(context.sender(), &0, working_set);
@@ -247,30 +228,22 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         Ok(())
     }
 
-    /// Reward the prover with the block reward
-    fn reward_prover(
+    /// Transfer the given amount of tokens to the prover
+    fn transfer_to_prover(
         &self,
         total_reward: u64,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<(), ProverIncentiveErrors> {
-        let reward_address = self
-            .reward_token_supply_address
-            .get(working_set)
-            .expect("The reward supply address must be set at genesis");
-
         let coins = Coins {
-            token_id: self
-                .bonding_token_id
-                .get(working_set)
-                .expect("Bonding token ID must be set at genesis"),
+            token_id: GAS_TOKEN_ID,
             amount: total_reward,
         };
 
-        // Mint tokens and send them
+        // We can transfer the reward from the `ProverIncentives` module to the prover's account.
         self.bank
-            .mint(&coins, context.sender(), &reward_address, working_set)
-            .map_err(|_| ProverIncentiveErrors::RewardMintFailure)?;
+            .transfer_from(&self.address, context.sender(), coins, working_set)
+            .map_err(|_| ProverIncentiveErrors::TransferFailure)?;
 
         Ok(())
     }
@@ -321,7 +294,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // We only reward a portion of the total reward - we burn some of it
             // to avoid the provers to collude to prove empty blocks.
             let reward_amount = self.burn_rate().apply(total_reward);
-            self.reward_prover(reward_amount, context, working_set)?;
+            self.transfer_to_prover(reward_amount, context, working_set)?;
 
             self.emit_event(
                 working_set,

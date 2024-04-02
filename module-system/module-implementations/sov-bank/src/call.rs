@@ -5,7 +5,6 @@ use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, Workin
 
 use crate::event::Event;
 use crate::{Amount, Bank, Coins, Token, TokenId};
-
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
 #[cfg_attr(
     feature = "native",

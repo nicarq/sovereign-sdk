@@ -3,6 +3,7 @@
 mod call;
 mod event;
 mod genesis;
+mod hooks;
 
 #[cfg(test)]
 mod tests;
@@ -15,16 +16,12 @@ pub use genesis::*;
 /// The response type used by RPC queries.
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_bank::TokenId;
-use sov_modules_api::hooks::TransitionHeight;
+use sov_bank::Amount;
+use sov_chain_state::TransitionHeight;
 use sov_modules_api::{Context, DaSpec, Error, ModuleInfo, Spec, WorkingSet, Zkvm};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
-
-/// This type alias represents the amount of tokens. This is consistent with the representation
-/// used in [`AttesterIncentives`].
-type Amount = u64;
 
 /// A new module:
 /// - Must derive `ModuleInfo`
@@ -37,14 +34,6 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     #[address]
     pub address: S::Address,
 
-    /// The address of the account holding the reward token supply
-    #[state]
-    pub reward_token_supply_address: sov_modules_api::StateValue<S::Address>,
-
-    /// The ID of the token used for bonding provers
-    #[state]
-    pub bonding_token_id: sov_modules_api::StateValue<TokenId>,
-
     /// The code commitment to be used for verifying proofs
     #[state]
     pub commitment_of_allowed_verifier_method:
@@ -55,6 +44,7 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     pub bonded_provers: sov_modules_api::StateMap<S::Address, Amount>,
 
     /// The minimum bond for a prover to be eligible for onchain verification
+    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
     #[state]
     pub minimum_bond: sov_modules_api::StateValue<Amount>,
 
@@ -63,6 +53,7 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     pub last_claimed_reward: sov_modules_api::StateValue<TransitionHeight>,
 
     /// A penalty for provers who submit a proof for transitions that were already proven
+    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This should be express in gas units.
     #[state]
     pub proving_penalty: sov_modules_api::StateValue<Amount>,
 

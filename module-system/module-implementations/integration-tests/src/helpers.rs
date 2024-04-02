@@ -7,7 +7,7 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::da::Time;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::macros::DefaultRuntime;
+use sov_modules_api::macros::{config_constant, DefaultRuntime};
 use sov_modules_api::namespaces::{Accessory, User};
 use sov_modules_api::runtime::capabilities::{
     ContextResolver, GasEnforcer, Kernel, TransactionDeduplicator,
@@ -43,6 +43,14 @@ type TxReceiptContents =
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
 
+pub(crate) const GAS_PRICE_BLOCK_DEPTH: u64 = 10;
+pub(crate) const GAS_PRICE_MAXIMUM_ELASTICITY: i64 = 1;
+pub(crate) const INITIAL_GAS_PRICE: [u64; 2] = [1; 2];
+pub(crate) const MIN_GAS_PRICE: [u64; 2] = [1; 2];
+
+#[config_constant]
+pub(crate) const GAS_TX_FIXED_COST: [u64; 2];
+
 #[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
 #[serialization(
     borsh::BorshDeserialize,
@@ -77,7 +85,6 @@ impl Default for SequencerParams<S, MockDaSpec> {
 
 pub struct AttesterIncentivesParams<S: Spec, Da: DaSpec> {
     pub initial_attesters: Vec<(S::Address, u64)>,
-    pub reward_token_supply_address: S::Address,
     pub rollup_finality_period: u64,
     pub minimum_attester_bond: u64,
     pub minimum_challenger_bond: u64,
@@ -91,7 +98,6 @@ impl Default for AttesterIncentivesParams<S, MockDaSpec> {
     fn default() -> Self {
         AttesterIncentivesParams {
             initial_attesters: vec![([1; 32].into(), 0)],
-            reward_token_supply_address: [0; 32].into(),
             rollup_finality_period: 0,
             minimum_attester_bond: 0,
             minimum_challenger_bond: 0,
@@ -105,7 +111,6 @@ impl Default for AttesterIncentivesParams<S, MockDaSpec> {
 
 pub struct BankParams {
     pub token_name: String,
-    pub salt: u64,
     pub init_balance: u64,
     pub addresses_and_balances: Vec<(<S as Spec>::Address, u64)>,
 }
@@ -118,7 +123,6 @@ impl BankParams {
     ) -> Self {
         Self {
             token_name: String::from("TEST_TOKEN"),
-            salt: 0,
             init_balance: 100000000,
             addresses_and_balances,
         }
@@ -129,7 +133,6 @@ impl Default for BankParams {
     fn default() -> Self {
         BankParams {
             token_name: "TEST_TOKEN".to_string(),
-            salt: 0,
             init_balance: 100000000,
             addresses_and_balances: Vec::new(),
         }
@@ -178,11 +181,13 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
 
     fn begin_batch_hook(
         &self,
-        _batch: &mut BatchWithId,
-        _sender: &<Da as DaSpec>::Address,
-        _state_checkpoint: &mut sov_modules_api::StateCheckpoint<S>,
+        batch: &mut BatchWithId,
+        sender: &<Da as DaSpec>::Address,
+        state_checkpoint: &mut sov_modules_api::StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
-        Ok(())
+        // Before executing each batch, check that the sender is registered as a sequencer
+        self.sequencer_registry
+            .begin_batch_hook(batch, sender, state_checkpoint)
     }
 
     fn end_batch_hook(
@@ -228,10 +233,12 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
         gas_price: &<S::Gas as Gas>::Price,
         mut state_checkpoint: StateCheckpoint<S>,
     ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        match self
-            .bank
-            .reserve_gas(tx, gas_price, context.sender(), &mut state_checkpoint)
-        {
+        match self.attester_incentives.reserve_gas(
+            tx,
+            gas_price,
+            context.sender(),
+            &mut state_checkpoint,
+        ) {
             Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
             Err(e) => {
                 tracing::debug!("Unable to reserve gas from {}. {}", e, context.sender());
@@ -248,8 +255,12 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
         gas_meter: &sov_modules_api::GasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        self.bank
-            .refund_remaining_gas(tx, gas_meter, context.sender(), state_checkpoint);
+        self.attester_incentives.refund_remaining_gas(
+            tx,
+            gas_meter,
+            context.sender(),
+            state_checkpoint,
+        );
     }
 }
 
@@ -369,8 +380,6 @@ impl TestRollup {
             },
             attester_incentives: AttesterIncentivesConfig {
                 initial_attesters: attester_params.initial_attesters,
-                bonding_token_id: token_id,
-                reward_token_supply_address: attester_params.reward_token_supply_address,
                 rollup_finality_period: attester_params.rollup_finality_period,
                 minimum_attester_bond: attester_params.minimum_attester_bond,
                 minimum_challenger_bond: attester_params.minimum_challenger_bond,
@@ -387,10 +396,12 @@ impl TestRollup {
             BasicKernelGenesisConfig {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
-                    gas_price_blocks_depth: 10,
-                    gas_price_maximum_elasticity: 1,
-                    initial_gas_price: <<<S as Spec>::Gas as Gas>::Price as GasArray>::ZEROED,
-                    minimum_gas_price: <<<S as Spec>::Gas as Gas>::Price as GasArray>::ZEROED,
+                    gas_price_blocks_depth: GAS_PRICE_BLOCK_DEPTH,
+                    gas_price_maximum_elasticity: GAS_PRICE_MAXIMUM_ELASTICITY,
+                    initial_gas_price: <<S as Spec>::Gas as Gas>::Price::from_slice(
+                        &INITIAL_GAS_PRICE,
+                    ),
+                    minimum_gas_price: <<S as Spec>::Gas as Gas>::Price::from_slice(&MIN_GAS_PRICE),
                 },
             };
         GenesisParams {
@@ -466,6 +477,7 @@ impl TestRollup {
             };
 
             let storage = self.storage();
+
             let SlotResult {
                 state_root: new_root_hash,
                 change_set,

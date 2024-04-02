@@ -35,7 +35,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
                     post_state_root: pre_state_root.clone(),
                     validity_condition,
                     gas_used,
-                    base_fee_per_gas: gas_price,
+                    gas_price,
                 }
             };
 
