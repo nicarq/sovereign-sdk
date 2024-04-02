@@ -1,4 +1,5 @@
 use borsh::BorshSerialize;
+use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
@@ -11,7 +12,6 @@ use crate::tests::helpers::{
     setup, simulate_chain_state_execution, BOND_AMOUNT, INITIAL_PROVER_BALANCE,
     MOCK_CODE_COMMITMENT, S,
 };
-
 const FIRST_SLOT_NUM: u64 = 1;
 const LAST_SLOT_NUM: u64 = 2;
 
@@ -55,6 +55,7 @@ fn execute_txs_and_process_valid_proof(
     // Then we have two more transitions
     simulate_chain_state_execution(
         module,
+        sequencer,
         ((LAST_SLOT_NUM - FIRST_SLOT_NUM + 1) + 1)
             .try_into()
             .unwrap(),
@@ -81,7 +82,7 @@ fn check_reward(
     gas_used_per_step: &<S as Spec>::Gas,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: &mut WorkingSet<S>,
-) {
+) -> u64 {
     // Compute the proof reward
 
     // We have proven two transitions, so the total gas used is 2 * gas_used_per_step
@@ -104,10 +105,7 @@ fn check_reward(
 
     // Assert that the prover has been rewarded on his account
     // The outstanding balance is the initial balance plus the reward minus the bond amount
-    let token_addr = module
-        .bonding_token_id
-        .get(working_set)
-        .expect("bonding token ID was set at genesis");
+    let token_addr = GAS_TOKEN_ID;
 
     assert_eq!(
         module
@@ -119,15 +117,21 @@ fn check_reward(
 
     // Assert that the prover's bond amount has not been burned
     assert_eq!(
-        module.get_bond_amount(prover_address, working_set).value,
+        module
+            .get_bond_amount(prover_address, working_set)
+            .unwrap()
+            .value,
         BOND_AMOUNT
     );
+
+    reward
 }
 
 /// Checks that the prover gets penalized if he tries to prove the same transitions again
 fn check_penalization_if_proven_again(
     prover_address: <S as Spec>::Address,
     sequencer: <S as Spec>::Address,
+    proving_penalty: u64,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: &mut WorkingSet<S>,
 ) {
@@ -150,11 +154,6 @@ fn check_penalization_if_proven_again(
         .expect("The proof should not be rejected");
 
     // Assert that the working set contains a penalized event
-    let proving_penalty = module
-        .proving_penalty
-        .get(working_set)
-        .expect("The proving penalty should be set at genesis");
-
     assert_eq!(working_set.events().len(), 1);
     let event: Event<S> = working_set.take_event(0).unwrap().downcast().unwrap();
     assert_eq!(
@@ -168,8 +167,53 @@ fn check_penalization_if_proven_again(
 
     // Assert that the prover's bond amount has been penalized
     assert_eq!(
-        module.get_bond_amount(prover_address, working_set).value,
+        module
+            .get_bond_amount(prover_address, working_set)
+            .unwrap()
+            .value,
         BOND_AMOUNT - proving_penalty
+    );
+}
+
+fn check_unbonding(
+    prover_address: <S as Spec>::Address,
+    sequencer: <S as Spec>::Address,
+    expected_amount_withdrawn: u64,
+    old_balance: u64,
+    module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
+    working_set: &mut WorkingSet<S>,
+) {
+    let context = Context::<S>::new(prover_address, sequencer, LAST_SLOT_NUM + 2);
+    module
+        .unbond_prover(&context, working_set)
+        .expect("The proof should not be rejected");
+
+    assert_eq!(working_set.events().len(), 1);
+    let event: Event<S> = working_set.take_event(0).unwrap().downcast().unwrap();
+    assert_eq!(
+        event,
+        Event::UnBondedProver {
+            prover: prover_address,
+            amount_withdrawn: expected_amount_withdrawn
+        }
+    );
+
+    // Check that the prover has been unbonded
+    assert_eq!(
+        module
+            .get_bond_amount(prover_address, working_set)
+            .unwrap()
+            .value,
+        0
+    );
+
+    // Check the amount on the prover's balance
+    assert_eq!(
+        module
+            .bank
+            .get_balance_of(prover_address, GAS_TOKEN_ID, working_set)
+            .unwrap(),
+        old_balance + expected_amount_withdrawn
     );
 }
 
@@ -189,13 +233,68 @@ fn test_valid_proof() {
         working_set,
     );
 
-    check_reward(
+    let reward = check_reward(
         prover_address,
         &gas_used_per_step,
         &module,
         &mut working_set,
     );
 
+    // Now we have to check we can unbond
+    check_unbonding(
+        prover_address,
+        sequencer,
+        BOND_AMOUNT,
+        INITIAL_PROVER_BALANCE - BOND_AMOUNT + reward,
+        &module,
+        &mut working_set,
+    );
+}
+
+#[test]
+/// Macro-test for the happy path of processing a valid proof with penalization.
+fn test_valid_proof_with_penalization() {
+    let (module, prover_address, sequencer, working_set) = setup();
+
+    let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
+
+    // Process a valid proof
+    let mut working_set = execute_txs_and_process_valid_proof(
+        prover_address,
+        sequencer,
+        &gas_used_per_step,
+        &module,
+        working_set,
+    );
+
+    let reward = check_reward(
+        prover_address,
+        &gas_used_per_step,
+        &module,
+        &mut working_set,
+    );
+
+    let proving_penalty = module
+        .proving_penalty
+        .get(&mut working_set)
+        .expect("The proving penalty should be set at genesis");
+
     // Now we have to check that we cannot prove the same transitions again
-    check_penalization_if_proven_again(prover_address, sequencer, &module, &mut working_set);
+    check_penalization_if_proven_again(
+        prover_address,
+        sequencer,
+        proving_penalty,
+        &module,
+        &mut working_set,
+    );
+
+    // Now we have to check we can unbond
+    check_unbonding(
+        prover_address,
+        sequencer,
+        BOND_AMOUNT - proving_penalty,
+        INITIAL_PROVER_BALANCE - BOND_AMOUNT + reward,
+        &module,
+        &mut working_set,
+    );
 }

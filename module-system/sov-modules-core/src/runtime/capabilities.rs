@@ -73,6 +73,9 @@ pub trait BatchSelector<Da: DaSpec> {
 }
 
 /// Enforces gas limits and penalties for transactions.
+/// The `GasEnforcer` trait are implemented by the `ProverIncentives` and `AttesterIncentives` modules
+/// to lock-in gas rewards for transactions.
+/// If a rollup doesn't use any of these modules, the `GasEnforcer` may burn the gas used by the transaction.
 pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     /// The transaction type that the gas enforcer knows how to parse
     type Tx;

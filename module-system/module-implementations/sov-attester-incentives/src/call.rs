@@ -6,11 +6,12 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_bank::{Amount, Coins};
+use sov_bank::{Amount, BurnRate, Coins, GAS_TOKEN_ID};
 use sov_modules_api::hooks::TransitionHeight;
+use sov_modules_api::macros::config_constant;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, EventEmitter, StateTransitionPublicData, WorkingSet, Zkvm,
+    CallResponse, Context, DaSpec, EventEmitter, Gas, StateTransitionPublicData, WorkingSet, Zkvm,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use thiserror::Error;
@@ -206,13 +207,15 @@ pub enum AttesterIncentiveErrors {
     /// Transition invariant isn't respected
     InvalidTransitionInvariant,
 
-    #[error("Error occurred when transferred funds")]
+    #[error("Error occurred when transferred bonding funds. The user's account may not have enough funds")]
     /// An error occurred when transferred funds
-    TransferFailure,
+    BondTransferFailure,
 
-    #[error("Error when trying to mint the reward token")]
-    /// An error occurred when trying to mint the reward token
-    MintFailure,
+    #[error(
+        "Error occurred when trying to reward a user. The `AttesterIncentives` module may not have enough funds. This is a bug."
+    )]
+    /// An error occurred when transferred funds
+    RewardTransferFailure,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -229,11 +232,12 @@ where
     S: sov_modules_api::Spec,
     Da: sov_modules_api::DaSpec,
 {
-    /// This returns the address of the reward token supply
-    pub fn get_reward_token_supply_address(&self, working_set: &mut WorkingSet<S>) -> S::Address {
-        self.reward_token_supply_address
-            .get(working_set)
-            .expect("The reward token supply address should be set at genesis")
+    /// Returns the burn rate for the reward
+    pub fn burn_rate(&self) -> BurnRate {
+        #[config_constant]
+        const PERCENT_BASE_FEE_TO_BURN: u8;
+
+        BurnRate::new_unchecked(PERCENT_BASE_FEE_TO_BURN)
     }
 
     /// Verifies the provided proof, returning its underlying storage value, if present.
@@ -325,29 +329,37 @@ where
         AttesterIncentiveErrors::UserSlashed(reason)
     }
 
+    /// A helper function that rewards the sender with a given amount of tokens
+    /// Some of the tokens need to be burnt to avoid the system participants to be incentivized to prove and submit empty blocks.
     fn reward_sender(
         &self,
         context: &Context<S>,
         amount: u64,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse, AttesterIncentiveErrors> {
-        let reward_address = self
-            .reward_token_supply_address
-            .get(working_set)
-            .expect("The reward supply address must be set at genesis");
+        self.transfer_tokens_to_sender(
+            context,
+            // Note: if we have an empty block, the attester will pay more than the reward (because of the transaction cost)
+            self.burn_rate().apply(amount),
+            working_set,
+        )
+    }
 
+    fn transfer_tokens_to_sender(
+        &self,
+        context: &Context<S>,
+        amount: u64,
+        working_set: &mut WorkingSet<S>,
+    ) -> Result<CallResponse, AttesterIncentiveErrors> {
         let coins = Coins {
-            token_id: self
-                .bonding_token_id
-                .get(working_set)
-                .expect("Bonding token ID must be set"),
+            token_id: GAS_TOKEN_ID,
             amount,
         };
 
-        // Mint tokens and send them
+        // The reward tokens are unlocked from the module's address.
         self.bank
-            .mint(&coins, context.sender(), &reward_address, working_set)
-            .map_err(|_err| AttesterIncentiveErrors::MintFailure)?;
+            .transfer_from(&self.address, context.sender(), coins, working_set)
+            .map_err(|_err| AttesterIncentiveErrors::RewardTransferFailure)?;
 
         Ok(CallResponse::default())
     }
@@ -371,19 +383,16 @@ where
             return Err(AttesterIncentiveErrors::AttesterIsUnbonding);
         }
 
-        // Transfer the bond amount from the module's token minting address to the sender.
+        // Transfer the bond amount from the sender to the module's address.
         // On failure, no state is changed
         let coins = Coins {
-            token_id: self
-                .bonding_token_id
-                .get(working_set)
-                .expect("Bonding token ID must be set"),
+            token_id: GAS_TOKEN_ID,
             amount: bond_amount,
         };
 
         self.bank
             .transfer_from(user_address, &self.address, coins, working_set)
-            .map_err(|_err| AttesterIncentiveErrors::TransferFailure)?;
+            .map_err(|_err| AttesterIncentiveErrors::BondTransferFailure)?;
 
         let balances = match role {
             Role::Attester => &self.bonded_attesters,
@@ -429,7 +438,7 @@ where
         if let Some(old_balance) = self.bonded_challengers.get(context.sender(), working_set) {
             // Transfer the bond amount from the sender to the module's address.
             // On failure, no state is changed
-            self.reward_sender(context, old_balance, working_set)?;
+            self.transfer_tokens_to_sender(context, old_balance, working_set)?;
 
             // Emit the unbonding event
             self.emit_event(
@@ -506,7 +515,7 @@ where
             // Get the user's old balance.
             // Transfer the bond amount from the sender to the module's address.
             // On failure, no state is changed
-            self.reward_sender(context, unbonding_info.amount, working_set)?;
+            self.transfer_tokens_to_sender(context, unbonding_info.amount, working_set)?;
 
             // Update our internal tracking of the total bonded amount for the sender.
             self.bonded_attesters.remove(context.sender(), working_set);
@@ -802,18 +811,19 @@ where
         // Now we have to check whether the claimed_transition_num is the max_attested_height.
         // If so, update the maximum attested height and reward the sender
         if attestation.proof_of_bond.claimed_transition_num == new_height_to_attest {
+            // We reward the attester with the amount of gas used for the transition.
+            let transition = self
+                .chain_state
+                .get_historical_transitions(new_height_to_attest, working_set)
+                .expect("The transition should exist. The check has been done above");
+
+            let reward = transition.gas_used().value(transition.gas_price());
+
             // Update the maximum attested height
             self.maximum_attested_height
                 .set(&(new_height_to_attest), working_set);
 
-            // Reward the sender
-            self.reward_sender(
-                context,
-                self.minimum_attester_bond
-                    .get(working_set)
-                    .expect("Should be defined at genesis"),
-                working_set,
-            )?;
+            self.reward_sender(context, reward, working_set)?;
         }
 
         // Then we can optimistically process the transaction
@@ -942,8 +952,8 @@ where
                     return Ok(CallResponse::default());
                 };
 
-                // Reward the challenger with half of the attestation reward (avoid DOS)
-                self.reward_sender(context, attestation_reward / 2, working_set)?;
+                // Reward the sender
+                self.reward_sender(context, attestation_reward, working_set)?;
 
                 // Now remove the bad transition from the pool
                 self.bad_transition_pool.remove(transition_num, working_set);

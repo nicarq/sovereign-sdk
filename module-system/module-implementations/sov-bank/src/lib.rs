@@ -12,7 +12,6 @@ mod token;
 pub mod utils;
 pub use call::*;
 pub use genesis::*;
-pub use hooks::BankTxHook;
 use sov_modules_api::macros::config_bech32_constant;
 use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleInfo, WorkingSet};
 use token::Token;

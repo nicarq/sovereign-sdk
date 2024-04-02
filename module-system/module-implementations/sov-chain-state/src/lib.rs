@@ -49,7 +49,7 @@ pub struct StateTransition<S: Spec, Da: DaSpec> {
     slot_hash: Da::SlotHash,
     post_state_root: <S::Storage as Storage>::Root,
     validity_condition: Da::ValidityCondition,
-    base_fee_per_gas: <S::Gas as Gas>::Price,
+    gas_price: <S::Gas as Gas>::Price,
     gas_used: S::Gas,
 }
 
@@ -67,7 +67,7 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
             slot_hash,
             post_state_root,
             validity_condition,
-            base_fee_per_gas: gas_price,
+            gas_price,
             gas_used,
         }
     }
@@ -101,7 +101,7 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
 
     /// Returns the gas price computed for the block execution
     pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        &self.base_fee_per_gas
+        &self.gas_price
     }
 
     /// Returns the validity condition associated with the transition

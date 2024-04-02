@@ -1,12 +1,14 @@
-use sov_bank::{BankConfig, GasTokenConfig, TokenId, GAS_TOKEN_ID};
+use sov_bank::{BankConfig, GasTokenConfig};
 use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
 };
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::namespaces::User;
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Address, CryptoSpec, Genesis, KernelModule, KernelWorkingSet, Spec, WorkingSet,
+    Address, CryptoSpec, Gas, GasArray, Genesis, KernelModule, KernelWorkingSet, PrivateKey, Spec,
+    WorkingSet,
 };
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::{GasMeter, StateCheckpoint};
@@ -20,9 +22,15 @@ type S = sov_test_utils::TestSpec;
 
 pub const TOKEN_NAME: &str = "TEST_TOKEN";
 pub const BOND_AMOUNT: u64 = 1000;
-pub const INITIAL_BOND_AMOUNT: u64 = 5 * BOND_AMOUNT;
+pub const INITIAL_BOND_AMOUNT: u64 = 10 * BOND_AMOUNT;
 pub const DEFAULT_ROLLUP_FINALITY: u64 = 3;
 pub const INIT_HEIGHT: u64 = 0;
+
+pub const MAX_TX_GAS_AMOUNT: u64 = 100;
+pub const TX_GAS_CONSUMED: [u64; 2] = [10; 2];
+pub const TX_GAS_PRICE: [u64; 2] = [1; 2];
+
+pub const NUM_BANK_ACCOUNTS: usize = 3;
 
 /// Consumes and commit the existing working set on the underlying storage
 /// `storage` must be the underlying storage defined on the working set for this method to work.
@@ -77,33 +85,32 @@ pub(crate) fn setup(
     mut working_set: WorkingSet<S>,
 ) -> (
     AttesterIncentives<S, MockDaSpec>,
-    TokenId,
     Address,
     Address,
     Address,
     WorkingSet<S>,
 ) {
     // Initialize bank
-    let (bank_config, mut addresses) =
-        create_bank_config_with_token(TOKEN_NAME.to_string(), 3, INITIAL_BOND_AMOUNT);
+    let (bank_config, mut addresses) = create_bank_config_with_token(
+        TOKEN_NAME.to_string(),
+        NUM_BANK_ACCOUNTS,
+        INITIAL_BOND_AMOUNT,
+    );
     let bank = sov_bank::Bank::<S>::default();
     bank.genesis(&bank_config, &mut working_set)
         .expect("bank genesis must succeed");
 
     let attester_address = addresses.pop().unwrap();
     let challenger_address = addresses.pop().unwrap();
-    let reward_supply = addresses.pop().unwrap();
-    let sequencer = generate_address::<S>("sequencer");
-
-    let token_id = GAS_TOKEN_ID;
+    let sequencer = addresses.pop().unwrap();
 
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig {
         current_time: Default::default(),
         gas_price_blocks_depth: 10,
         gas_price_maximum_elasticity: 1,
-        initial_gas_price: [0, 0].into(),
-        minimum_gas_price: [0, 0].into(),
+        initial_gas_price: [1, 1].into(),
+        minimum_gas_price: [1, 1].into(),
     };
 
     let mut state_checkpoint = working_set.checkpoint().0;
@@ -119,8 +126,6 @@ pub(crate) fn setup(
     // initialize prover incentives
     let module = AttesterIncentives::<S, MockDaSpec>::default();
     let config = crate::AttesterIncentivesConfig {
-        bonding_token_id: token_id,
-        reward_token_supply_address: reward_supply,
         minimum_attester_bond: BOND_AMOUNT,
         minimum_challenger_bond: BOND_AMOUNT,
         commitment_to_allowed_challenge_method: MockCodeCommitment([0u8; 32]),
@@ -138,7 +143,6 @@ pub(crate) fn setup(
 
     (
         module,
-        token_id,
         attester_address,
         challenger_address,
         sequencer,
@@ -152,54 +156,105 @@ pub(crate) struct ExecutionSimulationVars {
         StorageProof<SparseMerkleProof<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
 }
 
-/// Generate an execution simulation for a given number of rounds. Returns a list of the successive state roots
-/// with associated bonding proofs, as long as the last state root
-pub(crate) fn execution_simulation(
-    rounds: u8,
-    module: &AttesterIncentives<S, MockDaSpec>,
-    storage: &ProverStorage<DefaultStorageSpec>,
-    attester_address: <S as Spec>::Address,
-    mut state_checkpoint: StateCheckpoint<S>,
-) -> (
-    // Vector of the successive state roots with associated bonding proofs
-    Vec<ExecutionSimulationVars>,
-    StateCheckpoint<S>,
-) {
-    let mut ret_exec_vars = Vec::<ExecutionSimulationVars>::new();
-
-    for i in 0..rounds {
-        // Commit the working set
-        let (root_hash, w_set) = commit_get_new_state_checkpoint(storage, state_checkpoint);
-        state_checkpoint = w_set;
-
-        let bond_proof =
-            storage.get_with_proof::<User>(module.get_attester_storage_key(attester_address), None);
-
-        ret_exec_vars.push(ExecutionSimulationVars {
-            state_root: root_hash,
-            state_proof: bond_proof,
-        });
-
-        // Then process the first transaction. Only sets the genesis hash and a transition in progress.
-        let slot_data = MockBlock {
-            header: MockBlockHeader {
-                prev_hash: [i; 32].into(),
-                hash: [i + 1; 32].into(),
-                height: INIT_HEIGHT + u64::from(i + 1),
-                time: Time::now(),
-            },
-            validity_cond: MockValidityCond { is_valid: true },
-            batch_blobs: Default::default(),
-            proof_blobs: Default::default(),
-        };
-        let kernel = MockKernel::<S, MockDaSpec>::new(i as u64, i as u64);
-        module.chain_state.begin_slot_hook(
-            &slot_data.header,
-            &slot_data.validity_cond,
-            &root_hash,
-            &mut KernelWorkingSet::from_kernel(&kernel, &mut state_checkpoint),
-        );
+impl ExecutionSimulationVars {
+    /// Simple function that returns the gas reward for a transaction execution.
+    pub(crate) fn tx_reward() -> u64 {
+        <S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED)
+            .value(&<<S as Spec>::Gas as Gas>::Price::from_slice(&TX_GAS_PRICE))
     }
 
-    (ret_exec_vars, state_checkpoint)
+    /// Generate an execution simulation for a given number of rounds. Returns a list of the successive state roots
+    /// with associated bonding proofs.
+    /// The execution simulation also performs a gas charge and refund for the sequencer, which locks reward to the attester module.
+    pub(crate) fn execute(
+        rounds: u8,
+        module: &AttesterIncentives<S, MockDaSpec>,
+        storage: &ProverStorage<DefaultStorageSpec>,
+        sequencer: &<S as Spec>::Address,
+        attester_address: &<S as Spec>::Address,
+        mut state_checkpoint: StateCheckpoint<S>,
+    ) -> (
+        // Vector of the successive state roots with associated bonding proofs
+        Vec<Self>,
+        StateCheckpoint<S>,
+    ) {
+        let mut ret_exec_vars = Vec::<ExecutionSimulationVars>::new();
+
+        for i in 0..rounds {
+            // Commit the working set
+            let (root_hash, w_set) = commit_get_new_state_checkpoint(storage, state_checkpoint);
+            state_checkpoint = w_set;
+
+            let bond_proof = storage
+                .get_with_proof::<User>(module.get_attester_storage_key(*attester_address), None);
+
+            ret_exec_vars.push(ExecutionSimulationVars {
+                state_root: root_hash,
+                state_proof: bond_proof,
+            });
+
+            // Then process the first transaction. Only sets the genesis hash and a transition in progress.
+            let slot_data = MockBlock {
+                header: MockBlockHeader {
+                    prev_hash: [i; 32].into(),
+                    hash: [i + 1; 32].into(),
+                    height: INIT_HEIGHT + u64::from(i + 1),
+                    time: Time::now(),
+                },
+                validity_cond: MockValidityCond { is_valid: true },
+                batch_blobs: Default::default(),
+                proof_blobs: Default::default(),
+            };
+            let kernel = MockKernel::<S, MockDaSpec>::new(i as u64, i as u64);
+
+            // We also need to call the `GasEnforcer` hook to ensure that the reward pool is populated.
+            let tx_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+
+            let tx = Transaction::<S>::new(
+                tx_key.pub_key(),
+                vec![],
+                tx_key.sign(&[]),
+                0,
+                0,
+                MAX_TX_GAS_AMOUNT,
+                Some(<<S as Spec>::Gas as Gas>::Price::from_slice(&TX_GAS_PRICE)),
+                i.into(),
+            );
+
+            // We first need to reserve gas for the transaction
+            let mut gas_meter = module
+                .reserve_gas(
+                    &tx,
+                    tx.max_gas_price().unwrap(),
+                    sequencer,
+                    &mut state_checkpoint,
+                )
+                .expect("Gas reserve failed");
+
+            let mut kernel_working_set =
+                KernelWorkingSet::from_kernel(&kernel, &mut state_checkpoint);
+
+            // Then we execute the chain state to make sure the transition data is persisted
+            module.chain_state.begin_slot_hook(
+                &slot_data.header,
+                &slot_data.validity_cond,
+                &root_hash,
+                &mut kernel_working_set,
+            );
+
+            // We charge some gas to the sequencer to make sure the gas meter is updated
+            gas_meter
+                .charge_gas(&<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED))
+                .expect("Gas charge failed");
+
+            module
+                .chain_state
+                .end_slot_hook(gas_meter.gas_used(), &mut kernel_working_set);
+
+            // Then we can refund some gas to the sequencer
+            module.refund_remaining_gas(&tx, &gas_meter, sequencer, &mut state_checkpoint);
+        }
+
+        (ret_exec_vars, state_checkpoint)
+    }
 }

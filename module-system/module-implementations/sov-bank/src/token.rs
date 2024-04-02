@@ -215,6 +215,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         }
 
         self.is_authorized_minter(authorizer)?;
+
         let to_balance: Amount = self
             .balances
             .get(mint_to_address, working_set)

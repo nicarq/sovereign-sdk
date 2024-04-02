@@ -1,13 +1,14 @@
 use sov_chain_state::{ChainState, StateTransition, TransitionInProgress};
 use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{Gas, GasArray, GasPrice, KernelWorkingSet, StateCheckpoint, WorkingSet};
+use sov_modules_api::{GasArray, GasPrice, KernelWorkingSet, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, SequencerParams, TestKernel, TestRollup, TestRuntime,
+    GAS_TX_FIXED_COST, INITIAL_GAS_PRICE,
 };
 
 type S = sov_test_utils::TestSpec;
@@ -24,6 +25,10 @@ fn test_simple_value_setter_with_chain_state() {
 
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<S, MockDaSpec>>();
+    let num_value_setter_txs = value_setter.len();
+
+    // We need to multiply each component of the gas used by 2 because there are 2 messages
+    let gas_used_per_slot = GAS_TX_FIXED_COST.map(|g| num_value_setter_txs as u64 * g);
 
     let admin_pub_key = value_setter_messages.messages[0].admin.to_address();
     let test_kernel = TestKernel::<S, MockDaSpec>::default();
@@ -108,8 +113,8 @@ fn test_simple_value_setter_with_chain_state() {
             TransitionInProgress::<S, MockDaSpec>::new(
                 MockHash::from([10; 32]),
                 MockValidityCond::default(),
-                GasPrice::ZEROED,
-                Gas::zero()
+                GasPrice::from_slice(&INITIAL_GAS_PRICE),
+                GasArray::from_slice(&gas_used_per_slot)
             ),
             "The new transition has not been correctly stored"
         );
@@ -159,8 +164,8 @@ fn test_simple_value_setter_with_chain_state() {
             TransitionInProgress::<S, MockDaSpec>::new(
                 [20; 32].into(),
                 MockValidityCond::default(),
-                GasPrice::ZEROED,
-                Gas::zero()
+                GasPrice::from_slice(&INITIAL_GAS_PRICE),
+                GasArray::from_slice(&gas_used_per_slot)
             ),
             "The new transition has not been correctly stored"
         );
@@ -174,8 +179,8 @@ fn test_simple_value_setter_with_chain_state() {
                 [10; 32].into(),
                 first_root,
                 MockValidityCond::default(),
-                GasPrice::ZEROED,
-                Gas::zero(),
+                GasPrice::from_slice(&INITIAL_GAS_PRICE),
+                GasArray::from_slice(&gas_used_per_slot),
             );
 
         assert_eq!(last_tx_stored, expected_tx_stored);

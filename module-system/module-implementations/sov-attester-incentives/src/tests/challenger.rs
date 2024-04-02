@@ -1,3 +1,4 @@
+use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{Context, WorkingSet};
@@ -7,7 +8,7 @@ use sov_rollup_interface::zk::StateTransitionPublicData;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    execution_simulation, setup, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
+    setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
 };
 use crate::SlashingReason;
 
@@ -19,14 +20,19 @@ fn test_valid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, token_id, attester_address, challenger_address, sequencer, working_set) =
-        setup(working_set);
+    let (module, attester_address, challenger_address, sequencer, working_set) = setup(working_set);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
     let state_checkpoint = working_set.checkpoint().0;
-    let (mut exec_vars, state_checkpoint) =
-        execution_simulation(3, &module, &storage, attester_address, state_checkpoint);
+    let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
+        3,
+        &module,
+        &storage,
+        &sequencer,
+        &attester_address,
+        state_checkpoint,
+    );
 
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
 
@@ -85,9 +91,9 @@ fn test_valid_challenge() {
         assert_eq!(
             module
                 .bank
-                .get_balance_of(challenger_address, token_id, &mut working_set)
+                .get_balance_of(challenger_address, GAS_TOKEN_ID, &mut working_set)
                 .unwrap(),
-            INITIAL_BOND_AMOUNT - BOND_AMOUNT + BOND_AMOUNT / 2,
+            INITIAL_BOND_AMOUNT - BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
             "The challenger should have been rewarded"
         );
 
@@ -111,9 +117,9 @@ fn test_valid_challenge() {
         assert_eq!(
             module
                 .bank
-                .get_balance_of(challenger_address, token_id, &mut working_set)
+                .get_balance_of(challenger_address, GAS_TOKEN_ID, &mut working_set)
                 .unwrap(),
-            INITIAL_BOND_AMOUNT + BOND_AMOUNT / 2,
+            INITIAL_BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
             "The challenger should have been unbonded"
         );
     }
@@ -162,14 +168,19 @@ fn test_invalid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, _token_id, attester_address, challenger_address, sequencer, working_set) =
-        setup(working_set);
+    let (module, attester_address, challenger_address, sequencer, working_set) = setup(working_set);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
     let state_checkpoint = working_set.checkpoint().0;
-    let (mut exec_vars, state_checkpoint) =
-        execution_simulation(3, &module, &storage, attester_address, state_checkpoint);
+    let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
+        3,
+        &module,
+        &storage,
+        &sequencer,
+        &attester_address,
+        state_checkpoint,
+    );
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
 
     let _ = exec_vars.pop().unwrap();

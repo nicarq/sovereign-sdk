@@ -172,13 +172,20 @@ impl AttesterIncentivesTestHandler {
             assert_eq!(rollup.get_bad_transition_reward(1), 0);
 
             // The challenger has been rewarded half of the pool's reward (to avoid a DoS attack)
+            let burn_rate = rollup.burn_rate();
+            // The challenger has sent 2 transactions, so the gas consumed is 2x the gas per transaction
+            // The first transaction is for bonding, the second is for challenging
+            let gas_consumed = 2 * rollup.gas_per_transaction();
             assert_eq!(
                 rollup.bank().get_balance_of(
                     self.challenger_private_key.to_address(),
                     GAS_TOKEN_ID,
                     &mut working_set
                 ),
-                Some(self.challenger_balance - self.challenger_stake + self.attester_stake / 2)
+                Some(
+                    self.challenger_balance - self.challenger_stake - gas_consumed
+                        + burn_rate.apply(self.attester_stake)
+                )
             );
         }
     }

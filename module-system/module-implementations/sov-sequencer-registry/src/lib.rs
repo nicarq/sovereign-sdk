@@ -61,7 +61,7 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
     #[state]
     pub(crate) preferred_sequencer: StateValue<Da::Address, BcsCodec>,
 
-    /// Coin's that will be slashed if the sequencer is malicious.
+    /// Coins that will be slashed if the sequencer is malicious.
     /// The coins will be transferred from
     /// [`SequencerConfig::seq_rollup_address`] to
     /// [`SequencerRegistry::address`] and locked forever, until sequencer

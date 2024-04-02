@@ -1,4 +1,4 @@
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, GasArray, PrivateKey, Spec};
 use sov_value_setter::ValueSetter;
 
 use super::*;
@@ -41,14 +41,15 @@ impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
                 let set_value_msg: sov_value_setter::CallMessage =
                     sov_value_setter::CallMessage::SetValue(*new_value);
 
-                let max_gas_price = None;
                 messages.push(Message::new(
                     admin.clone(),
                     set_value_msg,
                     Self::DEFAULT_CHAIN_ID,
                     Self::DEFAULT_GAS_TIP,
                     Self::DEFAULT_GAS_LIMIT,
-                    max_gas_price,
+                    Some(<<Self::Spec as Spec>::Gas as Gas>::Price::from_slice(
+                        &Self::DEFAULT_MAX_GAS_PRICE,
+                    )),
                     value_setter_admin_nonce.try_into().unwrap(),
                 ));
             }

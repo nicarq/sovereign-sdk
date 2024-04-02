@@ -25,6 +25,7 @@ sov-stf-runner = { path = "../../../full-node/sov-stf-runner" }
 sov-rollup-interface = { path = "../../../rollup-interface" }
 sov-cli = { path = "../../../module-system/sov-cli", optional = true }
 sov-sequencer-registry = { path = "../../../module-system/module-implementations/sov-sequencer-registry" }
+sov-prover-incentives = { path = "../../../module-system/module-implementations/sov-prover-incentives" }
 sov-blob-storage = { path = "../../../module-system/module-implementations/sov-blob-storage" }
 sov-bank = { path = "../../../module-system/module-implementations/sov-bank" }
 sov-nft-module = { path = "../../../module-system/module-implementations/sov-nft-module" }
@@ -70,6 +71,7 @@ native = [
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
 	"sov-nft-module/native",
+	"sov-prover-incentives/native",
 	"sov-rollup-interface/native",
 	"sov-sequencer-registry/native",
 	"sov-state/native",

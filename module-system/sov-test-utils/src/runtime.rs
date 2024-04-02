@@ -13,10 +13,9 @@ use sov_modules_api::runtime::capabilities::{
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, PublicKey, Spec,
-    StateCheckpoint, StateReaderAndWriter, WorkingSet,
+    StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
 };
 use sov_modules_stf_blueprint::{Runtime, SequencerOutcome};
-use sov_rollup_interface::zk::Zkvm;
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use tokio::sync::watch;
@@ -128,10 +127,12 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
         gas_price: &<S::Gas as Gas>::Price,
         mut state_checkpoint: StateCheckpoint<S>,
     ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        match self
-            .bank
-            .reserve_gas(tx, gas_price, context.sender(), &mut state_checkpoint)
-        {
+        match self.attester_incentives.reserve_gas(
+            tx,
+            gas_price,
+            context.sender(),
+            &mut state_checkpoint,
+        ) {
             Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
             Err(e) => {
                 tracing::debug!("Unable to reserve gas from {}. {}", e, context.sender());
@@ -148,8 +149,12 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
         gas_meter: &sov_modules_api::GasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        self.bank
-            .refund_remaining_gas(tx, gas_meter, context.sender(), state_checkpoint);
+        self.attester_incentives.refund_remaining_gas(
+            tx,
+            gas_meter,
+            context.sender(),
+            state_checkpoint,
+        );
     }
 }
 
@@ -230,8 +235,6 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
             is_preferred_sequencer: true,
         },
         attester_incentives: AttesterIncentivesConfig {
-            bonding_token_id: token_id,
-            reward_token_supply_address: admin.clone(),
             minimum_attester_bond: MIN_USER_BOND,
             minimum_challenger_bond: MIN_USER_BOND,
             commitment_to_allowed_challenge_method,

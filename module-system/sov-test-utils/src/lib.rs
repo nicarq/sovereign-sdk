@@ -103,7 +103,8 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
 pub trait MessageGenerator {
     const DEFAULT_CHAIN_ID: u64 = 0;
     const DEFAULT_GAS_TIP: u64 = 0;
-    const DEFAULT_GAS_LIMIT: u64 = 0;
+    const DEFAULT_GAS_LIMIT: u64 = 100;
+    const DEFAULT_MAX_GAS_PRICE: [u64; 2] = [1, 1];
 
     /// Module where the messages originate from.
     type Module: Module;

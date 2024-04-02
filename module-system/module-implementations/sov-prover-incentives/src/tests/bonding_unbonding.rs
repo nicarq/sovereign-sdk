@@ -1,3 +1,4 @@
+use sov_bank::GAS_TOKEN_ID;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::Context;
 
@@ -9,10 +10,7 @@ use crate::ProverIncentiveErrors;
 fn test_unbonding() {
     let (module, prover_address, sequencer, mut working_set) = setup();
     let context = Context::<S>::new(prover_address, sequencer, 1);
-    let token_id = module
-        .bonding_token_id
-        .get(&mut working_set)
-        .expect("bonding token ID was set at genesis");
+    let token_id = GAS_TOKEN_ID;
 
     // Get their *unlocked* balance before undbonding
     let initial_unlocked_balance = {
@@ -31,6 +29,7 @@ fn test_unbonding() {
     assert_eq!(
         module
             .get_bond_amount(prover_address, &mut working_set)
+            .unwrap()
             .value,
         0
     );
@@ -60,6 +59,7 @@ fn test_prover_not_bonded() {
     assert_eq!(
         module
             .get_bond_amount(prover_address, &mut working_set)
+            .unwrap()
             .value,
         0
     );

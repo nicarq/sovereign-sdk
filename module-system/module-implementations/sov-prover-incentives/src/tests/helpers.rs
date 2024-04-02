@@ -3,9 +3,10 @@ use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Address, CryptoSpec, GasPrice, KernelModule, KernelWorkingSet, Module, Spec, StateCheckpoint,
-    WorkingSet,
+    Address, CryptoSpec, Gas, GasArray, GasPrice, KernelModule, KernelWorkingSet, Module,
+    PrivateKey, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
@@ -18,7 +19,12 @@ pub(crate) type Da = MockDaSpec;
 
 pub(crate) const BOND_AMOUNT: u64 = 1000;
 pub(crate) const INITIAL_PROVER_BALANCE: u64 = 5 * BOND_AMOUNT;
+pub(crate) const INITIAL_SEQUENCER_BALANCE: u64 = 20 * BOND_AMOUNT;
 pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
+
+pub const MAX_TX_GAS_AMOUNT: u64 = 100;
+pub const TX_GAS_CONSUMED: [u64; 2] = [10; 2];
+pub const TX_GAS_PRICE: [u64; 2] = [1; 2];
 
 /// Generates an address by hashing the provided `key`.
 pub fn generate_address(key: &str) -> <S as Spec>::Address {
@@ -31,16 +37,17 @@ fn create_bank_config() -> (
     sov_bank::BankConfig<S>,
     <S as Spec>::Address,
     <S as Spec>::Address,
-    <S as Spec>::Address,
 ) {
     let prover_address = generate_address("prover_pub_key");
-    let minter_address = generate_address("minter_pub_key");
     let sequencer_address = generate_address("sequencer_pub_key");
 
     let token_config = sov_bank::GasTokenConfig {
         token_name: "InitialToken".to_owned(),
-        address_and_balances: vec![(prover_address, INITIAL_PROVER_BALANCE)],
-        authorized_minters: vec![minter_address],
+        address_and_balances: vec![
+            (prover_address, INITIAL_PROVER_BALANCE),
+            (sequencer_address, INITIAL_SEQUENCER_BALANCE),
+        ],
+        authorized_minters: vec![],
     };
 
     (
@@ -49,7 +56,6 @@ fn create_bank_config() -> (
             tokens: vec![],
         },
         prover_address,
-        minter_address,
         sequencer_address,
     )
 }
@@ -57,6 +63,7 @@ fn create_bank_config() -> (
 /// Simulates the execution of the chain state by applying `steps` state transitions.
 pub(crate) fn simulate_chain_state_execution(
     module: &ProverIncentives<S, Da>,
+    sequencer: <S as Spec>::Address,
     steps: u8,
     gas_used_per_step: &<S as Spec>::Gas,
     state_checkpoint: &mut StateCheckpoint<S>,
@@ -69,15 +76,46 @@ pub(crate) fn simulate_chain_state_execution(
             height: u64::from(i),
             time: Time::now(),
         };
+        // We also need to call the `GasEnforcer` hook to ensure that the reward pool is populated.
+        let tx_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+
+        let tx = Transaction::<S>::new(
+            tx_key.pub_key(),
+            vec![],
+            tx_key.sign(&[]),
+            0,
+            0,
+            MAX_TX_GAS_AMOUNT,
+            Some(<<S as Spec>::Gas as Gas>::Price::from_slice(&TX_GAS_PRICE)),
+            i.into(),
+        );
+
+        // We first need to reserve gas for the transaction
+        let mut gas_meter = module
+            .reserve_gas(
+                &tx,
+                tx.max_gas_price().unwrap(),
+                &sequencer,
+                kernel_working_set.inner,
+            )
+            .expect("Gas reserve failed");
+
         module.chain_state.begin_slot_hook(
             &slot_header,
             &MockValidityCond { is_valid: true },
             &StorageRoot::<DefaultStorageSpec>::new(RootHash([i; 32]), RootHash([i; 32])),
             &mut kernel_working_set,
         );
+
+        // We charge some gas to the sequencer to make sure the gas meter is updated
+        gas_meter
+            .charge_gas(&<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED))
+            .expect("Gas charge failed");
+
         module
             .chain_state
             .end_slot_hook(gas_used_per_step, &mut kernel_working_set);
+        module.refund_remaining_gas(&tx, &gas_meter, &sequencer, kernel_working_set.inner);
     }
 }
 
@@ -85,20 +123,18 @@ fn setup_helper(
     mut working_set: WorkingSet<S>,
 ) -> (ProverIncentives<S, Da>, Address, Address, WorkingSet<S>) {
     // Initialize bank
-    let (bank_config, prover_address, minter_address, sequencer) = create_bank_config();
+    let (bank_config, prover_address, sequencer) = create_bank_config();
     let bank = sov_bank::Bank::<S>::default();
     bank.genesis(&bank_config, &mut working_set)
         .expect("bank genesis must succeed");
-
-    let token_id = sov_bank::GAS_TOKEN_ID;
 
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig::<S> {
         current_time: Time::now(),
         gas_price_blocks_depth: 0,
         gas_price_maximum_elasticity: 0,
-        initial_gas_price: GasPrice::<2>::from([1; 2]),
-        minimum_gas_price: GasPrice::<2>::from([1; 2]),
+        initial_gas_price: GasPrice::<2>::from(TX_GAS_PRICE),
+        minimum_gas_price: GasPrice::<2>::from(TX_GAS_PRICE),
     };
 
     let chain_state = sov_chain_state::ChainState::<S, Da>::default();
@@ -113,8 +149,6 @@ fn setup_helper(
     // initialize prover incentives
     let module = ProverIncentives::<S, Da>::default();
     let config = crate::ProverIncentivesConfig {
-        bonding_token_id: token_id,
-        reward_token_supply_address: minter_address,
         proving_penalty: BOND_AMOUNT / 2,
         minimum_bond: BOND_AMOUNT,
         commitment_of_allowed_verifier_method: MockCodeCommitment([0u8; 32]),
@@ -143,6 +177,7 @@ pub(crate) fn setup() -> (
     assert_eq!(
         module
             .get_bond_amount(prover_address, &mut working_set)
+            .unwrap()
             .value,
         BOND_AMOUNT
     );

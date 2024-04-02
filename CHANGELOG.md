@@ -12,3 +12,5 @@
   `StateTransitionData` to `StateTransitionWitness`
   `StateTransition` to `StateTransitionPublicData`
   `AggregatedProofPublicInput` to `AggregatedProofPublicData`
+
+- #361 starts charging gas for submitting transactions to the Rollup. When calling `apply_slot`, the transaction sender must pay for a fixed amount of gas - `GAS_TX_FIXED_COST`. Developers have to make sure the transaction sender has enough funds to pay for the gas.

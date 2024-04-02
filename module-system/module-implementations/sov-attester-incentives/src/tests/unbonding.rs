@@ -1,3 +1,4 @@
+use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::GasMeter;
@@ -5,7 +6,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    execution_simulation, setup, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
+    setup, ExecutionSimulationVars, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
 };
 type S = sov_test_utils::TestSpec;
 
@@ -14,7 +15,7 @@ fn test_two_phase_unbonding() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = WorkingSet::new(storage.clone());
-    let (module, token_id, attester_address, _, sequencer, mut working_set) = setup(working_set);
+    let (module, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
     // Assert that the attester has the correct bond amount before processing the proof
     assert_eq!(
@@ -42,8 +43,14 @@ fn test_two_phase_unbonding() {
     let state_checkpoint = working_set.checkpoint().0;
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
-    let (mut exec_vars, state_checkpoint) =
-        execution_simulation(3, &module, &storage, attester_address, state_checkpoint);
+    let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
+        3,
+        &module,
+        &storage,
+        &sequencer,
+        &attester_address,
+        state_checkpoint,
+    );
 
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     // Start unbonding and then try to prove a transition. User slashed
@@ -126,7 +133,7 @@ fn test_two_phase_unbonding() {
     {
         let initial_account_balance = module
             .bank
-            .get_balance_of(attester_address, token_id, &mut working_set)
+            .get_balance_of(attester_address, GAS_TOKEN_ID, &mut working_set)
             .unwrap();
 
         // Start unbonding the user: should succeed
@@ -159,7 +166,7 @@ fn test_two_phase_unbonding() {
             initial_account_balance + BOND_AMOUNT,
             module
                 .bank
-                .get_balance_of(attester_address, token_id, &mut working_set)
+                .get_balance_of(attester_address, GAS_TOKEN_ID, &mut working_set)
                 .unwrap(),
             "The initial and final account balance don't match"
         );

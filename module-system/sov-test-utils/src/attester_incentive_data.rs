@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use sov_attester_incentives::CallMessage;
-use sov_modules_api::{CryptoSpec, DaSpec, Spec};
+use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, Spec};
 
 use crate::{Message, MessageGenerator};
 
@@ -50,7 +50,9 @@ impl<S: Spec, Da: DaSpec> MessageGenerator for AttesterIncentivesMessageGenerato
                     Self::DEFAULT_CHAIN_ID,
                     Self::DEFAULT_GAS_TIP,
                     Self::DEFAULT_GAS_LIMIT,
-                    None,
+                    Some(<<Self::Spec as Spec>::Gas as Gas>::Price::from_slice(
+                        &Self::DEFAULT_MAX_GAS_PRICE,
+                    )),
                     nonce,
                 )
             })

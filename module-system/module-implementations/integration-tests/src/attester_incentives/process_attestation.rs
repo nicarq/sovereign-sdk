@@ -45,9 +45,6 @@ impl AttesterIncentivesTestHandler {
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
         assert_eq!(tx_receipt.receipt, TxEffect::Successful);
 
-        // The current maximum attested height is 1
-        assert_eq!(rollup.get_maximum_attested_height(), 1);
-
         // We have to check that the attester was rewarded with its stake.
         let mut working_set = WorkingSet::<S>::new(rollup.storage());
         assert_eq!(
@@ -107,7 +104,12 @@ impl AttesterIncentivesTestHandler {
 
         // The new attester balance is the initial attester balance minus the gas cost of the transaction
         // plus the burn rate applied to the amount of gas proved in the attestation
-        let new_attester_balance = honest_attester_balance + self.attester_stake;
+        let gas_proved = (self.num_value_setter_txs() as u64) * rollup.gas_per_transaction();
+        let burn_rate = rollup.burn_rate();
+        // The new attester balance is the initial attester balance minus the gas cost of the transaction
+        // plus the burn rate applied to the amount of gas proved in the attestation
+        let new_attester_balance =
+            honest_attester_balance - rollup.gas_per_transaction() + burn_rate.apply(gas_proved);
 
         self.check_first_attestation_processing(attestation_tx, new_attester_balance, rollup);
 
@@ -146,14 +148,24 @@ impl AttesterIncentivesTestHandler {
         // The current maximum attested height is 3
         assert_eq!(rollup.get_maximum_attested_height(), 3);
 
-        // We have to check that the attester was rewarded with its stake.
+        // We have to check that the attester was rewarded correctly.
         let mut working_set = WorkingSet::<S>::new(rollup.storage());
 
+        let gas_proved_first_attestation =
+            self.num_value_setter_txs() as u64 * rollup.gas_per_transaction();
+        let gas_proved_second_attestation = rollup.gas_per_transaction();
+        let burn_rate = rollup.burn_rate();
         assert_eq!(
             rollup
                 .bank()
                 .get_balance_of(self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
-            Some(honest_attester_balance + 2 * self.attester_stake)
+            // Formula: new_balance = old_balance + burn_rate * (gas_proved_first_attestation + gas_proved_second_attestation) - tx_cost
+            Some(
+                honest_attester_balance
+                    + burn_rate.apply(gas_proved_first_attestation)
+                    + burn_rate.apply(gas_proved_second_attestation)
+                    - 2 * rollup.gas_per_transaction()
+            )
         );
     }
 
