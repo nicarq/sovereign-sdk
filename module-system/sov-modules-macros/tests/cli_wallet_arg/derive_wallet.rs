@@ -2,8 +2,8 @@ use clap::Parser;
 use sov_modules_api::cli::JsonStringArg;
 use sov_modules_api::macros::{CliWallet, CliWalletArg, DefaultRuntime};
 use sov_modules_api::{
-    CallResponse, Context, DispatchCall, Error, ModuleId, Genesis, MessageCodec, Module, ModuleInfo, Spec,
-    StateValue, WorkingSet,
+    CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleId,
+    ModuleInfo, Spec, StateValue, WorkingSet,
 };
 use sov_test_utils::TestSpec;
 
@@ -26,7 +26,7 @@ pub mod first_test_module {
 
     #[derive(ModuleInfo)]
     pub struct FirstTestStruct<S: Spec> {
-        #[address]
+        #[id]
         pub id: ModuleId,
 
         #[state]
@@ -66,7 +66,7 @@ pub mod second_test_module {
 
     #[derive(ModuleInfo)]
     pub struct SecondTestStruct<S: Spec> {
-        #[address]
+        #[id]
         pub id: ModuleId,
 
         #[state]

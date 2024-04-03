@@ -25,7 +25,7 @@ use crate::event::Event;
 #[derive(ModuleInfo)]
 pub struct ValueSetter<S: sov_modules_api::Spec> {
     /// The ID of the module.
-    #[address]
+    #[id]
     pub id: ModuleId,
 
     /// Some value kept in the state.

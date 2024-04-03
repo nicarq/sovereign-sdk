@@ -354,7 +354,7 @@ impl TypedEvent {
         &self.event_key
     }
 
-    /// Function to peek at the module address
+    /// Function to peek at the module id
     pub fn module_id(&self) -> &ModuleId {
         &self.module_id
     }

@@ -26,6 +26,6 @@ pub trait DispatchCall: Send + Sync {
         context: &Context<Self::Spec>,
     ) -> Result<CallResponse, ModuleError>;
 
-    /// Returns an address of the dispatched module.
+    /// Returns the ID of the dispatched module.
     fn module_id(&self, message: &Self::Decodable) -> &ModuleId;
 }

@@ -20,7 +20,7 @@ pub struct SequencerConfig<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec
     /// Coins that will be slashed if the sequencer is malicious.
     ///
     /// The coins will be transferred from
-    /// [`SequencerConfig::seq_rollup_address`] to this module's address
+    /// [`SequencerConfig::seq_rollup_address`] to this module's id
     /// ([`sov_modules_api::ModuleInfo::id`]) and locked away until the sequencer
     /// decides to exit (unregister).
     ///

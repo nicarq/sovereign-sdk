@@ -9,16 +9,16 @@ pub trait LedgerRpcProviderExt {
     fn get_events_by_key<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         event_key: &str,
-        module_address: Option<ModuleId>,
+        module_id: Option<ModuleId>,
         txn_range: Option<(u64, u64)>,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, anyhow::Error>;
 
-    /// Get events by module address
-    fn get_events_by_module_address<E: borsh::BorshDeserialize + Into<Event>>(
+    /// Get events by module id
+    fn get_events_by_module_id<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
-        module_address: ModuleId,
+        module_id: ModuleId,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, anyhow::Error>;
@@ -27,7 +27,7 @@ pub trait LedgerRpcProviderExt {
     fn get_events_by_slot_range_key<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         event_key: &str,
-        module_address: ModuleId,
+        module_id: ModuleId,
         slot_height_start: u64,
         slot_height_end: u64,
         num_events: usize,

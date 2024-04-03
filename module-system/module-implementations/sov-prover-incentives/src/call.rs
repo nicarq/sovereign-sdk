@@ -71,7 +71,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         prover: &S::Address,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
-        // Transfer the bond amount from the sender to the module's address.
+        // Transfer the bond amount from the sender to the module's id.
         // On failure, no state is changed
         let coins = Coins {
             token_id: GAS_TOKEN_ID,

@@ -3,7 +3,7 @@ use sov_modules_api::ModuleId;
 
 #[derive(sov_modules_api::ModuleInfo)]
 pub struct TestStruct<S: sov_modules_api::Spec> {
-    #[address]
+    #[id]
     pub(crate) id: ModuleId,
 
     #[phantom]

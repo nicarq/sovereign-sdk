@@ -163,7 +163,7 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
 #[derive(Clone, KernelModuleInfo)]
 pub struct ChainState<S: Spec, Da: DaSpec> {
     /// The ID of the module.
-    #[address]
+    #[id]
     id: ModuleId,
 
     /// The height that should be loaded as the visible set at the start of the next block

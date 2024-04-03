@@ -270,7 +270,7 @@ async fn assert_bank_event(
         // Ensure the event generated is a TokenCreated event with the correct token_id
         assert_eq!(bank_event, expected_event);
         assert_eq!(
-            map.get("module_address").unwrap(),
+            map.get("module_id").unwrap(),
             "module_1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sh0zjpk"
         );
     } else {

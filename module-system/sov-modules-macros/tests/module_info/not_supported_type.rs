@@ -2,7 +2,7 @@ use sov_modules_api::{ModuleId, ModuleInfo, Spec, StateMap};
 
 #[derive(ModuleInfo)]
 struct TestStruct<S: Spec> {
-    #[address]
+    #[id]
     id: ModuleId,
 
     #[state]

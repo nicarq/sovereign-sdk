@@ -1,8 +1,8 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::{
-    Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module, ModuleId,
-    ModuleInfo, Spec, StateValue, WorkingSet,
+    Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
+    ModuleId, ModuleInfo, Spec, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -37,7 +37,7 @@ pub mod my_module {
 
     #[derive(ModuleInfo)]
     pub struct QueryModule<S: Spec, D: Data> {
-        #[address]
+        #[id]
         pub id: ModuleId,
 
         #[state]

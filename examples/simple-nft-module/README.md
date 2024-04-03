@@ -60,7 +60,7 @@ NFT module is defined as the following:
 ```rust
 #[derive(sov_modules_api::ModuleInfo, Clone)]
 pub struct NonFungibleToken<S: sov_modules_api::Spec> {
-    #[address]
+    #[id]
     id: sov_modules_api::ModuleId,
 
     #[state]
@@ -77,9 +77,7 @@ pub struct NonFungibleToken<S: sov_modules_api::Spec> {
 
 This module includes:
 
-1. **Address**: Every module must have an address, like a smart contract address in Ethereum. This ensures that:
-   - The module address is unique.
-   - The private key that generates this address is unknown.
+1. **ID**: Every module must have a unique id, like a smart contract address in Ethereum.
 2. **State attributes**: In this case, the state attributes are the admin's address and a map of token IDs to owner
    addresses.
    For simplicity, the token ID is an u64.

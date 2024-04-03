@@ -44,7 +44,7 @@ pub(crate) fn generate_events(
         module_num += 1;
         let module_name = format!("module_{}", module_num);
         // Correctness - we can never have more than 255 modules or borsh will panic anyway
-        let module_address = ModuleId::from([module_num as u8; 32]);
+        let module_id = ModuleId::from([module_num as u8; 32]);
         for _ in 0..num_txns_per_module {
             txn_num += 1;
             for _ in 0..num_events_per_txn {
@@ -62,11 +62,7 @@ pub(crate) fn generate_events(
                 };
 
                 events.push((
-                    StoredEvent::new(
-                        event_key.as_bytes(),
-                        module_address.as_bytes(),
-                        &event_value,
-                    ),
+                    StoredEvent::new(event_key.as_bytes(), module_id.as_bytes(), &event_value),
                     event_num,
                     txn_num,
                 ));

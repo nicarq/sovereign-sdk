@@ -8,7 +8,7 @@ pub mod first_test_module {
 
     #[derive(ModuleInfo)]
     pub struct FirstTestStruct<S: Spec> {
-        #[address]
+        #[id]
         pub address: ModuleId,
 
         #[state]
@@ -67,12 +67,12 @@ pub mod first_test_module {
 }
 
 pub mod second_test_module {
-    use sov_modules_api::ModuleId;
     use super::*;
+    use sov_modules_api::ModuleId;
 
     #[derive(ModuleInfo)]
     pub struct SecondTestStruct<S: Spec> {
-        #[address]
+        #[id]
         pub address: ModuleId,
 
         #[state]
@@ -141,7 +141,7 @@ pub mod third_test_module {
 
     #[derive(ModuleInfo)]
     pub struct ThirdTestStruct<S: Spec, OtherGeneric: ModuleThreeStorable> {
-        #[address]
+        #[id]
         pub address: ModuleId,
 
         #[state]

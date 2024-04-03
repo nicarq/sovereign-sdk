@@ -357,7 +357,7 @@ where
             amount,
         };
 
-        // The reward tokens are unlocked from the module's address.
+        // The reward tokens are unlocked from the module's id.
         self.bank
             .transfer_from(self.id.to_payable(), context.sender(), coins, working_set)
             .map_err(|_err| AttesterIncentiveErrors::RewardTransferFailure)?;
@@ -384,7 +384,7 @@ where
             return Err(AttesterIncentiveErrors::AttesterIsUnbonding);
         }
 
-        // Transfer the bond amount from the sender to the module's address.
+        // Transfer the bond amount from the sender to the module's id.
         // On failure, no state is changed
         let coins = Coins {
             token_id: GAS_TOKEN_ID,
@@ -442,7 +442,7 @@ where
     ) -> anyhow::Result<CallResponse> {
         // Get the user's old balance.
         if let Some(old_balance) = self.bonded_challengers.get(context.sender(), working_set) {
-            // Transfer the bond amount from the sender to the module's address.
+            // Transfer the bond amount from the sender to the module's id.
             // On failure, no state is changed
             self.transfer_tokens_to_sender(context, old_balance, working_set)?;
 
@@ -519,7 +519,7 @@ where
             }
 
             // Get the user's old balance.
-            // Transfer the bond amount from the sender to the module's address.
+            // Transfer the bond amount from the sender to the module's id.
             // On failure, no state is changed
             self.transfer_tokens_to_sender(context, unbonding_info.amount, working_set)?;
 

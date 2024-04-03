@@ -23,7 +23,7 @@
 //! - `NodeKey -> Node`
 //!
 //! Module Accessory State Table:
-//! - `(ModuleAddress, Key) -> Value`
+//! - `(ModuleIdBytes, Key) -> Value`
 
 use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -34,7 +34,7 @@ use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleAddress,
+    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleIdBytes,
     ProofUniqueId, SlotNumber, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
 };
 
@@ -51,7 +51,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     TxByNumber::table_name(),
     EventByKey::table_name(),
     EventByNumber::table_name(),
-    EventByModuleAddress::table_name(),
+    EventByModuleId::table_name(),
     ProofByUniqueId::table_name(),
 ];
 
@@ -244,12 +244,12 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// A "secondary index" for event data by key
-    (EventByKey) (EventKey, ModuleAddress, TxNumber, EventNumber) => ()
+    (EventByKey) (EventKey, ModuleIdBytes, TxNumber, EventNumber) => ()
 );
 
 define_table_with_seek_key_codec!(
     /// A "tertiary index" for event data by module
-    (EventByModuleAddress) (ModuleAddress, TxNumber, EventNumber) => ()
+    (EventByModuleId) (ModuleIdBytes, TxNumber, EventNumber) => ()
 );
 
 define_table_with_seek_key_codec!(

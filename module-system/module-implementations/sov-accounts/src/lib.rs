@@ -42,8 +42,8 @@ pub struct Account<S: Spec> {
 #[derive(ModuleInfo, Clone)]
 #[cfg_attr(feature = "arbitrary", derive(Debug))]
 pub struct Accounts<S: Spec> {
-    /// The address of the sov-accounts module.
-    #[address]
+    /// The ID of the sov-accounts module.
+    #[id]
     pub id: ModuleId,
 
     /// Mapping from an account address to a corresponding public key.

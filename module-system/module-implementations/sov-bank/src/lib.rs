@@ -58,7 +58,7 @@ pub struct BankGasConfig<GU: Gas> {
 
 pub struct Bank<S: sov_modules_api::Spec> {
     /// The id of the sov-bank module.
-    #[address]
+    #[id]
     pub(crate) id: ModuleId,
 
     /// The gas configuration of the sov-bank module.

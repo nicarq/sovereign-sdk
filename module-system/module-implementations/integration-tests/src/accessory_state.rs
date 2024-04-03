@@ -8,7 +8,7 @@ use sov_test_utils::TestSpec;
 
 #[derive(ModuleInfo)]
 pub struct TestModule<S: Spec> {
-    #[address]
+    #[id]
     id: ModuleId,
 
     #[state]

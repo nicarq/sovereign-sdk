@@ -153,10 +153,10 @@ where
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 
-    rpc.register_method("ledger_getEventsByModuleAddress", move |params, ledger| {
+    rpc.register_method("ledger_getEventsByModuleId", move |params, ledger| {
         let params: (ModuleId, usize, Option<&str>) = params.parse()?;
         ledger
-            .get_events_by_module_address::<E>(params.0, params.1, params.2)
+            .get_events_by_module_id::<E>(params.0, params.1, params.2)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 

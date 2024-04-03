@@ -21,7 +21,7 @@ pub mod module_a {
 
     #[derive(ModuleInfo)]
     pub(crate) struct ModuleA<S: Spec> {
-        #[address]
+        #[id]
         pub id_module_a: ModuleId,
 
         #[state]
@@ -70,7 +70,7 @@ pub mod module_b {
 
     #[derive(ModuleInfo)]
     pub(crate) struct ModuleB<S: Spec> {
-        #[address]
+        #[id]
         pub id_module_b: ModuleId,
 
         #[state]
@@ -116,7 +116,7 @@ pub(crate) mod module_c {
 
     #[derive(ModuleInfo)]
     pub(crate) struct ModuleC<S: Spec> {
-        #[address]
+        #[id]
         pub id: ModuleId,
 
         #[module]

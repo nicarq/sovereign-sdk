@@ -1,5 +1,5 @@
 use sov_modules_api::{ModuleId, ModuleInfo, Spec, StateValue, WorkingSet};
-use sov_modules_core::{StateCodec, StateItemEncoder, StateItemDecoder};
+use sov_modules_core::{StateCodec, StateItemDecoder, StateItemEncoder};
 use sov_state::{DefaultStorageSpec, ZkStorage};
 use std::panic::catch_unwind;
 
@@ -10,7 +10,7 @@ struct TestModule<S>
 where
     S: Spec,
 {
-    #[address]
+    #[id]
     id: ModuleId,
 
     #[state(codec_builder = "crate::CustomCodec::new")]

@@ -30,8 +30,8 @@ use crate::event::Event;
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo)]
 pub struct ProverIncentives<S: Spec, Da: DaSpec> {
-    /// Address of the module.
-    #[address]
+    /// Id of the module.
+    #[id]
     pub id: ModuleId,
 
     /// The code commitment to be used for verifying proofs

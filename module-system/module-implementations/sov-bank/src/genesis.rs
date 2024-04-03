@@ -23,7 +23,7 @@ pub struct BankConfig<S: sov_modules_api::Spec> {
 pub struct TokenConfig<S: sov_modules_api::Spec> {
     /// The name of the token.
     pub token_name: String,
-    /// Predetermined address of the token. Allowed only for genesis tokens.
+    /// Predetermined ID of the token. Allowed only for genesis tokens.
     pub token_id: TokenId,
     /// A vector of tuples containing the initial addresses and balances (as u64)
     pub address_and_balances: Vec<(S::Address, u64)>,

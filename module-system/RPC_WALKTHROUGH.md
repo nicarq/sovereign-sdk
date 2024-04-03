@@ -176,24 +176,24 @@ The following queries are currently supported and can be seen in [server.rs](../
 ledger_getEvents (multiple events by corresponding event numbers)
 ledger_getEventByNumber (single event by event number)
 ledger_getEventsByKey (paginated events by key)
-ledger_getEventsByModuleAddress (paginated events by module address)
+ledger_getEventsByModuleId (paginated events by module id)
 ledger_getEventsByTxnHash (paginated events by transaction hash)
 ```
 
-Below we provide examples of how to query using three of the calls (`ledger_getEventsByTxnHash` and `ledger_getEventsByKey`, `ledger_getEventsByModuleAddress`)
+Below we provide examples of how to query using three of the calls (`ledger_getEventsByTxnHash` and `ledger_getEventsByKey`, `ledger_getEventsByModuleId`)
 
-### Fetching the module address
+### Fetching the module id
 
-There is one other RPC call to be aware of in relation to events. Every module has an address and it can be used to query events from a specific module. The ability to get the module address is auto-generated as an rpc method for all modules
+There is one other RPC call to be aware of in relation to events. Every module has an address and it can be used to query events from a specific module. The ability to get the module id is auto-generated as an rpc method for all modules
 
 ```text
-<namespace>_moduleAddress
+<namespace>_moduleId
 ```
 
-In order to fetch the module address of the `bank` module we use the namespace that we set in [rpc.rs](../module-system/module-implementations/sov-bank/src/rpc.rs) which is also `bank`. We use the following API call
+In order to fetch the module id of the `bank` module we use the namespace that we set in [rpc.rs](../module-system/module-implementations/sov-bank/src/rpc.rs) which is also `bank`. We use the following API call
 
 ```bash
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_moduleAddress","params":{},"id":1}' http://127.0.0.1:12345
+$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_moduleId","params":{},"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h","id":1}
 ```
 
@@ -210,7 +210,7 @@ The transaction hash can be used to fetch all events emitted when that transacti
 
 ```bash
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%
+{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_id":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"id":1}%
 ```
 
 ### ledger_getEventsByKey
@@ -219,7 +219,7 @@ The event key for all `CreateToken` calls in the bank module is `token_created` 
 
 ```bash
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByKey","params":["token_created",null,null,1,null],"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":{"events_response":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"next":null},"id":1}
+{"jsonrpc":"2.0","result":{"events_response":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_id":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"next":null},"id":1}
 ```
 
 The parameters can be inferred from [rpc.rs](../full-node/sov-db/src/ledger_db/rpc.rs), and [server.rs](../full-node/sov-ledger-rpc/src/server.rs)
@@ -228,7 +228,7 @@ The parameters can be inferred from [rpc.rs](../full-node/sov-db/src/ledger_db/r
 fn get_events_by_key<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
     &self,
     event_key: &str,
-    module_address: Option<&str>,
+    module_id: Option<&str>,
     txn_range: Option<(u64, u64)>,
     num_events: usize,
     next: Option<&str>,
@@ -243,29 +243,29 @@ The params passed in the curl call correspond to each of the function arguments.
 "params":["token_created",null,null,1,null]
 ```
 
-We can optionally provide the module address as well to get the same result (this helps in case there are conflicting keys across modules). The module address for `bank` can be obtained as explained earlier using the `bank_moduleAddress` rpc call.
+We can optionally provide the module id as well to get the same result (this helps in case there are conflicting keys across modules). The module id for `bank` can be obtained as explained earlier using the `bank_moduleId` rpc call.
 
 ```bash
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_moduleAddress","params":{},"id":1}' http://127.0.0.1:12345
+$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_moduleId","params":{},"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h","id":1}
 
 $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByKey","params":["token_created","sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h",null,1,null],"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":{"events_response":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"next":null},"id":1}
+{"jsonrpc":"2.0","result":{"events_response":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_id":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"next":null},"id":1}
 ```
 
 `getEventsByKey` also optionally allows filtering by a transaction number range
 
-### ledger_getEventsByModuleAddress
+### ledger_getEventsByModuleId
 
-`getEventsByModuleAddress` is similar to the previous call, but is more suitable for use cases where all the events from a specific module need to be fetched.
+`getEventsByModuleId` is similar to the previous call, but is more suitable for use cases where all the events from a specific module need to be fetched.
 The parameters can be inferred from [rpc.rs](../full-node/sov-db/src/ledger_db/rpc.rs)
 
 ```rust
-    fn get_events_by_module_address<
+    fn get_events_by_module_id<
         E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
     >(
         &self,
-        module_address: &str,
+        module_id: &str,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, Error> {
@@ -276,6 +276,6 @@ The parameters can be inferred from [rpc.rs](../full-node/sov-db/src/ledger_db/r
 The output is identical to the previous calls because we have generated only one event (for the `CreateToken` call)
 
 ```bash
- curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByModuleAddress","params":["sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h",1,null],"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":{"events_response":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_address":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"next":null},"id":1}
+ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByModuleId","params":["sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h",1,null],"id":1}' http://127.0.0.1:12345
+{"jsonrpc":"2.0","result":{"events_response":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_id":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"next":null},"id":1}
 ```

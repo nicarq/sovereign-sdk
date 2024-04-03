@@ -1,4 +1,6 @@
-use sov_modules_api::{Context,CryptoSpec, Module, ModuleId, ModuleInfo, Spec, StateMap, WorkingSet};
+use sov_modules_api::{
+    Context, CryptoSpec, Module, ModuleId, ModuleInfo, Spec, StateMap, WorkingSet,
+};
 use sov_test_utils::ZkTestSpec;
 
 pub mod first_test_module {
@@ -9,7 +11,7 @@ pub mod first_test_module {
     where
         S: Spec,
     {
-        #[address]
+        #[id]
         pub id: ModuleId,
 
         #[state]
@@ -45,7 +47,7 @@ mod second_test_module {
 
     #[derive(ModuleInfo)]
     pub(crate) struct SecondTestStruct<S: Spec> {
-        #[address]
+        #[id]
         pub id: ModuleId,
 
         #[state]

@@ -2,11 +2,11 @@
 
 #![allow(unused_imports)]
 
-use sov_modules_api::{ModuleInfo, ModuleId, RollupAddress, Spec};
+use sov_modules_api::{ModuleId, ModuleInfo, RollupAddress, Spec};
 
 #[derive(ModuleInfo)]
 struct TestModule<S: Spec> {
-    #[address]
+    #[id]
     id: ModuleId,
 
     #[phantom]
