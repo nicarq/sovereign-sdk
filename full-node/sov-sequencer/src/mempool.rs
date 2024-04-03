@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::ops::Bound;
 use std::sync::Arc;
 
-use sov_db::sequencer_db::{MempoolTx, SequencerDB};
 use sov_rollup_interface::services::batch_builder::TxHash;
+
+use crate::db::{MempoolTx, SequencerDb};
 
 /// The mempool MUST ALWAYS persist changes before modifying the in-memory state,
 /// otherwise a DB error would leave the two out of sync. (Unlike DB operations
@@ -12,7 +13,7 @@ use sov_rollup_interface::services::batch_builder::TxHash;
 #[derive(Debug)]
 pub struct FairMempool {
     pub mempool_max_txs_count: usize,
-    sequencer_db: SequencerDB,
+    sequencer_db: SequencerDb,
     next_incr_id: u64,
     // Transaction data
     // ----------------
@@ -22,7 +23,7 @@ pub struct FairMempool {
 }
 
 impl FairMempool {
-    pub fn new(sequencer_db: SequencerDB, mempool_max_txs_count: usize) -> anyhow::Result<Self> {
+    pub fn new(sequencer_db: SequencerDb, mempool_max_txs_count: usize) -> anyhow::Result<Self> {
         let mut mempool = Self {
             mempool_max_txs_count,
             sequencer_db,
@@ -138,7 +139,7 @@ impl FairMempool {
         self.txs_ordered_by_most_fair_fit.insert(cursor, tx.clone());
         self.txs_by_hash.insert(tx.hash, tx.clone());
 
-        // If this fails, we're potentially left with a SequencerDB with more
+        // If this fails, we're potentially left with a SequencerDb with more
         // transactions that it should have. Not a problem because eviction is
         // on a best-effort basis, but good to keep it in mind.
         self.evict()?;
@@ -149,6 +150,7 @@ impl FairMempool {
 
 /// An opaque cursor for [`FairMempool`] iteration.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 pub struct MempoolCursor {
     tx_size_in_bytes: usize,
     incremental_id: u64,
@@ -178,5 +180,19 @@ impl Ord for MempoolCursor {
         let temporal_ordering = self.incremental_id.cmp(&other.incremental_id);
 
         size_ordering.then(temporal_ordering)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use proptest::proptest;
+
+    use super::*;
+
+    proptest! {
+        #[test]
+        fn mempool_cursor_ordering_is_correct(mc1: MempoolCursor, mc2: MempoolCursor, mc3: MempoolCursor) {
+            reltester::ord(&mc1, &mc2, &mc3).unwrap();
+        }
     }
 }

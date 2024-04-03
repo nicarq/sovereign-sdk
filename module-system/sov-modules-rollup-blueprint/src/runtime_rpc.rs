@@ -1,19 +1,18 @@
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDB;
-use sov_db::sequencer_db::SequencerDB;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_sequencer::{FairBatchBuilder, Sequencer};
+use sov_sequencer::{FairBatchBuilder, Sequencer, SequencerDb};
 use tokio::sync::watch;
 
 /// Register rollup's default rpc methods.
 pub fn register_rpc<RT, K, S, Da>(
     storage: watch::Receiver<S::Storage>,
     ledger_db: &LedgerDB,
-    sequencer_db: &SequencerDB,
+    sequencer_db: &SequencerDb,
     da_service: &Da,
     sequencer: <Da::Spec as DaSpec>::Address,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>

@@ -5,11 +5,13 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 mod batch_builder;
+mod db;
 mod mempool;
 mod tx_status;
 pub mod utils;
 
 pub use batch_builder::FairBatchBuilder;
+pub use db::{MempoolTx, SequencerDb};
 use jsonrpsee::core::StringError;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};

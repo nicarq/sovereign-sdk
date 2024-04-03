@@ -4,25 +4,26 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use rockbound::SchemaBatch;
+use sov_db::rocks_db_config::gen_rocksdb_options;
+use sov_db::{
+    define_table_with_seek_key_codec, define_table_without_codec, impl_borsh_value_codec,
+};
 use sov_rollup_interface::services::batch_builder::TxHash;
-
-use crate::rocks_db_config::gen_rocksdb_options;
-use crate::schema::tables::MempoolTxByHash;
 
 /// A database holding transactions that have been submitted to the sequencer
 /// and other related data.
 #[derive(Clone, Debug)]
-pub struct SequencerDB {
+pub struct SequencerDb {
     db: Arc<rockbound::DB>,
 }
 
-impl SequencerDB {
+impl SequencerDb {
     const DB_PATH_SUFFIX: &'static str = "mempool";
     const DB_NAME: &'static str = "mempool-db";
 
     const TABLES: &'static [&'static str] = &[MempoolTxByHash::table_name()];
 
-    /// Initializes a new [`SequencerDB`] at the given path.
+    /// Initializes a new [`SequencerDb`] at the given path.
     pub fn new(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
         let db = rockbound::DB::open(
@@ -62,7 +63,7 @@ impl SequencerDB {
     }
 }
 
-/// A transaction as stored inside [`SequencerDB`].
+/// A transaction as stored inside [`SequencerDb`].
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct MempoolTx {
     /// The raw, unmodified transaction bytes.
@@ -84,3 +85,8 @@ impl MempoolTx {
         }
     }
 }
+
+define_table_with_seek_key_codec!(
+    /// Transactions stored in the mempool, keyed by hash.
+    (MempoolTxByHash) TxHash => MempoolTx
+);

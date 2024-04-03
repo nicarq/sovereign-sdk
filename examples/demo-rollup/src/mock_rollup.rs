@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDB;
-use sov_db::sequencer_db::SequencerDB;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
@@ -14,6 +13,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
+use sov_sequencer::SequencerDb;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverService, RollupConfig, RollupProverConfig};
 use tokio::sync::watch;
@@ -70,7 +70,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
         ledger_db: &LedgerDB,
-        sequencer_db: &SequencerDB,
+        sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {

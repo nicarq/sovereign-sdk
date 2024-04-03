@@ -39,6 +39,9 @@ tokio = { workspace = true }
 [dev-dependencies]
 rand = { workspace = true }
 async-trait = { workspace = true }
+proptest = { workspace = true }
+proptest-derive = { workspace = true }
+reltester = { workspace = true }
 rockbound = { workspace = true }
 sov-value-setter = { path = "../../module-system/module-implementations/sov-value-setter", features = ["native"] }
 sov-kernels = { path = "../../module-system/sov-kernels", version = "0.3", features = ["native"] }

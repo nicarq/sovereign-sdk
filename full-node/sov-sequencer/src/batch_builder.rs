@@ -3,7 +3,6 @@
 use anyhow::{bail, Context as ErrorContext};
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
-use sov_db::sequencer_db::{MempoolTx, SequencerDB};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::Transaction;
@@ -16,6 +15,7 @@ use sov_rollup_interface::stf::TransactionReceipt;
 use sov_state::storage::KernelWorkingSet;
 use tokio::sync::watch;
 
+use crate::db::{MempoolTx, SequencerDb};
 use crate::mempool::{FairMempool, MempoolCursor};
 use crate::TxHash;
 
@@ -48,7 +48,7 @@ where
         kernel: K,
         current_storage: watch::Receiver<<S as Spec>::Storage>,
         sequencer: Da::Address,
-        sequencer_db: SequencerDB,
+        sequencer_db: SequencerDb,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool: FairMempool::new(sequencer_db, mempool_max_count_txs)?,
@@ -373,7 +373,7 @@ mod tests {
         let state_path = tmpdir.path().join("state");
         let sequencer_db_path = tmpdir.path().join("mempool");
         let storage = watch::Sender::new(new_orphan_storage(state_path).unwrap()).subscribe();
-        let sequencer_db = SequencerDB::new(sequencer_db_path).unwrap();
+        let sequencer_db = SequencerDb::new(sequencer_db_path).unwrap();
         FairBatchBuilder::new(
             batch_size_bytes,
             MAX_TX_POOL_SIZE,
