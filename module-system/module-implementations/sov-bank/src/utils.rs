@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{CryptoSpec, ModuleId, Spec};
-use sov_state::codec::{BcsCodec, BorshCodec, JsonCodec};
+use sov_state::codec::{BcsCodec, BorshCodec};
 use sov_state::storage::EncodeKeyLike;
 
 use crate::TokenId;
@@ -192,12 +192,6 @@ mod encode_key_like {
     use super::*;
 
     impl<S: Spec> EncodeKeyLike<TokenHolderRef<'_, S>, TokenHolder<S>> for BcsCodec {
-        fn encode_key_like(&self, borrowed: &TokenHolderRef<'_, S>) -> Vec<u8> {
-            self.encode(borrowed)
-        }
-    }
-
-    impl<S: Spec> EncodeKeyLike<TokenHolderRef<'_, S>, TokenHolder<S>> for JsonCodec {
         fn encode_key_like(&self, borrowed: &TokenHolderRef<'_, S>) -> Vec<u8> {
             self.encode(borrowed)
         }

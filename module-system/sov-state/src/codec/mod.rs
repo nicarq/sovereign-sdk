@@ -4,12 +4,10 @@ use sov_modules_core::StateCodec;
 
 mod bcs_codec;
 mod borsh_codec;
-mod json_codec;
 mod split_codec;
 
 pub use bcs_codec::BcsCodec;
 pub use borsh_codec::BorshCodec;
-pub use json_codec::JsonCodec;
 pub use split_codec::SplitCodec;
 
 #[cfg(test)]
