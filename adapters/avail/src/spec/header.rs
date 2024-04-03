@@ -59,7 +59,9 @@ impl BlockHeaderTrait for AvailHeader {
 
     fn time(&self) -> sov_rollup_interface::da::Time {
         sov_rollup_interface::da::Time::from_secs(
-            KATE_START_TIME + (self.header.number as i64 * KATE_SECONDS_PER_BLOCK),
+            KATE_SECONDS_PER_BLOCK
+                .saturating_mul(self.header.number as i64)
+                .saturating_add(KATE_START_TIME),
         )
     }
 }

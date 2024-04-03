@@ -138,7 +138,7 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
                         gas_tip,
                         gas_limit,
                         max_gas_price,
-                        nonce + offset as u64,
+                        nonce.wrapping_add(offset as u64),
                     );
 
                     tx.try_to_vec().unwrap()

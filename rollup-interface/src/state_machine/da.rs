@@ -112,12 +112,15 @@ impl<B: bytes::Buf> CountedBufReader<B> {
         // Extend the inner vector with zeros (copy_to_slice requires the vector to have
         // the correct *length* not just capacity)
         self.accumulator
-            .resize(self.accumulator.len() + num_to_read, 0);
+            .resize(self.accumulator.len().saturating_add(num_to_read), 0);
 
         // Use copy_to_slice to overwrite the zeros we just added
         let accumulator_len = self.accumulator.len();
+        let accumulator_idx = accumulator_len
+            .checked_sub(num_to_read)
+            .expect("invalid length");
         self.inner
-            .copy_to_slice(self.accumulator[accumulator_len - num_to_read..].as_mut());
+            .copy_to_slice(self.accumulator[accumulator_idx..].as_mut());
     }
 
     /// Getter: returns a reference to an accumulator of the blob data read by the rollup
@@ -127,7 +130,9 @@ impl<B: bytes::Buf> CountedBufReader<B> {
 
     /// Contains the total length of the data (length already read + length remaining)
     pub fn total_len(&self) -> usize {
-        self.inner.remaining() + self.accumulator.len()
+        self.inner
+            .remaining()
+            .saturating_add(self.accumulator.len())
     }
 }
 

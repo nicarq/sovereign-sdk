@@ -264,7 +264,7 @@ where
             Some(snapshot_id) => *snapshot_id,
             // Storage requested first time
             None => {
-                let new_snapshot_id = self.latest_snapshot_id + 1;
+                let new_snapshot_id = self.latest_snapshot_id.wrapping_add(1);
                 if let Some(parent_snapshot_id) =
                     self.block_hash_to_snapshot_id.get(&prev_block_hash)
                 {
@@ -318,7 +318,7 @@ where
             }
         };
 
-        self.latest_snapshot_id += 1;
+        self.latest_snapshot_id = self.latest_snapshot_id.wrapping_add(1);
         let new_snapshot_id = self.latest_snapshot_id;
         tracing::debug!(
             block_header = %block_header.display(),

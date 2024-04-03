@@ -24,7 +24,14 @@ use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, PFB_NAMESPAC
 use crate::{BlobWithSender, CelestiaHeader};
 
 // Approximate value, just to make it work.
-const GAS_PER_BYTE: usize = 20;
+// https://github.com/celestiaorg/celestia-app/blob/c90e61d5a2d0c0bd0e123df4ab416f6f0d141b7f/pkg/appconsts/initial_consts.go#L16-L18
+// By default it is 8, but upgraded to 10, to be on the safer side
+const GAS_PER_BYTE: usize = 10;
+// Fixed gas cost for blob calculation. Should be 65_000 in newer Celestia version.
+const FIXED_COST: usize = 75_000;
+// TODO: set dynamically https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/391
+// Unit is uTIA.
+// 1 uTIA = 10^-6 TIA (https://docs.celestia.org/learn/tia#tia-at-a-glance
 const GAS_PRICE: usize = 1;
 
 #[derive(Debug, Clone)]
@@ -248,9 +255,9 @@ impl DaService for CelestiaService {
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
         debug!(bytes_count = blob.len(), "Sending raw data to Celestia");
 
-        let gas_limit = get_gas_limit_for_bytes(blob.len()) as u64;
-        // TODO: Correct fee calculataiont: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
-        let fee = gas_limit * GAS_PRICE as u64;
+        let gas_limit = get_gas_limit_for_bytes(blob.len(), GAS_PER_BYTE) as u64;
+        // TODO: Correct fee calculation: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
+        let fee = gas_limit.saturating_mul(GAS_PRICE as u64);
 
         let blob = JsonBlob::new(self.rollup_batch_namespace, blob.to_vec())?;
         info!(
@@ -275,8 +282,8 @@ impl DaService for CelestiaService {
     }
 
     async fn send_aggregated_zk_proof(&self, aggregated_proof: &[u8]) -> Result<(), Self::Error> {
-        let gas_limit = get_gas_limit_for_bytes(aggregated_proof.len()) as u64;
-        let fee = gas_limit * GAS_PRICE as u64;
+        let gas_limit = get_gas_limit_for_bytes(aggregated_proof.len(), GAS_PER_BYTE) as u64;
+        let fee = gas_limit.saturating_mul(GAS_PRICE as u64);
         let blob = JsonBlob::new(self.rollup_proof_namespace, aggregated_proof.to_vec())?;
 
         let _height = self
@@ -316,15 +323,32 @@ impl DaService for CelestiaService {
     }
 }
 
-// https://docs.celestia.org/learn/submit-data/#fees-and-gas-limits
-fn get_gas_limit_for_bytes(n: usize) -> usize {
-    let fixed_cost = 75000;
+// https://docs.celestia.org/developers/submit-data#fees-and-gas-limits
+// Gas Limit is calculated as a fixed cost (FC) plus the sum of the product of the size of each blob (SSN(Bi))
+// times the share size (SS) and the gas cost per byte blob (GCPBB) for each blob involved in the transaction.
+// Gas Limit = FC + Σ(from i=1 to n) SSN(Bi) * SS * GCPBB
+// where:
+// FC = fixed cost
+// SSN(Bi) = number of shares needed for the i-th blob
+// SS = share size
+// GCPBB = gas cost per byte
+//
+// Note, that often this function is called for calculating single blob gas limit, so we can simplify it to:
+// Gas Limit = SSN(B) * SS * GCPBB + FC
+// To yield optimal gas limit it needs further testing.
+// For example, we are adding fixed cost for each blob, when node adds it to all blobs.
+fn get_gas_limit_for_bytes(n: usize, gas_per_byte: usize) -> usize {
+    debug_assert_ne!(CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, 0);
+    let continuation_shares_needed = n
+        .saturating_sub(FIRST_SPARSE_SHARE_CONTENT_SIZE)
+        .saturating_div(CONTINUATION_SPARSE_SHARE_CONTENT_SIZE);
+    // 1 full share anyway + continuation shares
+    let shares_needed = continuation_shares_needed.saturating_add(1);
 
-    let continuation_shares_needed =
-        n.saturating_sub(FIRST_SPARSE_SHARE_CONTENT_SIZE) / CONTINUATION_SPARSE_SHARE_CONTENT_SIZE;
-    let shares_needed = 1 + continuation_shares_needed + 1; // add one extra, pessimistic
-
-    fixed_cost + shares_needed * SHARE_SIZE * GAS_PER_BYTE
+    shares_needed
+        .saturating_mul(SHARE_SIZE)
+        .saturating_mul(gas_per_byte)
+        .saturating_add(FIXED_COST)
 }
 
 #[cfg(test)]
@@ -340,7 +364,7 @@ mod tests {
     use wiremock::matchers::{bearer_token, body_json, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
-    use super::default_request_timeout_seconds;
+    use super::{default_request_timeout_seconds, GAS_PER_BYTE};
     use crate::da_service::{get_gas_limit_for_bytes, CelestiaConfig, CelestiaService, GAS_PRICE};
     use crate::test_helper::files::*;
     use crate::types::FilteredCelestiaBlock;
@@ -404,7 +428,7 @@ mod tests {
         let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
 
         let blob = [1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
-        let gas_limit = get_gas_limit_for_bytes(blob.len());
+        let gas_limit = get_gas_limit_for_bytes(blob.len(), GAS_PER_BYTE);
 
         // TODO: Fee is hardcoded for now https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
         let expected_body = json!({
@@ -716,7 +740,7 @@ mod tests {
         let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
 
         let zk_proof: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
-        let gas_limit = get_gas_limit_for_bytes(zk_proof.len());
+        let gas_limit = get_gas_limit_for_bytes(zk_proof.len(), GAS_PER_BYTE);
 
         let expected_body = json!({
             "id": 0,
@@ -754,5 +778,82 @@ mod tests {
         da_service.send_aggregated_zk_proof(&zk_proof).await?;
 
         Ok(())
+    }
+
+    #[test]
+    fn test_gas_limit_for_bytes() {
+        // 0 bytes
+        // 1 byte
+        // 100 KB
+        // 500 KB
+        // 1 MB
+        // 5 MB
+        // 10 MB
+        // 100 MB
+        // 1 GB
+        let cases = vec![
+            (0, 80120),
+            (1, 80120),
+            (102400, 1160440),
+            (512000, 5512440),
+            (1048576, 11211000),
+            (5242880, 55765240),
+            (10485760, 111455480),
+            (104857600, 1113910520),
+            (1073741824, 11405796600),
+            (usize::MAX, usize::MAX),
+        ];
+
+        for (blob_size, expected_gas_limit) in cases {
+            let gas_limit = get_gas_limit_for_bytes(blob_size, GAS_PER_BYTE);
+            // To update test uncomment this and comment assert.
+            // Then put it back after data is updated. Don't forget to not replace last use case
+            // println!("({}, {}),", blob_size, gas_limit);
+            assert_eq!(gas_limit, expected_gas_limit);
+        }
+    }
+
+    #[test]
+    fn sanity_check_fee_with_current_testnet() {
+        // https://mocha.celenium.io/tx/7b8dd68a7a8542714dfbb1b655a381d71ce013b0fc406acc3a56b61a116e7253
+        // {
+        //   "id": 3068781,
+        //   "gas_wanted": 904440,
+        //   "gas_used": 395479,
+        //   "hash": "7b8dd68a7a8542714dfbb1b655a381d71ce013b0fc406acc3a56b61a116e7253",
+        //   "fee": "904440",
+        //   "time": "2024-04-01T11:38:39.407177Z",
+        // TX:
+        // {
+        //   "id": 3077971,
+        //   "type": "MsgPayForBlobs",
+        //   "data": {
+        //     "BlobSizes": [
+        //       38617
+        //     ],
+        // }
+
+        let blob_size = 38617;
+        let gas_wanted = 904440;
+        let gas_used = 395479;
+        let gas_used_upper_bound = (gas_wanted as f64 * 1.4) as usize;
+
+        let gas_limit = get_gas_limit_for_bytes(blob_size, GAS_PER_BYTE);
+
+        assert!(gas_limit >= gas_used);
+        assert!(gas_limit <= gas_used_upper_bound);
+    }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10000))]
+        #[test]
+        fn get_gas_limit_for_bytes_does_not_panic_test(
+            blob_size in any::<usize>(),
+            gas_per_bytes in any::<usize>(),
+        ) {
+            let _ = get_gas_limit_for_bytes(blob_size, gas_per_bytes);
+        }
     }
 }

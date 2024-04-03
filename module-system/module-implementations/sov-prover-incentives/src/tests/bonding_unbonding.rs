@@ -3,7 +3,7 @@ use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::Context;
 
 use crate::tests::helpers::{setup, BOND_AMOUNT, S};
-use crate::ProverIncentiveErrors;
+use crate::ProverIncentiveError;
 
 #[test]
 /// Tests that the prover can unbond correctly
@@ -72,7 +72,7 @@ fn test_prover_not_bonded() {
             module
                 .process_proof(proof, &context, &mut working_set)
                 .expect_err("The proof should be rejected"),
-            ProverIncentiveErrors::BondNotHighEnough
+            ProverIncentiveError::BondNotHighEnough
         );
     }
 }

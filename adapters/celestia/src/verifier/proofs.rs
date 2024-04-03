@@ -57,10 +57,21 @@ impl CorrectnessProof {
             let mut nmt = row.merklized();
             while let Some(next_needed_share) = needed_tx_shares.peek_mut() {
                 // If the next needed share falls in this row
-                let row_start_idx = block.square_size() * row_idx;
-                let start_column_number = next_needed_share.share_range.start - row_start_idx;
+                let row_start_idx = block
+                    .square_size()
+                    .checked_mul(row_idx)
+                    .expect("invalid row");
+                let start_column_number = next_needed_share
+                    .share_range
+                    .start
+                    .checked_sub(row_start_idx)
+                    .expect("invalid row");
                 if start_column_number < block.square_size() {
-                    let end_column_number = next_needed_share.share_range.end - row_start_idx;
+                    let end_column_number = next_needed_share
+                        .share_range
+                        .end
+                        .checked_sub(row_start_idx)
+                        .expect("invalid row");
                     if end_column_number <= block.square_size() {
                         let (shares, proof) =
                             nmt.get_range_with_proof(start_column_number..end_column_number);
@@ -84,7 +95,11 @@ impl CorrectnessProof {
                             start_offset: next_needed_share.start_offset,
                             start_share_idx: next_needed_share.share_range.start,
                         });
-                        next_needed_share.share_range.start = block.square_size() * (row_idx + 1);
+                        next_needed_share.share_range.start = row_idx
+                            .checked_add(1)
+                            .expect("invalid row id")
+                            .checked_mul(block.square_size())
+                            .expect("invalid square size");
                         next_needed_share.start_offset = 0;
 
                         break;

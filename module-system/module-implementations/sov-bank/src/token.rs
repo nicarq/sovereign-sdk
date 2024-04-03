@@ -167,8 +167,14 @@ impl<S: sov_modules_api::Spec> Token<S> {
             .check_balance(from, amount, working_set)
             .with_context(|| format!("Incorrect balance on={} for token={}", from, self.name))?;
 
-        // We can't overflow here because the sum must be smaller or eq to `total_supply` which is u64.
-        let to_balance = self.balances.get(&to, working_set).unwrap_or_default() + amount;
+        let to_balance = self
+            .balances
+            .get(&to, working_set)
+            .unwrap_or_default()
+            .checked_add(amount)
+            .with_context(|| {
+                format!("Account balance overflow on={} for token={}", to, self.name)
+            })?;
 
         self.balances.set(&from, &from_balance, working_set);
         self.balances.set(&to, &to_balance, working_set);

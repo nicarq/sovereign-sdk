@@ -125,7 +125,8 @@ pub fn split_tx_for_storage<R: Serialize>(
     tx: TransactionReceipt<R>,
     event_offset: u64,
 ) -> (StoredTransaction, Vec<StoredEvent>) {
-    let event_range = EventNumber(event_offset)..EventNumber(event_offset + tx.events.len() as u64);
+    let event_range =
+        EventNumber(event_offset)..EventNumber(event_offset.saturating_add(tx.events.len() as u64));
     let tx_for_storage = StoredTransaction {
         hash: tx.tx_hash,
         events: event_range,
