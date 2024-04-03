@@ -146,8 +146,10 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
 
-        self.chain_state
-            .set_next_visible_slot_number(&(working_set.virtual_slot() + 2), working_set);
+        self.chain_state.set_next_visible_slot_number(
+            &(working_set.virtual_slot().wrapping_add(2)),
+            working_set,
+        );
 
         batches_to_process
     }
@@ -162,8 +164,10 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        self.chain_state
-            .set_next_visible_slot_number(&(working_set.current_slot() + 1), working_set);
+        self.chain_state.set_next_visible_slot_number(
+            &(working_set.current_slot().wrapping_add(1)),
+            working_set,
+        );
         let mut batches = Vec::new();
         for blob in current_blobs.into_iter() {
             if !self.blob_is_allowed(blob, working_set.inner) {

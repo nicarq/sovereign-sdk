@@ -88,11 +88,14 @@ pub trait Gas: GasArray {
                 let used = *used as i64;
                 let base_price = *base_price as i64;
 
-                // avoid undeterministic behavior of floating pointers
-                let elasticity = (target / maximum_elasticity).max(1);
+                // avoid nondeterministic behavior of floating pointers
+                let elasticity = target.checked_div(maximum_elasticity).unwrap_or(1).max(1);
                 let factor = elasticity.saturating_add(used).saturating_sub(target);
                 let value = base_price.saturating_mul(factor);
-                let value = (value / elasticity) as u64;
+                let value = value
+                    .checked_div(elasticity)
+                    .expect("the computed elasticity is capped to minimum 1")
+                    as u64;
 
                 *price = (*minimum_price).max(value);
             });
@@ -163,16 +166,9 @@ macro_rules! impl_gas_dimensions {
             }
 
             fn scalar_division(&mut self, scalar: u64) -> &mut Self {
-                self.0.iter_mut().for_each(|s| {
-                    // TO CHECK: safe division that doesn't panic on division by zero
-                    *s = {
-                        if scalar == 0 {
-                            0
-                        } else {
-                            *s / scalar
-                        }
-                    }
-                });
+                self.0
+                    .iter_mut()
+                    .for_each(|s| *s = s.checked_div(scalar).unwrap_or(0));
                 self
             }
 
@@ -340,62 +336,99 @@ where
     }
 }
 
-#[test]
-fn gas_elastic_price_wont_overflow() {
-    let elasticity = 1;
-    let target: GasUnit<2> = [2, 2].into();
-    let used = [u64::MAX, u64::MAX].into();
-    let base = [3, 3].into();
-    let minimum = [1, 1].into();
-    let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert_eq!(price.as_slice(), used.as_slice());
-}
+    #[test]
+    fn gas_elastic_price_wont_overflow() {
+        let elasticity = 1;
+        let target: GasUnit<2> = [2, 2].into();
+        let used = [u64::MAX, u64::MAX].into();
+        let base = [3, 3].into();
+        let minimum = [1, 1].into();
+        let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
 
-#[test]
-fn gas_elastic_minimum_price_is_respected() {
-    let elasticity = 1;
-    let target: GasUnit<2> = [13, 5].into();
-    let used = [3, 2].into();
-    let base = [7, 5].into();
-    let minimum = [2, 2].into();
-    let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
+        assert_eq!(price.as_slice(), used.as_slice());
+    }
 
-    assert_eq!(price.as_slice(), minimum.as_slice());
-}
+    #[test]
+    fn gas_elastic_minimum_price_is_respected() {
+        let elasticity = 1;
+        let target: GasUnit<2> = [13, 5].into();
+        let used = [3, 2].into();
+        let base = [7, 5].into();
+        let minimum = [2, 2].into();
+        let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
 
-#[test]
-fn gas_elastic_price_will_decrease() {
-    let elasticity = 1;
-    let target: GasUnit<2> = [17, 11].into();
-    let used = [16, 11].into();
-    let base = [10, 10].into();
-    let minimum = [1, 1].into();
-    let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
+        assert_eq!(price.as_slice(), minimum.as_slice());
+    }
 
-    assert_eq!(price, [9, 10].into());
-}
+    #[test]
+    fn gas_elastic_price_will_decrease() {
+        let elasticity = 1;
+        let target: GasUnit<2> = [17, 11].into();
+        let used = [16, 11].into();
+        let base = [10, 10].into();
+        let minimum = [1, 1].into();
+        let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
 
-#[test]
-fn gas_elastic_price_will_increase() {
-    let elasticity = 1;
-    let target: GasUnit<2> = [17, 11].into();
-    let used = [17, 13].into();
-    let base = [10, 10].into();
-    let minimum = [1, 1].into();
-    let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
+        assert_eq!(price, [9, 10].into());
+    }
 
-    assert_eq!(price, [10, 11].into());
-}
+    #[test]
+    fn gas_elastic_price_will_increase() {
+        let elasticity = 1;
+        let target: GasUnit<2> = [17, 11].into();
+        let used = [17, 13].into();
+        let base = [10, 10].into();
+        let minimum = [1, 1].into();
+        let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
 
-#[test]
-fn gas_elasticity_increases_threshold() {
-    let elasticity = 5;
-    let target: GasUnit<2> = [10, 10].into();
-    let used = [100, 100].into();
-    let base = [10, 10].into();
-    let minimum = [1, 1].into();
-    let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
+        assert_eq!(price, [10, 11].into());
+    }
 
-    assert_eq!(price, [460, 460].into());
+    #[test]
+    fn gas_elasticity_max_elasticity_0() {
+        let elasticity = 0;
+        let target: GasUnit<2> = [10, 10].into();
+        let used = [100, 100].into();
+        let base = [10, 10].into();
+        let minimum = [1, 1].into();
+        let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
+
+        assert_eq!(price, [910, 910].into());
+    }
+
+    #[test]
+    fn gas_elasticity_increases_threshold() {
+        let elasticity = 5;
+        let target: GasUnit<2> = [10, 10].into();
+        let used = [100, 100].into();
+        let base = [10, 10].into();
+        let minimum = [1, 1].into();
+        let price = Gas::elastic_price(elasticity, &target, &used, &base, &minimum);
+
+        assert_eq!(price, [460, 460].into());
+    }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(30000))]
+        #[test]
+        fn gas_elasticity_does_not_panic_test(
+            maximum_elasticity in any::<i64>(),
+            target in prop::array::uniform2(any::<u64>()),
+            used in prop::array::uniform2(any::<u64>()),
+            base_price in prop::array::uniform2(any::<u64>()),
+            minimum_price in prop::array::uniform2(any::<u64>()),
+        ) {
+            let target: GasUnit<2> = target.into();
+            let used = used.into();
+            let base_price = base_price.into();
+            let minimum_price = minimum_price.into();
+            let _ = Gas::elastic_price(maximum_elasticity, &target, &used, &base_price, &minimum_price);
+        }
+    }
 }

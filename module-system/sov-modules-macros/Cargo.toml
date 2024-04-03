@@ -55,11 +55,11 @@ anyhow = { workspace = true }
 [features]
 default = []
 native = [
-    "jsonrpsee",
-    "sov-bank/native",
-    "sov-modules-api/native",
-    "sov-modules-core/native",
-    "sov-modules-macros/native",
-    "sov-rollup-interface/native",
-    "sov-state/native",
+	"jsonrpsee",
+	"sov-bank/native",
+	"sov-modules-api/native",
+	"sov-modules-core/native",
+	"sov-modules-macros/native",
+	"sov-rollup-interface/native",
+	"sov-state/native",
 ]

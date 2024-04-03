@@ -55,7 +55,7 @@ pub fn build_create_collection_transactions(
                 get_create_collection_message(&creator_pk.to_address(), collection_name, base_uri),
                 *start_nonce,
             );
-            *start_nonce += 1;
+            *start_nonce = start_nonce.wrapping_add(1);
             tx
         })
         .collect()
@@ -84,8 +84,8 @@ pub fn build_mint_transactions(
                 ),
                 *start_nonce,
             );
-            *start_nft_id += 1;
-            *start_nonce += 1;
+            *start_nft_id = start_nft_id.wrapping_add(1);
+            *start_nonce = start_nonce.wrapping_add(1);
             tx
         })
         .collect()
@@ -106,7 +106,7 @@ pub fn build_transfer_transactions(
                 get_transfer_nft_message(collection_address, nft_id, &new_owner),
                 *start_nonce,
             );
-            *start_nonce += 1;
+            *start_nonce = start_nonce.wrapping_add(1);
             tx
         })
         .collect()

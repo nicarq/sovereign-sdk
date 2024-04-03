@@ -8,5 +8,8 @@ pub type BoxError = anyhow::Error;
 pub fn read_varint(mut bytes: impl Buf) -> Result<(u64, usize), DecodeError> {
     let original_len = bytes.remaining();
     let varint = decode_varint(&mut bytes)?;
-    Ok((varint, original_len - bytes.remaining()))
+    let amount = original_len
+        .checked_sub(bytes.remaining())
+        .ok_or_else(|| DecodeError::new("invalid buffer state"))?;
+    Ok((varint, amount))
 }

@@ -36,9 +36,12 @@ where
             .unwrap_or_default();
 
         let new_pending_env = BlockEnv {
-            number: parent_block.header.number + 1,
+            number: parent_block.header.number.wrapping_add(1),
             coinbase: cfg.coinbase,
-            timestamp: parent_block.header.timestamp + cfg.block_timestamp_delta,
+            timestamp: parent_block
+                .header
+                .timestamp
+                .saturating_add(cfg.block_timestamp_delta),
             // WARNING: `prevrandao`` value is predictable up to [`DEFERRED_SLOTS_COUNT`] in advance,
             // Users should follow the same best practice that they would on Ethereum and use future randomness.
             // See: https://eips.ethereum.org/EIPS/eip-4399#tips-for-application-developers
@@ -69,7 +72,7 @@ where
             .expect("Head block should always be set")
             .seal();
 
-        let expected_block_number = parent_block.header.number + 1;
+        let expected_block_number = parent_block.header.number.wrapping_add(1);
         assert_eq!(
             block_env.number, expected_block_number,
             "Pending head must be set to block {}, but found block {}",
@@ -131,7 +134,8 @@ where
 
         let block = Block {
             header,
-            transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
+            transactions: start_tx_index
+                ..start_tx_index.saturating_add(pending_transactions.len() as u64),
         };
 
         self.head.set(&block, working_set);

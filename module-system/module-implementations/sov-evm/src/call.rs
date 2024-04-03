@@ -47,7 +47,9 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
             .as_ref()
             .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
         let log_index_start = previous_transaction.as_ref().map_or(0u64, |tx| {
-            tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
+            tx.receipt
+                .log_index_start
+                .saturating_add(tx.receipt.receipt.logs.len() as u64)
         });
 
         let receipt = match result {
@@ -64,7 +66,8 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
                     receipt: reth_primitives::Receipt {
                         tx_type: evm_tx_recovered.tx_type(),
                         success: is_success,
-                        cumulative_gas_used: previous_transaction_cumulative_gas_used + gas_used,
+                        cumulative_gas_used: previous_transaction_cumulative_gas_used
+                            .saturating_add(gas_used),
                         logs,
                     },
                     gas_used,
@@ -130,7 +133,7 @@ pub(crate) fn get_spec_id(spec: Vec<(u64, SpecId)>, block_number: u64) -> SpecId
         Ok(index) => spec[index].1,
         Err(index) => {
             if index > 0 {
-                spec[index - 1].1
+                spec[index.checked_sub(1).expect("invalid spec index")].1
             } else {
                 // this should never happen as we cover this in genesis
                 panic!("EVM spec must start from block 0")

@@ -1,7 +1,7 @@
 use core::result::Result::Ok;
 use std::fmt::Debug;
 
-use anyhow::ensure;
+use anyhow::{ensure, Context as AnyhowContext};
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::de::DeserializeOwned;
@@ -323,8 +323,9 @@ where
             .get(&height, working_set)
             .unwrap_or_default();
 
+        let new_value = curr_reward_value.saturating_add(reward);
         self.bad_transition_pool
-            .set(&height, &(curr_reward_value + reward), working_set);
+            .set(&height, &new_value, working_set);
 
         AttesterIncentiveErrors::UserSlashed(reason)
     }
@@ -402,7 +403,12 @@ where
         // Update our record of the total bonded amount for the sender.
         // This update is infallible, so no value can be destroyed.
         let old_balance = balances.get(user_address, working_set).unwrap_or_default();
-        let total_balance = old_balance + bond_amount;
+        let total_balance = old_balance
+            .checked_add(bond_amount)
+            .with_context(|| {
+                anyhow::anyhow!("The total balance overflows with the given operation")
+            })
+            .map_err(|_| AttesterIncentiveErrors::BondTransferFailure)?;
         balances.set(user_address, &total_balance, working_set);
 
         // Emit the bonding event
@@ -751,7 +757,9 @@ where
         );
 
         // Update the max_attested_height in case the blocks have already been finalized
-        let new_height_to_attest = last_attested_height + 1;
+        let new_height_to_attest = last_attested_height
+            .checked_add(1)
+            .expect("reached end of the chain");
 
         // Minimum height at which the proof of bond can be valid
         let min_height = new_height_to_attest.saturating_sub(finality);

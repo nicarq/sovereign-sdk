@@ -114,7 +114,15 @@ impl DaService for RngDaService {
             generate_create_token_payload(0)
         } else {
             // generating the transfer transactions
-            generate_transfers(num_txns, (block.header.height() - 2) * (num_txns as u64))
+            generate_transfers(
+                num_txns,
+                block
+                    .header
+                    .height()
+                    .checked_sub(2)
+                    .expect("invalid block height")
+                    .saturating_mul(num_txns as u64),
+            )
         };
 
         let address = MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS);
@@ -174,7 +182,7 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
     let (sa, pk) = sender_address_with_pkey();
     let token_id = sov_bank::get_token_id::<TestSpec>(token_name, &sa, 11);
     let mut message_vec = vec![];
-    for i in 1..(n + 1) {
+    for i in 1..n.saturating_add(1) {
         let priv_key = TestPrivateKey::generate();
         let address: <TestSpec as Spec>::Address = priv_key.pub_key().to_address();
         let msg: sov_bank::CallMessage<TestSpec> = sov_bank::CallMessage::<TestSpec>::Transfer {
@@ -193,7 +201,7 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
             DEFAULT_GAS_TIP,
             DEFAULT_GAS_LIMIT,
             DEFAULT_MAX_GAS_PRICE,
-            start_nonce + (i as u64),
+            start_nonce.wrapping_add(i as u64),
         );
         let ser_tx = tx.try_to_vec().unwrap();
         message_vec.push(ser_tx);

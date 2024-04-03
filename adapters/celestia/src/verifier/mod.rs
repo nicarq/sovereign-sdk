@@ -238,14 +238,20 @@ impl da::DaVerifier for CelestiaVerifier {
             // Verify each sub-proof and flatten the shares back into a sequential array
             // First, enforce that the sub-proofs cover a contiguous range of shares
             for i in 1..tx_proof.proof.len() {
-                let l = &tx_proof.proof[i - 1];
+                let l = &tx_proof.proof[i.checked_sub(1).expect("invalid tx proof len")];
                 let r = &tx_proof.proof[i];
-                assert_eq!(l.start_share_idx + l.shares.len(), r.start_share_idx);
+                assert_eq!(
+                    l.start_share_idx.saturating_add(l.shares.len()),
+                    r.start_share_idx
+                );
             }
             let mut tx_shares = Vec::new();
             // Then, verify the sub proofs
             for sub_proof in tx_proof.proof.into_iter() {
-                let row_num = sub_proof.start_share_idx / square_size;
+                let row_num = sub_proof
+                    .start_share_idx
+                    .checked_div(square_size)
+                    .expect("the square size is invalid");
                 let root = &block_header.dah.row_roots[row_num];
                 sub_proof
                     .proof
@@ -279,7 +285,8 @@ impl da::DaVerifier for CelestiaVerifier {
                 let cursor = std::io::Cursor::new(&tx_data);
                 read_varint(cursor).expect("tx must be length prefixed")
             };
-            let mut cursor = std::io::Cursor::new(&tx_data[len_of_len..len as usize + len_of_len]);
+            let mut cursor =
+                std::io::Cursor::new(&tx_data[len_of_len..len_of_len.saturating_add(len as usize)]);
 
             let pfb = pfb_from_iter(&mut cursor, len as usize)
                 .map_err(|_| ValidationError::InvalidEtxProof("invalid pfb"))?;

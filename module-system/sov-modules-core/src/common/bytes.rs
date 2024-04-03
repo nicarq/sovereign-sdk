@@ -190,14 +190,15 @@ impl ModulePrefix {
     fn combine_prefix(&self) -> Vec<u8> {
         let storage_name_len = self
             .storage_name
-            .map(|name| name.len() + DOMAIN_SEPARATOR.len())
+            .map(|name| name.len().saturating_add(DOMAIN_SEPARATOR.len()))
             .unwrap_or_default();
 
         let mut combined_prefix = Vec::with_capacity(
-            self.module_path.len()
-                + self.module_name.len()
-                + 2 * DOMAIN_SEPARATOR.len()
-                + storage_name_len,
+            self.module_path
+                .len()
+                .saturating_add(self.module_name.len())
+                .saturating_add(DOMAIN_SEPARATOR.len().saturating_mul(2))
+                .saturating_add(storage_name_len),
         );
 
         combined_prefix.extend(self.module_path.as_bytes());

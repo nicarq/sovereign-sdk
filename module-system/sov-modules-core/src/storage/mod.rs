@@ -212,7 +212,7 @@ impl SlotKey {
         let encoded_key = codec.encode_key_like(key);
         let encoded_key = AlignedVec::new(encoded_key);
 
-        let full_key = Vec::<u8>::with_capacity(prefix.len() + encoded_key.len());
+        let full_key = Vec::<u8>::with_capacity(prefix.len().saturating_add(encoded_key.len()));
         let mut full_key = AlignedVec::new(full_key);
         full_key.extend(prefix.as_aligned_vec());
         full_key.extend(&encoded_key);

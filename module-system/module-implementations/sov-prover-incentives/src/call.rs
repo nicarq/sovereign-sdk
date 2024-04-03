@@ -1,6 +1,7 @@
 use std::cmp::max;
 use std::fmt::Debug;
 
+use anyhow::{Context as AnyhowContext, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
@@ -30,7 +31,7 @@ pub enum CallMessage {
 
 /// Error raised while processing the attester incentives
 #[derive(Debug, Error, PartialEq)]
-pub enum ProverIncentiveErrors {
+pub enum ProverIncentiveError {
     #[error("The bond is not high enough")]
     /// The bond is below the minimum bond
     BondNotHighEnough,
@@ -47,9 +48,13 @@ pub enum ProverIncentiveErrors {
     This is a bug")]
     /// An error occurred when trying to mint the reward token
     TransferFailure,
+
+    /// An error when total bond value overflow or underflow
+    #[error("Error when trying to top up bonded amount and it overflow or underflow")]
+    BondArithmeticsError,
 }
 
-impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
+impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// The burn rate of the reward price for the provers.
     /// The burn rate is a percentage of the base fee that is burned - this prevents provers from proving empty blocks.
     pub(crate) const fn burn_rate(&self) -> BurnRate {
@@ -58,7 +63,6 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         BurnRate::new_unchecked(PERCENT_BASE_FEE_TO_BURN)
     }
-
     /// A helper function for the `bond_prover` call. Also used to bond provers
     /// during genesis when no context is available.
     pub(super) fn bond_prover_helper(
@@ -66,7 +70,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         bond_amount: u64,
         prover: &S::Address,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<CallResponse, ProverIncentiveErrors> {
+    ) -> Result<CallResponse, ProverIncentiveError> {
         // Transfer the bond amount from the sender to the module's address.
         // On failure, no state is changed
         let coins = Coins {
@@ -75,15 +79,23 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         };
         self.bank
             .transfer_from(prover, self.id.to_payable(), coins, working_set)
-            .map_err(|_| ProverIncentiveErrors::BondTransferFailure)?;
+            .map_err(|_| ProverIncentiveError::BondTransferFailure)?;
 
-        // Update our record of the total bonded amount for the sender.
-        // This update is infallible, so no value can be destroyed.
+        // Check that total balance does not overflow before doing transfer.
         let old_balance = self
             .bonded_provers
             .get(prover, working_set)
             .unwrap_or_default();
-        let total_balance = old_balance + bond_amount;
+
+        let total_balance = old_balance
+            .checked_add(bond_amount)
+            .with_context(|| {
+                anyhow::anyhow!("The total balance overflows with the given operation")
+            })
+            .map_err(|_e| ProverIncentiveError::BondArithmeticsError)?;
+
+        // Update our record of the total bonded amount for the sender.
+        // This update is infallible, so no value can be destroyed.
         self.bonded_provers.set(prover, &total_balance, working_set);
 
         // Emit the bonding event
@@ -106,7 +118,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         bond_amount: u64,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<sov_modules_api::CallResponse, ProverIncentiveErrors> {
+    ) -> Result<CallResponse, ProverIncentiveError> {
         self.bond_prover_helper(bond_amount, context.sender(), working_set)
     }
 
@@ -115,7 +127,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<sov_modules_api::CallResponse, ProverIncentiveErrors> {
+    ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
         if let Some(old_balance) = self.bonded_provers.get(context.sender(), working_set) {
             self.transfer_to_prover(old_balance, context, working_set)?;
@@ -234,7 +246,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         total_reward: u64,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<(), ProverIncentiveErrors> {
+    ) -> Result<(), ProverIncentiveError> {
         let coins = Coins {
             token_id: GAS_TOKEN_ID,
             amount: total_reward,
@@ -243,7 +255,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         // We can transfer the reward from the `ProverIncentives` module to the prover's account.
         self.bank
             .transfer_from(self.id.to_payable(), context.sender(), coins, working_set)
-            .map_err(|_| ProverIncentiveErrors::TransferFailure)?;
+            .map_err(|_| ProverIncentiveError::TransferFailure)?;
 
         Ok(())
     }
@@ -257,7 +269,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         old_balance: u64,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<u64, ProverIncentiveErrors> {
+    ) -> Result<u64, ProverIncentiveError> {
         // Let's compute the total reward
         let mut total_reward = 0;
 
@@ -337,12 +349,12 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         proof: &[u8],
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<sov_modules_api::CallResponse, ProverIncentiveErrors> {
+    ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
         // Revert if they aren't bonded
         let old_balance = match self.bonded_provers.get(context.sender(), working_set) {
             Some(balance) => balance,
-            None => return Err(ProverIncentiveErrors::ProverNotBonded),
+            None => return Err(ProverIncentiveError::ProverNotBonded),
         };
 
         // Check that the prover has enough balance to process the proof.
@@ -352,18 +364,19 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .expect("The minimum bond should be set at genesis");
 
         if old_balance < minimum_bond {
-            return Err(ProverIncentiveErrors::BondNotHighEnough);
+            return Err(ProverIncentiveError::BondNotHighEnough);
         };
+        let new_balance = old_balance.checked_sub(minimum_bond).expect(
+            "Underflow happened, while it should've been checked previously. This is a bug.",
+        );
+        // Lock the prover's bond amount.
+        self.bonded_provers
+            .set(context.sender(), &new_balance, working_set);
 
         let code_commitment = self
             .commitment_of_allowed_verifier_method
             .get(working_set)
             .expect("The code commitment should be set at genesis");
-
-        // Lock the prover's bond amount.
-        self.bonded_provers
-            .set(context.sender(), &(old_balance - minimum_bond), working_set);
-
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         let verification_result =
             <S as Spec>::OuterZkvm::verify::<AggregatedProofPublicData>(proof, &code_commitment);

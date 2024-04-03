@@ -154,7 +154,15 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         token
             .burn(owner, coins.amount, working_set)
             .with_context(context_logger)?;
-        token.total_supply -= coins.amount;
+        token.total_supply = token
+            .total_supply
+            .checked_sub(coins.amount)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "The tokens id={} total supply is underflowing",
+                    coins.token_id
+                )
+            })?;
         self.tokens.set(&coins.token_id, &token, working_set);
 
         self.emit_event(

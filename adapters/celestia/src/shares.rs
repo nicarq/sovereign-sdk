@@ -350,14 +350,16 @@ impl std::io::Read for BlobIterator {
 
 impl Buf for BlobIterator {
     fn remaining(&self) -> usize {
-        self.sequence_len - self.consumed
+        self.sequence_len
+            .checked_sub(self.consumed)
+            .expect("BlobIterator has consumed more than available bytes")
     }
 
     fn chunk(&self) -> &[u8] {
         let chunk = if self.current.has_remaining() {
             self.current.as_ref()
         } else {
-            // If the current share is exhasted, try to take the data from the next one
+            // If the current share is exhausted, try to take the data from the next one
             // if there is no next chunk, we're done. Return the empty slice.
             if self.current_idx + 1 >= self.blob.0.len() {
                 return &[];
@@ -431,7 +433,7 @@ impl<'a> Buf for BlobRefIterator<'a> {
         let chunk = if self.current.has_remaining() {
             self.current.as_ref()
         } else {
-            // If the current share is exhasted, try to take the data from the next one
+            // If the current share is exhausted, try to take the data from the next one
             // if there is no next chunk, we're done. Return the empty slice.
             if self.current_idx + 1 >= self.shares.len() {
                 return &[];
@@ -474,7 +476,7 @@ pub struct NamespaceIterator<'a> {
     shares: &'a NamespaceGroup,
 }
 
-impl<'a> std::iter::Iterator for NamespaceIterator<'a> {
+impl<'a> Iterator for NamespaceIterator<'a> {
     type Item = BlobRef<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
