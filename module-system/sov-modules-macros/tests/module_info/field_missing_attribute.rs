@@ -2,7 +2,7 @@ use sov_modules_api::{Context, Module, ModuleId, ModuleInfo, Spec, StateMap, Wor
 
 #[derive(ModuleInfo)]
 struct TestStruct<S: Spec> {
-    #[address]
+    #[id]
     pub id: ModuleId,
 
     test_state1: StateMap<u32, u32>,

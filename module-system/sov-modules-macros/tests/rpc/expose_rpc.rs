@@ -6,7 +6,7 @@ use sov_modules_api::{
 
 #[derive(ModuleInfo)]
 pub struct QueryModule<S: Spec> {
-    #[address]
+    #[id]
     pub id: ModuleId,
 
     #[state]

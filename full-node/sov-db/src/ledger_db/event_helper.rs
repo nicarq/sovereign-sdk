@@ -7,27 +7,27 @@ use sov_rollup_interface::rpc::{
 use sov_rollup_interface::stf::EventKey;
 
 use crate::ledger_db::LedgerDB;
-use crate::schema::tables::{EventByKey, EventByModuleAddress};
-use crate::schema::types::{EventNumber, ModuleAddress, TxNumber};
+use crate::schema::tables::{EventByKey, EventByModuleId};
+use crate::schema::types::{EventNumber, ModuleIdBytes, TxNumber};
 
 fn event_match_helper(
     scanned_key: &EventKey,
     provided_key: &str,
     scanned_address: &[u8],
-    provided_address: &Option<Vec<u8>>,
+    provided_id: &Option<Vec<u8>>,
     scanned_txn_num: u64,
     provided_txn_range: Option<(u64, u64)>,
 ) -> bool {
     let event_key_match = scanned_key.inner().as_slice() == provided_key.as_bytes();
-    let module_address_match = match provided_address {
+    let module_id_match = match provided_id {
         Some(addr) => addr.as_slice() == scanned_address,
-        None => true, // If module_address is not provided, always true
+        None => true, // If module_id is not provided, always true
     };
     let txn_num_match = match provided_txn_range {
         Some(txn_range) => scanned_txn_num >= txn_range.0 && scanned_txn_num <= txn_range.1,
         None => true, // If transaction_num is not provided, always true
     };
-    event_key_match && module_address_match && txn_num_match
+    event_key_match && module_id_match && txn_num_match
 }
 
 pub(crate) fn get_events_by_key_helper<
@@ -35,14 +35,14 @@ pub(crate) fn get_events_by_key_helper<
 >(
     ledger_db: &LedgerDB,
     event_key: &str,
-    module_address: Option<ModuleId>,
+    module_id: Option<ModuleId>,
     txn_range: Option<(u64, u64)>,
     num_events: usize,
     next: Option<&str>,
 ) -> Result<PaginatedEventResponse, Error> {
-    let module_address_vec = match module_address {
+    let module_id_vec = match module_id {
         None => vec![],
-        Some(module_address) => module_address.as_bytes().to_vec(),
+        Some(module_id) => module_id.as_bytes().to_vec(),
     };
 
     let scan_key_start = match next {
@@ -54,7 +54,7 @@ pub(crate) fn get_events_by_key_helper<
         }
         None => (
             EventKey::new(event_key.as_bytes()),
-            module_address_vec.clone(),
+            module_id_vec.clone(),
             TxNumber(txn_range.unwrap_or((0u64, 0u64)).0),
             EventNumber(0u64),
         ),
@@ -68,14 +68,14 @@ pub(crate) fn get_events_by_key_helper<
         paginated_query_response.key_value,
         paginated_query_response.next,
     );
-    let event_keys: Vec<((EventKey, ModuleAddress, TxNumber, EventNumber), ())> = event_keys
+    let event_keys: Vec<((EventKey, ModuleIdBytes, TxNumber, EventNumber), ())> = event_keys
         .into_iter()
         .filter(|((e_key, m_address, t_num, _), _)| {
             event_match_helper(
                 e_key,
                 event_key,
                 m_address,
-                &module_address.map(|_| module_address_vec.clone()),
+                &module_id.map(|_| module_id_vec.clone()),
                 t_num.0,
                 txn_range,
             )
@@ -97,7 +97,7 @@ pub(crate) fn get_events_by_key_helper<
                 &next_key.0,
                 event_key,
                 next_key.1.as_slice(),
-                &module_address.map(|_| module_address_vec.clone()),
+                &module_id.map(|_| module_id_vec.clone()),
                 next_key.2 .0,
                 txn_range,
             ) {
@@ -114,15 +114,15 @@ pub(crate) fn get_events_by_key_helper<
     })
 }
 
-pub(crate) fn get_events_by_module_address_helper<
+pub(crate) fn get_events_by_module_id_helper<
     E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
 >(
     ledger_db: &LedgerDB,
-    module_address: ModuleId,
+    module_id: ModuleId,
     num_events: usize,
     next: Option<&str>,
 ) -> Result<PaginatedEventResponse, Error> {
-    let module_address_vec = module_address.as_bytes().to_vec();
+    let module_id_vec = module_id.as_bytes().to_vec();
 
     let scan_key_start = match next {
         Some(start_key) => {
@@ -131,25 +131,21 @@ pub(crate) fn get_events_by_module_address_helper<
                 BorshDeserialize::try_from_slice(&key_bytes)?;
             composite_key
         }
-        None => (
-            module_address_vec.clone(),
-            TxNumber(0u64),
-            EventNumber(0u64),
-        ),
+        None => (module_id_vec.clone(), TxNumber(0u64), EventNumber(0u64)),
     };
 
     let paginated_query_response = ledger_db
         .db
-        .get_n_from_first_match::<EventByModuleAddress>(&scan_key_start, num_events)?;
+        .get_n_from_first_match::<EventByModuleId>(&scan_key_start, num_events)?;
 
     let (event_keys, next_key) = (
         paginated_query_response.key_value,
         paginated_query_response.next,
     );
 
-    let event_keys: Vec<((ModuleAddress, TxNumber, EventNumber), ())> = event_keys
+    let event_keys: Vec<((ModuleIdBytes, TxNumber, EventNumber), ())> = event_keys
         .into_iter()
-        .filter(|((m_address, _, _), _)| m_address.as_slice() == module_address_vec.as_slice())
+        .filter(|((m_address, _, _), _)| m_address.as_slice() == module_id_vec.as_slice())
         .collect();
 
     let event_ids: Vec<EventIdentifier> = event_keys

@@ -5,8 +5,7 @@ use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
 
 use crate::{Amount, ProverIncentives};
 
-/// Configuration of the prover incentives module. Specifies the
-/// address of the bonding token, the minimum bond, the commitment to
+/// Configuration of the prover incentives module. Specifies the minimum bond, the commitment to
 /// the allowed verifier method and a set of initial provers with their
 /// bonding amount.
 #[derive(Debug, Clone, Serialize, Deserialize)]

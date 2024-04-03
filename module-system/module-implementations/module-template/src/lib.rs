@@ -25,7 +25,7 @@ pub struct ExampleModuleConfig {}
 #[derive(ModuleInfo)]
 pub struct ExampleModule<S: sov_modules_api::Spec> {
     /// Id of the module.
-    #[address]
+    #[id]
     pub id: ModuleId,
 
     /// Some value kept in the state.

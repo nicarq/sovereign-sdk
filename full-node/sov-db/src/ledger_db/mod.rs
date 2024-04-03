@@ -12,7 +12,7 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByModuleAddress, EventByNumber, ProofByUniqueId,
+    BatchByHash, BatchByNumber, EventByKey, EventByModuleId, EventByNumber, ProofByUniqueId,
     SlotByHash, SlotByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
@@ -247,19 +247,18 @@ impl LedgerDB {
         tx_number: TxNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<(), anyhow::Error> {
-        let module_address = event.module_address().inner();
+        let module_id = event.module_id().inner();
         schema_batch.put::<EventByNumber>(event_number, event)?;
         schema_batch.put::<EventByKey>(
             &(
                 event.key().clone(),
-                module_address.clone(),
+                module_id.clone(),
                 tx_number,
                 *event_number,
             ),
             &(),
         )?;
-        schema_batch
-            .put::<EventByModuleAddress>(&(module_address.clone(), tx_number, *event_number), &())
+        schema_batch.put::<EventByModuleId>(&(module_id.clone(), tx_number, *event_number), &())
     }
 
     /// Commits a slot to the database by inserting its events, transactions, and batches before

@@ -8,7 +8,7 @@ use sov_modules_api::macros::rpc_gen;
 #[derive(sov_modules_api::ModuleInfo)]
 pub struct TestStruct<S: sov_modules_api::Spec> {
     /// docs
-    #[address]
+    #[id]
     pub(crate) id: ModuleId,
 
     #[phantom]

@@ -1,4 +1,4 @@
-//! Module address definitions
+//! Module id definitions
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::{BasicAddress, RollupAddress};
@@ -240,7 +240,7 @@ macro_rules! impl_hash32_type {
 
 impl_bech32_conversion!(Address, AddressBech32, ADDRESS_PREFIX);
 
-/// Module address representation
+/// Module id representation
 #[cfg_attr(all(feature = "native", feature = "std"), derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(PartialEq, Hash, Clone, Copy, Eq, BorshDeserialize, BorshSerialize)]

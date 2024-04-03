@@ -21,7 +21,7 @@ pub use crate::event::Event;
 /// Module for non-fungible tokens (NFT).
 /// Each token is represented by a unique ID.
 pub struct NonFungibleToken<S: Spec> {
-    #[address]
+    #[id]
     /// The id of the NonFungibleToken module.
     id: ModuleId,
 

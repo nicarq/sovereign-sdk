@@ -2,7 +2,7 @@ use std::hash::Hasher;
 
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{ModuleInfo, ModuleId, Spec, WorkingSet};
+use sov_modules_api::{ModuleId, ModuleInfo, Spec, WorkingSet};
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
 
@@ -17,7 +17,7 @@ where
         + serde::de::DeserializeOwned
         + 'static,
 {
-    #[address]
+    #[id]
     pub(crate) id: ModuleId,
     #[state]
     pub(crate) data: ::sov_modules_api::StateValue<D>,

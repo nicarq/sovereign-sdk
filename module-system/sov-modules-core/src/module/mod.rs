@@ -84,7 +84,7 @@ pub trait ModuleInfo {
     /// Execution context.
     type Spec: Spec;
 
-    /// Returns address of the module.
+    /// Returns id of the module.
     fn id(&self) -> &ModuleId;
 
     /// Returns the prefix of the module.

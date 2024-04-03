@@ -164,7 +164,7 @@ where
 
     for module in module_value_tuples {
         let prev_entry = value_map.insert(module.0.id(), module.1);
-        anyhow::ensure!(prev_entry.is_none(), "Duplicate module address! Only one instance of each module is allowed in a given runtime. Module with address {} is duplicated", module.0.id());
+        anyhow::ensure!(prev_entry.is_none(), "Duplicate module id! Only one instance of each module is allowed in a given runtime. Module with ID {} is duplicated", module.0.id());
     }
 
     let mut sorted_values = Vec::new();

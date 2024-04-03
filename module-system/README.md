@@ -19,9 +19,9 @@ re-usable. A typical struct definition for a module looks something like this:
 ```rust
 #[derive(ModuleInfo)]
 pub struct Bank<S: sov_modules_api::Spec> {
-    /// The address of the bank module.
-    #[address]
-    pub(crate) address: S::Address,
+    /// The ID of the bank module.
+    #[id]
+    pub(crate) id: ModuleId,
 
     /// A mapping of addresses to tokens in the bank.
     #[state]
@@ -135,9 +135,9 @@ The aforementioned `Bank` struct, with the gas configuration, will look like thi
 ```rust
 #[derive(ModuleInfo)]
 pub struct Bank<S: sov_modules_api::Spec> {
-    /// The address of the bank module.
-    #[address]
-    pub(crate) address: S::Address,
+    /// The id of the bank module.
+    #[id]
+    pub(crate) id ModuleId,
 
     /// The gas configuration of the sov-bank module.
     #[gas]
@@ -309,8 +309,8 @@ Putting it all together, recall that the Bank struct is defined like this.
 
 ```rust
 pub struct Bank<S: sov_modules_api::Spec> {
-    /// The address of the bank module.
-    pub(crate) address: S::Address,
+    /// The id of the bank module.
+    pub(crate) id: ModuleId,
 
     /// A mapping of addresses to tokens in the bank.
     pub(crate) tokens: sov_state::StateMap<S::Address, Token<S>>,

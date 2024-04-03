@@ -195,8 +195,8 @@ pub struct EventResponse {
     pub event_value: serde_json::Value,
     /// Module name that the event belongs to
     pub module_name: String,
-    /// Module name that the event belongs to
-    pub module_address: String,
+    /// Module id that the event belongs to
+    pub module_id: String,
 }
 
 /// An RPC response for the latest aggregated proof info.

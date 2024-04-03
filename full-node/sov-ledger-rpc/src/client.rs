@@ -70,17 +70,17 @@ where
     async fn get_events_by_key(
         &self,
         key: &str,
-        module_address: Option<ModuleId>,
+        module_id: Option<ModuleId>,
         txn_num: Option<u64>,
         num_events: u64,
         next: Option<&str>,
     ) -> RpcResult<Option<serde_json::Value>>;
 
     /// Gets a single event by number.
-    #[method(name = "getEventsByModuleAddress")]
-    async fn get_events_by_module_address(
+    #[method(name = "getEventsByModuleId")]
+    async fn get_events_by_module_id(
         &self,
-        module_address: &str,
+        module_id: &str,
         num_events: u64,
         next: Option<&str>,
     ) -> RpcResult<Option<serde_json::Value>>;

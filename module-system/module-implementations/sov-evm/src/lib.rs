@@ -53,8 +53,8 @@ pub(crate) struct PendingTransaction {
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
 pub struct Evm<S: sov_modules_api::Spec, Da: DaSpec> {
-    /// The address of the evm module.
-    #[address]
+    /// The ID of the evm module.
+    #[id]
     pub(crate) id: ModuleId,
 
     /// Mapping from account address to account state.

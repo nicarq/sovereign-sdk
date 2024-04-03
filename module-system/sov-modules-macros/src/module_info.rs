@@ -59,7 +59,7 @@ fn impl_module_info(
     struct_def: &StructDef,
     _variant: ModuleType,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
-    let module_address = struct_def.module_address();
+    let module_id = struct_def.module_id();
 
     let StructDef {
         ident,
@@ -112,7 +112,7 @@ fn impl_module_info(
         };
     }
 
-    let fn_id = make_fn_id(&module_address.ident)?;
+    let fn_id = make_fn_id(&module_id.ident)?;
     let fn_dependencies = make_fn_dependencies(modules);
     let fn_prefix = make_module_prefix_fn(ident);
 
@@ -332,11 +332,11 @@ pub mod parsing {
             })
         }
 
-        pub fn module_address(&self) -> &ModuleField {
+        pub fn module_id(&self) -> &ModuleField {
             self.fields
                 .iter()
                 .find(|field| matches!(field.attr, ModuleFieldAttribute::Address))
-                .expect("Module address not found but it was validated already; this is a bug")
+                .expect("Module id not found but it was validated already; this is a bug")
         }
     }
 
@@ -380,13 +380,13 @@ pub mod parsing {
                         ))
                     }
                 }
-                "address" => {
+                "id" => {
                     if attr.tokens.is_empty() {
                         Ok(Self::Address)
                     } else {
                         Err(syn::Error::new_spanned(
                             attr,
-                            "The `#[address]` attribute does not accept any arguments.",
+                            "The `#[id]` attribute does not accept any arguments.",
                         ))
                     }
                 }
@@ -535,9 +535,9 @@ pub mod parsing {
         let mut attr = None;
         for a in field.attrs.iter() {
             match a.path.segments[0].ident.to_string().as_str() {
-                "state" | "module" | "address" | "gas" | "kernel_module" | "phantom" => {
+                "state" | "module" | "id" | "gas" | "kernel_module" | "phantom" => {
                     if attr.is_some() {
-                        return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, `#[gas]`, and `#[phantom]` is allowed per field."));
+                        return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[id]`, `#[gas]`, and `#[phantom]` is allowed per field."));
                     } else {
                         attr = Some(a);
                     }
@@ -551,7 +551,7 @@ pub mod parsing {
         } else {
             Err(syn::Error::new_spanned(
                 ident,
-                format!("The field `{}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, #[gas], or #[phantom].", ident),
+                format!("The field `{}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[id]`, #[gas], or #[phantom].", ident),
             ))
         }
     }

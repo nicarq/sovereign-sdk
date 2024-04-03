@@ -49,8 +49,8 @@ where
     S: Spec,
     Da: DaSpec,
 {
-    /// Address of the module.
-    #[address]
+    /// Id of the module.
+    #[id]
     pub id: ModuleId,
 
     /// The amount of time it takes to a light client to be confident

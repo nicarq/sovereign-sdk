@@ -1,12 +1,12 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{ModuleInfo, ModuleId, Spec, WorkingSet};
+use sov_modules_api::{ModuleId, ModuleInfo, Spec, WorkingSet};
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
 
 #[derive(ModuleInfo)]
 pub struct TestStruct<S: ::sov_modules_api::Spec> {
-    #[address]
+    #[id]
     pub(crate) id: ModuleId,
 
     #[phantom]
@@ -93,8 +93,7 @@ fn main() {
 
     {
         let result =
-            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec>>::module_address(&r)
-                .unwrap();
+            <RpcStorage<ZkTestSpec> as TestStructRpcServer<ZkTestSpec>>::module_id(&r).unwrap();
         assert_eq!(
             result,
             "module_1y34qkrqwffa3hmpdzvj0fqc0ahmlgrjf5ltfan9ugt82v5ej6lkstsf76a"

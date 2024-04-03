@@ -2,7 +2,7 @@ use sov_modules_api::{CryptoSpec, ModuleId, ModuleInfo, Spec, StateMap};
 
 #[derive(ModuleInfo)]
 struct TestStruct<S: Spec> {
-    #[address]
+    #[id]
     id: ModuleId,
 
     // Unsupported attributes should be ignored to guarantee compatibility with

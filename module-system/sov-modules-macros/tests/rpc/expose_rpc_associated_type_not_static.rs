@@ -33,7 +33,7 @@ pub mod my_module {
 
     #[derive(ModuleInfo)]
     pub struct QueryModule<S: Spec, D: Data> {
-        #[address]
+        #[id]
         pub id: ModuleId,
 
         #[state]

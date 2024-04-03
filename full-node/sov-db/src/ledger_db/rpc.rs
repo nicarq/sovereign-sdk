@@ -9,9 +9,7 @@ use sov_rollup_interface::rpc::{
 };
 use tokio::sync::broadcast::Receiver;
 
-use crate::ledger_db::event_helper::{
-    get_events_by_key_helper, get_events_by_module_address_helper,
-};
+use crate::ledger_db::event_helper::{get_events_by_key_helper, get_events_by_module_id_helper};
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByNumber, ProofByUniqueId, SlotByHash, SlotByNumber, TxByHash,
     TxByNumber,
@@ -174,8 +172,8 @@ impl LedgerRpcProvider for LedgerDB {
                                     Some(EventResponse {
                                         event_value: module_event.event_value,
                                         module_name: module_event.module_name,
-                                        module_address: ModuleId::try_from(
-                                            serialized_event.module_address().inner().as_ref(),
+                                        module_id: ModuleId::try_from(
+                                            serialized_event.module_id().inner().as_ref(),
                                         )
                                         .unwrap()
                                         .to_string(),
@@ -375,23 +373,21 @@ impl LedgerRpcProviderExt for LedgerDB {
     fn get_events_by_key<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
         &self,
         event_key: &str,
-        module_address: Option<ModuleId>,
+        module_id: Option<ModuleId>,
         txn_range: Option<(u64, u64)>,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, Error> {
-        get_events_by_key_helper::<E>(self, event_key, module_address, txn_range, num_events, next)
+        get_events_by_key_helper::<E>(self, event_key, module_id, txn_range, num_events, next)
     }
 
-    fn get_events_by_module_address<
-        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
-    >(
+    fn get_events_by_module_id<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
         &self,
-        module_address: ModuleId,
+        module_id: ModuleId,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, Error> {
-        get_events_by_module_address_helper::<E>(self, module_address, num_events, next)
+        get_events_by_module_id_helper::<E>(self, module_id, num_events, next)
     }
 
     fn get_events_by_slot_range_key<
@@ -399,7 +395,7 @@ impl LedgerRpcProviderExt for LedgerDB {
     >(
         &self,
         event_key: &str,
-        module_address: ModuleId,
+        module_id: ModuleId,
         slot_height_start: u64,
         slot_height_end: u64,
         num_events: usize,
@@ -464,7 +460,7 @@ impl LedgerRpcProviderExt for LedgerDB {
 
         let paginated_query_response = self.get_events_by_key::<E>(
             event_key,
-            Some(module_address),
+            Some(module_id),
             Some((txn_range.0, txn_range.1)),
             num_events,
             next_key.as_deref(),
@@ -731,7 +727,7 @@ mod tests {
             NUM_TXNS_PER_MODULE,
             NUM_EVENTS_PER_TXN,
         );
-        let expected_module_address = ModuleId::from([module_number as u8; 32]).to_string();
+        let expected_module_id = ModuleId::from([module_number as u8; 32]).to_string();
         let event_response =
             ledger_db.get_events_by_key::<TestEvent>(&event_key, None, None, 1, None);
 
@@ -741,8 +737,8 @@ mod tests {
         assert_eq!(event_response.events_response.len(), 1);
         assert_eq!(event_response.events_response[0].event_value, event_num + 1);
         assert_eq!(
-            event_response.events_response[0].module_address,
-            expected_module_address
+            event_response.events_response[0].module_id,
+            expected_module_id
         );
     }
 
@@ -793,8 +789,8 @@ mod tests {
                     NUM_TXNS_PER_MODULE,
                     NUM_EVENTS_PER_TXN,
                 );
-                let expected_module_address = ModuleId::from([module_number as u8; 32]).to_string();
-                assert_eq!(e.module_address, expected_module_address);
+                let expected_module_id = ModuleId::from([module_number as u8; 32]).to_string();
+                assert_eq!(e.module_id, expected_module_id);
             }
 
             // more events remaining
@@ -823,7 +819,7 @@ mod tests {
             NUM_TXNS_PER_MODULE,
             NUM_EVENTS_PER_TXN,
         );
-        let expected_module_address = ModuleId::from([module_number as u8; 32]).to_string();
+        let expected_module_id = ModuleId::from([module_number as u8; 32]).to_string();
         let event_response =
             ledger_db.get_events_by_key::<TestEvent>(&event_key, None, None, 1, None);
 
@@ -833,13 +829,13 @@ mod tests {
         assert_eq!(event_response.events_response.len(), 1);
         assert_eq!(event_response.events_response[0].event_value, event_num + 1);
         assert_eq!(
-            event_response.events_response[0].module_address,
-            expected_module_address
+            event_response.events_response[0].module_id,
+            expected_module_id
         );
     }
 
     #[test]
-    fn test_get_events_by_key_module_address() {
+    fn test_get_events_by_key_module_id() {
         let ledger_db = create_ledger();
         let mut schema_batch = SchemaBatch::new();
 
@@ -854,11 +850,11 @@ mod tests {
         );
 
         ledger_db.db.write_many(schema_batch).unwrap();
-        // fetch key and by module address
+        // fetch key and by module id
         // based on MAX_NUM_EVENTS_FIXED_KEY, key should switch to unique in the second module, so this would account for boundary as well
         let num_events_per_page = 17;
         let module_number = 2;
-        let module_address = ModuleId::from([module_number as u8; 32]);
+        let module_id = ModuleId::from([module_number as u8; 32]);
 
         let mut next_key = None;
         // start event number for a specific module
@@ -868,7 +864,7 @@ mod tests {
             let event_response = ledger_db
                 .get_events_by_key::<TestEvent>(
                     FIXED_EVENT_KEY,
-                    Some(module_address),
+                    Some(module_id),
                     None,
                     num_events_per_page,
                     next_key.as_deref(),
@@ -879,7 +875,7 @@ mod tests {
                 num_events_fetched += 1;
                 event_num += 1;
                 assert_eq!(e.event_value, event_num + 1);
-                assert_eq!(e.module_address, module_address.to_string());
+                assert_eq!(e.module_id, module_id.to_string());
             }
 
             if event_response.next.is_some() {
@@ -890,7 +886,7 @@ mod tests {
         }
 
         // number of events fetched should be MAX_NUM_EVENTS_FIXED_KEY - number of events in previous modules.
-        // since we're only fetching events for a specific module address.
+        // since we're only fetching events for a specific module id.
         assert_eq!(
             num_events_fetched,
             MAX_NUM_EVENTS_FIXED_KEY

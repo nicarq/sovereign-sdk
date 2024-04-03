@@ -159,7 +159,7 @@ fn test_sorting_modules_duplicate() {
 
     assert!(sorted_modules.is_err());
     let error_string = sorted_modules.err().unwrap().to_string();
-    assert_eq!("Duplicate module address! Only one instance of each module is allowed in a given runtime. Module with address module_1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqskvf3ds is duplicated", error_string);
+    assert_eq!("Duplicate module id! Only one instance of each module is allowed in a given runtime. Module with ID module_1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqskvf3ds is duplicated", error_string);
 }
 
 #[test]

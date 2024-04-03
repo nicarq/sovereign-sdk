@@ -27,7 +27,7 @@ pub use sov_modules_macros::MessageCodec;
 ///
 /// #[derive(ModuleInfo, ModuleCallJsonSchema)]
 /// struct TestModule<S: Spec> {
-///     #[address]
+///     #[id]
 ///     id: ModuleId,
 ///
 ///     #[state]
@@ -63,8 +63,8 @@ pub use sov_modules_macros::ModuleCallJsonSchema;
 /// will fail:
 /// - It must be a named `struct`. Tuple `struct`s, `enum`s, and others are
 /// not supported.
-/// - It must have *exactly one* field with the `#[address]` attribute. This field
-///   represents the **module address**.
+/// - It must have *exactly one* field with the `#[id]` attribute. This field
+///   represents the **module id**.
 /// - All other fields must have either the `#[state]` or `#[module]` attribute.
 ///   - `#[state]` is used for state members.
 ///   - `#[module]` is used for module members.
@@ -79,7 +79,7 @@ pub use sov_modules_macros::ModuleCallJsonSchema;
 ///
 /// #[derive(ModuleInfo)]
 /// struct TestModule<S: Spec> {
-///     #[address]
+///     #[id]
 ///     id: ModuleId,
 ///
 ///     #[state]

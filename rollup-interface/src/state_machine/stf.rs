@@ -176,16 +176,16 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
 #[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
 pub struct StoredEvent {
     key: EventKey,
-    module_address: SerializedAddress,
+    module_id: SerializedAddress,
     value: EventValue,
 }
 
 impl StoredEvent {
     /// Create a new event with the given key and value
-    pub fn new(key: &[u8], module_address: &[u8], value: &[u8]) -> Self {
+    pub fn new(key: &[u8], module_id: &[u8], value: &[u8]) -> Self {
         Self {
             key: EventKey(key.to_vec()),
-            module_address: SerializedAddress(module_address.to_vec()),
+            module_id: SerializedAddress(module_id.to_vec()),
             value: EventValue(value.to_vec()),
         }
     }
@@ -201,8 +201,8 @@ impl StoredEvent {
     }
 
     /// Get the event serialized address
-    pub fn module_address(&self) -> &SerializedAddress {
-        &self.module_address
+    pub fn module_id(&self) -> &SerializedAddress {
+        &self.module_id
     }
 }
 
