@@ -1,5 +1,4 @@
 use borsh::BorshSerialize;
-use sov_db::sequencer_db::SequencerDB;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec, MockValidityCondChecker};
 use sov_mock_zkvm::MockCodeCommitment;
@@ -11,7 +10,7 @@ use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::utils::SimpleClient;
-use sov_sequencer::{FairBatchBuilder, Sequencer, TxStatus};
+use sov_sequencer::{FairBatchBuilder, Sequencer, SequencerDb, TxStatus};
 use sov_state::DefaultStorageSpec;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
@@ -101,7 +100,7 @@ fn new_sequencer(dir: &TempDir) -> TestSetupOutput {
 
     let first_block = MockBlockHeader::from_height(1);
 
-    let sequencer_db = SequencerDB::new(dir.path()).unwrap();
+    let sequencer_db = SequencerDb::new(dir.path()).unwrap();
 
     let (stf_state, _ledger_storage) = storage_manager
         .create_state_for(&first_block)

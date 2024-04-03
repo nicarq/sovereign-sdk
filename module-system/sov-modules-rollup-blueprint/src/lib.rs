@@ -10,7 +10,6 @@ use async_trait::async_trait;
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::{CacheDb, ChangeSet};
-use sov_db::sequencer_db::SequencerDB;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{DaSpec, Spec, Zkvm};
@@ -18,6 +17,7 @@ use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBluep
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
+use sov_sequencer::SequencerDb;
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
@@ -87,7 +87,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
         storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
         ledger_db: &LedgerDB,
-        sequencer_db: &SequencerDB,
+        sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
@@ -185,7 +185,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
         let ledger_db = self.create_ledger_db(ledger_state)?;
 
-        let sequencer_db = SequencerDB::new(&rollup_config.storage.path)?;
+        let sequencer_db = SequencerDb::new(&rollup_config.storage.path)?;
 
         let prev_root = ledger_db
             .get_head_slot()?

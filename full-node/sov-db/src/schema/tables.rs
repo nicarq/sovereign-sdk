@@ -30,7 +30,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::Version;
 use rockbound::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use rockbound::{CodecError, SeekKeyEncoder};
-use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
@@ -38,7 +37,6 @@ use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleAddress,
     ProofUniqueId, SlotNumber, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
 };
-use crate::sequencer_db::MempoolTx;
 
 /* Other tables used by the Rollup */
 
@@ -63,7 +61,7 @@ pub const LEDGER_TABLES: &[&str] = &[
 pub const ACCESSORY_TABLES: &[&str] = &[ModuleAccessoryState::table_name()];
 
 /// Macro to define a table that implements [`rockbound::Schema`].
-/// KeyCodec<Schema> and ValueCodec<Schema> must be implemented separately.
+/// `KeyCodec<Schema>` and `ValueCodec<Schema>` must be implemented separately.
 ///
 /// ```ignore
 /// define_table_without_codec!(
@@ -81,6 +79,7 @@ pub const ACCESSORY_TABLES: &[&str] = &[ModuleAccessoryState::table_name()];
 /// // ...
 /// }
 /// ```
+#[macro_export]
 macro_rules! define_table_without_codec {
     ($(#[$docs:meta])+ ( $table_name:ident ) $key:ty => $value:ty) => {
         $(#[$docs])+
@@ -110,6 +109,8 @@ macro_rules! define_table_without_codec {
     };
 }
 
+/// Implements [`rockbound::schema::KeyEncoder`] for a given type using Borsh.
+#[macro_export]
 macro_rules! impl_borsh_value_codec {
     ($table_name:ident, $value:ty) => {
         impl ::rockbound::schema::ValueCodec<$table_name> for $value {
@@ -139,6 +140,7 @@ macro_rules! impl_borsh_value_codec {
 ///  (MyTable) MyKey => MyValue
 /// )
 /// ```
+#[macro_export]
 macro_rules! define_table_with_default_codec {
     ($(#[$docs:meta])+ ($table_name:ident) $key:ty => $value:ty) => {
         define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
@@ -164,6 +166,7 @@ macro_rules! define_table_with_default_codec {
 /// little-endian, but RocksDB uses lexicographic ordering which is only
 /// compatible with big-endian, so we use [`bincode`] with the big-endian option
 /// here.
+#[macro_export]
 macro_rules! define_table_with_seek_key_codec {
     ($(#[$docs:meta])+ ($table_name:ident) $key:ty => $value:ty) => {
         define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
@@ -252,11 +255,6 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// The primary source for proof data
     (ProofByUniqueId) ProofUniqueId => AggregatedProof
-);
-
-define_table_with_default_codec!(
-    /// Transactions stored in the mempool, keyed by hash.
-    (MempoolTxByHash) TxHash => MempoolTx
 );
 
 define_table_without_codec!(

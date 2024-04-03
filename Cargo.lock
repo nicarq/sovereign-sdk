@@ -6057,6 +6057,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
 
 [[package]]
+name = "reltester"
+version = "2.0.0"
+source = "git+https://github.com/sovereign-labs/reltester.git?branch=main#d6209abff72929f5ba41614f5cea3e4a748428c3"
+dependencies = [
+ "rand 0.8.5",
+ "thiserror",
+]
+
+[[package]]
 name = "reqwest"
 version = "0.11.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8383,7 +8392,10 @@ dependencies = [
  "hex",
  "jsonrpsee 0.20.3",
  "mini-moka",
+ "proptest",
+ "proptest-derive",
  "rand 0.8.5",
+ "reltester",
  "rockbound",
  "serde",
  "serde_json",
