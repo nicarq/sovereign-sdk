@@ -12,7 +12,7 @@ use sov_mock_da::{
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, EncodeCall, GasPrice, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::services::da::{DaService, RelevantBlobs, RelevantProofs, SlotData};
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
 const DEFAULT_CHAIN_ID: u64 = 0;
@@ -101,7 +101,7 @@ impl DaService for RngDaService {
     fn extract_relevant_blobs(
         &self,
         block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
+    ) -> RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction> {
         let mut num_txns = 10000;
         if let Ok(val) = env::var("TXNS_PER_BLOCK") {
             num_txns = val
@@ -128,17 +128,20 @@ impl DaService for RngDaService {
         let address = MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS);
         let blob = MockBlob::new(data, address, [0u8; 32]);
 
-        vec![blob]
+        RelevantBlobs {
+            proof_blobs: vec![],
+            batch_blobs: vec![blob],
+        }
     }
 
     async fn get_extraction_proof(
         &self,
         _block: &Self::FilteredBlock,
-        _blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
-    ) -> (
+        _blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+    ) -> RelevantProofs<
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
-    ) {
+    > {
         unimplemented!()
     }
 
@@ -169,9 +172,11 @@ impl DaVerifier for RngDaVerifier {
     fn verify_relevant_tx_list(
         &self,
         _block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        _relevant_blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+        _relevant_proofs: RelevantProofs<
+            <Self::Spec as DaSpec>::InclusionMultiProof,
+            <Self::Spec as DaSpec>::CompletenessProof,
+        >,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         Ok(MockValidityCond { is_valid: true })
     }

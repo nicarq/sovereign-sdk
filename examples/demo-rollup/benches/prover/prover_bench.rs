@@ -235,12 +235,12 @@ async fn main() -> Result<(), anyhow::Error> {
             height,
             hex::encode(prev_state_root.root_hash())
         );
-        let (mut blob_txs, inclusion_proof, completeness_proof) = da_service
+        let (mut relevant_blobs, relevant_proofs) = da_service
             .extract_relevant_blobs_with_proof(filtered_block)
             .await;
 
-        if !blob_txs.is_empty() {
-            num_blobs += blob_txs.len();
+        if !relevant_blobs.batch_blobs.is_empty() {
+            num_blobs += relevant_blobs.batch_blobs.len();
         }
 
         let (stf_state, ledger_state) = storage_manager
@@ -253,7 +253,7 @@ async fn main() -> Result<(), anyhow::Error> {
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_condition(),
-            &mut blob_txs,
+            &mut relevant_blobs.batch_blobs,
         );
 
         for r in result.batch_receipts {
@@ -271,10 +271,9 @@ async fn main() -> Result<(), anyhow::Error> {
         > {
             initial_state_root: prev_state_root,
             da_block_header: filtered_block.header().clone(),
-            inclusion_proof,
-            completeness_proof,
+            relevant_proofs,
             witness: result.witness,
-            blobs: blob_txs,
+            relevant_blobs,
             final_state_root: result.state_root,
         };
         host.add_hint(data);

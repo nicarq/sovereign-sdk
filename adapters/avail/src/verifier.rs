@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
+use sov_rollup_interface::da::{DaSpec, DaVerifier};
+use sov_rollup_interface::services::da::{RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::zk::{ValidityCondition, ValidityConditionChecker};
 use thiserror::Error;
 
@@ -70,24 +71,14 @@ impl DaVerifier for Verifier {
     // NOTE: Function return unit since application client already verifies application data.
     fn verify_relevant_tx_list(
         &self,
-        block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        _block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        _relevant_blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+        _relevant_proofs: RelevantProofs<
+            <Self::Spec as DaSpec>::InclusionMultiProof,
+            <Self::Spec as DaSpec>::CompletenessProof,
+        >,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
-        let mut txs_commitment: [u8; 32] = [0u8; 32];
-
-        for tx in txs {
-            txs_commitment = tx.combine_hash(txs_commitment);
-        }
-
-        let validity_condition = ChainValidityCondition {
-            prev_hash: *block_header.prev_hash().inner(),
-            block_hash: *block_header.hash().inner(),
-            txs_commitment,
-        };
-
-        Ok(validity_condition)
+        todo!()
     }
 
     fn new(_params: <Self::Spec as DaSpec>::ChainParams) -> Self {

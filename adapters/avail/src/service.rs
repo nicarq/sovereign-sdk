@@ -9,7 +9,7 @@ use futures::stream::BoxStream;
 use futures::StreamExt;
 use reqwest::StatusCode;
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, RelevantBlobs, RelevantProofs};
 use sp_core::crypto::Pair as PairTrait;
 use sp_keyring::sr25519::sr25519::Pair;
 use subxt::tx::PairSigner;
@@ -246,9 +246,9 @@ impl DaService for DaProvider {
     // transactions in the block are already filtered and retrieved by light client.
     fn extract_relevant_blobs(
         &self,
-        block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
-        block.transactions.clone()
+        _block: &Self::FilteredBlock,
+    ) -> RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction> {
+        todo!()
     }
 
     // Extract the inclusion and completeness proof for filtered block provided.
@@ -257,12 +257,12 @@ impl DaService for DaProvider {
     async fn get_extraction_proof(
         &self,
         _block: &Self::FilteredBlock,
-        _blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
-    ) -> (
+        _blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+    ) -> RelevantProofs<
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
-    ) {
-        ((), ())
+    > {
+        todo!()
     }
 
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {

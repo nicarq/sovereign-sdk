@@ -1,4 +1,5 @@
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, DaVerifier};
+use sov_rollup_interface::services::da::{RelevantBlobs, RelevantProofs};
 
 #[cfg(feature = "native")]
 use crate::MockValidityCondChecker;
@@ -61,9 +62,11 @@ impl DaVerifier for MockDaVerifier {
     fn verify_relevant_tx_list(
         &self,
         _block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        _relevant_blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+        _relevant_proofs: RelevantProofs<
+            <Self::Spec as DaSpec>::InclusionMultiProof,
+            <Self::Spec as DaSpec>::CompletenessProof,
+        >,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         Ok(Default::default())
     }

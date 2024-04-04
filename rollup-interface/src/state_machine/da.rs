@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::services::da::{RelevantBlobs, RelevantProofs};
 use crate::zk::ValidityCondition;
 #[cfg(feature = "native")]
 use crate::zk::ValidityConditionChecker;
@@ -66,9 +67,11 @@ pub trait DaVerifier: Send + Sync {
     fn verify_relevant_tx_list(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        relevant_blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+        relevant_proofs: RelevantProofs<
+            <Self::Spec as DaSpec>::InclusionMultiProof,
+            <Self::Spec as DaSpec>::CompletenessProof,
+        >,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
 }
 

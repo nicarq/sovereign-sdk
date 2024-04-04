@@ -116,20 +116,14 @@ where
                                 initial_state_root,
                                 final_state_root,
                                 da_block_header,
-                                inclusion_proof,
-                                completeness_proof,
-                                blobs,
+                                relevant_proofs,
+                                relevant_blobs: blobs,
                                 ..
                             } = state_transition_info.data;
 
                             let validity_condition = verifier
                                 .da_verifier
-                                .verify_relevant_tx_list(
-                                    &da_block_header,
-                                    &blobs,
-                                    inclusion_proof,
-                                    completeness_proof,
-                                )
+                                .verify_relevant_tx_list(&da_block_header, &blobs, relevant_proofs)
                                 .expect("Invalid validity condition");
 
                             let block_proof = proof.map(|p| BlockProof {

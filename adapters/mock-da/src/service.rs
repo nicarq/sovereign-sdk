@@ -6,7 +6,9 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::services::da::{
+    DaProof, DaService, RelevantBlobs, RelevantProofs, SlotData,
+};
 use tokio::sync::{broadcast, Mutex, RwLock};
 use tokio::time;
 use tracing::debug;
@@ -367,19 +369,31 @@ impl DaService for MockDaService {
     fn extract_relevant_blobs(
         &self,
         block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
-        block.batch_blobs.clone()
+    ) -> RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction> {
+        RelevantBlobs {
+            proof_blobs: block.proof_blobs.clone(),
+            batch_blobs: block.batch_blobs.clone(),
+        }
     }
 
     async fn get_extraction_proof(
         &self,
         _block: &Self::FilteredBlock,
-        _blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
-    ) -> (
+        _blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+    ) -> RelevantProofs<
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
-    ) {
-        ([0u8; 32], ())
+    > {
+        RelevantProofs {
+            batch: DaProof {
+                inclusion_proof: Default::default(),
+                completeness_proof: Default::default(),
+            },
+            proof: DaProof {
+                inclusion_proof: Default::default(),
+                completeness_proof: Default::default(),
+            },
+        }
     }
 
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {

@@ -5,6 +5,7 @@ use sov_mock_da::{
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::Time;
+use sov_rollup_interface::services::da::{DaProof, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_stf_runner::mock::MockStf;
@@ -375,9 +376,20 @@ fn make_transition_info(
                 height,
                 time: Time::now(),
             },
-            inclusion_proof: [0; 32],
-            completeness_proof: (),
-            blobs: vec![],
+            relevant_proofs: RelevantProofs {
+                batch: DaProof {
+                    inclusion_proof: Default::default(),
+                    completeness_proof: Default::default(),
+                },
+                proof: DaProof {
+                    inclusion_proof: Default::default(),
+                    completeness_proof: Default::default(),
+                },
+            },
+            relevant_blobs: RelevantBlobs {
+                proof_blobs: vec![],
+                batch_blobs: vec![],
+            },
             witness: vec![],
         },
         height,

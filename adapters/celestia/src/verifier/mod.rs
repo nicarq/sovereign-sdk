@@ -6,6 +6,7 @@ use sov_rollup_interface::da::{
     self, BlobReaderTrait, BlockHashTrait as BlockHash, BlockHeaderTrait, DaSpec,
 };
 use sov_rollup_interface::digest::Digest;
+use sov_rollup_interface::services::da::{RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::zk::{ValidityCondition, ValidityConditionChecker};
 use sov_rollup_interface::Buf;
 use thiserror::Error;
@@ -20,9 +21,9 @@ use tracing::debug;
 use self::address::CelestiaAddress;
 use self::proofs::*;
 use crate::shares::{NamespaceGroup, Share};
-use crate::types::ValidationError;
+use crate::types::{BlobWithSender, ValidationError};
 use crate::utils::read_varint;
-use crate::{pfb_from_iter, BlobWithSender, CelestiaHeader};
+use crate::{pfb_from_iter, CelestiaHeader};
 
 #[derive(Clone)]
 pub struct CelestiaVerifier {
@@ -196,10 +197,16 @@ impl da::DaVerifier for CelestiaVerifier {
     fn verify_relevant_tx_list(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        relevant_blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+        relevant_proofs: RelevantProofs<
+            <Self::Spec as DaSpec>::InclusionMultiProof,
+            <Self::Spec as DaSpec>::CompletenessProof,
+        >,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
+        let txs = &relevant_blobs.batch_blobs;
+        let completeness_proof = relevant_proofs.batch.completeness_proof;
+        let inclusion_proof = relevant_proofs.batch.inclusion_proof;
+
         // Validate that the provided DAH is well-formed
         block_header.validate_dah()?;
         let validity_condition = ChainValidityCondition {

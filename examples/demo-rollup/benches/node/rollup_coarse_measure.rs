@@ -160,9 +160,9 @@ async fn main() -> Result<(), anyhow::Error> {
             batch_blobs: Default::default(),
             proof_blobs: Default::default(),
         };
-        let blob_txs = da_service.extract_relevant_blobs(&filtered_block);
+        let relevant_blobs = da_service.extract_relevant_blobs(&filtered_block);
         blocks.push(filtered_block);
-        blobs.push(blob_txs);
+        blobs.push(relevant_blobs);
     }
 
     // Setup. Block h=1 has a single tx that creates the token. Exclude from timers
@@ -176,7 +176,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Default::default(),
         filtered_block.header(),
         &filtered_block.validity_cond,
-        &mut blobs.remove(0),
+        &mut blobs.remove(0).batch_blobs,
     );
     current_root = apply_block_result.state_root;
     storage_manager
@@ -198,7 +198,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Rollup processing. Block h=2 -> end are the transfer transactions. Timers start here
     let total = Instant::now();
     let mut apply_block_time = Duration::new(0, 0);
-    for (filtered_block, mut blobs) in blocks.into_iter().zip(blobs.into_iter()) {
+    for (filtered_block, mut relevant_blobs) in blocks.into_iter().zip(blobs.into_iter()) {
         let (stf_state, ledger_state) = storage_manager
             .create_state_for(filtered_block.header())
             .unwrap();
@@ -209,7 +209,7 @@ async fn main() -> Result<(), anyhow::Error> {
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_cond,
-            &mut blobs,
+            &mut relevant_blobs.batch_blobs,
         );
         apply_block_time += now.elapsed();
         h_apply_block.observe(now.elapsed().as_secs_f64());
