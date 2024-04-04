@@ -1,5 +1,9 @@
 # Description
 
+*Summary of the changes...*
+
+- [ ] I have updated `CHANGELOG.md` with a new entry if my PR makes any breaking changes or fixes a bug. If my PR removes a feature or changes its behavior, I provide help for users on how to migrate to the new behavior.
+- [ ] I have carefully reviewed all my `Cargo.toml` changes before opening the PRs. (Are all new dependencies necessary? Is any module dependency leaked into the full-node (hint: it shouldn't)?)
 
 ## Linked Issues
 - Fixes # (issue, if applicable)
