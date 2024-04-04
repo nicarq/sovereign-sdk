@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use celestia_rpc::prelude::*;
-use celestia_types::blob::{Blob as JsonBlob, Commitment, SubmitOptions};
+use celestia_types::blob::{Blob as JsonBlob, SubmitOptions};
 use celestia_types::consts::appconsts::{
     CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, FIRST_SPARSE_SHARE_CONTENT_SIZE, SHARE_SIZE,
 };
@@ -10,18 +10,16 @@ use celestia_types::nmt::Namespace;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
-use sov_rollup_interface::da::CountedBufReader;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaProof, DaService, RelevantBlobs, RelevantProofs};
 use tokio::sync::Mutex;
 use tracing::{debug, info, instrument, trace};
 
-use crate::shares::Blob;
 use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
 use crate::utils::BoxError;
 use crate::verifier::address::CelestiaAddress;
-use crate::verifier::proofs::{CompletenessProof, CorrectnessProof};
+use crate::verifier::proofs::{self};
 use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, PFB_NAMESPACE};
-use crate::{BlobWithSender, CelestiaHeader};
+use crate::CelestiaHeader;
 
 // Approximate value, just to make it work.
 // https://github.com/celestiaorg/celestia-app/blob/c90e61d5a2d0c0bd0e123df4ab416f6f0d141b7f/pkg/appconsts/initial_consts.go#L16-L18
@@ -204,51 +202,53 @@ impl DaService for CelestiaService {
     fn extract_relevant_blobs(
         &self,
         block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
-        let mut output = Vec::new();
-        for blob_ref in block.rollup_batch_data.group.blobs() {
-            if blob_ref.is_padding() {
-                debug!("Ignoring namespace padding blob. Sequence length 0.");
-                continue;
-            }
-
-            let commitment = Commitment::from_shares(block.rollup_batch_data.namespace, blob_ref.0)
-                .expect("blob must be valid");
-            info!(commitment = hex::encode(commitment.0), "Extracting blob");
-            let sender = block
-                .rollup_batch_data
-                .relevant_pfbs
-                .get(&commitment.0[..])
-                .expect("blob must be relevant")
-                .0
-                .signer
-                .clone();
-
-            let blob: Blob = blob_ref.into();
-
-            let blob_tx = BlobWithSender {
-                blob: CountedBufReader::new(blob.into_iter()),
-                sender: sender.parse().expect("Incorrect sender address"),
-                hash: commitment.0,
-            };
-
-            output.push(blob_tx);
+    ) -> RelevantBlobs<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
+        let proof_blobs = block.rollup_proof_data.get_blob_with_sender();
+        let batch_blobs = block.rollup_batch_data.get_blob_with_sender();
+        RelevantBlobs {
+            proof_blobs,
+            batch_blobs,
         }
-        output
     }
 
     async fn get_extraction_proof(
         &self,
         block: &Self::FilteredBlock,
-        blobs: &[<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction],
-    ) -> (
+        blobs: &RelevantBlobs<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction>,
+    ) -> RelevantProofs<
         <Self::Spec as sov_rollup_interface::da::DaSpec>::InclusionMultiProof,
         <Self::Spec as sov_rollup_interface::da::DaSpec>::CompletenessProof,
-    ) {
-        let etx_proofs = CorrectnessProof::for_block(block, blobs);
-        let rollup_row_proofs = CompletenessProof::from_filtered_block(block);
+    > {
+        let batch = {
+            let inclusion_proof = proofs::new_inclusion_proof(
+                &block.header,
+                &block.pfb_rows,
+                &block.rollup_batch_data,
+                &blobs.batch_blobs,
+            );
 
-        (etx_proofs.0, rollup_row_proofs.0)
+            DaProof {
+                inclusion_proof,
+                completeness_proof: block.rollup_batch_data.rows.clone(),
+            }
+        };
+
+        let proof = {
+            // Note: The second call to new_inclusion_proof merklizes and parse the exectuable transactions namespace again.
+            let inclusion_proof = proofs::new_inclusion_proof(
+                &block.header,
+                &block.pfb_rows,
+                &block.rollup_proof_data,
+                &blobs.proof_blobs,
+            );
+
+            DaProof {
+                inclusion_proof,
+                completeness_proof: block.rollup_proof_data.rows.clone(),
+            }
+        };
+
+        RelevantProofs { proof, batch }
     }
 
     #[instrument(skip_all, err)]
@@ -360,7 +360,7 @@ mod tests {
     use celestia_types::Blob as JsonBlob;
     use serde_json::json;
     use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
-    use sov_rollup_interface::services::da::DaService;
+    use sov_rollup_interface::services::da::{DaService, RelevantBlobs};
     use wiremock::matchers::{bearer_token, body_json, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
@@ -599,14 +599,15 @@ mod tests {
         for block in blocks {
             let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
-            let txs = da_service.extract_relevant_blobs(&block);
-            let (correctness_proof, completeness_proof) =
-                da_service.get_extraction_proof(&block, &txs).await;
+            let relevant_blobs = da_service.extract_relevant_blobs(&block);
+            let relevant_proofs = da_service
+                .get_extraction_proof(&block, &relevant_blobs)
+                .await;
 
             let verifier = CelestiaVerifier::new(rollup_params);
 
             let validity_cond = verifier
-                .verify_relevant_tx_list(&block.header, &txs, correctness_proof, completeness_proof)
+                .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
                 .unwrap();
 
             assert_eq!(validity_cond.prev_hash, *block.header.prev_hash().inner());
@@ -619,15 +620,20 @@ mod tests {
         let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
-        let txs = da_service.extract_relevant_blobs(&block);
-        let (correctness_proof, completeness_proof) =
-            da_service.get_extraction_proof(&block, &txs).await;
+        let relevant_blobs = da_service.extract_relevant_blobs(&block);
+        let relevant_proofs = da_service
+            .get_extraction_proof(&block, &relevant_blobs)
+            .await;
 
         let verifier = CelestiaVerifier::new(rollup_params);
 
+        let relevant_blobs = RelevantBlobs {
+            proof_blobs: Default::default(),
+            batch_blobs: Default::default(),
+        };
         // give verifier empty txs list
         let error = verifier
-            .verify_relevant_tx_list(&block.header, &[], correctness_proof, completeness_proof)
+            .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap_err();
 
         assert!(error.to_string().contains("Transaction missing"));
@@ -638,17 +644,18 @@ mod tests {
         let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
-        let txs = da_service.extract_relevant_blobs(&block);
-        let (mut correctness_proof, completeness_proof) =
-            da_service.get_extraction_proof(&block, &txs).await;
+        let relevant_blobs = da_service.extract_relevant_blobs(&block);
 
+        let mut relevant_proofs = da_service
+            .get_extraction_proof(&block, &relevant_blobs)
+            .await;
         // drop the proof for last etx
-        correctness_proof.pop();
+        relevant_proofs.batch.inclusion_proof.pop();
 
         let verifier = CelestiaVerifier::new(rollup_params);
 
         let error = verifier
-            .verify_relevant_tx_list(&block.header, &txs, correctness_proof, completeness_proof)
+            .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap_err();
 
         assert!(error.to_string().contains("not all blobs proven"));
@@ -665,7 +672,8 @@ mod tests {
         )
         .await;
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
-        assert_eq!(relevant_blobs.len(), 1);
+        assert_eq!(relevant_blobs.batch_blobs.len(), 1);
+        assert_eq!(relevant_blobs.proof_blobs.len(), 0);
     }
 
     #[tokio::test]
@@ -679,14 +687,15 @@ mod tests {
         )
         .await;
 
-        let txs = da_service.extract_relevant_blobs(&block);
-        let (correctness_proof, completeness_proof) =
-            da_service.get_extraction_proof(&block, &txs).await;
+        let relevant_blobs = da_service.extract_relevant_blobs(&block);
+        let relevant_proofs = da_service
+            .get_extraction_proof(&block, &relevant_blobs)
+            .await;
 
         let verifier = CelestiaVerifier::new(rollup_params);
 
         let _validity_cond = verifier
-            .verify_relevant_tx_list(&block.header, &txs, correctness_proof, completeness_proof)
+            .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap();
     }
 
@@ -695,17 +704,21 @@ mod tests {
         let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
 
-        let txs = da_service.extract_relevant_blobs(&block);
-        let (mut correctness_proof, completeness_proof) =
-            da_service.get_extraction_proof(&block, &txs).await;
+        let relevant_blobs = da_service.extract_relevant_blobs(&block);
+        let mut relevant_proofs = da_service
+            .get_extraction_proof(&block, &relevant_blobs)
+            .await;
 
         // push one extra etx proof
-        correctness_proof.push(correctness_proof[0].clone());
+        relevant_proofs
+            .batch
+            .inclusion_proof
+            .push(relevant_proofs.batch.inclusion_proof[0].clone());
 
         let verifier = CelestiaVerifier::new(rollup_params);
 
         let error = verifier
-            .verify_relevant_tx_list(&block.header, &txs, correctness_proof, completeness_proof)
+            .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap_err();
 
         assert!(error.to_string().contains("more proofs than blobs"));
@@ -717,9 +730,10 @@ mod tests {
         let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, _) = setup_test_service(None).await;
 
-        let txs = da_service.extract_relevant_blobs(&block);
-        let (correctness_proof, completeness_proof) =
-            da_service.get_extraction_proof(&block, &txs).await;
+        let relevant_blobs = da_service.extract_relevant_blobs(&block);
+        let relevant_proofs = da_service
+            .get_extraction_proof(&block, &relevant_blobs)
+            .await;
 
         // create a verifier with a different namespace than the da_service
         let verifier = CelestiaVerifier::new(RollupParams {
@@ -727,12 +741,8 @@ mod tests {
             rollup_proof_namespace: Namespace::new_v0(b"xyz").unwrap(),
         });
 
-        let _panics = verifier.verify_relevant_tx_list(
-            &block.header,
-            &txs,
-            correctness_proof,
-            completeness_proof,
-        );
+        let _panics =
+            verifier.verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs);
     }
 
     #[tokio::test]

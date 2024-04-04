@@ -1,14 +1,42 @@
 //! The da module defines traits used by the full node to interact with the DA layer.
 
+use alloc::vec::Vec;
+
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
 use crate::da::{DaSpec, DaVerifier};
-#[cfg(feature = "native")]
-use crate::maybestd::vec::Vec;
 use crate::zk::ValidityCondition;
+
+/// A proof that a set of blobs belongs to a given DA block.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DaProof<InclusionMultiProof, CompletenessProof> {
+    /// A proof that each tx in a set of blob transactions is included in a given block.
+    pub inclusion_proof: InclusionMultiProof,
+    /// A proof that a claimed set of transactions is complete.
+    pub completeness_proof: CompletenessProof,
+}
+
+/// Contains the proofs that data from the relevant namespaces belong to a given DA block.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RelevantProofs<InclusionMultiProof, CompletenessProof> {
+    /// Proof for the `batch` namespace data.
+    pub batch: DaProof<InclusionMultiProof, CompletenessProof>,
+    /// Proof for the `proof` namespace data.
+    pub proof: DaProof<InclusionMultiProof, CompletenessProof>,
+}
+
+/// Contains all the blobs from the relevant namespaces in the DA block.
+#[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct RelevantBlobs<B> {
+    /// Blobs from the `proof` namespace.
+    pub proof_blobs: Vec<B>,
+    /// Blobs from the `batch` namespace.
+    pub batch_blobs: Vec<B>,
+}
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
 /// It is *not* part of the logic that is zk-proven.
@@ -65,22 +93,22 @@ pub trait DaService: Send + Sync + 'static {
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>;
 
     /// Extract the relevant transactions from a block. For example, this method might return
-    /// all of the blob transactions in rollup's namespace on Celestia.
+    /// all of the blob transactions from a set rollup namespaces on Celestia.
     fn extract_relevant_blobs(
         &self,
         block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
+    ) -> RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>;
 
     /// Generate a proof that the relevant blob transactions have been extracted correctly from the DA layer
     /// block.
     async fn get_extraction_proof(
         &self,
         block: &Self::FilteredBlock,
-        blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
-    ) -> (
+        blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+    ) -> RelevantProofs<
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
-    );
+    >;
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
     /// For example, this method might return all of the blob transactions in rollup's namespace on Celestia,
@@ -91,17 +119,15 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         block: &Self::FilteredBlock,
     ) -> (
-        Vec<<Self::Spec as DaSpec>::BlobTransaction>,
-        <Self::Spec as DaSpec>::InclusionMultiProof,
-        <Self::Spec as DaSpec>::CompletenessProof,
+        RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+        RelevantProofs<
+            <Self::Spec as DaSpec>::InclusionMultiProof,
+            <Self::Spec as DaSpec>::CompletenessProof,
+        >,
     ) {
-        let relevant_txs = self.extract_relevant_blobs(block);
-
-        let (etx_proofs, rollup_row_proofs) = self
-            .get_extraction_proof(block, relevant_txs.as_slice())
-            .await;
-
-        (relevant_txs, etx_proofs, rollup_row_proofs)
+        let relevant_blobs = self.extract_relevant_blobs(block);
+        let relevant_proofs = self.get_extraction_proof(block, &relevant_blobs).await;
+        (relevant_blobs, relevant_proofs)
     }
 
     /// Send a transaction directly to the DA layer.

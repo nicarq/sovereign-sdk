@@ -35,9 +35,8 @@ where
         let mut data: StateTransitionWitness<_, _, Da::Spec> = zkvm.read_from_host();
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header,
-            &data.blobs,
-            data.inclusion_proof,
-            data.completeness_proof,
+            &data.relevant_blobs,
+            data.relevant_proofs,
         )?;
 
         let result = self.app.apply_slot(
@@ -46,7 +45,7 @@ where
             data.witness,
             &data.da_block_header,
             &validity_condition,
-            &mut data.blobs,
+            &mut data.relevant_blobs.batch_blobs,
         );
 
         let out: StateTransitionPublicData<Da::Spec, _> = StateTransitionPublicData {

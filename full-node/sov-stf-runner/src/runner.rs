@@ -321,12 +321,12 @@ where
                 info!(next_da_height, "Resuming execution at fork point's height");
             }
 
-            let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
-
+            let mut relevant_blobs = self.da_service.extract_relevant_blobs(&filtered_block);
+            let batch_blobs = &mut relevant_blobs.batch_blobs;
             info!(
-                blobs_count = blobs.len(),
+                batch_blobs_count = batch_blobs.len(),
                 next_da_height,
-                blobs = ?blobs
+                batch_blobs = ?batch_blobs
                     .iter()
                     .map(|b| format!(
                         "sequencer={} blob_hash=0x{}",
@@ -352,7 +352,7 @@ where
                 Default::default(),
                 filtered_block_header,
                 &filtered_block.validity_condition(),
-                &mut blobs,
+                batch_blobs,
             );
 
             for receipt in slot_result.batch_receipts {
@@ -361,9 +361,9 @@ where
                 data_to_commit.add_batch(receipt);
             }
 
-            let (inclusion_proof, completeness_proof) = self
+            let relevant_proofs = self
                 .da_service
-                .get_extraction_proof(&filtered_block, &blobs)
+                .get_extraction_proof(&filtered_block, &relevant_blobs)
                 .await;
 
             let transition_data: StateTransitionWitness<Stf::StateRoot, Stf::Witness, Da::Spec> =
@@ -371,9 +371,8 @@ where
                     initial_state_root: self.state_root.clone(),
                     final_state_root: slot_result.state_root.clone(),
                     da_block_header: filtered_block_header.clone(),
-                    inclusion_proof,
-                    completeness_proof,
-                    blobs,
+                    relevant_proofs,
+                    relevant_blobs,
                     witness: slot_result.witness,
                 };
 
@@ -539,6 +538,7 @@ mod tests {
         MockValidityCond,
     };
     use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
+    use sov_rollup_interface::services::da::{DaProof, RelevantBlobs, RelevantProofs};
 
     use super::*;
     use crate::mock::MockStf;
@@ -711,9 +711,21 @@ mod tests {
                 initial_state_root,
                 final_state_root,
                 da_block_header: header,
-                inclusion_proof: Default::default(),
-                completeness_proof: Default::default(),
-                blobs,
+                relevant_proofs: RelevantProofs {
+                    batch: DaProof {
+                        inclusion_proof: Default::default(),
+                        completeness_proof: Default::default(),
+                    },
+                    proof: DaProof {
+                        inclusion_proof: Default::default(),
+                        completeness_proof: Default::default(),
+                    },
+                },
+                relevant_blobs: RelevantBlobs {
+                    proof_blobs: vec![],
+                    batch_blobs: blobs,
+                },
+
                 witness: Default::default(),
             },
             slot_number: height,

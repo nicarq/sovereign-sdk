@@ -103,7 +103,7 @@ async fn test_proof_generation() {
             height,
             hex::encode(prev_state_root.root_hash())
         );
-        let (mut blob_txs, inclusion_proof, completeness_proof) = da_service
+        let (mut relevant_blobs, relevant_proofs) = da_service
             .extract_relevant_blobs_with_proof(filtered_block)
             .await;
 
@@ -117,7 +117,7 @@ async fn test_proof_generation() {
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_condition(),
-            &mut blob_txs,
+            &mut relevant_blobs.batch_blobs,
         );
 
         let data = StateTransitionWitness::<
@@ -127,10 +127,9 @@ async fn test_proof_generation() {
         > {
             initial_state_root: prev_state_root,
             da_block_header: filtered_block.header().clone(),
-            inclusion_proof,
-            completeness_proof,
+            relevant_proofs,
             witness: result.witness,
-            blobs: blob_txs,
+            relevant_blobs,
             final_state_root: result.state_root,
         };
         host.add_hint(data);

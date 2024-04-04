@@ -9,16 +9,18 @@ use celestia_types::consts::appconsts::SHARE_SIZE;
 pub use celestia_types::nmt::Namespace;
 use celestia_types::nmt::{NamespacedHash, Nmt, NS_SIZE};
 use celestia_types::{
-    DataAvailabilityHeader, ExtendedDataSquare, ExtendedHeader, NamespacedShares, ValidateBasic,
+    Commitment, DataAvailabilityHeader, ExtendedDataSquare, ExtendedHeader, NamespacedShares,
+    ValidateBasic,
 };
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::da::{BlockHeaderTrait, CountedBufReader};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
-use tracing::debug;
+use tracing::{debug, info};
 
-use crate::shares::NamespaceGroup;
+use crate::shares::{Blob, BlobIterator, NamespaceGroup};
 use crate::utils::BoxError;
+use crate::verifier::address::CelestiaAddress;
 use crate::verifier::{ChainValidityCondition, PARITY_SHARES_NAMESPACE, PFB_NAMESPACE};
 use crate::{parse_pfb_namespace, CelestiaHeader, TxPosition};
 
@@ -70,6 +72,14 @@ impl NamespaceWithShares {
     }
 }
 
+// TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
+pub struct BlobWithSender {
+    pub blob: CountedBufReader<BlobIterator>,
+    pub sender: CelestiaAddress,
+    pub hash: [u8; 32],
+}
+
 /// Data that is required for extracting the relevant blobs from the namespace
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct NamespaceData {
@@ -81,6 +91,40 @@ pub struct NamespaceData {
     pub(crate) relevant_pfbs: HashMap<Bytes, (MsgPayForBlobs, TxPosition)>,
     /// All relevant rollup shares as they appear in extended data square, with proofs.
     pub(crate) rows: NamespacedShares,
+}
+
+impl NamespaceData {
+    pub fn get_blob_with_sender(&self) -> Vec<BlobWithSender> {
+        let mut output = Vec::new();
+        for blob_ref in self.group.blobs() {
+            if blob_ref.is_padding() {
+                debug!("Ignoring namespace padding blob. Sequence length 0.");
+                continue;
+            }
+
+            let commitment =
+                Commitment::from_shares(self.namespace, blob_ref.0).expect("blob must be valid");
+            info!(commitment = hex::encode(commitment.0), "Extracting blob");
+            let sender = self
+                .relevant_pfbs
+                .get(&commitment.0[..])
+                .expect("blob must be relevant")
+                .0
+                .signer
+                .clone();
+
+            let blob: Blob = blob_ref.into();
+
+            let blob_tx = BlobWithSender {
+                blob: CountedBufReader::new(blob.into_iter()),
+                sender: sender.parse().expect("Incorrect sender address"),
+                hash: commitment.0,
+            };
+
+            output.push(blob_tx);
+        }
+        output
+    }
 }
 
 // TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>

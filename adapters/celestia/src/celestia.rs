@@ -9,7 +9,7 @@ use celestia_types::{DataAvailabilityHeader, ExtendedHeader};
 use prost::bytes::Buf;
 use prost::Message;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, CountedBufReader, Time};
+use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, Time};
 use sov_rollup_interface::services::da::SlotData;
 pub use tendermint::block::Header as TendermintHeader;
 use tendermint::block::Height;
@@ -21,9 +21,8 @@ use tendermint_proto::v0_34::types::IndexWrapper;
 use tendermint_proto::Protobuf;
 use tracing::debug;
 
-use crate::shares::{BlobIterator, BlobRefIterator, NamespaceGroup};
+use crate::shares::{BlobRefIterator, NamespaceGroup};
 use crate::utils::{read_varint, BoxError};
-use crate::verifier::address::CelestiaAddress;
 use crate::verifier::{ChainValidityCondition, TmHash, PFB_NAMESPACE};
 
 pub const GENESIS_PLACEHOLDER_HASH: &[u8; 32] = &[255; 32];
@@ -193,14 +192,6 @@ impl From<celestia_types::ExtendedHeader> for CelestiaHeader {
     fn from(extended_header: ExtendedHeader) -> Self {
         CelestiaHeader::new(extended_header.dah, extended_header.header.into())
     }
-}
-
-// TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
-#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
-pub struct BlobWithSender {
-    pub blob: CountedBufReader<BlobIterator>,
-    pub sender: CelestiaAddress,
-    pub hash: [u8; 32],
 }
 
 impl BlockHeader for CelestiaHeader {
