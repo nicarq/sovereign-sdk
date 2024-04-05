@@ -1,9 +1,6 @@
 ![](./assets/banner.jpg)
 
 <div align="center">
-  <a href="https://github.com/Sovereign-Labs/sovereign-sdk/blob/stable/LICENSE">
-    <img alt="License: Apache-2.0" src="https://img.shields.io/github/license/Sovereign-Labs/sovereign-sdk.svg" />
-  </a>
   <a href="https://discord.gg/kbykCcPrcA" > 
       <img alt="Discord" src="https://img.shields.io/discord/1050059327626555462?label=discord"/> 
   </a>
@@ -15,7 +12,7 @@
 
 ## What is the Sovereign SDK?
 
-The Sovereign SDK is a free and open-source toolkit for building rollups (both ZK and optimistic) **that is currently under development**. Sovereign SDK consists of three
+The Sovereign SDK is a toolkit for building rollups (both ZK and optimistic) **that is currently under development**. Sovereign SDK consists of three
 logical components:
 
 1. The Rollup Interface, a minimal set of interfaces that defines a rollup
@@ -119,9 +116,4 @@ API stability and compliance with semantic versioning will be maintained on a be
 
 ## License
 
-Licensed under the [Apache License, Version
-2.0](./LICENSE).
-
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this repository by you, as defined in the Apache-2.0 license, shall be
-licensed as above, without any additional terms or conditions.
+To protect end-users from potentially insecure and unstable forks of Sovereign SDK, Sovereign Labs is currently reserving the rights to this repository until the SDK is ready for testnet. At that point, this repository will be open sourced with an Apache 2.0 license.
