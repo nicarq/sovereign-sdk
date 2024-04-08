@@ -41,7 +41,7 @@ pub struct TxStatusNotifier<Da: DaService> {
 
 impl<Da> TxStatusNotifier<Da>
 where
-    Da: DaService + Send + Sync + 'static,
+    Da: DaService,
     Da::TransactionId: Clone + Send + Sync,
 {
     // The cache capacity is kind of arbitrary, as long as it's big enough to

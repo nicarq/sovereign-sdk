@@ -159,7 +159,7 @@ async fn subscribe() {
     let tx_status = subscription.next().await.unwrap().unwrap();
     assert_eq!(tx_status, TxStatus::Unknown);
 
-    client.send_transactions(txs, None).await.unwrap();
+    client.send_transactions(&txs).await.unwrap();
 
     let tx_status = subscription.next().await.unwrap().unwrap();
     assert!(matches!(tx_status, TxStatus::Submitted));

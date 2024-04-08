@@ -129,7 +129,7 @@ pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da::Spec>, Vm: Zkvm, Da: D
 
 impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
-    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
+    Da: DaService<Error = anyhow::Error> + Clone,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = ChangeSet, LedgerState = CacheDb>,
     Stf: StateTransitionFunction<

@@ -49,32 +49,18 @@ impl SimpleClient {
     /// Sends multiple transactions to the sequencer for immediate publication.
     pub async fn send_transactions<S: Spec>(
         &self,
-        txs: Vec<Transaction<S>>,
-        chunk_size: Option<usize>,
+        txs: &[Transaction<S>],
     ) -> Result<(), anyhow::Error> {
         let serialized_txs: Vec<Vec<u8>> = txs
-            .into_iter()
+            .iter()
             .map(|tx| tx.try_to_vec())
             .collect::<Result<_, _>>()?;
 
-        match chunk_size {
-            Some(batch_size) => {
-                for chunk in serialized_txs.chunks(batch_size) {
-                    let response: serde_json::Value = self
-                        .http_client
-                        .request("sequencer_publishBatch", chunk.to_vec())
-                        .await?;
-                    info!(?response, "Got a response from `sequencer_publishBatch`");
-                }
-            }
-            None => {
-                let response: serde_json::Value = self
-                    .http_client
-                    .request("sequencer_publishBatch", serialized_txs)
-                    .await?;
-                info!(?response, "Got a response from `sequencer_publishBatch`");
-            }
-        }
+        let response: serde_json::Value = self
+            .http_client
+            .request("sequencer_publishBatch", serialized_txs)
+            .await?;
+        info!(?response, "Got a response from `sequencer_publishBatch`");
 
         Ok(())
     }

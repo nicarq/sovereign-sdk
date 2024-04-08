@@ -1,4 +1,3 @@
-use std::thread;
 use std::time::Duration;
 
 use borsh::ser::BorshSerialize;
@@ -124,12 +123,12 @@ async fn main() {
     let collections = [COLLECTION_1, COLLECTION_2, COLLECTION_3];
     let transactions =
         build_create_collection_transactions(&creator_pk, &mut nonce, DUMMY_URL, &collections);
-    client.send_transactions(transactions, None).await.unwrap();
+    client.send_transactions(&transactions).await.unwrap();
 
     // sleep is necessary because of how the sequencer currently works
     // without the sleep, there is a concurrency issue and some transactions would be ignored
     // TODO: remove after https://github.com/Sovereign-Labs/sovereign-sdk/issues/949 is fixed
-    thread::sleep(Duration::from_millis(1000));
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     let mut nft_id = 1;
     let mut transactions = build_mint_transactions(
@@ -162,12 +161,9 @@ async fn main() {
         &owner_1_pk,
     ));
 
-    client
-        .send_transactions(transactions.clone(), None)
-        .await
-        .unwrap();
+    client.send_transactions(&transactions).await.unwrap();
     // TODO: remove after https://github.com/Sovereign-Labs/sovereign-sdk/issues/949 is fixed
-    thread::sleep(Duration::from_millis(3000));
+    tokio::time::sleep(Duration::from_millis(3000)).await;
 
     let collection_1_address = get_collection_address::<TestSpec>(
         COLLECTION_1,
@@ -184,8 +180,5 @@ async fn main() {
         &collection_1_address,
         nft_ids_to_transfer,
     );
-    client
-        .send_transactions(transactions.clone(), None)
-        .await
-        .unwrap();
+    client.send_transactions(&transactions).await.unwrap();
 }
