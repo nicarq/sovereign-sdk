@@ -109,7 +109,7 @@ The `DaService` trait is slightly more complicated than the `DaVerifier`. Thankf
 rollup's state machine - so it never has to be proven in zk. This means that its performance is less critical, and that
 upgrading it in response to a vulnerability is much easier.
 
-The job of the `DAService` is to allow the Sovereign SDK's node software to communicate with a DA layer. It has two related
+The job of the `DaService` is to allow the Sovereign SDK's node software to communicate with a DA layer. It has two related
 responsibilities. The first is to interact with DA layer nodes via RPC - retrieving data for the rollup as it becomes
 available. The second is to process that data into the form expected by the `DaVerifier`. For example, almost all DA layers
 provide data in JSON format via RPC - but, parsing JSON in a zk-SNARK would be horribly inefficient. So, the `DaService`

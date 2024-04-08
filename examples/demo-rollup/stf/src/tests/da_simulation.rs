@@ -18,7 +18,7 @@ type Da = MockDaSpec;
 pub fn simulate_da(admin: TestPrivateKey) -> Vec<RawTx> {
     let mut messages = Vec::default();
 
-    let bank_generator = BankMessageGenerator::<S>::with_minter(admin.clone());
+    let bank_generator = BankMessageGenerator::<S>::with_minter_and_transfer(admin.clone());
     let bank_messages = bank_generator.create_messages();
 
     let value_setter = ValueSetterMessages::new(vec![ValueSetterMessage {

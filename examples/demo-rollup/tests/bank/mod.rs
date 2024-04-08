@@ -157,7 +157,7 @@ fn build_multiple_transfers(
 
 async fn send_transactions_and_wait_slot(
     client: &SimpleClient,
-    transactions: Vec<Transaction<TestSpec>>,
+    transactions: &[Transaction<TestSpec>],
 ) -> Result<(), anyhow::Error> {
     let mut slot_subscription: Subscription<u64> = client
         .ws()
@@ -168,7 +168,7 @@ async fn send_transactions_and_wait_slot(
         )
         .await?;
 
-    client.send_transactions(transactions, None).await?;
+    client.send_transactions(transactions).await?;
 
     let _ = slot_subscription.next().await;
 
@@ -304,17 +304,17 @@ async fn send_test_bank_txs(
 
     // create token. height 2
     let tx = build_create_token_tx(&key, 0);
-    send_transactions_and_wait_slot(&client, vec![tx]).await?;
+    send_transactions_and_wait_slot(&client, &[tx]).await?;
     assert_balance(&client, 1000, token_id, user_address, None).await?;
 
     // transfer 100 tokens. assert sender balance. height 3
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
-    send_transactions_and_wait_slot(&client, vec![tx]).await?;
+    send_transactions_and_wait_slot(&client, &[tx]).await?;
     assert_balance(&client, 900, token_id, user_address, None).await?;
 
     // transfer 200 tokens. assert sender balance. height 4
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
-    send_transactions_and_wait_slot(&client, vec![tx]).await?;
+    send_transactions_and_wait_slot(&client, &[tx]).await?;
     assert_balance(&client, 700, token_id, user_address, None).await?;
 
     // assert sender balance at height 2.
@@ -329,7 +329,7 @@ async fn send_test_bank_txs(
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();
     let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
-    send_transactions_and_wait_slot(&client, txs).await?;
+    send_transactions_and_wait_slot(&client, &txs).await?;
 
     assert_bank_event(&client, 0, BankEvent::TokenCreated { token_id }).await?;
     assert_bank_event(
