@@ -133,7 +133,8 @@ impl RollupBlueprint for CelestiaDemoRollup {
         let zk_storage = ZkStorage::new();
 
         let da_verifier = CelestiaVerifier {
-            rollup_namespace: ROLLUP_BATCH_NAMESPACE,
+            rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
+            rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
         };
 
         ParallelProverService::new_with_default_workers(

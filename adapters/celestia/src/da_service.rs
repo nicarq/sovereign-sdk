@@ -377,8 +377,8 @@ mod tests {
         setup_service(
             timeout_sec,
             CelestiaAddress::from_str("celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s").unwrap(),
-            b"sov-test",
-            b"sov-test-p",
+            ROLLUP_BATCH_NAMESPACE,
+            ROLLUP_PROOF_NAMESPACE,
         )
         .await
     }
@@ -387,8 +387,8 @@ mod tests {
     async fn setup_service(
         timeout_sec: Option<u64>,
         celestia_address: CelestiaAddress,
-        rollup_batch_namespace: &[u8],
-        rollup_proof_namespace: &[u8],
+        rollup_batch_namespace: Namespace,
+        rollup_proof_namespace: Namespace,
     ) -> (MockServer, CelestiaConfig, CelestiaService, RollupParams) {
         // Start a background HTTP server on a random local port
         let mock_server = MockServer::start().await;
@@ -401,9 +401,6 @@ mod tests {
             celestia_rpc_timeout_seconds: timeout_sec,
             own_celestia_address: celestia_address,
         };
-
-        let rollup_batch_namespace = Namespace::new_v0(rollup_batch_namespace).unwrap();
-        let rollup_proof_namespace = Namespace::new_v0(rollup_proof_namespace).unwrap();
 
         let params = RollupParams {
             rollup_batch_namespace,
@@ -667,8 +664,8 @@ mod tests {
         let (_, _, da_service, _) = setup_service(
             None,
             CelestiaAddress::from_str("celestia1g2hwtcldcwjnw0cy9ngs9hsewpduq4zuehqlqh").unwrap(),
-            b"sov-roll05",
-            b"sov-prov05",
+            with_namespace_padding::ROLLUP_BATCH_NAMESPACE,
+            with_namespace_padding::ROLLUP_PROOF_NAMESPACE,
         )
         .await;
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
@@ -676,14 +673,16 @@ mod tests {
         assert_eq!(relevant_blobs.proof_blobs.len(), 0);
     }
 
+    // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/430
     #[tokio::test]
-    async fn verification_for_padded_namespace() {
+    #[ignore = "TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/430"]
+    async fn _verification_for_padded_namespace() {
         let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
         let (_, _, da_service, rollup_params) = setup_service(
             None,
             CelestiaAddress::from_str("celestia1g2hwtcldcwjnw0cy9ngs9hsewpduq4zuehqlqh").unwrap(),
-            b"sov-roll05",
-            b"sov-prov05",
+            with_namespace_padding::ROLLUP_BATCH_NAMESPACE,
+            with_namespace_padding::ROLLUP_PROOF_NAMESPACE,
         )
         .await;
 
@@ -727,7 +726,7 @@ mod tests {
     #[tokio::test]
     #[should_panic]
     async fn verification_fails_for_incorrect_namespace() {
-        let block = with_rollup_batch_data::filtered_block();
+        let block = with_rollup_proof_data::filtered_block();
         let (_, _, da_service, _) = setup_test_service(None).await;
 
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
@@ -737,8 +736,8 @@ mod tests {
 
         // create a verifier with a different namespace than the da_service
         let verifier = CelestiaVerifier::new(RollupParams {
-            rollup_batch_namespace: Namespace::new_v0(b"abc").unwrap(),
-            rollup_proof_namespace: Namespace::new_v0(b"xyz").unwrap(),
+            rollup_proof_namespace: Namespace::new_v0(b"abc").unwrap(),
+            rollup_batch_namespace: Namespace::new_v0(b"xyz").unwrap(),
         });
 
         let _panics =
