@@ -404,7 +404,7 @@ pub mod tests {
             .iter()
             .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
             .count();
-        assert_eq!(pfbs_count, 3);
+        assert_eq!(pfbs_count, 1);
         assert_eq!(rollup_batch_data.relevant_pfbs.len(), 1);
     }
 
@@ -442,7 +442,7 @@ pub mod tests {
 
         let pfb_ns = NamespaceGroup::from(&rows);
         let pfbs = parse_pfb_namespace(pfb_ns).expect("failed to parse pfb shares");
-        assert_eq!(pfbs.len(), 3);
+        assert_eq!(pfbs.len(), 1);
     }
 
     #[test]
@@ -459,7 +459,7 @@ pub mod tests {
         // this is a batch submitted by sequencer, consisting of a single
         // "CreateToken" transaction, but we verify only length there to
         // not make this test depend on deserialization logic
-        assert_eq!(first_blob.data().count(), 252);
+        assert_eq!(first_blob.data().count(), 277);
 
         assert!(blobs.next().is_none());
     }

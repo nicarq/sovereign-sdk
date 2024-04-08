@@ -2,7 +2,7 @@
 
 #![no_main]
 
-use const_rollup_config::ROLLUP_BATCH_NAMESPACE_RAW;
+use const_rollup_config::{ROLLUP_BATCH_NAMESPACE_RAW, ROLLUP_PROOF_NAMESPACE_RAW};
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_celestia_adapter::types::Namespace;
@@ -16,7 +16,8 @@ use sov_risc0_adapter::Risc0Verifier;
 use sov_state::ZkStorage;
 
 // The rollup stores its data in the namespace b"sov-test" on Celestia
-const ROLLUP_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_BATCH_NAMESPACE_RAW);
+const ROLLUP_BATCH_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_BATCH_NAMESPACE_RAW);
+const ROLLUP_PROOF_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_PROOF_NAMESPACE_RAW);
 
 risc0_zkvm::guest::entry!(main);
 
@@ -34,7 +35,8 @@ pub fn main() {
     let stf_verifier = StfVerifier::<_, Risc0Guest, _, _, _>::new(
         stf,
         CelestiaVerifier {
-            rollup_namespace: ROLLUP_NAMESPACE,
+            rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
+            rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
         },
     );
     stf_verifier

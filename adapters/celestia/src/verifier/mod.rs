@@ -27,7 +27,8 @@ use crate::{pfb_from_iter, CelestiaHeader};
 
 #[derive(Clone)]
 pub struct CelestiaVerifier {
-    pub rollup_namespace: Namespace,
+    pub rollup_batch_namespace: Namespace,
+    pub rollup_proof_namespace: Namespace,
 }
 
 pub const PFB_NAMESPACE: Namespace = Namespace::const_v0([0, 0, 0, 0, 0, 0, 0, 0, 0, 4]);
@@ -189,7 +190,8 @@ impl da::DaVerifier for CelestiaVerifier {
 
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
-            rollup_namespace: params.rollup_batch_namespace,
+            rollup_proof_namespace: params.rollup_proof_namespace,
+            rollup_batch_namespace: params.rollup_batch_namespace,
         }
     }
 
@@ -203,27 +205,70 @@ impl da::DaVerifier for CelestiaVerifier {
             <Self::Spec as DaSpec>::CompletenessProof,
         >,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
-        let txs = &relevant_blobs.batch_blobs;
-        let completeness_proof = relevant_proofs.batch.completeness_proof;
-        let inclusion_proof = relevant_proofs.batch.inclusion_proof;
-
         // Validate that the provided DAH is well-formed
         block_header.validate_dah()?;
+
+        Self::verify_txs(
+            block_header,
+            &relevant_blobs.proof_blobs,
+            self.rollup_proof_namespace,
+            relevant_proofs.proof.inclusion_proof,
+            relevant_proofs.proof.completeness_proof,
+        )?;
+
+        Self::verify_txs(
+            block_header,
+            &relevant_blobs.batch_blobs,
+            self.rollup_batch_namespace,
+            relevant_proofs.batch.inclusion_proof,
+            relevant_proofs.batch.completeness_proof,
+        )?;
+
         let validity_condition = ChainValidityCondition {
             prev_hash: *block_header.prev_hash().inner(),
             block_hash: *block_header.hash().inner(),
         };
 
+        Ok(validity_condition)
+    }
+}
+
+impl CelestiaVerifier {
+    fn verify_txs(
+        block_header: &CelestiaHeader,
+        txs: &[BlobWithSender],
+        namespace: Namespace,
+        inclusion_proof: Vec<EtxProof>,
+        completeness_proof: NamespacedShares,
+    ) -> Result<(), ValidationError> {
         // Check the validity and completeness of the rollup row proofs, against the DAH.
         // Extract the data from the row proofs and build a namespace_group from it
-        let verified_shares = self.verify_row_proofs(completeness_proof, &block_header.dah)?;
-        if verified_shares.is_empty() {
-            if txs.is_empty() {
-                return Ok(validity_condition);
-            }
-            return Err(ValidationError::MissingTx);
-        }
+        let verified_shares =
+            Self::verify_row_proofs(namespace, completeness_proof, &block_header.dah)?;
 
+        if verified_shares.is_empty() {
+            if !txs.is_empty() {
+                return Err(ValidationError::MissingTx);
+            }
+            Ok(())
+        } else {
+            Self::verify_inclusion_proof(
+                namespace,
+                block_header,
+                verified_shares,
+                txs,
+                inclusion_proof,
+            )
+        }
+    }
+
+    fn verify_inclusion_proof(
+        namespace: Namespace,
+        block_header: &CelestiaHeader,
+        verified_shares: NamespaceGroup,
+        txs: &[BlobWithSender],
+        inclusion_proof: Vec<EtxProof>,
+    ) -> Result<(), ValidationError> {
         // Check the e-tx proofs...
         // TODO(@preston-evans98): Remove this logic if Celestia adds blob.sender metadata directly into blob
         let mut tx_iter = txs.iter();
@@ -300,7 +345,7 @@ impl da::DaVerifier for CelestiaVerifier {
 
             // Verify the sender and data of each blob which was sent into this namespace
             for (blob_idx, nid) in pfb.namespaces.iter().enumerate() {
-                if nid != self.rollup_namespace.as_bytes() {
+                if nid != namespace.as_bytes() {
                     continue;
                 }
                 let tx: &BlobWithSender = tx_iter.next().ok_or(ValidationError::MissingTx)?;
@@ -326,7 +371,7 @@ impl da::DaVerifier for CelestiaVerifier {
 
                 // Link blob commitment to e-tx commitment
                 let expected_commitment =
-                    Commitment::from_shares(self.rollup_namespace, blob_ref.0).map_err(|_| {
+                    Commitment::from_shares(namespace, blob_ref.0).map_err(|_| {
                         ValidationError::InvalidEtxProof("failed to recreate commitment")
                     })?;
 
@@ -338,13 +383,11 @@ impl da::DaVerifier for CelestiaVerifier {
             return Err(ValidationError::InvalidEtxProof("more proofs than blobs"));
         }
 
-        Ok(validity_condition)
+        Ok(())
     }
-}
 
-impl CelestiaVerifier {
-    pub fn verify_row_proofs(
-        &self,
+    fn verify_row_proofs(
+        namespace: Namespace,
         row_proofs: NamespacedShares,
         dah: &DataAvailabilityHeader,
     ) -> Result<NamespaceGroup, ValidationError> {
@@ -353,15 +396,11 @@ impl CelestiaVerifier {
         let mut verified_shares = Vec::new();
         for row_root in dah.row_roots.iter() {
             // TODO: short circuit this loop at the first row after the rollup namespace
-            if row_root.contains(self.rollup_namespace.into()) {
+            if row_root.contains(namespace.into()) {
                 let row_proof = row_proofs.next().ok_or(ValidationError::InvalidRowProof)?;
                 row_proof
                     .proof
-                    .verify_complete_namespace(
-                        row_root,
-                        &row_proof.shares,
-                        self.rollup_namespace.into(),
-                    )
+                    .verify_complete_namespace(row_root, &row_proof.shares, namespace.into())
                     .expect("Proofs must be valid");
 
                 for leaf in row_proof.shares {

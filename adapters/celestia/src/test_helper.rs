@@ -18,7 +18,6 @@ pub(crate) mod files {
     pub const ROLLUP_PROOF_ROWS_JSON: &str = "rollup_proof_rows.json";
     pub const ETX_ROWS_JSON: &str = "etx_rows.json";
     pub const EDS_JSON: &str = "eds.json";
-    pub mod with_proof_data {}
 
     pub mod with_rollup_proof_data {
         use super::*;
@@ -26,7 +25,7 @@ pub(crate) mod files {
 
         pub fn filtered_block() -> FilteredCelestiaBlock {
             let path = make_test_path(DATA_PATH);
-            filtered_block_from_path(ROLLUP_PROOF_NAMESPACE, &path).unwrap()
+            filtered_block_from_path(ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE, &path).unwrap()
         }
     }
 
@@ -36,7 +35,7 @@ pub(crate) mod files {
 
         pub fn filtered_block() -> FilteredCelestiaBlock {
             let path = make_test_path(DATA_PATH);
-            filtered_block_from_path(ROLLUP_BATCH_NAMESPACE, &path).unwrap()
+            filtered_block_from_path(ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE, &path).unwrap()
         }
     }
 
@@ -44,11 +43,14 @@ pub(crate) mod files {
         use super::*;
         pub const DATA_PATH: &str = "test_data/block_with_namespace_padding";
 
+        pub const ROLLUP_BATCH_NAMESPACE: Namespace = Namespace::const_v0(*b"sov-roll05");
+        pub const ROLLUP_PROOF_NAMESPACE: Namespace = Namespace::const_v0(*b"sov-prov05");
+
         pub fn filtered_block() -> FilteredCelestiaBlock {
             let path = make_test_path(DATA_PATH);
             // sov-roll05 is the demo testnet rollup that faced the padding issue
             // We use the exact mocha testnet block that caused the breakage
-            filtered_block_from_path(Namespace::const_v0(*b"sov-roll05"), &path).unwrap()
+            filtered_block_from_path(ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE, &path).unwrap()
         }
     }
 
@@ -58,12 +60,13 @@ pub(crate) mod files {
 
         pub fn filtered_block() -> FilteredCelestiaBlock {
             let path = make_test_path(DATA_PATH);
-            filtered_block_from_path(ROLLUP_BATCH_NAMESPACE, &path).unwrap()
+            filtered_block_from_path(ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE, &path).unwrap()
         }
     }
 
     fn filtered_block_from_path(
-        ns: Namespace,
+        batch_namespace: Namespace,
+        proof_namespace: Namespace,
         path: &Path,
     ) -> anyhow::Result<FilteredCelestiaBlock> {
         let header: ExtendedHeader = load_from_file(path, HEADER_JSON)?;
@@ -73,12 +76,12 @@ pub(crate) mod files {
         let eds: ExtendedDataSquare = load_from_file(path, EDS_JSON)?;
 
         let rollup_batch_shares = NamespaceWithShares {
-            namespace: ns,
+            namespace: batch_namespace,
             rows: rollup_batch_rows,
         };
 
         let rollup_proof_shares = NamespaceWithShares {
-            namespace: ns,
+            namespace: proof_namespace,
             rows: rollup_proof_rows,
         };
 

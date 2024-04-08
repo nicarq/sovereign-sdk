@@ -358,8 +358,8 @@ mod tests {
     use crate::{CelestiaHeader, CompactHeader};
 
     const HEADER_JSON_RESPONSES: &[&str] = &[
+        include_str!("../test_data/block_with_rollup_batch_data/prev_header.json"),
         include_str!("../test_data/block_with_rollup_batch_data/header.json"),
-        include_str!("../test_data/block_without_rollup_batch_data/header.json"),
     ];
 
     #[test]
@@ -400,8 +400,8 @@ mod tests {
     #[test]
     fn test_compact_header_hash() {
         let expected_hashes = [
-            "C839E720DA55CC6E43EC7CE00744D6151D79E84C81D7F6995F3B13B7AE532456",
-            "F769490DC768E7678160384070727533B7AE809477EA5D191CF7AF5C917A7973",
+            "11ddc09acac0e884e5fdd312226ce43b94471846df8f6536f1dc3304a1a1637b",
+            "67de5ff33f0814b0d4d2cbafc202f3cdd8038c5589869f687e9cfbf30941784d",
         ];
         for (header_json, expected_hash) in HEADER_JSON_RESPONSES.iter().zip(expected_hashes.iter())
         {
