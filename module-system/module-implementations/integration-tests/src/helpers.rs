@@ -464,7 +464,7 @@ impl TestRollup {
             });
 
             // We apply a new transaction with the same values
-            let mut slot: MockBlock = MockBlock {
+            let slot: MockBlock = MockBlock {
                 header: MockBlockHeader {
                     prev_hash: [(i + height) * 10; 32].into(),
                     hash: [(i + height + 1) * 10; 32].into(),
@@ -489,7 +489,7 @@ impl TestRollup {
                 Default::default(),
                 &slot.header,
                 &slot.validity_cond,
-                &mut slot.batch_blobs,
+                slot.as_relevant_blobs().as_iters(),
             );
 
             self.storage_manager.commit(change_set);

@@ -113,7 +113,7 @@ fn rollup_bench(_bench: &mut Criterion) {
                 Default::default(),
                 &filtered_block.header,
                 &filtered_block.validity_cond,
-                &mut blobs[height as usize].batch_blobs,
+                blobs[height as usize].as_iters(),
             );
             current_root = apply_block_result.state_root;
             for receipts in apply_block_result.batch_receipts {

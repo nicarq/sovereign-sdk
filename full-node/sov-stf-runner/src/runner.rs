@@ -352,7 +352,7 @@ where
                 Default::default(),
                 filtered_block_header,
                 &filtered_block.validity_condition(),
-                batch_blobs,
+                relevant_blobs.as_iters(),
             );
 
             for receipt in slot_result.batch_receipts {

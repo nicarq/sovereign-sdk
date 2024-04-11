@@ -1,8 +1,10 @@
+use std::vec;
+
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::bank_data::get_default_token_id;
@@ -44,7 +46,10 @@ fn test_demo_values_in_db() {
             [0; 32],
         );
 
-        let mut blobs = [blob];
+        let mut relevant_blobs = RelevantBlobs {
+            proof_blobs: Default::default(),
+            batch_blobs: vec![blob],
+        };
 
         let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
 
@@ -54,7 +59,7 @@ fn test_demo_values_in_db() {
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
-            &mut blobs,
+            relevant_blobs.as_iters(),
         );
         assert_eq!(1, result.batch_receipts.len());
         // 2 transactions from value setter
@@ -127,7 +132,12 @@ fn test_demo_values_in_cache() {
         &MOCK_SEQUENCER_DA_ADDRESS,
         [0; 32],
     );
-    let mut blobs = [blob];
+
+    let mut relevant_blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![blob],
+    };
+
     let block_1 = genesis_block.next_mock();
     let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
 
@@ -137,7 +147,7 @@ fn test_demo_values_in_cache() {
         Default::default(),
         &block_1.header,
         &block_1.validity_cond,
-        &mut blobs,
+        relevant_blobs.as_iters(),
     );
 
     assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -214,7 +224,11 @@ fn test_demo_values_not_in_db() {
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
-        let mut blobs = [blob];
+
+        let mut relevant_blobs = RelevantBlobs {
+            proof_blobs: Default::default(),
+            batch_blobs: vec![blob],
+        };
 
         let (stf_state, _ledger_state) =
             storage_manager.create_state_for(block_1.header()).unwrap();
@@ -225,7 +239,7 @@ fn test_demo_values_not_in_db() {
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
-            &mut blobs,
+            relevant_blobs.as_iters(),
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -289,7 +303,11 @@ fn test_sequencer_unknown_sequencer() {
     let private_key = read_private_key::<TestSpec>().private_key;
     let txs = simulate_da(private_key);
     let blob = new_test_blob_from_batch(BatchWithId { txs, id: [0; 32] }, &some_sequencer, [0; 32]);
-    let mut blobs = [blob];
+
+    let mut relevant_blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![blob],
+    };
 
     let (stf_state, _ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
 
@@ -299,7 +317,7 @@ fn test_sequencer_unknown_sequencer() {
         Default::default(),
         &block_1.header,
         &block_1.validity_cond,
-        &mut blobs,
+        relevant_blobs.as_iters(),
     );
 
     // The sequencer isn't registered, so the blob should be ignored.

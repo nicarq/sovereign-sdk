@@ -6,6 +6,7 @@ use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::namespaces::User;
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::services::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue, StateAccesses};
@@ -93,12 +94,13 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
-        blobs: I,
+        relevant_blobs: RelevantBlobIters<I>,
     ) -> ApplySlotOutput<Vm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         tracing::debug!("Getting the root hash...");
+        let batch_blobs = relevant_blobs.batch_blobs;
 
         let storage_root_hash = pre_state.get_root_hash(slot_header.height()).unwrap();
         assert_eq!(
@@ -118,7 +120,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         );
         hasher.update(existing_cache.value());
 
-        for blob in blobs {
+        for blob in batch_blobs {
             let data = blob.verified_data();
             hasher.update(data);
         }
@@ -208,20 +210,20 @@ pub fn get_result_from_blocks(
     let l = blocks.len();
 
     for block in blocks {
-        let mut blobs = block.batch_blobs.clone();
+        let mut relevant_blobs = block.as_relevant_blobs();
 
         let storage = storage_manager.create_storage();
         let result = <HashStf<MockValidityCond> as StateTransitionFunction<
             MockZkVerifier,
             MockDaSpec,
-        >>::apply_slot::<&mut Vec<MockBlob>>(
+        >>::apply_slot::<&mut [MockBlob]>(
             &stf,
             &state_root,
             storage,
             ArrayWitness::default(),
             &block.header,
             &block.validity_cond,
-            &mut blobs,
+            relevant_blobs.as_iters(),
         );
 
         state_root = result.state_root;

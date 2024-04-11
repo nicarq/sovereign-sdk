@@ -117,6 +117,17 @@ where
 
     #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    pub(crate) fn apply_proof(
+        &self,
+        checkpoint: StateCheckpoint<S>,
+        _batch: &mut <Da as DaSpec>::BlobTransaction,
+        _gas_price: &<S::Gas as Gas>::Price,
+    ) -> StateCheckpoint<S> {
+        checkpoint
+    }
+
+    #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub(crate) fn apply_batch(
         &self,
         mut checkpoint: StateCheckpoint<S>,
