@@ -810,15 +810,10 @@ impl TestRuntime<S, MockDaSpec> {
     fn build_genesis_config(with_preferred_sequencer: bool) -> GenesisConfig<S, MockDaSpec> {
         let bank_config = get_bank_config(PREFERRED_SEQUENCER_ROLLUP, REGULAR_SEQUENCER_ROLLUP);
 
-        let token_id = sov_bank::GAS_TOKEN_ID;
-
         let sequencer_registry_config = SequencerConfig {
             seq_rollup_address: PREFERRED_SEQUENCER_ROLLUP,
             seq_da_address: PREFERRED_SEQUENCER_DA,
-            coins_to_lock: sov_bank::Coins {
-                amount: LOCKED_AMOUNT,
-                token_id,
-            },
+            minimum_bond: LOCKED_AMOUNT,
             is_preferred_sequencer: with_preferred_sequencer,
         };
 

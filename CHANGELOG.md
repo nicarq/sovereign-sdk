@@ -27,5 +27,6 @@
 - #432 Updates the `StateTransitionFunction`  to handle blobs from all the relevant namespaces.
 This breaks the `StateTransitionFunction` API but the breaking changes don't propagate outside of the module system internals. 
 
+- #443 Removes the `coins` field in the `SequencerRegistry` struct. It is replaced by a `minimum_bond` field and the `TokenId` becomes `GAS_TOKEN_ID`. The configuration structure `SequencerRegistryConfig` should be updated to replace the `coin` field by the new `minimum_bond` field.
 
 

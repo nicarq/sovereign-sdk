@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use demo_stf::genesis_config::{get_genesis_config, GenesisPaths};
+use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use risc0::MOCK_DA_ELF;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
@@ -65,7 +65,7 @@ async fn test_proof_generation() {
     generate_genesis_config(genesis_conf_dir.as_str()).expect("Failed to generate genesis config");
 
     let genesis_config = {
-        let rt_params = get_genesis_config::<DefaultSpec, _>(&GenesisPaths::from_dir(
+        let rt_params = create_genesis_config::<DefaultSpec, _>(&GenesisPaths::from_dir(
             genesis_conf_dir.as_str(),
         ))
         .unwrap();

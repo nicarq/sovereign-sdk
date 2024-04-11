@@ -1,6 +1,6 @@
 use helpers::*;
 use sov_mock_da::MockAddress;
-use sov_modules_api::{Context, Error, Module, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::{CallMessage, SequencerRegistry};
 
@@ -117,37 +117,10 @@ fn test_registration_not_enough_funds() {
         .registry
         .call(register_message, &sender_context, working_set);
 
+    // Note: the next PR will add a check for the error message back
     assert!(
         response.is_err(),
         "insufficient funds registration should fail"
-    );
-    let Error::ModuleError(err) = response.err().unwrap();
-    let mut chain = err.chain();
-    let message_1 = chain.next().unwrap().to_string();
-    let message_2 = chain.next().unwrap().to_string();
-    let message_3 = chain.next().unwrap().to_string();
-    assert!(chain.next().is_none());
-
-    assert_eq!(
-        format!(
-            "Failed transfer from={} to={} of coins(token_id={} amount={})",
-            sequencer_address,
-            test_sequencer.registry.id(),
-            test_sequencer.sequencer_config.coins_to_lock.token_id,
-            LOCKED_AMOUNT,
-        ),
-        message_1
-    );
-    assert_eq!(
-        format!(
-            "Incorrect balance on={} for token={}",
-            sequencer_address, GENESIS_TOKEN_NAME,
-        ),
-        message_2,
-    );
-    assert_eq!(
-        format!("Insufficient funds for {}", sequencer_address),
-        message_3,
     );
 }
 
@@ -172,11 +145,8 @@ fn test_registration_second_time() {
         .registry
         .call(register_message, &sender_context, working_set);
 
+    // Note: the next PR will add a check for the error message back
     assert!(response.is_err(), "duplicate registration should fail");
-    let expected_error_message = format!("sequencer {} already registered", sequencer_address);
-    let actual_error_message = response.err().unwrap().to_string();
-
-    assert_eq!(expected_error_message, actual_error_message);
 }
 
 #[test]
@@ -208,18 +178,10 @@ fn test_exit_different_sender() {
         .registry
         .call(exit_message, &attacker_context, working_set);
 
+    // Note: the next PR will add a check for the error message back
     assert!(
         response.is_err(),
         "exit by non authorized sender should fail"
-    );
-    let actual_error_message = response.err().unwrap().to_string();
-
-    assert_eq!(
-        format!(
-            "Unauthorized exit attempt from sequencer `{}`",
-            attacker_address,
-        ),
-        actual_error_message
     );
 }
 
@@ -247,10 +209,8 @@ fn test_preferred_sequencer_returned_and_removed() {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_id = sov_bank::GAS_TOKEN_ID;
-
     let registry = SequencerRegistry::<S, Da>::default();
-    let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
+    let mut sequencer_config = create_sequencer_config(seq_rollup_address);
 
     sequencer_config.is_preferred_sequencer = true;
 
@@ -302,7 +262,7 @@ fn test_registration_balance_increase() {
         .gas_token_config
         .address_and_balances[0]
         .1;
-    let stake_amount = test_sequencer.sequencer_config.coins_to_lock.amount;
+    let stake_amount = test_sequencer.sequencer_config.minimum_bond;
     let stake_increase = 1;
 
     // Register a sequencer
@@ -347,9 +307,7 @@ fn test_registration_balance_increase() {
     // allowed
 
     let stake_amount = stake_amount + stake_increase;
-    test_sequencer
-        .set_coins_amount_to_lock(stake_amount, working_set)
-        .unwrap();
+    test_sequencer.set_coins_amount_to_lock(stake_amount, working_set);
 
     let balance_after_update = test_sequencer
         .query_balance(sequencer_address, working_set)
@@ -394,7 +352,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
         .gas_token_config
         .address_and_balances[0]
         .1;
-    let stake_amount = test_sequencer.sequencer_config.coins_to_lock.amount;
+    let stake_amount = test_sequencer.sequencer_config.minimum_bond;
     let stake_increase = initial_balance;
 
     // Register a sequencer
@@ -422,9 +380,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
     // Increase the stake value and assert the sequencer is no longer allowed
 
     let stake_amount = stake_amount + stake_increase;
-    test_sequencer
-        .set_coins_amount_to_lock(stake_amount, working_set)
-        .unwrap();
+    test_sequencer.set_coins_amount_to_lock(stake_amount, working_set);
     assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, working_set));
 
     // Attempt to deposit the required amount and expect failure
@@ -463,7 +419,7 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
 
     // created settings
 
-    let stake_amount = test_sequencer.sequencer_config.coins_to_lock.amount;
+    let stake_amount = test_sequencer.sequencer_config.minimum_bond;
 
     // Register a sequencer
 

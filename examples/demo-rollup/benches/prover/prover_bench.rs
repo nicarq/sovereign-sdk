@@ -13,7 +13,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpe
 extern crate prettytable;
 
 use anyhow::Context;
-use demo_stf::genesis_config::{get_genesis_config, GenesisPaths};
+use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use log4rs::config::{Appender, Config, Root};
 use prettytable::Table;
@@ -197,9 +197,10 @@ async fn main() -> Result<(), anyhow::Error> {
     generate_genesis_config(genesis_conf_dir.as_str())?;
 
     let genesis_config = {
-        let rt_params =
-            get_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(genesis_conf_dir.as_str()))
-                .unwrap();
+        let rt_params = create_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(
+            genesis_conf_dir.as_str(),
+        ))
+        .unwrap();
 
         let chain_state =
             read_json_file(Path::new(genesis_conf_dir.as_str()).join("chain_state.json")).unwrap();

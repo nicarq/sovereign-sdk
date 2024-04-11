@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use criterion::{criterion_group, criterion_main, Criterion};
-use demo_stf::genesis_config::{get_genesis_config, GenesisPaths};
+use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
@@ -68,7 +68,7 @@ fn rollup_bench(_bench: &mut Criterion) {
     let demo_genesis_config = {
         let tests_path: &Path = "../../test-data/genesis/integration-tests".as_ref();
         let rt_params =
-            get_genesis_config::<BenchSpec, _>(&GenesisPaths::from_dir(tests_path)).unwrap();
+            create_genesis_config::<BenchSpec, _>(&GenesisPaths::from_dir(tests_path)).unwrap();
 
         let chain_state = read_json_file(tests_path.join("chain_state.json")).unwrap();
         let kernel_params = BasicKernelGenesisConfig { chain_state };

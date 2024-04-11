@@ -1,5 +1,5 @@
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
-use sov_bank::{Bank, BankConfig, Coins, GasTokenConfig, IntoPayable, GAS_TOKEN_ID};
+use sov_bank::{Bank, BankConfig, GasTokenConfig, IntoPayable};
 use sov_chain_state::ChainStateConfig;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
@@ -356,7 +356,6 @@ impl TestRollup {
         bank_params: BankParams,
         attester_params: AttesterIncentivesParams<S, Da>,
     ) -> GenesisParams<GenesisConfig<S, Da>, BasicKernelGenesisConfig<S, Da>> {
-        let token_id = GAS_TOKEN_ID;
         let runtime_config: <TestRuntime<S, Da> as Runtime<S, Da>>::GenesisConfig = GenesisConfig {
             value_setter: ValueSetterConfig {
                 admin: admin_pub_key,
@@ -364,10 +363,7 @@ impl TestRollup {
             sequencer_registry: SequencerConfig {
                 seq_rollup_address: seq_params.rollup_address,
                 seq_da_address: seq_params.da_address,
-                coins_to_lock: Coins {
-                    amount: seq_params.stake_amount,
-                    token_id,
-                },
+                minimum_bond: seq_params.stake_amount,
                 is_preferred_sequencer: true,
             },
             bank: BankConfig {

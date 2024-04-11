@@ -100,6 +100,6 @@ where
     fn genesis_config(
         genesis_paths: &Self::GenesisPaths,
     ) -> Result<Self::GenesisConfig, anyhow::Error> {
-        crate::genesis_config::get_genesis_config(genesis_paths)
+        crate::genesis_config::create_genesis_config(genesis_paths)
     }
 }

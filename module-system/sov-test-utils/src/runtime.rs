@@ -221,7 +221,6 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
         init_balance >= seq_stake_amount,
         "sequencer cannot stake more than its initial balance"
     );
-    let token_id = sov_bank::GAS_TOKEN_ID;
     GenesisConfig {
         value_setter: ValueSetterConfig {
             admin: admin.clone(),
@@ -229,10 +228,7 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
         sequencer_registry: SequencerConfig {
             seq_rollup_address: seq_rollup_address.clone(),
             seq_da_address,
-            coins_to_lock: Coins {
-                amount: seq_stake_amount,
-                token_id,
-            },
+            minimum_bond: seq_stake_amount,
             is_preferred_sequencer: true,
         },
         attester_incentives: AttesterIncentivesConfig {

@@ -5,9 +5,7 @@
 use std::convert::AsRef;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context as _};
 pub use sov_accounts::AccountConfig;
-use sov_bank::GAS_TOKEN_ID;
 pub use sov_bank::{BankConfig, Coins, TokenConfig};
 pub use sov_chain_state::ChainStateConfig;
 pub use sov_evm::EvmConfig;
@@ -63,33 +61,7 @@ impl GenesisPaths {
 }
 
 /// Creates genesis configuration.
-pub fn get_genesis_config<S: Spec, Da: DaSpec>(
-    genesis_paths: &GenesisPaths,
-) -> Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig, anyhow::Error> {
-    let genesis_config =
-        create_genesis_config(genesis_paths).context("Unable to read genesis configuration")?;
-    validate_config(genesis_config)
-}
-
-pub(crate) fn validate_config<S: Spec, Da: DaSpec>(
-    genesis_config: <Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig,
-) -> Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig, anyhow::Error> {
-    let token_id = GAS_TOKEN_ID;
-
-    let coins_token_addr = &genesis_config.sequencer_registry.coins_to_lock.token_id;
-
-    if coins_token_addr != &token_id {
-        bail!(
-            "Wrong token ID in `sequencer_registry_config` expected {} but found {}",
-            token_id,
-            coins_token_addr
-        )
-    }
-
-    Ok(genesis_config)
-}
-
-fn create_genesis_config<S: Spec, Da: DaSpec>(
+pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     genesis_paths: &GenesisPaths,
 ) -> anyhow::Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig> {
     let bank_config: BankConfig<S> = read_json_file(&genesis_paths.bank_genesis_path)?;

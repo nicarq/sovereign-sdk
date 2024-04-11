@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use demo_stf::genesis_config::{get_genesis_config, GenesisPaths};
+use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use humantime::format_duration;
 use prettytable::Table;
@@ -126,9 +126,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let demo_genesis_config = {
         let integration_test_conf_dir: &Path = "../test-data/genesis/integration-tests".as_ref();
-        let rt_params =
-            get_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(integration_test_conf_dir))
-                .unwrap();
+        let rt_params = create_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(
+            integration_test_conf_dir,
+        ))
+        .unwrap();
 
         let chain_state =
             read_json_file(integration_test_conf_dir.join("chain_state.json")).unwrap();

@@ -1,4 +1,5 @@
 use helpers::*;
+use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
@@ -178,9 +179,8 @@ fn end_blob_hook_slash_preferred_sequencer() {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_id = sov_bank::GAS_TOKEN_ID;
     let registry = SequencerRegistry::<S, Da>::default();
-    let mut sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
+    let mut sequencer_config = create_sequencer_config(seq_rollup_address);
 
     sequencer_config.is_preferred_sequencer = true;
 
@@ -306,9 +306,7 @@ fn begin_blob_hook_without_enough_stake() {
         id: [0; 32],
     };
 
-    test_sequencer
-        .set_coins_amount_to_lock(LOCKED_AMOUNT + 1, &mut working_set)
-        .unwrap();
+    test_sequencer.set_coins_amount_to_lock(LOCKED_AMOUNT + 1, &mut working_set);
 
     let mut state_checkpoint = working_set.checkpoint().0;
     let res = test_sequencer.registry.begin_batch_hook(
@@ -338,8 +336,8 @@ fn slashed_sequencer_should_not_preserve_balance() {
         .address_and_balances[0]
         .1;
     let deposit_amount = 100;
-    let stake_amount = test_sequencer.sequencer_config.coins_to_lock.amount;
-    let token_id = test_sequencer.sequencer_config.coins_to_lock.token_id;
+    let stake_amount = test_sequencer.sequencer_config.minimum_bond;
+    let token_id = GAS_TOKEN_ID;
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
     // sanity check the balance

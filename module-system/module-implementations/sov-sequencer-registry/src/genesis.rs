@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use sov_bank::Amount;
 use sov_modules_api::WorkingSet;
 
 use crate::SequencerRegistry;
@@ -17,16 +18,8 @@ pub struct SequencerConfig<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec
     pub seq_rollup_address: S::Address,
     /// The Data Availability (DA) address of the sequencer.
     pub seq_da_address: Da::Address,
-    /// Coins that will be slashed if the sequencer is malicious.
-    ///
-    /// The coins will be transferred from
-    /// [`SequencerConfig::seq_rollup_address`] to this module's id
-    /// ([`sov_modules_api::ModuleInfo::id`]) and locked away until the sequencer
-    /// decides to exit (unregister).
-    ///
-    /// Only sequencers that are [`SequencerRegistry::is_sender_allowed`] list are
-    /// allowed to exit.
-    pub coins_to_lock: sov_bank::Coins,
+    /// The minimum bond required for a sequencer to send transactions.
+    pub minimum_bond: Amount,
     /// Determines whether this sequencer is *regular* or *preferred*.
     ///
     /// Batches from the preferred sequencer are always processed first in
@@ -41,13 +34,15 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
-        self.coins_to_lock.set(&config.coins_to_lock, working_set);
+        self.minimum_bond.set(&config.minimum_bond, working_set);
+
         self.register_sequencer(
             &config.seq_da_address,
             &config.seq_rollup_address,
-            config.coins_to_lock.amount,
+            config.minimum_bond,
             working_set,
         )?;
+
         if config.is_preferred_sequencer {
             self.preferred_sequencer
                 .set(&config.seq_da_address, working_set);
@@ -61,7 +56,6 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
 mod tests {
     use std::str::FromStr;
 
-    use sov_bank::{Coins, TokenId};
     use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::{AddressBech32, Spec};
     use sov_test_utils::TestSpec;
@@ -76,15 +70,6 @@ mod tests {
         .unwrap()
         .into();
 
-        let token_id =
-            TokenId::from_str("token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6")
-                .unwrap();
-
-        let coins = Coins {
-            amount: 50,
-            token_id,
-        };
-
         let seq_da_addreess = MockAddress::from_str(
             "0000000000000000000000000000000000000000000000000000000000000000",
         )
@@ -93,7 +78,7 @@ mod tests {
         let config = SequencerConfig::<TestSpec, MockDaSpec> {
             seq_rollup_address,
             seq_da_address: seq_da_addreess,
-            coins_to_lock: coins,
+            minimum_bond: 50,
             is_preferred_sequencer: true,
         };
 
@@ -101,10 +86,7 @@ mod tests {
         {
             "seq_rollup_address":"sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
             "seq_da_address":"0000000000000000000000000000000000000000000000000000000000000000",
-            "coins_to_lock":{
-                "amount":50,
-                "token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
-            },
+            "minimum_bond":50,
             "is_preferred_sequencer":true
         }"#;
 

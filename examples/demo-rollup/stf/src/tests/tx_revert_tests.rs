@@ -12,7 +12,8 @@ use sov_test_utils::bank_data::get_default_token_id;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestSpec};
 
 use super::{
-    create_storage_manager_for_tests, get_genesis_config_for_tests, read_private_key, RuntimeTest,
+    create_genesis_config_for_tests, create_storage_manager_for_tests, read_private_key,
+    RuntimeTest,
 };
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::{
@@ -32,7 +33,7 @@ fn test_tx_revert() {
 
     let tempdir = tempfile::tempdir().unwrap();
 
-    let config = get_genesis_config_for_tests();
+    let config = create_genesis_config_for_tests();
     let sequencer_rollup_address = config.runtime.sequencer_registry.seq_rollup_address;
 
     let genesis_block = MockBlock::default();
@@ -154,7 +155,7 @@ fn test_tx_bad_signature() {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
 
-    let config = get_genesis_config_for_tests();
+    let config = create_genesis_config_for_tests();
 
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
@@ -241,7 +242,7 @@ fn test_tx_bad_nonce() {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
 
-    let config = get_genesis_config_for_tests();
+    let config = create_genesis_config_for_tests();
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let admin_key = read_private_key::<TestSpec>().private_key;
@@ -302,7 +303,7 @@ fn test_tx_bad_serialization() {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
 
-    let config = get_genesis_config_for_tests();
+    let config = create_genesis_config_for_tests();
     let sequencer_rollup_address = config.runtime.sequencer_registry.seq_rollup_address;
 
     let genesis_block = MockBlock::default();
@@ -436,7 +437,7 @@ fn test_tx_gas_limit() {
 
     fn run_test(gas_price: GasPrice<2>, tx_gas_limit: GasUnit<2>, _outcome: TxEffect) {
         let tempdir = tempfile::tempdir().unwrap();
-        let config = get_genesis_config_for_tests();
+        let config = create_genesis_config_for_tests();
         let genesis_block = MockBlock::default();
         let block_1 = genesis_block.next_mock();
         let stf: StfBlueprintTest = StfBlueprint::new();

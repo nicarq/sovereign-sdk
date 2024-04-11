@@ -8444,6 +8444,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "tempfile",
+ "thiserror",
 ]
 
 [[package]]
