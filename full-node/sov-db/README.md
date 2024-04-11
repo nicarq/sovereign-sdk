@@ -1,12 +1,12 @@
 # Sovereign DB
 
 This package provides a high-level interface to a [Schema DB](https://github.com/sovereign-Labs/rockbound) designed specifically for use with the Sovereign SDK.
-It exposes two db types: `LedgerDB`, and `StateDb`.
+It exposes two db types: `LedgerDb`, and `StateDb`.
 
-## LedgerDB
+## LedgerDb
 
-As the name implies, the `LedgerDB` is designed to store ledger history. It has tables for slots, batches, transactions, and events.
-The `LedgerDB` also implements the `LedgerRpcProvider` trait, allowing it to easily serve chain history over RPC.
+As the name implies, the `LedgerDb` is designed to store ledger history. It has tables for slots, batches, transactions, and events.
+The `LedgerDb` also implements the `LedgerStateProvider` trait, allowing it to easily serve chain history over RPC.
 
 ## StateDb
 

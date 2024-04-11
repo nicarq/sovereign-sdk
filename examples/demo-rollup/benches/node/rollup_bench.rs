@@ -7,7 +7,7 @@ use anyhow::Context;
 use criterion::{criterion_group, criterion_main, Criterion};
 use demo_stf::genesis_config::{get_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
@@ -55,7 +55,7 @@ fn rollup_bench(_bench: &mut Criterion) {
         .create_state_for(&block_0)
         .expect("Getting genesis storage failed");
 
-    let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+    let ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
 
     let stf = StfBlueprint::<
         BenchSpec,

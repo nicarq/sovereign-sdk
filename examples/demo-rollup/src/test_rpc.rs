@@ -5,7 +5,7 @@ use proptest::strategy::Strategy;
 use proptest::{prop_compose, proptest};
 use reqwest::header::CONTENT_TYPE;
 use serde_json::json;
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
@@ -50,7 +50,7 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
     }
 }
 
-fn populate_ledger(ledger_db: &mut LedgerDB, slots: Vec<SlotCommit<MockBlock, u32, u32>>) {
+fn populate_ledger(ledger_db: &mut LedgerDb, slots: Vec<SlotCommit<MockBlock, u32, u32>>) {
     for slot in slots {
         ledger_db.commit_slot(slot).unwrap();
     }
@@ -78,7 +78,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
             .create_state_for(&genesis_block_header)
             .expect("Getting genesis storage failed");
 
-        let mut ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+        let mut ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
         populate_ledger(&mut ledger_db, slots);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")
@@ -86,7 +86,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
             .unwrap();
         let addr = server.local_addr().unwrap();
         let server_rpc_module = sov_ledger_rpc::server::rpc_module::<
-            LedgerDB,
+            LedgerDb,
             u32,
             u32,
             demo_stf::runtime::RuntimeEvent<TestSpec, sov_mock_da::MockDaSpec>,

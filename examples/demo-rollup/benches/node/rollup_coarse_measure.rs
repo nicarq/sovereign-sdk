@@ -12,7 +12,7 @@ use demo_stf::runtime::Runtime;
 use humantime::format_duration;
 use prettytable::Table;
 use prometheus::{Histogram, HistogramOpts, Registry};
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxEffect};
@@ -114,7 +114,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .create_state_for(&genesis_block_header)
         .expect("Getting genesis storage failed");
 
-    let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+    let ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
 
     let stf = StfBlueprint::<
         TestSpec,

@@ -9,7 +9,7 @@ use rockbound::cache::change_set::ChangeSet;
 use rockbound::cache::SnapshotId;
 use rockbound::ReadOnlyLock;
 use sov_db::accessory_db::AccessoryDb;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::LedgerDb;
 use sov_db::state_db::StateDb;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -86,7 +86,7 @@ where
         let path = config.path;
         let state_db = StateDb::setup_schema_db(&path)?;
         let accessory_db = AccessoryDb::setup_schema_db(&path)?;
-        let ledger_db = LedgerDB::setup_schema_db(&path)?;
+        let ledger_db = LedgerDb::setup_schema_db(&path)?;
 
         Ok(Self::with_db_handles(state_db, accessory_db, ledger_db))
     }
@@ -458,7 +458,7 @@ impl<S: MerkleProofSpec> SimpleStorageManager<S> {
     pub fn new(path: impl AsRef<std::path::Path>) -> Self {
         let state_db = StateDb::setup_schema_db(&path).unwrap();
         let accessory_db = AccessoryDb::setup_schema_db(&path).unwrap();
-        let ledger_db = LedgerDB::setup_schema_db(&path).unwrap();
+        let ledger_db = LedgerDb::setup_schema_db(&path).unwrap();
 
         let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
 
@@ -519,7 +519,7 @@ mod tests {
     use sov_mock_da::{MockBlockHeader, MockHash};
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::da::Time;
-    use sov_rollup_interface::rpc::LedgerRpcProvider;
+    use sov_rollup_interface::rpc::LedgerStateProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
         AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
     };
@@ -579,7 +579,7 @@ mod tests {
     fn build_dbs(path: &std::path::Path) -> (rockbound::DB, rockbound::DB, rockbound::DB) {
         let state_db = StateDb::setup_schema_db(path).unwrap();
         let accessory_db = AccessoryDb::setup_schema_db(path).unwrap();
-        let ledger_db = LedgerDB::setup_schema_db(path).unwrap();
+        let ledger_db = LedgerDb::setup_schema_db(path).unwrap();
 
         (state_db, accessory_db, ledger_db)
     }
@@ -952,8 +952,8 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn try_save_bootstrap_storage() {
+    #[tokio::test]
+    async fn try_save_bootstrap_storage() {
         // This test checks following things:
         //  - bootstrap state only has access to the finalized data.
         //  - bootstrap state can be "saved" back without error and without affecting data
@@ -985,7 +985,7 @@ mod tests {
                 storage_manager.create_state_for(&genesis_block).unwrap();
             do_writes(&stf_state, &witness, &[(1, Some(2))], &[(30, Some(40))]);
 
-            let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+            let ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
 
             let raw_aggregated_proof = MockZkvm::create_serialized_proof(true, public_data.clone());
             let agg_proof = AggregatedProof::new(
@@ -1029,8 +1029,8 @@ mod tests {
             );
             assert_eq!(None, bootstrap_stf.get_accessory(&key_from(30), None));
 
-            let ledger_db = LedgerDB::with_cache_db(bootstrap_ledger).unwrap();
-            let proof = ledger_db.get_latest_aggregated_proof().unwrap();
+            let ledger_db = LedgerDb::with_cache_db(bootstrap_ledger).unwrap();
+            let proof = ledger_db.get_latest_aggregated_proof().await.unwrap();
             assert!(proof.is_none());
 
             storage_manager
@@ -1062,9 +1062,10 @@ mod tests {
                 bootstrap_stf.get_accessory(&key_from(30), None)
             );
 
-            let ledger_db = LedgerDB::with_cache_db(bootstrap_ledger).unwrap();
+            let ledger_db = LedgerDb::with_cache_db(bootstrap_ledger).unwrap();
             let actual_proof = ledger_db
                 .get_latest_aggregated_proof()
+                .await
                 .unwrap()
                 .unwrap()
                 .proof;

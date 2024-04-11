@@ -7853,6 +7853,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "async-trait",
  "bincode",
  "borsh 0.10.3",
  "byteorder",
@@ -8155,6 +8156,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "async-trait",
  "bech32 0.11.0",
  "borsh 0.10.3",
  "derivative",
@@ -8309,6 +8311,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tempfile",
+ "tokio",
  "tracing",
 ]
 

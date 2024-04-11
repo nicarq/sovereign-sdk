@@ -1,10 +1,11 @@
 use anyhow::{ensure, Context, Error};
+use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use sov_modules_core::{LedgerRpcProviderExt, ModuleId};
+use sov_modules_core::{LedgerStateProviderExt, ModuleId};
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
-    EventResponse, ItemOrHash, LedgerRpcProvider, PaginatedEventResponse, QueryMode,
+    EventResponse, ItemOrHash, LedgerStateProvider, PaginatedEventResponse, QueryMode,
     SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use tokio::sync::broadcast::Receiver;
@@ -27,13 +28,16 @@ const MAX_TRANSACTIONS_PER_REQUEST: u64 = 100;
 /// The maximum number of events that can be requested in a single RPC range query
 const MAX_EVENTS_PER_REQUEST: u64 = 500;
 
-use super::LedgerDB;
+use super::LedgerDb;
 
-impl LedgerRpcProvider for LedgerDB {
-    fn get_head<B: DeserializeOwned, T: DeserializeOwned>(
+#[async_trait]
+impl LedgerStateProvider for LedgerDb {
+    type Error = anyhow::Error;
+
+    async fn get_head<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
+    ) -> Result<Option<SlotResponse<B, T>>, Self::Error> {
         let next_ids = self.get_next_items_numbers();
         let next_slot = next_ids.slot_number;
 
@@ -52,11 +56,11 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(None)
     }
 
-    fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         slot_ids: &[SlotIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error> {
+    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error> {
         anyhow::ensure!(
             slot_ids.len() <= MAX_SLOTS_PER_REQUEST as usize,
             "requested too many slots. Requested: {}. Max: {}",
@@ -82,11 +86,11 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(out)
     }
 
-    fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         batch_ids: &[BatchIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error> {
+    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error> {
         anyhow::ensure!(
             batch_ids.len() <= MAX_BATCHES_PER_REQUEST as usize,
             "requested too many batches. Requested: {}. Max: {}",
@@ -112,11 +116,11 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(out)
     }
 
-    fn get_transactions<T: DeserializeOwned>(
+    async fn get_transactions<T: DeserializeOwned>(
         &self,
         tx_ids: &[TxIdentifier],
         _query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error> {
+    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error> {
         anyhow::ensure!(
             tx_ids.len() <= MAX_TRANSACTIONS_PER_REQUEST as usize,
             "requested too many transactions. Requested: {}. Max: {}",
@@ -142,10 +146,10 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(out)
     }
 
-    fn get_events<E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+    async fn get_events<E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
         &self,
         event_ids: &[EventIdentifier],
-    ) -> Result<Vec<Option<EventResponse>>, anyhow::Error> {
+    ) -> Result<Vec<Option<EventResponse>>, Self::Error> {
         anyhow::ensure!(
             event_ids.len() <= MAX_EVENTS_PER_REQUEST as usize,
             "requested too many events. Requested: {}. Max: {}",
@@ -190,62 +194,9 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(out)
     }
 
-    // Get X by hash
-    fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
-        self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
-            .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
-    }
-
-    fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error> {
-        self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
-            .map(|mut batches: Vec<Option<BatchResponse<B, T>>>| batches.pop().unwrap_or(None))
-    }
-
-    fn get_tx_by_hash<T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error> {
-        self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
-            .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
-    }
-
-    // Get X by number
-    fn get_slot_by_number<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
-        self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
-            .map(|mut slots: Vec<Option<SlotResponse<B, T>>>| slots.pop().unwrap_or(None))
-    }
-
-    fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error> {
-        self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
-            .map(|mut slots| slots.pop().unwrap_or(None))
-    }
-
-    fn get_event_by_number<E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
-        &self,
-        number: u64,
-    ) -> Result<Option<EventResponse>, anyhow::Error> {
-        self.get_events::<E>(&[EventIdentifier::Number(number)])
-            .map(|mut events| events.pop().flatten())
-    }
-
-    fn get_events_by_txn_hash<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+    async fn get_events_by_txn_hash<
+        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
+    >(
         &self,
         txn_hash: &[u8; 32],
     ) -> Result<Vec<EventResponse>, Error> {
@@ -259,13 +210,18 @@ impl LedgerRpcProvider for LedgerDB {
                     hex::encode(txn_hash)
                 )
             })?;
-        let events_response = self.get_events_by_txn_number::<E>(tid.0).with_context(|| {
-            format!("Failed to query txn with hash: 0x{}", hex::encode(txn_hash))
-        })?;
+        let events_response = self
+            .get_events_by_txn_number::<E>(tid.0)
+            .await
+            .with_context(|| {
+                format!("Failed to query txn with hash: 0x{}", hex::encode(txn_hash))
+            })?;
         Ok(events_response)
     }
 
-    fn get_events_by_txn_number<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+    async fn get_events_by_txn_number<
+        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
+    >(
         &self,
         txn_num: u64,
     ) -> Result<Vec<EventResponse>, Error> {
@@ -287,28 +243,20 @@ impl LedgerRpcProvider for LedgerDB {
         }
 
         let events_response: Vec<EventResponse> = self
-            .get_events::<E>(&event_ids)?
+            .get_events::<E>(&event_ids)
+            .await?
             .into_iter()
             .flatten()
             .collect();
         Ok(events_response)
     }
 
-    fn get_tx_by_number<T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error> {
-        self.get_transactions(&[TxIdentifier::Number(number)], query_mode)
-            .map(|mut txs| txs.pop().unwrap_or(None))
-    }
-
-    fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error> {
+    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error> {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
             end - start <= MAX_SLOTS_PER_REQUEST,
@@ -316,15 +264,15 @@ impl LedgerRpcProvider for LedgerDB {
             MAX_SLOTS_PER_REQUEST
         );
         let ids: Vec<_> = (start..=end).map(SlotIdentifier::Number).collect();
-        self.get_slots(&ids, query_mode)
+        self.get_slots(&ids, query_mode).await
     }
 
-    fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error> {
+    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error> {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
             end - start <= MAX_BATCHES_PER_REQUEST,
@@ -332,15 +280,15 @@ impl LedgerRpcProvider for LedgerDB {
             MAX_BATCHES_PER_REQUEST
         );
         let ids: Vec<_> = (start..=end).map(BatchIdentifier::Number).collect();
-        self.get_batches(&ids, query_mode)
+        self.get_batches(&ids, query_mode).await
     }
 
-    fn get_transactions_range<T: DeserializeOwned>(
+    async fn get_transactions_range<T: DeserializeOwned>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error> {
+    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error> {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
             end - start <= MAX_TRANSACTIONS_PER_REQUEST,
@@ -348,10 +296,10 @@ impl LedgerRpcProvider for LedgerDB {
             MAX_TRANSACTIONS_PER_REQUEST
         );
         let ids: Vec<_> = (start..=end).map(TxIdentifier::Number).collect();
-        self.get_transactions(&ids, query_mode)
+        self.get_transactions(&ids, query_mode).await
     }
 
-    fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>> {
+    async fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>> {
         let agg_proof_data = self.db.get_largest::<ProofByUniqueId>();
 
         match agg_proof_data? {
@@ -369,8 +317,9 @@ impl LedgerRpcProvider for LedgerDB {
     }
 }
 
-impl LedgerRpcProviderExt for LedgerDB {
-    fn get_events_by_key<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+#[async_trait]
+impl LedgerStateProviderExt for LedgerDb {
+    async fn get_events_by_key<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
         &self,
         event_key: &str,
         module_id: Option<ModuleId>,
@@ -378,19 +327,21 @@ impl LedgerRpcProviderExt for LedgerDB {
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, Error> {
-        get_events_by_key_helper::<E>(self, event_key, module_id, txn_range, num_events, next)
+        get_events_by_key_helper::<E>(self, event_key, module_id, txn_range, num_events, next).await
     }
 
-    fn get_events_by_module_id<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+    async fn get_events_by_module_id<
+        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
+    >(
         &self,
         module_id: ModuleId,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse, Error> {
-        get_events_by_module_id_helper::<E>(self, module_id, num_events, next)
+        get_events_by_module_id_helper::<E>(self, module_id, num_events, next).await
     }
 
-    fn get_events_by_slot_range_key<
+    async fn get_events_by_slot_range_key<
         E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
     >(
         &self,
@@ -458,13 +409,15 @@ impl LedgerRpcProviderExt for LedgerDB {
             }
         };
 
-        let paginated_query_response = self.get_events_by_key::<E>(
-            event_key,
-            Some(module_id),
-            Some((txn_range.0, txn_range.1)),
-            num_events,
-            next_key.as_deref(),
-        )?;
+        let paginated_query_response = self
+            .get_events_by_key::<E>(
+                event_key,
+                Some(module_id),
+                Some((txn_range.0, txn_range.1)),
+                num_events,
+                next_key.as_deref(),
+            )
+            .await?;
         let (event_response, next_key) = (
             paginated_query_response.events_response,
             paginated_query_response.next,
@@ -478,7 +431,8 @@ impl LedgerRpcProviderExt for LedgerDB {
         })
     }
 }
-impl LedgerDB {
+
+impl LedgerDb {
     fn resolve_slot_identifier(
         &self,
         slot_id: &SlotIdentifier,
@@ -639,8 +593,8 @@ mod tests {
     use rockbound::SchemaBatch;
     use sov_mock_da::{MockBlob, MockBlock};
     use sov_mock_zkvm::MockZkvm;
-    use sov_modules_core::{LedgerRpcProviderExt, ModuleId};
-    use sov_rollup_interface::rpc::LedgerRpcProvider;
+    use sov_modules_core::{LedgerStateProviderExt, ModuleId};
+    use sov_rollup_interface::rpc::LedgerStateProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
         AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
     };
@@ -649,7 +603,7 @@ mod tests {
         find_event_details, generate_events, TestEvent, FIXED_EVENT_KEY, MAX_NUM_EVENTS_FIXED_KEY,
         NUM_EVENTS_PER_TXN, NUM_MODULES, NUM_TXNS_PER_MODULE,
     };
-    use crate::ledger_db::{LedgerDB, SlotCommit};
+    use crate::ledger_db::{LedgerDb, SlotCommit};
 
     #[test]
     fn test_slot_subscription() {
@@ -663,8 +617,8 @@ mod tests {
         assert_eq!(rx.blocking_recv().unwrap(), 0);
     }
 
-    #[test]
-    fn test_get_events() {
+    #[tokio::test]
+    async fn test_get_events() {
         let ledger_db = create_ledger();
         let mut schema_batch = SchemaBatch::new();
 
@@ -686,6 +640,7 @@ mod tests {
         let event_num = rng.gen_range(1..event_count) as u64;
         let event_response = ledger_db
             .get_event_by_number::<TestEvent>(event_num)
+            .await
             .unwrap();
         assert!(event_response.is_some());
         let event = event_response.unwrap();
@@ -699,8 +654,8 @@ mod tests {
         assert_eq!(event.event_value, event_num + 1);
     }
 
-    #[test]
-    fn test_get_events_by_key() {
+    #[tokio::test]
+    async fn test_get_events_by_key() {
         let ledger_db = create_ledger();
         let mut schema_batch = SchemaBatch::new();
 
@@ -728,8 +683,9 @@ mod tests {
             NUM_EVENTS_PER_TXN,
         );
         let expected_module_id = ModuleId::from([module_number as u8; 32]).to_string();
-        let event_response =
-            ledger_db.get_events_by_key::<TestEvent>(&event_key, None, None, 1, None);
+        let event_response = ledger_db
+            .get_events_by_key::<TestEvent>(&event_key, None, None, 1, None)
+            .await;
 
         assert!(event_response.is_ok());
         let event_response = event_response.unwrap();
@@ -742,8 +698,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_get_events_by_key_pagination() {
+    #[tokio::test]
+    async fn test_get_events_by_key_pagination() {
         let ledger_db = create_ledger();
         let mut schema_batch = SchemaBatch::new();
 
@@ -774,6 +730,7 @@ mod tests {
                     num_events_per_page,
                     next_key.as_deref(),
                 )
+                .await
                 .unwrap();
 
             num_events_fetched += event_response.events_response.len();
@@ -820,8 +777,9 @@ mod tests {
             NUM_EVENTS_PER_TXN,
         );
         let expected_module_id = ModuleId::from([module_number as u8; 32]).to_string();
-        let event_response =
-            ledger_db.get_events_by_key::<TestEvent>(&event_key, None, None, 1, None);
+        let event_response = ledger_db
+            .get_events_by_key::<TestEvent>(&event_key, None, None, 1, None)
+            .await;
 
         assert!(event_response.is_ok());
         let event_response = event_response.unwrap();
@@ -834,8 +792,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_get_events_by_key_module_id() {
+    #[tokio::test]
+    async fn test_get_events_by_key_module_id() {
         let ledger_db = create_ledger();
         let mut schema_batch = SchemaBatch::new();
 
@@ -869,6 +827,7 @@ mod tests {
                     num_events_per_page,
                     next_key.as_deref(),
                 )
+                .await
                 .unwrap();
 
             for e in event_response.events_response {
@@ -894,24 +853,24 @@ mod tests {
         );
     }
 
-    fn create_ledger() -> LedgerDB {
+    fn create_ledger() -> LedgerDb {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path();
-        let db = LedgerDB::setup_schema_db(path).unwrap();
+        let db = LedgerDb::setup_schema_db(path).unwrap();
         let cache_container = Arc::new(RwLock::new(CacheContainer::new(
             db,
             Arc::new(RwLock::new(Default::default())).into(),
         )));
         let cache_db = CacheDb::new(0, cache_container.into());
-        LedgerDB::with_cache_db(cache_db).unwrap()
+        LedgerDb::with_cache_db(cache_db).unwrap()
     }
 
-    #[test]
-    fn test_save_aggregated_proof() {
+    #[tokio::test]
+    async fn test_save_aggregated_proof() {
         let ledger_db = create_ledger();
         let _rx = ledger_db.proof_subscriptions.subscribe();
 
-        let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap();
+        let proof_from_db = ledger_db.get_latest_aggregated_proof().await.unwrap();
         assert_eq!(None, proof_from_db);
 
         for i in 0..10 {
@@ -940,7 +899,11 @@ mod tests {
                 .save_finalized_aggregated_proof(agg_proof)
                 .unwrap();
 
-            let proof_from_db = ledger_db.get_latest_aggregated_proof().unwrap().unwrap();
+            let proof_from_db = ledger_db
+                .get_latest_aggregated_proof()
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(&public_data, proof_from_db.proof.public_data());
         }
     }

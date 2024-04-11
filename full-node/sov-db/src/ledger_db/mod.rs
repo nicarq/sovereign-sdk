@@ -84,7 +84,7 @@ impl<S: SlotData, B, T> SlotCommit<S, B, T> {
 /// before being fed to the state-transition function.
 /// Once the state-transition function has been executed and finalized,
 /// the results are committed to the final db
-pub struct LedgerDB {
+pub struct LedgerDb {
     /// The database which stores the committed ledger.
     /// Uses an optimized layout which
     /// requires transactions to be executed before being committed.
@@ -94,11 +94,11 @@ pub struct LedgerDB {
     proof_subscriptions: tokio::sync::broadcast::Sender<AggregatedProofResponse>,
 }
 
-impl LedgerDB {
+impl LedgerDb {
     const DB_PATH_SUFFIX: &'static str = "ledger";
     const DB_NAME: &'static str = "ledger-db";
 
-    /// Initialize [`rockbound::DB`] that matches tables and columns for [`LedgerDB`]
+    /// Initialize [`rockbound::DB`] that matches tables and columns for [`LedgerDb`]
     pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<rockbound::DB> {
         let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
         rockbound::DB::open(
@@ -126,7 +126,7 @@ impl LedgerDB {
         })
     }
 
-    /// Initialize a new [`LedgerDB`] with an provided [`CacheDb`]
+    /// Initialize a new [`LedgerDb`] with an provided [`CacheDb`]
     pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
         let next_item_numbers = Self::load_next_item_numbers(&db)?;
         Ok(Self {

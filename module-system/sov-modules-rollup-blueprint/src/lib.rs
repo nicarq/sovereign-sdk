@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 pub use runtime_rpc::*;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::{CacheDb, ChangeSet};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
@@ -86,7 +86,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     fn create_rpc_methods(
         &self,
         storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
-        ledger_db: &LedgerDB,
+        ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<Self::DaConfig>,
@@ -140,12 +140,12 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error>;
 
-    /// Creates instance of a LedgerDB.
+    /// Creates instance of a LedgerDb.
     fn create_ledger_db(
         &self,
         ledger_state: <Self::StorageManager as HierarchicalStorageManager<Self::DaSpec>>::LedgerState,
-    ) -> anyhow::Result<LedgerDB> {
-        LedgerDB::with_cache_db(ledger_state)
+    ) -> anyhow::Result<LedgerDb> {
+        LedgerDb::with_cache_db(ledger_state)
     }
 
     /// Creates a new rollup.

@@ -47,7 +47,7 @@ async fn run_make_proof_sync(
         init_slot = calculate_and_check_slot_number(init_slot, jump, pub_data);
     }
 
-    let public_data = test_node.get_latest_public_data()?.unwrap();
+    let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
     Ok(())
 }
@@ -82,7 +82,7 @@ async fn run_make_proof_async(
         init_slot = calculate_and_check_slot_number(init_slot, jump, pub_data);
     }
 
-    let public_data = test_node.get_latest_public_data()?.unwrap();
+    let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
     Ok(())
 }

@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
@@ -11,7 +11,7 @@ use tokio::sync::watch;
 /// Register rollup's default rpc methods.
 pub fn register_rpc<RT, K, S, Da>(
     storage: watch::Receiver<S::Storage>,
-    ledger_db: &LedgerDB,
+    ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
     da_service: &Da,
     sequencer: <Da::Spec as DaSpec>::Address,
@@ -29,7 +29,7 @@ where
     // ledger RPC.
     {
         rpc_methods.merge(sov_ledger_rpc::server::rpc_module::<
-            LedgerDB,
+            LedgerDb,
             SequencerOutcome<S::Address>,
             TxEffect,
             <RT as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,

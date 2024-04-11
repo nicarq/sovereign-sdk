@@ -1,5 +1,6 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
+use async_trait::async_trait;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -233,133 +234,166 @@ pub struct Event {
     pub module_name: String,
 }
 
-/// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
-pub trait LedgerRpcProvider {
+/// A [`LedgerStateProvider`] provides a way to query the ledger for information about
+/// slots, batches, transactions, and events.
+#[async_trait]
+pub trait LedgerStateProvider {
+    /// The error type for fallible methods on this trait.
+    type Error: ToString;
+
     /// Get the latest slot in the ledger.
-    fn get_head<B: DeserializeOwned + Clone, T: DeserializeOwned>(
+    async fn get_head<B: DeserializeOwned + Clone, T: DeserializeOwned>(
         &self,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
+    ) -> Result<Option<SlotResponse<B, T>>, Self::Error>;
 
     /// Get a list of slots by id. The IDs need not be ordered.
-    fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         slot_ids: &[SlotIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error>;
+    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>;
 
     /// Get a list of batches by id. The IDs need not be ordered.
-    fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         batch_ids: &[BatchIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
+    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>;
 
     /// Get a list of transactions by id. The IDs need not be ordered.
-    fn get_transactions<T: DeserializeOwned>(
+    async fn get_transactions<T: DeserializeOwned>(
         &self,
         tx_ids: &[TxIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
+    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>;
 
     /// Get events by id. The IDs need not be ordered.
-    fn get_events<E: borsh::BorshDeserialize + Into<Event>>(
+    async fn get_events<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         event_ids: &[EventIdentifier],
-    ) -> Result<Vec<Option<EventResponse>>, anyhow::Error>;
+    ) -> Result<Vec<Option<EventResponse>>, Self::Error>;
 
     /// Get a single slot by hash.
-    fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
+    ) -> Result<Option<SlotResponse<B, T>>, Self::Error> {
+        self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
+            .await
+            .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
+    }
 
     /// Get a single batch by hash.
-    fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>;
+    ) -> Result<Option<BatchResponse<B, T>>, Self::Error> {
+        self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
+            .await
+            .map(|mut batches: Vec<Option<BatchResponse<B, T>>>| batches.pop().unwrap_or(None))
+    }
 
     /// Get a single transaction by hash.
-    fn get_tx_by_hash<T: DeserializeOwned>(
+    async fn get_tx_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error>;
+    ) -> Result<Option<TxResponse<T>>, Self::Error> {
+        self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
+            .await
+            .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
+    }
 
     /// Get a single slot by number.
-    fn get_slot_by_number<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slot_by_number<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
+    ) -> Result<Option<SlotResponse<B, T>>, Self::Error> {
+        self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
+            .await
+            .map(|mut slots| slots.pop().unwrap_or(None))
+    }
 
     /// Get a single batch by number.
-    fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>;
+    ) -> Result<Option<BatchResponse<B, T>>, Self::Error> {
+        self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
+            .await
+            .map(|mut batches| batches.pop().unwrap_or(None))
+    }
 
     /// Get a single event by number.
-    fn get_event_by_number<E: borsh::BorshDeserialize + Into<Event>>(
+    async fn get_event_by_number<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         number: u64,
-    ) -> Result<Option<EventResponse>, anyhow::Error>;
+    ) -> Result<Option<EventResponse>, Self::Error> {
+        self.get_events::<E>(&[EventIdentifier::Number(number)])
+            .await
+            .map(|mut events| events.pop().flatten())
+    }
 
     /// Get events by transaction hash.
-    fn get_events_by_txn_hash<E: borsh::BorshDeserialize + Into<Event>>(
+    async fn get_events_by_txn_hash<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         txn_hash: &[u8; 32],
-    ) -> Result<Vec<EventResponse>, anyhow::Error>;
+    ) -> Result<Vec<EventResponse>, Self::Error>;
 
     /// Get events by transaction number.
-    fn get_events_by_txn_number<E: borsh::BorshDeserialize + Into<Event>>(
+    async fn get_events_by_txn_number<E: borsh::BorshDeserialize + Into<Event>>(
         &self,
         txn_num: u64,
-    ) -> Result<Vec<EventResponse>, anyhow::Error>;
+    ) -> Result<Vec<EventResponse>, Self::Error>;
 
     /// Get a single tx by number.
-    fn get_tx_by_number<T: DeserializeOwned>(
+    async fn get_tx_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error>;
+    ) -> Result<Option<TxResponse<T>>, Self::Error> {
+        self.get_transactions(&[TxIdentifier::Number(number)], query_mode)
+            .await
+            .map(|mut txs| txs.pop().unwrap_or(None))
+    }
 
     /// Get a range of slots. This query is the most efficient way to
     /// fetch large numbers of slots, since it allows for easy batching of
     /// db queries for adjacent items.
-    fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error>;
+    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of batches, since it allows for easy batching of
     /// db queries for adjacent items.
-    fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
+    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of transactions, since it allows for easy batching of
     /// db queries for adjacent items.
-    fn get_transactions_range<T: DeserializeOwned>(
+    async fn get_transactions_range<T: DeserializeOwned>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
+    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>;
 
     /// Get the most recent aggregated proof, if any.
-    fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>>;
+    async fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>>;
 
     /// Get a notification each time a slot is processed
     // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161

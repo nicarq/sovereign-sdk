@@ -2,7 +2,7 @@ mod helpers;
 use std::sync::Arc;
 
 use helpers::hash_stf::{get_result_from_blocks, HashStf, S};
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockValidityCond,
     PlannedFork,
@@ -134,7 +134,7 @@ fn get_saved_root_hash(
     let mock_block_header = MockBlockHeader::from_height(1000000);
     let (stf_state, ledger_state) = storage_manager.create_state_for(&mock_block_header)?;
 
-    let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+    let ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
 
     ledger_db
         .get_head_slot()?
