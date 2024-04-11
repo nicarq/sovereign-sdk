@@ -6,10 +6,6 @@ mod call;
 /// Methods used to instantiate the module
 mod genesis;
 
-/// Hooks for the module's incentives.
-/// Implement the associated `GasEnforcer` capability.
-pub mod hooks;
-
 pub use call::*;
 pub use genesis::*;
 

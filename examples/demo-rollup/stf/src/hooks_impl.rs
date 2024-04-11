@@ -1,3 +1,4 @@
+use sov_bank::IntoPayable;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::namespaces::Accessory;
@@ -5,7 +6,9 @@ use sov_modules_api::runtime::capabilities::{
     ContextResolver, GasEnforcer, TransactionDeduplicator,
 };
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, Gas, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet};
+use sov_modules_api::{
+    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
+};
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_sequencer_registry::SequencerRegistry;
@@ -127,12 +130,10 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
         gas_price: &<S::Gas as Gas>::Price,
         mut state_checkpoint: StateCheckpoint<S>,
     ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        match self.prover_incentives.reserve_gas(
-            tx,
-            gas_price,
-            context.sender(),
-            &mut state_checkpoint,
-        ) {
+        match self
+            .bank
+            .reserve_gas(tx, gas_price, context.sender(), &mut state_checkpoint)
+        {
             Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
             Err(e) => {
                 tracing::debug!(
@@ -153,10 +154,12 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
         gas_meter: &sov_modules_api::GasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        self.prover_incentives.refund_remaining_gas(
+        self.bank.refund_remaining_gas(
             tx,
             gas_meter,
             context.sender(),
+            &self.prover_incentives.id().to_payable(),
+            &self.sequencer_registry.id().to_payable(),
             state_checkpoint,
         );
     }

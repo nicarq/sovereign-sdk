@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_cycle_macros::cycle_tracker;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_modules_core::{Gas, GasArray, Spec};
+use sov_modules_core::{GasArray, Spec};
 use sov_modules_macros::config_constant;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
@@ -11,6 +11,66 @@ use sov_rollup_interface::crypto::Signature as _;
 use sov_rollup_interface::zk::CryptoSpec;
 
 const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
+
+/// A type wrapper around a u64 which represents the priority fee.
+/// Since the priority fee is expressed as a basis point, we should use this wrapper for
+/// improved type safety.
+///
+/// # Note
+/// The priority fee is expressed as a basis point. Ie, `1%` is represented as `10_000`.
+#[derive(
+    Serialize,
+    Deserialize,
+    BorshSerialize,
+    BorshDeserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+)]
+pub struct PriorityFeeBips(pub u64);
+
+impl PriorityFeeBips {
+    pub const ZERO: Self = Self(0);
+
+    /// Constant function to create a priority fee from a percentage.
+    /// The priority fee is expressed as a basis point, ie `PriorityFeeBips(100)` is equivalent to a 1% fee -
+    /// hence calling this `from_percentage(1)` will return `PriorityFeeBips(100)`.
+    pub const fn from_percentage(value: u64) -> Self {
+        Self(value * 100)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Applying the priority fee to this quantity causes an overflow")]
+pub struct PriorityFeeApplyOverflowError;
+
+impl From<u64> for PriorityFeeBips {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<PriorityFeeBips> for u64 {
+    fn from(value: PriorityFeeBips) -> Self {
+        value.0
+    }
+}
+
+impl PriorityFeeBips {
+    /// Applies the priority fee to a given quantity
+    /// We make sure to cast the intermediate result to u128 to avoid overflowing.
+    pub fn apply(&self, quantity: u64) -> Result<u64, PriorityFeeApplyOverflowError> {
+        // We need to cast to u128 to avoid overflowing.
+        let quantity_u128 = quantity as u128;
+        let fee_u128 = self.0 as u128;
+        let result = (quantity_u128 * fee_u128) / (10_000);
+        result.try_into().map_err(|_| PriorityFeeApplyOverflowError)
+    }
+}
 
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
 #[derive(
@@ -21,11 +81,20 @@ pub struct Transaction<S: Spec> {
     pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     runtime_msg: Vec<u8>,
     chain_id: u64,
-    /// TODO(@theochap) - `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/284>` Must be a gas unit
-    gas_tip: u64,
-    /// TODO(@theochap) - `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/284>` Must be a gas unit
-    gas_limit: u64,
-    max_gas_price: Option<<S::Gas as Gas>::Price>,
+    /// The maximum priority fee that can be paid for this transaction expressed as a basis point percentage of the gas consumed by the transaction.
+    /// Ie if the transaction has consumed `100` gas tokens, and the priority fee is set to `100_000` (10%), the
+    /// gas tip will be `10` tokens.
+    max_priority_fee: PriorityFeeBips,
+    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
+    max_fee: u64,
+    /// The gas limit of the transaction.
+    /// This is an optional field that can be used to provide a limit of the gas usage of the transaction
+    /// accross the different gas dimensions. If provided, this quantity will be used along
+    /// with the current gas price (`gas_limit *_scalar gas_price`) to compute the transaction fee and compare it to the `max_fee`.
+    /// If the scalar product of the gas limit and the gas price is greater than the `max_fee`, the transaction will be rejected.
+    /// Then up to `gas_limit *_scalar gas_price` gas tokens can be spent on gas execution in the transaction execution - if the
+    /// transaction spends more than that amount, it will run out of gas and be reverted.
+    gas_limit: Option<S::Gas>,
     nonce: u64,
 }
 
@@ -40,14 +109,16 @@ where
     pub tx: Tx,
     /// The ID of the target chain
     pub chain_id: u64,
-    /// The gas tip for the sequencer
-    /// TODO(@theochap) - `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/284>` Must be a gas unit
-    pub gas_tip: u64,
-    /// The gas limit for the transaction execution
-    /// TODO(@theochap) - `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/284>` Must be a gas unit
-    pub gas_limit: u64,
-    /// The maximum gas price in which this transaction will be executed
-    pub max_gas_price: Option<<S::Gas as Gas>::Price>,
+    /// The maximum priority fee that can be paid for this transaction expressed as a percentage.
+    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
+    pub max_priority_fee: PriorityFeeBips,
+    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
+    pub max_fee: u64,
+    /// The estimated gas usage of the transaction
+    /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
+    /// accross the different gas dimensions. If provided, this quantity will be used along
+    /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
+    pub gas_limit: Option<S::Gas>,
 }
 
 impl<S: Spec> Transaction<S> {
@@ -71,16 +142,16 @@ impl<S: Spec> Transaction<S> {
         self.chain_id
     }
 
-    pub const fn gas_tip(&self) -> u64 {
-        self.gas_tip
+    pub const fn max_priority_fee_per_gas(&self) -> &PriorityFeeBips {
+        &self.max_priority_fee
     }
 
-    pub const fn gas_limit(&self) -> u64 {
-        self.gas_limit
+    pub const fn max_fee(&self) -> u64 {
+        self.max_fee
     }
 
-    pub const fn max_gas_price(&self) -> Option<&<S::Gas as Gas>::Price> {
-        self.max_gas_price.as_ref()
+    pub const fn gas_limit(&self) -> Option<&S::Gas> {
+        self.gas_limit.as_ref()
     }
 
     pub fn gas_fixed_cost(&self) -> S::Gas {
@@ -102,21 +173,22 @@ impl<S: Spec> Transaction<S> {
     /// Check whether the transaction has been signed correctly.
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub fn verify(&self) -> anyhow::Result<()> {
-        let max_gas_price_len = self
-            .max_gas_price()
+        let gas_limit_len = self
+            .gas_limit()
             .map(|m| 1 + 8 * m.as_slice().len())
             .unwrap_or(1);
 
         let mut serialized_tx =
-            Vec::with_capacity(self.runtime_msg().len() + EXTEND_MESSAGE_LEN + max_gas_price_len);
+            Vec::with_capacity(self.runtime_msg().len() + EXTEND_MESSAGE_LEN + gas_limit_len);
 
         serialized_tx.extend_from_slice(self.runtime_msg());
         serialized_tx.extend_from_slice(&self.chain_id().to_le_bytes());
-        serialized_tx.extend_from_slice(&self.gas_tip().to_le_bytes());
-        serialized_tx.extend_from_slice(&self.gas_limit().to_le_bytes());
+        serialized_tx
+            .extend_from_slice(&Into::<u64>::into(*self.max_priority_fee_per_gas()).to_le_bytes());
+        serialized_tx.extend_from_slice(&self.max_fee().to_le_bytes());
         serialized_tx.extend_from_slice(&self.nonce().to_le_bytes());
 
-        match self.max_gas_price() {
+        match self.gas_limit() {
             Some(m) => {
                 serialized_tx.push(1);
                 m.as_slice()
@@ -140,9 +212,9 @@ impl<S: Spec> Transaction<S> {
         message: Vec<u8>,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
-        max_gas_price: Option<<S::Gas as Gas>::Price>,
+        max_priority_fee: PriorityFeeBips,
+        max_fee: u64,
+        gas_limit: Option<S::Gas>,
         nonce: u64,
     ) -> Self {
         Self {
@@ -150,9 +222,9 @@ impl<S: Spec> Transaction<S> {
             runtime_msg: message,
             pub_key,
             chain_id,
-            gas_tip,
+            max_priority_fee,
+            max_fee,
             gas_limit,
-            max_gas_price,
             nonce,
         }
     }
@@ -165,28 +237,29 @@ impl<S: Spec> Transaction<S> {
         priv_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
         mut message: Vec<u8>,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
-        max_gas_price: Option<<S::Gas as Gas>::Price>,
+        max_priority_fee: PriorityFeeBips,
+        max_fee: u64,
+        gas_limit: Option<S::Gas>,
         nonce: u64,
     ) -> Self {
         // Since we own the message already, try to add the serialized nonce in-place.
         // This lets us avoid a copy if the message vec has at least 8 bytes of extra capacity.
         let len = message.len();
-        let max_gas_price_len = max_gas_price
+        let gas_limit_len = gas_limit
             .as_ref()
             .map(|m| 1 + 8 * m.as_slice().len())
             .unwrap_or(1);
 
         // resizes once to avoid potential multiple realloc
-        message.resize(len + EXTEND_MESSAGE_LEN + max_gas_price_len, 0);
+        message.resize(len + EXTEND_MESSAGE_LEN + gas_limit_len, 0);
 
         message[len..len + 8].copy_from_slice(&chain_id.to_le_bytes());
-        message[len + 8..len + 16].copy_from_slice(&gas_tip.to_le_bytes());
-        message[len + 16..len + 24].copy_from_slice(&gas_limit.to_le_bytes());
+        message[len + 8..len + 16]
+            .copy_from_slice(&Into::<u64>::into(max_priority_fee).to_le_bytes());
+        message[len + 16..len + 24].copy_from_slice(&max_fee.to_le_bytes());
         message[len + 24..len + 32].copy_from_slice(&nonce.to_le_bytes());
 
-        match max_gas_price.as_ref() {
+        match gas_limit.as_ref() {
             Some(m) => {
                 message[len + 32] = 1;
                 m.as_slice().iter().enumerate().for_each(|(i, m)| {
@@ -211,9 +284,9 @@ impl<S: Spec> Transaction<S> {
             runtime_msg: message,
             pub_key,
             chain_id,
-            gas_tip,
+            max_priority_fee,
+            max_fee,
             gas_limit,
-            max_gas_price,
             nonce,
         }
     }
@@ -226,16 +299,16 @@ where
     pub const fn new(
         tx: Tx,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
-        max_gas_price: Option<<S::Gas as Gas>::Price>,
+        max_priority_fee: PriorityFeeBips,
+        max_fee: u64,
+        gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
             tx,
             chain_id,
-            gas_tip,
+            max_priority_fee,
+            max_fee,
             gas_limit,
-            max_gas_price,
         }
     }
 }

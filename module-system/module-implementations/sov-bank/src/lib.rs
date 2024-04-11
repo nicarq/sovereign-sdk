@@ -1,8 +1,9 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod call;
+mod capability;
+pub use capability::ReserveGasError;
 mod genesis;
-mod hooks;
 #[cfg(feature = "native")]
 mod rpc;
 #[cfg(feature = "native")]

@@ -243,6 +243,7 @@ impl_gas_unit!(31);
 impl_gas_unit!(32);
 
 /// A gas meter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GasMeter<GU>
 where
     GU: Gas,

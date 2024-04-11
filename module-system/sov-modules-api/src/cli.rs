@@ -13,14 +13,21 @@ pub trait CliTxImportArg {
     /// The chain ID of the transaction.
     fn chain_id(&self) -> u64;
 
-    /// The gas tip for the sequencer.
-    fn gas_tip(&self) -> u64;
+    /// The priority fee to pay the sequencer, expressed as a fraction of the tokens spent on gas in basis points.
+    /// for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 1000 tokens spent on gas.
+    /// similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas
+    fn max_priority_fee(&self) -> u64;
 
-    /// The gas limit for the transaction execution.
-    fn gas_limit(&self) -> u64;
+    /// The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
+    /// charged for the gas fees of the transaction. This value contains both the tip and the base fee.
+    fn max_fee(&self) -> u64;
 
-    /// The maximum gas price for the transaction execution.
-    fn max_gas_price(&self) -> Option<&[u64]>;
+    /// The gas limit for the transaction execution. This is an optional field that can be used to enforce a
+    /// gas limit on the transaction execution - in a way that reproduces the behavior of the EIP-1559. If the gas limit is
+    /// not provided, the transaction will be executed without checking the gas limit. The gas limit is a multi-dimensional gas vector
+    /// that specify the maximum amount of gas that can be used along each dimension.
+    /// If specified, up to `gas_limit *_scalar gas_price` tokens can be spent on gas execution in the transaction execution
+    fn gas_limit(&self) -> Option<&[u64]>;
 }
 
 /// An argument to the cli containing a json string
@@ -34,25 +41,36 @@ pub struct JsonStringArg {
     #[arg(long, help = "The chain ID of the transaction.")]
     pub chain_id: u64,
 
-    /// The gas tip for the sequencer.
-    #[arg(long, help = "The gas tip for the sequencer.", default_value = "0")]
-    pub gas_tip: u64,
+    /// the gas tip for the sequencer.
+    #[arg(
+        long,
+        help = "The priority fee to pay the sequencer, expressed as a fraction of the tokens spent on gas in basis points.
+        for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 1000 tokens spent on gas.
+        similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas",
+        default_value = "0"
+    )]
+    pub max_priority_fee: u64,
+
+    /// The max fee to pay for the transaction execution.
+    #[arg(
+        long,
+        help = "The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
+        charged for the gas fees of the transaction. This value contains both the tip and the base fee.",
+        default_value = "0"
+    )]
+    pub max_fee: u64,
 
     /// The gas limit for the transaction execution.
     #[arg(
         long,
-        help = "The gas limit for the transaction execution.",
-        default_value = "0"
-    )]
-    pub gas_limit: u64,
-
-    /// The maximum gas price for the transaction execution.
-    #[arg(
-        long,
-        help = "The gas limit for the transaction execution.",
+        help = "The gas limit for the transaction execution. This is an optional field that can be used to enforce a 
+        gas limit on the transaction execution - in a way that reproduces the behavior of the EIP-1559. If the gas limit is 
+        not provided, the transaction will be executed without checking the gas limit. The gas limit is a multi-dimensional gas vector 
+        that specify the maximum amount of gas that can be used along each dimension. 
+        If specified, up to `gas_limit *_scalar gas_price` tokens can be spent on gas execution in the transaction execution",
         num_args = 0..
     )]
-    pub max_gas_price: Option<Vec<u64>>,
+    pub gas_limit: Option<Vec<u64>>,
 }
 
 /// An argument to the cli containing a path to a file
@@ -66,25 +84,36 @@ pub struct FileNameArg {
     #[arg(long, help = "The chain ID of the transaction.")]
     pub chain_id: u64,
 
-    /// The gas tip for the sequencer.
-    #[arg(long, help = "The gas tip for the sequencer.", default_value = "0")]
-    pub gas_tip: u64,
+    /// the gas tip for the sequencer.
+    #[arg(
+        long,
+        help = "The priority fee to pay the sequencer, expressed as a fraction of the tokens spent on gas in basis points.
+        for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 1000 tokens spent on gas.
+        similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas",
+        default_value = "0"
+    )]
+    pub max_priority_fee: u64,
+
+    /// The max fee to pay for the transaction execution.
+    #[arg(
+        long,
+        help = "The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
+        charged for the gas fees of the transaction. This value contains both the tip and the base fee.",
+        default_value = "0"
+    )]
+    pub max_fee: u64,
 
     /// The gas limit for the transaction execution.
     #[arg(
         long,
-        help = "The gas limit for the transaction execution.",
-        default_value = "0"
-    )]
-    pub gas_limit: u64,
-
-    /// The maximum gas price for the transaction execution.
-    #[arg(
-        long,
-        help = "The gas limit for the transaction execution.",
+        help = "The gas limit for the transaction execution. This is an optional field that can be used to enforce a 
+        gas limit on the transaction execution - in a way that reproduces the behavior of the EIP-1559. If the gas limit is 
+        not provided, the transaction will be executed without checking the gas limit. The gas limit is a multi-dimensional gas vector 
+        that specify the maximum amount of gas that can be used along each dimension. 
+        If specified, up to `gas_limit *_scalar gas_price` tokens can be spent on gas execution in the transaction execution",
         num_args = 0..
     )]
-    pub max_gas_price: Option<Vec<u64>>,
+    pub gas_limit: Option<Vec<u64>>,
 }
 
 impl CliTxImportArg for JsonStringArg {
@@ -92,16 +121,16 @@ impl CliTxImportArg for JsonStringArg {
         self.chain_id
     }
 
-    fn gas_tip(&self) -> u64 {
-        self.gas_tip
+    fn max_priority_fee(&self) -> u64 {
+        self.max_priority_fee
     }
 
-    fn gas_limit(&self) -> u64 {
-        self.gas_limit
+    fn max_fee(&self) -> u64 {
+        self.max_fee
     }
 
-    fn max_gas_price(&self) -> Option<&[u64]> {
-        self.max_gas_price.as_deref()
+    fn gas_limit(&self) -> Option<&[u64]> {
+        self.gas_limit.as_deref()
     }
 }
 
@@ -110,16 +139,16 @@ impl CliTxImportArg for FileNameArg {
         self.chain_id
     }
 
-    fn gas_tip(&self) -> u64 {
-        self.gas_tip
+    fn max_priority_fee(&self) -> u64 {
+        self.max_priority_fee
     }
 
-    fn gas_limit(&self) -> u64 {
-        self.gas_limit
+    fn max_fee(&self) -> u64 {
+        self.max_fee
     }
 
-    fn max_gas_price(&self) -> Option<&[u64]> {
-        self.max_gas_price.as_deref()
+    fn gas_limit(&self) -> Option<&[u64]> {
+        self.gas_limit.as_deref()
     }
 }
 
@@ -129,17 +158,17 @@ impl TryFrom<FileNameArg> for JsonStringArg {
         let FileNameArg {
             path,
             chain_id,
-            gas_tip,
+            max_priority_fee,
+            max_fee,
             gas_limit,
-            max_gas_price,
         } = arg;
 
         Ok(JsonStringArg {
             json: fs::read_to_string(path)?,
             chain_id,
-            gas_tip,
+            max_priority_fee,
+            max_fee,
             gas_limit,
-            max_gas_price,
         })
     }
 }

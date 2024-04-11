@@ -7,7 +7,7 @@ use sov_cli::wallet_state::WalletState;
 use sov_cli::workflows::transactions::{ImportTransaction, TransactionWorkflow};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_test_utils::TestSpec;
 type Da = MockDaSpec;
@@ -22,9 +22,9 @@ fn test_import_transaction_from_string() {
         contents: JsonStringArg {
             json: std::fs::read_to_string(test_token_path).unwrap(),
             chain_id: 0,
-            gas_tip: 0,
-            gas_limit: 0,
-            max_gas_price: None,
+            max_priority_fee: 0,
+            max_fee: 0,
+            gas_limit: None,
         },
     };
 
@@ -49,9 +49,9 @@ fn test_import_transaction_from_file() {
         contents: FileNameArg {
             path: test_token_path.to_str().unwrap().into(),
             chain_id: 0,
-            gas_tip: 0,
-            gas_limit: 0,
-            max_gas_price: None,
+            max_priority_fee: 0,
+            max_fee: 0,
+            gas_limit: None,
         },
     };
 
@@ -77,15 +77,15 @@ fn transaction_is_serialized_correctly() {
     let runtime_call_bytes = runtime_call.try_to_vec().unwrap();
 
     let chain_id = 0;
-    let gas_tip = 0;
-    let gas_limit = 0;
-    let max_gas_price = None;
+    let max_priority_fee = PriorityFeeBips::ZERO;
+    let max_fee = 0;
+    let gas_limit = None;
     let unsigned_tx = UnsignedTransaction::new(
         runtime_call,
         chain_id,
-        gas_tip,
-        gas_limit,
-        max_gas_price.clone(),
+        max_priority_fee,
+        max_fee,
+        gas_limit.clone(),
     );
 
     wallet_state.unsent_transactions.push(unsigned_tx);
@@ -100,9 +100,9 @@ fn transaction_is_serialized_correctly() {
             &key,
             runtime_call_bytes.clone(),
             chain_id,
-            gas_tip,
-            gas_limit,
-            max_gas_price.clone(),
+            max_priority_fee,
+            max_fee,
+            gas_limit.clone(),
             initial_nonce + i as u64,
         );
 

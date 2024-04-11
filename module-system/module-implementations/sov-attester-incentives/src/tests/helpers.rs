@@ -1,14 +1,14 @@
-use sov_bank::{BankConfig, GasTokenConfig};
+use sov_bank::{BankConfig, GasTokenConfig, IntoPayable};
 use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
 };
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::namespaces::User;
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Address, CryptoSpec, Gas, GasArray, Genesis, KernelModule, KernelWorkingSet, PrivateKey, Spec,
-    WorkingSet,
+    Address, CryptoSpec, Gas, GasArray, GasPrice, Genesis, KernelModule, KernelWorkingSet,
+    ModuleInfo, PrivateKey, Spec, WorkingSet,
 };
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::{GasMeter, StateCheckpoint};
@@ -215,17 +215,18 @@ impl ExecutionSimulationVars {
                 vec![],
                 tx_key.sign(&[]),
                 0,
-                0,
+                PriorityFeeBips::ZERO,
                 MAX_TX_GAS_AMOUNT,
-                Some(<<S as Spec>::Gas as Gas>::Price::from_slice(&TX_GAS_PRICE)),
+                Some(<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED)),
                 i.into(),
             );
 
             // We first need to reserve gas for the transaction
             let mut gas_meter = module
+                .bank
                 .reserve_gas(
                     &tx,
-                    tx.max_gas_price().unwrap(),
+                    &GasPrice::from_slice(&TX_GAS_PRICE),
                     sequencer,
                     &mut state_checkpoint,
                 )
@@ -252,7 +253,14 @@ impl ExecutionSimulationVars {
                 .end_slot_hook(gas_meter.gas_used(), &mut kernel_working_set);
 
             // Then we can refund some gas to the sequencer
-            module.refund_remaining_gas(&tx, &gas_meter, sequencer, &mut state_checkpoint);
+            module.bank.refund_remaining_gas(
+                &tx,
+                &gas_meter,
+                sequencer,
+                &module.id().to_payable(),
+                &module.id().to_payable(),
+                &mut state_checkpoint,
+            );
         }
 
         (ret_exec_vars, state_checkpoint)

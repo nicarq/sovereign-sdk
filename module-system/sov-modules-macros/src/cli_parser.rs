@@ -31,9 +31,9 @@ impl CliParserMacro {
         let mut module_json_parser_arms = vec![];
         let mut module_message_arms = vec![];
         let mut tx_args_subcommand_match_arms_chain_id = vec![];
-        let mut tx_args_subcommand_match_arms_gas_tip = vec![];
+        let mut tx_args_subcommand_match_arms_max_priority_fee = vec![];
+        let mut tx_args_subcommand_match_arms_max_fee = vec![];
         let mut tx_args_subcommand_match_arms_gas_limit = vec![];
-        let mut tx_args_subcommand_match_arms_max_gas_price = vec![];
         let mut try_from_subcommand_match_arms = vec![];
         let mut try_map_match_arms = vec![];
         let mut from_json_match_arms = vec![];
@@ -90,16 +90,16 @@ impl CliParserMacro {
                     RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::chain_id(&contents),
                 });
 
-                tx_args_subcommand_match_arms_gas_tip.push(quote! {
-                    RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::gas_tip(&contents),
+                tx_args_subcommand_match_arms_max_priority_fee.push(quote! {
+                    RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::max_priority_fee(&contents),
+                });
+
+                tx_args_subcommand_match_arms_max_fee.push(quote! {
+                    RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::max_fee(&contents),
                 });
 
                 tx_args_subcommand_match_arms_gas_limit.push(quote! {
                     RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::gas_limit(&contents),
-                });
-
-                tx_args_subcommand_match_arms_max_gas_price.push(quote! {
-                    RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::max_gas_price(&contents),
                 });
 
                 try_from_subcommand_match_arms.push(quote! {
@@ -211,23 +211,23 @@ impl CliParserMacro {
                     }
                 }
 
-                fn gas_tip(&self) -> u64 {
+                fn max_priority_fee(&self) -> u64 {
                     match self {
-                        #( #tx_args_subcommand_match_arms_gas_tip )*
+                        #( #tx_args_subcommand_match_arms_max_priority_fee )*
                         RuntimeSubcommand::____phantom(_) => unreachable!(),
                     }
                 }
 
-                fn gas_limit(&self) -> u64 {
+                fn max_fee(&self) -> u64 {
+                    match self {
+                        #( #tx_args_subcommand_match_arms_max_fee )*
+                        RuntimeSubcommand::____phantom(_) => unreachable!(),
+                    }
+                }
+
+                fn gas_limit(&self) -> Option<&[u64]> {
                     match self {
                         #( #tx_args_subcommand_match_arms_gas_limit )*
-                        RuntimeSubcommand::____phantom(_) => unreachable!(),
-                    }
-                }
-
-                fn max_gas_price(&self) -> Option<&[u64]> {
-                    match self {
-                        #( #tx_args_subcommand_match_arms_max_gas_price )*
                         RuntimeSubcommand::____phantom(_) => unreachable!(),
                     }
                 }

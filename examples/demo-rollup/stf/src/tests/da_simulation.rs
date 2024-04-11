@@ -4,7 +4,7 @@ use borsh::BorshSerialize;
 use sov_bank::Bank;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{EncodeCall, Gas, PrivateKey, Spec};
+use sov_modules_api::{EncodeCall, PrivateKey, Spec};
 use sov_modules_stf_blueprint::RawTx;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::value_setter_data::{ValueSetterMessage, ValueSetterMessages};
@@ -37,9 +37,9 @@ pub fn simulate_da(admin: TestPrivateKey) -> Vec<RawTx> {
     messages
 }
 
-pub fn simulate_da_with_max_gas_price(
+pub fn simulate_da_with_gas_limit(
     value_setter_admin: TestPrivateKey,
-    max_gas_price: <<S as Spec>::Gas as Gas>::Price,
+    gas_limit: <S as Spec>::Gas,
 ) -> Vec<RawTx> {
     let mut messages = Vec::default();
 
@@ -48,7 +48,7 @@ pub fn simulate_da_with_max_gas_price(
         messages: vec![99, 33],
     }]);
 
-    let txs = value_setter.create_raw_txs_with_maximum_gas_price::<Runtime<S, Da>>(max_gas_price);
+    let txs = value_setter.create_raw_txs_with_maximum_gas_price::<Runtime<S, Da>>(gas_limit);
     messages.extend(txs);
     messages
 }
@@ -70,9 +70,9 @@ pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<RawTx> {
         // Use the signature of an empty message
         key.sign(&[]),
         create_token_message.chain_id,
-        create_token_message.gas_tip,
+        create_token_message.max_priority_fee,
+        create_token_message.max_fee,
         create_token_message.gas_limit,
-        create_token_message.max_gas_price,
         create_token_message.nonce,
     );
     // Overwrite the signature with the signature of the empty message
@@ -100,9 +100,9 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<RawTx> {
         &create_token_message.sender_key,
         b"not a real call message".to_vec(),
         create_token_message.chain_id,
-        create_token_message.gas_tip,
+        create_token_message.max_priority_fee,
+        create_token_message.max_fee,
         create_token_message.gas_limit,
-        create_token_message.max_gas_price,
         create_token_message.nonce,
     );
 

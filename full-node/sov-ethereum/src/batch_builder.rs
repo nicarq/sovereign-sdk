@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 use std::collections::VecDeque;
 
 use borsh::BorshSerialize;
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::CryptoSpec;
 
 pub struct EthBatchBuilder<S: sov_modules_api::Spec> {
@@ -37,17 +37,17 @@ impl<S: sov_modules_api::Spec> EthBatchBuilder<S> {
         while let Some(raw_message) = self.mempool.pop_front() {
             // TODO define a strategy to expose chain id and gas tip for ethereum frontend
             let chain_id = 0;
-            let gas_tip = 0;
-            let gas_limit = 0;
-            let max_gas_price = None;
+            let max_priority_fee = PriorityFeeBips::ZERO;
+            let max_fee = 0;
+            let gas_limit = None;
 
             let raw_tx = Transaction::<S>::new_signed_tx(
                 &self.sov_tx_signer_private_key,
                 raw_message,
                 chain_id,
-                gas_tip,
+                max_priority_fee,
+                max_fee,
                 gas_limit,
-                max_gas_price,
                 *nonce,
             )
             .try_to_vec()

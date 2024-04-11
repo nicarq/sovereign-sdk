@@ -1,5 +1,5 @@
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
-use sov_bank::{Bank, BankConfig, Coins, GasTokenConfig, GAS_TOKEN_ID};
+use sov_bank::{Bank, BankConfig, Coins, GasTokenConfig, IntoPayable, GAS_TOKEN_ID};
 use sov_chain_state::ChainStateConfig;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
@@ -14,8 +14,8 @@ use sov_modules_api::runtime::capabilities::{
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Event, Gas, GasArray, Genesis, MessageCodec, PublicKey, Spec,
-    StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
+    Context, DaSpec, DispatchCall, Event, Gas, GasArray, Genesis, MessageCodec, ModuleInfo,
+    PublicKey, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
 };
 use sov_modules_stf_blueprint::{
     BatchReceipt, GenesisParams, Runtime, SequencerOutcome, StfBlueprint,
@@ -233,12 +233,10 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
         gas_price: &<S::Gas as Gas>::Price,
         mut state_checkpoint: StateCheckpoint<S>,
     ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        match self.attester_incentives.reserve_gas(
-            tx,
-            gas_price,
-            context.sender(),
-            &mut state_checkpoint,
-        ) {
+        match self
+            .bank
+            .reserve_gas(tx, gas_price, context.sender(), &mut state_checkpoint)
+        {
             Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
             Err(e) => {
                 tracing::debug!("Unable to reserve gas from {}. {}", e, context.sender());
@@ -255,10 +253,12 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
         gas_meter: &sov_modules_api::GasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        self.attester_incentives.refund_remaining_gas(
+        self.bank.refund_remaining_gas(
             tx,
             gas_meter,
             context.sender(),
+            &self.attester_incentives.id().to_payable(),
+            &self.sequencer_registry.id().to_payable(),
             state_checkpoint,
         );
     }

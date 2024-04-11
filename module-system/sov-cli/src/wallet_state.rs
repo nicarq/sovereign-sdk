@@ -125,9 +125,9 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
                     UnsignedTransaction {
                         tx,
                         chain_id,
-                        gas_tip,
+                        max_priority_fee,
+                        max_fee,
                         gas_limit,
-                        max_gas_price,
                     },
                 )| {
                     let runtime_msg = tx.try_to_vec().unwrap();
@@ -135,9 +135,9 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
                         signing_key,
                         runtime_msg,
                         chain_id,
-                        gas_tip,
+                        max_priority_fee,
+                        max_fee,
                         gas_limit,
-                        max_gas_price,
                         nonce.wrapping_add(offset as u64),
                     );
 

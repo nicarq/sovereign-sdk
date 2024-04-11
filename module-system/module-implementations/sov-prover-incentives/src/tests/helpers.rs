@@ -1,3 +1,4 @@
+use sov_bank::IntoPayable;
 use sov_chain_state::StateTransition;
 use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
@@ -5,7 +6,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Address, CryptoSpec, Gas, GasArray, GasPrice, KernelModule, KernelWorkingSet, Module,
+    Address, CryptoSpec, GasArray, GasPrice, KernelModule, KernelWorkingSet, Module, ModuleInfo,
     PrivateKey, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
@@ -84,17 +85,18 @@ pub(crate) fn simulate_chain_state_execution(
             vec![],
             tx_key.sign(&[]),
             0,
-            0,
+            0.into(),
             MAX_TX_GAS_AMOUNT,
-            Some(<<S as Spec>::Gas as Gas>::Price::from_slice(&TX_GAS_PRICE)),
+            Some(<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED)),
             i.into(),
         );
 
         // We first need to reserve gas for the transaction
         let mut gas_meter = module
+            .bank
             .reserve_gas(
                 &tx,
-                tx.max_gas_price().unwrap(),
+                &GasPrice::from_slice(&TX_GAS_PRICE),
                 &sequencer,
                 kernel_working_set.inner,
             )
@@ -115,7 +117,14 @@ pub(crate) fn simulate_chain_state_execution(
         module
             .chain_state
             .end_slot_hook(gas_used_per_step, &mut kernel_working_set);
-        module.refund_remaining_gas(&tx, &gas_meter, &sequencer, kernel_working_set.inner);
+        module.bank.refund_remaining_gas(
+            &tx,
+            &gas_meter,
+            &sequencer,
+            &module.id().to_payable(),
+            &module.id().to_payable(),
+            kernel_working_set.inner,
+        );
     }
 }
 

@@ -41,6 +41,8 @@ sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 jsonrpsee = { workspace = true }
 
+tempfile = { workspace = true }
+sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 [dev-dependencies]
 proptest = { workspace = true }

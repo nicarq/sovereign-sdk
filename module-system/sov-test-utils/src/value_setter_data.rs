@@ -45,10 +45,10 @@ impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
                     admin.clone(),
                     set_value_msg,
                     Self::DEFAULT_CHAIN_ID,
-                    Self::DEFAULT_GAS_TIP,
-                    Self::DEFAULT_GAS_LIMIT,
-                    Some(<<Self::Spec as Spec>::Gas as Gas>::Price::from_slice(
-                        &Self::DEFAULT_MAX_GAS_PRICE,
+                    Self::DEFAULT_MAX_PRIORITY_FEE,
+                    Self::DEFAULT_MAX_FEE,
+                    Some(<Self::Spec as Spec>::Gas::from_slice(
+                        &Self::DEFAULT_ESTIMATED_GAS_USAGE,
                     )),
                     value_setter_admin_nonce.try_into().unwrap(),
                 ));
