@@ -1,9 +1,12 @@
-use anyhow::bail;
-use sov_bank::{Amount, IntoPayable};
+use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, Context, StateAccessor, WorkingSet};
+use sov_modules_api::{
+    CallResponse, Context, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor, WorkingSet,
+};
+use thiserror::Error;
 
+use crate::event::Event;
 use crate::{AllowedSequencer, SequencerRegistry};
 
 /// This enumeration represents the available call messages for interacting with
@@ -45,51 +48,159 @@ pub enum CallMessage {
     },
 }
 
+/// Errors that can be raised by the `SequencerRegistry` module
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
+    #[error("The provided address is not an allowed sequencer")]
+    /// The provided address is not an allowed sequencer.
+    IsNotRegisteredSequencer(Da::Address),
+
+    #[error("The address provided as a parameter to the `exit` method does not match the transaction sender")]
+    /// The address provided as a parameter to the `exit` method does not match the transaction sender.
+    SuppliedAddressDoesNotMatchTxSender {
+        /// The address provided as a parameter to the `exit` method.
+        parameter: S::Address,
+        /// The address of the transaction sender.
+        sender: S::Address,
+    },
+
+    #[error("The module account does not have enough funds to refund the sequencer's staked amount. This is a bug")]
+    /// The module account does not have enough funds to refund the sequencer's staked amount.
+    InsufficientFundsToRefundStakedAmount(
+        // The amount of gas tokens to refund
+        u64,
+    ),
+
+    #[error("The provided amount makes the balance of the sequencer's account overflow.")]
+    /// The provided amount makes the balance of the sequencer's account overflow.
+    ToppingAccountMakesBalanceOverflow {
+        /// The address of the sequencer's account.
+        address: S::Address,
+        /// The existing staked balance of the sequencer's account.
+        existing_balance: u64,
+        /// The amount to add to the balance of the sequencer's account.
+        amount_to_add: u64,
+    },
+
+    #[error("Insufficient funds on the sender's account to top up it's staked balance")]
+    /// Insufficient funds on the sender's account to top up it's staked balance
+    InsufficientFundsToTopUpAccount {
+        /// The address of the sequencer's account.
+        address: S::Address,
+        /// The amount to add to the balance of the sequencer's account.
+        amount_to_add: u64,
+    },
+
+    #[error("The sequencer is already registered")]
+    /// The sequencer is already registered.
+    SequencerAlreadyRegistered(S::Address),
+
+    #[error("Stake amount below the minimum needed to register a sequencer")]
+    /// Stake amount below the minimum needed to register a sequencer.
+    InsufficientStakeAmount {
+        /// The amount of gas tokens the sender is trying to stake.
+        bond_amount: u64,
+        /// The minimum amount of gas tokens to stake.
+        minimum_bond_amount: u64,
+    },
+
+    #[error(
+        "The minimum bond is not set. This is a bug - the minimum bond should be set at genesis"
+    )]
+    /// The minimum bond is not set. This is a bug - the minimum bond should be set at genesis
+    NoMinimumBondSet,
+
+    #[error("The sender's account does not have enough funds to register itself as a sequencer")]
+    /// The sender's account does not have enough funds to register itself as a sequencer.
+    InsufficientFundsToRegister(
+        // The amount of gas tokens to stake
+        u64,
+    ),
+}
+
 impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
+    /// Tries to register a sequencer by staking the provided amount of gas tokens.
+    /// This method uses the context's sender as the sequencer's address.
+    ///
+    /// # Errors
+    /// Will error
+    ///
+    /// - If the provided amount is below the minimum required to register a sequencer.
+    /// - If the minimum bond is not set.
+    /// - If the sender's account does not have enough funds to register itself as a sequencer.
+    /// - If the sequencer is already registered.
     pub(crate) fn register(
         &self,
         da_address: &Da::Address,
         amount: Amount,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<CallResponse> {
+    ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
         let sequencer = context.sender();
         self.register_sequencer(da_address, sequencer, amount, working_set)?;
         Ok(CallResponse::default())
     }
 
+    /// Tries to remove a sequencer by unstaking the provided amount of gas tokens.
+    /// This method uses the context's sender as the sequencer's address.
+    ///
+    /// # Errors
+    /// Will error
+    ///
+    /// - If the sequencer is not registered.
+    /// - If the supplied `da_address` does not match the transaction sender.
+    /// - If the module balance is not high enough to refund the sequencer's staked amount (this is a bug).
     pub(crate) fn exit(
         &self,
         da_address: &Da::Address,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<CallResponse> {
-        let locker = &self.id;
-
-        let sequencer = context.sender();
+    ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
+        let sender = context.sender();
 
         let belongs_to = self
             .allowed_sequencers
-            .get_or_err(da_address, working_set)?
-            .rollup_address;
+            .get_or_err(da_address, working_set)
+            .map_err(|_| SequencerRegistryError::IsNotRegisteredSequencer(da_address.clone()))?
+            .address;
 
-        if sequencer != &belongs_to {
-            bail!("Unauthorized exit attempt from sequencer `{}`", sequencer);
+        if sender != &belongs_to {
+            return Err(
+                SequencerRegistryError::SuppliedAddressDoesNotMatchTxSender {
+                    parameter: belongs_to,
+                    sender: sender.clone(),
+                },
+            );
         }
 
-        let mut coins = self.get_coins_to_lock(working_set);
-
-        // we still remove the sequencer from the registry, even if there is no balance
-        coins.amount = self
+        let sender_balance = self
             .get_sender_balance(da_address, working_set)
             .unwrap_or(0);
 
+        self.bank
+            .transfer_from(
+                self.id().to_payable(),
+                sender,
+                Coins {
+                    amount: sender_balance,
+                    token_id: GAS_TOKEN_ID,
+                },
+                working_set,
+            )
+            .map_err(|_| {
+                SequencerRegistryError::InsufficientFundsToRefundStakedAmount(sender_balance)
+            })?;
+
+        // we remove the sequencer from the registry *once the sequencer has received its staked amount*
         self.delete(da_address, working_set);
 
-        if coins.amount > 0 {
-            self.bank
-                .transfer_from(locker.to_payable(), sequencer, coins, working_set)?;
-        }
+        self.emit_event(
+            working_set,
+            "sequencer_exited",
+            Event::<S>::Exited {
+                sequencer: sender.clone(),
+            },
+        );
 
         Ok(CallResponse::default())
     }
@@ -118,39 +229,50 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         sender: &Da::Address,
         amount: Amount,
         working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<CallResponse> {
-        let AllowedSequencer {
-            rollup_address,
-            balance,
-        } = match self.allowed_sequencers.get(sender, working_set) {
-            Some(s) => s,
-            None => bail!("The provided sender `{}` is not allowed", sender),
+    ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
+        let AllowedSequencer { address, balance } =
+            self.allowed_sequencers.get(sender, working_set).ok_or(
+                SequencerRegistryError::IsNotRegisteredSequencer(sender.clone()),
+            )?;
+
+        let balance = balance.checked_add(amount).ok_or(
+            SequencerRegistryError::ToppingAccountMakesBalanceOverflow {
+                address: address.clone(),
+                existing_balance: balance,
+                amount_to_add: amount,
+            },
+        )?;
+
+        let coins = Coins {
+            amount,
+            token_id: GAS_TOKEN_ID,
         };
-
-        let locker = &self.id;
-
-        let balance = match balance.checked_add(amount) {
-            Some(b) => b,
-            None => bail!(
-                "The provided amount `{}` overflows with the given balance `{}`.",
-                amount,
-                balance
-            ),
-        };
-
-        let mut coins = self.get_coins_to_lock(working_set);
-        coins.amount = amount;
 
         self.bank
-            .transfer_from(&rollup_address, locker.to_payable(), coins, working_set)?;
+            .transfer_from(&address, self.id().to_payable(), coins, working_set)
+            .map_err(
+                |_| SequencerRegistryError::<S, Da>::InsufficientFundsToTopUpAccount {
+                    address: address.clone(),
+                    amount_to_add: amount,
+                },
+            )?;
 
         self.allowed_sequencers.set(
             sender,
             &AllowedSequencer {
-                rollup_address,
+                address: address.clone(),
                 balance,
             },
             working_set,
+        );
+
+        self.emit_event(
+            working_set,
+            "sequencer_balance_increased",
+            Event::<S>::Deposited {
+                sequencer: address,
+                amount,
+            },
         );
 
         Ok(CallResponse::default())

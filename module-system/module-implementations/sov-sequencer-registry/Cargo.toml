@@ -16,6 +16,7 @@ resolver = "2"
 workspace = true
 
 [dependencies]
+thiserror = { workspace = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }

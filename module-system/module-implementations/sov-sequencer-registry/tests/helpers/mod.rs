@@ -1,5 +1,5 @@
 use jsonrpsee::core::RpcResult;
-use sov_bank::TokenId;
+use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{Address, CryptoSpec, DaSpec, Module, Spec, StateAccessor, WorkingSet};
@@ -50,7 +50,7 @@ impl TestSequencer {
     ) -> RpcResult<sov_bank::BalanceResponse> {
         let amount = self.bank.get_balance_of(
             &self.sequencer_config.seq_rollup_address,
-            self.sequencer_config.coins_to_lock.token_id,
+            GAS_TOKEN_ID,
             working_set,
         );
         Ok(sov_bank::BalanceResponse { amount })
@@ -62,12 +62,8 @@ impl TestSequencer {
         user_address: <S as Spec>::Address,
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<sov_bank::BalanceResponse> {
-        self.bank.balance_of(
-            None,
-            user_address,
-            self.sequencer_config.coins_to_lock.token_id,
-            working_set,
-        )
+        self.bank
+            .balance_of(None, user_address, GAS_TOKEN_ID, working_set)
     }
 
     #[allow(dead_code)]
@@ -93,8 +89,8 @@ impl TestSequencer {
         &self,
         amount: sov_bank::Amount,
         working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        self.registry.set_coins_amount_to_lock(amount, working_set)
+    ) {
+        self.registry.minimum_bond.set(&amount, working_set);
     }
 }
 
@@ -151,17 +147,11 @@ pub fn create_bank_config_large_balance() -> (sov_bank::BankConfig<S>, <S as Spe
     )
 }
 
-pub fn create_sequencer_config(
-    seq_rollup_address: <S as Spec>::Address,
-    token_id: TokenId,
-) -> SequencerConfig<S, Da> {
+pub fn create_sequencer_config(seq_rollup_address: <S as Spec>::Address) -> SequencerConfig<S, Da> {
     SequencerConfig {
         seq_rollup_address,
         seq_da_address: MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
-        coins_to_lock: sov_bank::Coins {
-            amount: LOCKED_AMOUNT,
-            token_id,
-        },
+        minimum_bond: LOCKED_AMOUNT,
         is_preferred_sequencer: false,
     }
 }
@@ -170,10 +160,8 @@ pub fn create_test_sequencer() -> TestSequencer {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config();
 
-    let token_id = sov_bank::GAS_TOKEN_ID;
-
     let registry = SequencerRegistry::<S, Da>::default();
-    let sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
+    let sequencer_config = create_sequencer_config(seq_rollup_address);
 
     TestSequencer {
         bank,
@@ -188,10 +176,8 @@ pub fn create_test_sequencer_large_balance() -> TestSequencer {
     let bank = sov_bank::Bank::<S>::default();
     let (bank_config, seq_rollup_address) = create_bank_config_large_balance();
 
-    let token_id = sov_bank::GAS_TOKEN_ID;
-
     let registry = SequencerRegistry::<S, Da>::default();
-    let sequencer_config = create_sequencer_config(seq_rollup_address, token_id);
+    let sequencer_config = create_sequencer_config(seq_rollup_address);
 
     TestSequencer {
         bank,

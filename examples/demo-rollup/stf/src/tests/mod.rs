@@ -9,7 +9,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::read_json_file;
 
-use crate::genesis_config::{get_genesis_config, GenesisPaths};
+use crate::genesis_config::{create_genesis_config, GenesisPaths};
 use crate::runtime::{GenesisConfig, Runtime};
 
 mod da_simulation;
@@ -31,11 +31,11 @@ pub(crate) fn create_storage_manager_for_tests(
     ProverStorageManager::new(config).unwrap()
 }
 
-pub(crate) fn get_genesis_config_for_tests<Da: DaSpec>(
+pub(crate) fn create_genesis_config_for_tests<Da: DaSpec>(
 ) -> GenesisParams<GenesisConfig<S, Da>, BasicKernelGenesisConfig<S, Da>> {
     let integ_test_conf_dir: &Path = "../../test-data/genesis/integration-tests".as_ref();
     let rt_params =
-        get_genesis_config::<S, Da>(&GenesisPaths::from_dir(integ_test_conf_dir)).unwrap();
+        create_genesis_config::<S, Da>(&GenesisPaths::from_dir(integ_test_conf_dir)).unwrap();
 
     let chain_state = read_json_file(integ_test_conf_dir.join("chain_state.json")).unwrap();
     let kernel_params = BasicKernelGenesisConfig { chain_state };

@@ -31,7 +31,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
             address: self
                 .allowed_sequencers
                 .get(&da_address, working_set)
-                .map(|s| s.rollup_address),
+                .map(|s| s.address),
         })
     }
 }

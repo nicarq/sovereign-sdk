@@ -10,6 +10,7 @@ mod call;
 mod event;
 mod genesis;
 mod hooks;
+
 #[cfg(feature = "native")]
 mod rpc;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -18,10 +19,10 @@ pub use genesis::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use serde::{Deserialize, Serialize};
-use sov_bank::{Amount, Coins, IntoPayable};
+use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
-    CallResponse, Context, Error, ModuleId, ModuleInfo, Spec, StateAccessor, StateCheckpoint,
-    StateMap, StateValue, WorkingSet,
+    CallResponse, Context, Error, EventEmitter, ModuleId, ModuleInfo, Spec, StateAccessor,
+    StateCheckpoint, StateMap, StateValue, WorkingSet,
 };
 use sov_state::codec::BcsCodec;
 
@@ -32,9 +33,20 @@ use crate::event::Event;
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
 pub(crate) struct AllowedSequencer<S: Spec> {
     /// The rollup address of the sequencer.
-    pub rollup_address: S::Address,
+    pub address: S::Address,
     /// The staked balance of the sequencer.
     pub balance: Amount,
+}
+
+/// Reason why sequencer was slashed.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum SlashingReason {
+    /// This status indicates problem with batch deserialization.
+    InvalidBatchEncoding,
+    /// Stateless verification failed, for example deserialized transactions have invalid signatures.
+    StatelessVerificationFailed,
+    /// This status indicates problem with transaction deserialization.
+    InvalidTransactionEncoding,
 }
 
 /// The `sov-sequencer-registry` module `struct`.
@@ -49,7 +61,14 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
     #[module]
     pub(crate) bank: sov_bank::Bank<S>,
 
+    /// The minimum bond for a sequencer to send transactions.
+    /// TODO(@theochap): This should be expressed in gas units.
+    #[state]
+    pub minimum_bond: StateValue<Amount>,
+
     /// Only batches from sequencers from this list are going to be processed.
+    /// We need to map the DA address to the rollup address because the sequencer interacts with the rollup
+    /// through the DA layer.
     #[state]
     pub(crate) allowed_sequencers: StateMap<Da::Address, AllowedSequencer<S>, BcsCodec>,
 
@@ -58,19 +77,9 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
     /// So this sequencer can guarantee soft confirmation time for transactions
     #[state]
     pub(crate) preferred_sequencer: StateValue<Da::Address, BcsCodec>,
-
-    /// Coins that will be slashed if the sequencer is malicious.
-    /// The coins will be transferred from
-    /// [`SequencerConfig::seq_rollup_address`] to
-    /// [`SequencerRegistry::address`] and locked forever, until sequencer
-    /// decides to exit (unregister).
-    ///
-    /// Only sequencers in the [`SequencerRegistry::allowed_sequencers`] list are
-    /// allowed to exit.
-    #[state]
-    pub(crate) coins_to_lock: StateValue<Coins>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 /// Result of applying a blob, from sequencer's point of view.
 pub enum SequencerOutcome<Da: sov_modules_api::DaSpec> {
     /// The blob was applied successfully and the operation is concluded.
@@ -98,7 +107,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
 
     type CallMessage = CallMessage;
 
-    type Event = Event;
+    type Event = Event<S>;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
@@ -113,65 +122,100 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
         Ok(match message {
             CallMessage::Register { da_address, amount } => {
                 let da_address = Da::Address::try_from(&da_address)?;
-                self.register(&da_address, amount, context, working_set)?
+                self.register(&da_address, amount, context, working_set)
+                    .map_err(|e| Error::ModuleError(e.into()))?
             }
             CallMessage::Deposit { da_address, amount } => {
                 let da_address = Da::Address::try_from(&da_address)?;
-                self.increase_sender_balance(&da_address, amount, working_set)?
+                self.increase_sender_balance(&da_address, amount, working_set)
+                    .map_err(|e| Error::ModuleError(e.into()))?
             }
             CallMessage::Exit { da_address } => {
                 let da_address = Da::Address::try_from(&da_address)?;
-                self.exit(&da_address, context, working_set)?
+                self.exit(&da_address, context, working_set)
+                    .map_err(|e| Error::ModuleError(e.into()))?
             }
         })
     }
 }
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
-    /// Returns the configured amount of [Coins] to lock.
-    pub fn get_coins_to_lock(&self, working_set: &mut impl StateAccessor) -> Coins {
-        self.coins_to_lock.get(working_set).expect(
-            "The coins to lock is set and genesis and must always be available. This is a bug!",
-        )
+    /// Returns the minimum amount of tokens that the sequencer must lock.
+    pub fn get_coins_to_lock(&self, working_set: &mut WorkingSet<S>) -> Coins {
+        let amount = self
+            .minimum_bond
+            .get(working_set)
+            .expect("The minimum bond should be set at genesis");
+        Coins {
+            amount,
+            token_id: GAS_TOKEN_ID,
+        }
     }
 
+    /// Tries to register a sequencer by staking the provided amount of gas tokens.
+    /// # Errors
+    /// Will error
+    ///
+    /// - If the provided amount is below the minimum required to register a sequencer.
+    /// - If the minimum bond is not set.
+    /// - If the sender's account does not have enough funds to register itself as a sequencer.
+    /// - If the sequencer is already registered.
     pub(crate) fn register_sequencer(
         &self,
         da_address: &Da::Address,
-        rollup_address: &S::Address,
+        address: &S::Address,
         amount: Amount,
         working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        if amount == 0 {
-            anyhow::bail!(
-                "The provided initial balance `{}` for the sequencer `{}` is zero.",
-                amount,
-                da_address
-            );
-        }
-
+    ) -> Result<(), SequencerRegistryError<S, Da>> {
         if self
             .allowed_sequencers
             .get(da_address, working_set)
             .is_some()
         {
-            anyhow::bail!("sequencer {} already registered", rollup_address)
+            return Err(SequencerRegistryError::SequencerAlreadyRegistered(
+                address.clone(),
+            ));
         }
-        let locker = &self.id;
-        let mut coins = self.get_coins_to_lock(working_set);
 
-        coins.amount = amount;
+        let minimum_bond = self
+            .minimum_bond
+            .get(working_set)
+            .ok_or(SequencerRegistryError::NoMinimumBondSet)?;
+
+        if amount < minimum_bond {
+            return Err(SequencerRegistryError::InsufficientStakeAmount {
+                bond_amount: amount,
+                minimum_bond_amount: minimum_bond,
+            });
+        }
+
+        let locker = &self.id;
+
+        let coins = Coins {
+            amount,
+            token_id: GAS_TOKEN_ID,
+        };
 
         self.bank
-            .transfer_from(rollup_address, locker.to_payable(), coins, working_set)?;
+            .transfer_from(address, locker.to_payable(), coins, working_set)
+            .map_err(|_| SequencerRegistryError::<S, Da>::InsufficientFundsToRegister(amount))?;
 
         self.allowed_sequencers.set(
             da_address,
             &AllowedSequencer {
-                rollup_address: rollup_address.clone(),
+                address: address.clone(),
                 balance: amount,
             },
             working_set,
+        );
+
+        self.emit_event(
+            working_set,
+            "sequencer_registered",
+            Event::<S>::Registered {
+                sequencer: address.clone(),
+                amount,
+            },
         );
 
         Ok(())
@@ -196,7 +240,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     ) -> Option<S::Address> {
         self.allowed_sequencers
             .get(address, working_set)
-            .map(|s| s.rollup_address)
+            .map(|s| s.address)
     }
 
     /// Returns the rollup address of the preferred sequencer, or [`None`] it wasn't set.
@@ -211,36 +255,8 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
             self.allowed_sequencers
                 .get(&da_addr, working_set)
                 .expect("Preferred Sequencer must have known address on rollup")
-                .rollup_address
+                .address
         })
-    }
-
-    /// Update the amount of coins to stake.
-    ///
-    /// Will override only the coins amount, leaving the token ID intact.
-    ///
-    /// To ensure the impracticability of protocol-level attacks, a sufficient stake is required.
-    /// One such expense includes the cost for transaction deserialization and signature
-    /// verification, which, in the worst-case scenario, the sequencer must bear. Consequently, the
-    /// staked amount must be commensurate with a worst-case block scenario comprised of the
-    /// maximum possible transaction count, all of which fall under this category.
-    ///
-    /// The allowed list of sequencers will be affected, as those with insufficient balance to meet
-    /// the new locking requirement will be unable to submit blocks. This could potentially lead to
-    /// a full rollup lock if no sequencer maintains an adequate balance. To ensure the continuous
-    /// submission of blocks, there should always be at least one sequencer with sufficient
-    /// balance. Use this functionality with caution.
-    pub fn set_coins_amount_to_lock(
-        &self,
-        amount: Amount,
-        working_set: &mut impl StateAccessor,
-    ) -> anyhow::Result<()> {
-        let mut coins_to_lock = self.get_coins_to_lock(working_set);
-
-        coins_to_lock.amount = amount;
-        self.coins_to_lock.set(&coins_to_lock, working_set);
-
-        Ok(())
     }
 
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
@@ -254,14 +270,12 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
             None => return false,
         };
 
-        let amount = self
-            .coins_to_lock
+        let min_bond = self
+            .minimum_bond
             .get(working_set)
-            .expect(
-                "The coins to lock is set and genesis and must always be available. This is a bug!",
-            )
-            .amount;
-        if balance < amount {
+            .expect("The minimum bond should be set at genesis");
+
+        if balance < min_bond {
             return false;
         }
 

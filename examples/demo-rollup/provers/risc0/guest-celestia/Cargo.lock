@@ -3499,6 +3499,7 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-state",
+ "thiserror",
 ]
 
 [[package]]

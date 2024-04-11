@@ -13,7 +13,7 @@ use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestPrivateKey, Te
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::simulate_da;
 use crate::tests::{
-    create_storage_manager_for_tests, get_genesis_config_for_tests, read_private_key,
+    create_genesis_config_for_tests, create_storage_manager_for_tests, read_private_key,
     StfBlueprintTest, S,
 };
 
@@ -22,7 +22,7 @@ fn test_demo_values_in_db() {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
     let mut storage_manager = create_storage_manager_for_tests(path);
-    let config = get_genesis_config_for_tests();
+    let config = create_genesis_config_for_tests();
 
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
@@ -112,7 +112,7 @@ fn test_demo_values_in_cache() {
 
     let stf: StfBlueprintTest = StfBlueprint::new();
 
-    let config = get_genesis_config_for_tests();
+    let config = create_genesis_config_for_tests();
 
     let genesis_block = MockBlock::default();
     let (stf_state, ledger_state) = storage_manager
@@ -206,7 +206,7 @@ fn test_demo_values_not_in_db() {
     let block_1 = genesis_block.next_mock();
     let block_2 = block_1.next_mock();
 
-    let config = get_genesis_config_for_tests();
+    let config = create_genesis_config_for_tests();
     {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
@@ -282,7 +282,7 @@ fn test_sequencer_unknown_sequencer() {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
 
-    let mut config = get_genesis_config_for_tests();
+    let mut config = create_genesis_config_for_tests();
     config.runtime.sequencer_registry.is_preferred_sequencer = false;
 
     let genesis_block = MockBlock::default();
