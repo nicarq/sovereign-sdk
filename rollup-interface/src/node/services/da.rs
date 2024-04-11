@@ -38,6 +38,24 @@ pub struct RelevantBlobs<B> {
     pub batch_blobs: Vec<B>,
 }
 
+impl<B> RelevantBlobs<B> {
+    /// Iterates over the blobs in this block.
+    pub fn as_iters(&mut self) -> RelevantBlobIters<&mut [B]> {
+        RelevantBlobIters {
+            proof_blobs: self.proof_blobs.as_mut_slice(),
+            batch_blobs: self.batch_blobs.as_mut_slice(),
+        }
+    }
+}
+
+/// Holds iterators over the blobs in a given block.
+pub struct RelevantBlobIters<I: IntoIterator> {
+    /// ProofNamespace blobs.
+    pub proof_blobs: I,
+    /// BatchNamespace blobs.
+    pub batch_blobs: I,
+}
+
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
 /// It is *not* part of the logic that is zk-proven.
 ///

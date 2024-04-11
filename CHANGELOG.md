@@ -23,3 +23,9 @@
   2. https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/425/files#diff-d46bdfc6e8e6dfb4acd9794c4536d6a8212b37aef27abc4b39d7db479be75d4aL135
 
 - #429 Updates the `reserve_gas` and `refund_remaining_gas` mechanisms to match EIP-1559. The `reserve_gas` and `refund_remaining_gas` methods are moved back to the `Bank` module as they now affect multiple modules (the module that locks the gas tip - ie the `sequencer-registry` - and the module that locks the base gas - ie the `attester-incentives` or `prover-incentives`). Instead of locking the gas in the `attester-incentives`, `prover-incentives` or `sequencer-registry` at the `reserve_gas` call, we are now doing it when `refund_remaining_gas` is called. The `Transaction` structure is updated to let the user specify a `max_fee` and a `max_priority_fee` which are respectively a coin amount and a percentage. He may optionally specify a `gas_limit` which is a multi-dimensional gas limit that is used as a protection for gas elasticity (following EIP-1559).
+
+- #432 Updates the `StateTransitionFunction`  to handle blobs from all the relevant namespaces.
+This breaks the `StateTransitionFunction` API but the breaking changes don't propagate outside of the module system internals. 
+
+
+

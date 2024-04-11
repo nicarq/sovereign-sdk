@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::maybestd::vec::Vec;
+use crate::services::da::RelevantBlobIters;
 use crate::zk::{ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "arbitrary"))]
@@ -165,7 +166,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        blobs: I,
+        relevant_blobs: RelevantBlobIters<I>,
     ) -> ApplySlotOutput<Vm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;

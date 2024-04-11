@@ -7,7 +7,7 @@ pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHashTrait, BlockHeaderTrait, CountedBufReader, Time};
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
 use sov_rollup_interface::Bytes;
 
 use crate::utils::hash_to_array;
@@ -248,6 +248,14 @@ impl MockBlock {
         let h = self.header.height + 1;
         next_block.header = MockBlockHeader::from_height(h);
         next_block
+    }
+
+    /// Creates RelevantBlobs data from this block.
+    pub fn as_relevant_blobs(&self) -> RelevantBlobs<MockBlob> {
+        RelevantBlobs {
+            proof_blobs: self.proof_blobs.clone(),
+            batch_blobs: self.batch_blobs.clone(),
+        }
     }
 }
 

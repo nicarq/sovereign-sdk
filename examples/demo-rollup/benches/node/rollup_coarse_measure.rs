@@ -176,7 +176,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Default::default(),
         filtered_block.header(),
         &filtered_block.validity_cond,
-        &mut blobs.remove(0).batch_blobs,
+        blobs.remove(0).as_iters(),
     );
     current_root = apply_block_result.state_root;
     storage_manager
@@ -209,7 +209,7 @@ async fn main() -> Result<(), anyhow::Error> {
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_cond,
-            &mut relevant_blobs.batch_blobs,
+            relevant_blobs.as_iters(),
         );
         apply_block_time += now.elapsed();
         h_apply_block.observe(now.elapsed().as_secs_f64());

@@ -72,34 +72,23 @@ Next we need to write the core logic in `apply_slot`:
 ```rust, ignore
     // The core logic of our rollup.
     fn apply_slot<'a, I>(
-        &mut self,
+        &self,
+        _pre_state_root: &[u8; 0],
+        _base_state: Self::PreState,
         _witness: Self::Witness,
-        blobs: I,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
-    >
+        _slot_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
+        relevant_blobs: RelevantBlobIters<I>,
+    ) -> ApplySlotOutput<Vm, Da, Self>
     where
-        I: IntoIterator<Item = &'a mut B>,
+        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         let mut receipts = vec![];
-        for blob in blobs {
-            let blob_data = blob.data_mut();
-
-            // Read the data from the blob as a byte vec.
-            let mut data = Vec::new();
-
-            // Panicking within the `StateTransitionFunction` is generally not recommended.
-            // But here, if we encounter an error while reading the bytes,
-            // it suggests a serious issue with the DA layer or our setup.
-            blob_data
-                .read_to_end(&mut data)
-                .unwrap_or_else(|e| panic!("Unable to read blob data {}", e));
+        for blob in relevant_blobs.batch_blobs {
+            let data = blob.verified_data();
 
             // Check if the sender submitted the preimage of the hash.
-            let hash = sha2::Sha256::digest(&data).into();
+            let hash = sha2::Sha256::digest(data).into();
             let desired_hash = [
                 102, 104, 122, 173, 248, 98, 189, 119, 108, 143, 193, 139, 142, 159, 142, 32, 8,
                 151, 20, 133, 110, 226, 51, 179, 144, 42, 89, 29, 13, 95, 41, 37,
@@ -116,11 +105,13 @@ Next we need to write the core logic in `apply_slot`:
                 batch_hash: hash,
                 tx_receipts: vec![],
                 inner: result,
+                gas_price: vec![],
             });
         }
 
         SlotResult {
-            state_root: (),
+            state_root: [],
+            change_set: (),
             batch_receipts: receipts,
             witness: (),
         }
@@ -168,33 +159,60 @@ use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::stf::StateTransitionFunction;
 
 #[test]
-fn test_stf() {
-    let address = MockAddress { addr: [1; 32] };
-    let preimage = vec![0; 32];
+fn test_stf_success() {
+    let address = MockAddress::from([1; 32]);
 
-    let mut test_blob = MockBlob::new(preimage, address, [0; 32]);
-    // Work around for https://github.com/Sovereign-Labs/sovereign-sdk/issues/1129
-    test_blob.data.advance(test_blob.data.total_len());
     let stf = &mut CheckHashPreimageStf::<MockValidityCond>::default();
-    StateTransitionFunction::<MockZkvm, MockDaSpec>::init_chain(stf, (), ());
+    StateTransitionFunction::<MockZkVerifier, MockDaSpec>::init_chain(stf, (), ());
 
-    let data = MockBlock::default();
-    let mut blobs = [test_blob];
+    let mut batch_blobs = {
+        let incorrect_preimage = vec![1; 32];
+        let correct_preimage = vec![0; 32];
 
-    StateTransitionFunction::<MockZkvm, MockDaSpec>::init_chain(stf, ());
+        [
+            MockBlob::new(incorrect_preimage, address, [0; 32]),
+            MockBlob::new(correct_preimage, address, [0; 32]),
+        ]
+    };
 
-    let result = StateTransitionFunction::<MockZkvm, MockDaSpec>::apply_slot(
+    // Pretend we are in native code and progress the blobs to the verified state.
+    for blob in &mut batch_blobs {
+        blob.advance();
+    }
+
+    let mut proof_blobs = {
+        [
+            MockBlob::new(vec![0; 32], address, [0; 32]),
+            MockBlob::new(vec![0; 32], address, [0; 32]),
+        ]
+    };
+
+    for blob in &mut proof_blobs {
+        blob.advance();
+    }
+
+    let relevant_blobs = RelevantBlobIters {
+        proof_blobs: &mut proof_blobs,
+        batch_blobs: &mut batch_blobs,
+    };
+
+    let result = StateTransitionFunction::<MockZkVerifier, MockDaSpec>::apply_slot(
         stf,
         &[],
         (),
         (),
         &MockBlockHeader::default(),
         &MockValidityCond::default(),
-        &mut blobs,
+        relevant_blobs,
     );
 
-    assert_eq!(1, result.batch_receipts.len());
-    let receipt = result.batch_receipts[0].clone();
+    assert_eq!(2, result.batch_receipts.len());
+
+    let receipt = &result.batch_receipts[0];
+    assert_eq!(receipt.inner, ApplySlotResult::Failure);
+
+    let receipt = &result.batch_receipts[1];
     assert_eq!(receipt.inner, ApplySlotResult::Success);
 }
+
 ```

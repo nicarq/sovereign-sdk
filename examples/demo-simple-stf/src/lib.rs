@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 use sha2::Digest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::services::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{
     ApplySlotOutput, BatchReceipt, SlotResult, StateTransitionFunction,
 };
@@ -64,13 +65,13 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
-        blobs: I,
+        relevant_blobs: RelevantBlobIters<I>,
     ) -> ApplySlotOutput<Vm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         let mut receipts = vec![];
-        for blob in blobs {
+        for blob in relevant_blobs.batch_blobs {
             let data = blob.verified_data();
 
             // Check if the sender submitted the preimage of the hash.

@@ -117,7 +117,7 @@ async fn test_proof_generation() {
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_condition(),
-            &mut relevant_blobs.batch_blobs,
+            relevant_blobs.as_iters(),
         );
 
         let data = StateTransitionWitness::<

@@ -22,6 +22,7 @@ use sov_modules_api::{
 };
 use sov_modules_core::capabilities::{ContextResolver, GasEnforcer, TransactionDeduplicator};
 use sov_modules_core::VersionedStateReadWriter;
+use sov_rollup_interface::services::da::RelevantBlobIters;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_state::storage::StateUpdate;
@@ -261,7 +262,7 @@ where
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        blobs: I,
+        relevant_blobs: RelevantBlobIters<I>,
     ) -> ApplySlotOutput<Vm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
@@ -274,11 +275,19 @@ where
             pre_state_root,
         );
 
+        let proof_blobs = relevant_blobs.proof_blobs;
+        for proof in proof_blobs.into_iter() {
+            checkpoint = self.apply_proof(checkpoint, proof, &gas_price);
+        }
+
         let mut kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut checkpoint);
         let visible_height = kernel_working_set.virtual_slot();
+
+        let batch_blobs = relevant_blobs.batch_blobs;
+
         let selected_batches = self
             .kernel
-            .get_batches_for_this_slot(blobs, &mut kernel_working_set)
+            .get_batches_for_this_slot(batch_blobs, &mut kernel_working_set)
             .expect("blob selection must succeed, probably serialization failed");
 
         info!(

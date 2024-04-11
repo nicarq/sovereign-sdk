@@ -4,7 +4,7 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{GasArray, GasPrice, GasUnit, PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::da::BlobReaderTrait;
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::Storage;
@@ -58,7 +58,11 @@ fn test_tx_revert() {
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
-        let mut blobs = [blob];
+
+        let mut relevant_blobs = RelevantBlobs {
+            proof_blobs: Default::default(),
+            batch_blobs: vec![blob],
+        };
 
         let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
@@ -67,7 +71,7 @@ fn test_tx_revert() {
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
-            &mut blobs,
+            relevant_blobs.as_iters(),
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -174,7 +178,11 @@ fn test_tx_bad_signature() {
             [0; 32],
         );
         let blob_sender = blob.sender();
-        let mut blobs = [blob];
+
+        let mut relevant_blobs = RelevantBlobs {
+            proof_blobs: Default::default(),
+            batch_blobs: vec![blob],
+        };
 
         let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
@@ -183,7 +191,7 @@ fn test_tx_bad_signature() {
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
-            &mut blobs,
+            relevant_blobs.as_iters(),
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -254,7 +262,11 @@ fn test_tx_bad_nonce() {
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
-        let mut blobs = [blob];
+
+        let mut relevant_blobs = RelevantBlobs {
+            proof_blobs: Default::default(),
+            batch_blobs: vec![blob],
+        };
 
         let (stf_state, _ledger_state) =
             storage_manager.create_state_for(block_1.header()).unwrap();
@@ -264,7 +276,7 @@ fn test_tx_bad_nonce() {
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
-            &mut blobs,
+            relevant_blobs.as_iters(),
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -338,7 +350,11 @@ fn test_tx_bad_serialization() {
             [0; 32],
         );
         let blob_sender = blob.sender();
-        let mut blobs = [blob];
+
+        let mut relevant_blobs = RelevantBlobs {
+            proof_blobs: Default::default(),
+            batch_blobs: vec![blob],
+        };
 
         let (storage, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
@@ -347,7 +363,7 @@ fn test_tx_bad_serialization() {
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
-            &mut blobs,
+            relevant_blobs.as_iters(),
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -433,7 +449,11 @@ fn test_tx_gas_limit() {
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
-        let mut blobs = [blob];
+
+        let mut relevant_blobs = RelevantBlobs {
+            proof_blobs: Default::default(),
+            batch_blobs: vec![blob],
+        };
 
         let (stf_state, ledger_state) = storage_manager
             .create_state_for(genesis_block.header())
@@ -469,7 +489,7 @@ fn test_tx_gas_limit() {
             Default::default(),
             &block_1.header,
             &block_1.validity_cond,
-            &mut blobs,
+            relevant_blobs.as_iters(),
         );
 
         let _txn_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();

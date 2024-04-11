@@ -45,7 +45,7 @@ where
             data.witness,
             &data.da_block_header,
             &validity_condition,
-            &mut data.relevant_blobs.batch_blobs,
+            data.relevant_blobs.as_iters(),
         );
 
         let out: StateTransitionPublicData<Da::Spec, _> = StateTransitionPublicData {
