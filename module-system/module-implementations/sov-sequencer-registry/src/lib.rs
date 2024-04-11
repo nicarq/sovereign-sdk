@@ -11,6 +11,9 @@ mod event;
 mod genesis;
 mod hooks;
 
+#[cfg(test)]
+mod tests;
+
 #[cfg(feature = "native")]
 mod rpc;
 use borsh::{BorshDeserialize, BorshSerialize};
