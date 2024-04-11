@@ -6,7 +6,7 @@ use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_stf_runner::{
-    ProverServiceConfig, RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, StorageConfig,
+    ProofManagerConfig, RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, StorageConfig,
 };
 use tokio::sync::oneshot;
 
@@ -33,7 +33,7 @@ pub async fn start_rollup(
             },
         },
         da: da_config,
-        prover_service: ProverServiceConfig {
+        proof_manager: ProofManagerConfig {
             aggregated_proof_block_jump: 1,
         },
     };

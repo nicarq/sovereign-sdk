@@ -11,8 +11,7 @@ use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
     ParallelProverService, ProofAggregationStatus, ProofProcessingStatus, ProverService,
-    ProverServiceConfig, ProverServiceError, RollupProverConfig, StateTransitionInfo,
-    WitnessSubmissionStatus,
+    ProverServiceError, RollupProverConfig, StateTransitionInfo,
 };
 use tokio::time;
 
@@ -24,13 +23,12 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
         prover_service,
         inner_vm,
         ..
-    } = make_new_prover(1);
+    } = make_new_prover();
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_state_transition_info(make_transition_info(header_hash, 1))
-        .await;
-    prover_service.prove(header_hash).await?;
+        .prove(make_transition_info(header_hash, 1))
+        .await?;
 
     inner_vm.make_proof();
 
@@ -48,7 +46,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 
     assert_eq!(
         err.to_string(),
-        "Missing witness for: 0x0000000000000000000000000000000000000000000000000000000000000000"
+        "Missing required proof of 0x0000000000000000000000000000000000000000000000000000000000000000. Use the `prove` method to generate a proof of that block and try again."
     );
 
     Ok(())
@@ -61,22 +59,20 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
         inner_vm,
         num_worker_threads,
         ..
-    } = make_new_prover(1);
+    } = make_new_prover();
 
     let header_hashes = (1..num_worker_threads + 1).map(|hash| MockHash::from([hash as u8; 32]));
 
     let mut height = 1;
     // Saturate the prover.
     for header_hash in header_hashes.clone() {
-        prover_service
-            .submit_state_transition_info(make_transition_info(header_hash, height))
-            .await;
-
-        let poof_processing_status = prover_service.prove(header_hash).await?;
-        assert_eq!(
-            ProofProcessingStatus::ProvingInProgress,
-            poof_processing_status
-        );
+        let proof_processing_status = prover_service
+            .prove(make_transition_info(header_hash, height))
+            .await?;
+        assert!(matches!(
+            proof_processing_status,
+            ProofProcessingStatus::<Vec<u8>, Vec<u8>, MockDaSpec>::ProvingInProgress,
+        ));
 
         let proof_submission_status = prover_service
             .create_aggregated_proof(&[header_hash])
@@ -92,15 +88,16 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     // Attempting to create another proof while the prover is busy.
     {
         let header_hash = MockHash::from([0; 32]);
-        prover_service
-            .submit_state_transition_info(make_transition_info(header_hash, height))
-            .await;
-
-        let status = prover_service.prove(header_hash).await?;
+        let status = prover_service
+            .prove(make_transition_info(header_hash, height))
+            .await?;
 
         height += 1;
         // The prover is busy and won't accept any new jobs.
-        assert_eq!(ProofProcessingStatus::Busy, status);
+        assert!(matches!(
+            status,
+            ProofProcessingStatus::<Vec<u8>, Vec<u8>, MockDaSpec>::Busy(_),
+        ));
 
         let err = prover_service
             .create_aggregated_proof(&[header_hash])
@@ -110,7 +107,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
         // The new job is not triggered.
         assert_eq!(
             err.to_string(),
-            "Witness for 0x0000000000000000000000000000000000000000000000000000000000000000 was submitted, but the proof generation is not triggered."
+            "Missing required proof of 0x0000000000000000000000000000000000000000000000000000000000000000. Use the `prove` method to generate a proof of that block and try again."
         );
     }
 
@@ -128,66 +125,38 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     // Retry once the prover is available to process new proofs.
     {
         let header_hash = MockHash::from([(num_worker_threads + 1) as u8; 32]);
-        prover_service
-            .submit_state_transition_info(make_transition_info(header_hash, height))
-            .await;
-
-        let status = prover_service.prove(header_hash).await?;
-        assert_eq!(ProofProcessingStatus::ProvingInProgress, status);
+        let status = prover_service
+            .prove(make_transition_info(header_hash, height))
+            .await?;
+        assert!(matches!(
+            status,
+            ProofProcessingStatus::<Vec<u8>, Vec<u8>, MockDaSpec>::ProvingInProgress
+        ));
     }
 
     Ok(())
 }
 
 #[tokio::test]
-async fn test_missing_witness() -> Result<(), anyhow::Error> {
-    let TestProver { prover_service, .. } = make_new_prover(1);
-    let header_hash = MockHash::from([0; 32]);
-    let err = prover_service.prove(header_hash).await.unwrap_err();
-
-    assert_eq!(
-        err.to_string(),
-        "Missing witness for block: 0x0000000000000000000000000000000000000000000000000000000000000000"
-    );
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
-    let TestProver { prover_service, .. } = make_new_prover(1);
-
-    let header_hash = MockHash::from([0; 32]);
-    let submission_status = prover_service
-        .submit_state_transition_info(make_transition_info(header_hash, 1))
-        .await;
-
-    assert_eq!(
-        WitnessSubmissionStatus::SubmittedForProving,
-        submission_status
-    );
-
-    let submission_status = prover_service
-        .submit_state_transition_info(make_transition_info(header_hash, 2))
-        .await;
-
-    assert_eq!(WitnessSubmissionStatus::WitnessExist, submission_status);
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyhow::Error> {
-    let TestProver { prover_service, .. } = make_new_prover(5);
+    let TestProver { prover_service, .. } = make_new_prover();
 
     let header_hash = MockHash::from([0; 32]);
-    prover_service
-        .submit_state_transition_info(make_transition_info(header_hash, 1))
-        .await;
 
-    let status = prover_service.prove(header_hash).await?;
-    assert_eq!(ProofProcessingStatus::ProvingInProgress, status);
+    let status = prover_service
+        .prove(make_transition_info(header_hash, 1))
+        .await?;
+    assert!(matches!(
+        status,
+        ProofProcessingStatus::<Vec<u8>, Vec<u8>, MockDaSpec>::ProvingInProgress
+    ));
 
-    let err = prover_service.prove(header_hash).await.unwrap_err();
+    let err = prover_service
+        .prove(make_transition_info(header_hash, 1))
+        .await
+        .expect_err(
+            "Proof generation must fail when we try to prove the same block multiple times",
+        );
     assert_eq!(err.to_string(), "Proof generation for 0x0000000000000000000000000000000000000000000000000000000000000000 still in progress");
     Ok(())
 }
@@ -202,7 +171,7 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
         prover_service,
         inner_vm,
         ..
-    } = make_new_prover(jump);
+    } = make_new_prover();
 
     let header_hashes: Vec<_> = (0..total_nb_of_blocks)
         .map(|h| MockHash::from([h as u8; 32]))
@@ -212,10 +181,8 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
     {
         for (height, hash) in header_hashes[0..end_block].iter().enumerate() {
             prover_service
-                .submit_state_transition_info(make_transition_info(*hash, height as u64))
-                .await;
-
-            prover_service.prove(*hash).await?;
+                .prove(make_transition_info(*hash, height as u64))
+                .await?;
         }
 
         let status = wait_for_aggregated_proof(&header_hashes[0..jump], &prover_service)
@@ -257,13 +224,8 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
             .enumerate()
         {
             prover_service
-                .submit_state_transition_info(make_transition_info(
-                    *hash,
-                    (height + end_block) as u64,
-                ))
-                .await;
-
-            prover_service.prove(*hash).await?;
+                .prove(make_transition_info(*hash, (height + end_block) as u64))
+                .await?;
             inner_vm.make_proof();
         }
 
@@ -335,7 +297,7 @@ async fn wait_for_aggregated_proof(
     }
 }
 
-fn make_new_prover(jump: usize) -> TestProver {
+fn make_new_prover() -> TestProver {
     let num_threads = 10;
     let inner_vm = MockZkvm::new();
     let outer_vm = MockZkvm::new_non_blocking();
@@ -352,9 +314,6 @@ fn make_new_prover(jump: usize) -> TestProver {
             prover_config,
             (),
             num_threads,
-            ProverServiceConfig {
-                aggregated_proof_block_jump: jump,
-            },
             Default::default(),
         ),
         inner_vm,

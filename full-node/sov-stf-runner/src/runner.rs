@@ -295,7 +295,6 @@ where
 
         self.spawn_sync_status_updater(self.da_polling_interval_ms);
 
-        let mut agg_block_hashes = Vec::default();
         loop {
             debug!(next_da_height, "Requesting DA block for");
             set_current_da_height(next_da_height);
@@ -413,12 +412,8 @@ where
                 slot_number,
             });
 
-            self.finalize(
-                &mut seen_state_transition,
-                &mut agg_block_hashes,
-                last_finalized_height,
-            )
-            .await?;
+            self.finalize(&mut seen_state_transition, last_finalized_height)
+                .await?;
             inc_rollup_batches_processed(batch_count);
             inc_rollup_transactions_processed(transaction_count);
         }
@@ -429,7 +424,6 @@ where
         seen_state_transition: &mut VecDeque<
             StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>,
         >,
-        agg_proof_hashes: &mut Vec<<Da::Spec as DaSpec>::SlotHash>,
         last_finalized_height: u64,
     ) -> Result<(), anyhow::Error> {
         // Checking all seen blocks, in case if there was delay in getting last finalized header.
@@ -446,7 +440,7 @@ where
 
                 // Post ZK proof to DA.
                 self.proof_manager
-                    .post_aggregated_proof_to_da_when_ready(transition_data, agg_proof_hashes)
+                    .post_aggregated_proof_to_da_when_ready(transition_data)
                     .await?;
 
                 continue;

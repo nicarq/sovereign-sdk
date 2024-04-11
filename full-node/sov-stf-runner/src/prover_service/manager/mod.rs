@@ -1,15 +1,19 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use sov_db::ledger_db::LedgerDb;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use sov_rollup_interface::zk::Zkvm;
 use tracing::{debug, info};
+use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
+use self::types::AggregateProofMetadata;
+use crate::config::ProofManagerConfig;
 use crate::prover_service::AggregatedProofPublicData;
-use crate::{ProofAggregationStatus, ProofProcessingStatus, ProverService, StateTransitionInfo};
+use crate::{ProverService, StateTransitionInfo};
+
+mod types;
 
 /// Manages the lifecycle of the `AggregatedProof`.
 pub struct ProofManager<Ps: ProverService> {
@@ -17,6 +21,8 @@ pub struct ProofManager<Ps: ProverService> {
     prover_service: Option<Ps>,
     ledger_db: LedgerDb,
     outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
+    proofs_to_create: UnAggregatedProofList<Ps>,
+    config: ProofManagerConfig,
 }
 
 impl<Ps: ProverService> ProofManager<Ps>
@@ -29,12 +35,15 @@ where
         prover_service: Option<Ps>,
         ledger_db: LedgerDb,
         outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
+        config: ProofManagerConfig,
     ) -> Self {
         Self {
             da_service,
             prover_service,
             ledger_db,
             outer_code_commitment,
+            proofs_to_create: UnAggregatedProofList::new(),
+            config,
         }
     }
 
@@ -70,67 +79,67 @@ where
     /// Attempts to generate an `AggregatedProof` and then posts it to DA.
     /// The proof is created only when there are enough of inner proofs in the `ProverService`` queue.
     pub(crate) async fn post_aggregated_proof_to_da_when_ready(
-        &self,
+        &mut self,
         transition_data: StateTransitionInfo<
             Ps::StateRoot,
             Ps::Witness,
             <Ps::DaService as DaService>::Spec,
         >,
-        agg_proof_hashes: &mut Vec<<<Ps::DaService as DaService>::Spec as DaSpec>::SlotHash>,
     ) -> Result<(), anyhow::Error> {
         if let Some(prover_service) = self.prover_service.as_ref() {
-            let header_hash = transition_data.da_block_header().hash();
-            agg_proof_hashes.push(header_hash.clone());
+            let block_hash = transition_data.da_block_header().hash();
+            // Save the transition for later proving. This is temporarily redundant
+            // since we always just try to prove blocks right away (because we don't have fee
+            // estimates for proving built out yet).
+            self.proofs_to_create.append(BlockProofInfo {
+                status: BlockProofStatus::Waiting(transition_data),
+                hash: block_hash,
+                // TODO(@preston-evans98): estimate public data size. This requires a new API on the `prover_service`.
+                // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/440>
+                public_data_size: 0,
+            });
 
-            prover_service
-                .submit_state_transition_info(transition_data)
+            // Start proving the next block right away... for now.
+            self.proofs_to_create
+                .oldest_mut()
+                .prove_any_unproven_blocks(prover_service)
                 .await;
 
-            loop {
-                let status = prover_service
-                    .prove(header_hash.clone())
-                    .await
-                    .expect("The proof creation should succeed");
-
-                // Stop the runner loop until prover is ready.
-                match status {
-                    ProofProcessingStatus::ProvingInProgress => break,
-                    ProofProcessingStatus::Busy => {
-                        tokio::time::sleep(Duration::from_millis(100)).await;
-                        continue;
-                    }
-                }
-            }
-
-            if agg_proof_hashes.len() >= prover_service.aggregated_proof_block_jump() {
-                loop {
-                    let status = prover_service
-                        .create_aggregated_proof(agg_proof_hashes.as_slice())
-                        .await;
-
-                    match status {
-                        Ok(ProofAggregationStatus::Success(agg_proof)) => {
-                            agg_proof_hashes.clear();
-
-                            tracing::debug!(
-                                bytes = agg_proof.raw_aggregated_proof.len(),
-                                "Sending aggregated proof to DA"
-                            );
-                            self.da_service
-                                .send_aggregated_zk_proof(&agg_proof.raw_aggregated_proof)
-                                .await?;
-                            return Ok(());
-                        }
-                        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
-                        Ok(ProofAggregationStatus::ProofGenerationInProgress) => {
-                            tokio::time::sleep(Duration::from_millis(100)).await;
-                        }
-                        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
-                        Err(e) => panic!("{:?}", e),
-                    }
-                }
+            // If we've covered enough blocks for the aggregate proof, generate and submit it to DA
+            if self.proofs_to_create.current_proof_jump() >= self.config.aggregated_proof_block_jump
+            {
+                self.proofs_to_create.close_newest_proof();
+                let metadata = self.proofs_to_create.take_oldest();
+                let agg_proof = self
+                    .create_aggregate_proof_with_retries(metadata, prover_service)
+                    .await;
+                tracing::debug!(
+                    bytes = agg_proof.raw_aggregated_proof.len(),
+                    "Sending aggregated proof to DA"
+                );
+                self.da_service
+                    .send_aggregated_zk_proof(&agg_proof.raw_aggregated_proof)
+                    .await?;
             }
         }
         Ok(())
+    }
+
+    async fn create_aggregate_proof_with_retries(
+        &self,
+        mut metadata: AggregateProofMetadata<Ps>,
+        prover_service: &Ps,
+    ) -> SerializedAggregatedProof {
+        // TODO: Add backoff on proof submission
+        // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/446>
+        loop {
+            match metadata.prove(prover_service).await {
+                Ok(proof) => break proof,
+                Err((returned_metadata, err)) => {
+                    tracing::error!("Failed to generate aggregate proof: {}. Retrying.", err);
+                    metadata = returned_metadata;
+                }
+            }
+        }
     }
 }

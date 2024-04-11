@@ -14,7 +14,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProofManager, ProverServiceConfig, RollupConfig,
+    InitVariant, ParallelProverService, ProofManager, ProofManagerConfig, RollupConfig,
     RollupProverConfig, RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
@@ -117,7 +117,7 @@ pub fn initialize_runner(
             },
         },
         da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
-        prover_service: ProverServiceConfig {
+        proof_manager: ProofManagerConfig {
             aggregated_proof_block_jump,
         },
     };
@@ -150,7 +150,6 @@ pub fn initialize_runner(
             // Should be ZkStorage, but we don't need it for this test
             genesis_storage,
             threads,
-            rollup_config.prover_service,
             Default::default(),
         )
     });
@@ -163,6 +162,7 @@ pub fn initialize_runner(
         prover_service,
         ledger_db.clone(),
         MockCodeCommitment::default(),
+        rollup_config.proof_manager,
     );
     (
         StateTransitionRunner::new(
