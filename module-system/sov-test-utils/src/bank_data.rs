@@ -224,28 +224,28 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
         let mut nonce = 0;
 
         for create_message in &self.token_create_txs {
-            let max_gas_price = None;
+            let gas_limit = None;
             messages.push(Message::new(
                 create_message.minter_pkey.clone(),
                 create_token_tx::<S>(create_message),
                 Self::DEFAULT_CHAIN_ID,
-                Self::DEFAULT_GAS_TIP,
-                Self::DEFAULT_GAS_LIMIT,
-                max_gas_price,
+                Self::DEFAULT_MAX_PRIORITY_FEE,
+                Self::DEFAULT_MAX_FEE,
+                gas_limit,
                 nonce,
             ));
             nonce += 1;
         }
 
         for transfer_message in &self.transfer_txs {
-            let max_gas_price = None;
+            let gas_limit = None;
             messages.push(Message::new(
                 transfer_message.sender_pkey.clone(),
                 transfer_token_tx::<S>(transfer_message),
                 Self::DEFAULT_CHAIN_ID,
-                Self::DEFAULT_GAS_TIP,
-                Self::DEFAULT_GAS_LIMIT,
-                max_gas_price,
+                Self::DEFAULT_MAX_PRIORITY_FEE,
+                Self::DEFAULT_MAX_FEE,
+                gas_limit,
                 nonce,
             ));
             nonce += 1;

@@ -9,16 +9,16 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash, MockValidityCond,
     MockValidityCondChecker, MOCK_SEQUENCER_DA_ADDRESS,
 };
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Address, EncodeCall, GasPrice, PrivateKey, PublicKey, Spec};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::{Address, EncodeCall, GasUnit, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
 use sov_rollup_interface::services::da::{DaService, RelevantBlobs, RelevantProofs, SlotData};
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
 const DEFAULT_CHAIN_ID: u64 = 0;
-const DEFAULT_GAS_TIP: u64 = 0;
-const DEFAULT_GAS_LIMIT: u64 = 0;
-const DEFAULT_MAX_GAS_PRICE: Option<GasPrice<2>> = None;
+const DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
+const DEFAULT_MAX_FEE: u64 = 0;
+const DEFAULT_ESTIMATED_GAS_USAGE: Option<GasUnit<2>> = None;
 
 pub fn sender_address_with_pkey() -> (Address, TestPrivateKey) {
     let pk = TestPrivateKey::generate();
@@ -203,9 +203,9 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
             &pk,
             enc_msg,
             DEFAULT_CHAIN_ID,
-            DEFAULT_GAS_TIP,
-            DEFAULT_GAS_LIMIT,
-            DEFAULT_MAX_GAS_PRICE,
+            DEFAULT_MAX_PRIORITY_FEE,
+            DEFAULT_MAX_FEE,
+            DEFAULT_ESTIMATED_GAS_USAGE,
             start_nonce.wrapping_add(i as u64),
         );
         let ser_tx = tx.try_to_vec().unwrap();
@@ -230,9 +230,9 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
         &pk,
         enc_msg,
         DEFAULT_CHAIN_ID,
-        DEFAULT_GAS_TIP,
-        DEFAULT_GAS_LIMIT,
-        DEFAULT_MAX_GAS_PRICE,
+        DEFAULT_MAX_PRIORITY_FEE,
+        DEFAULT_MAX_FEE,
+        DEFAULT_ESTIMATED_GAS_USAGE,
         start_nonce,
     );
     let ser_tx = tx.try_to_vec().unwrap();

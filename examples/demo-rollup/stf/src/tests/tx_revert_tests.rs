@@ -1,7 +1,7 @@
 use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{GasArray, GasPrice, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{GasArray, GasPrice, GasUnit, PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::services::da::SlotData;
@@ -17,7 +17,7 @@ use super::{
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::{
     simulate_da_with_bad_nonce, simulate_da_with_bad_serialization, simulate_da_with_bad_sig,
-    simulate_da_with_max_gas_price, simulate_da_with_revert_msg,
+    simulate_da_with_gas_limit, simulate_da_with_revert_msg,
 };
 use crate::tests::StfBlueprintTest;
 
@@ -402,7 +402,7 @@ fn test_tx_bad_serialization() {
 }
 
 #[test]
-fn test_tx_max_gas_price() {
+fn test_tx_gas_limit() {
     // Test checks:
     //  - The maximum gas price is respected
 
@@ -418,7 +418,7 @@ fn test_tx_max_gas_price() {
     let outcome = TxEffect::InsufficientBaseGas;
     run_test(gas_price, tx_max_price, outcome);
 
-    fn run_test(gas_price: GasPrice<2>, tx_max_price: GasPrice<2>, _outcome: TxEffect) {
+    fn run_test(gas_price: GasPrice<2>, tx_gas_limit: GasUnit<2>, _outcome: TxEffect) {
         let tempdir = tempfile::tempdir().unwrap();
         let config = get_genesis_config_for_tests();
         let genesis_block = MockBlock::default();
@@ -427,7 +427,7 @@ fn test_tx_max_gas_price() {
         let mut storage_manager = create_storage_manager_for_tests(tempdir.path());
 
         let private_key = read_private_key::<TestSpec>().private_key;
-        let txs = simulate_da_with_max_gas_price(private_key, tx_max_price);
+        let txs = simulate_da_with_gas_limit(private_key, tx_gas_limit);
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },
             &MOCK_SEQUENCER_DA_ADDRESS,

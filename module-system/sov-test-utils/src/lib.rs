@@ -1,14 +1,19 @@
 use std::rc::Rc;
 
 use borsh::ser::BorshSerialize;
+use sov_bank::{Bank, BankConfig, GasTokenConfig, GAS_TOKEN_ID};
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{CryptoSpec, DaSpec, Gas, Module, RollupAddress, Spec};
+use sov_modules_api::{
+    CryptoSpec, DaSpec, Module, RollupAddress, Spec, StateCheckpoint, WorkingSet,
+};
 use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
+use sov_prover_storage_manager::new_orphan_storage;
 
 pub mod attester_incentive_data;
 pub mod bank_data;
@@ -24,6 +29,45 @@ pub type ZkTestSpec = sov_modules_api::default_spec::ZkDefaultSpec<MockZkVerifie
 pub type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
+
+/// Simple setup, initializes a bank with a sender having an initial balance.
+/// This is a useful helper for tests that need to initialize a bank.
+pub fn simple_bank_setup(
+    initial_balance: u64,
+) -> (
+    <TestSpec as Spec>::Address,
+    Bank<TestSpec>,
+    StateCheckpoint<TestSpec>,
+) {
+    let bank = Bank::<TestSpec>::default();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+
+    let sender_address = generate_address::<TestSpec>("just_sender");
+
+    let token_name = "Token1".to_owned();
+    let token_id = GAS_TOKEN_ID;
+
+    let bank_config = BankConfig::<TestSpec> {
+        gas_token_config: GasTokenConfig {
+            token_name,
+            address_and_balances: vec![(sender_address, initial_balance)],
+            authorized_minters: vec![],
+        },
+        tokens: vec![],
+    };
+    bank.genesis(&bank_config, &mut working_set).unwrap();
+
+    let (mut checkpoint, _, _) = working_set.checkpoint();
+
+    assert_eq!(
+        bank.get_balance_of(&sender_address, token_id, &mut checkpoint),
+        Some(initial_balance),
+        "Invalid initial balance"
+    );
+
+    (sender_address, bank, checkpoint)
+}
 
 pub fn new_test_blob_from_batch(
     batch: BatchWithId,
@@ -55,11 +99,11 @@ pub struct Message<S: Spec, Mod: Module> {
     /// The ID of the chain.
     pub chain_id: u64,
     /// The gas tip for the sequencer.
-    pub gas_tip: u64,
+    pub max_priority_fee: PriorityFeeBips,
     /// The gas limit for the transaction execution.
-    pub gas_limit: u64,
+    pub max_fee: u64,
     /// The maximum gas price for the transaction execution.
-    pub max_gas_price: Option<<S::Gas as Gas>::Price>,
+    pub gas_limit: Option<S::Gas>,
     /// The message nonce.
     pub nonce: u64,
 }
@@ -69,18 +113,18 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
         sender_key: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
         content: Mod::CallMessage,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
-        max_gas_price: Option<<S::Gas as Gas>::Price>,
+        max_priority_fee: PriorityFeeBips,
+        max_fee: u64,
+        gas_limit: Option<S::Gas>,
         nonce: u64,
     ) -> Self {
         Self {
             sender_key,
             content,
             chain_id,
-            gas_tip,
+            max_priority_fee,
+            max_fee,
             gas_limit,
-            max_gas_price,
             nonce,
         }
     }
@@ -91,9 +135,9 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
             &self.sender_key,
             message,
             self.chain_id,
-            self.gas_tip,
+            self.max_priority_fee,
+            self.max_fee,
             self.gas_limit,
-            self.max_gas_price,
             self.nonce,
         )
     }
@@ -102,9 +146,9 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
 /// Trait used to generate messages from the DA layer to automate module testing
 pub trait MessageGenerator {
     const DEFAULT_CHAIN_ID: u64 = 0;
-    const DEFAULT_GAS_TIP: u64 = 0;
-    const DEFAULT_GAS_LIMIT: u64 = 100;
-    const DEFAULT_MAX_GAS_PRICE: [u64; 2] = [1, 1];
+    const DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
+    const DEFAULT_MAX_FEE: u64 = 100;
+    const DEFAULT_ESTIMATED_GAS_USAGE: [u64; 2] = [10, 10];
 
     /// Module where the messages originate from.
     type Module: Module;
@@ -131,12 +175,12 @@ pub trait MessageGenerator {
     /// Creates a vector of raw transactions from the module.
     fn create_raw_txs_with_maximum_gas_price<Encoder: EncodeCall<Self::Module>>(
         &self,
-        max_gas_price: <<Self::Spec as Spec>::Gas as Gas>::Price,
+        gas_limit: <Self::Spec as Spec>::Gas,
     ) -> Vec<RawTx> {
         let messages_iter = self.create_messages().into_iter().peekable();
         let mut serialized_messages = Vec::default();
         for mut message in messages_iter {
-            message.max_gas_price.replace(max_gas_price.clone());
+            message.gas_limit.replace(gas_limit.clone());
             serialized_messages.push(RawTx {
                 data: message.to_tx::<Encoder>().try_to_vec().unwrap(),
             });

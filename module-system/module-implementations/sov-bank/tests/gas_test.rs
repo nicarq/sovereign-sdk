@@ -105,7 +105,7 @@ pub struct BankGasTestCase {
     ctx: Context<S>,
     message: CallMessage<S>,
     tmpdir: TempDir,
-    gas_limit: u64,
+    max_fee: u64,
     native_price: u64,
     zk_price: u64,
 }
@@ -166,7 +166,7 @@ impl BankGasTestCase {
             ctx,
             message,
             tmpdir,
-            gas_limit: sender_balance,
+            max_fee: sender_balance,
             native_price: 0,
             zk_price: 0,
         }
@@ -200,12 +200,12 @@ impl BankGasTestCase {
             ctx,
             message,
             tmpdir,
-            gas_limit,
+            max_fee,
             native_price,
             zk_price,
         } = self;
 
-        ws.set_gas_funds(gas_limit);
+        ws.set_gas_funds(max_fee);
         ws.set_gas_price([native_price, zk_price].into());
         bank.call(message, &ctx, &mut ws)?;
 

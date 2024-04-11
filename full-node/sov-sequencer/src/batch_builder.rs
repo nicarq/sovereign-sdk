@@ -288,7 +288,7 @@ mod tests {
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCondChecker};
     use sov_mock_zkvm::MockCodeCommitment;
-    use sov_modules_api::transaction::Transaction;
+    use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, PublicKey, WorkingSet};
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::services::batch_builder::BatchBuilder;
@@ -317,18 +317,18 @@ mod tests {
         let msg = CallMessage::SetValue(value);
         let msg = <TestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
         let chain_id = 0;
-        let gas_tip = 0;
-        let gas_limit = 0;
-        let max_gas_price = None;
+        let max_priority_fee = PriorityFeeBips::ZERO;
+        let max_fee = 0;
+        let gas_limit = None;
         let nonce = 1;
 
         Transaction::<TestSpec>::new_signed_tx(
             private_key,
             msg,
             chain_id,
-            gas_tip,
+            max_priority_fee,
+            max_fee,
             gas_limit,
-            max_gas_price,
             nonce,
         )
         .try_to_vec()
@@ -346,18 +346,18 @@ mod tests {
     fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey) -> Vec<u8> {
         let msg = generate_random_bytes();
         let chain_id = 0;
-        let gas_tip = 0;
-        let gas_limit = 0;
-        let max_gas_price = None;
+        let max_priority_fee = PriorityFeeBips::ZERO;
+        let max_fee = 0;
+        let gas_limit = None;
         let nonce = 1;
 
         Transaction::<TestSpec>::new_signed_tx(
             private_key,
             msg,
             chain_id,
-            gas_tip,
+            max_priority_fee,
+            max_fee,
             gas_limit,
-            max_gas_price,
             nonce,
         )
         .try_to_vec()

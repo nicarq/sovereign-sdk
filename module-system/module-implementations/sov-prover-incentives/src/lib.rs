@@ -3,7 +3,6 @@
 mod call;
 mod event;
 mod genesis;
-mod hooks;
 
 #[cfg(test)]
 mod tests;

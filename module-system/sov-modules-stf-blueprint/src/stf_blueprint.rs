@@ -448,8 +448,12 @@ where
 
     runtime.refund_remaining_gas(tx, &ctx, &gas_meter, &mut checkpoint);
 
-    // TODO(@vlopes11): Calculate tip based on usage
-    let gas_reward = tx.gas_tip().try_into().unwrap_or(i64::MAX);
+    let gas_reward = tx
+        .max_priority_fee_per_gas()
+        .apply(gas_meter.gas_used().value(gas_meter.gas_price()))
+        .unwrap_or(u64::MAX)
+        .try_into()
+        .unwrap_or(i64::MAX);
     *sequencer_reward = sequencer_reward.saturating_add(gas_reward);
     debug!(
         tx_hash =

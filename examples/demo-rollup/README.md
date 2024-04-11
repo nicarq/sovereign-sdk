@@ -286,9 +286,9 @@ Adding the following transaction to batch:
     }
   },
   "chain_id": 0,
-  "gas_tip": 0,
-  "gas_limit": 0,
-  "max_gas_price": null
+  "max_priority_fee": 0,
+  "max_fee": 0,
+  "gas_limit": null
 }
 ```
 
