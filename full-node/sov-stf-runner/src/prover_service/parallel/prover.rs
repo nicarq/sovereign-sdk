@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
@@ -21,16 +22,16 @@ use crate::prover_service::stf_info::BlockProof;
 use crate::verifier::StateTransitionVerifier;
 use crate::{
     ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
-    WitnessSubmissionStatus,
 };
 
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
 // the prover will reject new jobs.
 pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
-    prover_state: Arc<RwLock<ProverState<StateRoot, Witness, Da::Spec>>>,
+    prover_state: Arc<RwLock<ProverState<StateRoot, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
     code_commitment: CodeCommitment,
+    phantom: std::marker::PhantomData<(StateRoot, Witness, Da)>,
 }
 
 impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
@@ -52,30 +53,21 @@ where
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
-        }
-    }
-
-    pub(crate) fn submit_state_transition_info(
-        &self,
-        state_transition_info: StateTransitionInfo<StateRoot, Witness, Da::Spec>,
-    ) -> WitnessSubmissionStatus {
-        let header_hash = state_transition_info.da_block_header().hash();
-        let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
-
-        match prover_state.set_to_submitted(header_hash, state_transition_info) {
-            Some(_) => WitnessSubmissionStatus::WitnessExist,
-            None => WitnessSubmissionStatus::SubmittedForProving,
+            phantom: PhantomData,
         }
     }
 
     pub(crate) fn start_proving<InnerVm, V>(
         &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
+        state_transition_info: StateTransitionInfo<StateRoot, Witness, <Da as DaService>::Spec>,
         config: Arc<RollupProverConfig>,
         mut inner_vm: InnerVm,
         zk_storage: V::PreState,
         verifier: Arc<Verifier<Da, InnerVm, V>>,
-    ) -> Result<ProofProcessingStatus, ProverServiceError>
+    ) -> Result<
+        ProofProcessingStatus<StateRoot, Witness, <Da as DaService>::Spec>,
+        ProverServiceError,
+    >
     where
         InnerVm: ZkvmHost + 'static,
         V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec>
@@ -84,95 +76,86 @@ where
             + 'static,
         V::PreState: Send + Sync + 'static,
     {
-        let prover_state_clone = self.prover_state.clone();
+        let block_header_hash = state_transition_info.da_block_header().hash();
+
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
+        if let Some(duplicate_proof) = prover_state.get_prover_status(&block_header_hash) {
+            return match duplicate_proof {
+                ProverStatus::ProvingInProgress => Err(anyhow::anyhow!(
+                    "Proof generation for {:?} still in progress",
+                    block_header_hash
+                )
+                .into()),
+                ProverStatus::Proved(_) => Err(anyhow::anyhow!(
+                    "Witness for block_header_hash {:?}, submitted multiple times.",
+                    block_header_hash,
+                )
+                .into()),
+                ProverStatus::Err(e) => Err(anyhow::format_err!("{}", e).into()), // "Clone" the anyhow error without cloning, because anyhow doesn't support that
+            };
+        }
 
-        let prover_status = prover_state
-            .remove(&block_header_hash)
-            .ok_or_else(|| anyhow::anyhow!("Missing witness for block: {:?}", block_header_hash))?;
+        let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
 
-        match prover_status {
-            ProverStatus::WitnessSubmitted(state_transition_info) => {
-                let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
+        let prover_state_clone = self.prover_state.clone();
+        // Initiate a new proving job only if the prover is not busy.
+        if start_prover {
+            prover_state.set_to_proving(block_header_hash.clone());
+            inner_vm.add_hint(&state_transition_info.data);
 
-                // Initiate a new proving job only if the prover is not busy.
-                if start_prover {
-                    prover_state.set_to_proving(block_header_hash.clone());
-                    inner_vm.add_hint(&state_transition_info.data);
+            self.pool.spawn(move || {
+                tracing::info_span!("guest_execution").in_scope(|| {
+                    let proof = make_inner_proof::<_, _, Da>(
+                        inner_vm,
+                        config,
+                        zk_storage,
+                        &verifier.stf_verifier,
+                    );
 
-                    self.pool.spawn(move || {
-                        tracing::info_span!("guest_execution").in_scope(|| {
-                            let proof = make_inner_proof::<_, _, Da>(
-                                inner_vm,
-                                config,
-                                zk_storage,
-                                &verifier.stf_verifier,
-                            );
+                    let mut prover_state = prover_state_clone.write().expect("Lock was poisoned");
 
-                            let mut prover_state =
-                                prover_state_clone.write().expect("Lock was poisoned");
+                    let StateTransitionWitness {
+                        initial_state_root,
+                        final_state_root,
+                        da_block_header,
+                        relevant_proofs,
+                        relevant_blobs: blobs,
+                        ..
+                    } = state_transition_info.data;
 
-                            let StateTransitionWitness {
-                                initial_state_root,
-                                final_state_root,
-                                da_block_header,
-                                relevant_proofs,
-                                relevant_blobs: blobs,
-                                ..
-                            } = state_transition_info.data;
+                    let validity_condition = verifier
+                        .da_verifier
+                        .verify_relevant_tx_list(&da_block_header, &blobs, relevant_proofs)
+                        .expect("Invalid validity condition");
 
-                            let validity_condition = verifier
-                                .da_verifier
-                                .verify_relevant_tx_list(&da_block_header, &blobs, relevant_proofs)
-                                .expect("Invalid validity condition");
-
-                            let block_proof = proof.map(|p| BlockProof {
-                                _proof: p,
-                                st: StateTransitionPublicData {
-                                    initial_state_root,
-                                    final_state_root,
-                                    slot_hash: block_header_hash.clone(),
-                                    validity_condition,
-                                },
-                                slot_number: state_transition_info.slot_number,
-                            });
-
-                            assert_eq!(block_header_hash, da_block_header.hash());
-
-                            prover_state.set_to_proved(block_header_hash, block_proof);
-                            prover_state.dec_task_count();
-                        });
+                    let block_proof = proof.map(|p| BlockProof {
+                        _proof: p,
+                        st: StateTransitionPublicData::<Da::Spec, StateRoot> {
+                            initial_state_root,
+                            final_state_root,
+                            slot_hash: block_header_hash.clone(),
+                            validity_condition,
+                        },
+                        slot_number: state_transition_info.slot_number,
                     });
 
-                    Ok(ProofProcessingStatus::ProvingInProgress)
-                } else {
-                    // Insert the stf again.
-                    prover_state.set_to_submitted(block_header_hash, state_transition_info);
-                    Ok(ProofProcessingStatus::Busy)
-                }
-            }
-            ProverStatus::ProvingInProgress => Err(anyhow::anyhow!(
-                "Proof generation for {:?} still in progress",
-                block_header_hash
-            )
-            .into()),
-            ProverStatus::Proved(_) => Err(anyhow::anyhow!(
-                "Witness for block_header_hash {:?}, submitted multiple times.",
-                block_header_hash,
-            )
-            .into()),
-            ProverStatus::Err(e) => Err(e.into()),
+                    prover_state.set_to_proved(block_header_hash, block_proof);
+                    prover_state.dec_task_count();
+                });
+            });
+
+            Ok(ProofProcessingStatus::ProvingInProgress)
+        } else {
+            Ok(ProofProcessingStatus::Busy(state_transition_info))
         }
     }
 
     pub(crate) fn create_aggregated_proof<OuterVm: ZkvmHost + 'static>(
         &self,
         mut outer_vm: OuterVm,
-        jump: usize,
         block_header_hashes: &[<Da::Spec as DaSpec>::SlotHash],
     ) -> Result<ProofAggregationStatus, anyhow::Error> {
-        assert!(jump >= 1);
-        assert_eq!(block_header_hashes.len(), jump);
+        assert!(!block_header_hashes.is_empty());
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
 
         let mut block_proofs_data = Vec::default();
@@ -181,12 +164,6 @@ where
             let state = prover_state.get_prover_status(slot_hash);
 
             match state {
-                Some(ProverStatus::WitnessSubmitted(_)) => {
-                    return Err(anyhow::anyhow!(
-                    "Witness for {:?} was submitted, but the proof generation is not triggered.",
-                    slot_hash
-                ))
-                }
                 Some(ProverStatus::ProvingInProgress) => {
                     return Ok(ProofAggregationStatus::ProofGenerationInProgress);
                 }
@@ -195,7 +172,7 @@ where
                     block_proofs_data.push(block_proof);
                 }
                 Some(ProverStatus::Err(e)) => return Err(anyhow::anyhow!(e.to_string())),
-                None => return Err(anyhow::anyhow!("Missing witness for: {:?}", slot_hash)),
+                None => return Err(anyhow::anyhow!("Missing required proof of {:?}. Use the `prove` method to generate a proof of that block and try again.", slot_hash)),
             }
         }
 

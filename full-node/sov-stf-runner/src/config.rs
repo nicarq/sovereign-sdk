@@ -34,7 +34,7 @@ pub struct StorageConfig {
 
 /// Prover service configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Copy)]
-pub struct ProverServiceConfig {
+pub struct ProofManagerConfig {
     /// The "distance"  measured in the number of blocks between two consecutive aggregated proofs.
     pub aggregated_proof_block_jump: usize,
 }
@@ -48,8 +48,8 @@ pub struct RollupConfig<DaServiceConfig> {
     pub runner: RunnerConfig,
     /// Data Availability service configuration.
     pub da: DaServiceConfig,
-    /// Prover service configuration.
-    pub prover_service: ProverServiceConfig,
+    /// Proof manager configuration.
+    pub proof_manager: ProofManagerConfig,
 }
 
 /// Reads toml file as a specific type.
@@ -103,7 +103,7 @@ mod tests {
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
-            [prover_service]
+            [proof_manager]
             aggregated_proof_block_jump = 22
         "#;
 
@@ -134,7 +134,7 @@ mod tests {
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
             },
-            prover_service: ProverServiceConfig {
+            proof_manager: ProofManagerConfig {
                 aggregated_proof_block_jump: 22,
             },
         };

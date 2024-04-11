@@ -17,5 +17,5 @@ da_polling_interval_ms = 1000
 bind_host = "127.0.0.1"
 bind_port = 12345
 
-[prover_service]
+[proof_manager]
 aggregated_proof_block_jump = 1

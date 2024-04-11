@@ -13,11 +13,9 @@ use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
 use super::{ProverService, ProverServiceError};
-use crate::config::ProverServiceConfig;
 use crate::verifier::StateTransitionVerifier;
 use crate::{
     ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
-    WitnessSubmissionStatus,
 };
 
 pub(crate) struct Verifier<Da, Vm, V>
@@ -48,7 +46,6 @@ where
     prover_state: Prover<StateRoot, Witness, Da>,
 
     verifier: Arc<Verifier<Da, InnerVm, V>>,
-    jump: usize,
 }
 
 impl<StateRoot, Witness, Da, InnerVm, OuterVm, V>
@@ -72,7 +69,6 @@ where
         config: RollupProverConfig,
         zk_storage: V::PreState,
         num_threads: usize,
-        prover_service_config: ProverServiceConfig,
         code_commitment: CodeCommitment,
     ) -> Self {
         let stf_verifier = StateTransitionVerifier::<V, Da::Verifier, InnerVm::Guest>::new(
@@ -90,7 +86,6 @@ where
             outer_vm,
             prover_config: Arc::new(config),
             prover_state: Prover::new(num_threads, code_commitment),
-            jump: prover_service_config.aggregated_proof_block_jump,
             zk_storage,
             verifier,
         }
@@ -105,7 +100,6 @@ where
         da_verifier: Da::Verifier,
         config: RollupProverConfig,
         zk_storage: V::PreState,
-        prover_service_config: ProverServiceConfig,
         code_commitment: CodeCommitment,
     ) -> Self {
         let num_cpus = num_cpus::get();
@@ -119,7 +113,6 @@ where
             config,
             zk_storage,
             num_cpus - 1,
-            prover_service_config,
             code_commitment,
         )
     }
@@ -148,31 +141,22 @@ where
 
     type Verifier = <OuterVm::Guest as ZkvmGuest>::Verifier;
 
-    fn aggregated_proof_block_jump(&self) -> usize {
-        self.jump
-    }
-
-    async fn submit_state_transition_info(
+    async fn prove(
         &self,
         state_transition_info: StateTransitionInfo<
             Self::StateRoot,
             Self::Witness,
             <Self::DaService as DaService>::Spec,
         >,
-    ) -> WitnessSubmissionStatus {
-        self.prover_state
-            .submit_state_transition_info(state_transition_info)
-    }
-
-    async fn prove(
-        &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofProcessingStatus, ProverServiceError> {
+    ) -> Result<
+        ProofProcessingStatus<Self::StateRoot, Self::Witness, <Self::DaService as DaService>::Spec>,
+        ProverServiceError,
+    > {
         let inner_vm = self.inner_vm.clone();
         let zk_storage = self.zk_storage.clone();
 
         self.prover_state.start_proving(
-            block_header_hash,
+            state_transition_info,
             self.prover_config.clone(),
             inner_vm,
             zk_storage,
@@ -184,10 +168,7 @@ where
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
     ) -> Result<ProofAggregationStatus, anyhow::Error> {
-        self.prover_state.create_aggregated_proof(
-            self.outer_vm.clone(),
-            self.jump,
-            block_header_hashes,
-        )
+        self.prover_state
+            .create_aggregated_proof(self.outer_vm.clone(), block_header_hashes)
     }
 }

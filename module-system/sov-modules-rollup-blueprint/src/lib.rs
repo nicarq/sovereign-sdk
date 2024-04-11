@@ -218,6 +218,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prover_service,
             ledger_db.clone(),
             self.create_outer_code_commitment(),
+            rollup_config.proof_manager,
         );
 
         let runner = StateTransitionRunner::new(

@@ -47,18 +47,29 @@ pub enum ProofAggregationStatus {
 }
 
 /// Represents the current status of proof generation.
-#[derive(Debug, Eq, PartialEq)]
-pub enum ProofProcessingStatus {
+pub enum ProofProcessingStatus<StateRoot, Witness, Da: DaSpec> {
     /// Indicates that proof generation is currently in progress.
     ProvingInProgress,
     /// Indicates that the prover is busy and will not initiate a new proving process.
-    Busy,
+    /// Returns the witness data that was provided by the caller.
+    Busy(StateTransitionInfo<StateRoot, Witness, Da>),
+}
+
+impl<StateRoot, Witness, Da: DaSpec> std::fmt::Debug
+    for ProofProcessingStatus<StateRoot, Witness, Da>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ProvingInProgress => write!(f, "ProvingInProgress"),
+            Self::Busy(_) => write!(f, "Busy"),
+        }
+    }
 }
 
 /// An error that occurred during ZKP proving.
 #[derive(Error, Debug)]
 pub enum ProverServiceError {
-    /// Prover is too busy.
+    /// The prover is too busy to take on any additional jobs at the moment.
     #[error("Prover is too busy")]
     ProverBusy,
     /// Some internal prover error.
@@ -85,24 +96,18 @@ pub trait ProverService {
     /// Verifier for the aggregated proof.
     type Verifier: Zkvm;
 
-    /// The number of block proofs in the aggregated proof.
-    fn aggregated_proof_block_jump(&self) -> usize;
-
-    /// Submit a state transition info for proving.
-    async fn submit_state_transition_info(
+    /// Creates ZK proof for a block corresponding to `block_header_hash`.
+    async fn prove(
         &self,
         state_transition_info: StateTransitionInfo<
             Self::StateRoot,
             Self::Witness,
             <Self::DaService as DaService>::Spec,
         >,
-    ) -> WitnessSubmissionStatus;
-
-    /// Creates ZKP prove for a block corresponding to `block_header_hash`.
-    async fn prove(
-        &self,
-        block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofProcessingStatus, ProverServiceError>;
+    ) -> Result<
+        ProofProcessingStatus<Self::StateRoot, Self::Witness, <Self::DaService as DaService>::Spec>,
+        ProverServiceError,
+    >;
 
     /// Sends the ZK proof to the DA.
     /// This method is noy yet fully implemented: see #1185
