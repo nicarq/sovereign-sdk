@@ -4,7 +4,7 @@ use sov_modules_api::ModuleId;
 use sov_rollup_interface::rpc::Event;
 use sov_rollup_interface::stf::StoredEvent;
 
-use crate::ledger_db::{LedgerDB, SchemaBatch};
+use crate::ledger_db::{LedgerDb, SchemaBatch};
 use crate::schema::types::{EventNumber, TxNumber};
 
 pub(crate) const NUM_MODULES: usize = 3;
@@ -29,7 +29,7 @@ impl From<TestEvent> for Event {
 }
 
 pub(crate) fn generate_events(
-    ledger_db: &LedgerDB,
+    ledger_db: &LedgerDb,
     schema_batch: &mut SchemaBatch,
     num_modules: usize,
     num_txns_per_module: usize,

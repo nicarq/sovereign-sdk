@@ -38,7 +38,7 @@ pub use sov_modules_core::{
     VersionedStateReadWriter, WorkingSet,
 };
 #[cfg(feature = "native")]
-pub use sov_modules_core::{LedgerRpcProviderExt, ProvenStateAccessor, RuntimeEventDisplay};
+pub use sov_modules_core::{LedgerStateProviderExt, ProvenStateAccessor, RuntimeEventDisplay};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 pub use sov_rollup_interface::crypto::{PublicKey, Signature};

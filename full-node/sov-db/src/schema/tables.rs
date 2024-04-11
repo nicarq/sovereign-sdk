@@ -40,7 +40,7 @@ use super::types::{
 
 /* Other tables used by the Rollup */
 
-/// A list of all tables used by the LedgerDB. These tables store rollup "history" - meaning
+/// A list of all tables used by the LedgerDb. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
 pub const LEDGER_TABLES: &[&str] = &[
     SlotByNumber::table_name(),

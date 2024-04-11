@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{CacheDb, ChangeSet};
 use sov_metrics::{
     inc_rollup_batches_processed, inc_rollup_transactions_processed, set_current_da_height,
@@ -41,7 +41,7 @@ where
     stf: Stf,
     storage_manager: Sm,
     rpc_storage_sender: watch::Sender<Sm::StfState>,
-    ledger_db: LedgerDB,
+    ledger_db: LedgerDb,
     state_root: StateRoot<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>,
     listen_address: SocketAddr,
     proof_manager: ProofManager<Ps>,
@@ -150,7 +150,7 @@ where
     pub fn new(
         runner_config: RunnerConfig,
         da_service: Arc<Da>,
-        mut ledger_db: LedgerDB,
+        mut ledger_db: LedgerDb,
         stf: Stf,
         mut storage_manager: Sm,
         rpc_storage_sender: watch::Sender<Sm::StfState>,

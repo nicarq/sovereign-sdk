@@ -2,13 +2,13 @@
 
 use std::sync::Arc;
 
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::{
     MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockValidityCond,
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerRpcProvider};
+use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
@@ -42,7 +42,7 @@ pub struct TestNode {
     da: Arc<MockDaService>,
     inner_vm: MockZkvm,
     outer_vm: MockZkvm,
-    ledger_db: LedgerDB,
+    ledger_db: LedgerDb,
 }
 
 impl TestNode {
@@ -74,16 +74,16 @@ impl TestNode {
     }
 
     /// The latest aggregated proof saved in the db.
-    pub fn get_latest_aggregated_proof(
+    pub async fn get_latest_aggregated_proof(
         &self,
     ) -> Result<Option<AggregatedProofResponse>, anyhow::Error> {
-        self.ledger_db.get_latest_aggregated_proof()
+        self.ledger_db.get_latest_aggregated_proof().await
     }
 
-    pub fn get_latest_public_data(
+    pub async fn get_latest_public_data(
         &self,
     ) -> Result<Option<AggregatedProofPublicData>, anyhow::Error> {
-        let proof_from_db = self.ledger_db.get_latest_aggregated_proof()?;
+        let proof_from_db = self.ledger_db.get_latest_aggregated_proof().await?;
         Ok(proof_from_db.map(|p| p.proof.public_data().clone()))
     }
 }
@@ -131,7 +131,7 @@ pub fn initialize_runner(
     let genesis_block = MockBlockHeader::from_height(0);
     let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_block).unwrap();
 
-    let ledger_db = LedgerDB::with_cache_db(ledger_state).unwrap();
+    let ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
     let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
     let inner_vm = MockZkvm::new();

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::LedgerDb;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
@@ -15,7 +15,7 @@ use crate::{ProofAggregationStatus, ProofProcessingStatus, ProverService, StateT
 pub struct ProofManager<Ps: ProverService> {
     da_service: Arc<Ps::DaService>,
     prover_service: Option<Ps>,
-    ledger_db: LedgerDB,
+    ledger_db: LedgerDb,
     outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
 }
 
@@ -27,7 +27,7 @@ where
     pub fn new(
         da_service: Arc<Ps::DaService>,
         prover_service: Option<Ps>,
-        ledger_db: LedgerDB,
+        ledger_db: LedgerDb,
         outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
     ) -> Self {
         Self {

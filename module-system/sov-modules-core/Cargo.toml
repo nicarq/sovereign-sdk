@@ -17,6 +17,7 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
 bech32 = { workspace = true }
 borsh = { workspace = true }
 derivative = { workspace = true }
@@ -61,6 +62,7 @@ arbitrary = [
 	"std",
 ]
 native = [
+	"async-trait",
 	"sov-mock-da/native",
 	"sov-modules-api/native",
 	"sov-modules-core/native",

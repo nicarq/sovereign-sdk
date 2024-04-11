@@ -2,11 +2,11 @@ use anyhow::Error;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_core::ModuleId;
 use sov_rollup_interface::rpc::{
-    EventIdentifier, EventResponse, LedgerRpcProvider, PaginatedEventResponse,
+    EventIdentifier, EventResponse, LedgerStateProvider, PaginatedEventResponse,
 };
 use sov_rollup_interface::stf::EventKey;
 
-use crate::ledger_db::LedgerDB;
+use crate::ledger_db::LedgerDb;
 use crate::schema::tables::{EventByKey, EventByModuleId};
 use crate::schema::types::{EventNumber, ModuleIdBytes, TxNumber};
 
@@ -30,10 +30,10 @@ fn event_match_helper(
     event_key_match && module_id_match && txn_num_match
 }
 
-pub(crate) fn get_events_by_key_helper<
+pub(crate) async fn get_events_by_key_helper<
     E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
 >(
-    ledger_db: &LedgerDB,
+    ledger_db: &LedgerDb,
     event_key: &str,
     module_id: Option<ModuleId>,
     txn_range: Option<(u64, u64)>,
@@ -87,7 +87,8 @@ pub(crate) fn get_events_by_key_helper<
         .map(|(k, _)| EventIdentifier::Number(k.3 .0))
         .collect();
     let events_response: Vec<EventResponse> = ledger_db
-        .get_events::<E>(&event_ids)?
+        .get_events::<E>(&event_ids)
+        .await?
         .into_iter()
         .flatten()
         .collect();
@@ -114,10 +115,10 @@ pub(crate) fn get_events_by_key_helper<
     })
 }
 
-pub(crate) fn get_events_by_module_id_helper<
+pub(crate) async fn get_events_by_module_id_helper<
     E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
 >(
-    ledger_db: &LedgerDB,
+    ledger_db: &LedgerDb,
     module_id: ModuleId,
     num_events: usize,
     next: Option<&str>,
@@ -154,7 +155,8 @@ pub(crate) fn get_events_by_module_id_helper<
         .collect();
 
     let events_response: Vec<EventResponse> = ledger_db
-        .get_events::<E>(&event_ids)?
+        .get_events::<E>(&event_ids)
+        .await?
         .into_iter()
         .flatten()
         .collect();

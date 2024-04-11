@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::LedgerDb;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
@@ -69,7 +69,7 @@ impl RollupBlueprint for MockDemoRollup {
     fn create_rpc_methods(
         &self,
         storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
-        ledger_db: &LedgerDB,
+        ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<Self::DaConfig>,

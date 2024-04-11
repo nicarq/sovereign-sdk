@@ -350,7 +350,7 @@ Most queries for ledger information accept an optional `QueryMode` argument. The
 
 **Identifiers**
 
-There are several ways to uniquely identify items in the Ledger DB.
+There are several ways to uniquely identify items in the ledger DB.
 
 - By _number_. Each family of structs (`slots`, `blocks`, `transactions`, and `events`) is numbered in order starting
   from `1`. So, for example, the
