@@ -1,142 +1,24 @@
-use helpers::*;
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
-use sov_modules_api::{Context, GasMeter, Module, WorkingSet};
-use sov_prover_storage_manager::new_orphan_storage;
-use sov_sequencer_registry::{CallMessage, SequencerOutcome, SequencerRegistry};
+use sov_modules_api::{Context, GasMeter, Module};
 
-mod helpers;
-type S = sov_test_utils::TestSpec;
+use crate::tests::helpers::{
+    generate_address, Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY,
+    INITIAL_BALANCE, INITIAL_BALANCE_LARGE, LOCKED_AMOUNT, REWARD_SEQUENCER_KEY, S,
+    UNKNOWN_SEQUENCER_DA_ADDRESS,
+};
+use crate::{CallMessage, SequencerOutcome, SequencerRegistry};
 
+/// Tests the slashing mechanism on the `end_batch_hook` method.
 #[test]
-fn begin_blob_hook_known_sequencer() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(&mut working_set);
+fn end_batch_hook_slash() {
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
-    let balance_after_genesis = {
-        let resp = test_sequencer
-            .query_balance_via_bank(&mut working_set)
-            .unwrap();
-        resp.amount.unwrap()
-    };
-    assert_eq!(INITIAL_BALANCE - LOCKED_AMOUNT, balance_after_genesis);
-
-    let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
-
-    let mut test_batch = BatchWithId {
-        txs: Vec::new(),
-        id: [0u8; 32],
-    };
-
-    let mut state_checkpoint = working_set.checkpoint().0;
-    test_sequencer
-        .registry
-        .begin_batch_hook(
-            &mut test_batch,
-            &genesis_sequencer_da_address,
-            &mut state_checkpoint,
-        )
+    let balance_after_genesis = test_sequencer
+        .query_sequencer_balance(&mut working_set)
         .unwrap();
-
-    let resp = test_sequencer
-        .query_balance_via_bank(&mut state_checkpoint)
-        .unwrap();
-    assert_eq!(balance_after_genesis, resp.amount.unwrap());
-    let resp = test_sequencer
-        .registry
-        .resolve_da_address(&genesis_sequencer_da_address, &mut state_checkpoint);
-    assert!(resp.is_some());
-}
-
-#[test]
-fn begin_blob_hook_unknown_sequencer() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(&mut working_set);
-
-    let mut test_batch = BatchWithId {
-        txs: Vec::new(),
-        id: [0u8; 32],
-    };
-
-    let mut state_checkpoint = working_set.checkpoint().0;
-    let result = test_sequencer.registry.begin_batch_hook(
-        &mut test_batch,
-        &MockAddress::from(UNKNOWN_SEQUENCER_DA_ADDRESS),
-        &mut state_checkpoint,
-    );
-    assert!(result.is_err());
-    let expected_message = format!(
-        "sender {} is not allowed to submit blobs",
-        MockAddress::from(UNKNOWN_SEQUENCER_DA_ADDRESS)
-    );
-    let actual_message = result.err().unwrap().to_string();
-    assert_eq!(expected_message, actual_message);
-}
-
-#[test]
-fn end_blob_hook_success() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(&mut working_set);
-    let balance_after_genesis = {
-        let resp = test_sequencer
-            .query_balance_via_bank(&mut working_set)
-            .unwrap();
-        resp.amount.unwrap()
-    };
-    assert_eq!(INITIAL_BALANCE - LOCKED_AMOUNT, balance_after_genesis);
-
-    let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
-    let mut test_batch = BatchWithId {
-        txs: Vec::new(),
-        id: [0u8; 32],
-    };
-
-    let mut state_checkpoint = working_set.checkpoint().0;
-    test_sequencer
-        .registry
-        .begin_batch_hook(
-            &mut test_batch,
-            &genesis_sequencer_da_address,
-            &mut state_checkpoint,
-        )
-        .unwrap();
-
-    <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
-        &test_sequencer.registry,
-        SequencerOutcome::Rewarded { amount: 0 },
-        &mut state_checkpoint,
-    );
-    let resp = test_sequencer
-        .query_balance_via_bank(&mut state_checkpoint)
-        .unwrap();
-    assert_eq!(balance_after_genesis, resp.amount.unwrap());
-    let resp = test_sequencer
-        .registry
-        .resolve_da_address(&genesis_sequencer_da_address, &mut state_checkpoint);
-    assert!(resp.is_some());
-}
-
-#[test]
-fn end_blob_hook_slash() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(&mut working_set);
-    let balance_after_genesis = {
-        let resp = test_sequencer
-            .query_balance_via_bank(&mut working_set)
-            .unwrap();
-        resp.amount.unwrap()
-    };
-    assert_eq!(INITIAL_BALANCE - LOCKED_AMOUNT, balance_after_genesis);
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
@@ -158,6 +40,7 @@ fn end_blob_hook_slash() {
     let result = SequencerOutcome::Slashed {
         sequencer: genesis_sequencer_da_address,
     };
+
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         result,
@@ -165,42 +48,22 @@ fn end_blob_hook_slash() {
     );
 
     let resp = test_sequencer
-        .query_balance_via_bank(&mut state_checkpoint)
+        .query_sequencer_balance(&mut state_checkpoint)
         .unwrap();
-    assert_eq!(balance_after_genesis, resp.amount.unwrap());
+    assert_eq!(balance_after_genesis, resp);
     let resp = test_sequencer
         .registry
         .resolve_da_address(&genesis_sequencer_da_address, &mut state_checkpoint);
     assert!(resp.is_none());
 }
 
+/// Tests the slashing mechanism for a preferred sequencer on the `end_batch_hook`
 #[test]
-fn end_blob_hook_slash_preferred_sequencer() {
-    let bank = sov_bank::Bank::<S>::default();
-    let (bank_config, seq_rollup_address) = create_bank_config();
-
-    let registry = SequencerRegistry::<S, Da>::default();
-    let mut sequencer_config = create_sequencer_config(seq_rollup_address);
-
-    sequencer_config.is_preferred_sequencer = true;
-
-    let test_sequencer = TestSequencer {
-        bank,
-        bank_config,
-        registry,
-        sequencer_config,
-    };
-
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(&mut working_set);
-    let balance_after_genesis = {
-        let resp = test_sequencer
-            .query_balance_via_bank(&mut working_set)
-            .unwrap();
-        resp.amount.unwrap()
-    };
-    assert_eq!(INITIAL_BALANCE - LOCKED_AMOUNT, balance_after_genesis);
+fn end_batch_hook_slash_preferred_sequencer() {
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, true);
+    let balance_after_genesis = test_sequencer
+        .query_sequencer_balance(&mut working_set)
+        .unwrap();
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
@@ -220,18 +83,17 @@ fn end_blob_hook_slash_preferred_sequencer() {
         )
         .unwrap();
 
-    let result = SequencerOutcome::Slashed {
-        sequencer: genesis_sequencer_da_address,
-    };
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
-        result,
+        SequencerOutcome::Slashed {
+            sequencer: genesis_sequencer_da_address,
+        },
         &mut state_checkpoint,
     );
 
     let working_set = &mut state_checkpoint.to_revertable(GasMeter::unmetered());
-    let resp = test_sequencer.query_balance_via_bank(working_set).unwrap();
-    assert_eq!(balance_after_genesis, resp.amount.unwrap());
+    let resp = test_sequencer.query_sequencer_balance(working_set).unwrap();
+    assert_eq!(balance_after_genesis, resp);
     let resp = test_sequencer
         .registry
         .sequencer_address(MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS), working_set)
@@ -245,11 +107,8 @@ fn end_blob_hook_slash_preferred_sequencer() {
 }
 
 #[test]
-fn end_blob_hook_slash_unknown_sequencer() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(&mut working_set);
+fn end_batch_hook_slash_unknown_sequencer() {
+    let (test_sequencer, working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let mut test_batch = BatchWithId {
         txs: Vec::new(),
@@ -275,12 +134,11 @@ fn end_blob_hook_slash_unknown_sequencer() {
     assert!(resp.address.is_none());
 
     let mut state_checkpoint = working_set.checkpoint().0;
-    let result = SequencerOutcome::Slashed {
-        sequencer: sequencer_address,
-    };
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
-        result,
+        SequencerOutcome::Slashed {
+            sequencer: MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
+        },
         &mut state_checkpoint,
     );
 
@@ -293,11 +151,8 @@ fn end_blob_hook_slash_unknown_sequencer() {
 }
 
 #[test]
-fn begin_blob_hook_without_enough_stake() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(&mut working_set);
+fn begin_batch_hook_without_enough_stake() {
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
@@ -323,10 +178,8 @@ fn begin_blob_hook_without_enough_stake() {
 
 #[test]
 fn slashed_sequencer_should_not_preserve_balance() {
-    let test_sequencer = create_test_sequencer_large_balance();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(&mut working_set);
+    let (test_sequencer, mut working_set) =
+        TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false);
 
     // created settings
 
@@ -337,7 +190,6 @@ fn slashed_sequencer_should_not_preserve_balance() {
         .1;
     let deposit_amount = 100;
     let stake_amount = test_sequencer.sequencer_config.minimum_bond;
-    let token_id = GAS_TOKEN_ID;
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
     // sanity check the balance
@@ -346,7 +198,12 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let balance_after_genesis = initial_balance - stake_amount;
     let balance = test_sequencer
         .bank
-        .balance_of(None, genesis_sequencer_address, token_id, &mut working_set)
+        .balance_of(
+            None,
+            genesis_sequencer_address,
+            GAS_TOKEN_ID,
+            &mut working_set,
+        )
         .unwrap()
         .amount
         .unwrap();
@@ -376,7 +233,12 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let balance_after_deposit = balance_after_genesis - deposit_amount;
     let balance = test_sequencer
         .bank
-        .balance_of(None, genesis_sequencer_address, token_id, &mut working_set)
+        .balance_of(
+            None,
+            genesis_sequencer_address,
+            GAS_TOKEN_ID,
+            &mut working_set,
+        )
         .unwrap()
         .amount
         .unwrap();
@@ -431,7 +293,12 @@ fn slashed_sequencer_should_not_preserve_balance() {
 
     let balance = test_sequencer
         .bank
-        .balance_of(None, genesis_sequencer_address, token_id, &mut working_set)
+        .balance_of(
+            None,
+            genesis_sequencer_address,
+            GAS_TOKEN_ID,
+            &mut working_set,
+        )
         .unwrap()
         .amount
         .unwrap();
@@ -462,7 +329,12 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let balance_after_re_register = balance_after_deposit - stake_amount;
     let balance = test_sequencer
         .bank
-        .balance_of(None, genesis_sequencer_address, token_id, &mut working_set)
+        .balance_of(
+            None,
+            genesis_sequencer_address,
+            GAS_TOKEN_ID,
+            &mut working_set,
+        )
         .unwrap()
         .amount
         .unwrap();

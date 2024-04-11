@@ -1,10 +1,14 @@
-use helpers::*;
+use sov_bank::Payable;
 use sov_mock_da::MockAddress;
-use sov_modules_api::{Context, Module, WorkingSet};
-use sov_prover_storage_manager::new_orphan_storage;
-use sov_sequencer_registry::{CallMessage, SequencerRegistry};
+use sov_modules_api::{Context, Module};
 
-mod helpers;
+use crate::tests::helpers::{
+    generate_address, TestSequencer, ANOTHER_SEQUENCER_DA_ADDRESS, ANOTHER_SEQUENCER_KEY,
+    GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY, INITIAL_BALANCE, INITIAL_BALANCE_LARGE,
+    LOCKED_AMOUNT, LOW_FUND_KEY, REWARD_SEQUENCER_KEY, UNKNOWN_SEQUENCER_DA_ADDRESS,
+};
+use crate::{CallMessage, SequencerRegistryError};
+
 type S = sov_test_utils::TestSpec;
 
 // Happy path for registration and exit
@@ -14,20 +18,7 @@ type S = sov_test_utils::TestSpec;
 //  - exit works and funds are returned
 #[test]
 fn test_registration_lifecycle() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
-
-    // Check genesis
-    {
-        let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
-        let registry_response = test_sequencer
-            .registry
-            .sequencer_address(MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS), working_set)
-            .unwrap();
-        assert_eq!(Some(sequencer_address), registry_response.address);
-    }
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     // Check normal lifecycle
 
@@ -38,14 +29,12 @@ fn test_registration_lifecycle() {
     let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
 
     let balance_before = test_sequencer
-        .query_balance(sequencer_address, working_set)
-        .unwrap()
-        .amount
+        .query_balance((&sequencer_address).as_token_holder(), &mut working_set)
         .unwrap();
 
     let registry_response_before = test_sequencer
         .registry
-        .sequencer_address(da_address, working_set)
+        .sequencer_address(da_address, &mut working_set)
         .unwrap();
     assert!(registry_response_before.address.is_none());
 
@@ -55,19 +44,17 @@ fn test_registration_lifecycle() {
     };
     test_sequencer
         .registry
-        .call(register_message, &sender_context, working_set)
+        .call(register_message, &sender_context, &mut working_set)
         .expect("Sequencer registration has failed");
 
     let balance_after_registration = test_sequencer
-        .query_balance(sequencer_address, working_set)
-        .unwrap()
-        .amount
+        .query_balance((&sequencer_address).as_token_holder(), &mut working_set)
         .unwrap();
     assert_eq!(balance_before - LOCKED_AMOUNT, balance_after_registration);
 
     let registry_response_after_registration = test_sequencer
         .registry
-        .sequencer_address(da_address, working_set)
+        .sequencer_address(da_address, &mut working_set)
         .unwrap();
     assert_eq!(
         Some(sequencer_address),
@@ -79,29 +66,24 @@ fn test_registration_lifecycle() {
     };
     test_sequencer
         .registry
-        .call(exit_message, &sender_context, working_set)
+        .call(exit_message, &sender_context, &mut working_set)
         .expect("Sequencer exit has failed");
 
     let balance_after_exit = test_sequencer
-        .query_balance(sequencer_address, working_set)
-        .unwrap()
-        .amount
+        .query_balance((&sequencer_address).as_token_holder(), &mut working_set)
         .unwrap();
     assert_eq!(balance_before, balance_after_exit);
 
     let registry_response_after_exit = test_sequencer
         .registry
-        .sequencer_address(da_address, working_set)
+        .sequencer_address(da_address, &mut working_set)
         .unwrap();
     assert!(registry_response_after_exit.address.is_none());
 }
 
 #[test]
 fn test_registration_not_enough_funds() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let da_address = MockAddress::from(ANOTHER_SEQUENCER_DA_ADDRESS);
 
@@ -109,27 +91,28 @@ fn test_registration_not_enough_funds() {
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
     let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
 
-    let register_message = CallMessage::Register {
-        da_address: da_address.as_ref().to_vec(),
-        amount: LOCKED_AMOUNT,
-    };
-    let response = test_sequencer
-        .registry
-        .call(register_message, &sender_context, working_set);
+    let response = test_sequencer.registry.register(
+        &da_address,
+        LOCKED_AMOUNT,
+        &sender_context,
+        &mut working_set,
+    );
 
     // Note: the next PR will add a check for the error message back
     assert!(
         response.is_err(),
         "insufficient funds registration should fail"
     );
+
+    assert_eq!(
+        response.unwrap_err(),
+        SequencerRegistryError::InsufficientFundsToRegister(LOCKED_AMOUNT)
+    );
 }
 
 #[test]
 fn test_registration_second_time() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
@@ -137,24 +120,25 @@ fn test_registration_second_time() {
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
     let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
 
-    let register_message = CallMessage::Register {
-        da_address: da_address.as_ref().to_vec(),
-        amount: LOCKED_AMOUNT,
-    };
-    let response = test_sequencer
-        .registry
-        .call(register_message, &sender_context, working_set);
+    let response = test_sequencer.registry.register(
+        &da_address,
+        LOCKED_AMOUNT,
+        &sender_context,
+        &mut working_set,
+    );
 
     // Note: the next PR will add a check for the error message back
     assert!(response.is_err(), "duplicate registration should fail");
+
+    assert_eq!(
+        response.unwrap_err(),
+        SequencerRegistryError::SequencerAlreadyRegistered(sequencer_address)
+    );
 }
 
 #[test]
 fn test_exit_different_sender() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
@@ -162,35 +146,40 @@ fn test_exit_different_sender() {
     let attacker_address = generate_address("some_random_key");
     let attacker_context = Context::<S>::new(attacker_address, reward_address, 1);
 
-    let register_message = CallMessage::Register {
-        da_address: ANOTHER_SEQUENCER_DA_ADDRESS.to_vec(),
-        amount: LOCKED_AMOUNT,
-    };
     test_sequencer
         .registry
-        .call(register_message, &sender_context, working_set)
+        .register(
+            &MockAddress::new(ANOTHER_SEQUENCER_DA_ADDRESS),
+            LOCKED_AMOUNT,
+            &sender_context,
+            &mut working_set,
+        )
         .expect("Sequencer registration has failed");
 
-    let exit_message = CallMessage::Exit {
-        da_address: ANOTHER_SEQUENCER_DA_ADDRESS.to_vec(),
-    };
-    let response = test_sequencer
-        .registry
-        .call(exit_message, &attacker_context, working_set);
+    let response = test_sequencer.registry.exit(
+        &MockAddress::new(ANOTHER_SEQUENCER_DA_ADDRESS),
+        &attacker_context,
+        &mut working_set,
+    );
 
     // Note: the next PR will add a check for the error message back
     assert!(
         response.is_err(),
         "exit by non authorized sender should fail"
     );
+
+    assert_eq!(
+        response.unwrap_err(),
+        SequencerRegistryError::SuppliedAddressDoesNotMatchTxSender {
+            parameter: sequencer_address,
+            sender: attacker_address,
+        }
+    );
 }
 
 #[test]
 fn test_allow_exit_last_sequencer() {
-    let test_sequencer = create_test_sequencer();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let rewards_address = generate_address(REWARD_SEQUENCER_KEY);
@@ -200,34 +189,19 @@ fn test_allow_exit_last_sequencer() {
     };
     test_sequencer
         .registry
-        .call(exit_message, &sender_context, working_set)
+        .call(exit_message, &sender_context, &mut working_set)
         .expect("Last sequencer exit has failed");
 }
 
 #[test]
 fn test_preferred_sequencer_returned_and_removed() {
-    let bank = sov_bank::Bank::<S>::default();
-    let (bank_config, seq_rollup_address) = create_bank_config();
-
-    let registry = SequencerRegistry::<S, Da>::default();
-    let mut sequencer_config = create_sequencer_config(seq_rollup_address);
-
-    sequencer_config.is_preferred_sequencer = true;
-
-    let test_sequencer = TestSequencer {
-        bank,
-        bank_config,
-        registry,
-        sequencer_config,
-    };
-
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, true);
 
     assert_eq!(
         Some(test_sequencer.sequencer_config.seq_da_address),
-        test_sequencer.registry.get_preferred_sequencer(working_set)
+        test_sequencer
+            .registry
+            .get_preferred_sequencer(&mut working_set)
     );
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
@@ -238,22 +212,20 @@ fn test_preferred_sequencer_returned_and_removed() {
     };
     test_sequencer
         .registry
-        .call(exit_message, &sender_context, working_set)
+        .call(exit_message, &sender_context, &mut working_set)
         .expect("Last sequencer exit has failed");
 
     // Preferred sequencer exited, so the result is none
     assert!(test_sequencer
         .registry
-        .get_preferred_sequencer(working_set)
+        .get_preferred_sequencer(&mut working_set)
         .is_none());
 }
 
 #[test]
 fn test_registration_balance_increase() {
-    let test_sequencer = create_test_sequencer_large_balance();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) =
+        TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false);
 
     // created settings
 
@@ -280,43 +252,39 @@ fn test_registration_balance_increase() {
 
     test_sequencer
         .registry
-        .call(register_message, &sender_context, working_set)
+        .call(register_message, &sender_context, &mut working_set)
         .expect("Sequencer registration has failed");
 
     // Sanity check
 
     let balance_after_registration = test_sequencer
-        .query_balance(sequencer_address, working_set)
-        .unwrap()
-        .amount
+        .query_balance((&sequencer_address).as_token_holder(), &mut working_set)
         .unwrap();
     assert_eq!(initial_balance - stake_amount, balance_after_registration);
 
     // Assert the registry balance is the staked amount
 
     let sender_balance = test_sequencer
-        .query_sender_balance(&da_address, working_set)
+        .query_sender_balance(&da_address, &mut working_set)
         .unwrap();
     assert_eq!(stake_amount, sender_balance);
 
     // Sanity check the sequencer allowed status
 
-    assert!(test_sequencer.query_if_sequencer_is_allowed(&da_address, working_set));
+    assert!(test_sequencer.query_if_sequencer_is_allowed(&da_address, &mut working_set));
 
     // Increases the stake value and expects the sequencer to preserve his balance and no longer be
     // allowed
 
     let stake_amount = stake_amount + stake_increase;
-    test_sequencer.set_coins_amount_to_lock(stake_amount, working_set);
+    test_sequencer.set_coins_amount_to_lock(stake_amount, &mut working_set);
 
     let balance_after_update = test_sequencer
-        .query_balance(sequencer_address, working_set)
-        .unwrap()
-        .amount
+        .query_balance((&sequencer_address).as_token_holder(), &mut working_set)
         .unwrap();
 
     assert_eq!(balance_after_registration, balance_after_update);
-    assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, working_set));
+    assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, &mut working_set));
 
     // Increase the balance of the sequencer and assert sequencer is allowed
 
@@ -327,23 +295,21 @@ fn test_registration_balance_increase() {
 
     test_sequencer
         .registry
-        .call(deposit_message, &sender_context, working_set)
+        .call(deposit_message, &sender_context, &mut working_set)
         .expect("Sequencer deposit has failed");
 
     let new_sender_balance = test_sequencer
-        .query_sender_balance(&da_address, working_set)
+        .query_sender_balance(&da_address, &mut working_set)
         .unwrap();
 
     assert_eq!(sender_balance + stake_increase, new_sender_balance);
-    assert!(test_sequencer.query_if_sequencer_is_allowed(&da_address, working_set));
+    assert!(test_sequencer.query_if_sequencer_is_allowed(&da_address, &mut working_set));
 }
 
 #[test]
 fn test_balance_increase_fails_if_insufficient_funds() {
-    let test_sequencer = create_test_sequencer_large_balance();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) =
+        TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false);
 
     // created settings
 
@@ -370,18 +336,18 @@ fn test_balance_increase_fails_if_insufficient_funds() {
 
     test_sequencer
         .registry
-        .call(register_message, &sender_context, working_set)
+        .call(register_message, &sender_context, &mut working_set)
         .expect("Sequencer registration has failed");
 
     // Sanity check the sequencer allowed status
 
-    assert!(test_sequencer.query_if_sequencer_is_allowed(&da_address, working_set));
+    assert!(test_sequencer.query_if_sequencer_is_allowed(&da_address, &mut working_set));
 
     // Increase the stake value and assert the sequencer is no longer allowed
 
     let stake_amount = stake_amount + stake_increase;
-    test_sequencer.set_coins_amount_to_lock(stake_amount, working_set);
-    assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, working_set));
+    test_sequencer.set_coins_amount_to_lock(stake_amount, &mut working_set);
+    assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, &mut working_set));
 
     // Attempt to deposit the required amount and expect failure
 
@@ -392,30 +358,26 @@ fn test_balance_increase_fails_if_insufficient_funds() {
 
     let res = test_sequencer
         .registry
-        .call(deposit_message, &sender_context, working_set);
+        .call(deposit_message, &sender_context, &mut working_set);
 
     assert!(res.is_err());
-    assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, working_set));
+    assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, &mut working_set));
 }
 
 #[test]
 fn test_non_registered_sequencer_is_not_allowed() {
-    let test_sequencer = create_test_sequencer_large_balance();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) =
+        TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false);
 
     let da_address = MockAddress::from(ANOTHER_SEQUENCER_DA_ADDRESS);
 
-    assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, working_set));
+    assert!(!test_sequencer.query_if_sequencer_is_allowed(&da_address, &mut working_set));
 }
 
 #[test]
 fn test_balance_increase_fails_for_unknown_sequencer() {
-    let test_sequencer = create_test_sequencer_large_balance();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    test_sequencer.genesis(working_set);
+    let (test_sequencer, mut working_set) =
+        TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false);
 
     // created settings
 
@@ -437,12 +399,12 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
 
     test_sequencer
         .registry
-        .call(register_message, &sender_context, working_set)
+        .call(register_message, &sender_context, &mut working_set)
         .expect("Sequencer registration has failed");
 
     // Sanity check the sequencer allowed status
 
-    assert!(!test_sequencer.query_if_sequencer_is_allowed(&unknown_address, working_set));
+    assert!(!test_sequencer.query_if_sequencer_is_allowed(&unknown_address, &mut working_set));
 
     // Attempt to deposit 1 coin into unknown sequencer
 
@@ -453,10 +415,10 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
 
     let res = test_sequencer
         .registry
-        .call(deposit_message, &sender_context, working_set);
+        .call(deposit_message, &sender_context, &mut working_set);
 
     assert!(res.is_err());
-    assert!(!test_sequencer.query_if_sequencer_is_allowed(&unknown_address, working_set));
+    assert!(!test_sequencer.query_if_sequencer_is_allowed(&unknown_address, &mut working_set));
 
     // Attempt to deposit stake amount into unknown sequencer
 
@@ -467,8 +429,8 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
 
     let res = test_sequencer
         .registry
-        .call(deposit_message, &sender_context, working_set);
+        .call(deposit_message, &sender_context, &mut working_set);
 
     assert!(res.is_err());
-    assert!(!test_sequencer.query_if_sequencer_is_allowed(&unknown_address, working_set));
+    assert!(!test_sequencer.query_if_sequencer_is_allowed(&unknown_address, &mut working_set));
 }
