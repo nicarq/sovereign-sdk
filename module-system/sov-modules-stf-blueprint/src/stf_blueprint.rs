@@ -8,23 +8,17 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
-use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Gas, GasArray, Spec,
-    StateCheckpoint,
-};
+use sov_modules_api::{Context, DaSpec, DispatchCall, Gas, GasArray, Spec, StateCheckpoint};
 use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error};
 
 use crate::{Runtime, SequencerOutcome, SlashingReason, TxEffect};
 
-type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
+type ApplyBatchResult<T> = Result<T, ApplyBatchError>;
 
 #[allow(type_alias_bounds)]
-pub(crate) type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
-    BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
-    <Da::BlobTransaction as BlobReaderTrait>::Address,
->;
+pub(crate) type ApplyBatch = ApplyBatchResult<BatchReceipt<SequencerOutcome, TxEffect>>;
 
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
@@ -39,14 +33,13 @@ pub struct StfBlueprint<S: Spec, Da: DaSpec, Vm, RT: Runtime<S, Da>, K: KernelSl
     phantom_da: PhantomData<Da>,
 }
 
-pub(crate) enum ApplyBatchError<A: BasicAddress> {
+pub(crate) enum ApplyBatchError {
     // Contains batch hash
     Ignored([u8; 32]),
     Slashed {
         // Contains batch hash
         hash: [u8; 32],
         reason: SlashingReason,
-        sequencer_da_address: A,
     },
 }
 
@@ -59,8 +52,8 @@ pub enum ExecutionMode {
     Speculative,
 }
 
-impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome<A>, TxEffect> {
-    fn from(value: ApplyBatchError<A>) -> Self {
+impl From<ApplyBatchError> for BatchReceipt<SequencerOutcome, TxEffect> {
+    fn from(value: ApplyBatchError) -> Self {
         match value {
             ApplyBatchError::Ignored(hash) => BatchReceipt {
                 batch_hash: hash,
@@ -68,17 +61,10 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
                 inner: SequencerOutcome::Ignored,
                 gas_price: Vec::new(),
             },
-            ApplyBatchError::Slashed {
-                hash,
-                reason,
-                sequencer_da_address,
-            } => BatchReceipt {
+            ApplyBatchError::Slashed { hash, reason } => BatchReceipt {
                 batch_hash: hash,
                 tx_receipts: Vec::new(),
-                inner: SequencerOutcome::Slashed {
-                    reason,
-                    sequencer_da_address,
-                },
+                inner: SequencerOutcome::Slashed(reason),
                 gas_price: Vec::new(),
             },
         }
@@ -135,7 +121,7 @@ where
         sender: &Da::Address,
         gas_price: &<S::Gas as Gas>::Price,
         height: u64,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<S>, S::Gas) {
+    ) -> (ApplyBatch, StateCheckpoint<S>, S::Gas) {
         debug!(
             sequencer_da_address = %sender,
             ?gas_price,
@@ -167,18 +153,17 @@ where
             Err(reason) => {
                 // Explicitly revert on slashing, even though nothing has changed in pre_process.
                 let sequencer_da_address = sender;
-                let sequencer_outcome = SequencerOutcome::Slashed {
-                    reason,
-                    sequencer_da_address: sequencer_da_address.clone(),
-                };
-                self.runtime
-                    .end_batch_hook(sequencer_outcome, &mut checkpoint);
+                let sequencer_outcome = SequencerOutcome::Slashed(reason);
+                self.runtime.end_batch_hook(
+                    sequencer_outcome,
+                    sequencer_da_address,
+                    &mut checkpoint,
+                );
 
                 return (
                     Err(ApplyBatchError::Slashed {
                         hash: batch_id,
                         reason,
-                        sequencer_da_address: sequencer_da_address.clone(),
                     }),
                     checkpoint,
                     S::Gas::zero(),
@@ -215,7 +200,7 @@ where
         };
 
         self.runtime
-            .end_batch_hook(sequencer_outcome.clone(), &mut checkpoint);
+            .end_batch_hook(sequencer_outcome.clone(), sender, &mut checkpoint);
 
         (
             Ok(BatchReceipt {

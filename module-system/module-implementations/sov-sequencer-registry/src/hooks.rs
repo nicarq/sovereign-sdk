@@ -10,7 +10,7 @@ use crate::{SequencerOutcome, SequencerRegistry};
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegistry<S, Da> {
     type Spec = S;
-    type BatchResult = SequencerOutcome<Da>;
+    type BatchResult = SequencerOutcome;
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_batch_hook(
@@ -29,14 +29,23 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegi
         Ok(())
     }
 
-    fn end_batch_hook(&self, result: Self::BatchResult, state_checkpoint: &mut StateCheckpoint<S>) {
+    fn end_batch_hook(
+        &self,
+        result: Self::BatchResult,
+        sender: &Da::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) {
         match result {
-            SequencerOutcome::Rewarded { .. } | SequencerOutcome::Penalized { .. } => {
-                // TODO(@vlopes11) Process the actual reward/penalty
+            SequencerOutcome::Rewarded(amount) => {
+                self.reward_sequencer(sender, amount, state_checkpoint);
             }
-            SequencerOutcome::Slashed { sequencer } => {
-                self.slash_sequencer(&sequencer, state_checkpoint);
+            SequencerOutcome::Slashed => {
+                self.slash_sequencer(sender, state_checkpoint);
             }
+            SequencerOutcome::Penalized(amount) => {
+                self.penalize_sequencer(sender, amount, state_checkpoint);
+            }
+            SequencerOutcome::Ignored => {}
         };
     }
 }

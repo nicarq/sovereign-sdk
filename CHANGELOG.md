@@ -33,3 +33,7 @@ This breaks the `StateTransitionFunction` API but the breaking changes don't pro
 
 - #444 Moves the tests for the `SequencerRegistry` module to the `src` directory of the same crate.
 
+- #439 Implements the `SequencerRegistry` module to support Sequencers' reward and penalties. In particular,
+the `SequencerRegistry` can now be used in conjunction with the `GasEnforcer` capability hook to reward the 
+sequencer for submitting a correct transaction.
+

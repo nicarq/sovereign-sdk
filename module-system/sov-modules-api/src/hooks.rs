@@ -53,6 +53,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     fn end_batch_hook(
         &self,
         result: Self::BatchResult,
+        sender: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<Self::Spec>,
     );
 }

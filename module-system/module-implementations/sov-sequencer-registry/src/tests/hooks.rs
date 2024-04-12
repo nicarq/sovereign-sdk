@@ -99,7 +99,8 @@ fn end_batch_hook_success() {
 
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
-        SequencerOutcome::Rewarded { amount: 0 },
+        SequencerOutcome::Rewarded(0),
+        &genesis_sequencer_da_address,
         &mut state_checkpoint,
     );
     let resp = test_sequencer

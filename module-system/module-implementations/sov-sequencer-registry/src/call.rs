@@ -2,7 +2,8 @@ use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor, WorkingSet,
+    CallResponse, Context, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor, StateCheckpoint,
+    WorkingSet,
 };
 use thiserror::Error;
 
@@ -276,5 +277,66 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         );
 
         Ok(CallResponse::default())
+    }
+
+    /// Penalizes the sequencer with the `amount` of gas tokens.
+    /// This method simply deducts the reward from the sequencer's staked amount.
+    ///
+    /// # Safety note:
+    /// - If the sender is not registered this method silently exits.
+    /// - If the sender is registered and the penalty is greater than the sequencer's staked amount, the sequencer's staked amount is set to 0
+    /// but the sequencer is not removed from the list of allowed sequencers.
+    pub(crate) fn penalize_sequencer(
+        &self,
+        sender: &Da::Address,
+        amount: Amount,
+        working_set: &mut StateCheckpoint<S>,
+    ) {
+        if let Some(AllowedSequencer { address, balance }) =
+            self.allowed_sequencers.get(sender, working_set)
+        {
+            let new_balance = balance.saturating_sub(amount);
+            self.allowed_sequencers.set(
+                sender,
+                &AllowedSequencer {
+                    address,
+                    balance: new_balance,
+                },
+                working_set,
+            );
+        }
+    }
+
+    /// Rewards the sequencer with the `amount` of gas tokens.
+    /// Transfers the reward from the module's account to the sequencer's account.
+    ///
+    /// # Safety note:
+    /// This method panics if:
+    /// - The sequencer is not registered (this should be checked in the `begin_batch_hook` which should always be called before this method).
+    /// - The module account does not have enough funds to pay for the reward (the module balance should be populated in the `GasEnforcer` capability hook).
+    pub(crate) fn reward_sequencer(
+        &self,
+        sequencer: &Da::Address,
+        amount: u64,
+        working_set: &mut StateCheckpoint<S>,
+    ) {
+        let AllowedSequencer {
+            address: rollup_address,
+            balance: _,
+        } = self.allowed_sequencers.get(sequencer, working_set).expect("Sequencer must be allowed. This should have been checked in the `begin_batch_hook`. This is a bug");
+
+        self.bank
+            .transfer_from(
+                self.id().to_payable(),
+                &rollup_address,
+                Coins {
+                    amount,
+                    token_id: GAS_TOKEN_ID,
+                },
+                working_set,
+            )
+            .expect(
+                "Impossible to transfer the reward from the module account to the sequencer. This is a bug",
+            );
     }
 }

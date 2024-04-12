@@ -17,8 +17,8 @@ use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::Transaction;
 pub use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
-    RuntimeEventProcessor, Spec, StateCheckpoint, Zkvm,
+    DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet, RuntimeEventProcessor, Spec,
+    StateCheckpoint, Zkvm,
 };
 use sov_modules_core::capabilities::{ContextResolver, GasEnforcer, TransactionDeduplicator};
 use sov_modules_core::VersionedStateReadWriter;
@@ -40,13 +40,8 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + TxHooks<Spec = S>
     + SlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
-    + ApplyBatchHooks<
-        Da,
-        Spec = S,
-        BatchResult = SequencerOutcome<
-            <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
-        >,
-    > + Default
+    + ApplyBatchHooks<Da, Spec = S, BatchResult = SequencerOutcome>
+    + Default
     + RuntimeEventProcessor
     + GasEnforcer<S, Da, Tx = Transaction<S>>
     + TransactionDeduplicator<S, Da, Tx = Transaction<S>>
@@ -86,19 +81,16 @@ pub enum TxEffect {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 /// Represents the different outcomes that can occur for a sequencer after batch processing.
-pub enum SequencerOutcome<A: BasicAddress> {
+pub enum SequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
     Rewarded(u64),
     /// Sequencer was penalized (on net) for including invalid (but not provably malicious) transactions
     Penalized(u64),
     /// Sequencer loses its deposit and receives no reward
-    Slashed {
+    Slashed(
         /// Reason why sequencer was slashed.
-        reason: SlashingReason,
-        #[serde(bound(deserialize = ""))]
-        /// Sequencer address on DA.
-        sequencer_da_address: A,
-    },
+        SlashingReason,
+    ),
     /// Batch was ignored, sequencer deposit left untouched.
     Ignored,
 }
@@ -211,7 +203,7 @@ where
 
     type TxReceiptContents = TxEffect;
 
-    type BatchReceiptContents = SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
+    type BatchReceiptContents = SequencerOutcome;
 
     type Witness = <S::Storage as Storage>::Witness;
 
