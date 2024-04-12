@@ -1,32 +1,22 @@
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
-use sov_bank::{Bank, BankConfig, GasTokenConfig, IntoPayable};
+use sov_bank::{Bank, BankConfig, GasTokenConfig};
 use sov_chain_state::ChainStateConfig;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::da::Time;
-use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::macros::{config_constant, DefaultRuntime};
-use sov_modules_api::namespaces::{Accessory, User};
-use sov_modules_api::runtime::capabilities::{
-    ContextResolver, GasEnforcer, Kernel, TransactionDeduplicator,
-};
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Event, Gas, GasArray, Genesis, MessageCodec, ModuleInfo,
-    PublicKey, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
-};
-use sov_modules_stf_blueprint::{
-    BatchReceipt, GenesisParams, Runtime, SequencerOutcome, StfBlueprint,
-};
+use sov_modules_api::macros::config_constant;
+use sov_modules_api::namespaces::User;
+use sov_modules_api::runtime::capabilities::Kernel;
+use sov_modules_api::{DaSpec, Gas, GasArray, Spec, Zkvm};
+use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, Runtime, StfBlueprint};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
-use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
+use sov_sequencer_registry::SequencerConfig;
 use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::{DefaultStorageSpec, Storage};
-use sov_value_setter::{ValueSetter, ValueSetterConfig};
-use tokio::sync::watch;
+use sov_test_utils::runtime::{GenesisConfig, TestRuntime};
+use sov_value_setter::ValueSetterConfig;
 
 type TestStf = StfBlueprint<
     S,
@@ -50,20 +40,6 @@ pub(crate) const MIN_GAS_PRICE: [u64; 2] = [1; 2];
 
 #[config_constant]
 pub(crate) const GAS_TX_FIXED_COST: [u64; 2];
-
-#[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
-#[serialization(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize
-)]
-pub(crate) struct TestRuntime<S: Spec, Da: DaSpec> {
-    pub value_setter: ValueSetter<S>,
-    pub sequencer_registry: SequencerRegistry<S, Da>,
-    pub bank: Bank<S>,
-    pub attester_incentives: AttesterIncentives<S, Da>,
-}
 
 pub struct SequencerParams<S: Spec, Da: DaSpec> {
     pub rollup_address: S::Address,
@@ -136,177 +112,6 @@ impl Default for BankParams {
             init_balance: 100000000,
             addresses_and_balances: Vec::new(),
         }
-    }
-}
-
-impl<S: Spec, Da: DaSpec> Runtime<S, Da> for TestRuntime<S, Da> {
-    type GenesisConfig = GenesisConfig<S, Da>;
-    type GenesisPaths = ();
-
-    fn rpc_methods(_storage: watch::Receiver<S::Storage>) -> jsonrpsee::RpcModule<()> {
-        unimplemented!()
-    }
-
-    fn genesis_config(
-        _genesis_paths: &Self::GenesisPaths,
-    ) -> Result<Self::GenesisConfig, anyhow::Error> {
-        unimplemented!()
-    }
-}
-
-impl<S: Spec, Da: DaSpec> TxHooks for TestRuntime<S, Da> {
-    type Spec = S;
-
-    fn pre_dispatch_tx_hook(
-        &self,
-        _tx: &Transaction<Self::Spec>,
-        _working_set: &mut sov_modules_api::WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    fn post_dispatch_tx_hook(
-        &self,
-        _tx: &Transaction<Self::Spec>,
-        _ctx: &Context<S>,
-        _working_set: &mut sov_modules_api::WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
-}
-
-impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
-    type Spec = S;
-    type BatchResult = SequencerOutcome;
-
-    fn begin_batch_hook(
-        &self,
-        batch: &mut BatchWithId,
-        sender: &<Da as DaSpec>::Address,
-        state_checkpoint: &mut sov_modules_api::StateCheckpoint<S>,
-    ) -> anyhow::Result<()> {
-        // Before executing each batch, check that the sender is registered as a sequencer
-        self.sequencer_registry
-            .begin_batch_hook(batch, sender, state_checkpoint)
-    }
-
-    fn end_batch_hook(
-        &self,
-        _result: Self::BatchResult,
-        _sender: &<Da as DaSpec>::Address,
-        _working_set: &mut sov_modules_api::StateCheckpoint<S>,
-    ) {
-    }
-}
-
-impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
-    type Spec = S;
-
-    fn begin_slot_hook(
-        &self,
-        _pre_state_root: S::VisibleHash,
-        _working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
-    ) {
-    }
-
-    fn end_slot_hook(&self, _working_set: &mut sov_modules_api::StateCheckpoint<S>) {}
-}
-
-impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
-    type Spec = S;
-
-    fn finalize_hook(
-        &self,
-        _root_hash: S::VisibleHash,
-        _accessory_state: &mut impl StateReaderAndWriter<Accessory>,
-    ) {
-    }
-}
-
-impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
-    /// The transaction type that the gas enforcer knows how to parse
-    type Tx = Transaction<S>;
-    /// Reserves enough gas for the transaction to be processed, if possible.
-    fn try_reserve_gas(
-        &self,
-        tx: &Self::Tx,
-        context: &Context<S>,
-        gas_price: &<S::Gas as Gas>::Price,
-        mut state_checkpoint: StateCheckpoint<S>,
-    ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        match self
-            .bank
-            .reserve_gas(tx, gas_price, context.sender(), &mut state_checkpoint)
-        {
-            Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
-            Err(e) => {
-                tracing::debug!("Unable to reserve gas from {}. {}", e, context.sender());
-                Err(state_checkpoint)
-            }
-        }
-    }
-
-    /// Refunds any remaining gas to the payer after the transaction is processed.
-    fn refund_remaining_gas(
-        &self,
-        tx: &Self::Tx,
-        context: &Context<S>,
-        gas_meter: &sov_modules_api::GasMeter<S::Gas>,
-        state_checkpoint: &mut StateCheckpoint<S>,
-    ) {
-        self.bank.refund_remaining_gas(
-            tx,
-            gas_meter,
-            context.sender(),
-            &self.attester_incentives.id().to_payable(),
-            &self.sequencer_registry.id().to_payable(),
-            state_checkpoint,
-        );
-    }
-}
-
-impl<S: Spec, Da: DaSpec> TransactionDeduplicator<S, Da> for TestRuntime<S, Da> {
-    /// The transaction type that the deduplicator knows how to parse.
-    type Tx = Transaction<S>;
-    /// Prevents duplicate transactions from running.
-    // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
-    fn check_uniqueness(
-        &self,
-        _tx: &Self::Tx,
-        _context: &Context<S>,
-        _state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Result<(), anyhow::Error> {
-        Ok(())
-    }
-
-    /// Marks a transaction as having been executed, preventing it from executing again.
-    fn mark_tx_attempted(
-        &self,
-        _tx: &Self::Tx,
-        _sequencer: &Da::Address,
-        _state_checkpoint: &mut StateCheckpoint<S>,
-    ) {
-    }
-}
-
-/// Resolves the context for a transaction.
-impl<S: Spec, Da: DaSpec> ContextResolver<S, Da> for TestRuntime<S, Da> {
-    /// The transaction type that the resolver knows how to parse.
-    type Tx = Transaction<S>;
-    /// Resolves the context for a transaction.
-    fn resolve_context(
-        &self,
-        tx: &Self::Tx,
-        sequencer: &Da::Address,
-        height: u64,
-        working_set: &mut StateCheckpoint<S>,
-    ) -> Context<S> {
-        let sender = tx.pub_key().to_address();
-        let sequencer = self
-            .sequencer_registry
-            .resolve_da_address(sequencer, working_set)
-            .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
-        Context::<S>::new(sender, sequencer, height)
     }
 }
 

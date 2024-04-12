@@ -12,12 +12,13 @@ use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::stf::TransactionReceipt;
 use sov_state::storage::StorageProof;
 use sov_state::{DefaultStorageSpec, Storage, StorageRoot};
+use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestPrivateKey};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, ExecutionSimulationVars, SequencerParams, TestRollup,
-    TestRuntime, GAS_TX_FIXED_COST, MIN_GAS_PRICE, S,
+    GAS_TX_FIXED_COST, MIN_GAS_PRICE, S,
 };
 
 mod byzantine_behavior;

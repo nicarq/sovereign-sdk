@@ -8,10 +8,11 @@ use sov_modules_api::WorkingSet;
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::{DefaultStorageSpec, StorageRoot};
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
+use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
 use super::{AttesterIncentivesTestHandler, StorageRootAndProof, USER_BALANCE};
-use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, TestRuntime, S};
+use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
 
 impl AttesterIncentivesTestHandler {
     // The current maximum attested height is 0 and the attester is bonded

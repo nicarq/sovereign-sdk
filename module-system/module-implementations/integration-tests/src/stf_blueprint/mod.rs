@@ -3,12 +3,11 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::ContextResolver;
 use sov_modules_api::{Context, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
+use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
-use crate::helpers::{
-    AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, TestRuntime, S,
-};
+use crate::helpers::{AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, S};
 
 impl TestRollup {
     // Check the current kernel height and that the context are correctly built

@@ -3,11 +3,12 @@ use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{GasArray, GasPrice, KernelWorkingSet, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::SequencerOutcome;
+use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 
 use crate::helpers::{
-    AttesterIncentivesParams, BankParams, SequencerParams, TestKernel, TestRollup, TestRuntime,
+    AttesterIncentivesParams, BankParams, SequencerParams, TestKernel, TestRollup,
     GAS_TX_FIXED_COST, INITIAL_GAS_PRICE,
 };
 

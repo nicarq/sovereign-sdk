@@ -9,11 +9,12 @@ use sov_modules_stf_blueprint::TxEffect;
 use sov_state::jmt::RootHash;
 use sov_state::{DefaultStorageSpec, StorageRoot};
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
+use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
 use super::{AttesterIncentivesTestHandler, StorageRootAndProof};
 use crate::attester_incentives::get_first_transaction_receipt;
-use crate::helpers::{Da, TestRollup, TestRuntime, S};
+use crate::helpers::{Da, TestRollup, S};
 
 impl AttesterIncentivesTestHandler {
     fn check_attester_bonded(&self, rollup: &mut TestRollup) {
