@@ -83,24 +83,16 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-/// Result of applying a blob, from sequencer's point of view.
-pub enum SequencerOutcome<Da: sov_modules_api::DaSpec> {
-    /// The blob was applied successfully and the operation is concluded.
-    Rewarded {
-        /// The number of tokens to award
-        amount: u64,
-    },
-    /// The sequencer incurred a net penalty as a result of invalid (but not provably malicious) trabsactions.
-    Penalized {
-        /// The number of tokens to confiscate
-        amount: u64,
-    },
-    /// The blob was *not* applied successfully. The sequencer has been slashed
-    /// as a result of the invalid blob.
-    Slashed {
-        /// The address of the sequencer that was slashed.
-        sequencer: Da::Address,
-    },
+/// Represents the different outcomes that can occur for a sequencer after batch processing.
+pub enum SequencerOutcome {
+    /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
+    Rewarded(u64),
+    /// Sequencer was penalized (on net) for including invalid (but not provably malicious) transactions
+    Penalized(u64),
+    /// Sequencer loses its deposit and receives no reward
+    Slashed,
+    /// Batch was ignored, sequencer deposit left untouched.
+    Ignored,
 }
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for SequencerRegistry<S, Da> {

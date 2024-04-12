@@ -10,7 +10,7 @@ use sov_modules_api::{
     Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 use sov_modules_stf_blueprint::SequencerOutcome;
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerRegistry;
 use tracing::info;
 
@@ -39,8 +39,7 @@ impl<S: Spec, Da: DaSpec> TxHooks for Runtime<S, Da> {
 
 impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
     type Spec = S;
-    type BatchResult =
-        SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>;
+    type BatchResult = SequencerOutcome;
 
     fn begin_batch_hook(
         &self,
@@ -53,27 +52,31 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
             .begin_batch_hook(batch, sender, working_set)
     }
 
-    fn end_batch_hook(&self, result: Self::BatchResult, state_checkpoint: &mut StateCheckpoint<S>) {
+    fn end_batch_hook(
+        &self,
+        result: Self::BatchResult,
+        sender: &Da::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        // Since we need to make sure the `StfBlueprint` doesn't depend on the module system, we need to
+        // convert the `SequencerOutcome` structures manually.
         match result {
-            SequencerOutcome::Rewarded(reward) => {
-                // TODO: Process reward here or above.
+            SequencerOutcome::Rewarded(amount) => {
+                info!(%sender, ?amount, "Rewarding sequencer");
                 <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
                     &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Rewarded { amount: reward },
+                    sov_sequencer_registry::SequencerOutcome::Rewarded(amount),
+                    sender,
                     state_checkpoint,
                 );
             }
             SequencerOutcome::Ignored => {}
-            SequencerOutcome::Slashed {
-                reason,
-                sequencer_da_address,
-            } => {
-                info!(%sequencer_da_address, ?reason, "Slashing sequencer");
+            SequencerOutcome::Slashed(reason) => {
+                info!(%sender, ?reason, "Slashing sequencer");
                 <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
                     &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Slashed {
-                        sequencer: sequencer_da_address,
-                    },
+                    sov_sequencer_registry::SequencerOutcome::Slashed,
+                    sender,
                     state_checkpoint,
                 );
             }
@@ -81,7 +84,8 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                 info!(amount, "Penalizing sequencer");
                 <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
                     &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Penalized { amount },
+                    sov_sequencer_registry::SequencerOutcome::Penalized(amount),
+                    sender,
                     state_checkpoint,
                 );
             }

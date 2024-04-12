@@ -30,7 +30,7 @@ where
     {
         rpc_methods.merge(sov_ledger_rpc::server::rpc_module::<
             LedgerDb,
-            SequencerOutcome<S::Address>,
+            SequencerOutcome,
             TxEffect,
             <RT as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
         >(ledger_db.clone())?)?;

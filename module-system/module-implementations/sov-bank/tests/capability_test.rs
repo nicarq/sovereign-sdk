@@ -1,32 +1,14 @@
 use sov_bank::{Bank, IntoPayable, ReserveGasError, GAS_TOKEN_ID};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-use sov_modules_api::{GasMeter, GasUnit, ModuleInfo, PrivateKey, Spec, StateCheckpoint};
+use sov_modules_api::{GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint};
 use sov_state::{DefaultStorageSpec, ProverStorage};
-use sov_test_utils::{simple_bank_setup, TestPrivateKey};
+use sov_test_utils::{generate_empty_tx, simple_bank_setup};
 type S = sov_test_utils::TestSpec;
 use sov_modules_api::Gas;
 mod helpers;
 use sov_modules_api::GasArray;
 
 pub type Storage = ProverStorage<DefaultStorageSpec>;
-
-const DEFAULT_CHAIN_ID: u64 = 0;
-
-fn generate_empty_tx(
-    max_priority_fee: PriorityFeeBips,
-    max_fee: u64,
-    gas_limit: Option<GasUnit<2>>,
-) -> Transaction<S> {
-    Transaction::new_signed_tx(
-        &TestPrivateKey::generate(),
-        vec![],
-        DEFAULT_CHAIN_ID,
-        max_priority_fee,
-        max_fee,
-        gas_limit,
-        0,
-    )
-}
 
 /// Helper struct that gets instantiated following the `reserve_gas_helper` method. Contains useful test parameters.
 struct CapabilityTestParams {

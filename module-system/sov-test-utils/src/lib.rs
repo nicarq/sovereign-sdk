@@ -9,9 +9,7 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{
-    CryptoSpec, DaSpec, Module, RollupAddress, Spec, StateCheckpoint, WorkingSet,
-};
+use sov_modules_api::{CryptoSpec, DaSpec, GasUnit, Module, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -23,12 +21,30 @@ pub mod runtime;
 pub mod value_setter_data;
 
 pub use evm::simple_smart_contract::SimpleStorageContract;
+use sov_modules_api::PrivateKey;
 
 pub type TestSpec = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
 pub type ZkTestSpec = sov_modules_api::default_spec::ZkDefaultSpec<MockZkVerifier, MockZkVerifier>;
 pub type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
+
+/// Test helper: Generates an empty transaction with the given gas parameters.
+pub fn generate_empty_tx(
+    max_priority_fee: PriorityFeeBips,
+    max_fee: u64,
+    gas_limit: Option<GasUnit<2>>,
+) -> Transaction<TestSpec> {
+    Transaction::new_signed_tx(
+        &TestPrivateKey::generate(),
+        vec![],
+        0,
+        max_priority_fee,
+        max_fee,
+        gas_limit,
+        0,
+    )
+}
 
 /// Simple setup, initializes a bank with a sender having an initial balance.
 /// This is a useful helper for tests that need to initialize a bank.
@@ -79,8 +95,8 @@ pub fn new_test_blob_from_batch(
     MockBlob::new(data, address, hash)
 }
 
-pub fn has_tx_events<A: RollupAddress>(
-    apply_blob_outcome: &BatchReceipt<sov_modules_stf_blueprint::SequencerOutcome<A>, TxEffect>,
+pub fn has_tx_events(
+    apply_blob_outcome: &BatchReceipt<sov_modules_stf_blueprint::SequencerOutcome, TxEffect>,
 ) -> bool {
     let events = apply_blob_outcome
         .tx_receipts

@@ -177,7 +177,7 @@ impl<S: Spec, Da: DaSpec> TxHooks for TestRuntime<S, Da> {
 
 impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
     type Spec = S;
-    type BatchResult = SequencerOutcome<Da::Address>;
+    type BatchResult = SequencerOutcome;
 
     fn begin_batch_hook(
         &self,
@@ -193,6 +193,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
     fn end_batch_hook(
         &self,
         _result: Self::BatchResult,
+        _sender: &<Da as DaSpec>::Address,
         _working_set: &mut sov_modules_api::StateCheckpoint<S>,
     ) {
     }

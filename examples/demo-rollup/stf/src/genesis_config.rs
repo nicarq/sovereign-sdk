@@ -60,7 +60,8 @@ impl GenesisPaths {
     }
 }
 
-/// Creates genesis configuration.
+/// Creates a new [`GenesisConfig`] from the files contained in the given
+/// directory.
 pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     genesis_paths: &GenesisPaths,
 ) -> anyhow::Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig> {

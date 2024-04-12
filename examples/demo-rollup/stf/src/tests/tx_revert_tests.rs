@@ -3,7 +3,6 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS}
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{GasArray, GasPrice, GasUnit, PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
-use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -178,7 +177,6 @@ fn test_tx_bad_signature() {
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
-        let blob_sender = blob.sender();
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -199,10 +197,9 @@ fn test_tx_bad_signature() {
         let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
         assert_eq!(
-            SequencerOutcome::Slashed{
-                reason:SlashingReason::StatelessVerificationFailed,
-                sequencer_da_address: blob_sender,
-            },
+            SequencerOutcome::Slashed(
+                SlashingReason::StatelessVerificationFailed,
+            ),
             apply_blob_outcome.inner,
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"
         );
@@ -350,7 +347,6 @@ fn test_tx_bad_serialization() {
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
-        let blob_sender = blob.sender();
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -371,10 +367,9 @@ fn test_tx_bad_serialization() {
         let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
         assert_eq!(
-            SequencerOutcome::Slashed {
-                reason: SlashingReason::InvalidTransactionEncoding ,
-                sequencer_da_address: blob_sender,
-            },
+            SequencerOutcome::Slashed (
+                 SlashingReason::InvalidTransactionEncoding ,
+            ),
             apply_blob_outcome.inner,
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"
         );

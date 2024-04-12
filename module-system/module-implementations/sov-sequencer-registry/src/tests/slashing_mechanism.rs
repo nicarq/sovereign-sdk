@@ -37,13 +37,11 @@ fn end_batch_hook_slash() {
         )
         .unwrap();
 
-    let result = SequencerOutcome::Slashed {
-        sequencer: genesis_sequencer_da_address,
-    };
-
+    let result = SequencerOutcome::Slashed;
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
         result,
+        &genesis_sequencer_da_address,
         &mut state_checkpoint,
     );
 
@@ -85,9 +83,8 @@ fn end_batch_hook_slash_preferred_sequencer() {
 
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
-        SequencerOutcome::Slashed {
-            sequencer: genesis_sequencer_da_address,
-        },
+        SequencerOutcome::Slashed,
+        &genesis_sequencer_da_address,
         &mut state_checkpoint,
     );
 
@@ -136,9 +133,8 @@ fn end_batch_hook_slash_unknown_sequencer() {
     let mut state_checkpoint = working_set.checkpoint().0;
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
-        SequencerOutcome::Slashed {
-            sequencer: MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
-        },
+        SequencerOutcome::Slashed,
+        &MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
         &mut state_checkpoint,
     );
 
@@ -261,9 +257,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
         .query_if_sequencer_is_allowed(&genesis_sequencer_da_address, &mut working_set),);
 
     let hash = [0u8; 32]; // invalid
-    let result = SequencerOutcome::Slashed {
-        sequencer: genesis_sequencer_da_address,
-    };
+    let result = SequencerOutcome::Slashed;
 
     let mut test_blob = BatchWithId {
         txs: vec![],
@@ -280,9 +274,11 @@ fn slashed_sequencer_should_not_preserve_balance() {
         )
         .unwrap();
 
-    test_sequencer
-        .registry
-        .end_batch_hook(result, &mut state_checkpoint);
+    test_sequencer.registry.end_batch_hook(
+        result,
+        &genesis_sequencer_da_address,
+        &mut state_checkpoint,
+    );
     let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
 
     assert!(
