@@ -13,8 +13,10 @@ members = [
     "examples/demo-rollup",
     "examples/simple-nft-module",
     # Full Node
+    "full-node/jsonapi-utils",
     "full-node/sov-db",
     "full-node/sov-sequencer",
+    "full-node/sov-sequencer-json-client",
     "full-node/sov-ethereum",
     "full-node/sov-ledger-rpc",
     "full-node/sov-stf-runner",
@@ -84,6 +86,7 @@ rockbound = { git = "https://github.com/sovereign-Labs/rockbound", tag = "v2.0.1
 # External dependencies
 async-trait = "0.1.71"
 anyhow = { version = "1.0.68", default-features = false }
+axum = { version = "0.7", default-features = false }
 arbitrary = { version = "1.3.1", features = ["derive"] }
 borsh = { version = "0.10.3", default-features = false }
 # TODO: Consider replacing this serialization format
@@ -117,7 +120,7 @@ toml = "0.8.0"
 jsonrpsee = { version = "0.20.1", features = ["jsonrpsee-types"] }
 schemars = { version = "0.8.16", features = ["derive"] }
 tempfile = "3.8"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.35", features = ["full"] }
 lazy_static = "1.4.0"
 num_cpus = "1.0"
 risc0-zkvm = { version = "0.20", default-features = false }

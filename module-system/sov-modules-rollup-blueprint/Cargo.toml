@@ -30,6 +30,7 @@ sov-ledger-rpc = { path = "../../full-node/sov-ledger-rpc", features = ["server"
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+axum = { workspace = true }
 borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 serde = { workspace = true }

@@ -14,8 +14,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProofManager, ProofManagerConfig, RollupConfig,
-    RollupProverConfig, RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    HttpServerConfig, InitVariant, ParallelProverService, ProofManager, ProofManagerConfig,
+    RollupConfig, RollupProverConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::watch;
@@ -111,7 +111,11 @@ pub fn initialize_runner(
         runner: RunnerConfig {
             genesis_height: 0,
             da_polling_interval_ms: 150,
-            rpc_config: RpcConfig {
+            rpc_config: HttpServerConfig {
+                bind_host: "127.0.0.1".to_string(),
+                bind_port: 0,
+            },
+            axum_config: HttpServerConfig {
                 bind_host: "127.0.0.1".to_string(),
                 bind_port: 0,
             },

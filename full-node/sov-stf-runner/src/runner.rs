@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::time::Duration;
 
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
@@ -14,8 +15,8 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm, ZkvmGuest, ZkvmHost};
-use tokio::sync::{oneshot, watch};
-use tracing::{debug, info};
+use tokio::sync::watch;
+use tracing::{debug, error, info};
 
 use crate::{ProofManager, ProverService, RunnerConfig, StateTransitionInfo};
 
@@ -43,7 +44,8 @@ where
     rpc_storage_sender: watch::Sender<Sm::StfState>,
     ledger_db: LedgerDb,
     state_root: StateRoot<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>,
-    listen_address: SocketAddr,
+    listen_address_rpc: SocketAddr,
+    listen_address_axum: SocketAddr,
     proof_manager: ProofManager<Ps>,
     sync_state: Arc<DaSyncState>,
 }
@@ -158,6 +160,7 @@ where
         proof_manager: ProofManager<Ps>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
+        let axum_config = runner_config.axum_config;
 
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
@@ -197,7 +200,10 @@ where
             }
         };
 
-        let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
+        let listen_address_rpc =
+            SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
+        let listen_address_axum =
+            SocketAddr::new(axum_config.bind_host.parse()?, axum_config.bind_port);
 
         // Start the main rollup loop
         let next_item_numbers = ledger_db.get_next_items_numbers();
@@ -218,7 +224,8 @@ where
             rpc_storage_sender,
             ledger_db: ledger_db.clone(),
             state_root: prev_state_root,
-            listen_address,
+            listen_address_rpc,
+            listen_address_axum,
             proof_manager,
 
             sync_state: Arc::new(DaSyncState {
@@ -232,44 +239,53 @@ where
     ///  # Arguments:
     ///   * methods: [`RpcModule`] with all RPC methods.
     ///   * channel: If `Some`, notification with actual [`SocketAddr`] where RPC server listens to.
-    pub async fn start_rpc_server(
-        &self,
-        methods: RpcModule<()>,
-        channel: Option<oneshot::Sender<SocketAddr>>,
-    ) {
-        let listen_address = self.listen_address;
-        let _handle = tokio::spawn(async move {
-            let server = jsonrpsee::server::ServerBuilder::default()
-                .build([listen_address].as_ref())
-                .await
-                .unwrap();
+    pub async fn start_rpc_server(&self, methods: RpcModule<()>) -> anyhow::Result<SocketAddr> {
+        let server = jsonrpsee::server::ServerBuilder::default()
+            .build([self.listen_address_rpc].as_ref())
+            .await?;
+        let bound_address = server.local_addr()?;
 
-            let bound_address = server.local_addr().unwrap();
+        let _handle = tokio::spawn(async move {
             info!(%bound_address, "Starting RPC server");
             let _server_handle = server.start(methods);
 
-            if let Some(channel) = channel {
-                channel.send(bound_address).unwrap();
-            }
             futures::future::pending::<()>().await;
         });
+
+        Ok(bound_address)
+    }
+
+    /// Starts an Axum server with provided router.
+    pub async fn start_axum_server(&self, router: axum::Router<()>) -> anyhow::Result<SocketAddr> {
+        let listener = tokio::net::TcpListener::bind(self.listen_address_axum).await?;
+        let addr = listener.local_addr()?;
+
+        tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+
+        Ok(addr)
     }
 
     /// Spawn a [`tokio::task`] that updates the sync status every 10 seconds.
-    pub fn spawn_sync_status_updater(&self, polling_interval_ms: u64) {
+    pub fn spawn_sync_status_updater(&self, polling_interval: Duration) {
         let sync_state = self.sync_state.clone();
         let da_service = self.da_service.clone();
 
         tokio::task::spawn(async move {
-            let mut interval =
-                tokio::time::interval(tokio::time::Duration::from_millis(polling_interval_ms));
+            let mut interval = tokio::time::interval(polling_interval);
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             interval.tick().await; // Tick the interval once because it starts at 0ms. <https://docs.rs/tokio/latest/src/tokio/time/interval.rs.html#427>
+
             loop {
-                sync_state
-                    .update_target(da_service.as_ref())
-                    .await
-                    .expect("Failed to update target height");
+                if let Err(error) = sync_state.update_target(da_service.as_ref()).await {
+                    error!(
+                        ?error,
+                        "Failed to update the sync status; will retry in ~{}ms",
+                        polling_interval.as_millis()
+                    );
+                }
+
                 if let SyncStatus::Syncing {
                     synced_da_height,
                     target_da_height,
@@ -283,17 +299,15 @@ where
     }
 
     /// Runs the rollup.
-    pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let mut seen_state_transition: VecDeque<
-            StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>,
-        > = VecDeque::new();
+    pub async fn run_in_process(&mut self) -> anyhow::Result<()> {
+        let mut seen_state_transition = VecDeque::new();
         let mut next_da_height = self.first_unprocessed_height_at_startup;
         let target_height = self.da_service.get_head_block_header().await?.height();
         self.sync_state
             .target_da_height
             .store(target_height, std::sync::atomic::Ordering::Release);
 
-        self.spawn_sync_status_updater(self.da_polling_interval_ms);
+        self.spawn_sync_status_updater(Duration::from_millis(self.da_polling_interval_ms));
 
         loop {
             debug!(next_da_height, "Requesting DA block for");

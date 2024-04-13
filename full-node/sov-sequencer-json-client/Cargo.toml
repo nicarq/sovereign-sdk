@@ -1,0 +1,29 @@
+[package]
+name = "sov-sequencer-json-client"
+authors = { workspace = true }
+description = "A simple client for the Sovereign SDK sequencer JSON API"
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+readme = "README.md"
+resolver = "2"
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+progenitor = { git = "https://github.com/oxidecomputer/progenitor", rev = "0050f08b95edf9c0a7cbaad94161351af18e0246" }
+regress = "0.4.1"
+reqwest = { version = "0.11", features = ["json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+
+# Needed for websockets, as documented by the `progenitor` docs.
+base64 = "0.21"
+rand = "0.8"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }

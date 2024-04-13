@@ -1,3 +1,5 @@
+- #413 introduces new RESTful JSON APIs for the sequencer and, most importantly, modifies the `RollupBlueprint` trait interface to allow implementations to expose Axum servers, instead of only JSON-RPC servers. In fact, `RollupBlueprint::create_rpc_methods` was renamed to `RollupBlueprint::create_endpoints`, which returns a tuple. Most `RollupBlueprint` implementations will need to use the new `sov_modules_rollup_blueprint::register_endpoints`, which replaces `sov_modules_rollup_blueprint::register_rpc`. Take a look at how `examples/demo-rollup` implements the new interface to see how it works.
+
 - #306 removes the `State*Accessor` traits and replaces them with methods on (Acessory)StateValue/Map types. You can simply remove
   any imports of these traits and the `sov_modules_api::prelude*`.
 

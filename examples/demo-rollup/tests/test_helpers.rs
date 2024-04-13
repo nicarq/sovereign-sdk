@@ -6,7 +6,8 @@ use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_stf_runner::{
-    ProofManagerConfig, RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, StorageConfig,
+    HttpServerConfig, ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig,
+    StorageConfig,
 };
 use tokio::sync::oneshot;
 
@@ -27,7 +28,11 @@ pub async fn start_rollup(
         runner: RunnerConfig {
             genesis_height: 0,
             da_polling_interval_ms: 1000,
-            rpc_config: RpcConfig {
+            rpc_config: HttpServerConfig {
+                bind_host: "127.0.0.1".into(),
+                bind_port: 0,
+            },
+            axum_config: HttpServerConfig {
                 bind_host: "127.0.0.1".into(),
                 bind_port: 0,
             },
@@ -41,8 +46,8 @@ pub async fn start_rollup(
     let mock_demo_rollup = MockDemoRollup {};
 
     let kernel_genesis = BasicKernelGenesisConfig {
-        chain_state: serde_json::from_str(
-            &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
+        chain_state: serde_json::from_reader(
+            std::fs::File::open(&kernel_genesis_paths.chain_state)
                 .expect("Failed to read chain_state genesis config"),
         )
         .expect("Failed to parse chain_state genesis config"),
@@ -59,12 +64,9 @@ pub async fn start_rollup(
         .unwrap();
 
     rollup
-        .run_and_report_rpc_port(Some(rpc_reporting_channel))
+        .run_and_report_addr(Some(rpc_reporting_channel), None)
         .await
         .unwrap();
-
-    // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
-    temp_dir.close().unwrap();
 }
 
 pub fn get_appropriate_rollup_prover_config() -> RollupProverConfig {

@@ -3,6 +3,7 @@
 use anyhow::{bail, Context as ErrorContext};
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
+use serde::{Deserialize, Serialize};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::Transaction;
@@ -18,6 +19,19 @@ use tokio::sync::watch;
 use crate::db::{MempoolTx, SequencerDb};
 use crate::mempool::{FairMempool, MempoolCursor};
 use crate::TxHash;
+
+/// Configuration for [`FairBatchBuilder`].
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FairBatchBuilderConfig<Da: DaSpec> {
+    /// Maximum number of transactions in mempool. Once this limit is reached,
+    /// the batch builder will evict older transactions.
+    pub mempool_max_txs_count: usize,
+    /// Maximum size of a batch. The batch builder will not build batches larger
+    /// than this size.
+    pub max_batch_size_bytes: usize,
+    /// DA address of the sequencer.
+    pub sequencer_address: Da::Address,
+}
 
 /// A [`BatchBuilder`] that creates batches of transactions in a way that's
 /// reasonably "fair" to everybody.
@@ -42,21 +56,19 @@ where
 {
     /// [`BatchBuilder`] constructor.
     pub fn new(
-        max_batch_size_bytes: usize,
-        mempool_max_count_txs: usize,
         runtime: R,
         kernel: K,
         current_storage: watch::Receiver<<S as Spec>::Storage>,
-        sequencer: Da::Address,
         sequencer_db: SequencerDb,
+        config: FairBatchBuilderConfig<Da>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            mempool: FairMempool::new(sequencer_db, mempool_max_count_txs)?,
-            max_batch_size_bytes,
+            mempool: FairMempool::new(sequencer_db, config.mempool_max_txs_count)?,
+            max_batch_size_bytes: config.max_batch_size_bytes,
             runtime,
             kernel,
             current_storage,
-            sequencer,
+            sequencer: config.sequencer_address,
         })
     }
 
@@ -374,14 +386,18 @@ mod tests {
         let sequencer_db_path = tmpdir.path().join("mempool");
         let storage = watch::Sender::new(new_orphan_storage(state_path).unwrap()).subscribe();
         let sequencer_db = SequencerDb::new(sequencer_db_path).unwrap();
+
+        let config = FairBatchBuilderConfig {
+            mempool_max_txs_count: MAX_TX_POOL_SIZE,
+            max_batch_size_bytes: batch_size_bytes,
+            sequencer_address,
+        };
         FairBatchBuilder::new(
-            batch_size_bytes,
-            MAX_TX_POOL_SIZE,
             TestRuntime::<S, MockDaSpec>::default(),
             BasicKernel::default(),
             storage.clone(),
-            sequencer_address,
             sequencer_db,
+            config,
         )
         .unwrap()
     }

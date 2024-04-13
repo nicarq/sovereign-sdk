@@ -18,6 +18,7 @@ pub mod bank_data;
 mod evm;
 pub mod logging;
 pub mod runtime;
+pub mod sequencer;
 pub mod value_setter_data;
 
 pub use evm::simple_smart_contract::SimpleStorageContract;
