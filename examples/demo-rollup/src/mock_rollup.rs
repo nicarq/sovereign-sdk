@@ -66,27 +66,23 @@ impl RollupBlueprint for MockDemoRollup {
         MockCodeCommitment::default()
     }
 
-    fn create_rpc_methods(
+    fn create_endpoints(
         &self,
         storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<Self::DaConfig>,
-    ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
+    ) -> Result<(jsonrpsee::RpcModule<()>, axum::Router<()>), anyhow::Error> {
         #[allow(unused_mut)]
-        let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
-            Self::NativeRuntime,
-            Self::NativeKernel,
-            Self::NativeSpec,
-            Self::DaService,
-        >(
-            storage.clone(),
-            ledger_db,
-            sequencer_db,
-            da_service,
-            rollup_config.da.sender_address,
-        )?;
+        let (mut rpc_methods, axum_router) =
+            sov_modules_rollup_blueprint::register_endpoints::<Self>(
+                storage.clone(),
+                ledger_db,
+                sequencer_db,
+                da_service,
+                rollup_config.da.sender_address,
+            )?;
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
@@ -96,7 +92,7 @@ impl RollupBlueprint for MockDemoRollup {
             &mut rpc_methods,
         )?;
 
-        Ok(rpc_methods)
+        Ok((rpc_methods, axum_router))
     }
 
     async fn create_da_service(

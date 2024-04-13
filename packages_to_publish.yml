@@ -1,6 +1,7 @@
 - sov-rollup-interface
 - sov-mock-da
 - sov-mock-zkvm
+- sov-jsonapi-utils
 - sov-db
 - sov-modules-core
 - sov-state
@@ -9,6 +10,7 @@
 - sov-modules-api
 - sov-metrics
 - sov-sequencer
+- sov-sequencer-json-client
 - sov-modules-stf-blueprint
 - sov-stf-runner
 - sov-modules-rollup-blueprint

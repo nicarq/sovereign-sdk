@@ -14,3 +14,6 @@ da_polling_interval_ms = 10000
 [runner.rpc_config]
 bind_host = "127.0.0.1"
 bind_port = 12340
+[runner.axum_config]
+bind_host = "127.0.0.1"
+bind_port = 12341

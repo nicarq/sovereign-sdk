@@ -40,8 +40,8 @@ hex = { workspace = true }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
-tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../sov-prover-storage-manager" }
+tempfile = { workspace = true }
 criterion = "0.5.1"
 rand = { workspace = true }
 sha2 = { workspace = true }

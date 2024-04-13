@@ -83,14 +83,14 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> <<Self::ProverService as ProverService>::Verifier as Zkvm>::CodeCommitment;
 
     /// Creates RPC methods for the rollup.
-    fn create_rpc_methods(
+    fn create_endpoints(
         &self,
         storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<Self::DaConfig>,
-    ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
+    ) -> Result<(jsonrpsee::RpcModule<()>, axum::Router<()>), anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
     #[allow(clippy::type_complexity)]
@@ -203,7 +203,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let rpc_storage = tokio::sync::watch::channel(prover_storage);
         // We pass "bootstrap" storage here,
         // as it will be replaced with the latest on after first processed block.
-        let rpc_methods = self.create_rpc_methods(
+        let (rpc_methods, axum_router) = self.create_endpoints(
             rpc_storage.1,
             &ledger_db,
             &sequencer_db,
@@ -235,6 +235,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         Ok(Rollup {
             runner,
             rpc_methods,
+            axum_router,
         })
     }
 }
@@ -258,21 +259,38 @@ pub struct Rollup<S: RollupBlueprint> {
     >,
     /// RPC methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
+    /// Axum router for the rollup.
+    pub axum_router: axum::Router<()>,
 }
 
 impl<S: RollupBlueprint> Rollup<S> {
     /// Runs the rollup.
-    pub async fn run(self) -> Result<(), anyhow::Error> {
-        self.run_and_report_rpc_port(None).await
+    pub async fn run(self) -> anyhow::Result<()> {
+        self.run_and_report_addr(None, None).await
     }
 
-    /// Runs the rollup. Reports rpc port to the caller using the provided channel.
-    pub async fn run_and_report_rpc_port(
+    /// Runs the rollup. Reports RPC port to the caller using the provided channel.
+    pub async fn run_and_report_addr(
         self,
-        channel: Option<oneshot::Sender<SocketAddr>>,
+        rpc_addr_channel: Option<oneshot::Sender<SocketAddr>>,
+        axum_addr_channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> anyhow::Result<()> {
         let mut runner = self.runner;
-        runner.start_rpc_server(self.rpc_methods, channel).await;
+
+        let rpc_addr = runner.start_rpc_server(self.rpc_methods).await?;
+        if let Some(sender) = rpc_addr_channel {
+            sender
+                .send(rpc_addr)
+                .map_err(|_| anyhow::anyhow!("Failed to send RPC address"))?;
+        }
+
+        let axum_addr = runner.start_axum_server(self.axum_router).await?;
+        if let Some(sender) = axum_addr_channel {
+            sender
+                .send(axum_addr)
+                .map_err(|_| anyhow::anyhow!("Failed to send Axum address"))?;
+        }
+
         runner.run_in_process().await?;
         Ok(())
     }

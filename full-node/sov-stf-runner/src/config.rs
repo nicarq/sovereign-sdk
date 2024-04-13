@@ -13,15 +13,17 @@ pub struct RunnerConfig {
     /// Polling interval for the DA service to check the sync status (in milliseconds).
     pub da_polling_interval_ms: u64,
     /// RPC configuration.
-    pub rpc_config: RpcConfig,
+    pub rpc_config: HttpServerConfig,
+    /// Axum server configuration.
+    pub axum_config: HttpServerConfig,
 }
 
-/// RPC configuration.
+/// Configuration for HTTP server(s) exposed by the node.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct RpcConfig {
-    /// RPC host.
+pub struct HttpServerConfig {
+    /// Server host.
     pub bind_host: String,
-    /// RPC port.
+    /// Server port.
     pub bind_port: u16,
 }
 
@@ -103,6 +105,9 @@ mod tests {
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
+            [runner.axum_config]
+            bind_host = "127.0.0.1"
+            bind_port = 12346
             [proof_manager]
             aggregated_proof_block_jump = 22
         "#;
@@ -115,9 +120,13 @@ mod tests {
             runner: RunnerConfig {
                 genesis_height: 31337,
                 da_polling_interval_ms: 10_000,
-                rpc_config: RpcConfig {
+                rpc_config: HttpServerConfig {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12345,
+                },
+                axum_config: HttpServerConfig {
+                    bind_host: "127.0.0.1".to_string(),
+                    bind_port: 12346,
                 },
             },
 

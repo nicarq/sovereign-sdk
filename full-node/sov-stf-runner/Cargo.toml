@@ -15,6 +15,7 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+axum = { workspace = true, features = ["tokio", "http1", "http2"], optional = true }
 num_cpus = { workspace = true }
 thiserror = { workspace = true, optional = true }
 borsh = { workspace = true }
@@ -60,6 +61,7 @@ default = []
 mock = [ "native" ]
 native = [
 	"async-trait",
+	"axum",
 	"futures",
 	"jsonrpsee",
 	"rayon",

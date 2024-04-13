@@ -1,0 +1,144 @@
+openapi: "3.0.2"
+info:
+  title: Sovereign SDK sequencer API
+  version: 0.1.0
+  description: |
+    This is the JSON API for the Sovereign SDK sequencer.
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+  contact:
+    name: Sovereign Labs
+    url: https://github.com/Sovereign-Labs/sov-sdk
+    email: info@soverign.xyz
+servers:
+  - url: http://localhost:12345
+    description: Localhost
+paths:
+  /batches:
+    post:
+      summary: Submit a batch to the rollup
+      operationId: publish_batch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transactions:
+                  type: array
+                  items:
+                    type: string
+                    format: base64
+                  minItems: 1
+                  description: The transactions to be included in the batch, encoded as Base64.
+              required:
+                - transactions
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/SubmittedBatchInfo"
+                required:
+                  - data
+
+  /txs:
+    post:
+      summary: Submit a transaction to the rollup
+      description: Submit a transaction to the rollup
+      operationId: acceptTx
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:
+                  type: string
+                  format: base64
+              required:
+                - body
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        $ref: "#/components/schemas/TxHash"
+                      status:
+                        $ref: "#/components/schemas/TxStatus"
+                    required:
+                      - id
+                      - status
+
+components:
+  schemas:
+    TxHash:
+      type: string
+      # Variable length hex string, prefix with "0x"
+      pattern: "^0x[a-fA-F0-9]+$"
+      description: The hash of a transaction
+    TxBody:
+      type: string
+      format: byte
+      description: The body of a transaction, encoded as a Base64 string
+    Tx:
+      type: object
+      properties:
+        hash:
+          $ref: "#/components/schemas/TxHash"
+        body:
+          $ref: "#/components/schemas/TxBody"
+        status:
+          $ref: "#/components/schemas/TxStatus"
+      required:
+        - hash
+        - status
+    TxStatus:
+      enum:
+        - Unknown
+        - Submitted
+        - Published
+        - Finalized
+    SubmittedBatchInfo:
+      type: object
+      properties:
+        daHeight:
+          type: integer
+        numTxs:
+          type: integer
+          format: int32
+      required:
+        - daHeight
+        - numTxs
+    Error:
+      type: object
+      properties:
+        httpstatus:
+          type: integer
+          format: int32
+          description: HTTP status code related to this error
+        message:
+          type: string
+        path:
+          type: string
+          format: uri-reference
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - code
+        - message
+        - path
+        - timestamp

@@ -1,58 +1,66 @@
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::Spec;
+use sov_modules_api::{RuntimeEventDisplay, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_sequencer::{FairBatchBuilder, Sequencer, SequencerDb};
+use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
 use tokio::sync::watch;
 
-/// Register rollup's default rpc methods.
-pub fn register_rpc<RT, K, S, Da>(
-    storage: watch::Receiver<S::Storage>,
+use crate::RollupBlueprint;
+
+/// Register rollup's default RPC methods and Axum router.
+pub fn register_endpoints<B>(
+    storage: watch::Receiver<<B::NativeSpec as Spec>::Storage>,
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
-    da_service: &Da,
-    sequencer: <Da::Spec as DaSpec>::Address,
-) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
+    da_service: &B::DaService,
+    sequencer: <B::DaSpec as DaSpec>::Address,
+) -> anyhow::Result<(jsonrpsee::RpcModule<()>, axum::Router<()>)>
 where
-    RT: RuntimeTrait<S, <Da as DaService>::Spec> + 'static + sov_modules_api::RuntimeEventDisplay,
-    K: Kernel<S, Da::Spec> + 'static,
-    S: Spec,
-    Da: DaService + Clone,
-    Da::TransactionId: Clone + serde::Serialize + Send + Sync,
+    B: RollupBlueprint + 'static,
+    B::NativeRuntime: RuntimeEventDisplay,
+    <B::DaService as DaService>::TransactionId: Clone + Send + Sync + serde::Serialize,
 {
-    // runtime RPC.
-    let mut rpc_methods = RT::rpc_methods(storage.clone());
+    let mut axum_router = axum::Router::<()>::new();
 
-    // ledger RPC.
+    // Runtime endpoints.
+    let mut rpc_methods = B::NativeRuntime::rpc_methods(storage.clone());
+
+    // Ledger endpoint.
     {
         rpc_methods.merge(sov_ledger_rpc::server::rpc_module::<
             LedgerDb,
             SequencerOutcome,
             TxEffect,
-            <RT as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
+            <B::NativeRuntime as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
         >(ledger_db.clone())?)?;
     }
 
-    // sequencer RPC.
+    // Sequencer endpoints.
     {
-        let batch_builder = FairBatchBuilder::<S, Da::Spec, RT, K>::new(
-            1024 * 100,
-            u32::MAX as usize,
-            RT::default(),
-            K::default(),
-            storage,
-            sequencer,
-            sequencer_db.clone(),
-        )?;
+        let config = FairBatchBuilderConfig {
+            mempool_max_txs_count: u32::MAX as usize,
+            max_batch_size_bytes: 1024 * 100,
+            sequencer_address: sequencer.clone(),
+        };
+        let batch_builder =
+            FairBatchBuilder::<B::NativeSpec, B::DaSpec, B::NativeRuntime, B::NativeKernel>::new(
+                B::NativeRuntime::default(),
+                B::NativeKernel::default(),
+                storage,
+                sequencer_db.clone(),
+                config,
+            )?;
 
-        let sequencer_rpc = Sequencer::new(batch_builder, da_service.clone()).rpc();
+        let sequencer = Sequencer::new(batch_builder, da_service.clone());
+
         rpc_methods
-            .merge(sequencer_rpc)
+            .merge(sequencer.rpc())
             .context("Failed to merge Transactions RPC modules")?;
+
+        axum_router = axum_router.nest("/sequencer", sequencer.axum_router().with_state(sequencer));
     }
 
-    Ok(rpc_methods)
+    Ok((rpc_methods, axum_router))
 }

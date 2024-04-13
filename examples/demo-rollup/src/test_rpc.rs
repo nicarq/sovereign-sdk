@@ -17,7 +17,7 @@ use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 #[cfg(test)]
-use sov_stf_runner::RpcConfig;
+use sov_stf_runner::HttpServerConfig;
 use sov_test_utils::TestSpec;
 use tendermint::crypto::Sha256;
 
@@ -26,7 +26,7 @@ struct TestExpect {
     expected: serde_json::Value,
 }
 
-async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfig) {
+async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: HttpServerConfig) {
     let (addr, port) = (rpc_config.bind_host, rpc_config.bind_port);
     let client = reqwest::Client::new();
     let url_str = format!("http://{addr}:{port}");
@@ -94,7 +94,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
         .unwrap();
         let _server_handle = server.start(server_rpc_module);
 
-        let rpc_config = RpcConfig {
+        let rpc_config = HttpServerConfig {
             bind_host: "127.0.0.1".to_string(),
             bind_port: addr.port(),
         };
