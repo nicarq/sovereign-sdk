@@ -14,7 +14,7 @@ on:
 
 jobs:
   manually-delete-buildjet-cache:
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: buildjet/cache-delete@v1
