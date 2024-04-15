@@ -37,10 +37,6 @@ name: Rust
 #   GHA larger runners increase in cost linearly with the number of cores
 #   (https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions),
 #   so you're not wasting money unless several cores are sitting idle for long.
-# - Cargo fingerprints files by mtime, not hash
-#   (https://github.com/rust-lang/cargo/issues/6529), and unfortunately Git does
-#   not restore mtime upon cloning. This means that workspace crates will always
-#   be rebuilt unless you manually restore mtimes.
 
 on:
   # Relevant docs:
@@ -109,10 +105,7 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -153,10 +146,7 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -192,10 +182,7 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -231,10 +218,7 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -276,10 +260,7 @@ jobs:
     env:
       SKIP_GUEST_BUILD: "1"
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -307,10 +288,7 @@ jobs:
     env:
       RISC0_DEV_MODE: "true"
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -344,10 +322,7 @@ jobs:
     env:
       RISC0_DEV_MODE: "true"
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -381,10 +356,7 @@ jobs:
     env:
       SKIP_GUEST_BUILD: "1"
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -419,11 +391,9 @@ jobs:
     env:
       SKIP_GUEST_BUILD: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
           submodules: true
-      - uses: chetan/git-restore-mtime-action@v2
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -476,10 +446,7 @@ jobs:
       RUSTDOCFLAGS: "-D warnings"
       SKIP_GUEST_BUILD: "1"
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
         # Not sure installing `mold` is actually needed, but it's what the
         # `check` job, and we'd rather keep things as similar as possible.
       - uses: rui314/setup-mold@v1
@@ -555,10 +522,7 @@ jobs:
       - check
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -602,10 +566,7 @@ jobs:
       - check
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: chetan/git-restore-mtime-action@v2
+      - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -637,7 +598,7 @@ jobs:
   validate-packages-to-publish-yml:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - run: ./scripts/validate_packages_to_publish_yml.sh
         shell: bash
         working-directory: .
