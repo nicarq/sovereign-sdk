@@ -9,9 +9,10 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
-    ContextResolver, GasEnforcer, TransactionDeduplicator,
+    AuthenticationError, ContextResolver, GasEnforcer, RawTx, RuntimeAuthenticator,
+    TransactionDeduplicator,
 };
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
 use sov_modules_api::{
     Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, ModuleInfo, PublicKey, Spec,
     StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
@@ -104,6 +105,19 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
         _root_hash: <Self::Spec as Spec>::VisibleHash,
         _accessory_working_set: &mut impl StateReaderAndWriter<Accessory>,
     ) {
+    }
+}
+
+impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for TestRuntime<S, Da> {
+    type Decodable = <Self as DispatchCall>::Decodable;
+
+    type Tx = TransactionAndRawHash<S>;
+
+    fn authenticate(
+        &self,
+        raw_tx: &RawTx,
+    ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
+        sov_modules_api::authenticate::<S, Self>(raw_tx)
     }
 }
 

@@ -14,13 +14,14 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 #[cfg(feature = "mocks")]
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
-use sov_modules_api::transaction::Transaction;
-pub use sov_modules_api::tx_verifier::RawTx;
+use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
 use sov_modules_api::{
     DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet, RuntimeEventProcessor, Spec,
     StateCheckpoint, Zkvm,
 };
-use sov_modules_core::capabilities::{ContextResolver, GasEnforcer, TransactionDeduplicator};
+use sov_modules_core::capabilities::{
+    ContextResolver, GasEnforcer, RuntimeAuthenticator, TransactionDeduplicator,
+};
 use sov_modules_core::VersionedStateReadWriter;
 use sov_rollup_interface::services::da::RelevantBlobIters;
 pub use sov_rollup_interface::stf::BatchReceipt;
@@ -29,14 +30,18 @@ use sov_state::storage::StateUpdate;
 use sov_state::Storage;
 pub use stf_blueprint::{apply_tx, ExecutionMode, StfBlueprint};
 use tracing::{debug, info};
-
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
 /// to be executed.
 pub trait Runtime<S: Spec, Da: DaSpec>:
     DispatchCall<Spec = S>
-    + Genesis<Spec = S, Config = Self::GenesisConfig>
+    + TransactionDeduplicator<S, Da, Tx = Transaction<S>>
+    + ContextResolver<S, Da, Tx = Transaction<S>>
+    + RuntimeAuthenticator<
+        Tx = TransactionAndRawHash<S>,
+        Decodable = <Self as DispatchCall>::Decodable,
+    > + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>
     + SlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
@@ -44,8 +49,6 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + Default
     + RuntimeEventProcessor
     + GasEnforcer<S, Da, Tx = Transaction<S>>
-    + TransactionDeduplicator<S, Da, Tx = Transaction<S>>
-    + ContextResolver<S, Da, Tx = Transaction<S>>
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;

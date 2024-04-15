@@ -1,13 +1,16 @@
+#[cfg(all(target_os = "zkvm", feature = "bench"))]
+use risc0_cycle_macros::cycle_tracker;
 use sov_bank::IntoPayable;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
-    ContextResolver, GasEnforcer, TransactionDeduplicator,
+    AuthenticationError, ContextResolver, GasEnforcer, RawTx, RuntimeAuthenticator,
+    TransactionDeduplicator,
 };
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
 use sov_modules_api::{
-    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
+    Context, DispatchCall, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
@@ -215,5 +218,19 @@ impl<S: Spec, Da: DaSpec> ContextResolver<S, Da> for Runtime<S, Da> {
             .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
         let sender = self.accounts.resolve_sender_address(tx, working_set);
         Context::new(sender, sequencer, height)
+    }
+}
+
+impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for Runtime<S, Da> {
+    type Decodable = <Self as DispatchCall>::Decodable;
+
+    type Tx = TransactionAndRawHash<S>;
+
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    fn authenticate(
+        &self,
+        raw_tx: &RawTx,
+    ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
+        sov_modules_api::authenticate::<S, Self>(raw_tx)
     }
 }
