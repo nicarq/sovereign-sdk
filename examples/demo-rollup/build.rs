@@ -1,6 +1,8 @@
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, ExitStatus};
 fn main() {
+    println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
+
     let is_risczero_installed = Command::new("cargo")
         .args(["risczero", "help"])
         .status()
