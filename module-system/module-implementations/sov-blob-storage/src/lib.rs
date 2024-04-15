@@ -1,14 +1,12 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
-
 mod capabilities;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::macros::config_constant;
-use sov_modules_api::tx_verifier::RawTx;
+use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::{
     KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, ModuleId, StateCheckpoint,
     StateMap,

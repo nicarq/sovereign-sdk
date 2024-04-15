@@ -6,11 +6,12 @@ use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{CryptoSpec, DaSpec, GasUnit, Module, Spec, StateCheckpoint, WorkingSet};
-use sov_modules_stf_blueprint::{Batch, BatchReceipt, RawTx, TxEffect};
+use sov_modules_stf_blueprint::{Batch, BatchReceipt, TxEffect};
 use sov_prover_storage_manager::new_orphan_storage;
 
 pub mod attester_incentive_data;

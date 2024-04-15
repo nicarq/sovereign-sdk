@@ -2,8 +2,8 @@ use borsh::BorshSerialize;
 use sov_bank::{IntoPayable, Payable};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
+use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::tx_verifier::RawTx;
 use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec};
 use sov_test_utils::generate_empty_tx;
 

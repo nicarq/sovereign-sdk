@@ -5,8 +5,10 @@
 //! you can bypass the Sovereign module-system completely
 //! and write a state transition function from scratch.
 //! [See here for docs](https://github.com/Sovereign-Labs/sovereign-sdk/blob/nightly/examples/demo-stf/README.md)
-
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
+use thiserror::Error;
 
 use crate::kernel_state::BootstrapWorkingSet;
 use crate::module::Context;
@@ -53,7 +55,7 @@ pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: Kernel<S, Da> {
 
 /// BatchSelector decides which batches to process in a current slot.
 pub trait BatchSelector<Da: DaSpec> {
-    /// Context type
+    /// Spec type
     type Spec: Spec;
 
     /// The type of batch returned by the selector
@@ -133,6 +135,34 @@ pub trait ContextResolver<S: Spec, Da: DaSpec> {
         height: u64,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Context<S>;
+}
+
+/// RawTx represents a serialized rollup transaction received from the DA.
+#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct RawTx {
+    /// Serialized transaction.
+    pub data: Vec<u8>,
+}
+
+/// Authentication error type.
+#[derive(Error, Debug)]
+pub enum AuthenticationError {
+    /// Signature verification failed.
+    #[error("signature verification error: {0}")]
+    SigVerificationFailed(String),
+    /// Transaction decoding failed.
+    #[error("transaction decoding error: {0}, tx hash: {1:?}")]
+    MessageDecodingFailed(String, [u8; 32]),
+}
+
+/// Authenticates raw transactions.
+pub trait RuntimeAuthenticator {
+    /// Decoded message.
+    type Decodable;
+    /// Authenticated transaction.
+    type Tx;
+    /// Authenticates raw transaction.
+    fn authenticate(&self, tx: &RawTx) -> Result<(Self::Tx, Self::Decodable), AuthenticationError>;
 }
 
 #[cfg(feature = "mocks")]

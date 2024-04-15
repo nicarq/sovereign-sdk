@@ -6,7 +6,7 @@ use sov_mock_da::MockValidityCondChecker;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::tx_verifier::RawTx;
+use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::stf::TransactionReceipt;

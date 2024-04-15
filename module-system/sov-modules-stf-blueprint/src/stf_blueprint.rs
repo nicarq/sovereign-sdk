@@ -6,9 +6,9 @@ use borsh::BorshSerialize;
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
+use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
 use sov_modules_api::{Context, DaSpec, DispatchCall, Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_core::capabilities::AuthenticationError;
 use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error};
@@ -226,10 +226,27 @@ where
         ),
         SlashingReason,
     > {
-        // Run the stateless verification, since it is stateless we don't commit.
-        let txs = self.verify_txs_stateless(batch)?;
+        let raw_txs = batch.txs;
+        let mut txs = Vec::with_capacity(raw_txs.len());
+        let mut messages = Vec::with_capacity(raw_txs.len());
 
-        let messages = self.decode_txs(&txs)?;
+        debug!(txs_num = raw_txs.len(), "Verifying transactions");
+        for raw_tx in raw_txs.iter() {
+            match self.runtime.authenticate(raw_tx) {
+                Ok((tx, decodable)) => {
+                    txs.push(tx);
+                    messages.push(decodable);
+                }
+                Err(AuthenticationError::SigVerificationFailed(e)) => {
+                    error!("Stateless verification error - the sequencer included a transaction which was known to be invalid. {}\n", e);
+                    return Err(SlashingReason::StatelessVerificationFailed);
+                }
+                Err(AuthenticationError::MessageDecodingFailed(e, raw_tx_hash)) => {
+                    error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
+                    return Err(SlashingReason::InvalidTransactionEncoding);
+                }
+            }
+        }
 
         Ok((txs, messages))
     }
@@ -266,42 +283,6 @@ where
         }
 
         (batch_workspace, gas_used)
-    }
-
-    // Stateless verification of transaction, such as signature check
-    // Single malformed transaction results in sequencer slashing.
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn verify_txs_stateless(
-        &self,
-        batch: BatchWithId,
-    ) -> Result<Vec<TransactionAndRawHash<S>>, SlashingReason> {
-        match verify_txs_stateless(batch.txs) {
-            Ok(txs) => Ok(txs),
-            Err(e) => {
-                error!("Stateless verification error - the sequencer included a transaction which was known to be invalid. {}\n", e);
-                Err(SlashingReason::StatelessVerificationFailed)
-            }
-        }
-    }
-
-    // Checks that runtime message can be decoded from transaction.
-    // If a single message cannot be decoded, sequencer is slashed
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn decode_txs(
-        &self,
-        txs: &[TransactionAndRawHash<S>],
-    ) -> Result<Vec<<RT as DispatchCall>::Decodable>, SlashingReason> {
-        let mut decoded_messages = Vec::with_capacity(txs.len());
-        for (tx, raw_tx_hash) in txs.iter().map(|tx| tx.as_tuple()) {
-            match RT::decode_call(tx.runtime_msg()) {
-                Ok(msg) => decoded_messages.push(msg),
-                Err(e) => {
-                    error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
-                    return Err(SlashingReason::InvalidTransactionEncoding);
-                }
-            }
-        }
-        Ok(decoded_messages)
     }
 }
 

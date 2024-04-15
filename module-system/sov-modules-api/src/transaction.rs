@@ -312,3 +312,22 @@ where
         }
     }
 }
+
+type RawTxHash = [u8; 32];
+
+pub struct TransactionAndRawHash<S: Spec> {
+    /// Deserialized transaction.
+    pub tx: Transaction<S>,
+    /// Hash of raw bytes.
+    pub raw_tx_hash: RawTxHash,
+}
+
+impl<S: Spec> TransactionAndRawHash<S> {
+    pub fn split(self) -> (Transaction<S>, RawTxHash) {
+        (self.tx, self.raw_tx_hash)
+    }
+
+    pub fn as_tuple(&self) -> (&Transaction<S>, &RawTxHash) {
+        (&self.tx, &self.raw_tx_hash)
+    }
+}

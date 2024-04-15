@@ -1,8 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-
-use crate::tx_verifier::RawTx;
-
+use sov_modules_core::capabilities::RawTx;
 /// Contains raw transactions obtained from the DA blob.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct Batch {

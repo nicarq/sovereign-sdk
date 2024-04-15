@@ -12,8 +12,7 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec}
 use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::da::Time;
 use sov_modules_api::macros::DefaultRuntime;
-use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
-use sov_modules_api::tx_verifier::RawTx;
+use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks, RawTx};
 use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasArray, GasPrice, KernelWorkingSet,
     MessageCodec, Module, Spec, StateCheckpoint, WorkingSet,

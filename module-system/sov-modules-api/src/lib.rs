@@ -6,19 +6,18 @@ pub mod cli;
 mod containers;
 pub mod default_spec;
 pub mod hooks;
-pub mod tx_verifier;
 
 #[cfg(feature = "macros")]
 mod reexport_macros;
 #[cfg(feature = "macros")]
 pub use reexport_macros::*;
 
+mod authentication;
 #[cfg(test)]
 mod tests;
 pub mod transaction;
 #[cfg(feature = "native")]
 pub mod utils;
-
 pub use containers::*;
 #[cfg(feature = "macros")]
 extern crate sov_modules_macros;
@@ -57,6 +56,8 @@ pub mod optimistic {
 pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
 }
+
+pub use authentication::authenticate;
 
 struct ModuleVisitor<'a, S: Spec> {
     visited: HashSet<&'a ModuleId>,
