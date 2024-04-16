@@ -14,7 +14,7 @@ impl<S: Spec> Accounts<S> {
         self.accounts
             .get(pubkey, working_set)
             .map(|a| a.addr)
-            .unwrap_or(pubkey.to_address())
+            .unwrap_or(pubkey.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>())
     }
 
     pub(crate) fn get_or_create_default(
@@ -26,7 +26,8 @@ where {
         if let Some(acct) = self.accounts.get(pub_key, working_set) {
             acct
         } else {
-            let default_address: S::Address = pub_key.to_address();
+            let default_address: S::Address =
+                pub_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>();
 
             let new_account = Account {
                 addr: default_address.clone(),

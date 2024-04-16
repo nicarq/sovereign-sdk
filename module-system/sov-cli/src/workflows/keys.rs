@@ -79,8 +79,9 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                 // Try to load the key as a sanity check.
                 let private_key = load_key::<S>(&path)?;
                 let public_key = private_key.pub_key();
-                let address =
-                    address_override.unwrap_or_else(|| public_key.to_address::<S::Address>());
+                let address = address_override.unwrap_or_else(|| {
+                    public_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, S::Address>()
+                });
                 println!("Imported key pair. address: {}", address);
                 wallet_state
                     .addresses

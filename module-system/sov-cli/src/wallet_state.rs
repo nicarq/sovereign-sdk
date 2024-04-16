@@ -161,13 +161,15 @@ pub struct PrivateKeyAndAddress<S: sov_modules_api::Spec> {
 impl<S: sov_modules_api::Spec> PrivateKeyAndAddress<S> {
     /// Returns boolean if the private key matches default address
     pub fn is_matching_to_default(&self) -> bool {
-        self.private_key.to_address::<S::Address>() == self.address
+        self.private_key
+            .to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, S::Address>()
+            == self.address
     }
 
     /// Randomly generates a new private key and address
     pub fn generate() -> Self {
         let private_key = <S::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-        let address = private_key.to_address::<S::Address>();
+        let address = private_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, S::Address>();
         Self {
             private_key,
             address,
@@ -176,7 +178,7 @@ impl<S: sov_modules_api::Spec> PrivateKeyAndAddress<S> {
 
     /// Generates valid private key and address from given private key
     pub fn from_key(private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey) -> Self {
-        let address = private_key.to_address::<S::Address>();
+        let address = private_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, S::Address>();
         Self {
             private_key,
             address,

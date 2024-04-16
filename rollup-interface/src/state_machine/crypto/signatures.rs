@@ -2,8 +2,10 @@
 
 use alloc::string::String;
 use core::fmt::Debug;
-use core::hash::Hash;
+use core::hash;
 
+use digest::typenum::U32;
+use digest::Digest;
 use serde::{Deserialize, Serialize};
 
 #[cfg(not(feature = "std"))]
@@ -51,12 +53,18 @@ pub trait Signature:
     fn verify(&self, pub_key: &Self::PublicKey, msg: &[u8]) -> Result<(), SigVerificationError>;
 }
 
+/// Wrapper around hash value.
+pub struct Hash(pub [u8; 32]);
+
 /// A public key for verifying digital signatures.
 pub trait PublicKey:
-    Eq + Hash + Clone + Debug + Send + Sync + Serialize + for<'a> Deserialize<'a>
+    Eq + hash::Hash + Clone + Debug + Send + Sync + Serialize + for<'a> Deserialize<'a>
 {
     /// Returns a representation of the public key that can be represented as a rollup address.
-    fn to_address<A: RollupAddress>(&self) -> A;
+    fn to_address<Hasher: Digest<OutputSize = U32>, A: RollupAddress>(&self) -> A;
+
+    /// Returns hashed public key.
+    fn secure_hash<Hasher: Digest<OutputSize = U32>>(&self) -> Hash;
 }
 
 /// A private key for generating digital signatures.
@@ -80,8 +88,8 @@ pub trait PrivateKey:
     fn sign(&self, msg: &[u8]) -> Self::Signature;
 
     /// Returns a representation of the public key that can be used as a rollup address.
-    fn to_address<A: RollupAddress>(&self) -> A {
-        self.pub_key().to_address::<A>()
+    fn to_address<Hasher: Digest<OutputSize = U32>, A: RollupAddress>(&self) -> A {
+        self.pub_key().to_address::<Hasher, A>()
     }
 }
 

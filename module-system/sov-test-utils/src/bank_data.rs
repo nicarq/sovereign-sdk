@@ -4,7 +4,7 @@ use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{CryptoSpec, PrivateKey as _, PublicKey, Spec};
 
-use crate::{Message, MessageGenerator, TestSpec};
+use crate::{Message, MessageGenerator, TestHasher, TestSpec};
 type PrivateKey<S> = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 pub struct TransferData<S: Spec> {
@@ -49,7 +49,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) {
         let pkey = <<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey>::generate();
-        let address = pkey.to_address();
+        let address = pkey.to_address::<TestHasher, _>();
         (address, pkey)
     }
 
@@ -90,7 +90,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 token_name,
                 salt,
                 initial_balance,
-                minter_address: minter_pkey.to_address(),
+                minter_address: minter_pkey.to_address::<TestHasher, _>(),
                 minter_pkey,
                 authorized_minters,
             }],
@@ -103,7 +103,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         let mut transfer_txs = vec![];
         for _ in 1..(n + 1) {
             let priv_key = PrivateKey::<S>::generate();
-            let address: <S as Spec>::Address = priv_key.pub_key().to_address();
+            let address: <S as Spec>::Address = priv_key.pub_key().to_address::<TestHasher, _>();
 
             transfer_txs.push(TransferData {
                 sender_pkey: Rc::new(sender_pk.clone()),
@@ -123,7 +123,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     pub fn with_minter_and_transfer(
         minter_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
-        let minter_address: <S as Spec>::Address = minter_key.to_address();
+        let minter_address: <S as Spec>::Address = minter_key.to_address::<TestHasher, _>();
         let salt = DEFAULT_SALT;
         let token_name = DEFAULT_TOKEN_NAME.to_owned();
         let create_data = TokenCreateData {
@@ -147,7 +147,7 @@ impl<S: Spec> BankMessageGenerator<S> {
 
     /// Generates single [`CallMessage::CreateToken`] transaction with a specified minter.
     pub fn with_minter(minter_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey) -> Self {
-        let minter_address = minter_key.to_address();
+        let minter_address: <S as Spec>::Address = minter_key.to_address::<TestHasher, _>();
         Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
             DEFAULT_SALT,
@@ -162,7 +162,7 @@ impl BankMessageGenerator<TestSpec> {
     pub fn create_invalid_transfer(
         minter_key: <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
-        let minter_address = minter_key.to_address();
+        let minter_address = minter_key.to_address::<TestHasher, _>();
         let salt = DEFAULT_SALT;
         let token_name = DEFAULT_TOKEN_NAME.to_owned();
         let token_create_data = TokenCreateData {

@@ -8,7 +8,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::Storage;
 use sov_test_utils::bank_data::get_default_token_id;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestSpec};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestHasher, TestSpec};
 
 use super::{
     create_genesis_config_for_tests, create_storage_manager_for_tests, read_private_key,
@@ -38,7 +38,7 @@ fn test_tx_revert() {
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let admin_key = read_private_key::<TestSpec>().private_key;
-    let admin_address: <TestSpec as Spec>::Address = admin_key.to_address();
+    let admin_address: <TestSpec as Spec>::Address = admin_key.to_address::<TestHasher, _>();
 
     let storage = {
         let mut storage_manager = create_storage_manager_for_tests(tempdir.path());

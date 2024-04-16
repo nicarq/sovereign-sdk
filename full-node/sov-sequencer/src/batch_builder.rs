@@ -305,7 +305,7 @@ mod tests {
     use sov_rollup_interface::services::batch_builder::BatchBuilder;
     use sov_state::Storage;
     use sov_test_utils::runtime::{create_genesis_config, TestRuntime};
-    use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSpec};
+    use sov_test_utils::{TestHasher, TestPrivateKey, TestPublicKey, TestSpec};
     use sov_value_setter::{CallMessage, ValueSetter};
     use tempfile::TempDir;
 
@@ -420,7 +420,7 @@ mod tests {
             let admin_private_key = TestPrivateKey::generate();
             admin_private_key.pub_key()
         });
-        let admin = admin.to_address();
+        let admin = admin.to_address::<TestHasher, _>();
         let config = create_genesis_config(
             admin,
             seq_rollup_address,

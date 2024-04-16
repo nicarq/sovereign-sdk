@@ -11,7 +11,7 @@ use sov_nft_module::utils::{
 };
 use sov_nft_module::{CallMessage, CollectionAddress};
 use sov_sequencer::utils::SimpleClient;
-use sov_test_utils::{TestPrivateKey, TestSpec};
+use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
 
 const COLLECTION_1: &str = "Sovereign Squirrel Syndicate";
 const COLLECTION_2: &str = "Celestial Dolphins";
@@ -51,7 +51,11 @@ pub fn build_create_collection_transactions(
         .map(|&collection_name| {
             let tx = build_transaction(
                 creator_pk,
-                get_create_collection_message(&creator_pk.to_address(), collection_name, base_uri),
+                get_create_collection_message(
+                    &creator_pk.to_address::<TestHasher, _>(),
+                    collection_name,
+                    base_uri,
+                ),
                 *start_nonce,
             );
             *start_nonce = start_nonce.wrapping_add(1);
@@ -75,11 +79,11 @@ pub fn build_mint_transactions(
             let tx = build_transaction(
                 creator_pk,
                 get_mint_nft_message(
-                    &creator_pk.to_address(),
+                    &creator_pk.to_address::<TestHasher, _>(),
                     collection,
                     *start_nft_id,
                     base_uri,
-                    &owner_pk.to_address(),
+                    &owner_pk.to_address::<TestHasher, _>(),
                 ),
                 *start_nonce,
             );
@@ -99,7 +103,7 @@ pub fn build_transfer_transactions(
     nft_ids
         .into_iter()
         .map(|nft_id| {
-            let new_owner = TestPrivateKey::generate().to_address();
+            let new_owner = TestPrivateKey::generate().to_address::<TestHasher, _>();
             let tx = build_transaction(
                 signer,
                 get_transfer_nft_message(collection_address, nft_id, &new_owner),
@@ -168,7 +172,7 @@ async fn main() {
     let collection_1_address = get_collection_address::<TestSpec>(
         COLLECTION_1,
         creator_pk
-            .to_address::<<TestSpec as Spec>::Address>()
+            .to_address::<TestHasher, <TestSpec as Spec>::Address>()
             .as_ref(),
     );
 

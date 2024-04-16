@@ -8,7 +8,9 @@ use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::bank_data::get_default_token_id;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestPrivateKey, TestSpec};
+use sov_test_utils::{
+    has_tx_events, new_test_blob_from_batch, TestHasher, TestPrivateKey, TestSpec,
+};
 
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::simulate_da;
@@ -27,7 +29,7 @@ fn test_demo_values_in_db() {
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let admin_key = read_private_key::<TestSpec>().private_key;
-    let admin_address: <S as Spec>::Address = admin_key.to_address();
+    let admin_address: <S as Spec>::Address = admin_key.to_address::<TestHasher, _>();
 
     let last_block = {
         let stf: StfBlueprintTest = StfBlueprint::new();
@@ -124,7 +126,7 @@ fn test_demo_values_in_cache() {
         .unwrap();
 
     let private_key = read_private_key::<TestSpec>().private_key;
-    let admin_address: <S as Spec>::Address = private_key.to_address();
+    let admin_address: <S as Spec>::Address = private_key.to_address::<TestHasher, _>();
     let txs = simulate_da(private_key);
 
     let blob = new_test_blob_from_batch(
@@ -201,7 +203,7 @@ fn test_demo_values_not_in_db() {
 
     let value_setter_admin_private_key = TestPrivateKey::generate();
     let value_setter_admin_address: <TestSpec as Spec>::Address =
-        value_setter_admin_private_key.to_address();
+        value_setter_admin_private_key.to_address::<TestHasher, _>();
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let block_2 = block_1.next_mock();

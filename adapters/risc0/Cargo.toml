@@ -16,6 +16,7 @@ workspace = true
 anyhow = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
+digest = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 risc0-zkvm-platform = { workspace = true }
 risc0-zkp = { workspace = true, optional = true }
