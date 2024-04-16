@@ -1,3 +1,7 @@
+- #471 adds 3 new parameters to sov-demo-rollup
+  - optional cmd `--genesis-config-dir ../test-data/genesis/demo/celestia` to specify the genesis config directory
+  - optional cmd `--prometheus_exporter_bind 127.0.0.1:9845` to specify the prometheus exporter bind address. Useful for running several nodes on the same host.
+  - environment `export SOV_TX_SIGNER_PRIV_KEY_PATH=examples/test-data/keys/tx_signer_private_key.json` to specify the path to the transaction signer private key.
 - #452  abstracts away the transaction authorization logic. The consumers of the `sov-module-api` have to implement the new `RuntimeAuthenticator` trait. Refer to `hooks_impl.rs` for details
 
 - #413 introduces new RESTful JSON APIs for the sequencer and, most importantly, modifies the `RollupBlueprint` trait interface to allow implementations to expose Axum servers, instead of only JSON-RPC servers. In fact, `RollupBlueprint::create_rpc_methods` was renamed to `RollupBlueprint::create_endpoints`, which returns a tuple. Most `RollupBlueprint` implementations will need to use the new `sov_modules_rollup_blueprint::register_endpoints`, which replaces `sov_modules_rollup_blueprint::register_rpc`. Take a look at how `examples/demo-rollup` implements the new interface to see how it works.
