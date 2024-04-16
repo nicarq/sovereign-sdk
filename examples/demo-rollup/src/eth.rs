@@ -13,10 +13,23 @@ const TX_SIGNER_PRIV_KEY_PATH: &str = "../test-data/keys/tx_signer_private_key.j
 /// This function reads the private key of the rollup transaction signer.
 fn read_sov_tx_signer_priv_key<S: Spec>(
 ) -> Result<<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey, anyhow::Error> {
-    let data = std::fs::read_to_string(TX_SIGNER_PRIV_KEY_PATH).context("Unable to read file")?;
+    let tx_signer_key_path = std::env::var("SOV_TX_SIGNER_PRIV_KEY_PATH")
+        .unwrap_or_else(|_| TX_SIGNER_PRIV_KEY_PATH.to_string());
 
-    let key_and_address: PrivateKeyAndAddress<S> = serde_json::from_str(&data)
-        .unwrap_or_else(|_| panic!("Unable to convert data {} to PrivateKeyAndAddress", &data));
+    let data = std::fs::read_to_string(&tx_signer_key_path).with_context(|| {
+        format!(
+            "Unable to read sov ethereum tx signer key file from: {}",
+            tx_signer_key_path
+        )
+    })?;
+
+    let key_and_address: PrivateKeyAndAddress<S> =
+        serde_json::from_str(&data).unwrap_or_else(|e| {
+            panic!(
+                "Unable to convert data {} to PrivateKeyAndAddress: {:?}",
+                &data, e
+            )
+        });
 
     Ok(key_and_address.private_key)
 }
