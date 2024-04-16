@@ -10,10 +10,10 @@ use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, Accounts, CallMessage, UPDATE_ACCOUNT_MSG};
 use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-
-type S = sov_test_utils::TestSpec;
+use sov_test_utils::TestHasher;
 use sov_test_utils::TestPrivateKey;
 
+type S = sov_test_utils::TestSpec;
 // Check well-formed calls
 fuzz_target!(
     |input: (u16, [u8; 32], [u8; 32], Vec<TestPrivateKey>)| -> Corpus {
@@ -50,7 +50,10 @@ fuzz_target!(
 
         // address list is constant for this test
         let mut used = keys.iter().map(|k| k.as_hex()).collect::<HashSet<_>>();
-        let mut state: HashMap<_, _> = keys.into_iter().map(|k| (k.to_address(), k)).collect();
+        let mut state: HashMap<_, _> = keys
+            .into_iter()
+            .map(|k| (k.to_address::<TestHasher, _>(), k))
+            .collect();
         let addresses: Vec<_> = state.keys().copied().collect();
 
         for i in 0..iterations {

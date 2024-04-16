@@ -22,6 +22,8 @@ pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use tokio::sync::watch;
 
+use crate::TestHasher;
+
 const MIN_USER_BOND: u64 = 10;
 const MAX_ATTESTED_HEIGHT: u64 = 0;
 const LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
@@ -215,7 +217,7 @@ impl<S: Spec, Da: DaSpec> ContextResolver<S, Da> for TestRuntime<S, Da> {
         height: u64,
         working_set: &mut StateCheckpoint<S>,
     ) -> Context<S> {
-        let sender = tx.pub_key().to_address();
+        let sender = tx.pub_key().to_address::<TestHasher, _>();
         let sequencer = self
             .sequencer_registry
             .resolve_da_address(sequencer, working_set)

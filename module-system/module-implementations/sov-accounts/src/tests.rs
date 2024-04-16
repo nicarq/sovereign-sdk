@@ -5,12 +5,13 @@ use crate::rpc::{self, Response};
 use crate::{call, AccountConfig, Accounts};
 
 type S = sov_test_utils::TestSpec;
-use sov_test_utils::TestPrivateKey;
+
+use sov_test_utils::{TestHasher, TestPrivateKey};
 #[test]
 fn test_config_account() {
     let priv_key = TestPrivateKey::generate();
     let init_pub_key = priv_key.pub_key();
-    let init_pub_key_addr = init_pub_key.to_address::<<S as Spec>::Address>();
+    let init_pub_key_addr = init_pub_key.to_address::<TestHasher, <S as Spec>::Address>();
 
     let account_config = AccountConfig {
         pub_keys: vec![init_pub_key.clone()],
@@ -44,8 +45,8 @@ fn test_update_account() {
 
     let sender = priv_key.pub_key();
     let sequencer = sequencer_priv_key.pub_key();
-    let sender_addr = sender.to_address::<<S as Spec>::Address>();
-    let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
+    let sender_addr = sender.to_address::<TestHasher, <S as Spec>::Address>();
+    let sequencer_addr = sequencer.to_address::<TestHasher, <S as Spec>::Address>();
     let sender_context = Context::<S>::new(sender_addr, sequencer_addr, 1);
 
     // Test new account creation
@@ -102,7 +103,11 @@ fn test_update_account_fails() {
 
     let sender_1 = TestPrivateKey::generate().pub_key();
     let sequencer = TestPrivateKey::generate().pub_key();
-    let sender_context_1 = Context::<S>::new(sender_1.to_address(), sequencer.to_address(), 1);
+    let sender_context_1 = Context::<S>::new(
+        sender_1.to_address::<TestHasher, _>(),
+        sequencer.to_address::<TestHasher, _>(),
+        1,
+    );
 
     let _ = accounts.get_or_create_default(&sender_1, working_set);
 
@@ -130,8 +135,8 @@ fn test_get_account_after_pub_key_update() {
 
     let sender_1 = TestPrivateKey::generate().pub_key();
     let sequencer = TestPrivateKey::generate().pub_key();
-    let sender_1_addr = sender_1.to_address::<<S as Spec>::Address>();
-    let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
+    let sender_1_addr = sender_1.to_address::<TestHasher, <S as Spec>::Address>();
+    let sequencer_addr = sequencer.to_address::<TestHasher, <S as Spec>::Address>();
     let sender_context_1 = Context::<S>::new(sender_1_addr, sequencer_addr, 1);
 
     let _ = accounts.get_or_create_default(&sender_1, working_set);

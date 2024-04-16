@@ -5,7 +5,7 @@ use sov_modules_api::runtime::capabilities::ContextResolver;
 use sov_modules_api::{Context, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
 
 use crate::helpers::{AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, S};
 
@@ -28,7 +28,9 @@ impl TestRollup {
             bail!("The kernel height is not equal to the expected height.");
         }
 
-        let admin_pub_key = value_setter_messages.messages[0].admin.to_address();
+        let admin_pub_key = value_setter_messages.messages[0]
+            .admin
+            .to_address::<TestHasher, _>();
 
         let contexts: Vec<Context<S>> = value_setter_messages
             .create_messages()
@@ -66,7 +68,9 @@ fn test_stf_internal_updates() {
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<S, MockDaSpec>>();
 
-    let admin_pub_key = value_setter_messages.messages[0].admin.to_address();
+    let admin_pub_key = value_setter_messages.messages[0]
+        .admin
+        .to_address::<TestHasher, _>();
 
     let seq_params = SequencerParams::default();
     let seq_rollup_addr = seq_params.rollup_address;

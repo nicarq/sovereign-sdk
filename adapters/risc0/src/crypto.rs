@@ -4,10 +4,11 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use digest::typenum::U32;
+use digest::Digest;
 use ed25519_dalek::{
     Signature as DalekSignature, VerifyingKey as DalekPublicKey, PUBLIC_KEY_LENGTH,
 };
-use sha2::Digest;
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 #[cfg(feature = "native")]
 use sov_rollup_interface::schemars;
@@ -16,11 +17,12 @@ use sov_rollup_interface::RollupAddress;
 /// Defines private key types and operations
 #[cfg(feature = "native")]
 pub mod private_key {
+
     use ed25519_dalek::{Signer, SigningKey};
     use rand::rngs::OsRng;
     use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
 
-    use super::{Risc0PublicKey, Risc0Signature};
+    use super::{Digest, Risc0PublicKey, Risc0Signature, U32};
 
     /// A private key for the Risc0 signature scheme.
     /// This struct also stores the corresponding public key.
@@ -71,8 +73,13 @@ pub mod private_key {
         }
 
         /// Returns the address associated with the public key derived from this private key.
-        pub fn to_address<A: sov_rollup_interface::RollupAddress>(&self) -> A {
-            self.pub_key().to_address::<A>()
+        pub fn to_address<
+            Hasher: Digest<OutputSize = U32>,
+            A: sov_rollup_interface::RollupAddress,
+        >(
+            &self,
+        ) -> A {
+            self.pub_key().to_address::<Hasher, A>()
         }
     }
 
@@ -124,13 +131,19 @@ pub struct Risc0PublicKey {
 }
 
 impl sov_rollup_interface::crypto::PublicKey for Risc0PublicKey {
-    fn to_address<A: RollupAddress>(&self) -> A {
-        let pub_key_hash = {
-            let mut hasher = sha2::Sha256::new();
+    fn to_address<Hasher: Digest<OutputSize = U32>, A: RollupAddress>(&self) -> A {
+        let pub_key_hash = self.secure_hash::<Hasher>();
+        A::from(pub_key_hash.0)
+    }
+
+    fn secure_hash<Hasher: Digest<OutputSize = U32>>(&self) -> sov_rollup_interface::crypto::Hash {
+        let hash = {
+            let mut hasher = Hasher::new();
             hasher.update(self.pub_key);
             hasher.finalize().into()
         };
-        A::from(pub_key_hash)
+
+        sov_rollup_interface::crypto::Hash(hash)
     }
 }
 

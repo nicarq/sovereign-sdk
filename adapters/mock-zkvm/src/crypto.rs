@@ -4,10 +4,11 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use digest::typenum::U32;
+use digest::Digest;
 use ed25519_dalek::{
     Signature as DalekSignature, VerifyingKey as DalekPublicKey, PUBLIC_KEY_LENGTH,
 };
-use sha2::Digest;
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 #[cfg(feature = "native")]
 use sov_rollup_interface::schemars;
@@ -20,7 +21,7 @@ pub mod private_key {
     use rand::rngs::OsRng;
     use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
 
-    use super::{Ed25519PublicKey, Ed25519Signature};
+    use super::{Digest, Ed25519PublicKey, Ed25519Signature, U32};
 
     /// A private key for the ed25519 signature scheme.
     /// This struct also stores the corresponding public key.
@@ -71,8 +72,13 @@ pub mod private_key {
         }
 
         /// Returns the address associated with the public key derived from this private key.
-        pub fn to_address<A: sov_rollup_interface::RollupAddress>(&self) -> A {
-            self.pub_key().to_address::<A>()
+        pub fn to_address<
+            Hasher: Digest<OutputSize = U32>,
+            A: sov_rollup_interface::RollupAddress,
+        >(
+            &self,
+        ) -> A {
+            self.pub_key().to_address::<Hasher, A>()
         }
     }
 
@@ -124,13 +130,19 @@ pub struct Ed25519PublicKey {
 }
 
 impl sov_rollup_interface::crypto::PublicKey for Ed25519PublicKey {
-    fn to_address<A: RollupAddress>(&self) -> A {
-        let pub_key_hash = {
-            let mut hasher = sha2::Sha256::new();
+    fn to_address<Hasher: Digest<OutputSize = U32>, A: RollupAddress>(&self) -> A {
+        let pub_key_hash = self.secure_hash::<Hasher>();
+        A::from(pub_key_hash.0)
+    }
+
+    fn secure_hash<Hasher: Digest<OutputSize = U32>>(&self) -> sov_rollup_interface::crypto::Hash {
+        let hash = {
+            let mut hasher = Hasher::new();
             hasher.update(self.pub_key);
             hasher.finalize().into()
         };
-        A::from(pub_key_hash)
+
+        sov_rollup_interface::crypto::Hash(hash)
     }
 }
 

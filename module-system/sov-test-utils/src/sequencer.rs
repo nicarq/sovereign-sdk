@@ -14,7 +14,7 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 
 use crate::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
-use crate::{MockZkVerifier, TestPrivateKey, TestSpec};
+use crate::{MockZkVerifier, TestHasher, TestPrivateKey, TestSpec};
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 
@@ -36,7 +36,8 @@ pub type TestSequencer = Sequencer<
     MockDaService,
 >;
 
-pub type AdminPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+pub type TestCryptoSpec = <TestSpec as Spec>::CryptoSpec;
+pub type AdminPrivateKey = <TestCryptoSpec as CryptoSpec>::PrivateKey;
 
 /// A `struct` built by [`new_sequencer`] that contains a [`Sequencer`] and its
 /// RPC and Axum servers.
@@ -77,7 +78,7 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
     let (stf_state, ledger_storage) = storage_manager.create_state_for(&genesis_block_header)?;
 
     let genesis_config = create_genesis_config(
-        admin_pkey.to_address(),
+        admin_pkey.to_address::<TestHasher, _>(),
         sequencer_rollup_addr,
         SEQUENCER_ADDR.into(),
         100,

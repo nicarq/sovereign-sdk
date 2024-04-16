@@ -30,6 +30,7 @@ pub type ZkTestSpec = sov_modules_api::default_spec::ZkDefaultSpec<MockZkVerifie
 pub type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
+pub type TestHasher = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;
 
 /// Test helper: Generates an empty transaction with the given gas parameters.
 pub fn generate_empty_tx(

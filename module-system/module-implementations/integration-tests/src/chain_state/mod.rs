@@ -5,7 +5,7 @@ use sov_modules_api::{GasArray, GasPrice, KernelWorkingSet, StateCheckpoint, Wor
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator, TestHasher};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, SequencerParams, TestKernel, TestRollup,
@@ -31,7 +31,9 @@ fn test_simple_value_setter_with_chain_state() {
     // We need to multiply each component of the gas used by 2 because there are 2 messages
     let gas_used_per_slot = GAS_TX_FIXED_COST.map(|g| num_value_setter_txs as u64 * g);
 
-    let admin_pub_key = value_setter_messages.messages[0].admin.to_address();
+    let admin_pub_key = value_setter_messages.messages[0]
+        .admin
+        .to_address::<TestHasher, _>();
     let test_kernel = TestKernel::<S, MockDaSpec>::default();
 
     let seq_params = SequencerParams::default();

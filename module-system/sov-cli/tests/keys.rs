@@ -3,7 +3,8 @@ use sov_cli::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{CryptoSpec, PrivateKey, PublicKey, Spec};
-use sov_test_utils::TestSpec;
+use sov_test_utils::{TestHasher, TestSpec};
+
 type Da = MockDaSpec;
 
 #[test]
@@ -47,7 +48,7 @@ fn test_key_import() {
         entry.address,
         generated_key
             .pub_key()
-            .to_address::<<TestSpec as Spec>::Address>()
+            .to_address::<TestHasher, <TestSpec as Spec>::Address>()
     );
 }
 

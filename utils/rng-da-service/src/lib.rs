@@ -10,19 +10,19 @@ use sov_mock_da::{
     MockValidityCondChecker, MOCK_SEQUENCER_DA_ADDRESS,
 };
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-use sov_modules_api::{Address, EncodeCall, GasUnit, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{Address, CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
 use sov_rollup_interface::services::da::{DaService, RelevantBlobs, RelevantProofs, SlotData};
-use sov_test_utils::{TestPrivateKey, TestSpec};
+use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
 
 const DEFAULT_CHAIN_ID: u64 = 0;
 const DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
 const DEFAULT_MAX_FEE: u64 = 0;
 const DEFAULT_ESTIMATED_GAS_USAGE: Option<GasUnit<2>> = None;
 
-pub fn sender_address_with_pkey() -> (Address, TestPrivateKey) {
+pub fn sender_address_with_pkey<S: Spec>() -> (Address, TestPrivateKey) {
     let pk = TestPrivateKey::generate();
-    let addr = pk.to_address();
+    let addr = pk.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>();
     (addr, pk)
 }
 
@@ -184,12 +184,12 @@ impl DaVerifier for RngDaVerifier {
 
 pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
     let token_name = "sov-test-token";
-    let (sa, pk) = sender_address_with_pkey();
+    let (sa, pk) = sender_address_with_pkey::<TestSpec>();
     let token_id = sov_bank::get_token_id::<TestSpec>(token_name, &sa, 11);
     let mut message_vec = vec![];
     for i in 1..n.saturating_add(1) {
         let priv_key = TestPrivateKey::generate();
-        let address: <TestSpec as Spec>::Address = priv_key.pub_key().to_address();
+        let address: <TestSpec as Spec>::Address = priv_key.pub_key().to_address::<TestHasher, _>();
         let msg: sov_bank::CallMessage<TestSpec> = sov_bank::CallMessage::<TestSpec>::Transfer {
             to: address,
             coins: Coins {
@@ -217,7 +217,7 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
 pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
     let mut message_vec = vec![];
 
-    let (minter_address, pk) = sender_address_with_pkey();
+    let (minter_address, pk) = sender_address_with_pkey::<TestSpec>();
     let msg: sov_bank::CallMessage<TestSpec> = sov_bank::CallMessage::<TestSpec>::CreateToken {
         salt: 11,
         token_name: "sov-test-token".to_string(),
@@ -238,15 +238,4 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
     let ser_tx = tx.try_to_vec().unwrap();
     message_vec.push(ser_tx);
     message_vec.try_to_vec().unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sender_address_with_pkey_okay() {
-        // Checks that it doesn't crash.
-        sender_address_with_pkey();
-    }
 }

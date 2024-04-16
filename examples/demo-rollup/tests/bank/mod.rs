@@ -19,7 +19,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
 };
 use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
-use sov_test_utils::{TestPrivateKey, TestSpec};
+use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
 
 use crate::test_helpers::{get_appropriate_rollup_prover_config, start_rollup};
 
@@ -86,7 +86,7 @@ async fn bank_tx_tests(
 }
 
 fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSpec> {
-    let user_address: <TestSpec as Spec>::Address = key.to_address();
+    let user_address: <TestSpec as Spec>::Address = key.to_address::<TestHasher, _>();
     let msg =
         RuntimeCall::<TestSpec, MockDaSpec>::bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             salt: TOKEN_SALT,
@@ -284,12 +284,13 @@ async fn send_test_bank_txs(
     client: SimpleClient,
 ) -> Result<(), anyhow::Error> {
     let key = TestPrivateKey::generate();
-    let user_address: <TestSpec as Spec>::Address = key.to_address();
+    let user_address: <TestSpec as Spec>::Address = key.to_address::<TestHasher, _>();
 
     let token_id = sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, &user_address, TOKEN_SALT);
 
     let recipient_key = TestPrivateKey::generate();
-    let recipient_address: <TestSpec as Spec>::Address = recipient_key.to_address();
+    let recipient_address: <TestSpec as Spec>::Address =
+        recipient_key.to_address::<TestHasher, _>();
 
     let token_id_response = sov_bank::BankRpcClient::<TestSpec>::token_id(
         client.http(),
