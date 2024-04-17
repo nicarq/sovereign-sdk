@@ -1,3 +1,5 @@
+- #479 refactors the `ChainState` module integration test to be more readable and less repetitive. 
+
 - #476 updates the gas interface for the ChainState module, removes the gas price elasticity computation (it will be fixed in #468) and propagates these changes throughout the infrastructure.
 Meaningful changes:
   - Added the `INITIAL_GAS_LIMIT` and `initial_gas_price` (defined at genesis) constants. These constants are defined in the EIP-1559 and are used to handle the gas lifecycle in the chain-state module
