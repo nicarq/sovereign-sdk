@@ -1,7 +1,7 @@
 use anyhow::bail;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::runtime::capabilities::ContextResolver;
+use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
 use sov_modules_api::{Context, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;

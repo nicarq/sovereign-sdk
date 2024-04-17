@@ -13,15 +13,13 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 #[cfg(feature = "mocks")]
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
-use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
+use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks, RuntimeAuthorization};
 use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
 use sov_modules_api::{
     DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet, RuntimeEventProcessor, Spec,
     StateCheckpoint, Zkvm,
 };
-use sov_modules_core::capabilities::{
-    ContextResolver, GasEnforcer, RuntimeAuthenticator, TransactionDeduplicator,
-};
+use sov_modules_core::capabilities::{GasEnforcer, RuntimeAuthenticator};
 use sov_modules_core::VersionedStateReadWriter;
 use sov_rollup_interface::services::da::RelevantBlobIters;
 pub use sov_rollup_interface::stf::BatchReceipt;
@@ -36,8 +34,7 @@ use tracing::{debug, info};
 /// to be executed.
 pub trait Runtime<S: Spec, Da: DaSpec>:
     DispatchCall<Spec = S>
-    + TransactionDeduplicator<S, Da, Tx = Transaction<S>>
-    + ContextResolver<S, Da, Tx = Transaction<S>>
+    + RuntimeAuthorization<S, Da, Tx = Transaction<S>>
     + RuntimeAuthenticator<
         Tx = TransactionAndRawHash<S>,
         Decodable = <Self as DispatchCall>::Decodable,

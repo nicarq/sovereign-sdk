@@ -101,10 +101,21 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     );
 }
 
-/// Deduplicates transactions to prevent double-spending.
-pub trait TransactionDeduplicator<S: Spec, Da: DaSpec> {
-    /// The transaction type that the deduplicator knows how to parse.
+/// Authorizes transactions to be executed.
+pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
+    /// The transaction that is being authorized.
     type Tx;
+
+    /// Resolves the context for a transaction.
+    // TODO(@preston-evans98): This should be a read-only method https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384
+    fn resolve_context(
+        &self,
+        tx: &Self::Tx,
+        sequencer: &Da::Address,
+        height: u64,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) -> Context<S>;
+
     /// Prevents duplicate transactions from running.
     fn check_uniqueness(
         &self,
@@ -120,21 +131,6 @@ pub trait TransactionDeduplicator<S: Spec, Da: DaSpec> {
         sequencer: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     );
-}
-
-/// Resolves the context for a transaction.
-pub trait ContextResolver<S: Spec, Da: DaSpec> {
-    /// The transaction type that the resolver knows how to parse.
-    type Tx;
-    /// Resolves the context for a transaction.
-    // TODO(@preston-evans98): This should be a read-only method https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384
-    fn resolve_context(
-        &self,
-        tx: &Self::Tx,
-        sequencer: &Da::Address,
-        height: u64,
-        state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Context<S>;
 }
 
 /// RawTx represents a serialized rollup transaction received from the DA.

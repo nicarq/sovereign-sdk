@@ -5,8 +5,7 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
-    AuthenticationError, ContextResolver, GasEnforcer, RawTx, RuntimeAuthenticator,
-    TransactionDeduplicator,
+    AuthenticationError, GasEnforcer, RawTx, RuntimeAuthenticator, RuntimeAuthorization,
 };
 use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
 use sov_modules_api::{
@@ -172,8 +171,7 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> TransactionDeduplicator<S, Da> for Runtime<S, Da> {
-    /// The transaction type that the deduplicator knows how to parse.
+impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for Runtime<S, Da> {
     type Tx = Transaction<S>;
 
     /// Prevents duplicate transactions from running.
@@ -196,12 +194,7 @@ impl<S: Spec, Da: DaSpec> TransactionDeduplicator<S, Da> for Runtime<S, Da> {
     ) {
         self.accounts.mark_tx_attempted(tx, state_checkpoint);
     }
-}
 
-/// Resolves the context for a transaction.
-impl<S: Spec, Da: DaSpec> ContextResolver<S, Da> for Runtime<S, Da> {
-    /// The transaction type that the resolver knows how to parse.
-    type Tx = Transaction<S>;
     /// Resolves the context for a transaction.
     fn resolve_context(
         &self,

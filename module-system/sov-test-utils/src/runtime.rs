@@ -9,8 +9,7 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
-    AuthenticationError, ContextResolver, GasEnforcer, RawTx, RuntimeAuthenticator,
-    TransactionDeduplicator,
+    AuthenticationError, GasEnforcer, RawTx, RuntimeAuthenticator, RuntimeAuthorization,
 };
 use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
 use sov_modules_api::{
@@ -181,8 +180,7 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> TransactionDeduplicator<S, Da> for TestRuntime<S, Da> {
-    /// The transaction type that the deduplicator knows how to parse.
+impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for TestRuntime<S, Da> {
     type Tx = Transaction<S>;
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
@@ -203,12 +201,7 @@ impl<S: Spec, Da: DaSpec> TransactionDeduplicator<S, Da> for TestRuntime<S, Da> 
         _state_checkpoint: &mut StateCheckpoint<S>,
     ) {
     }
-}
 
-/// Resolves the context for a transaction.
-impl<S: Spec, Da: DaSpec> ContextResolver<S, Da> for TestRuntime<S, Da> {
-    /// The transaction type that the resolver knows how to parse.
-    type Tx = Transaction<S>;
     /// Resolves the context for a transaction.
     fn resolve_context(
         &self,
