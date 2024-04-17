@@ -37,6 +37,9 @@ pub fn simulate_da(admin: TestPrivateKey) -> Vec<RawTx> {
     messages
 }
 
+/// TODO(@theochap): This allow(dead_code) is only temporary and will be removed once the test `test_tx_gas_limit` is fixed.
+/// `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/398>`
+#[allow(dead_code)]
 pub fn simulate_da_with_gas_limit(
     value_setter_admin: TestPrivateKey,
     gas_limit: <S as Spec>::Gas,

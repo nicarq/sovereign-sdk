@@ -8,7 +8,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::namespaces::User;
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::{DaSpec, Gas, GasArray, Spec, Zkvm};
+use sov_modules_api::{DaSpec, Spec, Zkvm};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, Runtime, StfBlueprint};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
@@ -33,10 +33,7 @@ type TxReceiptContents =
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
 
-pub(crate) const GAS_PRICE_BLOCK_DEPTH: u64 = 10;
-pub(crate) const GAS_PRICE_MAXIMUM_ELASTICITY: i64 = 1;
-pub(crate) const INITIAL_GAS_PRICE: [u64; 2] = [1; 2];
-pub(crate) const MIN_GAS_PRICE: [u64; 2] = [1; 2];
+pub(crate) const INITIAL_BASE_FEE_PER_GAS: [u64; 2] = [1; 2];
 
 #[config_constant]
 pub(crate) const GAS_TX_FIXED_COST: [u64; 2];
@@ -198,12 +195,7 @@ impl TestRollup {
             BasicKernelGenesisConfig {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
-                    gas_price_blocks_depth: GAS_PRICE_BLOCK_DEPTH,
-                    gas_price_maximum_elasticity: GAS_PRICE_MAXIMUM_ELASTICITY,
-                    initial_gas_price: <<S as Spec>::Gas as Gas>::Price::from_slice(
-                        &INITIAL_GAS_PRICE,
-                    ),
-                    minimum_gas_price: <<S as Spec>::Gas as Gas>::Price::from_slice(&MIN_GAS_PRICE),
+                    initial_base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
                 },
             };
         GenesisParams {

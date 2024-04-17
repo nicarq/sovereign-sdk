@@ -2816,6 +2816,7 @@ dependencies = [
  "serde",
  "sov-modules-api",
  "sov-state",
+ "thiserror",
  "tracing",
 ]
 

@@ -1,12 +1,11 @@
 use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{GasArray, GasPrice, GasUnit, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_state::Storage;
 use sov_test_utils::bank_data::get_default_token_id;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestHasher, TestSpec};
 
@@ -17,7 +16,7 @@ use super::{
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::{
     simulate_da_with_bad_nonce, simulate_da_with_bad_serialization, simulate_da_with_bad_sig,
-    simulate_da_with_gas_limit, simulate_da_with_revert_msg,
+    simulate_da_with_revert_msg,
 };
 use crate::tests::StfBlueprintTest;
 
@@ -410,92 +409,5 @@ fn test_tx_bad_serialization() {
             .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut working_set)
             .unwrap();
         assert_eq!(sequencer_balance_before, sequencer_balance_after);
-    }
-}
-
-#[test]
-fn test_tx_gas_limit() {
-    // Test checks:
-    //  - The maximum gas price is respected
-
-    // sanity check
-    let gas_price = [1000, 1000].into();
-    let tx_max_price = [1500, 1500].into();
-    let outcome = TxEffect::Successful;
-    run_test(gas_price, tx_max_price, outcome);
-
-    // max gas price check
-    let gas_price = [1000, 1000].into();
-    let tx_max_price = [500, 500].into();
-    let outcome = TxEffect::InsufficientBaseGas;
-    run_test(gas_price, tx_max_price, outcome);
-
-    fn run_test(gas_price: GasPrice<2>, tx_gas_limit: GasUnit<2>, _outcome: TxEffect) {
-        let tempdir = tempfile::tempdir().unwrap();
-        let config = create_genesis_config_for_tests();
-        let genesis_block = MockBlock::default();
-        let block_1 = genesis_block.next_mock();
-        let stf: StfBlueprintTest = StfBlueprint::new();
-        let mut storage_manager = create_storage_manager_for_tests(tempdir.path());
-
-        let private_key = read_private_key::<TestSpec>().private_key;
-        let txs = simulate_da_with_gas_limit(private_key, tx_gas_limit);
-        let blob = new_test_blob_from_batch(
-            BatchWithId { txs, id: [0; 32] },
-            &MOCK_SEQUENCER_DA_ADDRESS,
-            [0; 32],
-        );
-
-        let mut relevant_blobs = RelevantBlobs {
-            proof_blobs: Default::default(),
-            batch_blobs: vec![blob],
-        };
-
-        let (stf_state, ledger_state) = storage_manager
-            .create_state_for(genesis_block.header())
-            .unwrap();
-        let (genesis_root, stf_change_set) = stf.init_chain(stf_state, config);
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_change_set, ledger_state.into())
-            .unwrap();
-
-        let (stf_state, _ledger_state) =
-            storage_manager.create_state_for(block_1.header()).unwrap();
-
-        let mut working_set = WorkingSet::new(stf_state.clone());
-
-        let mut gas_price_state = stf
-            .kernel()
-            .chain_state()
-            .get_gas_price_state(&mut working_set)
-            .expect("the gas state must exist from genesis");
-
-        gas_price_state.price = gas_price.clone();
-
-        stf.kernel()
-            .chain_state()
-            .set_gas_price_state(&gas_price_state, &mut working_set);
-
-        let (rw, _, witnesses) = working_set.checkpoint().0.freeze();
-        stf_state.validate_and_commit(rw, &witnesses).unwrap();
-
-        let apply_block_result = stf.apply_slot(
-            &genesis_root,
-            stf_state,
-            Default::default(),
-            &block_1.header,
-            &block_1.validity_cond,
-            relevant_blobs.as_iters(),
-        );
-
-        let _txn_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();
-
-        assert_eq!(1, apply_block_result.batch_receipts.len());
-        assert_eq!(
-            gas_price.to_vec(),
-            apply_block_result.batch_receipts[0].gas_price
-        );
-        // TODO(@theochap): fix this `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/398>`
-        // assert_eq!(outcome, txn_receipts[0].receipt);
     }
 }

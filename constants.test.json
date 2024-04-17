@@ -19,7 +19,8 @@
       11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11
     ],
     "TEST_SLICE": [11, 11, 11],
-    "PERCENT_BASE_FEE_TO_BURN": 10
+    "PERCENT_BASE_FEE_TO_BURN": 10,
+    "INITIAL_GAS_LIMIT": [100000000, 100000000]
   },
   "gas": {
     "Bank": {

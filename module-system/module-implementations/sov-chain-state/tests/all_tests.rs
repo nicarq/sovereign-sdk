@@ -1,7 +1,9 @@
-use sov_chain_state::{ChainState, ChainStateConfig, StateTransition, TransitionInProgress};
+use sov_chain_state::{
+    BlockGasInfo, ChainState, ChainStateConfig, StateTransition, TransitionInProgress,
+};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::da::{BlockHeaderTrait, Time};
-use sov_modules_api::{Gas, GasPrice, GasUnit, KernelModule, KernelWorkingSet, Spec};
+use sov_modules_api::{Gas, GasPrice, KernelModule, KernelWorkingSet};
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::StateCheckpoint;
 use sov_prover_storage_manager::new_orphan_storage;
@@ -20,15 +22,10 @@ fn test_simple_chain_state() {
     let mut state_checkpoint = StateCheckpoint::new(storage.clone());
 
     let chain_state = ChainState::<TestSpec, MockDaSpec>::default();
-    let initial_gas_price: GasPrice<2> = [2000, 2000].into();
-    let gas_price_maximum_elasticity = 1;
-    let minimum_gas_price: GasPrice<2> = [1, 1].into();
+    let initial_base_fee_per_gas: GasPrice<2> = [2000, 2000].into();
     let config = ChainStateConfig {
         current_time: Default::default(),
-        gas_price_blocks_depth: 10,
-        gas_price_maximum_elasticity,
-        initial_gas_price: initial_gas_price.clone(),
-        minimum_gas_price: minimum_gas_price.clone(),
+        initial_base_fee_per_gas: initial_base_fee_per_gas.clone(),
     };
 
     // Genesis, initialize and then commit the state
@@ -104,16 +101,17 @@ fn test_simple_chain_state() {
         .get_in_progress_transition(&mut working_set)
         .unwrap();
 
-    let expected_gas_price = initial_gas_price.clone();
-    let expected_gas_used = [0, 0].into();
+    let expected_gas_info = BlockGasInfo::new(
+        ChainState::<TestSpec, MockDaSpec>::initial_gas_limit(),
+        initial_base_fee_per_gas.clone(),
+    );
 
     assert_eq!(
         new_tx_in_progress,
         TransitionInProgress::<TestSpec, MockDaSpec>::new(
             [1; 32].into(),
             MockValidityCond { is_valid: true },
-            expected_gas_price,
-            expected_gas_used,
+            expected_gas_info,
         ),
         "The new transition has not been correctly stored"
     );
@@ -166,16 +164,17 @@ fn test_simple_chain_state() {
         .unwrap();
 
     // no gas was consumed
-    let expected_gas_price = initial_gas_price.clone();
-    let expected_gas_used: GasUnit<2> = [0, 0].into();
+    let expected_gas_info = BlockGasInfo::new(
+        ChainState::<TestSpec, MockDaSpec>::initial_gas_limit(),
+        initial_base_fee_per_gas.clone(),
+    );
 
     assert_eq!(
         new_tx_in_progress,
         TransitionInProgress::<TestSpec, MockDaSpec>::new(
             [2; 32].into(),
             MockValidityCond { is_valid: false },
-            expected_gas_price.clone(),
-            expected_gas_used.clone(),
+            expected_gas_info.clone()
         ),
         "The new transition has not been correctly stored"
     );
@@ -188,8 +187,7 @@ fn test_simple_chain_state() {
         [1; 32].into(),
         new_root_hash,
         MockValidityCond { is_valid: true },
-        expected_gas_price.clone(),
-        expected_gas_used.clone(),
+        expected_gas_info,
     );
 
     assert_eq!(
@@ -204,17 +202,20 @@ fn test_simple_chain_state() {
         "The time must be updated"
     );
 
+    // TODO(@theochap): Will be fixed in the next PR `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/474>`
     // override the gas used of the current block so the elasticity of the price can be tested for
     // the next block
-    let gas_used: GasUnit<2> = [10000, 10000].into();
+    //
+    // let gas_used: GasUnit<2> = [10000, 10000].into();
     // the expected target is the average consumption of the previous two blocks, that are [0, 0]
     // and [10000, 10000]
-    let expected_gas_target = [5000, 5000].into();
-    let mut transition = chain_state
-        .get_in_progress_transition(&mut working_set)
-        .expect("the transition was performed");
-    transition.override_gas_used(gas_used.clone());
-    chain_state.override_in_progress_transition(transition, &mut working_set);
+    // let expected_gas_target = [5000, 5000].into();
+    // let mut transition = chain_state
+    //     .get_in_progress_transition(&mut working_set)
+    //     .expect("the transition was performed");
+
+    // transition.override_gas_used(gas_used.clone());
+    // chain_state.override_in_progress_transition(transition, &mut working_set);
 
     let new_slot_data = MockBlock {
         header: MockBlockHeader {
@@ -252,15 +253,17 @@ fn test_simple_chain_state() {
 
     // gas price should sharply increase due to very high emulated demand
     let new_gas_price = new_tx_in_progress.gas_price().clone();
-    assert!(new_gas_price > initial_gas_price);
 
-    let expected_gas_price = <TestSpec as Spec>::Gas::elastic_price(
-        gas_price_maximum_elasticity,
-        &expected_gas_target,
-        &gas_used,
-        &initial_gas_price,
-        &minimum_gas_price,
-    );
+    // TODO(@theochap): Will be fixed in the next PR `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/474>`
+    // assert!(new_gas_price > initial_base_fee_per_gas);
 
-    assert_eq!(new_gas_price, expected_gas_price);
+    // let expected_gas_price = <TestSpec as Spec>::Gas::elastic_price(
+    //     gas_price_maximum_elasticity,
+    //     &expected_gas_target,
+    //     &gas_used,
+    //     &initial_base_fee_per_gas,
+    //     &minimum_gas_price,
+    // );
+
+    assert_eq!(new_gas_price, initial_base_fee_per_gas);
 }

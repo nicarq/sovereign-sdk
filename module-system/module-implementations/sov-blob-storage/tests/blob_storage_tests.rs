@@ -18,10 +18,7 @@ fn empty_test() {
     let initial_slot_number = 1;
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
-        gas_price_blocks_depth: 10,
-        gas_price_maximum_elasticity: 1,
-        initial_gas_price: [0, 0].into(),
-        minimum_gas_price: [0, 0].into(),
+        initial_base_fee_per_gas: [0, 0].into(),
     };
     chain_state
         .genesis_unchecked(
@@ -45,10 +42,7 @@ fn store_and_retrieve_standard() {
     let chain_state = ChainState::<S, Da>::default();
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
-        gas_price_blocks_depth: 10,
-        gas_price_maximum_elasticity: 1,
-        initial_gas_price: [0, 0].into(),
-        minimum_gas_price: [0, 0].into(),
+        initial_base_fee_per_gas: [0, 0].into(),
     };
     chain_state
         .genesis_unchecked(

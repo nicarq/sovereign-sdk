@@ -138,12 +138,9 @@ fn setup_helper(
         .expect("bank genesis must succeed");
 
     // Initialize chain state
-    let chain_state_config = sov_chain_state::ChainStateConfig::<S> {
+    let chain_state_config = sov_chain_state::ChainStateConfig {
         current_time: Time::now(),
-        gas_price_blocks_depth: 0,
-        gas_price_maximum_elasticity: 0,
-        initial_gas_price: GasPrice::<2>::from(TX_GAS_PRICE),
-        minimum_gas_price: GasPrice::<2>::from(TX_GAS_PRICE),
+        initial_base_fee_per_gas: GasPrice::<2>::from(TX_GAS_PRICE),
     };
 
     let chain_state = sov_chain_state::ChainState::<S, Da>::default();

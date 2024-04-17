@@ -107,10 +107,7 @@ pub(crate) fn setup(
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig {
         current_time: Default::default(),
-        gas_price_blocks_depth: 10,
-        gas_price_maximum_elasticity: 1,
-        initial_gas_price: [1, 1].into(),
-        minimum_gas_price: [1, 1].into(),
+        initial_base_fee_per_gas: [1, 1].into(),
     };
 
     let mut state_checkpoint = working_set.checkpoint().0;
