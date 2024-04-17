@@ -18,7 +18,7 @@ use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher, Tes
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, ExecutionSimulationVars, SequencerParams, TestRollup,
-    GAS_TX_FIXED_COST, MIN_GAS_PRICE, S,
+    GAS_TX_FIXED_COST, INITIAL_BASE_FEE_PER_GAS, S,
 };
 
 mod byzantine_behavior;
@@ -52,7 +52,7 @@ impl TestRollup {
     /// We charge a fixed gas price for each transaction to simplify the tests.
     pub(crate) fn gas_per_transaction(&mut self) -> u64 {
         <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(
-            &<<S as Spec>::Gas as Gas>::Price::from_slice(&MIN_GAS_PRICE),
+            &<<S as Spec>::Gas as Gas>::Price::from_slice(&INITIAL_BASE_FEE_PER_GAS),
         )
     }
 

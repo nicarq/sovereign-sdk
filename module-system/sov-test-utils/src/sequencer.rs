@@ -91,10 +91,7 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
     let kernel_genesis = BasicKernelGenesisConfig {
         chain_state: ChainStateConfig {
             current_time: Default::default(),
-            gas_price_blocks_depth: 0,
-            gas_price_maximum_elasticity: 0,
-            initial_gas_price: GasPrice::from([15; 2]),
-            minimum_gas_price: GasPrice::from([10; 2]),
+            initial_base_fee_per_gas: GasPrice::from([15; 2]),
         },
     };
     let params = GenesisParams {

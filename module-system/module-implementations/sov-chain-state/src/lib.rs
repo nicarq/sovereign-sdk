@@ -4,19 +4,16 @@
 /// Contains the call methods used by the module
 mod call;
 mod gas;
-pub use gas::GasPriceState;
 #[cfg(test)]
 mod tests;
 use sov_modules_api::{ModuleId, Spec, StateAccessor, StateReaderAndWriter};
 
 mod genesis;
 pub use genesis::*;
+use serde::de::DeserializeOwned;
 
 /// Hook implementation for the module
 pub mod hooks;
-
-#[cfg(feature = "test-utils")]
-mod utils;
 
 /// The query interface with the module
 #[cfg(feature = "native")]
@@ -28,7 +25,7 @@ use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::namespaces::Kernel;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, ValidityConditionChecker, WorkingSet,
+    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, ValidityConditionChecker,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::storage::kernel_state::VersionReader;
@@ -37,6 +34,56 @@ use sov_state::Storage;
 
 /// Type alias that contains the height of a given transition
 pub type VirtualSlotNumber = u64;
+
+/// A structure that contains block gas information.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, BorshSerialize, BorshDeserialize)]
+#[serde(bound = "GU: DeserializeOwned")]
+pub struct BlockGasInfo<GU: Gas> {
+    /// The gas limit of the block execution.
+    /// This value is dynamically adjusted over time to account for the increase
+    /// in proving/execution performance.
+    gas_limit: GU,
+    /// The gas used by the block execution.
+    /// This value is set to zero at the beginning of the block execution (in the [`ChainState::begin_slot_hook`] hook),
+    /// and is populated once the block execution is complete.
+    gas_used: GU,
+    /// The base fee per gas used for the block execution. This value combined with the `gas_used`
+    /// can be used to compute the total base fee (expressed in gas tokens) paid by the block execution.
+    base_fee_per_gas: GU::Price,
+}
+
+impl<GU: Gas> BlockGasInfo<GU> {
+    /// Creates a new [`BlockGasInfo`] with the provided gas limit and base fee per gas.
+    /// The `gas_used` is set to zero. This method is meant to be called from the [`ChainState::begin_slot_hook`] hook.
+    pub fn new(gas_limit: GU, base_fee_per_gas: GU::Price) -> Self {
+        Self {
+            gas_limit,
+            gas_used: GU::zero(),
+            base_fee_per_gas,
+        }
+    }
+
+    /// Updates the gas used by the block execution.
+    /// This method is meant to be called from the [`ChainState::end_slot_hook`] hook.
+    pub fn update_gas_used(&mut self, gas_used: GU) {
+        self.gas_used = gas_used;
+    }
+
+    /// Returns the gas limit of the block execution.
+    pub fn gas_limit(&self) -> &GU {
+        &self.gas_limit
+    }
+
+    /// Returns the gas used by the block execution.
+    pub fn gas_used(&self) -> &GU {
+        &self.gas_used
+    }
+
+    /// Returns the base fee per gas used for the block execution.
+    pub fn base_fee_per_gas(&self) -> &GU::Price {
+        &self.base_fee_per_gas
+    }
+}
 
 #[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 // We need to use derivative here because `Storage` doesn't implement `Eq` and `PartialEq`
@@ -49,8 +96,7 @@ pub struct StateTransition<S: Spec, Da: DaSpec> {
     slot_hash: Da::SlotHash,
     post_state_root: <S::Storage as Storage>::Root,
     validity_condition: Da::ValidityCondition,
-    gas_price: <S::Gas as Gas>::Price,
-    gas_used: S::Gas,
+    gas_info: BlockGasInfo<S::Gas>,
 }
 
 impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
@@ -60,15 +106,13 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
         slot_hash: Da::SlotHash,
         post_state_root: <S::Storage as Storage>::Root,
         validity_condition: Da::ValidityCondition,
-        gas_price: <S::Gas as Gas>::Price,
-        gas_used: S::Gas,
+        gas_info: BlockGasInfo<S::Gas>,
     ) -> Self {
         Self {
             slot_hash,
             post_state_root,
             validity_condition,
-            gas_price,
-            gas_used,
+            gas_info,
         }
     }
 }
@@ -96,12 +140,17 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
 
     /// Returns the total gas used for the block execution
     pub const fn gas_used(&self) -> &S::Gas {
-        &self.gas_used
+        &self.gas_info.gas_used
     }
 
     /// Returns the gas price computed for the block execution
     pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        &self.gas_price
+        &self.gas_info.base_fee_per_gas
+    }
+
+    /// Returns the gas limit of used for the block execution
+    pub const fn gas_limit(&self) -> &S::Gas {
+        &self.gas_info.gas_limit
     }
 
     /// Returns the validity condition associated with the transition
@@ -123,8 +172,7 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
 pub struct TransitionInProgress<S: Spec, Da: DaSpec> {
     slot_hash: Da::SlotHash,
     validity_condition: Da::ValidityCondition,
-    gas_price: <S::Gas as Gas>::Price,
-    gas_used: S::Gas,
+    gas_info: BlockGasInfo<S::Gas>,
 }
 
 impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
@@ -132,25 +180,28 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
     pub fn new(
         slot_hash: Da::SlotHash,
         validity_condition: Da::ValidityCondition,
-        gas_price: <S::Gas as Gas>::Price,
-        gas_used: S::Gas,
+        gas_info: BlockGasInfo<S::Gas>,
     ) -> Self {
         Self {
             slot_hash,
             validity_condition,
-            gas_price,
-            gas_used,
+            gas_info,
         }
     }
 
     /// Returns the gas price of the transition.
     pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        &self.gas_price
+        &self.gas_info.base_fee_per_gas
     }
 
     /// Returns the total gas used of the transition.
     pub const fn gas_used(&self) -> &S::Gas {
-        &self.gas_used
+        &self.gas_info.gas_used
+    }
+
+    /// Returns the gas limit of the transition.
+    pub const fn gas_limit(&self) -> &S::Gas {
+        &self.gas_info.gas_limit
     }
 
     /// Returns the block hash of the transition in progress
@@ -171,7 +222,7 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     next_visible_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
 
     /// The real slot number of the rollup.
-    // This value is also required to create a `KernelWorkingSet`. See note on `visible_height` above.
+    /// This value is also required to create a [`sov_state::storage::KernelWorkingSet`]. See note on `visible_height` above.
     #[state]
     true_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
 
@@ -184,7 +235,6 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     /// This state map is delayed by one transition. In other words - the transition that happens in time i
     /// is stored during transition i+1. This is mainly due to the fact that this structure depends on the
     /// rollup's root hash which is only stored once the transition has completed.
-    // TODO: This should be a `VersionedStateMap`, so that recent values are not visible to user-space
     #[state]
     historical_transitions:
         sov_modules_api::StateMap<TransitionHeight, StateTransition<S, Da>, BcsCodec>,
@@ -194,15 +244,17 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     in_progress_transition:
         sov_modules_api::VersionedStateValue<TransitionInProgress<S, Da>, BcsCodec>,
 
-    /// The parameters for the state based gas price computation.
-    #[state]
-    gas_price_state: sov_modules_api::StateValue<GasPriceState<S>>,
-
     /// The genesis root hash.
-    /// Set after the first transaction of the rollup is executed, using the `begin_slot` hook.
+    /// Set after the first transaction of the rollup is executed, using the [`ChainState::begin_slot_hook`] hook.
     // TODO: This should be made read-only
     #[state]
     genesis_hash: sov_modules_api::StateValue<<S::Storage as Storage>::Root>,
+
+    /// This is a constant value that is used as the gas price for the genesis block.
+    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/469>`: this field should be replaced with a constant value defined in the `constants{.test}.json` file.
+    /// This is not yet the case because that would break the tests that set the initial gas price to zero.
+    #[state]
+    initial_base_fee_per_gas: sov_modules_api::KernelStateValue<<S::Gas as Gas>::Price>,
 }
 
 impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
@@ -264,19 +316,6 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     ) -> Option<StateTransition<S, Da>> {
         self.historical_transitions
             .get(&transition_num, working_set)
-    }
-
-    /// Returns the parameters used for the gas price computation.
-    pub fn get_gas_price_state(
-        &self,
-        working_set: &mut impl StateAccessor,
-    ) -> Option<GasPriceState<S>> {
-        self.gas_price_state.get(working_set)
-    }
-
-    /// Replaces the parameters used for the gas price computation.
-    pub fn set_gas_price_state(&self, state: &GasPriceState<S>, working_set: &mut WorkingSet<S>) {
-        self.gas_price_state.set(state, working_set);
     }
 }
 

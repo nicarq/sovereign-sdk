@@ -210,7 +210,7 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
 
     {
         // get initial gas price
-        let initial_gas_price = client.eth_gas_price().await;
+        let initial_base_fee_per_gas = client.eth_gas_price().await;
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
         for i in 0..4 {
@@ -231,7 +231,7 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
 
         // assert gas price is higher
         // TODO: emulate gas price oracle here to have exact value
-        assert!(latest_gas_price > initial_gas_price);
+        assert!(latest_gas_price > initial_base_fee_per_gas);
     }
 
     let first_block = client.eth_get_block_by_number(Some("0".to_owned())).await;

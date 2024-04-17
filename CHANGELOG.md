@@ -1,7 +1,15 @@
+- #476 updates the gas interface for the ChainState module, removes the gas price elasticity computation (it will be fixed in #468) and propagates these changes throughout the infrastructure.
+Meaningful changes:
+  - Added the `INITIAL_GAS_LIMIT` and `initial_gas_price` (defined at genesis) constants. These constants are defined in the EIP-1559 and are used to handle the gas lifecycle in the chain-state module
+  - Rename the `gas_price` (a generic name not used anywhere in the EIP-1559) to `base_fee_per_gas` which is the official naming for this variable
+  - Create a `BlockGasInfo` structure that groups the `gas_used`, `gas_limit` and `base_fee_per_gas` into one wrapper.
+  - Removed the `gas_price_state` from the `chain-state` module's state. There was multiple reasons behind that:
+  - Removed the outdated gas elasticity mechanism
 - #481 This PR combines the `ContextResolver` and `TransactionDeduplicator` traits into a single `RuntimeAuthorization` trait. This is a breaking change, and consumers of the SDK will need to implement the new trait.
 
 - #472  This PR breaks downstream code in the following way:
   `PublicKey::to_address` is now parameterized by `Hasher`.
+
 
 - #471 adds 3 new parameters to sov-demo-rollup
   - optional cmd `--genesis-config-dir ../test-data/genesis/demo/celestia` to specify the genesis config directory

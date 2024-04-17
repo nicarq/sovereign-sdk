@@ -248,10 +248,7 @@ pub(crate) fn setup(
         .genesis_unchecked(
             &ChainStateConfig {
                 current_time: Time::now(),
-                gas_price_blocks_depth: 0,
-                gas_price_maximum_elasticity: 0,
-                minimum_gas_price: GasPrice::ZEROED,
-                initial_gas_price: GasPrice::ZEROED,
+                initial_base_fee_per_gas: GasPrice::ZEROED,
             },
             &mut kernel_working_set,
         )
