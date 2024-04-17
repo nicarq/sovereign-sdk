@@ -1,3 +1,5 @@
+- #481 This PR combines the `ContextResolver` and `TransactionDeduplicator` traits into a single `RuntimeAuthorization` trait. This is a breaking change, and consumers of the SDK will need to implement the new trait.
+
 - #472  This PR breaks downstream code in the following way:
   `PublicKey::to_address` is now parameterized by `Hasher`.
 
