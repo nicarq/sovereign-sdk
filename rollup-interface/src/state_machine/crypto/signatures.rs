@@ -54,6 +54,15 @@ pub trait Signature:
 }
 
 /// Wrapper around hash value.
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
+)]
 pub struct Hash(pub [u8; 32]);
 
 /// A public key for verifying digital signatures.

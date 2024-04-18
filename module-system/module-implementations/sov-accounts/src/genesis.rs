@@ -1,8 +1,7 @@
 use anyhow::{bail, Result};
-use sov_modules_api::{CryptoSpec, Spec, WorkingSet};
+use sov_modules_api::{CryptoSpec, PublicKey, Spec, WorkingSet};
 
 use crate::Accounts;
-
 /// Initial configuration for sov-accounts module.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(
@@ -20,7 +19,14 @@ impl<S: Spec> Accounts<S> {
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         for pub_key in config.pub_keys.iter() {
-            if self.accounts.get(pub_key, working_set).is_some() {
+            if self
+                .accounts
+                .get(
+                    &pub_key.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>(),
+                    working_set,
+                )
+                .is_some()
+            {
                 bail!("Account already exists")
             }
 

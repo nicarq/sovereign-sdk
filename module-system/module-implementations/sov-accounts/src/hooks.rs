@@ -6,13 +6,14 @@ use crate::{Account, Accounts};
 impl<S: Spec> Accounts<S> {
     /// Unconditionally fetches the address associated with the provided public key. If the account
     /// did not previously exist, the default public key is returned but no new account is created.
-    pub fn get_address(
+    pub(crate) fn get_address(
         &self,
         pubkey: &<S::CryptoSpec as CryptoSpec>::PublicKey,
         working_set: &mut StateCheckpoint<S>,
     ) -> S::Address {
+        let pub_key_hash = pubkey.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
         self.accounts
-            .get(pubkey, working_set)
+            .get(&pub_key_hash, working_set)
             .map(|a| a.addr)
             .unwrap_or(pubkey.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>())
     }
@@ -23,7 +24,8 @@ impl<S: Spec> Accounts<S> {
         working_set: &mut impl StateAccessor,
     ) -> Account<S>
 where {
-        if let Some(acct) = self.accounts.get(pub_key, working_set) {
+        let pub_key_hash = pub_key.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        if let Some(acct) = self.accounts.get(&pub_key_hash, working_set) {
             acct
         } else {
             let default_address: S::Address =
@@ -34,9 +36,10 @@ where {
                 nonce: 0,
             };
 
-            self.accounts.set(pub_key, &new_account, working_set);
+            self.accounts.set(&pub_key_hash, &new_account, working_set);
 
-            self.public_keys.set(&default_address, pub_key, working_set);
+            self.public_keys
+                .set(&default_address, &pub_key_hash, working_set);
             new_account
         }
     }
@@ -50,9 +53,14 @@ where {
     ) -> Result<(), anyhow::Error> {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
         // This will require a change to the account state layout
+
+        let pub_key_hash = tx
+            .pub_key()
+            .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+
         let sender_nonce = self
             .accounts
-            .get(tx.pub_key(), state_checkpoint)
+            .get(&pub_key_hash, state_checkpoint)
             .map(|a| a.nonce)
             .unwrap_or(0);
         let tx_nonce = tx.nonce();
@@ -76,7 +84,10 @@ where {
         // This will require a change to the account state layout
         let mut account = self.get_or_create_default(tx.pub_key(), state_checkpoint);
         account.nonce += 1;
-        self.accounts.set(tx.pub_key(), &account, state_checkpoint);
+        let pub_key_hash = tx
+            .pub_key()
+            .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        self.accounts.set(&pub_key_hash, &account, state_checkpoint);
     }
 
     /// Resolve the sender public key to an address

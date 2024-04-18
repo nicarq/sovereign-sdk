@@ -68,10 +68,9 @@ fn test_update_account() {
     {
         let priv_key = TestPrivateKey::generate();
         let new_pub_key = priv_key.pub_key();
-        let sig = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
         accounts
             .call(
-                call::CallMessage::<S>::UpdatePublicKey(new_pub_key.clone(), sig),
+                call::CallMessage::<S>::UpdatePublicKey(new_pub_key.clone()),
                 &sender_context,
                 working_set,
             )
@@ -113,14 +112,13 @@ fn test_update_account_fails() {
 
     let priv_key = TestPrivateKey::generate();
     let sender_2 = priv_key.pub_key();
-    let sig_2 = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
 
     let _ = accounts.get_or_create_default(&sender_2, working_set);
 
     // The new public key already exists and the call fails.
     assert!(accounts
         .call(
-            call::CallMessage::<S>::UpdatePublicKey(sender_2, sig_2),
+            call::CallMessage::<S>::UpdatePublicKey(sender_2),
             &sender_context_1,
             working_set
         )
@@ -143,16 +141,17 @@ fn test_get_account_after_pub_key_update() {
 
     let priv_key = TestPrivateKey::generate();
     let new_pub_key = priv_key.pub_key();
-    let sig = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
+
     accounts
         .call(
-            call::CallMessage::<S>::UpdatePublicKey(new_pub_key.clone(), sig),
+            call::CallMessage::<S>::UpdatePublicKey(new_pub_key.clone()),
             &sender_context_1,
             working_set,
         )
         .unwrap();
 
-    let acc = accounts.accounts.get(&new_pub_key, working_set).unwrap();
+    let pub_key_hash = new_pub_key.secure_hash::<TestHasher>();
+    let acc = accounts.accounts.get(&pub_key_hash, working_set).unwrap();
 
     assert_eq!(acc.addr, sender_1_addr);
 }

@@ -14,11 +14,7 @@ where
         let secret = <S::CryptoSpec as CryptoSpec>::PrivateKey::arbitrary(u)?;
         let public = secret.pub_key();
 
-        let payload_len = u.arbitrary_len::<u8>()?;
-        let payload = u.bytes(payload_len)?;
-        let signature = secret.sign(payload);
-
-        Ok(Self::UpdatePublicKey(public, signature))
+        Ok(Self::UpdatePublicKey(public))
     }
 }
 
@@ -31,14 +27,10 @@ where
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (
-            any::<<S::CryptoSpec as CryptoSpec>::PrivateKey>(),
-            any::<Vec<u8>>(),
-        )
-            .prop_map(|(secret, payload)| {
+        any::<<S::CryptoSpec as CryptoSpec>::PrivateKey>()
+            .prop_map(|secret| {
                 let public = secret.pub_key();
-                let signature = secret.sign(&payload);
-                Self::UpdatePublicKey(public, signature)
+                Self::UpdatePublicKey(public)
             })
             .boxed()
     }
