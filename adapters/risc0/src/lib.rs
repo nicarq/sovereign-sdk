@@ -13,7 +13,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_os = "zkvm"))]
 use sov_rollup_interface::zk::Proof;
-use sov_rollup_interface::zk::{CryptoSpec, Matches, Zkvm};
+use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, Matches, Zkvm};
+use thiserror::Error;
 
 pub mod crypto;
 pub mod guest;
@@ -44,6 +45,42 @@ impl Matches<[u32; 8]> for Risc0MethodId {
     fn matches(&self, other: &[u32; 8]) -> bool {
         &self.0 == other
     }
+}
+
+impl CodeCommitment for Risc0MethodId {
+    type DecodeError = Risc0MethodIdError;
+
+    fn encode(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(32);
+        for word in &self.0 {
+            bytes.extend_from_slice(&word.to_le_bytes());
+        }
+        bytes
+    }
+
+    fn decode(data: &[u8]) -> Result<Self, Self::DecodeError> {
+        if data.len() != 32 {
+            return Err(Risc0MethodIdError::InvalidLength { found: data.len() });
+        }
+        let mut contents = [0u32; 8];
+        for (idx, chunk) in data.chunks_exact(4).enumerate() {
+            let mut bytes = [0u8; 4];
+            bytes.copy_from_slice(chunk);
+            contents[idx] = u32::from_le_bytes(bytes);
+        }
+        Ok(Self(contents))
+    }
+}
+
+/// An error that can occur when converting a byte vector to a `Risc0MethodId`.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum Risc0MethodIdError {
+    /// The input was not 32 bytes long.
+    #[error("Risc0MethodId must be 32 bytes long, but the input was {found} bytes long")]
+    InvalidLength {
+        /// The length of the input.
+        found: usize,
+    },
 }
 
 /// The cryptographic primitives provided by the Risc0.
@@ -97,4 +134,22 @@ impl Zkvm for Risc0Verifier {
         // Implement this method once risc0 supports recursion: issue #633
         todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
     }
+}
+
+#[test]
+fn risc0_method_id_codec_roundtrip() {
+    // Check a roundtrip with the "digest" type from risc0.
+    // This ensures that our use of `from_ne_bytes` is correct on the target platform.
+    let raw_data = [1u32, 2, 3, 4, 5, 6, 7, 8];
+    let method_id = Risc0MethodId(raw_data);
+    let bytes = method_id.encode();
+    let id = Risc0MethodId::decode(&bytes).expect("Encoding is valid");
+    assert_eq!(id.0, raw_data);
+
+    // Assert that we return the expected error when the length is incorrect.
+    let bytes = vec![1u8; 31];
+    assert!(matches!(
+        Risc0MethodId::decode(&bytes),
+        Err(Risc0MethodIdError::InvalidLength { found: 31 })
+    ));
 }

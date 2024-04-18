@@ -2905,6 +2905,7 @@ dependencies = [
  "serde",
  "sha2",
  "sov-rollup-interface",
+ "thiserror",
 ]
 
 [[package]]
@@ -3027,6 +3028,7 @@ dependencies = [
  "serde",
  "sha2",
  "sov-rollup-interface",
+ "thiserror",
  "tracing",
 ]
 
