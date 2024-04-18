@@ -7,7 +7,7 @@ use libfuzzer_sys::{fuzz_target, Corpus};
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
-use sov_accounts::{AccountConfig, Accounts, CallMessage, UPDATE_ACCOUNT_MSG};
+use sov_accounts::{AccountConfig, Accounts, CallMessage};
 use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::TestHasher;
@@ -77,10 +77,9 @@ fuzz_target!(
             used.insert(secret.as_hex());
 
             let public = secret.pub_key();
-            let sig = secret.sign(&UPDATE_ACCOUNT_MSG);
             state.insert(*sender, secret);
 
-            let msg = CallMessage::<S>::UpdatePublicKey(public.clone(), sig);
+            let msg = CallMessage::<S>::UpdatePublicKey(public.clone());
             accounts.call(msg, &context, working_set).unwrap();
         }
 

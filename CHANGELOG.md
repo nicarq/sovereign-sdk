@@ -1,3 +1,5 @@
+- #480 The `Accounts` module now keeps PublicKey hashes instead of PublicKeys. This is a breaking change for consumers of the SDK only if they send messages directly to the Accounts module.
+
 - #479 refactors the `ChainState` module integration test to be more readable and less repetitive. 
 
 - #476 updates the gas interface for the ChainState module, removes the gas price elasticity computation (it will be fixed in #468) and propagates these changes throughout the infrastructure.
@@ -7,6 +9,7 @@ Meaningful changes:
   - Create a `BlockGasInfo` structure that groups the `gas_used`, `gas_limit` and `base_fee_per_gas` into one wrapper.
   - Removed the `gas_price_state` from the `chain-state` module's state. There was multiple reasons behind that:
   - Removed the outdated gas elasticity mechanism
+
 - #481 This PR combines the `ContextResolver` and `TransactionDeduplicator` traits into a single `RuntimeAuthorization` trait. This is a breaking change, and consumers of the SDK will need to implement the new trait.
 
 - #472  This PR breaks downstream code in the following way:
