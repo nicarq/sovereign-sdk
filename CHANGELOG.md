@@ -1,6 +1,12 @@
+- #484 Adds a new `CodeCommitment` trait and applies it to the associated type of the ZKVM. The 
+trait provides encode/decode methods, in addition to all existing functionality. These methods 
+should be used to convert to/from the `code_commitment` vector in `AggregatedProofPublicData`. 
+
 - #480 The `Accounts` module now keeps PublicKey hashes instead of PublicKeys. This is a breaking change for consumers of the SDK only if they send messages directly to the Accounts module.
 
+
 - #479 refactors the `ChainState` module integration test to be more readable and less repetitive. 
+
 
 - #476 updates the gas interface for the ChainState module, removes the gas price elasticity computation (it will be fixed in #468) and propagates these changes throughout the infrastructure.
 Meaningful changes:
