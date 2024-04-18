@@ -14,7 +14,7 @@ on:
 
 jobs:
   manually-delete-buildjet-cache:
-    runs-on: ubuntu-latest
+    runs-on: nscloud-ubuntu-20.04-amd64-2x4
     steps:
       - uses: actions/checkout@v3
       - uses: buildjet/cache-delete@v1
