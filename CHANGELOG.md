@@ -80,3 +80,4 @@ The prover may be slashed if it posts an invalid proof or a proof for a state tr
 - #242 changes the behavior of the `AttesterIncentives` module to gracefully exit when users are slashed and the state gets updated. The slashing reason can be retrieved as part of the `UserSlashed` event that gets emitted. Also contains small changes to the traits derived by the structures contained in the module, so that the module can be included in the runtime structures. We also add the `Checker` associated type to the `DaSpec` trait which considerably simplifies the module structure definition (contains two generics instead of 4)
 
 - #169 achieves the rollup state separation in different namespaces. Conceptually, each namespace is just defined by a triple of tables inside a shared state db - there is only one `StateDb`.
+- #451 Removes optional transactions list from RPC endpoints `eth_publishBatch`.

@@ -69,7 +69,7 @@ async fn bank_tx_tests(
                 // Otherwise batches are going to be rejected
                 sender_address: MockAddress::new([0; 32]),
                 finalization_blocks: test_case.finalization_blocks,
-                wait_attempts: 10,
+                wait_attempts: 30,
             },
         )
         .await;

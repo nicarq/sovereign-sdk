@@ -78,14 +78,4 @@ impl<S: sov_modules_api::Spec> EthBatchBuilder<S> {
         }
         Vec::default()
     }
-
-    /// Adds `messages` to the mempool and attempts to create a blob with a minimum size of `min_blob_size`.
-    pub fn add_messages_and_get_next_blob(
-        &mut self,
-        min_blob_size: Option<usize>,
-        messages: Vec<Vec<u8>>,
-    ) -> Vec<Vec<u8>> {
-        self.add_messages(messages);
-        self.get_next_blob(min_blob_size)
-    }
 }

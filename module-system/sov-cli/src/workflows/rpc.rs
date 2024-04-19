@@ -188,6 +188,18 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
 
                 let txs = wallet_state.take_signed_transactions(&private_key, nonce);
 
+                for (i, tx) in txs.iter().enumerate() {
+                    let tx_hash = hex::encode(<S::CryptoSpec as CryptoSpec>::Hasher::digest(tx));
+                    println!("Submitting tx: {}: {}", i, tx_hash);
+                    let request = serde_json::json!({ "body": tx });
+                    let response: serde_json::Value = client
+                        .request("sequencer_acceptTx", [request])
+                        .await
+                        .context("Unable to submit transaction")?;
+                    println!("Transaction {} has been submitted: {:?}", tx_hash, response);
+                }
+                println!("Triggering batch publishing");
+
                 let response: serde_json::Value = client
                     .request("sequencer_publishBatch", txs.clone())
                     .await
@@ -198,14 +210,6 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                     "Your batch was submitted to the sequencer for publication. Response: {:?}",
                     response
                 );
-                // Print transaction hashes from the batch
-                for (i, t) in txs.iter().enumerate() {
-                    println!(
-                        "{}: {}",
-                        i,
-                        hex::encode(<S::CryptoSpec as CryptoSpec>::Hasher::digest(t))
-                    );
-                }
             }
             RpcWorkflows::GetTokenAddress {
                 token_name,

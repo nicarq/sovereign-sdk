@@ -19,6 +19,11 @@ pub struct SimpleClient {
     ws_client: WsClient,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SubmitTransaction {
+    body: Vec<u8>,
+}
+
 impl SimpleClient {
     /// Creates a new client at the given endpoint
     pub async fn new(address: &str, port: u16) -> Result<Self, anyhow::Error> {
@@ -36,13 +41,21 @@ impl SimpleClient {
 
     /// Sends a transaction to the sequencer for immediate publication.
     pub async fn send_transaction<Tx: BorshSerialize>(&self, tx: Tx) -> Result<(), anyhow::Error> {
-        let batch = vec![tx.try_to_vec()?];
+        let args = vec![tx.try_to_vec()?];
 
-        let response: String = self
+        let submit_response: serde_json::Value =
+            self.http_client.request("sequence_acceptTx", args).await?;
+        info!(submit_response = ?submit_response, "Got response from `sequencer_acceptTx");
+
+        let arg: &[u8] = &[];
+        let publish_response: String = self
             .http_client
-            .request("sequencer_publishBatch", batch)
+            .request("sequencer_publishBatch", arg)
             .await?;
-        info!(?response, "Got a response from `sequencer_publishBatch`");
+        info!(
+            ?publish_response,
+            "Got a response from `sequencer_publishBatch`"
+        );
         Ok(())
     }
 
@@ -51,14 +64,21 @@ impl SimpleClient {
         &self,
         txs: &[Transaction<S>],
     ) -> Result<(), anyhow::Error> {
-        let serialized_txs: Vec<Vec<u8>> = txs
-            .iter()
-            .map(|tx| tx.try_to_vec())
-            .collect::<Result<_, _>>()?;
+        for tx in txs {
+            let request = SubmitTransaction {
+                body: tx.try_to_vec()?,
+            };
+            let response: serde_json::Value = self
+                .http_client
+                .request("sequencer_acceptTx", vec![request])
+                .await?;
+            info!(?response, "response from sequencer_acceptTx");
+        }
 
+        let arg: &[u8] = &[];
         let response: serde_json::Value = self
             .http_client
-            .request("sequencer_publishBatch", serialized_txs)
+            .request("sequencer_publishBatch", arg)
             .await?;
         info!(?response, "Got a response from `sequencer_publishBatch`");
 

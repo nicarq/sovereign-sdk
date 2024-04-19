@@ -125,15 +125,13 @@ impl<S: sov_modules_api::Spec, Da: DaService> Ethereum<S, Da> {
 
     async fn build_and_submit_batch(
         &self,
-        messages: Vec<Vec<u8>>,
         min_blob_size: Option<usize>,
     ) -> Result<(), jsonrpsee::core::Error> {
         tracing::info!(
-            messages = messages.len(),
             min_blob_size = min_blob_size,
             "Build and submit ETH batch request has been received",
         );
-        let batch = self.build_batch(messages, min_blob_size)?;
+        let batch = self.build_batch(min_blob_size)?;
         tracing::debug!(transactions_count = batch.len(), "Batch have been built");
 
         self.submit_batch(batch)
@@ -164,14 +162,13 @@ impl<S: sov_modules_api::Spec, Da: DaService> Ethereum<S, Da> {
 
     fn build_batch(
         &self,
-        messages: Vec<Vec<u8>>,
         min_blob_size: Option<usize>,
     ) -> Result<Vec<Vec<u8>>, jsonrpsee::core::Error> {
         let batch = self
             .batch_builder
             .lock()
             .unwrap()
-            .add_messages_and_get_next_blob(min_blob_size, messages);
+            .get_next_blob(min_blob_size);
 
         Ok(batch)
     }
@@ -209,16 +206,9 @@ fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService>(
         Ok::<U256, ErrorObjectOwned>(price)
     })?;
 
-    rpc.register_async_method("eth_publishBatch", |params, ethereum| async move {
-        let mut params_iter = params.sequence();
-
-        let mut txs = Vec::default();
-        while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
-            txs.push(tx);
-        }
-
+    rpc.register_async_method("eth_publishBatch", |_params, ethereum| async move {
         ethereum
-            .build_and_submit_batch(txs, Some(1))
+            .build_and_submit_batch(Some(1))
             .await
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
