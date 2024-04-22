@@ -1,5 +1,7 @@
+- #468 fixes the gas elasticity computation that was removed in #476. The base fee computation is now done in the `ChainState` module as part of the `begin_slot` hook. This PR also updates the `ChainState` integration tests to check that the base fee computation is correctly performed in the module hooks. It also adds gas elasticity tests for the `ChainState` module.
+
 - #490 Adds a `inner_code_commitment`, an `outer_code_commitment` and a `initial_da_height` field to the `ChainState` module. These fields should be initialized at genesis. Added getters for `genesis_da_height`, `outer_code_commitment` and `inner_code_commitment` in the `ChainState` module. Adapted the `demo-rollup` json configurations to use these fields. Added a new configuration folder for the stf tests that rely on `MockCodeCommitment` which have a different format from the `risc0` code commitments (32 bytes instead of 8). Modified the `AttesterIncentives` module to use the `inner_code_commitment` field from the `ChainState` module instead of the `commitment_to_allowed_challenger_method` field. Modified the `ProverIncentives` module to use the `outer_code_commitment` field from the `ChainState` module instead of the `commitment_of_allowed_verifier_method` field. 
- 
+
 - #487 Introduces the `AuthenticatedTransactionData` structure. This is the transaction data that passed the authentication phase. And updates `Accounts::CallMessage` format. This is a breaking change for consumers of the SDK only if they send messages directly to the Accounts module.
 
 - #484 Adds a new `CodeCommitment` trait and applies it to the associated type of the ZKVM. The 
@@ -8,9 +10,7 @@ should be used to convert to/from the `code_commitment` vector in `AggregatedPro
 
 - #480 The `Accounts` module now keeps PublicKey hashes instead of PublicKeys. This is a breaking change for consumers of the SDK only if they send messages directly to the Accounts module.
 
-
 - #479 refactors the `ChainState` module integration test to be more readable and less repetitive. 
-
 
 - #476 updates the gas interface for the ChainState module, removes the gas price elasticity computation (it will be fixed in #468) and propagates these changes throughout the infrastructure.
 Meaningful changes:
@@ -24,7 +24,6 @@ Meaningful changes:
 
 - #472  This PR breaks downstream code in the following way:
   `PublicKey::to_address` is now parameterized by `Hasher`.
-
 
 - #471 adds 3 new parameters to sov-demo-rollup
   - optional cmd `--genesis-config-dir ../test-data/genesis/demo/celestia` to specify the genesis config directory

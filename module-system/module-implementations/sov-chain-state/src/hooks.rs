@@ -46,8 +46,8 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             self.historical_transitions
                 .set(&slot_number, &transition, working_set.inner);
 
-            // TODO(@theochap): this value will be fixed in the next PR and updated according to EIP-1559 specification
-            let computed_base_fee = transition.gas_info.base_fee_per_gas.clone();
+            // The base fee per gas is updated according to the EIP-1559 specification
+            let computed_base_fee = Self::compute_base_fee_per_gas(&transition.gas_info);
 
             BlockGasInfo::new(
                 // TODO(@theochap): the gas limit should be updated dynamically `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/271`
