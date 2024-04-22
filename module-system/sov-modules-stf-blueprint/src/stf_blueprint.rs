@@ -6,7 +6,9 @@ use borsh::BorshSerialize;
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
+};
 use sov_modules_api::{Context, DaSpec, DispatchCall, Gas, GasArray, Spec, StateCheckpoint};
 use sov_modules_core::capabilities::AuthenticationError;
 use sov_modules_core::WorkingSet;
@@ -221,7 +223,7 @@ where
         batch: BatchWithId,
     ) -> Result<
         (
-            Vec<TransactionAndRawHash<S>>,
+            Vec<AuthenticatedTransactionAndRawHash<S>>,
             Vec<<RT as DispatchCall>::Decodable>,
         ),
         SlashingReason,
@@ -255,7 +257,7 @@ where
     #[allow(clippy::too_many_arguments)]
     fn apply_txs(
         &self,
-        txs: Vec<TransactionAndRawHash<S>>,
+        txs: Vec<AuthenticatedTransactionAndRawHash<S>>,
         messages: Vec<<RT as DispatchCall>::Decodable>,
         tx_receipts: &mut Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: StateCheckpoint<S>,
@@ -293,7 +295,7 @@ where
 #[allow(clippy::too_many_arguments)]
 pub fn apply_tx<S, RT, Da>(
     runtime: &RT,
-    tx: &TransactionAndRawHash<S>,
+    tx: &AuthenticatedTransactionAndRawHash<S>,
     message: <RT as DispatchCall>::Decodable,
     mut state_checkpoint: StateCheckpoint<S>,
     sequencer: &Da::Address,
@@ -307,9 +309,10 @@ where
     Da: DaSpec,
     RT: Runtime<S, Da>,
 {
-    let (tx, raw_tx_hash) = tx.as_tuple();
-    let ctx = runtime.resolve_context(tx, sequencer, height, &mut state_checkpoint);
+    let raw_tx_hash = &tx.raw_tx_hash;
+    let tx = &tx.authenticated_tx;
 
+    let ctx = runtime.resolve_context(tx, sequencer, height, &mut state_checkpoint);
     // Check that the transaction isn't a duplicate
     if let Err(e) = runtime.check_uniqueness(tx, &ctx, &mut state_checkpoint) {
         error!(
@@ -445,7 +448,7 @@ where
 
 fn attempt_tx<S, RT, Da>(
     runtime: &RT,
-    tx: &Transaction<S>,
+    tx: &AuthenticatedTransactionData<S>,
     message: <RT as DispatchCall>::Decodable,
     working_set: &mut WorkingSet<S>,
     ctx: &Context<S>,

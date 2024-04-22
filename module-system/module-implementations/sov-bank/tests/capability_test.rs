@@ -1,13 +1,12 @@
 use sov_bank::{Bank, IntoPayable, ReserveGasError, GAS_TOKEN_ID};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-use sov_modules_api::{GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint};
+use sov_modules_api::{Gas, GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::{generate_empty_tx, simple_bank_setup};
-type S = sov_test_utils::TestSpec;
-use sov_modules_api::Gas;
 mod helpers;
 use sov_modules_api::GasArray;
 
+type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<DefaultStorageSpec>;
 
 /// Helper struct that gets instantiated following the `reserve_gas_helper` method. Contains useful test parameters.
@@ -34,7 +33,12 @@ fn reserve_gas_helper(
 
     // We try to reserve gas, this should succeed because we have enough balance.
     let gas_meter = bank
-        .reserve_gas(&transaction, gas_price, &sender_address, &mut checkpoint)
+        .reserve_gas(
+            &transaction.clone().into(),
+            gas_price,
+            &sender_address,
+            &mut checkpoint,
+        )
         .expect("The reserve gas operation should not fail");
 
     let expected_balance_reserved = match gas_limit {
@@ -76,7 +80,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
     params.bank.refund_remaining_gas(
-        &params.transaction,
+        &params.transaction.into(),
         &params.gas_meter,
         &params.sender_address,
         &params.bank.id().to_payable(),
@@ -118,7 +122,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
     params.bank.refund_remaining_gas(
-        &params.transaction,
+        &params.transaction.into(),
         &params.gas_meter,
         &params.sender_address,
         &params.bank.id().to_payable(),
@@ -164,7 +168,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
 
     // We try to refund the gas, this should never fail.
     params.bank.refund_remaining_gas(
-        &params.transaction,
+        &params.transaction.into(),
         &params.gas_meter,
         &params.sender_address,
         &params.bank.id().to_payable(),
@@ -222,7 +226,12 @@ fn test_reserve_gas_not_enough_balance() {
 
     // We try to reserve gas, this should fail because we have not enough balance.
     let reserve_gas_result = bank
-        .reserve_gas(&transaction, &gas_price, &sender_address, &mut checkpoint)
+        .reserve_gas(
+            &transaction.into(),
+            &gas_price,
+            &sender_address,
+            &mut checkpoint,
+        )
         .expect_err("The reserve gas operation should fail");
 
     assert_eq!(
@@ -250,7 +259,12 @@ fn test_reserve_gas_price_too_high() {
 
     // We try to reserve gas, this should fail because the gas price is too high.
     let reserve_gas_result = bank
-        .reserve_gas(&transaction, &gas_price, &sender_address, &mut checkpoint)
+        .reserve_gas(
+            &transaction.into(),
+            &gas_price,
+            &sender_address,
+            &mut checkpoint,
+        )
         .expect_err("The reserve gas operation should fail");
 
     assert_eq!(reserve_gas_result, ReserveGasError::CurrentGasPriceTooHigh);
@@ -269,7 +283,7 @@ fn test_reserve_gas_should_not_overflow_or_panic_zero_priority() {
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
     params.bank.refund_remaining_gas(
-        &params.transaction,
+        &params.transaction.into(),
         &params.gas_meter,
         &params.sender_address,
         &params.bank.id().to_payable(),
@@ -303,7 +317,7 @@ fn test_reserve_gas_should_not_overflow_or_panic_non_zero_priority() {
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
     params.bank.refund_remaining_gas(
-        &params.transaction,
+        &params.transaction.into(),
         &params.gas_meter,
         &params.sender_address,
         &params.bank.id().to_payable(),

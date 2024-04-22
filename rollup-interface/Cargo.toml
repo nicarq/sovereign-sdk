@@ -41,6 +41,8 @@ proptest = { workspace = true }
 proptest-derive = { workspace = true }
 serde_json = { workspace = true }
 
+sov-rollup-interface = { path = ".", features = ["native"] }
+
 [features]
 default = [ "std" ]
 # Re-export schemars for the native feature. Consumers should only enable the schmars feature when native is active.

@@ -16,7 +16,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{CryptoSpec, EncodeCall, PrivateKey, WorkingSet};
+use sov_modules_api::{CryptoSpec, EncodeCall, PrivateKey, PublicKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::watch;
 
@@ -52,7 +52,9 @@ pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService>(
     let accounts = sov_accounts::Accounts::<S>::default();
     let sov_tx_signer_account = accounts
         .get_account(
-            sov_tx_signer_priv_key.pub_key(),
+            sov_tx_signer_priv_key
+                .pub_key()
+                .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>(),
             &mut WorkingSet::<S>::new(storage.borrow().clone()),
         )
         .unwrap();

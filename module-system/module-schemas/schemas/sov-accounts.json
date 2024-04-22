@@ -4,68 +4,30 @@
   "description": "Represents the available call messages for interacting with the sov-accounts module.",
   "oneOf": [
     {
-      "description": "Updates a public key for the corresponding Account. The sender must be in possession of the new key.",
+      "description": "Updates a public key for the corresponding Account.",
       "type": "object",
       "required": [
         "UpdatePublicKey"
       ],
       "properties": {
         "UpdatePublicKey": {
-          "type": "array",
-          "items": [
-            {
-              "$ref": "#/definitions/Ed25519PublicKey"
-            },
-            {
-              "$ref": "#/definitions/Ed25519Signature"
-            }
-          ],
-          "maxItems": 2,
-          "minItems": 2
+          "$ref": "#/definitions/Hash"
         }
       },
       "additionalProperties": false
     }
   ],
   "definitions": {
-    "Ed25519PublicKey": {
-      "description": "The public key of an ed25519 keypair.",
-      "type": "object",
-      "required": [
-        "pub_key"
-      ],
-      "properties": {
-        "pub_key": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          },
-          "maxItems": 32,
-          "minItems": 32
-        }
-      }
-    },
-    "Ed25519Signature": {
-      "description": "An ed25519 signature. Wraps the optimized Risc0 fork of the ed25519-dalek crate.",
-      "type": "object",
-      "required": [
-        "msg_sig"
-      ],
-      "properties": {
-        "msg_sig": {
-          "description": "The inner signature.",
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          },
-          "maxItems": 64,
-          "minItems": 64
-        }
-      }
+    "Hash": {
+      "description": "Wrapper around hash value.",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint8",
+        "minimum": 0.0
+      },
+      "maxItems": 32,
+      "minItems": 32
     }
   }
 }

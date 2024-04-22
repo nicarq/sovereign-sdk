@@ -11,17 +11,17 @@ use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
     AuthenticationError, GasEnforcer, RawTx, RuntimeAuthenticator, RuntimeAuthorization,
 };
-use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
+};
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, ModuleInfo, PublicKey, Spec,
+    Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, ModuleInfo, Spec,
     StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
 };
 use sov_modules_stf_blueprint::{Runtime, SequencerOutcome};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use tokio::sync::watch;
-
-use crate::TestHasher;
 
 const MIN_USER_BOND: u64 = 10;
 const MAX_ATTESTED_HEIGHT: u64 = 0;
@@ -47,7 +47,7 @@ impl<S: Spec, Da: DaSpec> TxHooks for TestRuntime<S, Da> {
 
     fn pre_dispatch_tx_hook(
         &self,
-        _tx: &Transaction<Self::Spec>,
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
         _working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
         Ok(())
@@ -55,7 +55,7 @@ impl<S: Spec, Da: DaSpec> TxHooks for TestRuntime<S, Da> {
 
     fn post_dispatch_tx_hook(
         &self,
-        _tx: &Transaction<Self::Spec>,
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
         _ctx: &Context<Self::Spec>,
         _working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
@@ -112,7 +112,7 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
 impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for TestRuntime<S, Da> {
     type Decodable = <Self as DispatchCall>::Decodable;
 
-    type Tx = TransactionAndRawHash<S>;
+    type Tx = AuthenticatedTransactionAndRawHash<S>;
 
     fn authenticate(
         &self,
@@ -140,7 +140,7 @@ impl<S: Spec, Da: DaSpec> Runtime<S, Da> for TestRuntime<S, Da> {
 
 impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
     /// The transaction type that the gas enforcer knows how to parse
-    type Tx = Transaction<S>;
+    type Tx = AuthenticatedTransactionData<S>;
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas(
         &self,
@@ -181,7 +181,7 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
 }
 
 impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for TestRuntime<S, Da> {
-    type Tx = Transaction<S>;
+    type Tx = AuthenticatedTransactionData<S>;
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
@@ -210,7 +210,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for TestRuntime<S, Da> {
         height: u64,
         working_set: &mut StateCheckpoint<S>,
     ) -> Context<S> {
-        let sender = tx.pub_key().to_address::<TestHasher, _>();
+        let sender = tx.default_address().clone();
         let sequencer = self
             .sequencer_registry
             .resolve_da_address(sequencer, working_set)

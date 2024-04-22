@@ -13,7 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_accounts::AccountsRpcClient;
 use sov_bank::{BalanceResponse, BankRpcClient, TokenId};
-use sov_modules_api::{clap, CryptoSpec};
+use sov_modules_api::{clap, CryptoSpec, PublicKey};
 use sov_rollup_interface::digest::Digest;
 
 use crate::wallet_state::{AddressEntry, KeyIdentifier, WalletState};
@@ -237,9 +237,12 @@ async fn get_nonce_for_account<S: sov_modules_api::Spec + Send + Sync + Serializ
     client: &(impl ClientT + Send + Sync),
     account: &AddressEntry<S>,
 ) -> Result<u64, anyhow::Error> {
+    let pub_key_hash = account
+        .pub_key
+        .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
     Ok(match AccountsRpcClient::<S>::get_account(
         client,
-        account.pub_key.clone(),
+        pub_key_hash,
     )
     .await
     .context(

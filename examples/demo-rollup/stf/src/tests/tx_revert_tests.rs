@@ -1,7 +1,7 @@
 use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -132,7 +132,10 @@ fn test_tx_revert() {
 
         let nonce = match runtime
             .accounts
-            .get_account(admin_key.pub_key(), &mut working_set)
+            .get_account(
+                admin_key.pub_key().secure_hash::<TestHasher>(),
+                &mut working_set,
+            )
             .unwrap()
         {
             Response::AccountExists { nonce, .. } => nonce,
@@ -223,7 +226,10 @@ fn test_tx_bad_signature() {
         let mut working_set = WorkingSet::new(storage);
         let nonce = match runtime
             .accounts
-            .get_account(admin_key.pub_key(), &mut working_set)
+            .get_account(
+                admin_key.pub_key().secure_hash::<TestHasher>(),
+                &mut working_set,
+            )
             .unwrap()
         {
             Response::AccountExists { nonce, .. } => nonce,

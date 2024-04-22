@@ -14,7 +14,9 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 #[cfg(feature = "mocks")]
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks, RuntimeAuthorization};
-use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
+};
 use sov_modules_api::{
     DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet, RuntimeEventProcessor, Spec,
     StateCheckpoint, Zkvm,
@@ -34,9 +36,9 @@ use tracing::{debug, info};
 /// to be executed.
 pub trait Runtime<S: Spec, Da: DaSpec>:
     DispatchCall<Spec = S>
-    + RuntimeAuthorization<S, Da, Tx = Transaction<S>>
+    + RuntimeAuthorization<S, Da, Tx = AuthenticatedTransactionData<S>>
     + RuntimeAuthenticator<
-        Tx = TransactionAndRawHash<S>,
+        Tx = AuthenticatedTransactionAndRawHash<S>,
         Decodable = <Self as DispatchCall>::Decodable,
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>
@@ -45,7 +47,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + ApplyBatchHooks<Da, Spec = S, BatchResult = SequencerOutcome>
     + Default
     + RuntimeEventProcessor
-    + GasEnforcer<S, Da, Tx = Transaction<S>>
+    + GasEnforcer<S, Da, Tx = AuthenticatedTransactionData<S>>
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;

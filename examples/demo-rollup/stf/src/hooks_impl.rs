@@ -7,7 +7,9 @@ use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
     AuthenticationError, GasEnforcer, RawTx, RuntimeAuthenticator, RuntimeAuthorization,
 };
-use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
+};
 use sov_modules_api::{
     Context, DispatchCall, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
@@ -23,7 +25,7 @@ impl<S: Spec, Da: DaSpec> TxHooks for Runtime<S, Da> {
 
     fn pre_dispatch_tx_hook(
         &self,
-        _tx: &Transaction<Self::Spec>,
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
         _working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
         Ok(())
@@ -31,7 +33,7 @@ impl<S: Spec, Da: DaSpec> TxHooks for Runtime<S, Da> {
 
     fn post_dispatch_tx_hook(
         &self,
-        _tx: &Transaction<Self::Spec>,
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
         _ctx: &Context<S>,
         _working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
@@ -127,7 +129,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
 
 impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
     /// The transaction type that the gas enforcer knows how to parse
-    type Tx = Transaction<S>;
+    type Tx = AuthenticatedTransactionData<S>;
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas(
         &self,
@@ -172,7 +174,7 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
 }
 
 impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for Runtime<S, Da> {
-    type Tx = Transaction<S>;
+    type Tx = AuthenticatedTransactionData<S>;
 
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
@@ -217,7 +219,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for Runtime<S, Da> {
 impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for Runtime<S, Da> {
     type Decodable = <Self as DispatchCall>::Decodable;
 
-    type Tx = TransactionAndRawHash<S>;
+    type Tx = AuthenticatedTransactionAndRawHash<S>;
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn authenticate(

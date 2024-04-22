@@ -9,7 +9,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 type S = sov_test_utils::TestSpec;
 
 // Check arbitrary, random calls
-fuzz_target!(|input: (&[u8], Vec<(Context<S>, CallMessage<S>)>)| {
+fuzz_target!(|input: (&[u8], Vec<(Context<S>, CallMessage)>)| {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let working_set = &mut WorkingSet::new(storage);

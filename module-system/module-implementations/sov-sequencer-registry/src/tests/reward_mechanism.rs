@@ -10,6 +10,7 @@ use sov_test_utils::generate_empty_tx;
 use super::helpers::{TestSequencer, INITIAL_BALANCE, S};
 use crate::tests::helpers::INITIAL_BALANCE_LARGE;
 use crate::SequencerOutcome;
+
 /// Tests that the sequencer gets correctly rewarded when it processes a batch and:
 /// - the `GasEnforcer` capability is correctly used (hence the module has enough funds to pay for the reward)
 /// - the `end_batch_hook` is called with a `SequencerOutcome::Rewarded` result
@@ -53,6 +54,7 @@ fn test_reward_sequencer() {
         .begin_batch_hook(&mut batch_test, &seq_da_address, &mut checkpoint)
         .expect("The begin batch hook should succeed");
 
+    let tx = tx.into();
     // Reserves some gas for the bank
     let mut gas_meter = sequencer_test
         .bank

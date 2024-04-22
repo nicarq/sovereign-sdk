@@ -1,17 +1,17 @@
 use sov_modules_api::{Address, Context, Module, PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::{TestHasher, TestPrivateKey};
 
 use crate::rpc::{self, Response};
 use crate::{call, AccountConfig, Accounts};
-
 type S = sov_test_utils::TestSpec;
 
-use sov_test_utils::{TestHasher, TestPrivateKey};
 #[test]
 fn test_config_account() {
     let priv_key = TestPrivateKey::generate();
     let init_pub_key = priv_key.pub_key();
     let init_pub_key_addr = init_pub_key.to_address::<TestHasher, <S as Spec>::Address>();
+    let init_pub_key_hash = init_pub_key.secure_hash::<TestHasher>();
 
     let account_config = AccountConfig {
         pub_keys: vec![init_pub_key.clone()],
@@ -23,7 +23,9 @@ fn test_config_account() {
 
     accounts.init_module(&account_config, working_set).unwrap();
 
-    let query_response = accounts.get_account(init_pub_key, working_set).unwrap();
+    let query_response = accounts
+        .get_account(init_pub_key_hash, working_set)
+        .unwrap();
 
     assert_eq!(
         query_response,
@@ -46,14 +48,18 @@ fn test_update_account() {
     let sender = priv_key.pub_key();
     let sequencer = sequencer_priv_key.pub_key();
     let sender_addr = sender.to_address::<TestHasher, <S as Spec>::Address>();
+    let sender_hash = sender.secure_hash::<TestHasher>();
+
     let sequencer_addr = sequencer.to_address::<TestHasher, <S as Spec>::Address>();
     let sender_context = Context::<S>::new(sender_addr, sequencer_addr, 1);
 
     // Test new account creation
     {
-        let _ = accounts.get_or_create_default(&sender, working_set);
+        let _ = accounts.get_or_create_default(&sender_hash, &sender_addr, working_set);
 
-        let query_response = accounts.get_account(sender.clone(), working_set).unwrap();
+        let query_response = accounts
+            .get_account(sender_hash.clone(), working_set)
+            .unwrap();
 
         assert_eq!(
             query_response,
@@ -68,21 +74,22 @@ fn test_update_account() {
     {
         let priv_key = TestPrivateKey::generate();
         let new_pub_key = priv_key.pub_key();
+        let new_pub_key_hash = new_pub_key.secure_hash::<TestHasher>();
         accounts
             .call(
-                call::CallMessage::<S>::UpdatePublicKey(new_pub_key.clone()),
+                call::CallMessage::UpdatePublicKey(new_pub_key_hash.clone()),
                 &sender_context,
                 working_set,
             )
             .unwrap();
 
         // Account corresponding to the old public key does not exist
-        let query_response = accounts.get_account(sender, working_set).unwrap();
+        let query_response = accounts.get_account(sender_hash, working_set).unwrap();
 
         assert_eq!(query_response, rpc::Response::AccountEmpty);
 
         // New account with the new public key and an old address is created.
-        let query_response = accounts.get_account(new_pub_key, working_set).unwrap();
+        let query_response = accounts.get_account(new_pub_key_hash, working_set).unwrap();
 
         assert_eq!(
             query_response,
@@ -101,6 +108,9 @@ fn test_update_account_fails() {
     let accounts = &mut Accounts::<S>::default();
 
     let sender_1 = TestPrivateKey::generate().pub_key();
+    let sender_1_addr = sender_1.to_address::<TestHasher, <S as Spec>::Address>();
+    let sender_1_hash = sender_1.secure_hash::<TestHasher>();
+
     let sequencer = TestPrivateKey::generate().pub_key();
     let sender_context_1 = Context::<S>::new(
         sender_1.to_address::<TestHasher, _>(),
@@ -108,17 +118,20 @@ fn test_update_account_fails() {
         1,
     );
 
-    let _ = accounts.get_or_create_default(&sender_1, working_set);
+    let _ = accounts.get_or_create_default(&sender_1_hash, &sender_1_addr, working_set);
 
     let priv_key = TestPrivateKey::generate();
     let sender_2 = priv_key.pub_key();
 
-    let _ = accounts.get_or_create_default(&sender_2, working_set);
+    let sender_2_addr = sender_2.to_address::<TestHasher, <S as Spec>::Address>();
+    let sender_2_hash = sender_2.secure_hash::<TestHasher>();
+
+    let _ = accounts.get_or_create_default(&sender_2_hash, &sender_2_addr, working_set);
 
     // The new public key already exists and the call fails.
     assert!(accounts
         .call(
-            call::CallMessage::<S>::UpdatePublicKey(sender_2),
+            call::CallMessage::UpdatePublicKey(sender_2_hash),
             &sender_context_1,
             working_set
         )
@@ -132,26 +145,30 @@ fn test_get_account_after_pub_key_update() {
     let accounts = &mut Accounts::<S>::default();
 
     let sender_1 = TestPrivateKey::generate().pub_key();
-    let sequencer = TestPrivateKey::generate().pub_key();
     let sender_1_addr = sender_1.to_address::<TestHasher, <S as Spec>::Address>();
+    let sender_1_hash = sender_1.secure_hash::<TestHasher>();
+
+    let sequencer = TestPrivateKey::generate().pub_key();
     let sequencer_addr = sequencer.to_address::<TestHasher, <S as Spec>::Address>();
     let sender_context_1 = Context::<S>::new(sender_1_addr, sequencer_addr, 1);
 
-    let _ = accounts.get_or_create_default(&sender_1, working_set);
+    let _ = accounts.get_or_create_default(&sender_1_hash, &sender_1_addr, working_set);
 
     let priv_key = TestPrivateKey::generate();
     let new_pub_key = priv_key.pub_key();
-
+    let new_pub_key_hash = new_pub_key.secure_hash::<TestHasher>();
     accounts
         .call(
-            call::CallMessage::<S>::UpdatePublicKey(new_pub_key.clone()),
+            call::CallMessage::UpdatePublicKey(new_pub_key_hash.clone()),
             &sender_context_1,
             working_set,
         )
         .unwrap();
 
-    let pub_key_hash = new_pub_key.secure_hash::<TestHasher>();
-    let acc = accounts.accounts.get(&pub_key_hash, working_set).unwrap();
+    let acc = accounts
+        .accounts
+        .get(&new_pub_key_hash, working_set)
+        .unwrap();
 
     assert_eq!(acc.addr, sender_1_addr);
 }

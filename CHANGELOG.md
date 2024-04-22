@@ -1,3 +1,5 @@
+- #487 Introduces the `AuthenticatedTransactionData` structure. This is the transaction data that passed the authentication phase. And updates `Accounts::CallMessage` format. This is a breaking change for consumers of the SDK only if they send messages directly to the Accounts module.
+
 - #484 Adds a new `CodeCommitment` trait and applies it to the associated type of the ZKVM. The 
 trait provides encode/decode methods, in addition to all existing functionality. These methods 
 should be used to convert to/from the `code_commitment` vector in `AggregatedProofPublicData`. 

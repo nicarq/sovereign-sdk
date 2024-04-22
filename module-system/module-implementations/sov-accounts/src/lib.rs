@@ -14,9 +14,7 @@ mod event;
 #[cfg(test)]
 mod tests;
 pub use call::CallMessage;
-use sov_modules_api::{
-    Context, CryptoSpec, Error, Hash, ModuleId, ModuleInfo, PublicKey, Spec, WorkingSet,
-};
+use sov_modules_api::{Context, CryptoSpec, Error, Hash, ModuleId, ModuleInfo, Spec, WorkingSet};
 
 use crate::event::Event;
 
@@ -62,7 +60,7 @@ impl<S: Spec> sov_modules_api::Module for Accounts<S> {
 
     type Config = AccountConfig<S>;
 
-    type CallMessage = call::CallMessage<S>;
+    type CallMessage = call::CallMessage;
 
     type Event = Event;
 
@@ -77,10 +75,8 @@ impl<S: Spec> sov_modules_api::Module for Accounts<S> {
         working_set: &mut WorkingSet<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
-            call::CallMessage::UpdatePublicKey(new_pub_key) => {
-                let pub_key_hash =
-                    new_pub_key.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-                Ok(self.update_public_key(pub_key_hash, context, working_set)?)
+            call::CallMessage::UpdatePublicKey(new_pub_key_hash) => {
+                Ok(self.update_public_key(new_pub_key_hash, context, working_set)?)
             }
         }
     }

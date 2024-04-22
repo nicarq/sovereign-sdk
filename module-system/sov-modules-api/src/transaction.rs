@@ -7,7 +7,7 @@ use sov_modules_core::{GasArray, Spec};
 use sov_modules_macros::config_constant;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
-use sov_rollup_interface::crypto::Signature as _;
+use sov_rollup_interface::crypto::{Hash, PublicKey, Signature as _};
 use sov_rollup_interface::zk::CryptoSpec;
 
 const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
@@ -77,16 +77,16 @@ impl PriorityFeeBips {
     Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize,
 )]
 pub struct Transaction<S: Spec> {
-    signature: <S::CryptoSpec as CryptoSpec>::Signature,
-    pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
-    runtime_msg: Vec<u8>,
-    chain_id: u64,
+    pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
+    pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+    pub runtime_msg: Vec<u8>,
+    pub chain_id: u64,
     /// The maximum priority fee that can be paid for this transaction expressed as a basis point percentage of the gas consumed by the transaction.
     /// Ie if the transaction has consumed `100` gas tokens, and the priority fee is set to `100_000` (10%), the
     /// gas tip will be `10` tokens.
-    max_priority_fee: PriorityFeeBips,
+    pub max_priority_fee: PriorityFeeBips,
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    max_fee: u64,
+    pub max_fee: u64,
     /// The gas limit of the transaction.
     /// This is an optional field that can be used to provide a limit of the gas usage of the transaction
     /// accross the different gas dimensions. If provided, this quantity will be used along
@@ -94,31 +94,8 @@ pub struct Transaction<S: Spec> {
     /// If the scalar product of the gas limit and the gas price is greater than the `max_fee`, the transaction will be rejected.
     /// Then up to `gas_limit *_scalar gas_price` gas tokens can be spent on gas execution in the transaction execution - if the
     /// transaction spends more than that amount, it will run out of gas and be reverted.
-    gas_limit: Option<S::Gas>,
-    nonce: u64,
-}
-
-/// An unsent transaction with the required data to be submitted to the DA layer
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-#[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct UnsignedTransaction<S: Spec, Tx>
-where
-    Tx: BorshSerialize + BorshDeserialize,
-{
-    /// The underlying transaction
-    pub tx: Tx,
-    /// The ID of the target chain
-    pub chain_id: u64,
-    /// The maximum priority fee that can be paid for this transaction expressed as a percentage.
-    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
-    pub max_priority_fee: PriorityFeeBips,
-    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub max_fee: u64,
-    /// The estimated gas usage of the transaction
-    /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
-    /// accross the different gas dimensions. If provided, this quantity will be used along
-    /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
     pub gas_limit: Option<S::Gas>,
+    pub nonce: u64,
 }
 
 impl<S: Spec> Transaction<S> {
@@ -134,47 +111,12 @@ impl<S: Spec> Transaction<S> {
         &self.runtime_msg
     }
 
-    pub const fn nonce(&self) -> u64 {
-        self.nonce
-    }
-
-    pub const fn chain_id(&self) -> u64 {
-        self.chain_id
-    }
-
-    pub const fn max_priority_fee_per_gas(&self) -> &PriorityFeeBips {
-        &self.max_priority_fee
-    }
-
-    pub const fn max_fee(&self) -> u64 {
-        self.max_fee
-    }
-
-    pub const fn gas_limit(&self) -> Option<&S::Gas> {
-        self.gas_limit.as_ref()
-    }
-
-    pub fn gas_fixed_cost(&self) -> S::Gas {
-        #[config_constant]
-        const GAS_TX_FIXED_COST: &[u64];
-
-        #[config_constant]
-        const GAS_TX_COST_PER_BYTE: &[u64];
-
-        let gas_tx_fixed_cost = S::Gas::from_slice(GAS_TX_FIXED_COST);
-        let mut gas_tx_cost = S::Gas::from_slice(GAS_TX_COST_PER_BYTE);
-
-        gas_tx_cost.scalar_product(self.runtime_msg.len() as u64);
-        gas_tx_cost.combine(&gas_tx_fixed_cost);
-
-        gas_tx_cost
-    }
-
     /// Check whether the transaction has been signed correctly.
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub fn verify(&self) -> anyhow::Result<()> {
         let gas_limit_len = self
-            .gas_limit()
+            .gas_limit
+            .as_ref()
             .map(|m| 1 + 8 * m.as_slice().len())
             .unwrap_or(1);
 
@@ -182,13 +124,12 @@ impl<S: Spec> Transaction<S> {
             Vec::with_capacity(self.runtime_msg().len() + EXTEND_MESSAGE_LEN + gas_limit_len);
 
         serialized_tx.extend_from_slice(self.runtime_msg());
-        serialized_tx.extend_from_slice(&self.chain_id().to_le_bytes());
-        serialized_tx
-            .extend_from_slice(&Into::<u64>::into(*self.max_priority_fee_per_gas()).to_le_bytes());
-        serialized_tx.extend_from_slice(&self.max_fee().to_le_bytes());
-        serialized_tx.extend_from_slice(&self.nonce().to_le_bytes());
+        serialized_tx.extend_from_slice(&self.chain_id.to_le_bytes());
+        serialized_tx.extend_from_slice(&Into::<u64>::into(self.max_priority_fee).to_le_bytes());
+        serialized_tx.extend_from_slice(&self.max_fee.to_le_bytes());
+        serialized_tx.extend_from_slice(&self.nonce.to_le_bytes());
 
-        match self.gas_limit() {
+        match &self.gas_limit {
             Some(m) => {
                 serialized_tx.push(1);
                 m.as_slice()
@@ -292,6 +233,29 @@ impl<S: Spec> Transaction<S> {
     }
 }
 
+/// An unsent transaction with the required data to be submitted to the DA layer
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
+pub struct UnsignedTransaction<S: Spec, Tx>
+where
+    Tx: BorshSerialize + BorshDeserialize,
+{
+    /// The underlying transaction
+    pub tx: Tx,
+    /// The ID of the target chain
+    pub chain_id: u64,
+    /// The maximum priority fee that can be paid for this transaction expressed as a percentage.
+    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
+    pub max_priority_fee: PriorityFeeBips,
+    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
+    pub max_fee: u64,
+    /// The estimated gas usage of the transaction
+    /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
+    /// accross the different gas dimensions. If provided, this quantity will be used along
+    /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
+    pub gas_limit: Option<S::Gas>,
+}
+
 impl<S: Spec, Tx> UnsignedTransaction<S, Tx>
 where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
@@ -315,19 +279,106 @@ where
 
 type RawTxHash = [u8; 32];
 
-pub struct TransactionAndRawHash<S: Spec> {
-    /// Deserialized transaction.
-    pub tx: Transaction<S>,
-    /// Hash of raw bytes.
-    pub raw_tx_hash: RawTxHash,
+impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
+    fn from(tx: Transaction<S>) -> Self {
+        let pub_key_hash = tx
+            .pub_key()
+            .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+
+        let default_address = tx
+            .pub_key()
+            .to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>();
+
+        Self {
+            default_address,
+            runtime_msg_len: tx.runtime_msg.len(),
+            pub_key_hash,
+            chain_id: tx.chain_id,
+            max_priority_fee: tx.max_priority_fee,
+            max_fee: tx.max_fee,
+            gas_limit: tx.gas_limit,
+            nonce: tx.nonce,
+        }
+    }
 }
 
-impl<S: Spec> TransactionAndRawHash<S> {
-    pub fn split(self) -> (Transaction<S>, RawTxHash) {
-        (self.tx, self.raw_tx_hash)
+/// Transaction data that has been authenticated.
+/// This is the output of the `RuntimeAuthenticator`.
+pub struct AuthenticatedTransactionData<S: Spec> {
+    runtime_msg_len: usize,
+    pub_key_hash: Hash,
+    default_address: S::Address,
+    chain_id: u64,
+    max_priority_fee: PriorityFeeBips,
+    max_fee: u64,
+    gas_limit: Option<S::Gas>,
+    nonce: u64,
+}
+
+impl<S: Spec> AuthenticatedTransactionData<S> {
+    /// Hash of the signer.
+    pub const fn pub_key_hash(&self) -> &Hash {
+        &self.pub_key_hash
     }
 
-    pub fn as_tuple(&self) -> (&Transaction<S>, &RawTxHash) {
-        (&self.tx, &self.raw_tx_hash)
+    /// The default address of the signer.
+    pub const fn default_address(&self) -> &S::Address {
+        &self.default_address
+    }
+
+    /// The nonce.
+    pub const fn nonce(&self) -> u64 {
+        self.nonce
+    }
+
+    /// The chain ID.
+    pub const fn chain_id(&self) -> u64 {
+        self.chain_id
+    }
+
+    /// The maximum priority fee that can be paid for this transaction expressed as a percentage.
+    pub const fn max_priority_fee_per_gas(&self) -> &PriorityFeeBips {
+        &self.max_priority_fee
+    }
+
+    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
+    pub const fn max_fee(&self) -> u64 {
+        self.max_fee
+    }
+
+    /// The estimated gas usage of the transaction
+    pub const fn gas_limit(&self) -> Option<&S::Gas> {
+        self.gas_limit.as_ref()
+    }
+
+    pub fn gas_fixed_cost(&self) -> S::Gas {
+        #[config_constant]
+        const GAS_TX_FIXED_COST: &[u64];
+
+        #[config_constant]
+        const GAS_TX_COST_PER_BYTE: &[u64];
+
+        let gas_tx_fixed_cost = S::Gas::from_slice(GAS_TX_FIXED_COST);
+        let mut gas_tx_cost = S::Gas::from_slice(GAS_TX_COST_PER_BYTE);
+
+        gas_tx_cost.scalar_product(self.runtime_msg_len as u64);
+        gas_tx_cost.combine(&gas_tx_fixed_cost);
+
+        gas_tx_cost
+    }
+}
+
+pub struct AuthenticatedTransactionAndRawHash<S: Spec> {
+    /// Hash of raw bytes.
+    pub raw_tx_hash: RawTxHash,
+    pub authenticated_tx: AuthenticatedTransactionData<S>,
+}
+
+impl<S: Spec> AuthenticatedTransactionAndRawHash<S> {
+    pub fn new(raw_tx_hash: RawTxHash, authenticated_tx: AuthenticatedTransactionData<S>) -> Self {
+        Self {
+            raw_tx_hash,
+            authenticated_tx,
+        }
     }
 }

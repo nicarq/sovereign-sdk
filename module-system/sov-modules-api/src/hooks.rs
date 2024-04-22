@@ -5,7 +5,7 @@ use sov_modules_core::{
 use sov_rollup_interface::da::DaSpec;
 
 use crate::batch::BatchWithId;
-use crate::transaction::Transaction;
+use crate::transaction::AuthenticatedTransactionData;
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -18,7 +18,7 @@ pub trait TxHooks {
     /// Runs just before a transaction is dispatched to an appropriate module.
     fn pre_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Spec>,
+        tx: &AuthenticatedTransactionData<Self::Spec>,
         working_set: &mut WorkingSet<Self::Spec>,
     ) -> anyhow::Result<()>;
 
@@ -26,7 +26,7 @@ pub trait TxHooks {
     /// IF this hook returns error rollup panics
     fn post_dispatch_tx_hook(
         &self,
-        tx: &Transaction<Self::Spec>,
+        tx: &AuthenticatedTransactionData<Self::Spec>,
         ctx: &Context<Self::Spec>,
         working_set: &mut WorkingSet<Self::Spec>,
     ) -> anyhow::Result<()>;

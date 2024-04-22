@@ -89,7 +89,8 @@ pub(crate) fn simulate_chain_state_execution(
             MAX_TX_GAS_AMOUNT,
             Some(<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED)),
             i.into(),
-        );
+        )
+        .into();
 
         // We first need to reserve gas for the transaction
         let mut gas_meter = module
