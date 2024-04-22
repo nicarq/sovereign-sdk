@@ -29,7 +29,7 @@ type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
 
 mod datagen;
 
-const DEFAULT_GENESIS_CONFIG_DIR: &str = "../test-data/genesis/benchmark";
+const DEFAULT_GENESIS_CONFIG_DIR: &str = "../test-data/genesis/integration-tests";
 
 type TestSTF<'a> = StfBlueprint<
     DefaultSpec,

@@ -17,8 +17,7 @@ pub use genesis::*;
 pub use rpc::*;
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, WorkingSet, Zkvm};
-use sov_state::codec::BcsCodec;
+use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, WorkingSet};
 
 use crate::event::Event;
 
@@ -32,11 +31,6 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     /// Id of the module.
     #[id]
     pub id: ModuleId,
-
-    /// The code commitment to be used for verifying proofs
-    #[state]
-    pub commitment_of_allowed_verifier_method:
-        sov_modules_api::StateValue<<S::OuterZkvm as Zkvm>::CodeCommitment, BcsCodec>,
 
     /// The set of registered provers and their bonded amount.
     #[state]

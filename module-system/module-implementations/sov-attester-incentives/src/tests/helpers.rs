@@ -2,7 +2,6 @@ use sov_bank::{BankConfig, GasTokenConfig, IntoPayable};
 use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
 };
-use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::namespaces::User;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
@@ -108,6 +107,9 @@ pub(crate) fn setup(
     let chain_state_config = sov_chain_state::ChainStateConfig {
         current_time: Default::default(),
         initial_base_fee_per_gas: [1, 1].into(),
+        genesis_da_height: 0,
+        inner_code_commitment: Default::default(),
+        outer_code_commitment: Default::default(),
     };
 
     let mut state_checkpoint = working_set.checkpoint().0;
@@ -125,7 +127,6 @@ pub(crate) fn setup(
     let config = crate::AttesterIncentivesConfig {
         minimum_attester_bond: BOND_AMOUNT,
         minimum_challenger_bond: BOND_AMOUNT,
-        commitment_to_allowed_challenge_method: MockCodeCommitment([0u8; 32]),
         initial_attesters: vec![(attester_address, BOND_AMOUNT)],
         rollup_finality_period: DEFAULT_ROLLUP_FINALITY,
         maximum_attested_height: INIT_HEIGHT,

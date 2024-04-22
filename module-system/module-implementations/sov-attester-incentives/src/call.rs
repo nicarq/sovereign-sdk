@@ -905,8 +905,8 @@ where
         }
 
         let code_commitment = self
-            .commitment_to_allowed_challenge_method
-            .get(working_set)
+            .chain_state
+            .inner_code_commitment(working_set)
             .expect("Should be set at genesis");
 
         // Find the faulty attestation pool and get the associated reward

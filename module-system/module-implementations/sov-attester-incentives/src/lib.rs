@@ -21,8 +21,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use rpc::*;
 use sov_bank::{Amount, BurnRate};
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, WorkingSet, Zkvm};
-use sov_state::codec::BcsCodec;
+use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, WorkingSet};
 
 use crate::event::Event;
 
@@ -54,11 +53,6 @@ where
     /// number of slots.
     #[state]
     pub rollup_finality_period: sov_modules_api::StateValue<TransitionHeight>,
-
-    /// The code commitment to be used for verifying proofs
-    #[state]
-    pub commitment_to_allowed_challenge_method:
-        sov_modules_api::StateValue<<S::InnerZkvm as Zkvm>::CodeCommitment, BcsCodec>,
 
     /// The set of bonded attesters and their bonded amount.
     #[state]

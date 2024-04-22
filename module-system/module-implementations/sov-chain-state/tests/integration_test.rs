@@ -2,6 +2,7 @@ use sov_chain_state::{
     BlockGasInfo, ChainState, ChainStateConfig, StateTransition, TransitionInProgress,
 };
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
+use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::da::Time;
 use sov_modules_api::{Gas, KernelModule, KernelWorkingSet, Spec};
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
@@ -31,6 +32,9 @@ fn init_test() -> (
     let config = ChainStateConfig {
         current_time: Default::default(),
         initial_base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
+        genesis_da_height: 0,
+        inner_code_commitment: MockCodeCommitment::default(),
+        outer_code_commitment: MockCodeCommitment::default(),
     };
 
     // Genesis, initialize and then commit the state

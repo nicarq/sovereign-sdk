@@ -8193,6 +8193,7 @@ dependencies = [
  "serde_json",
  "sov-chain-state",
  "sov-mock-da",
+ "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-core",
  "sov-prover-storage-manager",

@@ -374,8 +374,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .set(context.sender(), &new_balance, working_set);
 
         let code_commitment = self
-            .commitment_of_allowed_verifier_method
-            .get(working_set)
+            .chain_state
+            .outer_code_commitment(working_set)
             .expect("The code commitment should be set at genesis");
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         let verification_result =

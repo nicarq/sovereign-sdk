@@ -85,13 +85,15 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
         "SovereignToken".to_string(),
         10_000_000,
         MockValidityCondChecker::default(),
-        MockCodeCommitment::default(),
     );
 
     let kernel_genesis = BasicKernelGenesisConfig {
         chain_state: ChainStateConfig {
             current_time: Default::default(),
             initial_base_fee_per_gas: GasPrice::from([15; 2]),
+            inner_code_commitment: MockCodeCommitment::default(),
+            outer_code_commitment: MockCodeCommitment::default(),
+            genesis_da_height: 0,
         },
     };
     let params = GenesisParams {

@@ -19,6 +19,9 @@ fn empty_test() {
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
         initial_base_fee_per_gas: [0, 0].into(),
+        genesis_da_height: 0,
+        inner_code_commitment: Default::default(),
+        outer_code_commitment: Default::default(),
     };
     chain_state
         .genesis_unchecked(
@@ -43,6 +46,9 @@ fn store_and_retrieve_standard() {
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
         initial_base_fee_per_gas: [0, 0].into(),
+        genesis_da_height: 0,
+        inner_code_commitment: Default::default(),
+        outer_code_commitment: Default::default(),
     };
     chain_state
         .genesis_unchecked(

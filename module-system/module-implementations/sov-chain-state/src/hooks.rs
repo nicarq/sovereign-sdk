@@ -14,10 +14,10 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         pre_state_root: &<S::Storage as Storage>::Root,
         working_set: &mut KernelWorkingSet<S>,
     ) -> <S::Gas as Gas>::Price {
-        let gas_info = if self.genesis_hash.get(working_set.inner).is_none() {
+        let gas_info = if self.genesis_root.get(working_set.inner).is_none() {
             // The genesis hash is not set, hence this is the
             // first transition right after the genesis block
-            self.genesis_hash.set(pre_state_root, working_set.inner);
+            self.genesis_root.set(pre_state_root, working_set.inner);
 
             BlockGasInfo::new(
                 Self::initial_gas_limit(),

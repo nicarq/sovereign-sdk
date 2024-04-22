@@ -47,6 +47,7 @@ arbitrary = [
 	"sov-accounts/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-state/arbitrary",
+	"sov-test-utils/arbitrary",
 ]
 native = [
 	"clap",

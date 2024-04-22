@@ -249,6 +249,9 @@ pub(crate) fn setup(
             &ChainStateConfig {
                 current_time: Time::now(),
                 initial_base_fee_per_gas: GasPrice::ZEROED,
+                genesis_da_height: 0,
+                inner_code_commitment: Default::default(),
+                outer_code_commitment: Default::default(),
             },
             &mut kernel_working_set,
         )

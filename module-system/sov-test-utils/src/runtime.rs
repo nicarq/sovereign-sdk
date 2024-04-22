@@ -16,7 +16,7 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, ModuleInfo, Spec,
-    StateCheckpoint, StateReaderAndWriter, WorkingSet, Zkvm,
+    StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 use sov_modules_stf_blueprint::{Runtime, SequencerOutcome};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -230,7 +230,6 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     token_name: String,
     init_balance: u64,
     validity_condition_checker: Da::Checker,
-    commitment_to_allowed_challenge_method: <<S as Spec>::InnerZkvm as Zkvm>::CodeCommitment,
 ) -> GenesisConfig<S, Da> {
     assert!(
         init_balance >= seq_stake_amount,
@@ -249,7 +248,6 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
         attester_incentives: AttesterIncentivesConfig {
             minimum_attester_bond: MIN_USER_BOND,
             minimum_challenger_bond: MIN_USER_BOND,
-            commitment_to_allowed_challenge_method,
             initial_attesters: vec![(admin.clone(), MIN_USER_BOND)],
             rollup_finality_period: ROLLUP_FINALITY_PERIOD,
             maximum_attested_height: MAX_ATTESTED_HEIGHT,
