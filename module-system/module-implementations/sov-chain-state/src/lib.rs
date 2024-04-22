@@ -6,7 +6,7 @@ mod call;
 mod gas;
 #[cfg(test)]
 mod tests;
-use sov_modules_api::{ModuleId, Spec, StateAccessor, StateReaderAndWriter};
+use sov_modules_api::{ModuleId, Spec, StateAccessor, StateReaderAndWriter, Zkvm};
 
 mod genesis;
 pub use genesis::*;
@@ -211,7 +211,8 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
 }
 
 /// The chain state module definition. Contains the current state of the da layer.
-#[derive(Clone, KernelModuleInfo)]
+#[derive(Derivative, KernelModuleInfo)]
+#[derivative(Clone(bound = "S: Spec, Da: DaSpec"))]
 pub struct ChainState<S: Spec, Da: DaSpec> {
     /// The ID of the module.
     #[id]
@@ -248,7 +249,31 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     /// Set after the first transaction of the rollup is executed, using the [`ChainState::begin_slot_hook`] hook.
     // TODO: This should be made read-only
     #[state]
-    genesis_hash: sov_modules_api::StateValue<<S::Storage as Storage>::Root>,
+    genesis_root: sov_modules_api::StateValue<<S::Storage as Storage>::Root>,
+
+    /// The height of the first DA block.
+    /// Set at the rollup genesis. Since the rollup is always delayed by a constant amount of blocks,
+    /// we can use this value with the `true_slot_number` to get the current height of the DA layer,
+    /// using the following formula:
+    /// `current_da_height = true_slot_number + genesis_da_height`.
+    /// Should be the same as the `genesis_height` field in the `RunnerConfig` (`sov-stf-runner` crate)
+    #[state]
+    genesis_da_height: sov_modules_api::StateValue<TransitionHeight>,
+
+    /// The rollup's code commitment.
+    /// This value is initialized at genesis and can be used to verify the rollup's execution.
+    /// This value is used by the `AttesterIncentives` module to verify challenges of attestations.
+    #[state]
+    inner_code_commitment:
+        sov_modules_api::StateValue<<S::InnerZkvm as Zkvm>::CodeCommitment, BcsCodec>,
+
+    /// Aggregated code commitment.
+    /// This value is initialized at genesis and can be used in the aggregated proving circuit to
+    /// verify the rollup execution from genesis to the current slot.
+    /// This value is used by the `ProverIncentives` module to verify the proofs posted on the DA layer.
+    #[state]
+    outer_code_commitment:
+        sov_modules_api::StateValue<<S::OuterZkvm as Zkvm>::CodeCommitment, BcsCodec>,
 
     /// This is a constant value that is used as the gas price for the genesis block.
     /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/469>`: this field should be replaced with a constant value defined in the `constants{.test}.json` file.
@@ -297,7 +322,33 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         &self,
         working_set: &mut impl StateAccessor,
     ) -> Option<<S::Storage as Storage>::Root> {
-        self.genesis_hash.get(working_set)
+        self.genesis_root.get(working_set)
+    }
+
+    /// Return the code commitment to be used for verifying the rollup's execution
+    /// for each state transition.
+    pub fn inner_code_commitment(
+        &self,
+        working_set: &mut impl StateAccessor,
+    ) -> Option<<S::InnerZkvm as Zkvm>::CodeCommitment> {
+        self.inner_code_commitment.get(working_set)
+    }
+
+    /// Return the code commitment to be used for verifying the rollup's execution from genesis to the current slot
+    /// in the aggregated proving circuit.
+    pub fn outer_code_commitment(
+        &self,
+        working_set: &mut impl StateAccessor,
+    ) -> Option<<S::OuterZkvm as Zkvm>::CodeCommitment> {
+        self.outer_code_commitment.get(working_set)
+    }
+
+    /// Return the initial height of the DA layer.
+    pub fn genesis_da_height(
+        &self,
+        working_set: &mut impl StateAccessor,
+    ) -> Option<TransitionHeight> {
+        self.genesis_da_height.get(working_set)
     }
 
     /// Returns the transition in progress of the module.

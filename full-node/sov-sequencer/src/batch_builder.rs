@@ -297,7 +297,6 @@ mod tests {
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCondChecker};
-    use sov_mock_zkvm::MockCodeCommitment;
     use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, PublicKey, WorkingSet};
     use sov_prover_storage_manager::new_orphan_storage;
@@ -428,7 +427,6 @@ mod tests {
             "BatchBuilderTestToken".to_string(),
             100_000,
             MockValidityCondChecker::default(),
-            MockCodeCommitment::default(),
         );
         runtime.genesis(&config, &mut working_set).unwrap();
         let (log, _, witness) = working_set.checkpoint().0.freeze();

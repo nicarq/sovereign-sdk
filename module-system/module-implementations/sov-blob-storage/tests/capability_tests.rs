@@ -165,6 +165,9 @@ fn do_deferred_blob_test(
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
                     initial_base_fee_per_gas: GasPrice::ZEROED,
+                    genesis_da_height: 0,
+                    inner_code_commitment: Default::default(),
+                    outer_code_commitment: Default::default(),
                 },
             },
             &mut kernel_working_set,
@@ -429,6 +432,9 @@ fn test_recovery_mode() {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
                     initial_base_fee_per_gas: GasPrice::ZEROED,
+                    genesis_da_height: 0,
+                    inner_code_commitment: Default::default(),
+                    outer_code_commitment: Default::default(),
                 },
             },
             &mut kernel_working_set,
@@ -543,6 +549,9 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
                     initial_base_fee_per_gas: GasPrice::ZEROED,
+                    genesis_da_height: 0,
+                    inner_code_commitment: Default::default(),
+                    outer_code_commitment: Default::default(),
                 },
             },
             &mut kernel_working_set,
@@ -608,6 +617,9 @@ fn test_based_sequencing() {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
                     initial_base_fee_per_gas: GasPrice::ZEROED,
+                    genesis_da_height: 0,
+                    inner_code_commitment: Default::default(),
+                    outer_code_commitment: Default::default(),
                 },
             },
             &mut kernel_working_set,

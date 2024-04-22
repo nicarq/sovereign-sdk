@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
+use sov_modules_api::{DaSpec, WorkingSet};
 
 use crate::{Amount, ProverIncentives};
 
@@ -15,8 +15,6 @@ pub struct ProverIncentivesConfig<S: sov_modules_api::Spec> {
     pub proving_penalty: Amount,
     /// The minimum bond for a prover.
     pub minimum_bond: u64,
-    /// A code commitment to be used for verifying proofs
-    pub commitment_of_allowed_verifier_method: <<S as Spec>::OuterZkvm as Zkvm>::CodeCommitment,
     /// A list of initial provers and their bonded amount.
     pub initial_provers: Vec<(S::Address, u64)>,
 }
@@ -36,8 +34,6 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         );
 
         self.minimum_bond.set(&config.minimum_bond, working_set);
-        self.commitment_of_allowed_verifier_method
-            .set(&config.commitment_of_allowed_verifier_method, working_set);
         self.proving_penalty
             .set(&config.proving_penalty, working_set);
         self.last_claimed_reward.set(&0, working_set);

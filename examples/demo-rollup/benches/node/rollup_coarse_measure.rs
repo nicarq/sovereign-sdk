@@ -125,14 +125,12 @@ async fn main() -> Result<(), anyhow::Error> {
     >::new();
 
     let demo_genesis_config = {
-        let integration_test_conf_dir: &Path = "../test-data/genesis/integration-tests".as_ref();
-        let rt_params = create_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(
-            integration_test_conf_dir,
-        ))
-        .unwrap();
+        let stf_tests_conf_dir: &Path = "../test-data/genesis/stf-tests".as_ref();
+        let rt_params =
+            create_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(stf_tests_conf_dir))
+                .unwrap();
 
-        let chain_state =
-            read_json_file(integration_test_conf_dir.join("chain_state.json")).unwrap();
+        let chain_state = read_json_file(stf_tests_conf_dir.join("chain_state.json")).unwrap();
         let kernel_params = BasicKernelGenesisConfig { chain_state };
         GenesisParams {
             runtime: rt_params,

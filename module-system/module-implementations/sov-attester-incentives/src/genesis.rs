@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{DaSpec, Spec, WorkingSet, Zkvm};
+use sov_modules_api::{DaSpec, Spec, WorkingSet};
 use sov_state::Storage;
 
 use crate::{AttesterIncentives, Role};
@@ -21,8 +21,6 @@ where
     pub minimum_attester_bond: Amount,
     /// The minimum bond for a challenger.
     pub minimum_challenger_bond: Amount,
-    /// A code commitment to be used for verifying proofs
-    pub commitment_to_allowed_challenge_method: <S::InnerZkvm as Zkvm>::CodeCommitment,
     /// A list of initial attesters and their bonded amount.
     pub initial_attesters: Vec<(S::Address, Amount)>,
     /// The finality period of the rollup (constant) in the number of DA layer slots processed.
@@ -58,9 +56,6 @@ where
             .set(&config.minimum_attester_bond, working_set);
         self.minimum_challenger_bond
             .set(&config.minimum_challenger_bond, working_set);
-
-        self.commitment_to_allowed_challenge_method
-            .set(&config.commitment_to_allowed_challenge_method, working_set);
 
         self.rollup_finality_period
             .set(&config.rollup_finality_period, working_set);

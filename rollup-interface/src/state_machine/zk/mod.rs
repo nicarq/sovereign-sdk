@@ -74,7 +74,7 @@ pub trait ZkvmHost: Clone + Send + Sync {
 
 /// A commitment to a zkVM program.
 pub trait CodeCommitment:
-    Matches<Self> + Clone + Debug + Serialize + DeserializeOwned + Send + Sync
+    Matches<Self> + Clone + Debug + Serialize + DeserializeOwned + Send + Sync + PartialEq + Eq
 {
     /// An error that occurs while trying to decode a commitment.
     type DecodeError: Debug;

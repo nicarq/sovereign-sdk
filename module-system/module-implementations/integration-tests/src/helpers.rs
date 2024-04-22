@@ -184,8 +184,6 @@ impl TestRollup {
                 minimum_challenger_bond: attester_params.minimum_challenger_bond,
                 maximum_attested_height: attester_params.maximum_attested_height,
                 light_client_finalized_height: attester_params.light_client_finalized_height,
-                commitment_to_allowed_challenge_method: attester_params
-                    .commitment_to_allowed_challenge_method,
                 validity_condition_checker: attester_params.validity_condition_checker,
                 phantom_data: Default::default(),
             },
@@ -196,6 +194,10 @@ impl TestRollup {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
                     initial_base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
+                    // The rollup code commitment is the same as the attester incentives challenge commitment
+                    inner_code_commitment: attester_params.commitment_to_allowed_challenge_method,
+                    outer_code_commitment: MockCodeCommitment::default(),
+                    genesis_da_height: 0,
                 },
             };
         GenesisParams {

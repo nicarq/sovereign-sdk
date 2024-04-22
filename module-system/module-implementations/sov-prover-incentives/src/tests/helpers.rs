@@ -142,6 +142,9 @@ fn setup_helper(
     let chain_state_config = sov_chain_state::ChainStateConfig {
         current_time: Time::now(),
         initial_base_fee_per_gas: GasPrice::<2>::from(TX_GAS_PRICE),
+        genesis_da_height: 0,
+        inner_code_commitment: MockCodeCommitment::default(),
+        outer_code_commitment: MockCodeCommitment::default(),
     };
 
     let chain_state = sov_chain_state::ChainState::<S, Da>::default();
@@ -158,7 +161,6 @@ fn setup_helper(
     let config = crate::ProverIncentivesConfig {
         proving_penalty: BOND_AMOUNT / 2,
         minimum_bond: BOND_AMOUNT,
-        commitment_of_allowed_verifier_method: MockCodeCommitment([0u8; 32]),
         initial_provers: vec![(prover_address, BOND_AMOUNT)],
     };
 
