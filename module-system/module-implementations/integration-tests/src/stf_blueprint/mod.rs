@@ -37,7 +37,7 @@ impl TestRollup {
             .into_iter()
             .map(|m| {
                 self.stf().runtime().resolve_context(
-                    &m.to_tx::<TestRuntime<S, Da>>(),
+                    &m.to_tx::<TestRuntime<S, Da>>().into(),
                     &seq_da_addr,
                     height,
                     &mut state_checkpoint,

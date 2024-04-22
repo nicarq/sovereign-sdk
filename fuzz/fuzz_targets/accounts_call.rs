@@ -1,17 +1,17 @@
 #![no_main]
 
-use std::collections::{HashMap, HashSet};
-
 use libfuzzer_sys::arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::{fuzz_target, Corpus};
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, Accounts, CallMessage};
+use sov_modules_api::PublicKey;
 use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::TestHasher;
 use sov_test_utils::TestPrivateKey;
+use std::collections::{HashMap, HashSet};
 
 type S = sov_test_utils::TestSpec;
 // Check well-formed calls
@@ -79,7 +79,9 @@ fuzz_target!(
             let public = secret.pub_key();
             state.insert(*sender, secret);
 
-            let msg = CallMessage::<S>::UpdatePublicKey(public.clone());
+            let pub_key_hash = public.secure_hash::<TestHasher>();
+
+            let msg = CallMessage::UpdatePublicKey(pub_key_hash);
             accounts.call(msg, &context, working_set).unwrap();
         }
 

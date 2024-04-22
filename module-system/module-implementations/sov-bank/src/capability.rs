@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{Gas, GasMeter, Spec, StateCheckpoint};
 use thiserror::Error;
 
@@ -24,7 +24,7 @@ impl<S: Spec> Bank<S> {
     /// This method loosely follow the-EIP 1559 gas price calculation.
     pub fn reserve_gas(
         &self,
-        tx: &Transaction<S>,
+        tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
@@ -77,7 +77,7 @@ impl<S: Spec> Bank<S> {
     /// Refunds any remaining gas to the payer from the bank module after the transaction is processed.
     pub fn refund_remaining_gas(
         &self,
-        tx: &Transaction<S>,
+        tx: &AuthenticatedTransactionData<S>,
         gas_meter: &sov_modules_api::GasMeter<S::Gas>,
         payer: &S::Address,
         // The address that receives the base fee. Typically, this is the module id of either the `ProverIncentives` or the `AttesterIncentives` module.

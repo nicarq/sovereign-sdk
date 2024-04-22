@@ -151,7 +151,8 @@ pub enum AuthenticationError {
     MessageDecodingFailed(String, [u8; 32]),
 }
 
-/// Authenticates raw transactions.
+/// Authenticates raw transactions. Implementations of this trait should provide a way to interpret the raw bytes of the transaction and authenticate it.
+/// Typically, the authentication will require checking the signature of the transaction.
 pub trait RuntimeAuthenticator {
     /// Decoded message.
     type Decodable;

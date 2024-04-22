@@ -1,5 +1,5 @@
 use anyhow::{ensure, Result};
-use sov_modules_api::{CallResponse, Context, CryptoSpec, Hash, Spec, WorkingSet};
+use sov_modules_api::{CallResponse, Context, Hash, Spec, WorkingSet};
 
 use crate::Accounts;
 
@@ -7,11 +7,7 @@ use crate::Accounts;
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
-    derive(sov_modules_api::macros::CliWalletArg),
-    schemars(
-        bound = "<S::CryptoSpec as CryptoSpec>::PublicKey: ::schemars::JsonSchema, <S::CryptoSpec as CryptoSpec>::Signature: ::schemars::JsonSchema",
-        rename = "CallMessage"
-    )
+    derive(sov_modules_api::macros::CliWalletArg)
 )]
 #[derive(
     borsh::BorshDeserialize,
@@ -22,11 +18,11 @@ use crate::Accounts;
     PartialEq,
     Clone,
 )]
-pub enum CallMessage<S: Spec> {
+pub enum CallMessage {
     /// Updates a public key for the corresponding Account.
     UpdatePublicKey(
-        /// The new public key
-        <S::CryptoSpec as CryptoSpec>::PublicKey,
+        /// The new public key hash
+        Hash,
     ),
 }
 

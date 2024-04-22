@@ -1,7 +1,7 @@
 //! Defines rpc queries exposed by the accounts module, along with the relevant types
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{CryptoSpec, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{Hash, Spec, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -26,10 +26,9 @@ impl<S: Spec> Accounts<S> {
     /// Get the account corresponding to the given public key.
     pub fn get_account(
         &self,
-        pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+        pub_key_hash: Hash,
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<Response<S::Address>> {
-        let pub_key_hash = pub_key.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
         let response = match self.accounts.get(&pub_key_hash, working_set) {
             Some(Account { addr, nonce }) => Response::AccountExists { addr, nonce },
             None => Response::AccountEmpty,

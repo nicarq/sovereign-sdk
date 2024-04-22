@@ -6,7 +6,7 @@ use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::transaction::{Transaction, TransactionAndRawHash};
+use sov_modules_api::transaction::{AuthenticatedTransactionAndRawHash, Transaction};
 use sov_modules_api::{CryptoSpec, Gas, GasArray, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::{apply_tx, ExecutionMode, Runtime, TxEffect};
 use sov_rollup_interface::da::DaSpec;
@@ -92,10 +92,9 @@ where
         let msg = R::decode_call(tx.runtime_msg())
             .expect("Undecodable transaction has been accepted into the pool");
 
-        let tx_and_raw_hash = TransactionAndRawHash {
-            tx,
-            raw_tx_hash: mempool_tx.hash,
-        };
+        let tx_and_raw_hash: AuthenticatedTransactionAndRawHash<S> =
+            AuthenticatedTransactionAndRawHash::new(mempool_tx.hash, tx.into());
+
         let (after_state_checkpoint, tx_receipt) = apply_tx(
             &self.runtime,
             &tx_and_raw_hash,

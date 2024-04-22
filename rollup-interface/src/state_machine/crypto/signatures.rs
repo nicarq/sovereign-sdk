@@ -8,6 +8,7 @@ use digest::typenum::U32;
 use digest::Digest;
 use serde::{Deserialize, Serialize};
 
+use super::Hash;
 #[cfg(not(feature = "std"))]
 use crate::alloc::borrow::ToOwned;
 use crate::RollupAddress;
@@ -52,18 +53,6 @@ pub trait Signature:
     /// Verifies the signature.
     fn verify(&self, pub_key: &Self::PublicKey, msg: &[u8]) -> Result<(), SigVerificationError>;
 }
-
-/// Wrapper around hash value.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-)]
-pub struct Hash(pub [u8; 32]);
 
 /// A public key for verifying digital signatures.
 pub trait PublicKey:

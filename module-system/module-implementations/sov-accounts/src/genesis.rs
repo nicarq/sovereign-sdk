@@ -19,18 +19,13 @@ impl<S: Spec> Accounts<S> {
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
         for pub_key in config.pub_keys.iter() {
-            if self
-                .accounts
-                .get(
-                    &pub_key.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>(),
-                    working_set,
-                )
-                .is_some()
-            {
+            let pub_key_hash = pub_key.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+            if self.accounts.get(&pub_key_hash, working_set).is_some() {
                 bail!("Account already exists")
             }
 
-            let _ = self.get_or_create_default(pub_key, working_set);
+            let default_address = pub_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>();
+            let _ = self.get_or_create_default(&pub_key_hash, &default_address, working_set);
         }
 
         Ok(())

@@ -1,38 +1,12 @@
 use arbitrary::{Arbitrary, Unstructured};
-use proptest::arbitrary::any;
-use proptest::strategy::{BoxedStrategy, Strategy};
-use sov_modules_api::{CryptoSpec, Module, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{CryptoSpec, Hash, Module, Spec, WorkingSet};
 
 use crate::{Account, AccountConfig, Accounts, CallMessage};
 
-impl<'a, S> Arbitrary<'a> for CallMessage<S>
-where
-    S: Spec,
-    <S::CryptoSpec as CryptoSpec>::PrivateKey: Arbitrary<'a>,
-{
+impl<'a> Arbitrary<'a> for CallMessage {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        let secret = <S::CryptoSpec as CryptoSpec>::PrivateKey::arbitrary(u)?;
-        let public = secret.pub_key();
-
-        Ok(Self::UpdatePublicKey(public))
-    }
-}
-
-impl<S> proptest::arbitrary::Arbitrary for CallMessage<S>
-where
-    S: Spec,
-    <S::CryptoSpec as CryptoSpec>::PrivateKey: proptest::arbitrary::Arbitrary,
-{
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        any::<<S::CryptoSpec as CryptoSpec>::PrivateKey>()
-            .prop_map(|secret| {
-                let public = secret.pub_key();
-                Self::UpdatePublicKey(public)
-            })
-            .boxed()
+        let hash = <[u8; 32]>::arbitrary(u)?;
+        Ok(Self::UpdatePublicKey(Hash(hash)))
     }
 }
 
@@ -48,21 +22,6 @@ where
     }
 }
 
-impl<S> proptest::arbitrary::Arbitrary for Account<S>
-where
-    S: Spec,
-    S::Address: proptest::arbitrary::Arbitrary,
-{
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (any::<S::Address>(), any::<u64>())
-            .prop_map(|(addr, nonce)| Account { addr, nonce })
-            .boxed()
-    }
-}
-
 impl<'a, S> Arbitrary<'a> for AccountConfig<S>
 where
     S: Spec,
@@ -74,23 +33,6 @@ where
         Ok(Self {
             pub_keys: u.arbitrary_iter()?.collect::<Result<_, _>>()?,
         })
-    }
-}
-
-impl<S> proptest::arbitrary::Arbitrary for AccountConfig<S>
-where
-    S: Spec,
-    <S::CryptoSpec as CryptoSpec>::PrivateKey: proptest::arbitrary::Arbitrary,
-{
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        any::<Vec<<S::CryptoSpec as CryptoSpec>::PrivateKey>>()
-            .prop_map(|keys| AccountConfig {
-                pub_keys: keys.into_iter().map(|k| k.pub_key()).collect(),
-            })
-            .boxed()
     }
 }
 

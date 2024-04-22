@@ -1,45 +1,27 @@
-use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{CryptoSpec, PublicKey, Spec, StateAccessor, StateCheckpoint};
+use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::{Hash, Spec, StateAccessor, StateCheckpoint};
 
 use crate::{Account, Accounts};
 
 impl<S: Spec> Accounts<S> {
-    /// Unconditionally fetches the address associated with the provided public key. If the account
-    /// did not previously exist, the default public key is returned but no new account is created.
-    pub(crate) fn get_address(
-        &self,
-        pubkey: &<S::CryptoSpec as CryptoSpec>::PublicKey,
-        working_set: &mut StateCheckpoint<S>,
-    ) -> S::Address {
-        let pub_key_hash = pubkey.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-        self.accounts
-            .get(&pub_key_hash, working_set)
-            .map(|a| a.addr)
-            .unwrap_or(pubkey.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>())
-    }
-
     pub(crate) fn get_or_create_default(
         &self,
-        pub_key: &<S::CryptoSpec as CryptoSpec>::PublicKey,
+        pub_key_hash: &Hash,
+        default_address: &S::Address,
         working_set: &mut impl StateAccessor,
-    ) -> Account<S>
-where {
-        let pub_key_hash = pub_key.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-        if let Some(acct) = self.accounts.get(&pub_key_hash, working_set) {
+    ) -> Account<S> where {
+        if let Some(acct) = self.accounts.get(pub_key_hash, working_set) {
             acct
         } else {
-            let default_address: S::Address =
-                pub_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>();
-
             let new_account = Account {
                 addr: default_address.clone(),
                 nonce: 0,
             };
 
-            self.accounts.set(&pub_key_hash, &new_account, working_set);
+            self.accounts.set(pub_key_hash, &new_account, working_set);
 
             self.public_keys
-                .set(&default_address, &pub_key_hash, working_set);
+                .set(default_address, pub_key_hash, working_set);
             new_account
         }
     }
@@ -48,19 +30,15 @@ where {
     // TODO(@preston-evans98): Enforce that this is read-only
     pub fn check_uniqueness(
         &self,
-        tx: &Transaction<S>,
+        tx: &AuthenticatedTransactionData<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<(), anyhow::Error> {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
         // This will require a change to the account state layout
 
-        let pub_key_hash = tx
-            .pub_key()
-            .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-
         let sender_nonce = self
             .accounts
-            .get(&pub_key_hash, state_checkpoint)
+            .get(tx.pub_key_hash(), state_checkpoint)
             .map(|a| a.nonce)
             .unwrap_or(0);
         let tx_nonce = tx.nonce();
@@ -77,25 +55,28 @@ where {
     /// Marks a transaction as attempted, ensuring that future attempts at execution will fail
     pub fn mark_tx_attempted(
         &self,
-        tx: &Transaction<S>,
+        tx: &AuthenticatedTransactionData<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
         // This will require a change to the account state layout
-        let mut account = self.get_or_create_default(tx.pub_key(), state_checkpoint);
+        let mut account =
+            self.get_or_create_default(tx.pub_key_hash(), tx.default_address(), state_checkpoint);
         account.nonce += 1;
-        let pub_key_hash = tx
-            .pub_key()
-            .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-        self.accounts.set(&pub_key_hash, &account, state_checkpoint);
+
+        self.accounts
+            .set(tx.pub_key_hash(), &account, state_checkpoint);
     }
 
     /// Resolve the sender public key to an address
     pub fn resolve_sender_address(
         &self,
-        tx: &Transaction<S>,
+        tx: &AuthenticatedTransactionData<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> S::Address {
-        self.get_address(tx.pub_key(), state_checkpoint)
+        self.accounts
+            .get(tx.pub_key_hash(), state_checkpoint)
+            .map(|a| a.addr)
+            .unwrap_or(tx.default_address().clone())
     }
 }
