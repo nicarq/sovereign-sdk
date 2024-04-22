@@ -5,7 +5,7 @@ use sov_bank::Bank;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{EncodeCall, PrivateKey, Spec};
+use sov_modules_api::{EncodeCall, PrivateKey};
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::value_setter_data::{ValueSetterMessage, ValueSetterMessages};
 use sov_test_utils::{MessageGenerator, TestPrivateKey};
@@ -34,25 +34,6 @@ pub fn simulate_da(admin: TestPrivateKey) -> Vec<RawTx> {
             data: tx.try_to_vec().unwrap(),
         });
     }
-    messages
-}
-
-/// TODO(@theochap): This allow(dead_code) is only temporary and will be removed once the test `test_tx_gas_limit` is fixed.
-/// `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/398>`
-#[allow(dead_code)]
-pub fn simulate_da_with_gas_limit(
-    value_setter_admin: TestPrivateKey,
-    gas_limit: <S as Spec>::Gas,
-) -> Vec<RawTx> {
-    let mut messages = Vec::default();
-
-    let value_setter = ValueSetterMessages::new(vec![ValueSetterMessage {
-        admin: Rc::new(value_setter_admin),
-        messages: vec![99, 33],
-    }]);
-
-    let txs = value_setter.create_raw_txs_with_maximum_gas_price::<Runtime<S, Da>>(gas_limit);
-    messages.extend(txs);
     messages
 }
 

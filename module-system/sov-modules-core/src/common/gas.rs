@@ -42,11 +42,23 @@ pub trait GasArray:
     /// In-place combination of gas units, resulting in an addition.
     fn combine(&mut self, rhs: &Self) -> &mut Self;
 
+    /// Out-of-place substraction of gas units.
+    ///
+    /// # Output
+    /// Returns [`None`] if the substraction in any gas dimension underflows.
+    fn checked_sub(&self, rhs: &Self) -> Option<Self>;
+
     /// In-place division of gas units.
     fn scalar_division(&mut self, scalar: u64) -> &mut Self;
 
     /// In-place product of gas units, resulting in a multiplication.
     fn scalar_product(&mut self, scalar: u64) -> &mut Self;
+
+    /// In-place addition of gas units with a scalar.
+    fn scalar_add(&mut self, scalar: u64) -> &mut Self;
+
+    /// In-place substraction of gas units with a scalar.
+    fn scalar_sub(&mut self, scalar: u64) -> &mut Self;
 }
 
 /// A unit of gas
@@ -124,6 +136,18 @@ macro_rules! impl_gas_dimensions {
                 self.0.to_vec()
             }
 
+            fn checked_sub(&self, rhs: &Self) -> Option<Self> {
+                let res: Option<Vec<u64>> = self
+                    .0
+                    .as_slice()
+                    .iter()
+                    .zip(rhs.0.as_slice())
+                    .map(|(l, r)| l.checked_sub(*r))
+                    .collect();
+
+                res.map(|v| Self::from_slice(&v))
+            }
+
             fn scalar_division(&mut self, scalar: u64) -> &mut Self {
                 self.0
                     .iter_mut()
@@ -135,6 +159,20 @@ macro_rules! impl_gas_dimensions {
                 self.0
                     .iter_mut()
                     .for_each(|s| *s = s.saturating_mul(scalar));
+                self
+            }
+
+            fn scalar_add(&mut self, scalar: u64) -> &mut Self {
+                self.0
+                    .iter_mut()
+                    .for_each(|s| *s = s.saturating_add(scalar));
+                self
+            }
+
+            fn scalar_sub(&mut self, scalar: u64) -> &mut Self {
+                self.0
+                    .iter_mut()
+                    .for_each(|s| *s = s.saturating_sub(scalar));
                 self
             }
 
@@ -200,6 +238,42 @@ impl_gas_unit!(29);
 impl_gas_unit!(30);
 impl_gas_unit!(31);
 impl_gas_unit!(32);
+
+impl<'a> From<&'a GasPrice<1>> for u64 {
+    fn from(value: &'a GasPrice<1>) -> Self {
+        value.0[0]
+    }
+}
+
+impl From<GasPrice<1>> for u64 {
+    fn from(value: GasPrice<1>) -> Self {
+        value.0[0]
+    }
+}
+
+impl From<u64> for GasPrice<1> {
+    fn from(value: u64) -> Self {
+        GasPrice::from_slice(&[value])
+    }
+}
+
+impl<'a> From<&'a GasUnit<1>> for u64 {
+    fn from(value: &'a GasUnit<1>) -> Self {
+        value.0[0]
+    }
+}
+
+impl From<GasUnit<1>> for u64 {
+    fn from(value: GasUnit<1>) -> Self {
+        value.0[0]
+    }
+}
+
+impl From<u64> for GasUnit<1> {
+    fn from(value: u64) -> Self {
+        GasUnit::from_slice(&[value])
+    }
+}
 
 /// A gas meter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
