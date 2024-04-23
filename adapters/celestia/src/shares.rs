@@ -375,17 +375,32 @@ impl Buf for BlobIterator {
         chunk
     }
 
-    fn advance(&mut self, cnt: usize) {
+    fn advance(&mut self, mut cnt: usize) {
         self.consumed += cnt;
-        if self.current.remaining() > cnt {
-            self.current.advance(cnt);
-            return;
+        while cnt > 0 {
+            let remaining_in_current_share = self.current.remaining();
+            if remaining_in_current_share > cnt {
+                self.current.advance(cnt);
+                return;
+            } else {
+                // Exhaust the current share
+                self.current.advance(remaining_in_current_share);
+                // If possible, advance the current share idx so that any future calls to `chunk` return
+                // a non-empty array.
+                if (self.current_idx + 1) < self.blob.0.len() {
+                    self.current_idx += 1;
+                    self.current = self.blob.0[self.current_idx].data();
+                } else {
+                    // If advancing the current share was not possible, then we must have exactly used up the bytes
+                    // in this blob. Assert that this is the case
+                    assert_eq!(
+                        remaining_in_current_share, cnt,
+                        "Exhausted last share without fulfilling request!"
+                    );
+                }
+                cnt -= remaining_in_current_share;
+            }
         }
-
-        let next_cnt = cnt - self.current.remaining();
-        self.current_idx += 1;
-        self.current = self.blob.0[self.current_idx].data();
-        self.current.advance(next_cnt);
     }
 }
 
@@ -516,6 +531,7 @@ mod tests {
     use postcard::{from_bytes, to_allocvec, Result};
     use proptest::collection::vec;
     use proptest::prelude::*;
+    use sov_rollup_interface::da::CountedBufReader;
 
     use super::*;
 
@@ -552,6 +568,20 @@ mod tests {
         let share = [Share::Start(Bytes::from(hex::decode(share_hex).unwrap()))];
         let non_padding_blob = BlobRef(&share);
         assert!(!non_padding_blob.is_padding());
+    }
+
+    /// This test detects a regression where we panic on trying to read the entire contents a blob using the `Buf` trait.
+    /// A previous implementation caused buf.advance(buf.remaining()) to panic, because an internal state change of
+    /// `current_share = blob.shares[blob.current_idx+1]` would be triggered  as soon as the
+    /// current share's data was read - even if the next share did not exist and would never be read.
+    #[test]
+    fn test_reading_full_blob_regression() {
+        let data: NamespacedShares = serde_json::from_str("[{\"shares\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAc292LXRlc3QBAAAB3gEAAADWAQAA2EYzlAhN9KIdK3QP5WgAxmNMAiO3KOZd54PG1ndFjNud8Ij/Tn3TfZMkgVVIPduDBwKbg/S5/ShVT2cNHhn7CvitJDeieeHIkywHNYyR3E/jSGSpjGwl8pjioBmcFQn/UQEAAAIBSwEAAEZCB10foCn5JspyMO6m5QA8qYnV44fWffQU2E57kHzs4hKqnEjNwYnUJABmr6B1OJ/5+v7+BgPeOpxnaK4M5XovSUs8ExC7QtzrZxZT08DiU8nKCzK0VEUcDiu72Iyhnycjfxep9Nk7NuWt18/cz7YyUWYzlQcn6AN12JxkNF/Afx+DJzDJEzFE7bpzdjvFrl0im+L+wFF/T0IWonUXPL+oCvKoNDrDr+xA25mn9/rMDG/UGT0FI+KXHqx7c3ZR+5lLQheaxdVMRQcz2Mnst9uh8JKxVVVl9Fg4d7Jh6n2f9ZbBAfwg3YhW/5szA8YPKNg6o6nVnb90Cgk2RFVSOvxym4BijKId47SK6dfCS7G69iRFrDU+OcQTxsvkNb3mmnYa4TI9TGRHwl2N1yMHoJcWIboQPcLsKuykcJV+w4bvuB+uu8/pMVPjIDYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"],\"proof\":{\"start\":1,\"end\":2,\"nodes\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABH1fFJqiHwbfG4vQXdK1Oh9vrkjlqWB365SYrsZxmaER\",\"/////////////////////////////////////////////////////////////////////////////yu8ipB5WivrLzIkx/iKuwyXvQFePPFTx9ZGUEhlxazq\"],\"leaf_hash\":\"\",\"is_max_namespace_ignored\":true}}]").unwrap();
+        let ns_group: NamespaceGroup = (&data).into();
+        let blob: Blob = ns_group.blobs().next().unwrap().into();
+        let mut blob = CountedBufReader::new(blob.into_iter());
+        // Try to read the entire contents of the blob
+        blob.advance(blob.total_len());
     }
 
     prop_compose! {
