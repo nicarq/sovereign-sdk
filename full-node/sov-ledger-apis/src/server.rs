@@ -26,7 +26,7 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 /// # Example
 /// ```
 /// use std::sync::{Arc, RwLock};
-/// use sov_ledger_rpc::server::rpc_module;
+/// use sov_ledger_apis::server::rpc_module;
 /// use tempfile::tempdir;
 /// use sov_db::ledger_db::LedgerDb;
 /// use sov_db::schema::{CacheContainer, CacheDb};
@@ -53,8 +53,8 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 pub fn rpc_module<T, B, Tx, E>(ledger: T) -> anyhow::Result<RpcModule<T>>
 where
     T: LedgerStateProvider + LedgerStateProviderExt + Send + Sync + 'static,
-    B: serde::Serialize + DeserializeOwned + Clone + 'static,
-    Tx: serde::Serialize + DeserializeOwned + Clone + 'static,
+    B: serde::Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    Tx: serde::Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
 {
     let mut rpc = RpcModule::new(ledger);

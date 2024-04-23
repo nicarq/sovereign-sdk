@@ -244,6 +244,8 @@ mod jsonrpc {
 }
 
 mod axum_router {
+    use std::sync::OnceLock;
+
     use axum::extract::{ws, State};
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
@@ -251,12 +253,25 @@ mod axum_router {
     use serde_with::base64::Base64;
     use serde_with::serde_as;
     use sov_jsonapi_utils::types::{ErrorObject, JsonObject, ResponseObject};
-    use sov_jsonapi_utils::utils::not_found_404;
+    use sov_jsonapi_utils::utils::{not_found_404, preconfigured_router_layers};
     use sov_jsonapi_utils::{json_obj, PathWithErrorHandling};
     use tracing::debug;
-    use utoipa_swagger_ui::SwaggerUi;
+    use utoipa_swagger_ui::{Config, SwaggerUi};
 
     use super::*;
+
+    /// This function does a pretty expensive clone of the entire OpenAPI
+    /// specification object, so it might be slow.
+    pub(crate) fn openapi_spec() -> serde_json::Value {
+        static OPENAPI_SPEC: OnceLock<serde_json::Value> = OnceLock::new();
+
+        OPENAPI_SPEC
+            .get_or_init(|| {
+                let openapi_spec_raw_yaml_contents = include_str!("../openapi-v3.yaml");
+                serde_yaml::from_str::<serde_json::Value>(openapi_spec_raw_yaml_contents).unwrap()
+            })
+            .clone()
+    }
 
     #[serde_as]
     #[derive(serde::Serialize, serde::Deserialize)]
@@ -286,13 +301,22 @@ mod axum_router {
         Da::TransactionId: Clone + Send + Sync + serde::Serialize,
     {
         /// Creates an Axum router for the sequencer.
-        pub fn axum_router(&self) -> axum::Router<Self> {
-            axum::Router::new()
-                .merge(SwaggerUi::new("/swagger-ui"))
-                .route("/txs", axum::routing::post(Self::axum_accept_tx))
-                .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
-                .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
-                .route("/batches", axum::routing::post(Self::axum_submit_batch))
+        pub fn axum_router(&self, path_prefix: &str) -> axum::Router<Self> {
+            preconfigured_router_layers(
+                axum::Router::new()
+                    // See:
+                    // - https://github.com/juhaku/utoipa/issues/599
+                    // - https://github.com/juhaku/utoipa/issues/734
+                    .merge(
+                        SwaggerUi::new("/swagger-ui")
+                            .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
+                            .config(Config::from(format!("{}/openapi-v3.yaml", path_prefix))),
+                    )
+                    .route("/txs", axum::routing::post(Self::axum_accept_tx))
+                    .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
+                    .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
+                    .route("/batches", axum::routing::post(Self::axum_submit_batch)),
+            )
         }
 
         async fn axum_get_tx_ws(
@@ -415,6 +439,7 @@ mod tests {
     use sov_rollup_interface::da::BlobReaderTrait;
     use sov_rollup_interface::services::batch_builder::TxWithHash;
 
+    use self::axum_router::openapi_spec;
     use super::*;
 
     fn sequencer_rpc(
@@ -459,6 +484,11 @@ mod tests {
                 .collect();
             Ok(txs)
         }
+    }
+
+    #[test]
+    fn openapi_spec_is_valid() {
+        let _spec = openapi_spec();
     }
 
     #[tokio::test]

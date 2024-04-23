@@ -10,9 +10,9 @@ info:
   contact:
     name: Sovereign Labs
     url: https://github.com/Sovereign-Labs/sov-sdk
-    email: info@soverign.xyz
+    email: info@sovereign.xyz
 servers:
-  - url: http://localhost:12345
+  - url: http://localhost:12346
     description: Localhost
 paths:
   /batches:
@@ -69,18 +69,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      id:
-                        $ref: "#/components/schemas/TxHash"
-                      status:
-                        $ref: "#/components/schemas/TxStatus"
-                    required:
-                      - id
-                      - status
+                $ref: "#/components/schemas/Tx"
 
 components:
   schemas:
@@ -106,6 +95,7 @@ components:
         - hash
         - status
     TxStatus:
+      type: string
       enum:
         - Unknown
         - Submitted

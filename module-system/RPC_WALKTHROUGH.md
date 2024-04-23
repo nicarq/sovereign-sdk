@@ -170,7 +170,7 @@ pub fn balance_of(
 ## Querying events from the RPC
 
 Events are emitted at the module level, but queries for events are at the ledger level (as a design decision since events are not currently merkelized / stored in the JMT. They are stored in a flat KV structure)
-The following queries are currently supported and can be seen in [server.rs](../full-node/sov-ledger-rpc/src/server.rs):
+The following queries are currently supported and can be seen in [server.rs](../full-node/sov-ledger-apis/src/server.rs):
 
 ```text
 ledger_getEvents (multiple events by corresponding event numbers)
@@ -222,7 +222,7 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
 {"jsonrpc":"2.0","result":{"events_response":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_id":"sov1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sthwg6h"}],"next":null},"id":1}
 ```
 
-The parameters can be inferred from [rpc.rs](../full-node/sov-db/src/ledger_db/rpc.rs), and [server.rs](../full-node/sov-ledger-rpc/src/server.rs)
+The parameters can be inferred from [rpc.rs](../full-node/sov-db/src/ledger_db/rpc.rs), and [server.rs](../full-node/sov-ledger-apis/src/server.rs)
 
 ```rust
 fn get_events_by_key<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(

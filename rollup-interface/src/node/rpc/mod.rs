@@ -192,6 +192,8 @@ pub enum ItemOrHash<T> {
 /// An RPC response for the module specific event
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct EventResponse {
+    /// The key of the event.
+    pub event_key: String,
     /// A value representing the the module event serialized as json
     pub event_value: serde_json::Value,
     /// Module name that the event belongs to
@@ -239,34 +241,55 @@ pub struct Event {
 #[async_trait]
 pub trait LedgerStateProvider {
     /// The error type for fallible methods on this trait.
-    type Error: ToString;
+    type Error: ToString + Send + Sync + 'static;
+
+    /// Get the latest slot number in the ledger.
+    async fn get_head_slot_number(&self) -> Result<Option<u64>, Self::Error>;
 
     /// Get the latest slot in the ledger.
-    async fn get_head<B: DeserializeOwned + Clone, T: DeserializeOwned>(
+    async fn get_head<B, T>(
         &self,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, Self::Error>;
+    ) -> Result<Option<SlotResponse<B, T>>, Self::Error>
+    where
+        B: DeserializeOwned + Clone + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
+        if let Some(head_number) = self.get_head_slot_number().await? {
+            self.get_slot_by_number(head_number, query_mode).await
+        } else {
+            Ok(None)
+        }
+    }
 
     /// Get a list of slots by id. The IDs need not be ordered.
-    async fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slots<B, T>(
         &self,
         slot_ids: &[SlotIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>;
+    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync;
 
     /// Get a list of batches by id. The IDs need not be ordered.
-    async fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batches<B, T>(
         &self,
         batch_ids: &[BatchIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>;
+    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync;
 
     /// Get a list of transactions by id. The IDs need not be ordered.
-    async fn get_transactions<T: DeserializeOwned>(
+    async fn get_transactions<T>(
         &self,
         tx_ids: &[TxIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>;
+    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
+    where
+        T: DeserializeOwned + Send + Sync;
 
     /// Get events by id. The IDs need not be ordered.
     async fn get_events<E: borsh::BorshDeserialize + Into<Event>>(
@@ -275,55 +298,74 @@ pub trait LedgerStateProvider {
     ) -> Result<Vec<Option<EventResponse>>, Self::Error>;
 
     /// Get a single slot by hash.
-    async fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slot_by_hash<B, T>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, Self::Error> {
+    ) -> Result<Option<SlotResponse<B, T>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
         self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
             .await
             .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
     }
 
     /// Get a single batch by hash.
-    async fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batch_by_hash<B, T>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, Self::Error> {
+    ) -> Result<Option<BatchResponse<B, T>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
         self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
             .await
             .map(|mut batches: Vec<Option<BatchResponse<B, T>>>| batches.pop().unwrap_or(None))
     }
 
     /// Get a single transaction by hash.
-    async fn get_tx_by_hash<T: DeserializeOwned>(
+    async fn get_tx_by_hash<T>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, Self::Error> {
+    ) -> Result<Option<TxResponse<T>>, Self::Error>
+    where
+        T: DeserializeOwned + Send + Sync,
+    {
         self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
             .await
             .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
     }
 
     /// Get a single slot by number.
-    async fn get_slot_by_number<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slot_by_number<B, T>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, Self::Error> {
+    ) -> Result<Option<SlotResponse<B, T>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
         self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
             .await
             .map(|mut slots| slots.pop().unwrap_or(None))
     }
 
     /// Get a single batch by number.
-    async fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batch_by_number<B, T>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, Self::Error> {
+    ) -> Result<Option<BatchResponse<B, T>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
         self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
             .await
             .map(|mut batches| batches.pop().unwrap_or(None))
@@ -352,11 +394,14 @@ pub trait LedgerStateProvider {
     ) -> Result<Vec<EventResponse>, Self::Error>;
 
     /// Get a single tx by number.
-    async fn get_tx_by_number<T: DeserializeOwned>(
+    async fn get_tx_by_number<T>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, Self::Error> {
+    ) -> Result<Option<TxResponse<T>>, Self::Error>
+    where
+        T: DeserializeOwned + Send + Sync,
+    {
         self.get_transactions(&[TxIdentifier::Number(number)], query_mode)
             .await
             .map(|mut txs| txs.pop().unwrap_or(None))
@@ -365,32 +410,62 @@ pub trait LedgerStateProvider {
     /// Get a range of slots. This query is the most efficient way to
     /// fetch large numbers of slots, since it allows for easy batching of
     /// db queries for adjacent items.
-    async fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slots_range<B, T>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>;
+    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of batches, since it allows for easy batching of
     /// db queries for adjacent items.
-    async fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batches_range<B, T>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>;
+    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of transactions, since it allows for easy batching of
     /// db queries for adjacent items.
-    async fn get_transactions_range<T: DeserializeOwned>(
+    async fn get_transactions_range<T>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>;
+    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
+    where
+        T: DeserializeOwned + Send + Sync;
+
+    /// Resolve a [`SlotIdentifier`] into a slot number.
+    async fn resolve_slot_identifier(
+        &self,
+        slot_id: &SlotIdentifier,
+    ) -> Result<Option<u64>, Self::Error>;
+
+    /// Resolve a [`BatchIdentifier`] into a batch number.
+    async fn resolve_batch_identifier(
+        &self,
+        batch_id: &BatchIdentifier,
+    ) -> Result<Option<u64>, Self::Error>;
+
+    /// Resolve a [`TxIdentifier`] into a transaction number.
+    async fn resolve_tx_identifier(&self, tx_id: &TxIdentifier)
+        -> Result<Option<u64>, Self::Error>;
+
+    /// Resolve a [`EventIdentifier`] into an event number.
+    async fn resolve_event_identifier(
+        &self,
+        event_id: &EventIdentifier,
+    ) -> Result<Option<u64>, Self::Error>;
 
     /// Get the most recent aggregated proof, if any.
     async fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>>;

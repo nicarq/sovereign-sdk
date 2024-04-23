@@ -34,33 +34,22 @@ use super::LedgerDb;
 impl LedgerStateProvider for LedgerDb {
     type Error = anyhow::Error;
 
-    async fn get_head<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, Self::Error> {
+    async fn get_head_slot_number(&self) -> Result<Option<u64>, Self::Error> {
         let next_ids = self.get_next_items_numbers();
         let next_slot = next_ids.slot_number;
 
-        let head_number = next_slot.saturating_sub(1);
-
-        if let Some(stored_slot) = self
-            .db
-            .read::<SlotByNumber>(&SlotNumber(next_slot.saturating_sub(1)))?
-        {
-            return Ok(Some(self.populate_slot_response(
-                head_number,
-                stored_slot,
-                query_mode,
-            )?));
-        }
-        Ok(None)
+        Ok(Some(next_slot.saturating_sub(1)))
     }
 
-    async fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slots<B, T>(
         &self,
         slot_ids: &[SlotIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error> {
+    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
         anyhow::ensure!(
             slot_ids.len() <= MAX_SLOTS_PER_REQUEST as usize,
             "requested too many slots. Requested: {}. Max: {}",
@@ -71,11 +60,11 @@ impl LedgerStateProvider for LedgerDb {
         //      and use an iterator instead of querying for each slot individually
         let mut out = Vec::with_capacity(slot_ids.len());
         for slot_id in slot_ids {
-            let slot_num = self.resolve_slot_identifier(slot_id)?;
+            let slot_num = self.resolve_slot_identifier(slot_id).await?;
             out.push(match slot_num {
                 Some(num) => {
-                    if let Some(stored_slot) = self.db.read::<SlotByNumber>(&num)? {
-                        Some(self.populate_slot_response(num.into(), stored_slot, query_mode)?)
+                    if let Some(stored_slot) = self.db.read::<SlotByNumber>(&SlotNumber(num))? {
+                        Some(self.populate_slot_response(num, stored_slot, query_mode)?)
                     } else {
                         None
                     }
@@ -86,11 +75,15 @@ impl LedgerStateProvider for LedgerDb {
         Ok(out)
     }
 
-    async fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batches<B, T>(
         &self,
         batch_ids: &[BatchIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error> {
+    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
         anyhow::ensure!(
             batch_ids.len() <= MAX_BATCHES_PER_REQUEST as usize,
             "requested too many batches. Requested: {}. Max: {}",
@@ -101,10 +94,10 @@ impl LedgerStateProvider for LedgerDb {
         //      and use an iterator instead of querying for each slot individually
         let mut out = Vec::with_capacity(batch_ids.len());
         for batch_id in batch_ids {
-            let batch_num = self.resolve_batch_identifier(batch_id)?;
+            let batch_num = self.resolve_batch_identifier(batch_id).await?;
             out.push(match batch_num {
                 Some(num) => {
-                    if let Some(stored_batch) = self.db.read::<BatchByNumber>(&num)? {
+                    if let Some(stored_batch) = self.db.read::<BatchByNumber>(&BatchNumber(num))? {
                         Some(self.populate_batch_response(stored_batch, query_mode)?)
                     } else {
                         None
@@ -116,11 +109,14 @@ impl LedgerStateProvider for LedgerDb {
         Ok(out)
     }
 
-    async fn get_transactions<T: DeserializeOwned>(
+    async fn get_transactions<T>(
         &self,
         tx_ids: &[TxIdentifier],
         _query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error> {
+    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
+    where
+        T: DeserializeOwned + Send + Sync,
+    {
         anyhow::ensure!(
             tx_ids.len() <= MAX_TRANSACTIONS_PER_REQUEST as usize,
             "requested too many transactions. Requested: {}. Max: {}",
@@ -131,10 +127,10 @@ impl LedgerStateProvider for LedgerDb {
         //      and use an iterator instead of querying for each slot individually
         let mut out: Vec<Option<TxResponse<T>>> = Vec::with_capacity(tx_ids.len());
         for id in tx_ids {
-            let num = self.resolve_tx_identifier(id)?;
+            let num = self.resolve_tx_identifier(id).await?;
             out.push(match num {
                 Some(num) => {
-                    if let Some(tx) = self.db.read::<TxByNumber>(&num)? {
+                    if let Some(tx) = self.db.read::<TxByNumber>(&TxNumber(num))? {
                         Some(tx.try_into()?)
                     } else {
                         None
@@ -160,11 +156,11 @@ impl LedgerStateProvider for LedgerDb {
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/191
         let mut out = Vec::with_capacity(event_ids.len());
         for id in event_ids {
-            let num = self.resolve_event_identifier(id)?;
+            let num = self.resolve_event_identifier(id).await?;
             out.push(match num {
                 Some(num) => {
                     self.db
-                        .read::<EventByNumber>(&num)?
+                        .read::<EventByNumber>(&EventNumber(num))?
                         .map(|serialized_event| {
                             match E::deserialize(&mut serialized_event.value().inner().as_slice()) {
                                 // serde_json::to_value is from the custom serialize impl which
@@ -174,6 +170,10 @@ impl LedgerStateProvider for LedgerDb {
                                     let module_event: sov_rollup_interface::rpc::Event =
                                         event.into();
                                     Some(EventResponse {
+                                        event_key: String::from_utf8_lossy(
+                                            serialized_event.key().inner().as_slice(),
+                                        )
+                                        .to_string(),
                                         event_value: module_event.event_value,
                                         module_name: module_event.module_name,
                                         module_id: ModuleId::try_from(
@@ -251,12 +251,16 @@ impl LedgerStateProvider for LedgerDb {
         Ok(events_response)
     }
 
-    async fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_slots_range<B, T>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error> {
+    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
             end - start <= MAX_SLOTS_PER_REQUEST,
@@ -267,12 +271,16 @@ impl LedgerStateProvider for LedgerDb {
         self.get_slots(&ids, query_mode).await
     }
 
-    async fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn get_batches_range<B, T>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error> {
+    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
             end - start <= MAX_BATCHES_PER_REQUEST,
@@ -283,12 +291,15 @@ impl LedgerStateProvider for LedgerDb {
         self.get_batches(&ids, query_mode).await
     }
 
-    async fn get_transactions_range<T: DeserializeOwned>(
+    async fn get_transactions_range<T>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error> {
+    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
+    where
+        T: DeserializeOwned + Send + Sync,
+    {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
             end - start <= MAX_TRANSACTIONS_PER_REQUEST,
@@ -297,6 +308,85 @@ impl LedgerStateProvider for LedgerDb {
         );
         let ids: Vec<_> = (start..=end).map(TxIdentifier::Number).collect();
         self.get_transactions(&ids, query_mode).await
+    }
+
+    async fn resolve_slot_identifier(
+        &self,
+        slot_id: &SlotIdentifier,
+    ) -> Result<Option<u64>, Self::Error> {
+        match slot_id {
+            SlotIdentifier::Hash(hash) => self
+                .db
+                .read::<SlotByHash>(hash)
+                .map(|id_opt| id_opt.map(|id| id.0)),
+            SlotIdentifier::Number(num) => Ok(Some(*num)),
+        }
+    }
+
+    async fn resolve_batch_identifier(
+        &self,
+        batch_id: &BatchIdentifier,
+    ) -> Result<Option<u64>, Self::Error> {
+        match batch_id {
+            BatchIdentifier::Hash(hash) => self
+                .db
+                .read::<BatchByHash>(hash)
+                .map(|id_opt| id_opt.map(|id| id.0)),
+            BatchIdentifier::Number(num) => Ok(Some(*num)),
+            BatchIdentifier::SlotIdAndOffset(SlotIdAndOffset { slot_id, offset }) => {
+                if let Some(slot_num) = self.resolve_slot_identifier(slot_id).await? {
+                    Ok(self
+                        .db
+                        .read::<SlotByNumber>(&SlotNumber(slot_num))?
+                        .map(|slot: StoredSlot| slot.batches.start.0 + offset))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+
+    async fn resolve_tx_identifier(
+        &self,
+        tx_id: &TxIdentifier,
+    ) -> Result<Option<u64>, Self::Error> {
+        match tx_id {
+            TxIdentifier::Hash(hash) => self
+                .db
+                .read::<TxByHash>(hash)
+                .map(|id_opt| id_opt.map(|id| id.0)),
+            TxIdentifier::Number(num) => Ok(Some(*num)),
+            TxIdentifier::BatchIdAndOffset(BatchIdAndOffset { batch_id, offset }) => {
+                if let Some(batch_num) = self.resolve_batch_identifier(batch_id).await? {
+                    Ok(self
+                        .db
+                        .read::<BatchByNumber>(&BatchNumber(batch_num))?
+                        .map(|batch: StoredBatch| batch.txs.start.0 + offset))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+
+    async fn resolve_event_identifier(
+        &self,
+        event_id: &EventIdentifier,
+    ) -> Result<Option<u64>, Self::Error> {
+        match event_id {
+            EventIdentifier::TxIdAndOffset(TxIdAndOffset { tx_id, offset }) => {
+                if let Some(tx_num) = self.resolve_tx_identifier(tx_id).await? {
+                    Ok(self
+                        .db
+                        .read::<TxByNumber>(&TxNumber(tx_num))?
+                        .map(|tx| tx.events.start.0 + offset))
+                } else {
+                    Ok(None)
+                }
+            }
+            EventIdentifier::Number(num) => Ok(Some(*num)),
+            EventIdentifier::TxIdAndKey(_) => todo!(),
+        }
     }
 
     async fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>> {
@@ -433,76 +523,6 @@ impl LedgerStateProviderExt for LedgerDb {
 }
 
 impl LedgerDb {
-    fn resolve_slot_identifier(
-        &self,
-        slot_id: &SlotIdentifier,
-    ) -> Result<Option<SlotNumber>, anyhow::Error> {
-        match slot_id {
-            SlotIdentifier::Hash(hash) => self.db.read::<SlotByHash>(hash),
-            SlotIdentifier::Number(num) => Ok(Some(SlotNumber(*num))),
-        }
-    }
-
-    fn resolve_batch_identifier(
-        &self,
-        batch_id: &BatchIdentifier,
-    ) -> Result<Option<BatchNumber>, anyhow::Error> {
-        match batch_id {
-            BatchIdentifier::Hash(hash) => self.db.read::<BatchByHash>(hash),
-            BatchIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
-            BatchIdentifier::SlotIdAndOffset(SlotIdAndOffset { slot_id, offset }) => {
-                if let Some(slot_num) = self.resolve_slot_identifier(slot_id)? {
-                    Ok(self
-                        .db
-                        .read::<SlotByNumber>(&slot_num)?
-                        .map(|slot: StoredSlot| BatchNumber(slot.batches.start.0 + offset)))
-                } else {
-                    Ok(None)
-                }
-            }
-        }
-    }
-
-    fn resolve_tx_identifier(
-        &self,
-        tx_id: &TxIdentifier,
-    ) -> Result<Option<TxNumber>, anyhow::Error> {
-        match tx_id {
-            TxIdentifier::Hash(hash) => self.db.read::<TxByHash>(hash),
-            TxIdentifier::Number(num) => Ok(Some(TxNumber(*num))),
-            TxIdentifier::BatchIdAndOffset(BatchIdAndOffset { batch_id, offset }) => {
-                if let Some(batch_num) = self.resolve_batch_identifier(batch_id)? {
-                    Ok(self
-                        .db
-                        .read::<BatchByNumber>(&batch_num)?
-                        .map(|batch: StoredBatch| TxNumber(batch.txs.start.0 + offset)))
-                } else {
-                    Ok(None)
-                }
-            }
-        }
-    }
-
-    fn resolve_event_identifier(
-        &self,
-        event_id: &EventIdentifier,
-    ) -> Result<Option<EventNumber>, anyhow::Error> {
-        match event_id {
-            EventIdentifier::TxIdAndOffset(TxIdAndOffset { tx_id, offset }) => {
-                if let Some(tx_num) = self.resolve_tx_identifier(tx_id)? {
-                    Ok(self
-                        .db
-                        .read::<TxByNumber>(&tx_num)?
-                        .map(|tx| EventNumber(tx.events.start.0 + offset)))
-                } else {
-                    Ok(None)
-                }
-            }
-            EventIdentifier::Number(num) => Ok(Some(EventNumber(*num))),
-            EventIdentifier::TxIdAndKey(_) => todo!(),
-        }
-    }
-
     fn populate_slot_response<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         number: u64,
