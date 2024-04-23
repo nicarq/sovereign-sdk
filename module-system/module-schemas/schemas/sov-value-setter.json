@@ -4,7 +4,7 @@
   "description": "This enumeration represents the available call messages for interacting with the `sov-value-setter` module.",
   "oneOf": [
     {
-      "description": "value to set",
+      "description": "Single value to set.",
       "type": "object",
       "required": [
         "SetValue"
@@ -14,6 +14,24 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Many values to set.",
+      "type": "object",
+      "required": [
+        "SetManyValues"
+      ],
+      "properties": {
+        "SetManyValues": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          }
         }
       },
       "additionalProperties": false

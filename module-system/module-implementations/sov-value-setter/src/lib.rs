@@ -32,6 +32,10 @@ pub struct ValueSetter<S: sov_modules_api::Spec> {
     #[state]
     pub value: sov_modules_api::StateValue<u32>,
 
+    /// Some more values kept in state.
+    #[state]
+    many_values: sov_modules_api::StateVec<u8>,
+
     /// Holds the address of the admin user who is allowed to update the value.
     #[state]
     pub admin: sov_modules_api::StateValue<S::Address>,
@@ -61,6 +65,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for ValueSetter<S> {
             call::CallMessage::SetValue(new_value) => {
                 Ok(self.set_value(new_value, context, working_set)?)
             }
+            CallMessage::SetManyValues(many) => Ok(self.set_values(many, context, working_set)?),
         }
     }
 }

@@ -1,4 +1,5 @@
 mod bank;
+mod celestia;
 mod evm;
 
 mod prover;
