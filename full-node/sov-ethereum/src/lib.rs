@@ -1,6 +1,8 @@
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 #[cfg(feature = "local")]
 pub use sov_eth_dev_signer::DevSigner;
+use sov_modules_api::batch::Batch;
+use sov_modules_api::runtime::capabilities::RawTx;
 
 mod batch_builder;
 mod gas_price;
@@ -133,36 +135,43 @@ impl<S: sov_modules_api::Spec, Da: DaService> Ethereum<S, Da> {
             min_blob_size = min_blob_size,
             "Build and submit ETH batch request has been received",
         );
-        let batch = self.build_batch(min_blob_size)?;
-        tracing::debug!(transactions_count = batch.len(), "Batch have been built");
+        let tx_batch = self.build_tx_batch(min_blob_size)?;
+        tracing::debug!(transactions_count = tx_batch.len(), "Batch have been built");
 
-        self.submit_batch(batch)
+        self.submit_tx_batch(tx_batch)
             .await
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
         Ok(())
     }
 
-    async fn submit_batch(&self, batch: Vec<Vec<u8>>) -> Result<(), jsonrpsee::core::Error> {
-        if batch.is_empty() {
+    async fn submit_tx_batch(&self, tx_batch: Vec<Vec<u8>>) -> Result<(), jsonrpsee::core::Error> {
+        if tx_batch.is_empty() {
             tracing::error!("Attempt to submit empty batch");
             return Err(jsonrpsee::core::Error::Custom(
                 "Attempt to submit empty batch".to_string(),
             ));
         }
-        let blob = batch
+
+        let txs = tx_batch
+            .into_iter()
+            .map(|tx| (RawTx { data: tx }))
+            .collect();
+
+        let batch = Batch { txs };
+        let serialized_batch = batch
             .try_to_vec()
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
         self.da_service
-            .send_transaction(&blob)
+            .send_transaction(&serialized_batch)
             .await
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
         tracing::debug!("ETH Batch has been submitted");
         Ok(())
     }
 
-    fn build_batch(
+    fn build_tx_batch(
         &self,
         min_blob_size: Option<usize>,
     ) -> Result<Vec<Vec<u8>>, jsonrpsee::core::Error> {

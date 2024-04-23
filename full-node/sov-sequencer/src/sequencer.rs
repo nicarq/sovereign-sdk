@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
+use borsh::BorshSerialize;
 use jsonrpsee::core::StringError;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use serde::Serialize;
+use sov_modules_api::batch::Batch;
+use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
@@ -85,13 +88,15 @@ where
 
         let blob_txs = batch_builder.get_next_blob(da_height).await?;
         let num_txs = blob_txs.len();
-        let (blob, tx_hashes) = blob_txs
+        let (txs, tx_hashes) = blob_txs
             .into_iter()
-            .map(|tx| (tx.raw_tx, tx.hash))
+            .map(|tx| (RawTx { data: tx.raw_tx }, tx.hash))
             .unzip::<_, _, Vec<_>, Vec<_>>();
-        let blob = borsh::to_vec(&blob)?;
 
-        let da_tx_id = match self.0.da_service.send_transaction(&blob).await {
+        let batch = Batch { txs };
+        let serialized_batch = batch.try_to_vec()?;
+
+        let da_tx_id = match self.0.da_service.send_transaction(&serialized_batch).await {
             Ok(id) => id,
             Err(e) => anyhow::bail!("failed to submit batch: {}", e),
         };
