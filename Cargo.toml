@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
     "rollup-interface",
-    "adapters/avail",
+    # TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/498
+    # "adapters/avail",
     "adapters/risc0",
     "adapters/celestia",
     "adapters/mock-da",
