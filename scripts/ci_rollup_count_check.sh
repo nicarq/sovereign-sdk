@@ -12,7 +12,7 @@ if [ -z "$verify_line" ]; then
     echo "The line containing 'verify' was not found."
     exit 1
 else
-    tps_count=$(echo $verify_line | awk -F '|' '{print $3}' | sed 's/,//g')
+    tps_count=$(echo "$verify_line" | awk -F '|' '{print $3}' | sed 's/,//g')
     result=$(awk -v val="$tps_count" -v threshold="$TPS" 'BEGIN {print (val < threshold) ? "FAIL" : "PASS"}')
     if [ "$result" = "FAIL" ]; then
         echo "The value for TPS is less than $TPS. Failing the check. Value: $tps_count"

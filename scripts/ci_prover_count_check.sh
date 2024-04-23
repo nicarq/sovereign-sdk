@@ -13,7 +13,7 @@ if [ -z "$verify_line" ]; then
     echo "The line containing 'verify' was not found."
     exit 1
 else
-    average_cycles=$(echo $verify_line | awk '{print $4}' | sed 's/,//g') # Remove commas if present
+    average_cycles=$(echo "$verify_line" | awk '{print $4}' | sed 's/,//g') # Remove commas if present
 
     if [ -n "$average_cycles" ] && [ "$average_cycles" -lt $CYCLE_COUNT ]; then
         echo "The value for 'verify' is less than $CYCLE_COUNT. Passing the check. Value: $average_cycles"
