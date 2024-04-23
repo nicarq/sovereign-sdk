@@ -186,7 +186,7 @@ pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static 
     /// blob data will be required for execution.
     #[cfg(feature = "native")]
     fn full_data(&mut self) -> &[u8] {
-        self.advance(self.total_len())
+        self.advance(self.total_len() - self.verified_data().len())
     }
 }
 
