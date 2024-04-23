@@ -608,6 +608,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-compression"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07dbbf24db18d609b1462965249abdf49129ccad073ec257da372adc83259c60"
+dependencies = [
+ "flate2",
+ "futures-core",
+ "memchr",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "async-lock"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7173,7 +7186,7 @@ dependencies = [
  "sov-db",
  "sov-ethereum",
  "sov-kernels",
- "sov-ledger-rpc",
+ "sov-ledger-apis",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -7284,6 +7297,9 @@ dependencies = [
  "serde_urlencoded",
  "serde_with",
  "sov-jsonapi-utils",
+ "tower",
+ "tower-http",
+ "tower-request-id",
  "tracing",
  "url",
  "validator",
@@ -7302,7 +7318,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-ledger-rpc"
+name = "sov-ledger-apis"
 version = "0.3.0"
 dependencies = [
  "anyhow",
@@ -7313,7 +7329,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-db",
- "sov-ledger-rpc",
+ "sov-ledger-apis",
  "sov-mock-da",
  "sov-modules-api",
  "sov-rollup-interface",
@@ -7494,7 +7510,7 @@ dependencies = [
  "serde_json",
  "sov-cli",
  "sov-db",
- "sov-ledger-rpc",
+ "sov-ledger-apis",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
@@ -7684,6 +7700,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "serde_yaml",
  "sov-db",
  "sov-jsonapi-utils",
  "sov-kernels",
@@ -7700,6 +7717,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "utoipa",
  "utoipa-swagger-ui",
 ]
 
@@ -8559,10 +8577,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "tower-http"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+dependencies = [
+ "async-compression",
+ "bitflags 2.5.0",
+ "bytes",
+ "futures-core",
+ "http 1.1.0",
+ "http-body 1.0.0",
+ "http-body-util",
+ "pin-project-lite",
+ "tokio",
+ "tokio-util",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
 name = "tower-layer"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c20c8dbed6283a09604c3e69b4b7eeb54e298b8a600d4d5ecb5ad39de609f1d0"
+
+[[package]]
+name = "tower-request-id"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357a1f99dd439c1aa9ebbaf9c6431b41c05a26bf137e9e92879941bdac5cb66d"
+dependencies = [
+ "http 1.1.0",
+ "tower-layer",
+ "tower-service",
+ "ulid",
+]
 
 [[package]]
 name = "tower-service"
@@ -8807,6 +8858,17 @@ dependencies = [
  "crunchy",
  "hex",
  "static_assertions",
+]
+
+[[package]]
+name = "ulid"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34778c17965aa2a08913b57e1f34db9b4a63f5de31768b55bf20d2795f921259"
+dependencies = [
+ "getrandom 0.2.12",
+ "rand 0.8.5",
+ "web-time",
 ]
 
 [[package]]
@@ -9185,6 +9247,16 @@ name = "web-sys"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77afa9a11836342370f4817622a2f0f418b134426d91a82dfb48f532d2ec13ef"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "web-time"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

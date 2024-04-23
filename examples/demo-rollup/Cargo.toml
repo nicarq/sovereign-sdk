@@ -27,7 +27,7 @@ sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-bluepr
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module" }
 demo-stf = { path = "./stf", features = ["native"] }
-sov-ledger-rpc = { path = "../../full-node/sov-ledger-rpc", features = ["server"] }
+sov-ledger-apis = { path = "../../full-node/sov-ledger-apis", features = ["server"] }
 risc0 = { path = "./provers/risc0" }
 borsh = { workspace = true, features = ["bytes"] }
 async-trait = { workspace = true }

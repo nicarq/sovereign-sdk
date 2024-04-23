@@ -85,7 +85,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
             .await
             .unwrap();
         let addr = server.local_addr().unwrap();
-        let server_rpc_module = sov_ledger_rpc::server::rpc_module::<
+        let server_rpc_module = sov_ledger_apis::server::rpc_module::<
             LedgerDb,
             u32,
             u32,

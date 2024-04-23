@@ -1,10 +1,17 @@
 //! Miscellaneous utilities.
 
+use std::collections::BTreeSet;
 use std::fmt::{Debug, Display};
 
-use axum::http::StatusCode;
-use axum::Json;
-use tracing::error;
+use axum::body::Body;
+use axum::extract::Request;
+use axum::http::{HeaderName, StatusCode};
+use axum::{Json, Router};
+use tower_http::compression::CompressionLayer;
+use tower_http::propagate_header::PropagateHeaderLayer;
+use tower_http::trace::TraceLayer;
+use tower_request_id::{RequestId, RequestIdLayer};
+use tracing::{error, error_span};
 
 use crate::types::{ErrorObject, ResponseObject};
 
@@ -45,12 +52,62 @@ impl<'a> serde::Deserialize<'a> for HexString {
     }
 }
 
-/// A comma-separated list of strings, useful for [`serde`] (de)serialization.
+/// Customizes the given [`Router`] with a set of preconfigured "layers" that
+/// are a good starting point for building production-ready JSON APIs.
+pub fn preconfigured_router_layers<S>(router: Router<S>) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    // Tracing span with unique ID per request:
+    // <https://github.com/imbolc/tower-request-id/blob/main/examples/logging.rs>
+    let trace_layer = TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+        // We get the request id from the extensions
+        let request_id = request
+            .extensions()
+            .get::<RequestId>()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "unknown".into());
+        // And then we put it along with other information into the `request` span
+        error_span!(
+            "request",
+            id = %request_id,
+            method = %request.method(),
+            uri = %request.uri(),
+        )
+    });
+    router
+        .layer(trace_layer)
+        // This layer creates a new id for each request and puts it into the request extensions.
+        // Note that it should be added after the Trace layer. (Filippo: why? I
+        // don't know, I copy-pasted this.)
+        .layer(RequestIdLayer)
+        .layer(
+            tower::ServiceBuilder::new()
+                // Tracing.
+                .layer(TraceLayer::new_for_http())
+                // Compress responses with GZIP.
+                .layer(CompressionLayer::new())
+                // Propagate `X-Request-Id`s from requests to responses.
+                .layer(PropagateHeaderLayer::new(HeaderName::from_static(
+                    "x-request-id",
+                ))),
+        )
+        .fallback(global_404)
+}
+
+/// A comma-separated set of strings, useful for [`serde`] (de)serialization.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
-pub struct CommaSeparatedStrings(pub Vec<String>);
+pub struct CommaSeparatedStringsSet(pub BTreeSet<String>);
 
-impl serde::Serialize for CommaSeparatedStrings {
+impl CommaSeparatedStringsSet {
+    /// Returns true iff the set is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl serde::Serialize for CommaSeparatedStringsSet {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -66,8 +123,8 @@ impl serde::Serialize for CommaSeparatedStrings {
     }
 }
 
-impl<'a> serde::Deserialize<'a> for CommaSeparatedStrings {
-    fn deserialize<D>(deserializer: D) -> Result<CommaSeparatedStrings, D::Error>
+impl<'a> serde::Deserialize<'a> for CommaSeparatedStringsSet {
+    fn deserialize<D>(deserializer: D) -> Result<CommaSeparatedStringsSet, D::Error>
     where
         D: serde::Deserializer<'a>,
     {
@@ -93,6 +150,21 @@ macro_rules! json_obj {
             _ => panic!("json_obj! macro returned non-object value"),
         }
     };
+}
+
+/// A 404 response useful as a catch-all for invalid routes.
+pub async fn global_404() -> (StatusCode, Json<ResponseObject>) {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ResponseObject {
+            errors: vec![ErrorObject {
+                status: StatusCode::NOT_FOUND.as_u16() as _,
+                title: "Invalid URI".to_string(),
+                details: Default::default(),
+            }],
+            ..Default::default()
+        }),
+    )
 }
 
 /// Returns a 501 error.
@@ -170,7 +242,7 @@ mod tests {
 
         #[test]
         fn comma_separated_strings_serialization_roundtrip(numbers: Vec<i32>) {
-            let item = CommaSeparatedStrings(numbers.into_iter().map(|i| i.to_string()).collect());
+            let item = CommaSeparatedStringsSet(numbers.into_iter().map(|i| i.to_string()).collect());
             test_serialization_roundtrip_equality_json(item);
         }
 

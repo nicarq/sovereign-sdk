@@ -1,5 +1,5 @@
 [package]
-name = "sov-ledger-rpc"
+name = "sov-ledger-apis"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
@@ -33,7 +33,7 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["n
 tempfile = "3"
 sov-db = { path = "../../full-node/sov-db" }
 tokio = { workspace = true, features = ["full"] }
-sov-ledger-rpc = { path = ".", features = ["client", "server"] }
+sov-ledger-apis = { path = ".", features = ["client", "server"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"], version = "0.3" }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"], version = "0.3" }

@@ -6,9 +6,9 @@ use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::core::params::ArrayParams;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::{CacheContainer, CacheDb};
-use sov_ledger_rpc::client::RpcClient;
-use sov_ledger_rpc::server::rpc_module;
-use sov_ledger_rpc::HexHash;
+use sov_ledger_apis::client::RpcClient;
+use sov_ledger_apis::server::rpc_module;
+use sov_ledger_apis::HexHash;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::StoredEvent;
 use sov_rollup_interface::rpc::{

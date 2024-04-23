@@ -18,7 +18,7 @@ workspace = true
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true, features = ["http1", "http2", "ws", "json", "query"] }
-axum-server = { version = "0.6", features = ["tls-rustls"] }
+axum-server = { workspace = true }
 base64 = "0.22"
 bincode = { workspace = true }
 borsh = { workspace = true }
@@ -30,6 +30,7 @@ mini-moka = "0.10"
 rockbound = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 serde_with = { version = "3.7", features = ["base64"] }
 sov-jsonapi-utils = { path = "../jsonapi-utils" }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
@@ -39,7 +40,8 @@ sov-state = { path = "../../module-system/sov-state", version = "0.3" }
 sov-db = { path = "../sov-db", version = "0.3" }
 tracing = { workspace = true }
 tokio = { workspace = true }
-utoipa-swagger-ui = { version = "6", features = ["axum"] }
+utoipa = { workspace = true }
+utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 
 [dev-dependencies]
 rand = { workspace = true }

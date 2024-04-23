@@ -29,7 +29,7 @@ where
 
     // Ledger endpoint.
     {
-        rpc_methods.merge(sov_ledger_rpc::server::rpc_module::<
+        rpc_methods.merge(sov_ledger_apis::server::rpc_module::<
             LedgerDb,
             SequencerOutcome,
             TxEffect,
@@ -59,7 +59,10 @@ where
             .merge(sequencer.rpc())
             .context("Failed to merge Transactions RPC modules")?;
 
-        axum_router = axum_router.nest("/sequencer", sequencer.axum_router().with_state(sequencer));
+        axum_router = axum_router.nest(
+            "/sequencer",
+            sequencer.axum_router("/sequencer").with_state(sequencer),
+        );
     }
 
     Ok((rpc_methods, axum_router))

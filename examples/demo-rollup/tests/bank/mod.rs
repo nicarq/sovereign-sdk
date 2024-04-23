@@ -8,7 +8,7 @@ use serde_json::{from_value, Value};
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{Coins, TokenId};
 use sov_kernels::basic::BasicKernelGenesisPaths;
-use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_apis::client::RpcClient;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};

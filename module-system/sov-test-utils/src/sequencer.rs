@@ -151,7 +151,9 @@ async fn expose_sequencer_server(
 
     let (axum_addr, sequencer_axum_server) = {
         let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-        let router = sequencer.axum_router().with_state::<()>(sequencer.clone());
+        let router = sequencer
+            .axum_router("/sequencer")
+            .with_state::<()>(sequencer.clone());
 
         let handle = axum_server::Handle::new();
         let handle1 = handle.clone();

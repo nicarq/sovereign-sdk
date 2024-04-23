@@ -14,7 +14,7 @@
 - sov-modules-stf-blueprint
 - sov-stf-runner
 - sov-modules-rollup-blueprint
-- sov-ledger-rpc
+- sov-ledger-apis
 
 # Modules
 - sov-accounts

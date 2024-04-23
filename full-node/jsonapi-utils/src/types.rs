@@ -33,6 +33,17 @@ impl From<JsonObject> for ResponseObjectData {
     }
 }
 
+impl TryFrom<serde_json::Value> for ResponseObjectData {
+    type Error = anyhow::Error;
+
+    fn try_from(value: serde_json::Value) -> Result<Self, Self::Error> {
+        match value {
+            serde_json::Value::Object(map) => Ok(Self::Single(map)),
+            _ => Err(anyhow::anyhow!("Invalid response object")),
+        }
+    }
+}
+
 /// A JSON object.
 pub type JsonObject = serde_json::Map<String, serde_json::Value>;
 

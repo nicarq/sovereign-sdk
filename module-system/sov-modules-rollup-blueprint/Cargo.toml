@@ -26,7 +26,7 @@ sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-bluepr
 sov-db = { path = "../../full-node/sov-db", version = "0.3" }
 
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
-sov-ledger-rpc = { path = "../../full-node/sov-ledger-rpc", features = ["server"] }
+sov-ledger-apis = { path = "../../full-node/sov-ledger-apis", features = ["server"] }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
