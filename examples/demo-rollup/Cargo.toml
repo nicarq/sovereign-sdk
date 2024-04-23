@@ -62,6 +62,7 @@ sov-bank = { path = "../../module-system/module-implementations/sov-bank", featu
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module", features = ["native"] }
 sov-modules-macros = { path = "../../module-system/sov-modules-macros" }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
+sov-value-setter = { path = "../../module-system/module-implementations/sov-value-setter", features = ["native"] }
 humantime = "2.1"
 reth-primitives = { workspace = true }
 
@@ -71,6 +72,7 @@ sha2 = { workspace = true }
 tempfile = { workspace = true }
 proptest = { workspace = true }
 tokio = { workspace = true }
+rand = { workspace = true }
 
 ethereum-types = { workspace = true }
 ethers-core = { workspace = true }

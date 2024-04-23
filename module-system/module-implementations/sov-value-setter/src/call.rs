@@ -21,10 +21,15 @@ use crate::event::Event;
     Clone,
 )]
 pub enum CallMessage {
-    /// value to set
+    /// Single value to set.
     SetValue(
-        /// new value
+        /// Singe new value.
         u32,
+    ),
+    /// Many values to set.
+    SetManyValues(
+        /// Many new values.
+        Vec<u8>,
     ),
 }
 
@@ -42,7 +47,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         new_value: u32,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> Result<sov_modules_api::CallResponse> {
+    ) -> Result<CallResponse> {
         // If admin is not then early return:
         let admin = self.admin.get_or_err(working_set)?;
 
@@ -56,6 +61,24 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
 
         self.emit_event(working_set, "set_value", Event::NewValue(new_value));
 
+        Ok(CallResponse::default())
+    }
+
+    pub(crate) fn set_values(
+        &self,
+        new_value: Vec<u8>,
+        context: &Context<S>,
+        working_set: &mut WorkingSet<S>,
+    ) -> Result<CallResponse> {
+        let admin = self.admin.get_or_err(working_set)?;
+
+        if &admin != context.sender() {
+            // Here we use a custom error type.
+            Err(SetValueError::WrongSender)?;
+        }
+
+        // This is how we set a new value:
+        self.many_values.set_all(new_value, working_set);
         Ok(CallResponse::default())
     }
 }
