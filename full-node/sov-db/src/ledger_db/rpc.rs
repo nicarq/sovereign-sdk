@@ -385,7 +385,6 @@ impl LedgerStateProvider for LedgerDb {
                 }
             }
             EventIdentifier::Number(num) => Ok(Some(*num)),
-            EventIdentifier::TxIdAndKey(_) => todo!(),
         }
     }
 
