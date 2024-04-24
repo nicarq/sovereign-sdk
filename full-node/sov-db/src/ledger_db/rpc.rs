@@ -1,4 +1,4 @@
-use anyhow::{ensure, Context, Error};
+use anyhow::{bail, ensure, Context, Error};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
@@ -200,22 +200,31 @@ impl LedgerStateProvider for LedgerDb {
         &self,
         txn_hash: &[u8; 32],
     ) -> Result<Vec<EventResponse>, Error> {
-        let tid = self
+        let tx_range = (*txn_hash, TxNumber(0))..(*txn_hash, TxNumber(u64::MAX));
+        let tx_numbers = self
             .db
-            .read::<TxByHash>(txn_hash)
-            .with_context(|| format!("Failed to query txn with hash: 0x{}", hex::encode(txn_hash)))?
-            .with_context(|| {
-                format!(
-                    "Txn with hash: 0x{} does not exist in storage",
-                    hex::encode(txn_hash)
-                )
-            })?;
-        let events_response = self
-            .get_events_by_txn_number::<E>(tid.0)
-            .await
+            .collect_in_range::<TxByHash, ([u8; 32], TxNumber)>(tx_range)
             .with_context(|| {
                 format!("Failed to query txn with hash: 0x{}", hex::encode(txn_hash))
             })?;
+
+        if tx_numbers.is_empty() {
+            bail!(
+                "Txn with hash: 0x{} does not exist in storage",
+                hex::encode(txn_hash)
+            )
+        }
+
+        let mut events_response = vec![];
+        for ((_, tx_num), _) in tx_numbers {
+            let events = self
+                .get_events_by_txn_number::<E>(tx_num.0)
+                .await
+                .with_context(|| {
+                    format!("Resolved transaction hash {} to tx number {}, but failed to resolve find the events for that number", hex::encode(txn_hash), tx_num.0)
+                })?;
+            events_response.extend(events.into_iter());
+        }
         Ok(events_response)
     }
 
@@ -351,10 +360,24 @@ impl LedgerStateProvider for LedgerDb {
         tx_id: &TxIdentifier,
     ) -> Result<Option<u64>, Self::Error> {
         match tx_id {
-            TxIdentifier::Hash(hash) => self
-                .db
-                .read::<TxByHash>(hash)
-                .map(|id_opt| id_opt.map(|id| id.0)),
+            TxIdentifier::Hash(hash) => {
+                // When someone queries for a single TX by hash, we assume they want the first one.
+                // This heuristic is better than our old one (implicitly returning the latest instance), because
+                // it's more likely that a transaction gets succeeds on its first inclusion than on a second one.
+                // (This is because transactions with *future* nonces rarely get included, but transactions with
+                // past nonces can get included easily by racing sequencers.)
+                // TODO: Add an endpoint returning all tx numbers for a given hash so that the caller
+                // can identify the instance they care about and query it by number
+                // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/518>
+                let tx_range = (*hash, TxNumber(0))..(*hash, TxNumber(u64::MAX));
+                let tx_numbers = self
+                    .db
+                    .collect_in_range::<TxByHash, ([u8; 32], TxNumber)>(tx_range)
+                    .with_context(|| {
+                        format!("Failed to query txn with hash: 0x{}", hex::encode(hash))
+                    })?;
+                Ok(tx_numbers.first().map(|((_, tx_num), _)| tx_num.0))
+            }
             TxIdentifier::Number(num) => Ok(Some(*num)),
             TxIdentifier::BatchIdAndOffset(BatchIdAndOffset { batch_id, offset }) => {
                 if let Some(batch_num) = self.resolve_batch_identifier(batch_id).await? {

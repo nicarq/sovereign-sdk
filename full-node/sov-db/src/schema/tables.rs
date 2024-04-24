@@ -232,9 +232,10 @@ define_table_with_seek_key_codec!(
     (TxByNumber) TxNumber => StoredTransaction
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// A "secondary index" for transaction data by hash
-    (TxByHash) DbHash => TxNumber
+    /// Since the same tx hash might appear in multiple blocks, we store the txnumber as part of the key.
+    (TxByHash) (DbHash, TxNumber) => ()
 );
 
 define_table_with_seek_key_codec!(
