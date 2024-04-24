@@ -237,7 +237,7 @@ impl LedgerDb {
         schema_batch: &mut SchemaBatch,
     ) -> Result<(), anyhow::Error> {
         schema_batch.put::<TxByNumber>(tx_number, tx)?;
-        schema_batch.put::<TxByHash>(&tx.hash, tx_number)
+        schema_batch.put::<TxByHash>(&(tx.hash, *tx_number), &())
     }
 
     fn put_event(
