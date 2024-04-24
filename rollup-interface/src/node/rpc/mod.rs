@@ -81,8 +81,6 @@ pub struct TxIdAndKey {
 pub enum EventIdentifier {
     /// An offset into a particular transaction (i.e. the 3rd event in transaction number 5).
     TxIdAndOffset(TxIdAndOffset),
-    /// A particular event key from a particular transaction.
-    TxIdAndKey(TxIdAndKey),
     /// The monotonically increasing number of the event, ordered by the DA layer For example, if the first tx
     /// contains 7 events, tx 2 contains 11 events, and tx 3 contains 7 txs,
     /// the last event in tx 3 would have number 25. The counter never resets.
@@ -95,8 +93,10 @@ pub enum EventIdentifier {
 pub enum EventGroupIdentifier {
     /// Fetch all events from a particular transaction.
     TxId(TxIdentifier),
+    /// All events which occurred in a particular transaction with a particular key.
+    TxIdAndKey(TxIdAndKey),
     /// Fetch all events (i.e. from all transactions) with a particular key.
-    Key(Vec<u8>),
+    Key(EventKey),
 }
 
 /// An identifier that specifies a single slot.
