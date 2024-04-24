@@ -39,7 +39,7 @@ wait_for_block() {
   while [[ -z "$block_hash" ]]; do
     # `|| echo` fallbacks to an empty string in case it's not ready
     block_hash="$(celestia-appd query block "$block_num" 2>/dev/null | jq '.block_id.hash' || echo)"
-    sleep 0.5
+    sleep 0.1
   done
 
   echo "$block_hash"
@@ -133,6 +133,23 @@ setup_private_validator() {
   # https://gist.github.com/andre3k1/e3a1a7133fded5de5a9ee99c87c6fa0d?permalink_comment_id=3082272#gistcomment-3082272
   sed -i'.bak' 's|"tcp://127.0.0.1:26657"|"tcp://0.0.0.0:26657"|g' "$CONFIG_DIR/config/config.toml"
   sed -i'.bak' 's|"null"|"kv"|g' "$CONFIG_DIR/config/config.toml"
+
+  # Adjusting for faster block times
+  # Numbers are derived by trial and error.
+  # timeout_commit = "11s"
+  sed -i'.bak' 's/^timeout_commit\s*=.*/timeout_commit = "4000ms"/g' "$CONFIG_DIR/config/config.toml"
+  # timeout_propose = "10s"
+  sed -i'.bak' 's/^timeout_propose\s*=.*/timeout_propose = "2000ms"/g' "$CONFIG_DIR/config/config.toml"
+  # timeout_propose_delta = "500ms"
+  sed -i'.bak' 's/^timeout_propose_delta\s*=.*/timeout_propose_delta = "100ms"/g' "$CONFIG_DIR/config/config.toml"
+  # timeout_prevote = "1s"
+  sed -i'.bak' 's/^timeout_prevote\s*=.*/timeout_prevote = "200ms"/g' "$CONFIG_DIR/config/config.toml"
+  # timeout_prevote_delta = "500ms"
+  sed -i'.bak' 's/^timeout_prevote_delta\s*=.*/timeout_prevote_delta = "100ms"/g' "$CONFIG_DIR/config/config.toml"
+  # timeout_precommit = "1s"
+  sed -i'.bak' 's/^timeout_precommit\s*=.*/timeout_precommit = "200ms"/g' "$CONFIG_DIR/config/config.toml"
+  # timeout_precommit_delta = "500ms"
+  sed -i'.bak' 's/^timeout_precommit_delta\s*=.*/timeout_precomm_delta = "100ms"/g' "$CONFIG_DIR/config/config.toml"
 
   # Register the validator EVM address in background
   {

@@ -253,16 +253,17 @@ impl DaService for CelestiaService {
 
     #[instrument(skip_all, err)]
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
-        debug!(bytes_count = blob.len(), "Sending raw data to Celestia");
+        let bytes = blob.len();
+        debug!(bytes = bytes, "Sending raw data to Celestia");
 
-        let gas_limit = get_gas_limit_for_bytes(blob.len(), GAS_PER_BYTE) as u64;
+        let gas_limit = get_gas_limit_for_bytes(bytes, GAS_PER_BYTE) as u64;
         // TODO: Correct fee calculation: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
         let fee = gas_limit.saturating_mul(GAS_PRICE as u64);
 
         let blob = JsonBlob::new(self.rollup_batch_namespace, blob.to_vec())?;
         info!(
             commitment = hex::encode(blob.commitment.0),
-            "Submitting a blob"
+            gas_limit, fee, bytes, "Submitting a blob"
         );
 
         let height = self
