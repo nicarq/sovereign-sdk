@@ -1,7 +1,9 @@
 use proc_macro2::Span;
 use syn::DeriveInput;
 
-use super::common::{get_generics_type_param, StructDef, StructFieldExtractor};
+use super::common::{
+    get_generics_type_param, get_serialization_attrs, StructDef, StructFieldExtractor,
+};
 
 pub(crate) const EVENT: &str = "Event";
 
@@ -37,10 +39,13 @@ impl EventMacro {
         &self,
         input: DeriveInput,
     ) -> Result<proc_macro::TokenStream, syn::Error> {
-        let serialization_methods = vec![
-            quote::quote! { borsh::BorshSerialize },
-            quote::quote! { borsh::BorshDeserialize },
-        ];
+        let mut derive_methods = get_serialization_attrs(&input)?;
+        derive_methods.push(quote::quote! { Clone });
+
+        let extra_attributes = vec![quote::quote! {
+            #[serde(untagged)]
+            #[serde(bound = "")]
+        }];
 
         let DeriveInput {
             data,
@@ -63,7 +68,9 @@ impl EventMacro {
         );
 
         let event_enum_legs = struct_def.create_event_enum_legs();
-        let event_enum = struct_def.create_enum(&event_enum_legs, EVENT, &serialization_methods);
+        let event_enum =
+            struct_def.create_enum(&event_enum_legs, EVENT, &derive_methods, &extra_attributes);
+
         let event_cases = struct_def.fields.iter().map(|field| {
             let name = &field.ident;
             let module_ty = &field.ty;
@@ -81,6 +88,25 @@ impl EventMacro {
         let ident_name = &struct_def.ident;
         let event_enum_name = struct_def.enum_ident(EVENT);
 
+        let from_event_cases = struct_def.fields.iter().map(|field| {
+            let variant_name = &field.ident;
+            quote::quote! {
+            #event_enum_name::#variant_name(ref event) => {
+                     stringify!(#variant_name).to_string()
+                }
+            }
+        });
+
+        let impl_runtime_event_module_name = quote::quote! {
+            impl #impl_generics ::sov_modules_api::EventModuleName for #event_enum_name #type_generics {
+                fn get_module_name(&self) -> String {
+                    match self {
+                        #(#from_event_cases),*
+                    }
+                }
+            }
+        };
+
         let impl_runtime_event_processor = quote::quote! {
             impl #impl_generics ::sov_modules_api::RuntimeEventProcessor for #ident_name #type_generics {
                 type RuntimeEvent = #event_enum_name #type_generics;
@@ -96,54 +122,13 @@ impl EventMacro {
             }
         };
 
-        let impl_runtime_event_display = if cfg!(feature = "native") {
-            quote::quote! {
-                #[cfg(feature = "native")]
-                impl #impl_generics ::sov_modules_api::RuntimeEventDisplay for #ident_name #type_generics #where_clause {
-                    type RuntimeEvent = #event_enum_name #type_generics;
-                }
-            }
-        } else {
-            quote::quote! {}
-        };
-
-        let from_event_cases = struct_def.fields.iter().map(|field| {
-            let variant_name = &field.ident;
-
-            quote::quote! {
-                #event_enum_name::#variant_name(ref event) => {
-                    let event_data = serde_json::to_value(event).unwrap_or_default();
-                    sov_rollup_interface::rpc::Event {
-                        module_name: stringify!(#variant_name).to_string(),
-                        event_value: event_data }
-                }
-            }
-        });
-
-        let impl_from = if cfg!(feature = "native") {
-            quote::quote! {
-                impl #impl_generics From<#event_enum_name #type_generics> for sov_rollup_interface::rpc::Event {
-                    fn from(event: #event_enum_name #type_generics) -> Self {
-                        match event {
-                            #(#from_event_cases),*
-                        }
-                    }
-                }
-            }
-        } else {
-            quote::quote! {}
-        };
-
         Ok(quote::quote! {
             #[doc="This enum is generated from the underlying Runtime, the variants correspond to events from the relevant modules"]
             #event_enum
 
             #impl_runtime_event_processor
 
-            #impl_runtime_event_display
-
-            #impl_from
-
+            #impl_runtime_event_module_name
         }
             .into())
     }

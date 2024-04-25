@@ -1,60 +1,59 @@
-use anyhow::Error;
+use anyhow::{ensure, Context, Error};
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::ModuleId;
-use sov_rollup_interface::rpc::{
-    EventIdentifier, EventResponse, LedgerStateProvider, PaginatedEventResponse,
-};
-use sov_rollup_interface::stf::EventKey;
+use sov_rollup_interface::rpc::{EventIdentifier, LedgerStateProvider, PaginatedEventResponse};
+use sov_rollup_interface::stf::{EventKey, StoredEvent};
 
+use crate::ledger_db::rpc_constants::MAX_BATCHES_PER_REQUEST;
 use crate::ledger_db::LedgerDb;
-use crate::schema::tables::{EventByKey, EventByModuleId};
-use crate::schema::types::{EventNumber, ModuleIdBytes, TxNumber};
+use crate::schema::tables::{BatchByNumber, EventByKey, SlotByNumber};
+use crate::schema::types::{EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber};
 
 fn event_match_helper(
     scanned_key: &EventKey,
     provided_key: &str,
-    scanned_address: &[u8],
-    provided_id: &Option<Vec<u8>>,
     scanned_txn_num: u64,
     provided_txn_range: Option<(u64, u64)>,
 ) -> bool {
     let event_key_match = scanned_key.inner().as_slice() == provided_key.as_bytes();
-    let module_id_match = match provided_id {
-        Some(addr) => addr.as_slice() == scanned_address,
-        None => true, // If module_id is not provided, always true
-    };
     let txn_num_match = match provided_txn_range {
         Some(txn_range) => scanned_txn_num >= txn_range.0 && scanned_txn_num <= txn_range.1,
         None => true, // If transaction_num is not provided, always true
     };
-    event_key_match && module_id_match && txn_num_match
+    event_key_match && txn_num_match
 }
 
-pub(crate) async fn get_events_by_key_helper<
-    E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
->(
+/// Fetches a list of events by their key, with support for optional filtering based on a transaction range.
+///
+/// This function provides a way to query events stored in a ledger database, allowing for precise data retrieval through optional transaction ranges. Pagination is supported via a cursor passed as the `next` parameter, allowing for efficient data fetching in large datasets.
+///
+/// # Parameters
+/// - `ledger_db`: Reference to the `LedgerDB` storage.
+/// - `event_key`: The key associated with the desired events.
+/// - `txn_range`: An optional range of transactions `(start, end)` to filter the events by. If `None`, events are not filtered by transaction range.
+/// - `num_events`: The maximum number of events to return. This acts as a limit for the query, useful for pagination.
+/// - `next`: An optional pagination cursor indicating where to continue fetching events. If `None`, fetching starts from the beginning of the dataset.
+///
+/// # Returns
+/// A collection of events that match the given criteria, limited by `num_events`. The exact return type depends on the `E` type parameter, which is determined by the `StoredEventToResponseConverter` trait implementation.
+pub async fn get_events_by_key_helper<E>(
     ledger_db: &LedgerDb,
     event_key: &str,
-    module_id: Option<ModuleId>,
     txn_range: Option<(u64, u64)>,
     num_events: usize,
     next: Option<&str>,
-) -> Result<PaginatedEventResponse, Error> {
-    let module_id_vec = match module_id {
-        None => vec![],
-        Some(module_id) => module_id.as_bytes().to_vec(),
-    };
-
+) -> Result<PaginatedEventResponse<E>, Error>
+where
+    E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+{
     let scan_key_start = match next {
         Some(start_key) => {
             let key_bytes = hex::decode(start_key)?;
-            let composite_key: (EventKey, Vec<u8>, TxNumber, EventNumber) =
+            let composite_key: (EventKey, TxNumber, EventNumber) =
                 BorshDeserialize::try_from_slice(&key_bytes)?;
             composite_key
         }
         None => (
             EventKey::new(event_key.as_bytes()),
-            module_id_vec.clone(),
             TxNumber(txn_range.unwrap_or((0u64, 0u64)).0),
             EventNumber(0u64),
         ),
@@ -68,25 +67,16 @@ pub(crate) async fn get_events_by_key_helper<
         paginated_query_response.key_value,
         paginated_query_response.next,
     );
-    let event_keys: Vec<((EventKey, ModuleIdBytes, TxNumber, EventNumber), ())> = event_keys
+    let event_keys: Vec<((EventKey, TxNumber, EventNumber), ())> = event_keys
         .into_iter()
-        .filter(|((e_key, m_address, t_num, _), _)| {
-            event_match_helper(
-                e_key,
-                event_key,
-                m_address,
-                &module_id.map(|_| module_id_vec.clone()),
-                t_num.0,
-                txn_range,
-            )
-        })
+        .filter(|((e_key, t_num, _), _)| event_match_helper(e_key, event_key, t_num.0, txn_range))
         .collect();
 
     let event_ids: Vec<EventIdentifier> = event_keys
         .into_iter()
-        .map(|(k, _)| EventIdentifier::Number(k.3 .0))
+        .map(|(k, _)| EventIdentifier::Number(k.2 .0))
         .collect();
-    let events_response: Vec<EventResponse> = ledger_db
+    let events_response: Vec<E> = ledger_db
         .get_events::<E>(&event_ids)
         .await?
         .into_iter()
@@ -94,14 +84,7 @@ pub(crate) async fn get_events_by_key_helper<
         .collect();
     let next = next_key
         .and_then(|next_key| {
-            if !event_match_helper(
-                &next_key.0,
-                event_key,
-                next_key.1.as_slice(),
-                &module_id.map(|_| module_id_vec.clone()),
-                next_key.2 .0,
-                txn_range,
-            ) {
+            if !event_match_helper(&next_key.0, event_key, next_key.2 .0, txn_range) {
                 None
             } else {
                 Some(next_key)
@@ -115,58 +98,103 @@ pub(crate) async fn get_events_by_key_helper<
     })
 }
 
-pub(crate) async fn get_events_by_module_id_helper<
-    E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
->(
+/// Fetches a list of events by their key within a specified slot height range
+///
+/// This function enables precise event retrieval from the ledger database by combining primary key matching with slot height range filtering.
+/// Pagination is facilitated through the `next` parameter.
+///
+/// # Parameters
+/// - `ledger_db`: Reference to the `LedgerDB` instance where events are stored.
+/// - `event_key`: The primary key associated with the events of interest.
+/// - `slot_height_start`: The starting slot height for the range filter.
+/// - `slot_height_end`: The ending slot height for the range filter.
+/// - `num_events`: The maximum number of events to retrieve, useful for controlling query load and for pagination.
+/// - `next`: An optional cursor for pagination, specifying where to continue fetching events. If `None`, starts from the beginning of the matching dataset.
+///
+/// # Returns
+/// A collection of events that fit the specified criteria, constrained by `num_events`. The exact return type is determined by the `E` type parameter based on the `StoredEventToResponseConverter` trait.
+pub async fn get_events_by_key_slot_range_helper<E>(
     ledger_db: &LedgerDb,
-    module_id: ModuleId,
+    event_key: &str,
+    slot_height_start: u64,
+    slot_height_end: u64,
     num_events: usize,
     next: Option<&str>,
-) -> Result<PaginatedEventResponse, Error> {
-    let module_id_vec = module_id.as_bytes().to_vec();
+) -> Result<PaginatedEventResponse<E>, Error>
+where
+    E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+{
+    let (txn_range, next_key) = match next {
+        None => {
+            let slots_result: Vec<StoredSlot> = [slot_height_start, slot_height_end]
+                .into_iter()
+                .map(|slot_num| {
+                    ledger_db
+                        .db
+                        .read::<SlotByNumber>(&SlotNumber(slot_num))
+                        .with_context(|| format!("Failed to query slot with number: {}", slot_num))
+                        .and_then(|slot_opt| {
+                            slot_opt.with_context(|| {
+                                format!("Slot with number: {} does not exist in storage", slot_num)
+                            })
+                        })
+                })
+                .collect::<Result<Vec<StoredSlot>, _>>()?;
 
-    let scan_key_start = match next {
-        Some(start_key) => {
-            let key_bytes = hex::decode(start_key)?;
-            let composite_key: (Vec<u8>, TxNumber, EventNumber) =
-                BorshDeserialize::try_from_slice(&key_bytes)?;
-            composite_key
+            let batch_start_num = slots_result[0].batches.start;
+            let batch_end_num = slots_result[1].batches.end;
+
+            ensure!(batch_end_num.0 - batch_start_num.0 < MAX_BATCHES_PER_REQUEST);
+
+            let batches_result: Vec<StoredBatch> = [batch_start_num, batch_end_num]
+                .into_iter()
+                .map(|batch_num| {
+                    ledger_db
+                        .db
+                        .read::<BatchByNumber>(&batch_num)
+                        .with_context(|| {
+                            format!("Failed to query batch with number: {}", batch_num.0)
+                        })
+                        .and_then(|slot_opt| {
+                            slot_opt.with_context(|| {
+                                format!(
+                                    "Batch with number: {} does not exist in storage",
+                                    batch_num.0
+                                )
+                            })
+                        })
+                })
+                .collect::<Result<Vec<StoredBatch>, _>>()?;
+
+            let txn_start_num = batches_result[0].txs.start;
+            let txn_end_num = batches_result[1].txs.end;
+            ((txn_start_num.0, txn_end_num.0), None)
         }
-        None => (module_id_vec.clone(), TxNumber(0u64), EventNumber(0u64)),
+        Some(wrapped_next) => {
+            let key_bytes = hex::decode(wrapped_next)?;
+            let composite_key: ((u64, u64), String) = BorshDeserialize::try_from_slice(&key_bytes)?;
+            (composite_key.0, Some(composite_key.1))
+        }
     };
 
-    let paginated_query_response = ledger_db
-        .db
-        .get_n_from_first_match::<EventByModuleId>(&scan_key_start, num_events)?;
-
-    let (event_keys, next_key) = (
-        paginated_query_response.key_value,
+    let paginated_query_response = get_events_by_key_helper::<E>(
+        ledger_db,
+        event_key,
+        Some((txn_range.0, txn_range.1)),
+        num_events,
+        next_key.as_deref(),
+    )
+    .await?;
+    let (event_response, next_key) = (
+        paginated_query_response.events_response,
         paginated_query_response.next,
     );
 
-    let event_keys: Vec<((ModuleIdBytes, TxNumber, EventNumber), ())> = event_keys
-        .into_iter()
-        .filter(|((m_address, _, _), _)| m_address.as_slice() == module_id_vec.as_slice())
-        .collect();
-
-    let event_ids: Vec<EventIdentifier> = event_keys
-        .into_iter()
-        .map(|(k, _)| EventIdentifier::Number(k.2 .0))
-        .collect();
-
-    let events_response: Vec<EventResponse> = ledger_db
-        .get_events::<E>(&event_ids)
-        .await?
-        .into_iter()
-        .flatten()
-        .collect();
-
-    let next = next_key
-        .map(|next_key| next_key.try_to_vec().map(hex::encode))
-        .transpose()?;
+    let re_encoded_next =
+        next_key.and_then(|inner_next| (txn_range, inner_next).try_to_vec().ok().map(hex::encode));
 
     Ok(PaginatedEventResponse {
-        events_response,
-        next,
+        events_response: event_response,
+        next: re_encoded_next,
     })
 }

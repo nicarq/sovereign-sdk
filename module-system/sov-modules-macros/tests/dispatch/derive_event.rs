@@ -5,7 +5,7 @@ use sov_modules_api::{DispatchCall, Spec, Event, Genesis, MessageCodec};
 use sov_test_utils::TestSpec;
 
 #[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
+#[serialization(serde::Serialize, serde::Deserialize, borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct Runtime<S: Spec> {
     pub first: first_test_module::FirstTestStruct<S>,
     pub second: second_test_module::SecondTestStruct<S>,

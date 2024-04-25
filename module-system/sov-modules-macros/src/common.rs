@@ -166,14 +166,15 @@ impl<'a> StructDef<'a> {
         enum_legs: &[proc_macro2::TokenStream],
         postfix: &'static str,
         serialization_attrs: &Vec<TokenStream>,
+        extra_attributes: &[TokenStream],
     ) -> proc_macro2::TokenStream {
         let enum_ident = self.enum_ident(postfix);
         let impl_generics = &self.impl_generics;
         let where_clause = &self.where_clause;
-
         quote::quote! {
             #[allow(non_camel_case_types)]
             #[derive(::core::fmt::Debug, PartialEq, #(#serialization_attrs),*)]
+            #(#extra_attributes)*
             pub enum #enum_ident #impl_generics #where_clause {
                 #(#enum_legs)*
             }

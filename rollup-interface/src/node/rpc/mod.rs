@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::stf::EventKey;
+use crate::stf::{EventKey, StoredEvent};
 use crate::zk::aggregated_proof::AggregatedProof;
 
 /// A struct containing enough information to uniquely specify single batch.
@@ -189,19 +189,6 @@ pub enum ItemOrHash<T> {
     Full(T),
 }
 
-/// An RPC response for the module specific event
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct EventResponse {
-    /// The key of the event.
-    pub event_key: String,
-    /// A value representing the the module event serialized as json
-    pub event_value: serde_json::Value,
-    /// Module name that the event belongs to
-    pub module_name: String,
-    /// Module id that the event belongs to
-    pub module_id: String,
-}
-
 /// An RPC response for the latest aggregated proof info.
 #[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProofInfoResponse {
@@ -214,26 +201,17 @@ pub struct ProofInfoResponse {
 /// An RPC response for the latest aggregated proof.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AggregatedProofResponse {
-    /// Aggregated proof..
+    /// Aggregated proof.
     pub proof: AggregatedProof,
 }
 
 /// An RPC response for the module specific event
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct PaginatedEventResponse {
-    /// A value representing the the module event serialized as json
-    pub events_response: Vec<EventResponse>,
+pub struct PaginatedEventResponse<E> {
+    /// A value representing the module event serialized as json
+    pub events_response: Vec<E>,
     /// Module name that the event belongs to
     pub next: Option<String>,
-}
-
-/// Module specific event
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct Event {
-    /// A value representing the the module event serialized as json
-    pub event_value: serde_json::Value,
-    /// Module name that the event belongs to
-    pub module_name: String,
 }
 
 /// A [`LedgerStateProvider`] provides a way to query the ledger for information about
@@ -292,10 +270,12 @@ pub trait LedgerStateProvider {
         T: DeserializeOwned + Send + Sync;
 
     /// Get events by id. The IDs need not be ordered.
-    async fn get_events<E: borsh::BorshDeserialize + Into<Event>>(
+    async fn get_events<E>(
         &self,
         event_ids: &[EventIdentifier],
-    ) -> Result<Vec<Option<EventResponse>>, Self::Error>;
+    ) -> Result<Vec<Option<E>>, Self::Error>
+    where
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
 
     /// Get a single slot by hash.
     async fn get_slot_by_hash<B, T>(
@@ -372,26 +352,24 @@ pub trait LedgerStateProvider {
     }
 
     /// Get a single event by number.
-    async fn get_event_by_number<E: borsh::BorshDeserialize + Into<Event>>(
-        &self,
-        number: u64,
-    ) -> Result<Option<EventResponse>, Self::Error> {
+    async fn get_event_by_number<E>(&self, number: u64) -> Result<Option<E>, Self::Error>
+    where
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+    {
         self.get_events::<E>(&[EventIdentifier::Number(number)])
             .await
             .map(|mut events| events.pop().flatten())
     }
 
     /// Get events by transaction hash.
-    async fn get_events_by_txn_hash<E: borsh::BorshDeserialize + Into<Event>>(
-        &self,
-        txn_hash: &[u8; 32],
-    ) -> Result<Vec<EventResponse>, Self::Error>;
+    async fn get_events_by_txn_hash<E>(&self, txn_hash: &[u8; 32]) -> Result<Vec<E>, Self::Error>
+    where
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
 
     /// Get events by transaction number.
-    async fn get_events_by_txn_number<E: borsh::BorshDeserialize + Into<Event>>(
-        &self,
-        txn_num: u64,
-    ) -> Result<Vec<EventResponse>, Self::Error>;
+    async fn get_events_by_txn_number<E>(&self, txn_num: u64) -> Result<Vec<E>, Self::Error>
+    where
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
 
     /// Get a single tx by number.
     async fn get_tx_by_number<T>(

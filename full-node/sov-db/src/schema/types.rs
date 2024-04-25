@@ -52,9 +52,6 @@ pub type DbHash = [u8; 32];
 /// The "value" half of a key/value pair from the JMT
 pub type JmtValue = Option<Vec<u8>>;
 
-/// Type alias for `Vec<u8>`
-pub type ModuleIdBytes = Vec<u8>;
-
 /// The on-disk format of a slot. Specifies the batches contained in the slot
 /// and the hash of the da block. TODO(@preston-evans98): add any additional data
 /// required to reconstruct the da block proof.

@@ -177,16 +177,14 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
 #[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
 pub struct StoredEvent {
     key: EventKey,
-    module_id: SerializedAddress,
     value: EventValue,
 }
 
 impl StoredEvent {
     /// Create a new event with the given key and value
-    pub fn new(key: &[u8], module_id: &[u8], value: &[u8]) -> Self {
+    pub fn new(key: &[u8], value: &[u8]) -> Self {
         Self {
             key: EventKey(key.to_vec()),
-            module_id: SerializedAddress(module_id.to_vec()),
             value: EventValue(value.to_vec()),
         }
     }
@@ -199,11 +197,6 @@ impl StoredEvent {
     /// Get the event value
     pub fn value(&self) -> &EventValue {
         &self.value
-    }
-
-    /// Get the event serialized address
-    pub fn module_id(&self) -> &SerializedAddress {
-        &self.module_id
     }
 }
 
@@ -242,19 +235,6 @@ impl EventKey {
 pub struct EventValue(Vec<u8>);
 
 impl EventValue {
-    /// Return the inner bytes of the event value.
-    /// Return the inner bytes of the event key.
-    pub fn inner(&self) -> &Vec<u8> {
-        &self.0
-    }
-}
-
-/// The value of an event. This is a wrapper around a `Vec<u8>`.
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
-pub struct SerializedAddress(Vec<u8>);
-
-impl crate::stf::SerializedAddress {
     /// Return the inner bytes of the event value.
     /// Return the inner bytes of the event key.
     pub fn inner(&self) -> &Vec<u8> {

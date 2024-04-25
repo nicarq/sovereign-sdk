@@ -6,11 +6,12 @@ use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{LedgerStateProviderExt, ModuleId};
+use sov_modules_api::LedgerStateProviderExt;
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdentifier, EventIdentifier, LedgerStateProvider,
     ProofInfoResponse, QueryMode, SlotIdentifier, TxIdentifier,
 };
+use sov_rollup_interface::stf::StoredEvent;
 use tokio::sync::broadcast::Receiver;
 
 use crate::HexHash;
@@ -33,6 +34,7 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 /// use sov_test_utils::TestSpec;
 /// use demo_stf::runtime::Runtime;
 /// use sov_mock_da::MockDaSpec;
+/// use sov_modules_api::{RuntimeEventResponse,RuntimeEventProcessor};
 ///
 /// /// Creates a new [`LedgerDb`] and starts serving JSON-RPC requests.
 /// async fn rpc_server() -> jsonrpsee::server::ServerHandle {
@@ -41,7 +43,7 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 ///     let cache_container = CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
 ///     let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
 ///     let ledger_db = LedgerDb::with_cache_db(cache_db).unwrap();
-///     let rpc_module = rpc_module::<LedgerDb, u32, u32, <Runtime<TestSpec, MockDaSpec> as sov_modules_api::RuntimeEventProcessor>::RuntimeEvent>(ledger_db).unwrap();
+///     let rpc_module = rpc_module::<LedgerDb, u32, u32, RuntimeEventResponse<<Runtime<TestSpec, MockDaSpec> as RuntimeEventProcessor>::RuntimeEvent>>(ledger_db).unwrap();
 ///
 ///     let server = jsonrpsee::server::ServerBuilder::default()
 ///         .build("127.0.0.1:0")
@@ -55,7 +57,13 @@ where
     T: LedgerStateProvider + LedgerStateProviderExt + Send + Sync + 'static,
     B: serde::Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     Tx: serde::Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
-    E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
+    E: TryFrom<StoredEvent, Error = anyhow::Error>
+        + serde::Serialize
+        + DeserializeOwned
+        + Clone
+        + Send
+        + Sync
+        + 'static,
 {
     let mut rpc = RpcModule::new(ledger);
 
@@ -161,19 +169,10 @@ where
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 
-    rpc.register_async_method("ledger_getEventsByKey", |params, ledger| async move {
-        let params: (&str, Option<ModuleId>, TxnRangeParam, usize, Option<&str>) =
-            params.parse()?;
+    rpc.register_async_method("ledger_getEventsByKey", move |params, ledger| async move {
+        let params: (&str, TxnRangeParam, usize, Option<&str>) = params.parse()?;
         ledger
-            .get_events_by_key::<E>(params.0, params.1, params.2, params.3, params.4)
-            .await
-            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
-    })?;
-
-    rpc.register_async_method("ledger_getEventsByModuleId", |params, ledger| async move {
-        let params: (ModuleId, usize, Option<&str>) = params.parse()?;
-        ledger
-            .get_events_by_module_id::<E>(params.0, params.1, params.2)
+            .get_events_by_key::<E>(params.0, params.1, params.2, params.3)
             .await
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;

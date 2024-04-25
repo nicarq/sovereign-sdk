@@ -34,8 +34,8 @@ use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ModuleIdBytes,
-    ProofUniqueId, SlotNumber, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
+    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ProofUniqueId, SlotNumber,
+    StoredBatch, StoredSlot, StoredTransaction, TxNumber,
 };
 
 /* Other tables used by the Rollup */
@@ -51,7 +51,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     TxByNumber::table_name(),
     EventByKey::table_name(),
     EventByNumber::table_name(),
-    EventByModuleId::table_name(),
     ProofByUniqueId::table_name(),
 ];
 
@@ -244,13 +243,8 @@ define_table_with_seek_key_codec!(
 );
 
 define_table_with_seek_key_codec!(
-    /// A "secondary index" for event data by key
-    (EventByKey) (EventKey, ModuleIdBytes, TxNumber, EventNumber) => ()
-);
-
-define_table_with_seek_key_codec!(
-    /// A "tertiary index" for event data by module
-    (EventByModuleId) (ModuleIdBytes, TxNumber, EventNumber) => ()
+    /// An index for event data by key
+    (EventByKey) (EventKey, TxNumber, EventNumber) => ()
 );
 
 define_table_with_seek_key_codec!(

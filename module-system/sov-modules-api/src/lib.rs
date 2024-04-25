@@ -30,14 +30,14 @@ pub use schemars;
 pub use sov_modules_core::{
     impl_bech32_conversion, impl_hash32_type, namespaces, runtime, AccessoryStateCheckpoint,
     AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context, CryptoSpecExt,
-    DispatchCall, EncodeCall, EventEmitter, Gas, GasArray, GasMeter, GasPrice, GasUnit, Genesis,
-    KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
+    DispatchCall, EncodeCall, EventEmitter, EventModuleName, Gas, GasArray, GasMeter, GasPrice,
+    GasUnit, Genesis, KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
     ModuleError as Error, ModuleId, ModuleIdBech32, ModuleInfo, ModulePrefix, PublicKeyExt,
-    RuntimeEventProcessor, SignatureExt, Spec, StateCheckpoint, StateReaderAndWriter, TypedEvent,
-    VersionedStateReadWriter, WorkingSet,
+    RuntimeEventProcessor, RuntimeEventResponse, SignatureExt, Spec, StateCheckpoint,
+    StateReaderAndWriter, TypedEvent, VersionedStateReadWriter, WorkingSet,
 };
 #[cfg(feature = "native")]
-pub use sov_modules_core::{LedgerStateProviderExt, ProvenStateAccessor, RuntimeEventDisplay};
+pub use sov_modules_core::{LedgerStateProviderExt, ProvenStateAccessor};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 pub use sov_rollup_interface::crypto::{Hash, PublicKey, Signature};

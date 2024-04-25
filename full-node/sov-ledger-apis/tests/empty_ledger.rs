@@ -29,7 +29,9 @@ async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
         LedgerDb,
         u32,
         u32,
-        <Runtime<TestSpec, MockDaSpec> as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
+        sov_modules_api::RuntimeEventResponse<
+            <Runtime<TestSpec, MockDaSpec> as sov_modules_api::RuntimeEventProcessor>::RuntimeEvent,
+        >,
     >(ledger_db)
     .unwrap();
 
