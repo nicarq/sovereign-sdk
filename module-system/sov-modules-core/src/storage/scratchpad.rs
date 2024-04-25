@@ -16,7 +16,7 @@ use crate::storage::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
 use crate::storage::{
     ProvableStorageCache, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage,
 };
-use crate::{Gas, ModuleId, Namespace, StateAccesses};
+use crate::{Gas, Namespace, StateAccesses};
 
 /// A storage reader and writer which can access a particular namespace.
 pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
@@ -314,21 +314,15 @@ where
 #[derive(Debug)]
 pub struct TypedEvent {
     event_key: Vec<u8>,
-    module_id: ModuleId,
     type_id: core::any::TypeId,
     boxed_event: alloc::boxed::Box<dyn core::any::Any + core::marker::Send>,
 }
 
 impl TypedEvent {
     /// Created a Typed Event
-    pub fn new<E: 'static + core::marker::Send>(
-        event_key: &str,
-        module_id: &ModuleId,
-        event: E,
-    ) -> Self {
+    pub fn new<E: 'static + core::marker::Send>(event_key: &str, event: E) -> Self {
         TypedEvent {
             event_key: event_key.as_bytes().to_vec(),
-            module_id: *module_id,
             type_id: event.type_id(),
             boxed_event: Box::new(event),
         }
@@ -352,11 +346,6 @@ impl TypedEvent {
     /// Function to peek at the event key
     pub fn event_key(&self) -> &[u8] {
         &self.event_key
-    }
-
-    /// Function to peek at the module id
-    pub fn module_id(&self) -> &ModuleId {
-        &self.module_id
     }
 }
 
@@ -451,14 +440,8 @@ impl<S: Spec> WorkingSet<S> {
     }
 
     /// Adds a typed event to the working set.
-    pub fn add_event<E: 'static + core::marker::Send>(
-        &mut self,
-        event_key: &str,
-        module_id: &ModuleId,
-        event: E,
-    ) {
-        self.events
-            .push(TypedEvent::new(event_key, module_id, event));
+    pub fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
+        self.events.push(TypedEvent::new(event_key, event));
     }
 
     /// Extracts all typed events from this working set.

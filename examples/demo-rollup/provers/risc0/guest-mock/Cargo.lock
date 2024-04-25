@@ -957,6 +957,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh 0.10.3",
+ "hex",
  "serde",
  "sov-accounts",
  "sov-bank",
@@ -2957,6 +2958,7 @@ dependencies = [
  "anyhow",
  "bech32",
  "borsh 0.10.3",
+ "hex",
  "proc-macro2",
  "quote",
  "schemars",

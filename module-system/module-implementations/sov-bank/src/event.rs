@@ -1,8 +1,15 @@
 use crate::TokenId;
 
 /// Bank Event
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
-#[cfg_attr(feature = "native", derive(serde::Serialize, serde::Deserialize))]
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
+)]
 // TODO - <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/324>
 pub enum Event {
     /// Event for Token Creation

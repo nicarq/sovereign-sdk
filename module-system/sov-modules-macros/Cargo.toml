@@ -40,6 +40,7 @@ sov-test-utils = { path = "../sov-test-utils" }
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true }
+hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
 proc-macro2 = "1.0"
 quote = "1.0"

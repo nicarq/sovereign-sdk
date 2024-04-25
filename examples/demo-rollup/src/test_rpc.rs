@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use proptest::prelude::any_with;
 use proptest::strategy::Strategy;
@@ -9,6 +10,7 @@ use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
+use sov_modules_api::RuntimeEventResponse;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::services::da::SlotData;
@@ -89,7 +91,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
             LedgerDb,
             u32,
             u32,
-            demo_stf::runtime::RuntimeEvent<TestSpec, sov_mock_da::MockDaSpec>,
+            RuntimeEventResponse<demo_stf::runtime::RuntimeEvent<TestSpec, MockDaSpec>>,
         >(ledger_db)
         .unwrap();
         let _server_handle = server.start(server_rpc_module);
@@ -143,8 +145,8 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
                     tx_hash: ::sha2::Sha256::digest(b"tx2"),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
-                        StoredEvent::new("event1_key".as_bytes(), &[], "event1_value".as_bytes()),
-                        StoredEvent::new("event2_key".as_bytes(), &[], "event2_value".as_bytes()),
+                        StoredEvent::new("event1_key".as_bytes(), "event1_value".as_bytes()),
+                        StoredEvent::new("event2_key".as_bytes(), "event2_value".as_bytes()),
                     ],
                     receipt: 1,
                     gas_used: vec![2, 3],

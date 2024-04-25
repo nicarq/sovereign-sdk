@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::{RuntimeEventDisplay, Spec};
+use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
@@ -19,7 +19,7 @@ pub fn register_endpoints<B>(
 ) -> anyhow::Result<(jsonrpsee::RpcModule<()>, axum::Router<()>)>
 where
     B: RollupBlueprint + 'static,
-    B::NativeRuntime: RuntimeEventDisplay,
+    B::NativeRuntime: RuntimeEventProcessor,
     <B::DaService as DaService>::TransactionId: Clone + Send + Sync + serde::Serialize,
 {
     let mut axum_router = axum::Router::<()>::new();
@@ -33,7 +33,7 @@ where
             LedgerDb,
             SequencerOutcome,
             TxEffect,
-            <B::NativeRuntime as sov_modules_api::RuntimeEventDisplay>::RuntimeEvent,
+            RuntimeEventResponse<<B::NativeRuntime as RuntimeEventProcessor>::RuntimeEvent>,
         >(ledger_db.clone())?)?;
     }
 

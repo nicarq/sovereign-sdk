@@ -134,7 +134,7 @@ impl DispatchCallMacro {
         );
 
         let call_enum_legs = struct_def.create_call_enum_legs();
-        let call_enum = struct_def.create_enum(&call_enum_legs, CALL, &serialization_methods);
+        let call_enum = struct_def.create_enum(&call_enum_legs, CALL, &serialization_methods, &[]);
         let create_dispatch_impl = struct_def.create_call_dispatch();
 
         Ok(quote::quote! {

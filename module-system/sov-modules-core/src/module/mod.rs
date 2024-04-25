@@ -125,7 +125,7 @@ where
         #[allow(unused_variables)]
         let _ = || (&working_set, &event_key, &event);
         if cfg!(feature = "native") {
-            working_set.add_event(event_key, self.id(), event);
+            working_set.add_event(event_key, event);
         }
     }
 }

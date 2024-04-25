@@ -261,18 +261,16 @@ async fn assert_bank_event(
     )
     .await?
     .unwrap();
+    println!("{:?}", &response_event);
     if let Value::Object(ref map) = response_event {
+        let event_value = map.get("event_value").unwrap();
         // Ensure "bank" is present in response json
         assert_eq!(map.get("module_name").unwrap(), "bank");
         // Attempt to deserialize the "body" of the bank key in the response to the Event type
-        let bank_event = from_value::<BankEvent>(map.get("event_value").unwrap().clone())
-            .expect("Unable to deserialize Bank event");
+        let bank_event =
+            from_value::<BankEvent>(event_value.clone()).expect("Unable to deserialize Bank event");
         // Ensure the event generated is a TokenCreated event with the correct token_id
         assert_eq!(bank_event, expected_event);
-        assert_eq!(
-            map.get("module_id").unwrap(),
-            "module_1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sh0zjpk"
-        );
     } else {
         panic!("Event from rpc not an object");
     }

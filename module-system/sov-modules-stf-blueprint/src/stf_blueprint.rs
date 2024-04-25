@@ -492,7 +492,6 @@ where
             let key = typed_event.event_key().to_vec();
             StoredEvent::new(
                 &key,
-                &typed_event.module_id().as_bytes().clone(),
                 &<RT as sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event(
                     typed_event,
                 )

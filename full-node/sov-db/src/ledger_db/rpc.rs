@@ -1,16 +1,19 @@
-use anyhow::{bail, ensure, Context, Error};
+use anyhow::{bail, Context, Error};
 use async_trait::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use sov_modules_core::{LedgerStateProviderExt, ModuleId};
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
-    EventResponse, ItemOrHash, LedgerStateProvider, PaginatedEventResponse, QueryMode,
-    SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
+    ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,
+    TxIdAndOffset, TxIdentifier, TxResponse,
 };
+use sov_rollup_interface::stf::StoredEvent;
 use tokio::sync::broadcast::Receiver;
 
-use crate::ledger_db::event_helper::{get_events_by_key_helper, get_events_by_module_id_helper};
+use crate::ledger_db::rpc_constants::{
+    MAX_BATCHES_PER_REQUEST, MAX_EVENTS_PER_REQUEST, MAX_SLOTS_PER_REQUEST,
+    MAX_TRANSACTIONS_PER_REQUEST,
+};
+use crate::ledger_db::LedgerDb;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByNumber, ProofByUniqueId, SlotByHash, SlotByNumber, TxByHash,
     TxByNumber,
@@ -18,17 +21,6 @@ use crate::schema::tables::{
 use crate::schema::types::{
     BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
 };
-
-/// The maximum number of slots that can be requested in a single RPC range query
-const MAX_SLOTS_PER_REQUEST: u64 = 10;
-/// The maximum number of batches that can be requested in a single RPC range query
-const MAX_BATCHES_PER_REQUEST: u64 = 20;
-/// The maximum number of transactions that can be requested in a single RPC range query
-const MAX_TRANSACTIONS_PER_REQUEST: u64 = 100;
-/// The maximum number of events that can be requested in a single RPC range query
-const MAX_EVENTS_PER_REQUEST: u64 = 500;
-
-use super::LedgerDb;
 
 #[async_trait]
 impl LedgerStateProvider for LedgerDb {
@@ -142,10 +134,13 @@ impl LedgerStateProvider for LedgerDb {
         Ok(out)
     }
 
-    async fn get_events<E: borsh::BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
+    async fn get_events<E>(
         &self,
         event_ids: &[EventIdentifier],
-    ) -> Result<Vec<Option<EventResponse>>, Self::Error> {
+    ) -> Result<Vec<Option<E>>, Self::Error>
+    where
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+    {
         anyhow::ensure!(
             event_ids.len() <= MAX_EVENTS_PER_REQUEST as usize,
             "requested too many events. Requested: {}. Max: {}",
@@ -157,49 +152,104 @@ impl LedgerStateProvider for LedgerDb {
         let mut out = Vec::with_capacity(event_ids.len());
         for id in event_ids {
             let num = self.resolve_event_identifier(id).await?;
-            out.push(match num {
-                Some(num) => {
-                    self.db
+            out.push(
+                match num {
+                    Some(num) => self
+                        .db
                         .read::<EventByNumber>(&EventNumber(num))?
-                        .map(|serialized_event| {
-                            match E::deserialize(&mut serialized_event.value().inner().as_slice()) {
-                                // serde_json::to_value is from the custom serialize impl which
-                                // matches for the specific event
-                                // and then converts that event to json value, instead of the outer RuntimeEvent
-                                Ok(event) => {
-                                    let module_event: sov_rollup_interface::rpc::Event =
-                                        event.into();
-                                    Some(EventResponse {
-                                        event_key: String::from_utf8_lossy(
-                                            serialized_event.key().inner().as_slice(),
-                                        )
-                                        .to_string(),
-                                        event_value: module_event.event_value,
-                                        module_name: module_event.module_name,
-                                        module_id: ModuleId::try_from(
-                                            serialized_event.module_id().inner().as_ref(),
-                                        )
-                                        .unwrap()
-                                        .to_string(),
-                                    })
-                                }
-                                Err(_) => None,
-                            }
-                        })
-                        .unwrap_or(None)
+                        .map(|serialized_event| serialized_event.try_into()),
+                    None => None,
                 }
-                None => None,
-            });
+                .transpose()?,
+            );
         }
         Ok(out)
     }
 
-    async fn get_events_by_txn_hash<
-        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
-    >(
+    // Get X by hash
+    async fn get_slot_by_hash<B, T>(
         &self,
-        txn_hash: &[u8; 32],
-    ) -> Result<Vec<EventResponse>, Error> {
+        hash: &[u8; 32],
+        query_mode: QueryMode,
+    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
+        self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
+            .await
+            .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
+    }
+
+    async fn get_batch_by_hash<B, T>(
+        &self,
+        hash: &[u8; 32],
+        query_mode: QueryMode,
+    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
+        self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
+            .await
+            .map(|mut batches: Vec<Option<BatchResponse<B, T>>>| batches.pop().unwrap_or(None))
+    }
+
+    async fn get_tx_by_hash<T>(
+        &self,
+        hash: &[u8; 32],
+        query_mode: QueryMode,
+    ) -> Result<Option<TxResponse<T>>, anyhow::Error>
+    where
+        T: DeserializeOwned + Send + Sync,
+    {
+        self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
+            .await
+            .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
+    }
+
+    // Get X by number
+    async fn get_slot_by_number<B, T>(
+        &self,
+        number: u64,
+        query_mode: QueryMode,
+    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
+        self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
+            .await
+            .map(|mut slots: Vec<Option<SlotResponse<B, T>>>| slots.pop().unwrap_or(None))
+    }
+
+    async fn get_batch_by_number<B, T>(
+        &self,
+        number: u64,
+        query_mode: QueryMode,
+    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+    {
+        self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
+            .await
+            .map(|mut slots| slots.pop().unwrap_or(None))
+    }
+
+    async fn get_event_by_number<E>(&self, number: u64) -> Result<Option<E>, anyhow::Error>
+    where
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+    {
+        self.get_events::<E>(&[EventIdentifier::Number(number)])
+            .await
+            .map(|mut events| events.pop().flatten())
+    }
+
+    async fn get_events_by_txn_hash<E>(&self, txn_hash: &[u8; 32]) -> Result<Vec<E>, Error>
+    where
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+    {
         let tx_range = (*txn_hash, TxNumber(0))..(*txn_hash, TxNumber(u64::MAX));
         let tx_numbers = self
             .db
@@ -228,12 +278,10 @@ impl LedgerStateProvider for LedgerDb {
         Ok(events_response)
     }
 
-    async fn get_events_by_txn_number<
-        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
-    >(
-        &self,
-        txn_num: u64,
-    ) -> Result<Vec<EventResponse>, Error> {
+    async fn get_events_by_txn_number<E>(&self, txn_num: u64) -> Result<Vec<E>, Error>
+    where
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+    {
         let stored_txn = self
             .db
             .read::<TxByNumber>(&TxNumber(txn_num))
@@ -251,7 +299,7 @@ impl LedgerStateProvider for LedgerDb {
             event_ids.push(EventIdentifier::Number(number));
         }
 
-        let events_response: Vec<EventResponse> = self
+        let events_response: Vec<E> = self
             .get_events::<E>(&event_ids)
             .await?
             .into_iter()
@@ -429,121 +477,6 @@ impl LedgerStateProvider for LedgerDb {
     }
 }
 
-#[async_trait]
-impl LedgerStateProviderExt for LedgerDb {
-    async fn get_events_by_key<E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>>(
-        &self,
-        event_key: &str,
-        module_id: Option<ModuleId>,
-        txn_range: Option<(u64, u64)>,
-        num_events: usize,
-        next: Option<&str>,
-    ) -> Result<PaginatedEventResponse, Error> {
-        get_events_by_key_helper::<E>(self, event_key, module_id, txn_range, num_events, next).await
-    }
-
-    async fn get_events_by_module_id<
-        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
-    >(
-        &self,
-        module_id: ModuleId,
-        num_events: usize,
-        next: Option<&str>,
-    ) -> Result<PaginatedEventResponse, Error> {
-        get_events_by_module_id_helper::<E>(self, module_id, num_events, next).await
-    }
-
-    async fn get_events_by_slot_range_key<
-        E: BorshDeserialize + Into<sov_rollup_interface::rpc::Event>,
-    >(
-        &self,
-        event_key: &str,
-        module_id: ModuleId,
-        slot_height_start: u64,
-        slot_height_end: u64,
-        num_events: usize,
-        next: Option<&str>,
-    ) -> Result<PaginatedEventResponse, Error> {
-        let (txn_range, next_key) = match next {
-            None => {
-                let slots_result: Vec<StoredSlot> = [slot_height_start, slot_height_end]
-                    .into_iter()
-                    .map(|slot_num| {
-                        self.db
-                            .read::<SlotByNumber>(&SlotNumber(slot_num))
-                            .with_context(|| {
-                                format!("Failed to query slot with number: {}", slot_num)
-                            })
-                            .and_then(|slot_opt| {
-                                slot_opt.with_context(|| {
-                                    format!(
-                                        "Slot with number: {} does not exist in storage",
-                                        slot_num
-                                    )
-                                })
-                            })
-                    })
-                    .collect::<Result<Vec<StoredSlot>, _>>()?;
-
-                let batch_start_num = slots_result[0].batches.start;
-                let batch_end_num = slots_result[1].batches.end;
-
-                ensure!(batch_end_num.0 - batch_start_num.0 < MAX_BATCHES_PER_REQUEST);
-
-                let batches_result: Vec<StoredBatch> = [batch_start_num, batch_end_num]
-                    .into_iter()
-                    .map(|batch_num| {
-                        self.db
-                            .read::<BatchByNumber>(&batch_num)
-                            .with_context(|| {
-                                format!("Failed to query batch with number: {}", batch_num.0)
-                            })
-                            .and_then(|slot_opt| {
-                                slot_opt.with_context(|| {
-                                    format!(
-                                        "Batch with number: {} does not exist in storage",
-                                        batch_num.0
-                                    )
-                                })
-                            })
-                    })
-                    .collect::<Result<Vec<StoredBatch>, _>>()?;
-
-                let txn_start_num = batches_result[0].txs.start;
-                let txn_end_num = batches_result[1].txs.end;
-                ((txn_start_num.0, txn_end_num.0), None)
-            }
-            Some(wrapped_next) => {
-                let key_bytes = hex::decode(wrapped_next)?;
-                let composite_key: ((u64, u64), String) =
-                    BorshDeserialize::try_from_slice(&key_bytes)?;
-                (composite_key.0, Some(composite_key.1))
-            }
-        };
-
-        let paginated_query_response = self
-            .get_events_by_key::<E>(
-                event_key,
-                Some(module_id),
-                Some((txn_range.0, txn_range.1)),
-                num_events,
-                next_key.as_deref(),
-            )
-            .await?;
-        let (event_response, next_key) = (
-            paginated_query_response.events_response,
-            paginated_query_response.next,
-        );
-        let re_encoded_next = next_key
-            .and_then(|inner_next| (txn_range, inner_next).try_to_vec().ok().map(hex::encode));
-
-        Ok(PaginatedEventResponse {
-            events_response: event_response,
-            next: re_encoded_next,
-        })
-    }
-}
-
 impl LedgerDb {
     fn populate_slot_response<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
@@ -629,22 +562,15 @@ impl LedgerDb {
 mod tests {
     use std::sync::{Arc, RwLock};
 
-    use rand::Rng;
     use rockbound::cache::cache_container::CacheContainer;
     use rockbound::cache::cache_db::CacheDb;
-    use rockbound::SchemaBatch;
     use sov_mock_da::{MockBlob, MockBlock};
     use sov_mock_zkvm::MockZkvm;
-    use sov_modules_core::{LedgerStateProviderExt, ModuleId};
     use sov_rollup_interface::rpc::LedgerStateProvider;
     use sov_rollup_interface::zk::aggregated_proof::{
         AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
     };
 
-    use crate::ledger_db::event_test_helper::{
-        find_event_details, generate_events, TestEvent, FIXED_EVENT_KEY, MAX_NUM_EVENTS_FIXED_KEY,
-        NUM_EVENTS_PER_TXN, NUM_MODULES, NUM_TXNS_PER_MODULE,
-    };
     use crate::ledger_db::{LedgerDb, SlotCommit};
 
     #[test]
@@ -657,242 +583,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(rx.blocking_recv().unwrap(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_get_events() {
-        let ledger_db = create_ledger();
-        let mut schema_batch = SchemaBatch::new();
-
-        // Load events
-        let event_count = generate_events(
-            &ledger_db,
-            &mut schema_batch,
-            NUM_MODULES,
-            NUM_TXNS_PER_MODULE,
-            NUM_EVENTS_PER_TXN,
-            MAX_NUM_EVENTS_FIXED_KEY,
-        );
-
-        ledger_db.db.write_many(schema_batch).unwrap();
-
-        let mut rng = rand::thread_rng();
-
-        // get_event_by_number
-        let event_num = rng.gen_range(1..event_count) as u64;
-        let event_response = ledger_db
-            .get_event_by_number::<TestEvent>(event_num)
-            .await
-            .unwrap();
-        assert!(event_response.is_some());
-        let event = event_response.unwrap();
-        let (_txn_number, module_number) = find_event_details(
-            event_num,
-            NUM_MODULES,
-            NUM_TXNS_PER_MODULE,
-            NUM_EVENTS_PER_TXN,
-        );
-        assert_eq!(event.module_name, format!("module_{}", module_number));
-        assert_eq!(event.event_value, event_num + 1);
-    }
-
-    #[tokio::test]
-    async fn test_get_events_by_key() {
-        let ledger_db = create_ledger();
-        let mut schema_batch = SchemaBatch::new();
-
-        // Load events
-        let event_count = generate_events(
-            &ledger_db,
-            &mut schema_batch,
-            NUM_MODULES,
-            NUM_TXNS_PER_MODULE,
-            NUM_EVENTS_PER_TXN,
-            MAX_NUM_EVENTS_FIXED_KEY,
-        );
-
-        ledger_db.db.write_many(schema_batch).unwrap();
-
-        let mut rng = rand::thread_rng();
-
-        // single get_events_by_key
-        let event_num = rng.gen_range(MAX_NUM_EVENTS_FIXED_KEY..event_count) as u64;
-        let event_key = format!("key_{}", event_num);
-        let (_txn_number, module_number) = find_event_details(
-            event_num,
-            NUM_MODULES,
-            NUM_TXNS_PER_MODULE,
-            NUM_EVENTS_PER_TXN,
-        );
-        let expected_module_id = ModuleId::from([module_number as u8; 32]).to_string();
-        let event_response = ledger_db
-            .get_events_by_key::<TestEvent>(&event_key, None, None, 1, None)
-            .await;
-
-        assert!(event_response.is_ok());
-        let event_response = event_response.unwrap();
-        assert!(event_response.next.is_none());
-        assert_eq!(event_response.events_response.len(), 1);
-        assert_eq!(event_response.events_response[0].event_value, event_num + 1);
-        assert_eq!(
-            event_response.events_response[0].module_id,
-            expected_module_id
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_events_by_key_pagination() {
-        let ledger_db = create_ledger();
-        let mut schema_batch = SchemaBatch::new();
-
-        // Load events
-        let _event_count = generate_events(
-            &ledger_db,
-            &mut schema_batch,
-            NUM_MODULES,
-            NUM_TXNS_PER_MODULE,
-            NUM_EVENTS_PER_TXN,
-            MAX_NUM_EVENTS_FIXED_KEY,
-        );
-
-        ledger_db.db.write_many(schema_batch).unwrap();
-
-        // choosing 7 because more non-standard, better for boundary cases
-        let num_events_per_page = 7;
-        // Because events with num > MAX_NUM_EVENTS_FIXED_KEY have unique keys, we test pagination for events smaller than that
-        let mut next_key = None;
-        let mut event_num = 0;
-        let mut num_events_fetched = 0;
-        loop {
-            let event_response = ledger_db
-                .get_events_by_key::<TestEvent>(
-                    FIXED_EVENT_KEY,
-                    None,
-                    None,
-                    num_events_per_page,
-                    next_key.as_deref(),
-                )
-                .await
-                .unwrap();
-
-            num_events_fetched += event_response.events_response.len();
-
-            for e in &event_response.events_response {
-                // increment event_num for each event fetched
-                event_num += 1;
-                // our test data creates the value of an event to the event number + 1
-                assert_eq!(e.event_value, event_num + 1);
-                let (_, module_number) = find_event_details(
-                    event_num,
-                    NUM_MODULES,
-                    NUM_TXNS_PER_MODULE,
-                    NUM_EVENTS_PER_TXN,
-                );
-                let expected_module_id = ModuleId::from([module_number as u8; 32]).to_string();
-                assert_eq!(e.module_id, expected_module_id);
-            }
-
-            // more events remaining
-            if event_response.next.is_some() {
-                next_key = event_response.next;
-            } else {
-                // event key ends
-                // we need a different set of assertions for the final case
-                let num_events_last_page = event_response.events_response.len();
-                assert_eq!(num_events_fetched, MAX_NUM_EVENTS_FIXED_KEY);
-                assert_eq!(event_num as usize, MAX_NUM_EVENTS_FIXED_KEY);
-                assert_eq!(
-                    event_response.events_response[num_events_last_page - 1].event_value,
-                    MAX_NUM_EVENTS_FIXED_KEY + 1
-                );
-                break;
-            }
-        }
-
-        // next event after final event should have unique key
-        event_num += 1;
-        let event_key = format!("key_{}", event_num);
-        let (_txn_number, module_number) = find_event_details(
-            event_num,
-            NUM_MODULES,
-            NUM_TXNS_PER_MODULE,
-            NUM_EVENTS_PER_TXN,
-        );
-        let expected_module_id = ModuleId::from([module_number as u8; 32]).to_string();
-        let event_response = ledger_db
-            .get_events_by_key::<TestEvent>(&event_key, None, None, 1, None)
-            .await;
-
-        assert!(event_response.is_ok());
-        let event_response = event_response.unwrap();
-        assert!(event_response.next.is_none());
-        assert_eq!(event_response.events_response.len(), 1);
-        assert_eq!(event_response.events_response[0].event_value, event_num + 1);
-        assert_eq!(
-            event_response.events_response[0].module_id,
-            expected_module_id
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_events_by_key_module_id() {
-        let ledger_db = create_ledger();
-        let mut schema_batch = SchemaBatch::new();
-
-        // Load events
-        let _event_count = generate_events(
-            &ledger_db,
-            &mut schema_batch,
-            NUM_MODULES,
-            NUM_TXNS_PER_MODULE,
-            NUM_EVENTS_PER_TXN,
-            MAX_NUM_EVENTS_FIXED_KEY,
-        );
-
-        ledger_db.db.write_many(schema_batch).unwrap();
-        // fetch key and by module id
-        // based on MAX_NUM_EVENTS_FIXED_KEY, key should switch to unique in the second module, so this would account for boundary as well
-        let num_events_per_page = 17;
-        let module_number = 2;
-        let module_id = ModuleId::from([module_number as u8; 32]);
-
-        let mut next_key = None;
-        // start event number for a specific module
-        let mut event_num = (module_number - 1) * NUM_EVENTS_PER_TXN * NUM_TXNS_PER_MODULE;
-        let mut num_events_fetched = 0;
-        loop {
-            let event_response = ledger_db
-                .get_events_by_key::<TestEvent>(
-                    FIXED_EVENT_KEY,
-                    Some(module_id),
-                    None,
-                    num_events_per_page,
-                    next_key.as_deref(),
-                )
-                .await
-                .unwrap();
-
-            for e in event_response.events_response {
-                num_events_fetched += 1;
-                event_num += 1;
-                assert_eq!(e.event_value, event_num + 1);
-                assert_eq!(e.module_id, module_id.to_string());
-            }
-
-            if event_response.next.is_some() {
-                next_key = event_response.next;
-            } else {
-                break;
-            }
-        }
-
-        // number of events fetched should be MAX_NUM_EVENTS_FIXED_KEY - number of events in previous modules.
-        // since we're only fetching events for a specific module id.
-        assert_eq!(
-            num_events_fetched,
-            MAX_NUM_EVENTS_FIXED_KEY
-                - (module_number - 1) * NUM_EVENTS_PER_TXN * NUM_TXNS_PER_MODULE
-        );
     }
 
     fn create_ledger() -> LedgerDb {
