@@ -85,7 +85,7 @@ pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService>(
 pub struct Ethereum<S: sov_modules_api::Spec, Da: DaService> {
     da_service: Da,
     batch_builder: Arc<Mutex<EthBatchBuilder<S>>>,
-    gas_price_oracle: GasPriceOracle<S, Da::Spec>,
+    gas_price_oracle: GasPriceOracle<S>,
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
     storage: watch::Receiver<S::Storage>,
@@ -99,7 +99,7 @@ impl<S: sov_modules_api::Spec, Da: DaService> Ethereum<S, Da> {
         #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: watch::Receiver<S::Storage>,
     ) -> Self {
-        let evm = Evm::<S, Da::Spec>::default();
+        let evm = Evm::<S>::default();
         let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
         Self {
             da_service,
@@ -122,7 +122,7 @@ impl<S: sov_modules_api::Spec, Da: DaService> Ethereum<S, Da> {
         let tx_hash = signed_transaction.hash();
 
         let tx = CallMessage { tx: raw_tx };
-        let message = <Runtime<S, Da::Spec> as EncodeCall<Evm<S, Da::Spec>>>::encode_call(tx);
+        let message = <Runtime<S, Da::Spec> as EncodeCall<Evm<S>>>::encode_call(tx);
 
         Ok((tx_hash, message))
     }
@@ -202,7 +202,7 @@ fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService>(
                 .await
                 .unwrap();
 
-            let evm = Evm::<S, Da::Spec>::default();
+            let evm = Evm::<S>::default();
             let base_fee = evm
                 .get_block_by_number(None, None, &mut working_set)
                 .unwrap()

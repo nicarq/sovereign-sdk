@@ -78,7 +78,7 @@ pub struct Runtime<S: Spec, Da: DaSpec> {
     pub nft: sov_nft_module::NonFungibleToken<S>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
-    pub evm: sov_evm::Evm<S, Da>,
+    pub evm: sov_evm::Evm<S>,
 }
 
 impl<S, Da> sov_modules_stf_blueprint::Runtime<S, Da> for Runtime<S, Da>

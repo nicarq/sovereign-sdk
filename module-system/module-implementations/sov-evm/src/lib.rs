@@ -27,7 +27,7 @@ mod event;
 mod helpers;
 
 use revm::primitives::Address;
-use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
@@ -52,7 +52,7 @@ pub(crate) struct PendingTransaction {
 #[allow(dead_code)]
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
-pub struct Evm<S: sov_modules_api::Spec, Da: DaSpec> {
+pub struct Evm<S: sov_modules_api::Spec> {
     /// The ID of the evm module.
     #[id]
     pub(crate) id: ModuleId,
@@ -114,11 +114,11 @@ pub struct Evm<S: sov_modules_api::Spec, Da: DaSpec> {
     #[state]
     pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,
 
-    #[kernel_module]
-    pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
+    #[phantom]
+    phantom: core::marker::PhantomData<S>,
 }
 
-impl<S: sov_modules_api::Spec, Da: DaSpec> sov_modules_api::Module for Evm<S, Da> {
+impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
     type Spec = S;
 
     type Config = EvmConfig;
@@ -141,7 +141,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> sov_modules_api::Module for Evm<S, Da
     }
 }
 
-impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
+impl<S: sov_modules_api::Spec> Evm<S> {
     pub(crate) fn get_db<'a>(&self, working_set: &'a mut WorkingSet<S>) -> EvmDb<'a, S> {
         EvmDb::new(self.accounts.clone(), self.code.clone(), working_set)
     }

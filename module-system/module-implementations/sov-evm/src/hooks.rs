@@ -1,13 +1,13 @@
 use reth_primitives::{Bloom, Bytes};
 use revm::primitives::{B256, U256};
 use sov_modules_api::namespaces::Accessory;
-use sov_modules_api::{DaSpec, StateCheckpoint, StateReaderAndWriter};
+use sov_modules_api::{StateCheckpoint, StateReaderAndWriter};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::{Evm, PendingTransaction};
 
-impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da>
+impl<S: sov_modules_api::Spec> Evm<S>
 where
     <S::Storage as Storage>::Root: Into<[u8; 32]>,
 {

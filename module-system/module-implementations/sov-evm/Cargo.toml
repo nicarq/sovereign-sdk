@@ -18,7 +18,6 @@ workspace = true
 [dependencies]
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
-sov-chain-state = { path = "../sov-chain-state", version = "0.3" }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -81,7 +80,6 @@ native = [
 	# "revm/asm-keccak"
 	"schemars",
 	"serde_json",
-	"sov-chain-state/native",
 	"sov-evm/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",
