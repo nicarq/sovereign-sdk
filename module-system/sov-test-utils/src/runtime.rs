@@ -224,6 +224,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for TestRuntime<S, Da> {
 #[allow(clippy::too_many_arguments)]
 pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     admin: S::Address,
+    additional_accounts: &[(S::Address, u64)],
     seq_rollup_address: S::Address,
     seq_da_address: Da::Address,
     seq_stake_amount: u64,
@@ -259,10 +260,14 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
         bank: BankConfig {
             gas_token_config: sov_bank::GasTokenConfig {
                 token_name: token_name.clone(),
-                address_and_balances: vec![
-                    (seq_rollup_address, init_balance),
-                    (admin.clone(), init_balance),
-                ],
+                address_and_balances: {
+                    let mut additional_accounts_vec = additional_accounts.to_vec();
+                    additional_accounts_vec.append(&mut vec![
+                        (seq_rollup_address, init_balance),
+                        (admin.clone(), init_balance),
+                    ]);
+                    additional_accounts_vec
+                },
                 authorized_minters: vec![admin.clone()],
             },
             tokens: vec![],

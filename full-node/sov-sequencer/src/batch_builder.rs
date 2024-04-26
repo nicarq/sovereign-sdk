@@ -327,7 +327,7 @@ mod tests {
         let msg = <TestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
         let chain_id = 0;
         let max_priority_fee = PriorityFeeBips::ZERO;
-        let max_fee = 0;
+        let max_fee = 10_000;
         let gas_limit = None;
         let nonce = 1;
 
@@ -356,7 +356,7 @@ mod tests {
         let msg = generate_random_bytes();
         let chain_id = 0;
         let max_priority_fee = PriorityFeeBips::ZERO;
-        let max_fee = 0;
+        let max_fee = 10_000;
         let gas_limit = None;
         let nonce = 1;
 
@@ -407,6 +407,7 @@ mod tests {
             BasicKernel<S, MockDaSpec>,
         >,
         admin: Option<TestPublicKey>,
+        additional_accounts: Vec<(TestPublicKey, u64)>,
         seq_da_address: MockAddress,
         seq_rollup_address: Address,
     ) {
@@ -419,8 +420,17 @@ mod tests {
             admin_private_key.pub_key()
         });
         let admin = admin.to_address::<TestHasher, _>();
+        let additional_accounts: Vec<(Address, u64)> = additional_accounts
+            .iter()
+            .map(|(addr, balance)| {
+                let addr = addr.to_address::<TestHasher, _>();
+                (addr, *balance)
+            })
+            .collect();
+
         let config = create_genesis_config(
             admin,
+            &additional_accounts,
             seq_rollup_address,
             seq_da_address,
             100,
@@ -545,6 +555,7 @@ mod tests {
             setup_runtime(
                 &mut batch_builder,
                 None,
+                vec![],
                 DEFAULT_SEQUENCER_DA_ADDRESS,
                 DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
             );
@@ -585,15 +596,16 @@ mod tests {
         #[tokio::test]
         async fn builds_batch_skipping_invalid_txs() {
             let value_setter_admin = TestPrivateKey::generate();
+            let additional_account = TestPrivateKey::generate();
             let txs = [
                 // Should be included
                 generate_valid_tx(&value_setter_admin, 1),
                 // Should be rejected, not admin
-                generate_random_valid_tx(),
+                generate_valid_tx(&additional_account, 2),
                 // Should be included
-                generate_valid_tx(&value_setter_admin, 2),
-                // Should be skipped, more than batch size
                 generate_valid_tx(&value_setter_admin, 3),
+                // Should be skipped, more than batch size
+                generate_valid_tx(&value_setter_admin, 4),
             ];
 
             assert!(
@@ -608,6 +620,7 @@ mod tests {
             setup_runtime(
                 &mut batch_builder,
                 Some(value_setter_admin.pub_key()),
+                vec![(additional_account.pub_key(), 100_000)],
                 DEFAULT_SEQUENCER_DA_ADDRESS,
                 DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
             );

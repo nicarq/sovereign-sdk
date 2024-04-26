@@ -8,7 +8,7 @@ use sov_rollup_interface::zk::StateTransitionPublicData;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
+    setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_USER_BALANCE, INIT_HEIGHT,
 };
 use crate::SlashingReason;
 
@@ -93,7 +93,7 @@ fn test_valid_challenge() {
                 .bank
                 .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut working_set)
                 .unwrap(),
-            INITIAL_BOND_AMOUNT - BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
+            INITIAL_USER_BALANCE - BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
             "The challenger should have been rewarded"
         );
 
@@ -119,7 +119,7 @@ fn test_valid_challenge() {
                 .bank
                 .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut working_set)
                 .unwrap(),
-            INITIAL_BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
+            INITIAL_USER_BALANCE + module.burn_rate().apply(BOND_AMOUNT),
             "The challenger should have been unbonded"
         );
     }

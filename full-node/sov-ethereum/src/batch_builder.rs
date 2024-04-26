@@ -38,7 +38,9 @@ impl<S: sov_modules_api::Spec> EthBatchBuilder<S> {
             // TODO define a strategy to expose chain id and gas tip for ethereum frontend
             let chain_id = 0;
             let max_priority_fee = PriorityFeeBips::ZERO;
-            let max_fee = 0;
+
+            // TODO `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/521>`: These values should be correctly set from the raw message
+            let max_fee = 10_000;
             let gas_limit = None;
 
             let raw_tx = Transaction::<S>::new_signed_tx(

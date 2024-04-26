@@ -10,6 +10,9 @@ use crate::{Bank, Coins, Payable, GAS_TOKEN_ID};
 /// Error types that can be raised by the `reserve_gas` method
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum ReserveGasError {
+    #[error("The payer does not have an account in the `Bank` module for the gas token")]
+    /// The payer does not have an account in the `Bank` module for the gas token
+    AccountDoesNotExist,
     #[error("Insufficient balance to pay for the transaction gas")]
     /// The sender balance is not high enough to pay for the gas.
     InsufficientBalanceToReserveGas,
@@ -31,7 +34,7 @@ impl<S: Spec> Bank<S> {
     ) -> Result<GasMeter<S::Gas>, ReserveGasError> {
         let balance = self
             .get_balance_of(&payer.clone(), GAS_TOKEN_ID, state_checkpoint)
-            .unwrap_or_default();
+            .ok_or(ReserveGasError::AccountDoesNotExist)?;
 
         // the signer must be able to afford the transaction
         if balance < tx.max_fee() {
@@ -39,20 +42,16 @@ impl<S: Spec> Bank<S> {
         }
 
         // We lock the `max_fee` amount into the `Bank` module.
-        // This check is a temporary hack until `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/442>` is fixed.
-        // This is related to the fact that the `payer` does not necessarily have an account in the `Bank` module for the gas token.
-        if tx.max_fee() > 0 {
-            self.transfer_from(
-                payer,
-                self.id.to_payable(),
-                Coins {
-                    amount: tx.max_fee(),
-                    token_id: GAS_TOKEN_ID,
-                },
-                state_checkpoint,
-            )
-            .expect("Since the balance is checked above, this should be infallible. This is a bug");
-        }
+        self.transfer_from(
+            payer,
+            self.id.to_payable(),
+            Coins {
+                amount: tx.max_fee(),
+                token_id: GAS_TOKEN_ID,
+            },
+            state_checkpoint,
+        )
+        .expect("Since the balance is checked above, this should be infallible. This is a bug");
 
         // We compute the gas amount that the transaction should consume.
         let amount_to_consume = match tx.gas_limit() {
@@ -89,20 +88,16 @@ impl<S: Spec> Bank<S> {
         // We transfer the consumed base fee to the base fee recipient address.
         let base_fee = gas_meter.gas_used().value(gas_meter.gas_price());
 
-        // This check is a temporary hack until `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/442>` is fixed.
-        // This is related to the fact that the `payer` does not necessarily have an account in the `Bank` module for the gas token.
-        if base_fee > 0 {
-            self.transfer_from(
-                self.id.to_payable(),
-                base_fee_recipient.as_token_holder(),
-                Coins {
-                    amount: base_fee,
-                    token_id: GAS_TOKEN_ID,
-                },
-                state_checkpoint,
-            )
-            .expect("Transferring the consumed base fee gas is infallible");
-        }
+        self.transfer_from(
+            self.id.to_payable(),
+            base_fee_recipient.as_token_holder(),
+            Coins {
+                amount: base_fee,
+                token_id: GAS_TOKEN_ID,
+            },
+            state_checkpoint,
+        )
+        .expect("Transferring the consumed base fee gas is infallible");
 
         // We compute the `max_priority_fee` by applying the `priority_fee_per_gas` to the consumed gas.
         let max_priority_fee = tx
@@ -115,38 +110,30 @@ impl<S: Spec> Bank<S> {
         // We transfer the tip to the tip recipient address.
         let tip = min(max_priority_fee, tx.max_fee() - base_fee);
 
-        // This check is a temporary hack until `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/442>` is fixed.
-        // This is related to the fact that the `payer` does not necessarily have an account in the `Bank` module for the gas token.
-        if tip > 0 {
-            self.transfer_from(
-                self.id.to_payable(),
-                tip_recipient.as_token_holder(),
-                Coins {
-                    amount: tip,
-                    token_id: GAS_TOKEN_ID,
-                },
-                state_checkpoint,
-            )
-            .expect("Transferring the consumed gas tip is infallible");
-        }
+        self.transfer_from(
+            self.id.to_payable(),
+            tip_recipient.as_token_holder(),
+            Coins {
+                amount: tip,
+                token_id: GAS_TOKEN_ID,
+            },
+            state_checkpoint,
+        )
+        .expect("Transferring the consumed gas tip is infallible");
 
         // We refund the payer. We need to give back the remaining funds on the gas meter, plus the unspent tip.
         // This is also the maximum fee minus everything that was spent for the tip and base fee.
         let amount = tx.max_fee() - tip - base_fee;
 
-        // This check is a temporary hack until `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/442>` is fixed.
-        // This is related to the fact that the `payer` does not necessarily have an account in the `Bank` module for the gas token.
-        if amount > 0 {
-            self.transfer_from(
-                self.id.to_payable(),
-                payer,
-                Coins {
-                    amount,
-                    token_id: GAS_TOKEN_ID,
-                },
-                state_checkpoint,
-            )
-            .expect("Refunding unspent gas is infallible");
-        }
+        self.transfer_from(
+            self.id.to_payable(),
+            payer,
+            Coins {
+                amount,
+                token_id: GAS_TOKEN_ID,
+            },
+            state_checkpoint,
+        )
+        .expect("Refunding unspent gas is infallible");
     }
 }

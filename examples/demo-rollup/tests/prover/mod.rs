@@ -20,7 +20,7 @@ use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
 use tempfile::TempDir;
 
-use crate::prover::datagen::{generate_genesis_config, get_blocks_from_da};
+use crate::prover::datagen::get_blocks_from_da;
 
 type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
     sov_risc0_adapter::Risc0Verifier,
@@ -61,8 +61,6 @@ async fn test_proof_generation() {
         ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
             .expect("ProverStorageManager initialization has failed");
     let stf = TestSTF::new();
-
-    generate_genesis_config(genesis_conf_dir.as_str()).expect("Failed to generate genesis config");
 
     let genesis_config = {
         let rt_params = create_genesis_config::<DefaultSpec, _>(&GenesisPaths::from_dir(

@@ -8,9 +8,7 @@ use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_mock_da::{MockBlockHeader, MockDaSpec};
 use sov_modules_api::da::Time;
-use sov_modules_api::{
-    DaSpec, GasArray, GasMeter, GasPrice, KernelModule, KernelWorkingSet, Module, StateCheckpoint,
-};
+use sov_modules_api::{DaSpec, GasMeter, KernelModule, KernelWorkingSet, Module, StateCheckpoint};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
 use sov_state::{StorageRoot, VisibleHash};
@@ -248,7 +246,6 @@ pub(crate) fn setup(
         .genesis_unchecked(
             &ChainStateConfig {
                 current_time: Time::now(),
-                initial_base_fee_per_gas: GasPrice::ZEROED,
                 genesis_da_height: 0,
                 inner_code_commitment: Default::default(),
                 outer_code_commitment: Default::default(),

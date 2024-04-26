@@ -33,8 +33,6 @@ type TxReceiptContents =
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
 
-pub(crate) const INITIAL_BASE_FEE_PER_GAS: [u64; 2] = [1; 2];
-
 #[config_constant]
 pub(crate) const GAS_TX_FIXED_COST: [u64; 2];
 
@@ -193,7 +191,6 @@ impl TestRollup {
             BasicKernelGenesisConfig {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
-                    initial_base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
                     // The rollup code commitment is the same as the attester incentives challenge commitment
                     inner_code_commitment: attester_params.commitment_to_allowed_challenge_method,
                     outer_code_commitment: MockCodeCommitment::default(),

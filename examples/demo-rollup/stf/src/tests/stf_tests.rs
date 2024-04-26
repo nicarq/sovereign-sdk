@@ -2,20 +2,18 @@ use std::vec;
 
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint};
 use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::bank_data::get_default_token_id;
-use sov_test_utils::{
-    has_tx_events, new_test_blob_from_batch, TestHasher, TestPrivateKey, TestSpec,
-};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestSpec};
 
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::simulate_da;
 use crate::tests::{
-    create_genesis_config_for_tests, create_storage_manager_for_tests, read_private_key,
+    create_genesis_config_for_tests, create_storage_manager_for_tests, read_private_keys,
     StfBlueprintTest, S,
 };
 
@@ -28,8 +26,10 @@ fn test_demo_values_in_db() {
 
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
-    let admin_key = read_private_key::<TestSpec>().private_key;
-    let admin_address: <S as Spec>::Address = admin_key.to_address::<TestHasher, _>();
+
+    let admin_key_and_address = read_private_keys::<TestSpec>().tx_signer;
+    let admin_address: <TestSpec as Spec>::Address = admin_key_and_address.address;
+    let admin_private_key = admin_key_and_address.private_key;
 
     let last_block = {
         let stf: StfBlueprintTest = StfBlueprint::new();
@@ -41,7 +41,7 @@ fn test_demo_values_in_db() {
             .save_change_set(genesis_block.header(), stf_change_set, ledger_state.into())
             .unwrap();
 
-        let txs = simulate_da(admin_key);
+        let txs = simulate_da(admin_private_key);
         let blob = new_test_blob_from_batch(
             BatchWithId { txs, id: [0; 32] },
             &MOCK_SEQUENCER_DA_ADDRESS,
@@ -125,9 +125,11 @@ fn test_demo_values_in_cache() {
         .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
         .unwrap();
 
-    let private_key = read_private_key::<TestSpec>().private_key;
-    let admin_address: <S as Spec>::Address = private_key.to_address::<TestHasher, _>();
-    let txs = simulate_da(private_key);
+    let admin_private_key_and_address = read_private_keys::<TestSpec>().tx_signer;
+    let admin_private_key = admin_private_key_and_address.private_key;
+    let admin_address: <S as Spec>::Address = admin_private_key_and_address.address;
+
+    let txs = simulate_da(admin_private_key);
 
     let blob = new_test_blob_from_batch(
         BatchWithId { txs, id: [0; 32] },
@@ -201,9 +203,10 @@ fn test_demo_values_not_in_db() {
     let path = tempdir.path();
     let mut storage_manager = create_storage_manager_for_tests(path);
 
-    let value_setter_admin_private_key = TestPrivateKey::generate();
-    let value_setter_admin_address: <TestSpec as Spec>::Address =
-        value_setter_admin_private_key.to_address::<TestHasher, _>();
+    let test_keys = read_private_keys::<TestSpec>();
+
+    let value_setter_admin_private_key = test_keys.tx_signer.private_key;
+    let value_setter_admin_address: <TestSpec as Spec>::Address = test_keys.tx_signer.address;
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let block_2 = block_1.next_mock();
@@ -302,7 +305,7 @@ fn test_sequencer_unknown_sequencer() {
 
     let some_sequencer: [u8; 32] = [121; 32];
 
-    let private_key = read_private_key::<TestSpec>().private_key;
+    let private_key = read_private_keys::<TestSpec>().tx_signer.private_key;
     let txs = simulate_da(private_key);
     let blob = new_test_blob_from_batch(BatchWithId { txs, id: [0; 32] }, &some_sequencer, [0; 32]);
 

@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::config_constant;
-use sov_modules_api::{DaSpec, Gas, GasArray, GasPrice, GasUnit, KernelWorkingSet, Spec};
+use sov_modules_api::{DaSpec, Gas, GasArray, GasPrice, GasUnit, Spec};
 use thiserror::Error;
 
 use crate::{BlockGasInfo, ChainState};
@@ -107,24 +107,18 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// This method should be converted in a constant time constructor. The current implementation of the
     /// [`config_constant`] macro cannot be used to define [`sov_modules_api::GasPrice`] constants, so this will probably
     /// require a new proc-macro, see `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/475>`.
-    /// Besides, this value is currently defined at genesis and is stored in the module state. This
-    /// should be changed in the future to be a constant value defined in the `constants{.test}.json` file
-    /// see `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/469>`
-    ///
     ///
     /// # Note
     /// This constant is the same as the `INITIAL_BASE_FEE_PER_GAS` constant
-    /// defined in the EIP-1559 specification its default value is `[1, 1]`.
+    /// defined in the EIP-1559 specification. Its default value is `[100, 100]`.
     ///
     /// # Safety
     /// This method panics if the initial gas price is not set at genesis
-    pub fn initial_base_fee_per_gas(
-        &self,
-        kernel_working_set: &mut KernelWorkingSet<S>,
-    ) -> <S::Gas as Gas>::Price {
-        self.initial_base_fee_per_gas
-            .get(kernel_working_set)
-            .expect("The initial gas price should be set at genesis")
+    pub fn initial_base_fee_per_gas() -> <S::Gas as Gas>::Price {
+        #[config_constant]
+        const INITIAL_BASE_FEE_PER_GAS: &[u64];
+
+        <<S as Spec>::Gas as Gas>::Price::from_slice(INITIAL_BASE_FEE_PER_GAS)
     }
 
     /// Specifies the initial gas limit for the genesis block.

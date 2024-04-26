@@ -43,32 +43,29 @@ pub fn get_default_token_id<S: Spec>(minter_address: &<S as Spec>::Address) -> T
 }
 
 impl<S: Spec> BankMessageGenerator<S> {
-    /// Gets the default sender address and private key.
-    fn random_address_with_pkey() -> (
-        <S as Spec>::Address,
-        <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
-    ) {
-        let pkey = <<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey>::generate();
-        let address = pkey.to_address::<TestHasher, _>();
-        (address, pkey)
-    }
-
     /// Generates a random [`CallMessage::CreateToken`] transaction for default token parameters.
-    pub fn random_create_token_generator() -> Self {
-        let (minter_address, pk) = Self::random_address_with_pkey();
+    pub fn random_create_token_generator(
+        private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
+    ) -> Self {
+        let minter_address = private_key
+            .to_address::<TestHasher, <S as Spec>::Address>()
+            .into();
         Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
             DEFAULT_SALT,
-            pk.into(),
-            vec![minter_address],
+            private_key.into(),
+            vec![minter_address.into()],
             DEFAULT_INIT_BALANCE,
         )
     }
 
     /// Create two message generators - one which creates a token, and one which generates random transfers for the token.
     /// The token generator is returned in the first position.
-    pub fn generate_token_and_random_transfers(num_transfers: u64) -> (Self, Self) {
-        let mut generator_with_token = Self::random_create_token_generator();
+    pub fn generate_token_and_random_transfers(
+        num_transfers: u64,
+        private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
+    ) -> (Self, Self) {
+        let mut generator_with_token = Self::random_create_token_generator(private_key);
         let token_id = generator_with_token.token_create_txs[0].get_token_id();
         let priv_key: PrivateKey<S> =
             Rc::make_mut(&mut generator_with_token.token_create_txs[0].minter_pkey).clone();

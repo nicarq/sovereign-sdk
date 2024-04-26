@@ -21,10 +21,11 @@ use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
 
-use crate::test_helpers::{get_appropriate_rollup_prover_config, start_rollup};
+use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys, start_rollup};
 
 const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
+const MAX_TX_FEE: u64 = 10_000;
 
 struct TestCase {
     wait_for_aggregated_proof: bool,
@@ -97,7 +98,7 @@ fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSp
         });
     let chain_id = 0;
     let max_priority_fee = PriorityFeeBips::ZERO;
-    let max_fee = 0;
+    let max_fee = MAX_TX_FEE;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,
@@ -124,7 +125,7 @@ fn build_transfer_token_tx(
         });
     let chain_id = 0;
     let max_priority_fee = PriorityFeeBips::ZERO;
-    let max_fee = 0;
+    let max_fee = MAX_TX_FEE;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,
@@ -281,8 +282,9 @@ async fn send_test_bank_txs(
     test_case: TestCase,
     client: SimpleClient,
 ) -> Result<(), anyhow::Error> {
-    let key = TestPrivateKey::generate();
-    let user_address: <TestSpec as Spec>::Address = key.to_address::<TestHasher, _>();
+    let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
+    let key = key_and_address.private_key;
+    let user_address: <TestSpec as Spec>::Address = key_and_address.address;
 
     let token_id = sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, &user_address, TOKEN_SALT);
 

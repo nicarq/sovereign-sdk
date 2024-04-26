@@ -6,8 +6,8 @@ use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Address, CryptoSpec, GasArray, GasPrice, KernelModule, KernelWorkingSet, Module, ModuleInfo,
-    PrivateKey, Spec, StateCheckpoint, WorkingSet,
+    Address, CryptoSpec, Gas, KernelModule, KernelWorkingSet, Module, ModuleInfo, PrivateKey, Spec,
+    StateCheckpoint, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
@@ -18,14 +18,12 @@ use crate::ProverIncentives;
 pub(crate) type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
 pub(crate) type Da = MockDaSpec;
 
-pub(crate) const BOND_AMOUNT: u64 = 1000;
+pub(crate) const BOND_AMOUNT: u64 = 10_000;
 pub(crate) const INITIAL_PROVER_BALANCE: u64 = 5 * BOND_AMOUNT;
 pub(crate) const INITIAL_SEQUENCER_BALANCE: u64 = 20 * BOND_AMOUNT;
 pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
 
-pub const MAX_TX_GAS_AMOUNT: u64 = 100;
-pub const TX_GAS_CONSUMED: [u64; 2] = [10; 2];
-pub const TX_GAS_PRICE: [u64; 2] = [1; 2];
+pub const MAX_TX_GAS_AMOUNT: u64 = 10_000;
 
 /// Generates an address by hashing the provided `key`.
 pub fn generate_address(key: &str) -> <S as Spec>::Address {
@@ -68,7 +66,8 @@ pub(crate) fn simulate_chain_state_execution(
     steps: u8,
     gas_used_per_step: &<S as Spec>::Gas,
     state_checkpoint: &mut StateCheckpoint<S>,
-) {
+) -> Vec<u64> {
+    let mut total_gas_used = vec![];
     let mut kernel_working_set = KernelWorkingSet::uninitialized(state_checkpoint);
     for i in 0..steps {
         let slot_header = MockBlockHeader {
@@ -87,33 +86,30 @@ pub(crate) fn simulate_chain_state_execution(
             0,
             0.into(),
             MAX_TX_GAS_AMOUNT,
-            Some(<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED)),
+            Some(gas_used_per_step.clone()),
             i.into(),
         )
         .into();
 
-        // We first need to reserve gas for the transaction
-        let mut gas_meter = module
-            .bank
-            .reserve_gas(
-                &tx,
-                &GasPrice::from_slice(&TX_GAS_PRICE),
-                &sequencer,
-                kernel_working_set.inner,
-            )
-            .expect("Gas reserve failed");
-
-        module.chain_state.begin_slot_hook(
+        let gas_price = module.chain_state.begin_slot_hook(
             &slot_header,
             &MockValidityCond { is_valid: true },
             &StorageRoot::<DefaultStorageSpec>::new(RootHash([i; 32]), RootHash([i; 32])),
             &mut kernel_working_set,
         );
 
+        // We first need to reserve gas for the transaction
+        let mut gas_meter = module
+            .bank
+            .reserve_gas(&tx, &gas_price, &sequencer, kernel_working_set.inner)
+            .expect("Gas reserve failed");
+
         // We charge some gas to the sequencer to make sure the gas meter is updated
         gas_meter
-            .charge_gas(&<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED))
+            .charge_gas(gas_used_per_step)
             .expect("Gas charge failed");
+
+        total_gas_used.push(gas_used_per_step.value(&gas_price));
 
         module
             .chain_state
@@ -127,6 +123,8 @@ pub(crate) fn simulate_chain_state_execution(
             kernel_working_set.inner,
         );
     }
+
+    total_gas_used
 }
 
 fn setup_helper(
@@ -141,7 +139,6 @@ fn setup_helper(
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig {
         current_time: Time::now(),
-        initial_base_fee_per_gas: GasPrice::<2>::from(TX_GAS_PRICE),
         genesis_da_height: 0,
         inner_code_commitment: MockCodeCommitment::default(),
         outer_code_commitment: MockCodeCommitment::default(),

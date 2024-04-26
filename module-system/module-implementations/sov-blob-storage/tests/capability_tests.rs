@@ -14,8 +14,8 @@ use sov_modules_api::da::Time;
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks, RawTx};
 use sov_modules_api::{
-    Address, BlobReaderTrait, Context, DaSpec, DispatchCall, GasArray, GasPrice, KernelWorkingSet,
-    MessageCodec, Module, Spec, StateCheckpoint, WorkingSet,
+    Address, BlobReaderTrait, Context, DaSpec, DispatchCall, KernelWorkingSet, MessageCodec,
+    Module, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::SequencerConfig;
@@ -164,7 +164,6 @@ fn do_deferred_blob_test(
             &SoftConfirmationsKernelGenesisConfig {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
-                    initial_base_fee_per_gas: GasPrice::ZEROED,
                     genesis_da_height: 0,
                     inner_code_commitment: Default::default(),
                     outer_code_commitment: Default::default(),
@@ -431,7 +430,6 @@ fn test_recovery_mode() {
             &SoftConfirmationsKernelGenesisConfig {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
-                    initial_base_fee_per_gas: GasPrice::ZEROED,
                     genesis_da_height: 0,
                     inner_code_commitment: Default::default(),
                     outer_code_commitment: Default::default(),
@@ -548,7 +546,6 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
             &BasicKernelGenesisConfig {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
-                    initial_base_fee_per_gas: GasPrice::ZEROED,
                     genesis_da_height: 0,
                     inner_code_commitment: Default::default(),
                     outer_code_commitment: Default::default(),
@@ -616,7 +613,6 @@ fn test_based_sequencing() {
             &BasicKernelGenesisConfig {
                 chain_state: ChainStateConfig {
                     current_time: Default::default(),
-                    initial_base_fee_per_gas: GasPrice::ZEROED,
                     genesis_da_height: 0,
                     inner_code_commitment: Default::default(),
                     outer_code_commitment: Default::default(),

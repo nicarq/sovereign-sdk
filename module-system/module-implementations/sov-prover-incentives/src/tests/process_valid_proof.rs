@@ -2,9 +2,7 @@ use borsh::BorshSerialize;
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{
-    AggregatedProofPublicData, CodeCommitment, Context, Gas, GasPrice, Spec, WorkingSet,
-};
+use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, Context, Spec, WorkingSet};
 
 use super::helpers::get_transition_unwrap;
 use crate::event::Event;
@@ -42,18 +40,19 @@ fn build_proof_log(
 }
 
 /// Simulates the execution of the chain state and processes a valid proof of the transitions between
-/// [`FIRST_SLOT_NUM`] and [`LAST_SLOT_NUM`] (included)
+/// [`FIRST_SLOT_NUM`] and [`LAST_SLOT_NUM`] (included). Returns the working set and the total amount
+/// of gas token consumed in each step
 fn execute_txs_and_process_valid_proof(
     prover_address: <S as Spec>::Address,
     sequencer: <S as Spec>::Address,
     gas_used_per_step: &<S as Spec>::Gas,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: WorkingSet<S>,
-) -> WorkingSet<S> {
+) -> (u64, WorkingSet<S>) {
     let (mut state_checkpoint, meter, _) = working_set.checkpoint();
     // The first transition is the genesis transition
     // Then we have two more transitions
-    simulate_chain_state_execution(
+    let total_gas_used = simulate_chain_state_execution(
         module,
         sequencer,
         ((LAST_SLOT_NUM - FIRST_SLOT_NUM + 1) + 1)
@@ -62,6 +61,10 @@ fn execute_txs_and_process_valid_proof(
         gas_used_per_step,
         &mut state_checkpoint,
     );
+
+    // We remove the last element because we don't want to include the gas used for the last transition
+    let total_gas_used: u64 = total_gas_used[..total_gas_used.len() - 1].iter().sum();
+
     let mut working_set = state_checkpoint.to_revertable(meter);
 
     let aggregated_proof = &build_proof_log(module, &mut working_set);
@@ -73,21 +76,17 @@ fn execute_txs_and_process_valid_proof(
         .process_proof(&proof, &context, &mut working_set)
         .expect("There should be no error processing a valid proof");
 
-    working_set
+    (total_gas_used, working_set)
 }
 
 // Performs a sequence of checks to ensure that the prover has been rewarded correctly
 fn check_reward(
     prover_address: <S as Spec>::Address,
-    gas_used_per_step: &<S as Spec>::Gas,
+    total_gas_used: u64,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: &mut WorkingSet<S>,
 ) -> u64 {
     // Compute the proof reward
-
-    // We have proven two transitions, so the total gas used is 2 * gas_used_per_step
-    let total_gas_used = gas_used_per_step.value(&GasPrice::<2>::from([1_u64; 2])) * 2;
-
     // Reward = total_gas_used * gas_price * (1-burn_rate)%
     let reward = module.burn_rate().apply(total_gas_used);
 
@@ -225,7 +224,7 @@ fn test_valid_proof() {
     let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
 
     // Process a valid proof
-    let mut working_set = execute_txs_and_process_valid_proof(
+    let (gas_token_used, mut working_set) = execute_txs_and_process_valid_proof(
         prover_address,
         sequencer,
         &gas_used_per_step,
@@ -233,12 +232,7 @@ fn test_valid_proof() {
         working_set,
     );
 
-    let reward = check_reward(
-        prover_address,
-        &gas_used_per_step,
-        &module,
-        &mut working_set,
-    );
+    let reward = check_reward(prover_address, gas_token_used, &module, &mut working_set);
 
     // Now we have to check we can unbond
     check_unbonding(
@@ -259,7 +253,7 @@ fn test_valid_proof_with_penalization() {
     let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
 
     // Process a valid proof
-    let mut working_set = execute_txs_and_process_valid_proof(
+    let (total_gas_used, mut working_set) = execute_txs_and_process_valid_proof(
         prover_address,
         sequencer,
         &gas_used_per_step,
@@ -267,12 +261,7 @@ fn test_valid_proof_with_penalization() {
         working_set,
     );
 
-    let reward = check_reward(
-        prover_address,
-        &gas_used_per_step,
-        &module,
-        &mut working_set,
-    );
+    let reward = check_reward(prover_address, total_gas_used, &module, &mut working_set);
 
     let proving_penalty = module
         .proving_penalty

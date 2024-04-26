@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{Gas, KernelWorkingSet, Spec, Zkvm};
+use sov_modules_api::{KernelWorkingSet, Spec, Zkvm};
 
 use crate::ChainState;
 
@@ -11,10 +11,6 @@ use crate::ChainState;
 pub struct ChainStateConfig<S: Spec> {
     /// The time at genesis
     pub current_time: Time,
-    /// The initial gas price for the genesis block
-    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/469>`: this field should be replaced with a constant value defined in the `constants{.test}.json` file.
-    /// This is not yet the case because that would break the tests that set the initial gas price to zero.
-    pub initial_base_fee_per_gas: <S::Gas as Gas>::Price,
 
     /// The code commitment to be used for verifying the rollup's execution.
     pub inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
@@ -38,9 +34,6 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
 
         self.time
             .set_true_current(&config.current_time, working_set);
-
-        self.initial_base_fee_per_gas
-            .set(&config.initial_base_fee_per_gas, working_set);
 
         self.inner_code_commitment
             .set(&config.inner_code_commitment, working_set);

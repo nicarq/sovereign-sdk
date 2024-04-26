@@ -19,10 +19,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             // first transition right after the genesis block
             self.genesis_root.set(pre_state_root, working_set.inner);
 
-            BlockGasInfo::new(
-                Self::initial_gas_limit(),
-                self.initial_base_fee_per_gas(working_set),
-            )
+            BlockGasInfo::new(Self::initial_gas_limit(), Self::initial_base_fee_per_gas())
         } else {
             let transition: StateTransition<S, Da> = {
                 let TransitionInProgress {

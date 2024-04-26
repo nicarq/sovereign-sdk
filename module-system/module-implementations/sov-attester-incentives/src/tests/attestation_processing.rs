@@ -6,7 +6,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_BOND_AMOUNT, INIT_HEIGHT,
+    setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_USER_BALANCE, INIT_HEIGHT,
 };
 type S = sov_test_utils::TestSpec;
 
@@ -101,10 +101,15 @@ fn test_process_valid_attestation() {
             .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut working_set)
             .unwrap(),
         // The attester is bonded at the beginning so he loses BOND_AMOUNT
-        INITIAL_BOND_AMOUNT - BOND_AMOUNT
-            + 2 * module
-                .burn_rate()
-                .apply(ExecutionSimulationVars::tx_reward())
+        INITIAL_USER_BALANCE - BOND_AMOUNT
+            // Since the base fee per gas evolves over time, we need to compute the reward for each transition
+            // separately
+            + module.burn_rate().apply(ExecutionSimulationVars::tx_reward(
+                &initial_transition.base_fee_per_gas
+            ))
+            + module.burn_rate().apply(ExecutionSimulationVars::tx_reward(
+                &transition_1.base_fee_per_gas
+            ))
     );
 }
 

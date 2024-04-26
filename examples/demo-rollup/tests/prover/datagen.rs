@@ -1,21 +1,20 @@
 use std::env;
-use std::fs::File;
-use std::io::BufWriter;
-use std::path::Path;
 
 use serde::Serialize;
+use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::services::da::DaService;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::MessageGenerator;
+
+use crate::test_helpers::read_private_keys;
 
 type S = sov_modules_api::default_spec::DefaultSpec<
     sov_risc0_adapter::Risc0Verifier,
     sov_mock_zkvm::MockZkVerifier,
 >;
-type DefaultPrivateKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 type DefaultPublicKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 
 #[derive(Serialize)]
@@ -25,32 +24,6 @@ struct AccountsData {
 
 const DEFAULT_BLOCKS: u64 = 10;
 const DEFAULT_TXNS_PER_BLOCK: u64 = 100;
-const DEFAULT_NUM_PUB_KEYS: u64 = 1000;
-
-pub fn generate_genesis_config(config_dir: &str) -> anyhow::Result<()> {
-    let num_pub_keys = match env::var("NUM_PUB_KEYS") {
-        Ok(num_pub_keys_str) => num_pub_keys_str.parse::<u64>()?,
-        Err(_) => {
-            println!("NUM_PUB_KEYS not set, using default");
-            DEFAULT_NUM_PUB_KEYS
-        }
-    };
-
-    let file = File::create(Path::join(Path::new(config_dir), "accounts.json")).unwrap();
-    let accounts_pub_keys: Vec<_> = (0..num_pub_keys)
-        .map(|_| {
-            let pkey = DefaultPrivateKey::generate();
-            pkey.pub_key()
-        })
-        .collect();
-
-    let data = AccountsData {
-        pub_keys: accounts_pub_keys,
-    };
-
-    let data_buf = BufWriter::new(file);
-    Ok(serde_json::ser::to_writer(data_buf, &data)?)
-}
 
 pub async fn get_blocks_from_da() -> anyhow::Result<Vec<MockBlock>> {
     let txns_per_block = match env::var("TXNS_PER_BLOCK") {
@@ -72,8 +45,14 @@ pub async fn get_blocks_from_da() -> anyhow::Result<Vec<MockBlock>> {
     let da_service = MockDaService::new(MockAddress::default());
     let mut blocks = vec![];
 
+    let private_key_and_address: PrivateKeyAndAddress<S> =
+        read_private_keys::<S>("minter_private_key.json");
+
     let (create_token_message_gen, transfer_message_gen) =
-        BankMessageGenerator::generate_token_and_random_transfers(txns_per_block);
+        BankMessageGenerator::generate_token_and_random_transfers(
+            txns_per_block,
+            private_key_and_address.private_key,
+        );
     let blob = create_token_message_gen.create_blobs::<<MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeRuntime>();
     da_service.send_transaction(&blob).await.unwrap();
     let block1 = da_service.get_block_at(1).await.unwrap();
