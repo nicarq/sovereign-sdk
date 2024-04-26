@@ -8,12 +8,20 @@ target/
 .DS_Store
 
 demo_data/
+demo_data_1/
+demo_data_2/
 /.vscode/*
 
 /docker/credentials/*
 !/docker/credentials/bridge-0.addr
 !/docker/credentials/bridge-0.key
+!/docker/credentials/bridge-1.key
+!/docker/credentials/bridge-1.addr
+!/docker/credentials/bridge-2.key
+!/docker/credentials/bridge-2.addr
 
 adapters/solana/libyellowstone_grpc_geyser.dylib
 examples/test-data/genesis/benchmark/accounts.json
 examples/demo-rollup/demo_rollup_config.toml
+examples/demo-rollup/demo_rollup_config_1.toml
+examples/demo-rollup/demo_rollup_config_2.toml

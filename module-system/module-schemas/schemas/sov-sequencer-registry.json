@@ -18,7 +18,7 @@
           ],
           "properties": {
             "amount": {
-              "description": "The inital balance of the sequencer.",
+              "description": "The initial balance of the sequencer.",
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
