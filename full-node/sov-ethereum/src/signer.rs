@@ -19,7 +19,7 @@ pub(crate) fn register_signer_rpc_methods<S: sov_modules_api::Spec, Da: DaServic
     rpc.register_async_method("eth_sendTransaction", |parameters, ethereum| async move {
         let mut transaction_request: reth_rpc_types::TransactionRequest = parameters.one().unwrap();
 
-        let evm = Evm::<S, Da::Spec>::default();
+        let evm = Evm::<S>::default();
 
         // get from, return error if none
         let from = transaction_request
@@ -70,9 +70,9 @@ pub(crate) fn register_signer_rpc_methods<S: sov_modules_api::Spec, Da: DaServic
     Ok(())
 }
 
-fn to_typed_transaction_request<S: sov_modules_api::Spec, Da: sov_rollup_interface::da::DaSpec>(
+fn to_typed_transaction_request<S: sov_modules_api::Spec>(
     transaction_request: reth_rpc_types::TransactionRequest,
-    evm: &Evm<S, Da>,
+    evm: &Evm<S>,
     working_set: &mut WorkingSet<S>,
 ) -> Result<reth_rpc_types::TypedTransactionRequest, ErrorObjectOwned> {
     let chain_id = evm

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered};
 use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
-use sov_modules_api::{CallResponse, Context, DaSpec, WorkingSet};
+use sov_modules_api::{CallResponse, Context, WorkingSet};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -24,7 +24,7 @@ pub struct CallMessage {
     pub tx: RlpEvmTransaction,
 }
 
-impl<S: sov_modules_api::Spec, Da: DaSpec> Evm<S, Da> {
+impl<S: sov_modules_api::Spec> Evm<S> {
     pub(crate) fn execute_call(
         &self,
         tx: RlpEvmTransaction,

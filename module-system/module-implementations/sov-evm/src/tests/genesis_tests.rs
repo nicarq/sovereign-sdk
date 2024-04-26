@@ -5,13 +5,9 @@ use reth_primitives::{
     Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH,
 };
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
-use sov_chain_state::{ChainState, ChainStateConfig};
-use sov_mock_da::{MockBlockHeader, MockDaSpec};
-use sov_modules_api::da::Time;
-use sov_modules_api::{DaSpec, GasMeter, KernelModule, KernelWorkingSet, Module, StateCheckpoint};
+use sov_modules_api::{GasMeter, KernelWorkingSet, Module, StateCheckpoint};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::jmt::RootHash;
-use sov_state::{StorageRoot, VisibleHash};
+use sov_state::VisibleHash;
 
 use crate::evm::primitive_types::{Block, SealedBlock};
 use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
@@ -236,44 +232,16 @@ fn genesis_head() {
 
 pub(crate) fn setup(
     evm_config: &EvmConfig,
-    mut state_checkpoint: StateCheckpoint<S>,
-) -> (Evm<S, MockDaSpec>, StateCheckpoint<S>) {
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint); // We now need to initialize a chain_state module as well. Since in this test suite we don't care about testing the chain state
-
-    // we can just use the default values. We will initialize the first block hash value with a default one.
-    let chain_state = ChainState::<S, MockDaSpec>::default();
-    chain_state
-        .genesis_unchecked(
-            &ChainStateConfig {
-                current_time: Time::now(),
-                genesis_da_height: 0,
-                inner_code_commitment: Default::default(),
-                outer_code_commitment: Default::default(),
-            },
-            &mut kernel_working_set,
-        )
-        .unwrap();
-
-    let evm = Evm::<S, MockDaSpec>::default();
+    state_checkpoint: StateCheckpoint<S>,
+) -> (Evm<S>, StateCheckpoint<S>) {
+    let evm = Evm::<S>::default();
     let mut genesis_ws = state_checkpoint.to_revertable(GasMeter::unmetered());
     evm.genesis(evm_config, &mut genesis_ws).unwrap();
     let mut state_checkpoint = genesis_ws.checkpoint().0;
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    let kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     evm.finalize_hook(
         VisibleHash::new([10u8; 32]),
         &mut kernel_working_set.inner.accessory_state(),
-    );
-
-    chain_state.begin_slot_hook(
-        &MockBlockHeader {
-            prev_hash: [1_u8; 32].into(),
-            hash: [10_u8; 32].into(),
-            height: 1,
-            time: Time::now(),
-        },
-        &<MockDaSpec as DaSpec>::ValidityCondition::default(),
-        &StorageRoot::new(RootHash([1_u8; 32]), RootHash([1; 32])),
-        &mut kernel_working_set,
     );
 
     (evm, state_checkpoint)

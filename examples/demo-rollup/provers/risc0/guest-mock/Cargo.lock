@@ -2855,7 +2855,6 @@ dependencies = [
  "revm-primitives",
  "secp256k1 0.27.0",
  "serde",
- "sov-chain-state",
  "sov-modules-api",
  "sov-state",
  "thiserror",
