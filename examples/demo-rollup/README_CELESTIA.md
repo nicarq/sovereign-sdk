@@ -16,7 +16,7 @@ We are developing more robust tooling to enable seamless deployment of rollups o
 #### Table of Contents
 
 <!-- https://github.com/thlorenz/doctoc -->
-<!-- $ doctoc README.md --github --notitle -->
+<!-- $ doctoc README_CELESTIA.md --github --notitle -->
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
@@ -32,6 +32,7 @@ We are developing more robust tooling to enable seamless deployment of rollups o
     - [4. Verify the Token Supply](#4-verify-the-token-supply)
   - [Makefile](#makefile)
   - [Remote setup](#remote-setup)
+  - [Several full nodes](#several-full-nodes)
 - [How to Customize This Example](#how-to-customize-this-example)
   - [1. Initialize the DA Service](#1-initialize-the-da-service)
   - [2. Run the Main Loop](#2-run-the-main-loop)
@@ -254,7 +255,7 @@ The JSON above is the contents of the file [`examples/test-data/requests/transfe
 
 Note: we're able to make a `Transfer` call here because we already created the token as part of the sanity check above, using `make test-create-token`.
 
-To generate transactions you can use the `transactions import from-file` subcommand, as shown below:
+To generate transactions, you can use the `transactions import from-file` subcommand, as shown below:
 
 ```bash,test-ci,bashtestmd:compare-output
 $ cargo run --bin sov-cli -- transactions import from-file -h
@@ -335,18 +336,76 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method"
       - `celestia_rpc_auth_token` is set to the auth token exposed by sequencer (in <repo_root>/docker/credentials directory)
       - `celestia_rpc_address` is set to point to `127.0.0.1` and the `RPC_PORT`
 - `make stop`:
-  - Shuts down the Celestia docker compose setup, if running.
-  - Deletes all contents of the demo-rollup database.
+  - Shuts down the Celestia docker compose setup if running.
 - `make clean`:
   - Stops any running containers with the name `sov-celestia-local` and also removes them
   - Removes `demo-data` (or the configured path of the rollup database from rollup_config.toml)
-  - Removes `~/sov_cli_wallet`
+  - Removes pending transactions from `~/.sov_cli_wallet`. Keys are not touched.
 
 ### Remote setup
 
 > 🚧 This feature is under development! 🚧
 
 The above setup runs Celestia node locally to avoid any external network dependencies and to speed up development. Soon, the Sovereign SDK will also support connecting to the Celestia testnet using a Celestia light node running on your machine.
+
+### Several full nodes
+
+Note: This is an advanced section and can be safely skipped.
+
+It is possible to run several nodes and sequencers on the same host. But this require some preparation
+
+1. clean and stop existing running full node and docker containers: `make clean`
+2. Modify [docker-compose.yml](../../docker/docker-compose.yml):
+   2.1. Modify entrypoint of the validator to provision key for second bridge: `command: [ "/opt/entrypoint.sh", "2" ]`
+   2.2. Uncomment second bridge container (`sequencer-1`).
+3. Start `docker-compose`: `make start`
+4. Run the first node using command from the beginning of this tutorial.
+5. After validator and both bridges are in healthy state,
+   generate config for second full node: `make create-second-celestia-config`. 
+   It will create `demo_rollup_config_1.toml` with proper options for second note. You can check RPC endpoint there.
+6. Run second node:
+
+```
+cargo run -- --da-layer celestia --rollup-config-path demo_rollup_config_1.toml  --genesis-config-dir ../test-data/genesis/demo/celestia --prometheus-exporter-bind=127.0.0.1:9846 
+```
+
+Note that it uses newly generated config and also passes a different option for prometheus exporter.
+Now this node should sync rollup state and can be used for query state.
+
+But the second node cannot submit batches because its sequencer is not registered. But there's make command to do this:
+
+```
+make register-second-sequencer
+```
+
+This command submits a message that registers DA address of the second node in sequencer registry. 
+If something does not work, 
+please double-check that address [register_sequencer.json](../test-data/requests/register_sequencer.json) matches binary representation of [bridge-1.addr](../../docker/credentials/bridge-1.addr).
+
+
+The existing test that can be used for this purpose `test_from_string_for_registering`, 
+located in [`adapters/celestia/src/verifier/address.rs`](../../adapters/celestia/src/verifier/address.rs)
+This part assumes, that user knows how to run individual rust test and modify rust code.
+
+```rust
+        let raw_address_str = "celestia1qursy837n4a97d6q9camret9jtdjff7qtf0yjh";
+        let address = CelestiaAddress::from_str(raw_address_str).unwrap();
+        let raw_bytes = address.as_ref().to_vec();
+        let expected_bytes = vec![
+            7, 7, 2, 30, 62, 157, 122, 95, 55, 64, 46, 59, 177, 229, 101, 146, 219, 36, 167, 192,
+        ];
+
+        assert_eq!(expected_bytes, raw_bytes);
+```
+
+Put the new address instead of existing `celestia1qursy837n4a97d6q9camret9jtdjff7qtf0yjh` and run the test.
+If it fails, use the value reported on the "right" in .json for register sequencer command.
+
+
+```
+test-create-token-second-seq
+```
+
 
 ## How to Customize This Example
 

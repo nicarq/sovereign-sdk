@@ -13,10 +13,12 @@ KEY_NAME := bridge-0
 
 JWT_TOKEN_PATH := $(CREDENTIALS_DIR)/$(KEY_NAME).jwt
 get_token := $(DOCKER_COMPOSE) exec -it sequencer-0 celestia bridge auth admin --p2p.network "private"
+get_token_1 := $(DOCKER_COMPOSE) exec -it sequencer-1 celestia bridge auth admin --p2p.network "private"
 timestamp := $(shell date "+%Y-%m-%d %H:%M:%S")
 
 
 clean: check-docker
+clean: check-sov-cli
 clean:
 	@echo "Stopping local celestia network setup"
 	$(DOCKER_COMPOSE) down --volumes --rmi local
@@ -29,15 +31,22 @@ clean:
 		echo "Path is empty or too short, not safe to remove"; \
 		exit 1; \
 	fi
-	@echo removing celestia rollup database "${path}"
+	@echo "removing celestia rollup database ${path}"
 	rm -rf "${path}"
 	$(eval path := ./$(shell awk -F'=' '/^path/ {print $$2}' mock_rollup_config.toml | tr -d '[:space:]"\n'))
 	@if [ -z "${path}" ] || [ "${path}" = "./" ]; then \
 		echo "Path is empty or too short, not safe to remove"; \
 		exit 1; \
 	fi
-	@echo removing mock rollup database "${path}"
+	@echo "removing mock rollup database ${path}"
 	rm -rf "${path}"
+	@echo "removing unsent transactions from local storage"
+	$(SOV_CLI_REL_PATH) transactions clean
+
+
+clean-wallet:
+	@echo "Going to remove wallet from~/.sov_cli_wallet/"
+	@@printf "!!! This can potentially remove the only source of private key. Are you sure? [y/N]: " && read ans && [ $${ans:-N} = y ] && rm -rf ~/.sov_cli_wallet/
 
 start: check-docker
 start:
@@ -64,6 +73,35 @@ start:
    	cat celestia_rollup_config.toml | \
    	sed 's/^\(celestia_rpc_auth_token = \)"[^"]*"/\1"'$$TOKEN'"/' > demo_rollup_config.toml;
 
+create-second-celestia-config: check-docker
+create-second-celestia-config:
+	@while [ -z "$$TOKEN" ]; do \
+    		echo "$(timestamp): Waiting JWT for token..."; \
+    		TOKEN=$$($(get_token_1) 2>/dev/null); \
+    		sleep 1; \
+    	done; \
+    	echo "$(timestamp): token received: $$TOKEN";
+	@TOKEN=$$($(get_token_1) 2>/dev/null); \
+	ADDRESS=$$(cat ../../docker/credentials/bridge-1.addr); \
+   	cat celestia_rollup_config.toml | \
+   	sed 's/^\(celestia_rpc_auth_token = \)"[^"]*"/\1"'$$TOKEN'"/' | \
+   	sed 's/^\(own_celestia_address = \)"[^"]*"/\1"'$$ADDRESS'"/' | \
+   	sed 's/^\(path = \)"[^"]*"/\1"demo_data_1"/' | \
+   	sed 's/^\(celestia_rpc_address = \)"[^"]*"/\1"http:\/\/127.0.0.1:36658"/' | \
+   	sed 's/^bind_port = 12345/bind_port = 12355/' |  \
+   	sed 's/^bind_port = 12346/bind_port = 12356/'  \
+   	 > demo_rollup_config_1.toml;
+
+clean-second-node:
+	$(eval path := ./$(shell awk -F'=' '/^path/ {print $$2}' demo_rollup_config_1.toml | tr -d '[:space:]"\n'))
+	@if [ -z "${path}" ] || [ "${path}" = "./" ]; then \
+		echo "Path is empty or too short, not safe to remove"; \
+		exit 1; \
+	fi
+	@echo removing celestia rollup database "${path}"
+	rm -rf "${path}"
+
+
 stop: check-docker
 stop:
 	$(DOCKER_COMPOSE) down
@@ -72,7 +110,13 @@ logs:
 	$(DOCKER_COMPOSE) logs -f
 
 print-jwt-token:
-	@echo "Token: $(get_token)"
+	@TOKEN=$$($(get_token) 2>/dev/null); \
+	echo "Token 0: $$TOKEN"
+
+print-jwt-token-1:
+	@TOKEN=$$($(get_token_1) 2>/dev/null); \
+	echo "Token 1: $$TOKEN"
+
 
 check-docker:
 	@command -v docker > /dev/null 2>&1 || { echo "Docker is not installed"; exit 1; }
@@ -95,6 +139,22 @@ test-create-token:
 	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 0 --path ../test-data/requests/create_token.json
 	@echo "Submitting a batch"
 	$(SOV_CLI_REL_PATH) rpc submit-batch by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
+
+test-create-token-second-seq: check-sov-cli
+test-create-token-second-seq:
+	$(SOV_CLI_REL_PATH) rpc set-url http://127.0.0.1:12355
+	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 0 --path ../test-data/requests/create_token.json
+	@echo "Submitting a batch"
+	$(SOV_CLI_REL_PATH) rpc submit-batch by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
+
+register-second-sequencer: check-sov-cli
+register-second-sequencer:
+	$(SOV_CLI_REL_PATH) rpc set-url http://127.0.0.1:12345
+	$(SOV_CLI_REL_PATH) keys import --nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY --path ../test-data/keys/token_deployer_private_key.json
+	$(SOV_CLI_REL_PATH) transactions import from-file sequencer-registry --chain-id 0 --path ../test-data/requests/register_sequencer.json
+	@echo "Submitting a batch"
+	$(SOV_CLI_REL_PATH) rpc submit-batch by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
+
 
 remove-insecure-keys: check-sov-cli
 remove-insecure-keys:

@@ -8,6 +8,7 @@ max_celestia_response_body_size = 104_857_600
 # The maximum time to wait for a response to an RPC query against Celestia node. Defaults to 60 seconds.
 celestia_rpc_timeout_seconds = 60
 # Address of this sequencer. Should match address of connected bridge/full node.
+# Taken from ../../docker/credentials/bridge-0.addr
 own_celestia_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
 
 [storage]

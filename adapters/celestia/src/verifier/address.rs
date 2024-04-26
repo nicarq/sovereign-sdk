@@ -70,6 +70,18 @@ mod tests {
     }
 
     #[test]
+    fn test_from_string_for_registering() {
+        let raw_address_str = "celestia1qursy837n4a97d6q9camret9jtdjff7qtf0yjh";
+        let address = CelestiaAddress::from_str(raw_address_str).unwrap();
+        let raw_bytes = address.as_ref().to_vec();
+        let expected_bytes = vec![
+            7, 7, 2, 30, 62, 157, 122, 95, 55, 64, 46, 59, 177, 229, 101, 146, 219, 36, 167, 192,
+        ];
+
+        assert_eq!(expected_bytes, raw_bytes);
+    }
+
+    #[test]
     fn test_address_display_try_vec() {
         let raw_address_str = "celestia1w7wcupk5gswj25c0khnkey5fwmlndx6t5aarmk";
         let raw_address: Vec<u8> = raw_address_str.bytes().collect();

@@ -31,7 +31,7 @@ pub enum TransactionWorkflow<File: Subcommand, Json: Subcommand> {
 
 impl<File: Subcommand, Json: Subcommand> TransactionWorkflow<File, Json> {
     /// Run the transaction workflow
-    pub fn run<RT: CliWallet, S: sov_modules_api::Spec, V, E1, E2, E3>(
+    pub fn run<RT: CliWallet, S: sov_modules_api::Spec, U, E1, E2, E3>(
         self,
         wallet_state: &mut WalletState<RT::Decodable, S>,
         _app_dir: impl AsRef<Path>,
@@ -39,9 +39,9 @@ impl<File: Subcommand, Json: Subcommand> TransactionWorkflow<File, Json> {
     where
         File: CliFrontEnd<RT> + CliTxImportArg,
         Json: CliFrontEnd<RT> + CliTxImportArg,
-        File: TryInto<RT::CliStringRepr<V>, Error = E1>,
-        Json: TryInto<RT::CliStringRepr<V>, Error = E2>,
-        RT::CliStringRepr<V>: TryInto<RT::Decodable, Error = E3>,
+        File: TryInto<RT::CliStringRepr<U>, Error = E1>,
+        Json: TryInto<RT::CliStringRepr<U>, Error = E2>,
+        RT::CliStringRepr<U>: TryInto<RT::Decodable, Error = E3>,
         RT::Decodable: BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
         E1: Into<anyhow::Error> + Send + Sync,
         E2: Into<anyhow::Error> + Send + Sync,

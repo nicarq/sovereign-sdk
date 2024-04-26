@@ -31,7 +31,7 @@ pub enum CallMessage {
     Register {
         /// The raw Da address of the sequencer you're registering.
         da_address: Vec<u8>,
-        /// The inital balance of the sequencer.
+        /// The initial balance of the sequencer.
         amount: Amount,
     },
     /// Increases the balance of the sequencer, transferring the funds from the sequencer account
