@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{CryptoSpec, ModuleId, Spec};
@@ -19,35 +21,6 @@ pub fn get_token_id<S: sov_modules_api::Spec>(
 
     let hash: [u8; 32] = hasher.finalize().into();
     TokenId::from(hash)
-}
-
-#[cfg(feature = "test-utils")]
-mod tests {
-    use sov_modules_api::digest::Digest;
-    use sov_modules_api::{CryptoSpec, Spec};
-
-    use crate::{Bank, BankGasConfig, TokenId};
-
-    impl TokenId {
-        /// Generates a deterministic token id by hashing the input string
-        pub fn generate<S: Spec>(seed: &str) -> Self {
-            let hash: [u8; 32] =
-                <S::CryptoSpec as CryptoSpec>::Hasher::digest(seed.as_bytes()).into();
-            hash.into()
-        }
-    }
-
-    impl<S: Spec> Bank<S> {
-        /// Returns the underlying gas config
-        pub fn gas_config(&self) -> &BankGasConfig<S::Gas> {
-            &self.gas
-        }
-
-        /// Overrides the underlying gas config
-        pub fn override_gas_config(&mut self, gas: BankGasConfig<S::Gas>) {
-            self.gas = gas;
-        }
-    }
 }
 
 /// An identifier which can hold tokens on the rollup. This is implemented by `&S::Address`. To pay a module,
@@ -98,7 +71,7 @@ impl<'a, S: Spec> Payable<S> for TokenHolderRef<'a, S> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize, BorshDeserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, BorshDeserialize)]
 /// The identifier of a a payable entity on the rollup. This can be either a user or a module.
 pub enum TokenHolder<S: Spec> {
     /// A external address the rollup.
@@ -133,7 +106,7 @@ impl<S: Spec> std::fmt::Display for TokenHolder<S> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, serde::Serialize, borsh::BorshSerialize)]
+#[derive(Debug, serde::Serialize, borsh::BorshSerialize)]
 /// A reference to a payable entity on the rollup. This can be either a user or a module.
 pub enum TokenHolderRef<'a, S: Spec> {
     /// A reference to a user's address
@@ -141,6 +114,33 @@ pub enum TokenHolderRef<'a, S: Spec> {
     /// A reference to a module's ID
     Module(&'a ModuleId),
 }
+
+impl<'a, S: Spec> Hash for TokenHolderRef<'a, S> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::User(addr) => {
+                state.write_u8(0);
+                addr.hash(state);
+            }
+            Self::Module(id) => {
+                state.write_u8(1);
+                id.hash(state);
+            }
+        }
+    }
+}
+
+impl<'a, S: Spec> PartialEq for TokenHolderRef<'a, S> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::User(a), Self::User(b)) => a == b,
+            (Self::Module(a), Self::Module(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl<'a, S: Spec> Eq for TokenHolderRef<'a, S> {}
 
 // Manually implement Clone because derive infurs a spurious `Spec: Clone` bound
 impl<'a, S: Spec> Clone for TokenHolderRef<'a, S> {
@@ -201,5 +201,42 @@ mod encode_key_like {
         fn encode_key_like(&self, borrowed: &TokenHolderRef<'_, S>) -> Vec<u8> {
             self.encode(borrowed)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    use sov_modules_api::default_spec::DefaultSpec;
+    use sov_test_utils::MockZkVerifier;
+
+    type S = DefaultSpec<MockZkVerifier, MockZkVerifier>;
+    use super::*;
+
+    fn calculate_hash<T: Hash>(t: &T) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        t.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    #[test]
+    fn check_hashes_for_token_holders() {
+        let source: [u8; 32] = [0; 32];
+
+        let module_id = ModuleId::from(source);
+        let module_id_ref: TokenHolderRef<'_, S> = TokenHolderRef::from(&module_id);
+
+        let address = &<S as Spec>::Address::from(source);
+        let address_ref: TokenHolderRef<'_, S> = TokenHolderRef::from(&address);
+
+        let address_hash = calculate_hash(&address_ref);
+        let module_id_hash = calculate_hash(&module_id_ref);
+
+        assert_ne!(
+            address_hash, module_id_hash,
+            "Hashes for module id and address derived from same source should be different"
+        );
     }
 }
