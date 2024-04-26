@@ -8,7 +8,7 @@ use std::num::ParseIntError;
 use anyhow::{bail, Context};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{impl_hash32_type, StateAccessor, WorkingSet};
+use sov_modules_api::{impl_hash32_type, Spec, StateAccessor, WorkingSet};
 use sov_state::Prefix;
 use thiserror::Error;
 
@@ -146,7 +146,7 @@ pub struct Token<S: sov_modules_api::Spec> {
     /// Non-empty vector indicates members of the vector can mint.
     /// Freezing a token requires emptying the vector
     /// NOTE: This is explicit, so if a creator doesn't add themselves, then they can't mint
-    pub(crate) authorized_minters: Vec<S::Address>,
+    pub(crate) authorized_minters: Vec<TokenHolder<S>>,
 }
 
 impl<S: sov_modules_api::Spec> Token<S> {
@@ -197,7 +197,8 @@ impl<S: sov_modules_api::Spec> Token<S> {
     /// Freezing a token requires emptying the authorized_minter vector
     /// authorized_minter: Vec<Address> is used to determine if the token is frozen or not
     /// If the vector is empty when the function is called, this means the token is already frozen
-    pub(crate) fn freeze(&mut self, sender: &S::Address) -> anyhow::Result<()> {
+    pub(crate) fn freeze(&mut self, sender: TokenHolderRef<'_, S>) -> anyhow::Result<()> {
+        let sender = sender.as_token_holder();
         if self.authorized_minters.is_empty() {
             bail!("Token {} is already frozen", self.name)
         }
@@ -212,7 +213,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
     /// adding the minted tokens. Updates the `total_supply` of that token.
     pub(crate) fn mint(
         &mut self,
-        authorizer: &S::Address,
+        authorizer: TokenHolderRef<'_, S>,
         mint_to_identity: TokenHolderRef<'_, S>,
         amount: Amount,
         working_set: &mut WorkingSet<S>,
@@ -243,15 +244,18 @@ impl<S: sov_modules_api::Spec> Token<S> {
         Ok(())
     }
 
-    fn is_authorized_minter(&self, sender: &S::Address) -> anyhow::Result<()> {
-        if !self.authorized_minters.contains(sender) {
-            bail!(
-                "Sender {} is not an authorized minter of token {}",
-                sender,
-                self.name
-            )
+    fn is_authorized_minter(&self, sender: TokenHolderRef<'_, S>) -> anyhow::Result<()> {
+        for minter in self.authorized_minters.iter() {
+            if sender == minter.as_token_holder() {
+                return Ok(());
+            }
         }
-        Ok(())
+
+        bail!(
+            "Sender {} is not an authorized minter of token {}",
+            sender,
+            self.name
+        )
     }
 
     // Check that amount can be deducted from address
@@ -277,15 +281,15 @@ impl<S: sov_modules_api::Spec> Token<S> {
     /// Returns a tuple containing the computed `token_id` and the created `token` object.
     pub(crate) fn create(
         token_name: &str,
-        address_and_balances: &[(S::Address, u64)],
-        authorized_minters: &[S::Address],
+        address_and_balances: &[(TokenHolderRef<'_, S>, u64)],
+        authorized_minters: &[TokenHolderRef<'_, S>],
         sender: &S::Address,
         salt: u64,
         parent_prefix: &Prefix,
         working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<(TokenId, Self)> {
         let token_id = super::get_token_id::<S>(token_name, sender, salt);
-        let token = Self::create_with_address(
+        let token = Self::create_with_token_id(
             token_name,
             address_and_balances,
             authorized_minters,
@@ -297,10 +301,10 @@ impl<S: sov_modules_api::Spec> Token<S> {
     }
 
     /// Shouldn't be used directly, only by genesis call
-    pub(crate) fn create_with_address(
+    pub(crate) fn create_with_token_id(
         token_name: &str,
-        address_and_balances: &[(S::Address, u64)],
-        authorized_minters: &[S::Address],
+        address_and_balances: &[(TokenHolderRef<'_, S>, u64)],
+        authorized_minters: &[TokenHolderRef<'_, S>],
         token_id: &TokenId,
         parent_prefix: &Prefix,
         working_set: &mut WorkingSet<S>,
@@ -310,7 +314,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
         let mut total_supply: Option<u64> = Some(0);
         for (address, balance) in address_and_balances.iter() {
-            balances.set(&address.as_token_holder(), balance, working_set);
+            balances.set(address, balance, working_set);
             total_supply = total_supply.and_then(|ts| ts.checked_add(*balance));
         }
 
@@ -319,20 +323,36 @@ impl<S: sov_modules_api::Spec> Token<S> {
             None => bail!("Total supply overflow"),
         };
 
-        let mut indices = HashSet::new();
-        let mut auth_minter_list = Vec::new();
-
-        for (i, item) in authorized_minters.iter().enumerate() {
-            if indices.insert(item.as_ref()) {
-                auth_minter_list.push(authorized_minters[i].clone());
-            }
-        }
+        let authorized_minters = unique_minters(authorized_minters);
 
         Ok(Token::<S> {
             name: token_name.to_owned(),
             total_supply,
             balances,
-            authorized_minters: auth_minter_list,
+            authorized_minters,
         })
+    }
+}
+
+fn unique_minters<S: Spec>(minters: &[TokenHolderRef<'_, S>]) -> Vec<TokenHolder<S>> {
+    // IMPORTANT:
+    // We can't just put `authorized_minters` into a `HashSet` because the order of the elements in the `HashSet`` is not guaranteed.
+    // The algorithm below ensures that the order of the elements in the `auth_minter_list` is deterministic (both in zk and native execution).
+    let mut indices = HashSet::new();
+    let mut auth_minter_list = Vec::new();
+
+    for item in minters.iter() {
+        if indices.insert(item) {
+            auth_minter_list.push(clone_to_token_holder(item));
+        }
+    }
+
+    auth_minter_list
+}
+
+fn clone_to_token_holder<S: Spec>(token_holder_ref: &TokenHolderRef<'_, S>) -> TokenHolder<S> {
+    match token_holder_ref {
+        TokenHolderRef::User(addr) => TokenHolder::User((*addr).clone()),
+        TokenHolderRef::Module(id) => TokenHolder::Module(**id),
     }
 }

@@ -4,7 +4,7 @@ use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, WorkingSet};
 
 use crate::event::Event;
-use crate::utils::Payable;
+use crate::utils::{Payable, TokenHolderRef};
 use crate::{Amount, Bank, Coins, Token, TokenId};
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
 #[cfg_attr(
@@ -76,15 +76,21 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         token_name: String,
         salt: u64,
         initial_balance: Amount,
-        minter_address: S::Address,
-        authorized_minters: Vec<S::Address>,
+        minter: impl Payable<S>,
+        authorized_minters: Vec<impl Payable<S>>,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<TokenId> {
-        tracing::info!(%token_name, %salt, %initial_balance, %minter_address, sender= %context.sender(), "Create token request");
+        tracing::info!(%token_name, %salt, %initial_balance, %minter, sender= %context.sender(), "Create token request");
+
+        let authorized_minters = authorized_minters
+            .iter()
+            .map(|minter| minter.as_token_holder())
+            .collect::<Vec<_>>();
+
         let (token_id, token) = Token::<S>::create(
             &token_name,
-            &[(minter_address, initial_balance)],
+            &[(minter.as_token_holder(), initial_balance)],
             &authorized_minters,
             context.sender(),
             salt,
@@ -188,7 +194,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         Ok(CallResponse::default())
     }
 
-    /// Mints the `coins`to the address `mint_to_address` using the externally owned account ("EOA") supplied by
+    /// Mints the `coins`to the address `mint_to_identity` using the externally owned account ("EOA") supplied by
     /// `context.sender()` as the authorizer.
     /// Returns an error if the token ID doesn't exist or `context.sender()` is not authorized to mint tokens.
     ///
@@ -196,37 +202,44 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub fn mint_from_eoa(
         &self,
         coins: &Coins,
-        mint_to_address: impl Payable<S>,
+        mint_to_identity: impl Payable<S>,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
-        self.mint(coins, mint_to_address, context.sender(), working_set)
+        self.mint(
+            coins,
+            mint_to_identity,
+            TokenHolderRef::from(&context.sender()),
+            working_set,
+        )
     }
 
-    /// Mints the `coins` to the address `mint_to_address` if `authorizer` is an allowed minter.
+    /// Mints the `coins` to the  `mint_to_identity` if `authorizer` is an allowed minter.
     /// Returns an error if the token ID doesn't exist or `context.sender()` is not authorized to mint tokens.
     ///
     /// On success, it updates the `self.tokens` set to store the new minted address.
     pub fn mint(
         &self,
         coins: &Coins,
-        mint_to_address: impl Payable<S>,
-        authorizer: &S::Address,
+        mint_to_identity: impl Payable<S>,
+        authorizer: impl Payable<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
-        let mint_to_address = mint_to_address.as_token_holder();
+        let mint_to_identity = mint_to_identity.as_token_holder();
         let context_logger = || {
             format!(
                 "Failed mint coins({}) to {} by authorizer {}",
-                coins, mint_to_address, authorizer
+                coins, mint_to_identity, authorizer
             )
         };
         let mut token = self
             .tokens
             .get_or_err(&coins.token_id, working_set)
             .with_context(context_logger)?;
+
+        let authorizer = authorizer.as_token_holder();
         token
-            .mint(authorizer, mint_to_address, coins.amount, working_set)
+            .mint(authorizer, mint_to_identity, coins.amount, working_set)
             .with_context(context_logger)?;
         self.tokens.set(&coins.token_id, &token, working_set);
 
@@ -249,13 +262,16 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                 context.sender()
             )
         };
+
         let mut token = self
             .tokens
             .get_or_err(&token_id, working_set)
             .with_context(context_logger)?;
+
         token
-            .freeze(context.sender())
+            .freeze(context.sender().as_token_holder())
             .with_context(context_logger)?;
+
         self.tokens.set(&token_id, &token, working_set);
         self.emit_event(working_set, "token_frozen", Event::TokenFrozen { token_id });
 

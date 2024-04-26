@@ -1,4 +1,7 @@
+- #526 `Bank::create_token` & `Bank::mint` now accept an `impl Payable` as arguments. This is a breaking change. `&S::Address` already implements `Payable`, and `ModuleId` can be promoted to `Payable` via `ModuleId::as_token_holder`.
+
 - #525 mitigates the bug where a transaction which was included multiple times would always return the `Duplicate` tx status rather than returning info about the original tx execution. In this commit we use a simple heuristic (first tx wins) to guess which instance is the "correct" one.
+
 
 - #468 fixes the gas elasticity computation that was removed in #476. The base fee computation is now done in the `ChainState` module as part of the `begin_slot` hook. This PR also updates the `ChainState` integration tests to check that the base fee computation is correctly performed in the module hooks. It also adds gas elasticity tests for the `ChainState` module.
 

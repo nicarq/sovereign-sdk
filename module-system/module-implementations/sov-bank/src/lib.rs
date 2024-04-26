@@ -2,6 +2,8 @@
 #![doc = include_str!("../README.md")]
 mod call;
 mod capability;
+#[cfg(feature = "test-utils")]
+mod test_utils;
 pub use capability::ReserveGasError;
 mod genesis;
 #[cfg(feature = "native")]
@@ -18,6 +20,7 @@ use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleId, ModuleInfo, W
 use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, BurnRate, Coins, TokenId, TokenIdBech32};
+use utils::TokenHolderRef;
 /// Methods to get a token ID.
 pub use utils::{get_token_id, IntoPayable, Payable};
 
@@ -99,11 +102,17 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
                 authorized_minters,
             } => {
                 self.charge_gas(working_set, &self.gas.create_token)?;
+
+                let authorized_minters = authorized_minters
+                    .iter()
+                    .map(|minter| TokenHolderRef::from(&minter))
+                    .collect::<Vec<_>>();
+
                 self.create_token(
                     token_name,
                     salt,
                     initial_balance,
-                    minter_address,
+                    &minter_address,
                     authorized_minters,
                     context,
                     working_set,

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::WorkingSet;
 
 use crate::token::Token;
+use crate::utils::TokenHolderRef;
 use crate::{Bank, TokenId, GAS_TOKEN_ID};
 
 /// Initial configuration for sov-bank module.
@@ -115,10 +116,23 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                 %token_config,
                 token_id = %token_id,
                 "Genesis of the token");
-            let token = Token::<S>::create_with_address(
+
+            let authorized_minters = token_config
+                .authorized_minters
+                .iter()
+                .map(|minter| TokenHolderRef::<'_, S>::from(&minter))
+                .collect::<Vec<_>>();
+
+            let address_and_balances = token_config
+                .address_and_balances
+                .iter()
+                .map(|(address, balance)| (TokenHolderRef::<'_, S>::from(&address), *balance))
+                .collect::<Vec<_>>();
+
+            let token = Token::<S>::create_with_token_id(
                 &token_config.token_name,
-                &token_config.address_and_balances,
-                &token_config.authorized_minters,
+                &address_and_balances,
+                &authorized_minters,
                 token_id,
                 parent_prefix,
                 working_set,

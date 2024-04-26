@@ -3,11 +3,11 @@ use sov_bank::{
     TotalSupplyResponse, GAS_TOKEN_ID,
 };
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
+use sov_modules_api::{Address, Context, Error, Module, ModuleId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
-
 mod helpers;
+use sov_bank::{IntoPayable, Payable};
 
 type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<DefaultStorageSpec>;
@@ -276,4 +276,87 @@ fn mint_token() {
     // assert that the supply is unchanged after the overflow mint
     let supply = query_total_supply(token_id, &mut working_set);
     assert_eq!(Some(120), supply);
+}
+
+#[test]
+fn mint_token_from_module_and_address() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+
+    let bank = Bank::default();
+
+    let sender_context = {
+        let sender_address = generate_address::<S>("sender");
+        let sequencer_address = generate_address::<S>("sequencer");
+        Context::<S>::new(sender_address, sequencer_address, 1)
+    };
+
+    let module_id = ModuleId::from([0; 32]);
+    let mod_minter = module_id.to_payable();
+
+    let addr = &generate_address::<S>("addr_minter");
+    let addr_minter = addr.as_token_holder();
+
+    let initial_balance = 500;
+
+    // Create token.
+    let token_id = bank
+        .create_token(
+            "Token1".to_owned(),
+            1,
+            initial_balance,
+            mod_minter,
+            vec![mod_minter, addr_minter],
+            &sender_context,
+            &mut working_set,
+        )
+        .unwrap();
+
+    // Test token creation.
+    {
+        let minter_balance = bank.get_balance_of(mod_minter, token_id, &mut working_set);
+        assert_eq!(Some(initial_balance), minter_balance);
+
+        let total_supply = bank
+            .get_total_supply_of(&token_id, &mut working_set)
+            .unwrap();
+
+        assert_eq!(initial_balance, total_supply);
+    }
+
+    // Mint coins.
+    let coins = Coins {
+        amount: 1000,
+        token_id,
+    };
+
+    // Test token minting from module.
+    {
+        bank.mint(&coins, mod_minter, mod_minter, &mut working_set)
+            .unwrap();
+
+        let minter_balance = bank.get_balance_of(mod_minter, token_id, &mut working_set);
+        assert_eq!(Some(initial_balance + coins.amount), minter_balance);
+
+        let total_supply = bank
+            .get_total_supply_of(&token_id, &mut working_set)
+            .unwrap();
+
+        assert_eq!(initial_balance + coins.amount, total_supply);
+    }
+
+    // Test token minting from address.
+    {
+        bank.mint(&coins, addr_minter, addr_minter, &mut working_set)
+            .unwrap();
+
+        let minter_balance = bank.get_balance_of(addr_minter, token_id, &mut working_set);
+        assert_eq!(Some(coins.amount), minter_balance);
+
+        let total_supply = bank
+            .get_total_supply_of(&token_id, &mut working_set)
+            .unwrap();
+
+        assert_eq!(initial_balance + 2 * coins.amount, total_supply);
+    }
 }
