@@ -10,11 +10,12 @@ SOV_CLI_REL_PATH := $(PROJECT_ROOT)/target/debug/sov-cli
 
 P2P_NETWORK := private
 KEY_NAME := bridge-0
+CELESTIA_START_TIME_FILE := /tmp/.sov-celestia-docker-start-timestamp.tmp
+DATE_FORMAT := "+%Y-%m-%d %H:%M:%S"
 
 JWT_TOKEN_PATH := $(CREDENTIALS_DIR)/$(KEY_NAME).jwt
 get_token := $(DOCKER_COMPOSE) exec -it sequencer-0 celestia bridge auth admin --p2p.network "private"
 get_token_1 := $(DOCKER_COMPOSE) exec -it sequencer-1 celestia bridge auth admin --p2p.network "private"
-timestamp := $(shell date "+%Y-%m-%d %H:%M:%S")
 
 
 clean: check-docker
@@ -50,37 +51,52 @@ clean-wallet:
 
 start: check-docker
 start:
+	@timestamp=$$(date $(DATE_FORMAT)); \
+	echo "$$timestamp: Starting celestia docker compose..."
+	@echo $$(date +%s) > $(CELESTIA_START_TIME_FILE)
 	$(DOCKER_COMPOSE) up --build --force-recreate -d
-	@echo "$(timestamp): waiting for sequencer-0 to start..."
+	@timestamp=$$(date $(DATE_FORMAT)); \
+	echo "$$timestamp: waiting for container 'sequencer-0' to become operational..."
 	@while true; do \
+  		timestamp=$$(date $(DATE_FORMAT)); \
 		health=$$(docker inspect --format='{{.State.Health.Status}}' $$($(DOCKER_COMPOSE) ps -q sequencer-0)); \
 		if [ "$$health" = "healthy" ]; then \
-			echo "$(timestamp): sequencer-0 is healthy"; \
+			echo "$$timestamp: sequencer-0 is healthy"; \
 			break; \
 		else \
-			echo "$(timestamp): health == '$$health': Waiting for sequencer-0 to up and running..."; \
+			echo "$$timestamp: health == '$$health': Waiting for sequencer-0 to be up and running..."; \
 		fi; \
 		sleep 3; \
 	done
 	@echo "Services are ready, preparing configuration"
 	@while [ -z "$$TOKEN" ]; do \
-		echo "$(timestamp): Waiting JWT for token..."; \
+  		timestamp=$$(date $(DATE_FORMAT)); \
+		echo "$$timestamp: Waiting JWT for token..."; \
 		TOKEN=$$($(get_token) 2>/dev/null); \
-		sleep 1; \
+		sleep 0.5; \
 	done; \
-	echo "$(timestamp): token received: $$TOKEN";
+	timestamp=$$(date $(DATE_FORMAT)); \
+	echo "$$timestamp: token received: $$TOKEN";
 	@TOKEN=$$($(get_token) 2>/dev/null); \
    	cat celestia_rollup_config.toml | \
    	sed 's/^\(celestia_rpc_auth_token = \)"[^"]*"/\1"'$$TOKEN'"/' > demo_rollup_config.toml;
+	@start_time=$$(cat $(CELESTIA_START_TIME_FILE)); \
+    end_time=$$(date +%s); \
+    duration=$$((end_time - start_time)); \
+    echo "Celestia docker compose has started completed."; \
+    timestamp=$$(date $(DATE_FORMAT)); \
+    echo "$$timestamp: Duration: $$duration seconds."
 
 create-second-celestia-config: check-docker
 create-second-celestia-config:
 	@while [ -z "$$TOKEN" ]; do \
-    		echo "$(timestamp): Waiting JWT for token..."; \
+  			timestamp=$$(date $(DATE_FORMAT)); \
+    		echo "$$timestamp: Waiting JWT for token..."; \
     		TOKEN=$$($(get_token_1) 2>/dev/null); \
     		sleep 1; \
     	done; \
-    	echo "$(timestamp): token received: $$TOKEN";
+    	timestamp=$$(date $(DATE_FORMAT)); \
+    	echo "$$timestamp: token received: $$TOKEN";
 	@TOKEN=$$($(get_token_1) 2>/dev/null); \
 	ADDRESS=$$(cat ../../docker/credentials/bridge-1.addr); \
    	cat celestia_rollup_config.toml | \
