@@ -166,7 +166,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
 pub trait MessageGenerator {
     const DEFAULT_CHAIN_ID: u64 = 0;
     const DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
-    const DEFAULT_MAX_FEE: u64 = 100;
+    const DEFAULT_MAX_FEE: u64 = 10_000;
     const DEFAULT_ESTIMATED_GAS_USAGE: [u64; 2] = [10, 10];
 
     /// Module where the messages originate from.

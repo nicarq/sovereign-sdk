@@ -279,7 +279,7 @@ Options:
 Let's go ahead and import the transaction into the wallet
 
 ```bash,test-ci,bashtestmd:compare-output
-$ cargo run --bin sov-cli -- transactions import from-file bank --chain-id 0 --path ../test-data/requests/transfer.json
+$ cargo run --bin sov-cli -- transactions import from-file bank --chain-id 0 --max-fee 10000 --path ../test-data/requests/transfer.json
 Adding the following transaction to batch:
 {
   "tx": {
@@ -295,7 +295,7 @@ Adding the following transaction to batch:
   },
   "chain_id": 0,
   "max_priority_fee": 0,
-  "max_fee": 0,
+  "max_fee": 10000,
   "gas_limit": null
 }
 ```

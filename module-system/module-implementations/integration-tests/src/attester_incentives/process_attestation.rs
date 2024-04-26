@@ -4,14 +4,14 @@ use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::{DefaultStorageSpec, StorageRoot};
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
-use super::{AttesterIncentivesTestHandler, StorageRootAndProof, USER_BALANCE};
+use super::{AttesterIncentivesTestHandler, USER_BALANCE};
 use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
 
 impl AttesterIncentivesTestHandler {
@@ -60,13 +60,23 @@ impl AttesterIncentivesTestHandler {
     fn try_attest_first_transition(
         &self,
         genesis_root: StorageRoot<DefaultStorageSpec>,
-        state_roots_and_proofs: Vec<StorageRootAndProof>,
+        execution_vars: Vec<ExecutionSimulationVars>,
         honest_attester_balance: u64,
         rollup: &mut TestRollup,
-    ) -> (u64, StorageRootAndProof) {
-        assert!(state_roots_and_proofs.len() >= 2);
-        let (first_state_root, first_state_proof) = state_roots_and_proofs[0].clone();
-        let (snd_state_root, _snd_state_proof) = state_roots_and_proofs[1].clone();
+    ) -> (u64, ExecutionSimulationVars) {
+        assert!(execution_vars.len() >= 2);
+
+        let ExecutionSimulationVars {
+            state_root: first_state_root,
+            state_proof: first_state_proof,
+            batch_receipts: first_batch_receipts,
+        } = execution_vars[0].clone();
+
+        let ExecutionSimulationVars {
+            state_root: snd_state_root,
+            state_proof: _snd_state_proof,
+            batch_receipts: _snd_batch_receipts,
+        } = execution_vars[1].clone();
 
         let attestation = Attestation {
             initial_state_root: genesis_root,
@@ -74,7 +84,7 @@ impl AttesterIncentivesTestHandler {
             post_state_root: first_state_root,
             proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
                 claimed_transition_num: 1,
-                proof: first_state_proof,
+                proof: first_state_proof.unwrap(),
             },
         };
 
@@ -105,32 +115,35 @@ impl AttesterIncentivesTestHandler {
 
         // The new attester balance is the initial attester balance minus the gas cost of the transaction
         // plus the burn rate applied to the amount of gas proved in the attestation
-        let gas_proved = (self.num_value_setter_txs() as u64) * rollup.gas_per_transaction();
+        let proved_gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(
+            first_batch_receipts.first().unwrap().gas_price.as_slice(),
+        );
+        let gas_proved = (self.num_value_setter_txs() as u64) * rollup.tx_cost(proved_gas_price);
         let burn_rate = rollup.burn_rate();
+
         // The new attester balance is the initial attester balance minus the gas cost of the transaction
         // plus the burn rate applied to the amount of gas proved in the attestation
-        let new_attester_balance =
-            honest_attester_balance - rollup.gas_per_transaction() + burn_rate.apply(gas_proved);
+        let attestation_gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(
+            attestation_tx
+                .batch_receipts
+                .first()
+                .unwrap()
+                .gas_price
+                .as_slice(),
+        );
+        let new_attester_balance = honest_attester_balance - rollup.tx_cost(attestation_gas_price)
+            + burn_rate.apply(gas_proved);
 
         self.check_first_attestation_processing(attestation_tx, new_attester_balance, rollup);
 
-        (
-            new_attester_balance,
-            (
-                attestation_tx.state_root,
-                attestation_tx
-                    .state_proof
-                    .clone()
-                    .expect("Should have a state proof"),
-            ),
-        )
+        (new_attester_balance, attestation_tx.clone())
     }
 
     // Checks that the second and third attestations were processed correctly
     fn check_second_and_third_attestation_processing(
         &self,
         attestation_exec_res: &ExecutionSimulationVars,
-        honest_attester_balance: u64,
+        expected_attester_balance: u64,
         rollup: &mut TestRollup,
     ) {
         assert_eq!(attestation_exec_res.batch_receipts.len(), 1);
@@ -152,21 +165,11 @@ impl AttesterIncentivesTestHandler {
         // We have to check that the attester was rewarded correctly.
         let mut working_set = WorkingSet::<S>::new(rollup.storage());
 
-        let gas_proved_first_attestation =
-            self.num_value_setter_txs() as u64 * rollup.gas_per_transaction();
-        let gas_proved_second_attestation = rollup.gas_per_transaction();
-        let burn_rate = rollup.burn_rate();
         assert_eq!(
             rollup
                 .bank()
                 .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
-            // Formula: new_balance = old_balance + burn_rate * (gas_proved_first_attestation + gas_proved_second_attestation) - tx_cost
-            Some(
-                honest_attester_balance
-                    + burn_rate.apply(gas_proved_first_attestation)
-                    + burn_rate.apply(gas_proved_second_attestation)
-                    - 2 * rollup.gas_per_transaction()
-            )
+            Some(expected_attester_balance)
         );
     }
 
@@ -174,14 +177,28 @@ impl AttesterIncentivesTestHandler {
     // Let's try to attest the second transition and the first attestation
     fn try_attest_second_transition_and_first_attestation(
         &self,
-        state_roots_and_proofs: Vec<StorageRootAndProof>,
+        execution_vars: Vec<ExecutionSimulationVars>,
         honest_attester_balance: u64,
         rollup: &mut TestRollup,
     ) {
-        assert!(state_roots_and_proofs.len() >= 3);
-        let (first_state_root, _first_state_proof) = state_roots_and_proofs[0].clone();
-        let (snd_state_root, snd_state_proof) = state_roots_and_proofs[1].clone();
-        let (attestation_state_root, attestation_state_proof) = state_roots_and_proofs[2].clone();
+        assert!(execution_vars.len() >= 3);
+        let ExecutionSimulationVars {
+            state_root: first_state_root,
+            state_proof: _first_state_proof,
+            batch_receipts: _first_batch_receipts,
+        } = execution_vars[0].clone();
+
+        let ExecutionSimulationVars {
+            state_root: snd_state_root,
+            state_proof: snd_state_proof,
+            batch_receipts: second_batch_receipts,
+        } = execution_vars[1].clone();
+
+        let ExecutionSimulationVars {
+            state_root: attestation_state_root,
+            state_proof: attestation_state_proof,
+            batch_receipts: attestation_batch_receipts,
+        } = execution_vars[2].clone();
 
         let fst_attestation = Attestation {
             initial_state_root: first_state_root,
@@ -189,7 +206,7 @@ impl AttesterIncentivesTestHandler {
             post_state_root: snd_state_root,
             proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
                 claimed_transition_num: 2,
-                proof: snd_state_proof,
+                proof: snd_state_proof.unwrap(),
             },
         };
 
@@ -199,7 +216,7 @@ impl AttesterIncentivesTestHandler {
             post_state_root: attestation_state_root,
             proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
                 claimed_transition_num: 3,
-                proof: attestation_state_proof,
+                proof: attestation_state_proof.unwrap(),
             },
         };
 
@@ -233,9 +250,39 @@ impl AttesterIncentivesTestHandler {
             .first()
             .expect("The rollup panicked while processing the second attestation");
 
+        // Formula: new_balance = old_balance + burn_rate * (gas_proved_first_attestation + gas_proved_second_attestation) - tx_cost
+        let gas_price_first_attestation = &<<S as Spec>::Gas as Gas>::Price::from_slice(
+            second_batch_receipts.first().unwrap().gas_price.as_slice(),
+        );
+        let gas_proved_first_attestation =
+            self.num_value_setter_txs() as u64 * rollup.tx_cost(gas_price_first_attestation);
+
+        let gas_price_second_attestation = &<<S as Spec>::Gas as Gas>::Price::from_slice(
+            attestation_batch_receipts
+                .first()
+                .unwrap()
+                .gas_price
+                .as_slice(),
+        );
+        let gas_proved_second_attestation = rollup.tx_cost(gas_price_second_attestation);
+
+        let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(
+            attestation_transition
+                .batch_receipts
+                .first()
+                .unwrap()
+                .gas_price
+                .as_slice(),
+        );
+        let burn_rate = rollup.burn_rate();
+        let expected_attester_balance = honest_attester_balance
+            + burn_rate.apply(gas_proved_first_attestation)
+            + burn_rate.apply(gas_proved_second_attestation)
+            - 2 * rollup.tx_cost(gas_price);
+
         self.check_second_and_third_attestation_processing(
             attestation_transition,
-            honest_attester_balance,
+            expected_attester_balance,
             rollup,
         );
     }
@@ -261,21 +308,21 @@ fn test_honest_value_setter_process_attestation() {
 
     test_handler.check_initial_attestation_conditions(&mut rollup);
 
-    let mut state_roots_and_proofs =
+    let mut exec_vars =
         test_handler.try_execute_two_value_setter_transactions(init_state_root, &mut rollup);
 
-    let (new_attester_balance, (post_attestation_state_root, post_attestation_state_proof)) =
-        test_handler.try_attest_first_transition(
+    let (new_attester_balance, first_attestation_exec_vars) = test_handler
+        .try_attest_first_transition(
             init_state_root,
-            state_roots_and_proofs.clone(),
+            exec_vars.clone(),
             USER_BALANCE - test_handler.attester_stake,
             &mut rollup,
         );
 
-    state_roots_and_proofs.push((post_attestation_state_root, post_attestation_state_proof));
+    exec_vars.push(first_attestation_exec_vars);
 
     test_handler.try_attest_second_transition_and_first_attestation(
-        state_roots_and_proofs,
+        exec_vars,
         new_attester_balance,
         &mut rollup,
     );

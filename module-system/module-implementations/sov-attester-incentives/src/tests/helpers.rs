@@ -6,8 +6,8 @@ use sov_modules_api::namespaces::User;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Address, CryptoSpec, Gas, GasArray, GasPrice, Genesis, KernelModule, KernelWorkingSet,
-    ModuleInfo, PrivateKey, Spec, WorkingSet,
+    Address, CryptoSpec, Gas, GasArray, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
+    PrivateKey, Spec, WorkingSet,
 };
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::{GasMeter, StateCheckpoint};
@@ -20,14 +20,13 @@ use crate::AttesterIncentives;
 type S = sov_test_utils::TestSpec;
 
 pub const TOKEN_NAME: &str = "TEST_TOKEN";
-pub const BOND_AMOUNT: u64 = 1000;
-pub const INITIAL_BOND_AMOUNT: u64 = 10 * BOND_AMOUNT;
+pub const BOND_AMOUNT: u64 = 1_000_000;
+pub const INITIAL_USER_BALANCE: u64 = 10 * BOND_AMOUNT;
 pub const DEFAULT_ROLLUP_FINALITY: u64 = 3;
 pub const INIT_HEIGHT: u64 = 0;
 
-pub const MAX_TX_GAS_AMOUNT: u64 = 100;
+pub const MAX_TX_GAS_AMOUNT: u64 = 100_000;
 pub const TX_GAS_CONSUMED: [u64; 2] = [10; 2];
-pub const TX_GAS_PRICE: [u64; 2] = [1; 2];
 
 pub const NUM_BANK_ACCOUNTS: usize = 3;
 
@@ -93,7 +92,7 @@ pub(crate) fn setup(
     let (bank_config, mut addresses) = create_bank_config_with_token(
         TOKEN_NAME.to_string(),
         NUM_BANK_ACCOUNTS,
-        INITIAL_BOND_AMOUNT,
+        INITIAL_USER_BALANCE,
     );
     let bank = sov_bank::Bank::<S>::default();
     bank.genesis(&bank_config, &mut working_set)
@@ -106,7 +105,6 @@ pub(crate) fn setup(
     // Initialize chain state
     let chain_state_config = sov_chain_state::ChainStateConfig {
         current_time: Default::default(),
-        initial_base_fee_per_gas: [1, 1].into(),
         genesis_da_height: 0,
         inner_code_commitment: Default::default(),
         outer_code_commitment: Default::default(),
@@ -152,13 +150,13 @@ pub(crate) struct ExecutionSimulationVars {
     pub state_root: StorageRoot<DefaultStorageSpec>,
     pub state_proof:
         StorageProof<SparseMerkleProof<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
+    pub base_fee_per_gas: <<S as Spec>::Gas as Gas>::Price,
 }
 
 impl ExecutionSimulationVars {
     /// Simple function that returns the gas reward for a transaction execution.
-    pub(crate) fn tx_reward() -> u64 {
-        <S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED)
-            .value(&<<S as Spec>::Gas as Gas>::Price::from_slice(&TX_GAS_PRICE))
+    pub(crate) fn tx_reward(gas_price: &<<S as Spec>::Gas as Gas>::Price) -> u64 {
+        <S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED).value(gas_price)
     }
 
     /// Generate an execution simulation for a given number of rounds. Returns a list of the successive state roots
@@ -185,11 +183,6 @@ impl ExecutionSimulationVars {
 
             let bond_proof = storage
                 .get_with_proof::<User>(module.get_attester_storage_key(*attester_address), None);
-
-            ret_exec_vars.push(ExecutionSimulationVars {
-                state_root: root_hash,
-                state_proof: bond_proof,
-            });
 
             // Then process the first transaction. Only sets the genesis hash and a transition in progress.
             let slot_data = MockBlock {
@@ -220,27 +213,27 @@ impl ExecutionSimulationVars {
             )
             .into();
 
-            // We first need to reserve gas for the transaction
-            let mut gas_meter = module
-                .bank
-                .reserve_gas(
-                    &tx,
-                    &GasPrice::from_slice(&TX_GAS_PRICE),
-                    sequencer,
-                    &mut state_checkpoint,
-                )
-                .expect("Gas reserve failed");
-
             let mut kernel_working_set =
                 KernelWorkingSet::from_kernel(&kernel, &mut state_checkpoint);
 
-            // Then we execute the chain state to make sure the transition data is persisted
-            module.chain_state.begin_slot_hook(
+            // We execute the chain state to make sure the transition data is persisted
+            let current_base_fee_per_gas = module.chain_state.begin_slot_hook(
                 &slot_data.header,
                 &slot_data.validity_cond,
                 &root_hash,
                 &mut kernel_working_set,
             );
+
+            // We first need to reserve gas for the transaction
+            let mut gas_meter = module
+                .bank
+                .reserve_gas(
+                    &tx,
+                    &current_base_fee_per_gas,
+                    sequencer,
+                    kernel_working_set.inner,
+                )
+                .expect("Gas reserve failed");
 
             // We charge some gas to the sequencer to make sure the gas meter is updated
             gas_meter
@@ -260,6 +253,12 @@ impl ExecutionSimulationVars {
                 &module.id().to_payable(),
                 &mut state_checkpoint,
             );
+
+            ret_exec_vars.push(ExecutionSimulationVars {
+                state_root: root_hash,
+                state_proof: bond_proof,
+                base_fee_per_gas: current_base_fee_per_gas,
+            });
         }
 
         (ret_exec_vars, state_checkpoint)

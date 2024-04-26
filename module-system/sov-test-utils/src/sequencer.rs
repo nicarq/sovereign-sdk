@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec, MockValidityCondChecker};
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::{Address, CryptoSpec, GasPrice, PrivateKey, Spec};
+use sov_modules_api::{Address, CryptoSpec, PrivateKey, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -79,6 +79,7 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
 
     let genesis_config = create_genesis_config(
         admin_pkey.to_address::<TestHasher, _>(),
+        &[],
         sequencer_rollup_addr,
         SEQUENCER_ADDR.into(),
         100,
@@ -90,7 +91,6 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
     let kernel_genesis = BasicKernelGenesisConfig {
         chain_state: ChainStateConfig {
             current_time: Default::default(),
-            initial_base_fee_per_gas: GasPrice::from([15; 2]),
             inner_code_commitment: MockCodeCommitment::default(),
             outer_code_commitment: MockCodeCommitment::default(),
             genesis_da_height: 0,

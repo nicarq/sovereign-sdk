@@ -1,7 +1,7 @@
 use sov_chain_state::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
 use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{GasArray, KernelWorkingSet, StateCheckpoint, WorkingSet};
+use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -9,12 +9,12 @@ use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator, 
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, SequencerParams, TestKernel, TestRollup,
-    GAS_TX_FIXED_COST, INITIAL_BASE_FEE_PER_GAS,
+    GAS_TX_FIXED_COST,
 };
 
 type S = sov_test_utils::TestSpec;
 
-const INITIAL_USER_BALANCE: u64 = 10000;
+const INITIAL_USER_BALANCE: u64 = 100_000;
 
 /// This test generates a new mock rollup having a simple value setter module
 /// with an associated chain state, and checks that the height, the genesis hash
@@ -74,7 +74,7 @@ fn test_simple_value_setter_with_chain_state() {
         rollup.execution_simulation(1, init_root_hash, vec![blob.clone()], 0, None);
     let first_root = exec_simulation[0].state_root;
 
-    {
+    let current_base_fee_per_gas = {
         assert_eq!(exec_simulation.len(), 1, "The execution simulation failed");
 
         let batch_receipts = exec_simulation[0].batch_receipts.clone();
@@ -111,9 +111,12 @@ fn test_simple_value_setter_with_chain_state() {
             .get_in_progress_transition(&mut kernel_working_set)
             .unwrap();
 
+        let base_fee_per_gas =
+            <<S as Spec>::Gas as Gas>::Price::from_slice(&apply_blob_outcome.gas_price);
+
         let mut gas_info = BlockGasInfo::new(
             ChainState::<S, MockDaSpec>::initial_gas_limit(),
-            INITIAL_BASE_FEE_PER_GAS.into(),
+            base_fee_per_gas.clone(),
         );
 
         gas_info.update_gas_used(GasArray::from_slice(&gas_used_per_slot));
@@ -129,7 +132,9 @@ fn test_simple_value_setter_with_chain_state() {
         );
 
         assert!(has_tx_events(&apply_blob_outcome),);
-    }
+
+        base_fee_per_gas
+    };
 
     let exec_simulation = rollup.execution_simulation(1, first_root, vec![blob], 1, None);
 
@@ -168,9 +173,11 @@ fn test_simple_value_setter_with_chain_state() {
             .get_in_progress_transition(&mut kernel_working_set)
             .unwrap();
 
+        let new_base_fee_per_gas =
+            <<S as Spec>::Gas as Gas>::Price::from_slice(&apply_blob_outcome.gas_price);
         let mut gas_info = BlockGasInfo::new(
             ChainState::<S, MockDaSpec>::initial_gas_limit(),
-            INITIAL_BASE_FEE_PER_GAS.into(),
+            new_base_fee_per_gas,
         );
 
         gas_info.update_gas_used(GasArray::from_slice(&gas_used_per_slot));
@@ -191,7 +198,7 @@ fn test_simple_value_setter_with_chain_state() {
 
         let mut gas_info = BlockGasInfo::new(
             ChainState::<S, MockDaSpec>::initial_gas_limit(),
-            INITIAL_BASE_FEE_PER_GAS.into(),
+            current_base_fee_per_gas,
         );
 
         gas_info.update_gas_used(GasArray::from_slice(&gas_used_per_slot));

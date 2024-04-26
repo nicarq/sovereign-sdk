@@ -51,7 +51,6 @@ fn init_test() -> (
     let chain_state = ChainState::<TestSpec, MockDaSpec>::default();
     let config = ChainStateConfig {
         current_time: Default::default(),
-        initial_base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
         genesis_da_height: 0,
         inner_code_commitment: MockCodeCommitment::default(),
         outer_code_commitment: MockCodeCommitment::default(),

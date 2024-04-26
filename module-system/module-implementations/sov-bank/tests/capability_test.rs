@@ -1,6 +1,6 @@
 use sov_bank::{Bank, IntoPayable, ReserveGasError, GAS_TOKEN_ID};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-use sov_modules_api::{Gas, GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint};
+use sov_modules_api::{Address, Gas, GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::{generate_empty_tx, simple_bank_setup};
 mod helpers;
@@ -210,6 +210,27 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
             .expect("The bank balance should exist"),
         initial_balance - refund_amount
     );
+}
+
+/// Tests that the `reserve_gas` method fails if the sender does not have a bank account for the gas token
+#[test]
+fn test_reserve_gas_no_account() {
+    let (_, bank, mut checkpoint) = simple_bank_setup(0);
+
+    // This transaction has a maximum fee of twice the initial balance.
+    let transaction: Transaction<S> = generate_empty_tx(PriorityFeeBips::ZERO, 0, None);
+
+    // We try to reserve gas, this should fail because we have not enough balance.
+    let reserve_gas_result = bank
+        .reserve_gas(
+            &transaction.into(),
+            &<<S as Spec>::Gas as Gas>::Price::ZEROED,
+            &Address::new([0u8; 32]),
+            &mut checkpoint,
+        )
+        .expect_err("The reserve gas operation should fail");
+
+    assert_eq!(reserve_gas_result, ReserveGasError::AccountDoesNotExist);
 }
 
 /// Tests that the `reserve_gas` method fails if the sender balance is not high enough to pay for the gas.

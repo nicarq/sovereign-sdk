@@ -22,6 +22,11 @@ pub(crate) type RuntimeTest = Runtime<S, Da>;
 pub(crate) type StfBlueprintTest =
     StfBlueprint<S, Da, sov_mock_zkvm::MockZkVerifier, RuntimeTest, BasicKernel<S, Da>>;
 
+pub(crate) struct TestPrivateKeys<S: Spec> {
+    pub token_deployer: PrivateKeyAndAddress<S>,
+    pub tx_signer: PrivateKeyAndAddress<S>,
+}
+
 pub(crate) fn create_storage_manager_for_tests(
     path: impl AsRef<Path>,
 ) -> ProverStorageManager<MockDaSpec, DefaultStorageSpec> {
@@ -45,23 +50,31 @@ pub(crate) fn create_genesis_config_for_tests<Da: DaSpec>(
     }
 }
 
-pub(crate) fn read_private_key<S: Spec>() -> PrivateKeyAndAddress<S> {
-    let token_deployer_data =
-        std::fs::read_to_string("../../test-data/keys/token_deployer_private_key.json")
-            .expect("Unable to read file to string");
+const PRIVATE_KEYS_DIR: &str = "../../test-data/keys";
 
-    let token_deployer: PrivateKeyAndAddress<S> = serde_json::from_str(&token_deployer_data)
-        .unwrap_or_else(|_| {
-            panic!(
-                "Unable to convert data {} to PrivateKeyAndAddress",
-                &token_deployer_data
-            )
+fn read_and_parse_private_key<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
+    let data = std::fs::read_to_string(Path::new(PRIVATE_KEYS_DIR).join(suffix))
+        .expect("Unable to read file to string");
+
+    let key_and_address: PrivateKeyAndAddress<S> =
+        serde_json::from_str(&data).unwrap_or_else(|_| {
+            panic!("Unable to convert data {} to PrivateKeyAndAddress", &data);
         });
 
     assert!(
-        token_deployer.is_matching_to_default(),
+        key_and_address.is_matching_to_default(),
         "Inconsistent key data"
     );
 
-    token_deployer
+    key_and_address
+}
+
+pub(crate) fn read_private_keys<S: Spec>() -> TestPrivateKeys<S> {
+    let token_deployer = read_and_parse_private_key::<S>("token_deployer_private_key.json");
+    let tx_signer = read_and_parse_private_key::<S>("tx_signer_private_key.json");
+
+    TestPrivateKeys::<S> {
+        token_deployer,
+        tx_signer,
+    }
 }

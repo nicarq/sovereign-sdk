@@ -18,7 +18,6 @@ fn empty_test() {
     let initial_slot_number = 1;
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
-        initial_base_fee_per_gas: [0, 0].into(),
         genesis_da_height: 0,
         inner_code_commitment: Default::default(),
         outer_code_commitment: Default::default(),
@@ -45,7 +44,6 @@ fn store_and_retrieve_standard() {
     let chain_state = ChainState::<S, Da>::default();
     let chain_state_config = ChainStateConfig {
         current_time: Default::default(),
-        initial_base_fee_per_gas: [0, 0].into(),
         genesis_da_height: 0,
         inner_code_commitment: Default::default(),
         outer_code_commitment: Default::default(),

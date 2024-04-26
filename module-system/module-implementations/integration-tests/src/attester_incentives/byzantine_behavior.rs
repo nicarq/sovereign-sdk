@@ -4,7 +4,7 @@ use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{StateTransitionPublicData, WorkingSet};
+use sov_modules_api::{Gas, GasArray, Spec, StateTransitionPublicData, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::jmt::RootHash;
 use sov_state::{DefaultStorageSpec, StorageRoot};
@@ -12,9 +12,9 @@ use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
 
-use super::{AttesterIncentivesTestHandler, StorageRootAndProof};
+use super::AttesterIncentivesTestHandler;
 use crate::attester_incentives::get_first_transaction_receipt;
-use crate::helpers::{Da, TestRollup, S};
+use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
 
 impl AttesterIncentivesTestHandler {
     fn check_attester_bonded(&self, rollup: &mut TestRollup) {
@@ -37,10 +37,14 @@ impl AttesterIncentivesTestHandler {
     fn try_produce_faulty_attestation(
         &self,
         init_state_root: StorageRoot<DefaultStorageSpec>,
-        exec_result: &[StorageRootAndProof],
+        exec_result: Vec<ExecutionSimulationVars>,
         rollup: &mut TestRollup,
     ) -> Vec<StorageRoot<DefaultStorageSpec>> {
-        let (fst_state_root, first_state_proof) = exec_result[0].clone();
+        let ExecutionSimulationVars {
+            state_root: fst_state_root,
+            state_proof: first_state_proof,
+            batch_receipts: _first_batch_receipts,
+        } = exec_result[0].clone();
 
         // We produce a fake attestation that has the wrong post state root
         let fake_attestation = Attestation {
@@ -49,7 +53,7 @@ impl AttesterIncentivesTestHandler {
             post_state_root: StorageRoot::new(RootHash([0; 32]), RootHash([0; 32])),
             proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
                 claimed_transition_num: 1,
-                proof: first_state_proof,
+                proof: first_state_proof.unwrap(),
             },
         };
 
@@ -152,12 +156,9 @@ impl AttesterIncentivesTestHandler {
         // The challenger has successfully bonded and challenged the attester
         {
             assert_eq!(challenge_tx.batch_receipts.len(), 1);
-            let mut tx_receipts = challenge_tx
-                .batch_receipts
-                .first()
-                .unwrap()
-                .tx_receipts
-                .clone();
+            let batch_receipt = challenge_tx.batch_receipts.first().unwrap();
+
+            let mut tx_receipts = batch_receipt.tx_receipts.clone();
             assert_eq!(tx_receipts.len(), 2);
             let snd_tx_receipt = tx_receipts.pop().unwrap();
             let fst_tx_receipt = tx_receipts.pop().unwrap();
@@ -182,7 +183,10 @@ impl AttesterIncentivesTestHandler {
             let burn_rate = rollup.burn_rate();
             // The challenger has sent 2 transactions, so the gas consumed is 2x the gas per transaction
             // The first transaction is for bonding, the second is for challenging
-            let gas_consumed = 2 * rollup.gas_per_transaction();
+            let gas_price =
+                &<<S as Spec>::Gas as Gas>::Price::from_slice(batch_receipt.gas_price.as_slice());
+
+            let gas_consumed = 2 * rollup.tx_cost(gas_price);
             assert_eq!(
                 rollup.bank().get_balance_of(
                     &self.challenger_private_key.to_address::<TestHasher, _>(),
@@ -224,7 +228,7 @@ fn test_byzantine_value_setter_process_attestation() {
 
     // Tries to produce a faulty attestation
     let transition_roots =
-        test_handler.try_produce_faulty_attestation(init_state_root, &exec_result, &mut rollup);
+        test_handler.try_produce_faulty_attestation(init_state_root, exec_result, &mut rollup);
 
     // Tries to challenge the faulty attestation produced above
     test_handler.try_challenge_faulty_attestation(init_state_root, transition_roots, &mut rollup);

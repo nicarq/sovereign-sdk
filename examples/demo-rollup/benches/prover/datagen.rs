@@ -4,12 +4,15 @@ use std::io::BufWriter;
 use std::path::Path;
 
 use serde::Serialize;
+use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
-use sov_modules_api::PrivateKey;
+use sov_modules_api::{PrivateKey, Spec};
 use sov_rollup_interface::services::da::DaService;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::{MessageGenerator, TestPrivateKey, TestPublicKey};
+
+type S = <MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeSpec;
 
 #[derive(Serialize)]
 struct AccountsData {
@@ -45,6 +48,25 @@ pub fn generate_genesis_config(config_dir: &str) -> anyhow::Result<()> {
     Ok(serde_json::ser::to_writer(data_buf, &data)?)
 }
 
+const PRIVATE_KEYS_DIR: &str = "../test-data/keys";
+
+fn read_and_parse_private_key<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
+    let data = std::fs::read_to_string(Path::new(PRIVATE_KEYS_DIR).join(suffix))
+        .expect("Unable to read file to string");
+
+    let key_and_address: PrivateKeyAndAddress<S> =
+        serde_json::from_str(&data).unwrap_or_else(|_| {
+            panic!("Unable to convert data {} to PrivateKeyAndAddress", &data);
+        });
+
+    assert!(
+        key_and_address.is_matching_to_default(),
+        "Inconsistent key data"
+    );
+
+    key_and_address
+}
+
 pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
     let txns_per_block = match env::var("TXNS_PER_BLOCK") {
         Ok(txns_per_block) => txns_per_block.parse::<u64>()?,
@@ -65,8 +87,14 @@ pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
     let da_service = MockDaService::new(MockAddress::default());
     let mut blocks = vec![];
 
+    let private_key_and_address: PrivateKeyAndAddress<S> =
+        read_and_parse_private_key("minter_private_key.json");
+
     let (create_token_message_gen, transfer_message_gen) =
-        BankMessageGenerator::generate_token_and_random_transfers(txns_per_block);
+        BankMessageGenerator::generate_token_and_random_transfers(
+            txns_per_block,
+            private_key_and_address.private_key,
+        );
     let blob = create_token_message_gen.create_blobs::<<MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeRuntime>();
     da_service.send_transaction(&blob).await.unwrap();
     let block1 = da_service.get_block_at(1).await.unwrap();

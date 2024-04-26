@@ -10,7 +10,6 @@ use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::stf::TransactionReceipt;
-use sov_state::storage::StorageProof;
 use sov_state::{DefaultStorageSpec, Storage, StorageRoot};
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -18,7 +17,7 @@ use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher, Tes
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, ExecutionSimulationVars, SequencerParams, TestRollup,
-    GAS_TX_FIXED_COST, INITIAL_BASE_FEE_PER_GAS, S,
+    GAS_TX_FIXED_COST, S,
 };
 
 mod byzantine_behavior;
@@ -26,14 +25,9 @@ mod process_attestation;
 
 mod unbond;
 
-type StorageRootAndProof = (
-    StorageRoot<DefaultStorageSpec>,
-    StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
-);
-
 const USER_STAKE: u64 = 100;
 const ROLLUP_FINALITY_PERIOD: u64 = 2;
-const USER_BALANCE: u64 = 10000;
+const USER_BALANCE: u64 = 100_000;
 
 fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionReceipt<TxEffect> {
     env.batch_receipts
@@ -50,10 +44,8 @@ impl TestRollup {
     }
 
     /// We charge a fixed gas price for each transaction to simplify the tests.
-    pub(crate) fn gas_per_transaction(&mut self) -> u64 {
-        <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(
-            &<<S as Spec>::Gas as Gas>::Price::from_slice(&INITIAL_BASE_FEE_PER_GAS),
-        )
+    pub(crate) fn tx_cost(&mut self, gas_price: &<<S as Spec>::Gas as Gas>::Price) -> u64 {
+        <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(gas_price)
     }
 
     pub(crate) fn increase_and_commit_light_client_attested_height(
@@ -166,7 +158,7 @@ impl AttesterIncentivesTestHandler {
     pub fn bank_params(&self) -> BankParams {
         BankParams {
             token_name: "TOKEN_TEST".to_string(),
-            init_balance: 1000000,
+            init_balance: 10_000_000,
             addresses_and_balances: vec![
                 (self.admin_public_key, USER_BALANCE),
                 (
@@ -247,7 +239,7 @@ impl AttesterIncentivesTestHandler {
         &self,
         genesis_root: StorageRoot<DefaultStorageSpec>,
         rollup: &mut TestRollup,
-    ) -> Vec<StorageRootAndProof> {
+    ) -> Vec<ExecutionSimulationVars> {
         let blob = new_test_blob_from_batch(
             BatchWithId {
                 txs: self.value_setter.clone(),
@@ -278,19 +270,6 @@ impl AttesterIncentivesTestHandler {
             );
         }
 
-        let (first_state_root, first_state_proof) = (
-            fst_res.state_root,
-            fst_res.state_proof.expect("There should be a state proof"),
-        );
-
-        let (snd_state_root, snd_state_proof) = (
-            snd_res.state_root,
-            snd_res.state_proof.expect("There should be a state proof"),
-        );
-
-        vec![
-            (first_state_root, first_state_proof),
-            (snd_state_root, snd_state_proof),
-        ]
+        vec![fst_res, snd_res]
     }
 }

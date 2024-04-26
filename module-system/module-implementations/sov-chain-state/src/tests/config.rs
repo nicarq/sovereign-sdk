@@ -8,7 +8,6 @@ fn test_config_serialization() {
     let time = Time::new(2, NanoSeconds::new(3).unwrap());
     let config = ChainStateConfig {
         current_time: time,
-        initial_base_fee_per_gas: [2, 2].into(),
         genesis_da_height: 0,
         inner_code_commitment: Default::default(),
         outer_code_commitment: Default::default(),
@@ -20,7 +19,6 @@ fn test_config_serialization() {
             "secs":2,
             "nanos":3
         },
-        "initial_base_fee_per_gas": [2, 2],
         "inner_code_commitment": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         "outer_code_commitment": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         "genesis_da_height": 0

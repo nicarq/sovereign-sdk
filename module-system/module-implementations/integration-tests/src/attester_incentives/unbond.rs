@@ -1,7 +1,9 @@
 use sov_attester_incentives::{CallMessage, Role, UnbondingInfo};
 use sov_bank::GAS_TOKEN_ID;
+use sov_chain_state::ChainState;
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
@@ -142,7 +144,13 @@ fn test_honest_unbonding() {
                 GAS_TOKEN_ID,
                 &mut working_set
             ),
-            Some(USER_BALANCE - 2 * rollup.gas_per_transaction())
+            Some(
+                USER_BALANCE
+                    - rollup.tx_cost(&ChainState::<S, MockDaSpec>::initial_base_fee_per_gas())
+                    - rollup.tx_cost(&<<S as Spec>::Gas as Gas>::Price::from_slice(
+                        batch_receipt.gas_price.as_slice()
+                    ))
+            )
         );
     }
 }
