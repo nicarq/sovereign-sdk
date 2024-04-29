@@ -110,22 +110,6 @@ where
         // ...and immediately store the new `StateCheckpoint`.
         ctx.state_checkpoint = Some(after_state_checkpoint);
 
-        match tx_receipt.receipt {
-            TxEffect::Successful => {
-                tracing::info!(
-                    hash = hex::encode(mempool_tx.hash),
-                    "Transaction has been included in the batch",
-                );
-            }
-            TxEffect::InsufficientBaseGas | TxEffect::Reverted | TxEffect::Duplicate => {
-                tracing::warn!(
-                    ?tx_receipt,
-                    tx = hex::encode(&mempool_tx.tx_bytes),
-                    hash = hex::encode(mempool_tx.hash),
-                    "Error during transaction dispatch"
-                );
-            }
-        };
         Ok(Some(tx_receipt))
     }
 
@@ -236,6 +220,11 @@ where
 
             match tx_receipt.map(|r| r.receipt) {
                 Some(TxEffect::Successful) => {
+                    tracing::info!(
+                        hash = hex::encode(mempool_tx.hash),
+                        "Transaction has been included in the batch",
+                    );
+
                     let tx_len = mempool_tx.tx_bytes.len();
                     ctx.current_batch_size_in_bytes += tx_len;
 
@@ -248,8 +237,14 @@ where
                     // space inside the batch.
                     cursor = cursor.max(self.mempool_cursor(&ctx));
                 }
-                Some(_) => {
+                Some(tx_receipt) => {
                     // Failed transaction; ignore and process the next one.
+                    tracing::warn!(
+                        ?tx_receipt,
+                        tx = hex::encode(&mempool_tx.tx_bytes),
+                        hash = hex::encode(mempool_tx.hash),
+                        "Error during transaction dispatch"
+                    );
                     continue;
                 }
                 None => {
@@ -566,6 +561,35 @@ mod tests {
                 "No valid transactions are available out of 0 were in the pool",
                 build_result.unwrap_err().to_string()
             );
+        }
+
+        #[tokio::test]
+        async fn duplicate_txs_are_ignored() {
+            let value_setter_admin = TestPrivateKey::generate();
+            let txs = [
+                // Two identical txs...
+                generate_valid_tx(&value_setter_admin, 1),
+                generate_valid_tx(&value_setter_admin, 1),
+            ];
+
+            let tmpdir = tempfile::tempdir().unwrap();
+            let mut batch_builder =
+                create_batch_builder(usize::MAX, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
+            setup_runtime(
+                &mut batch_builder,
+                Some(value_setter_admin.pub_key()),
+                vec![],
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
+
+            for tx in &txs {
+                batch_builder.accept_tx(tx.clone()).await.unwrap();
+            }
+
+            // The resulting batch should contain only one transaction (not two,
+            // because we the second one is a duplicate!).
+            assert_eq!(batch_builder.get_next_blob(1).await.unwrap().len(), 1);
         }
 
         #[tokio::test]
