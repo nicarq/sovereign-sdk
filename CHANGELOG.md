@@ -1,3 +1,5 @@
+- #546 fixes a bug where sequencer could protect themselves from slashing by exiting while their batch was being processed.
+
 - #535 fixes the sequencer tip calculation in the `StfBlueprint`. This calculation now takes into account the changes of the #429 (which fixes the gas reserve calculation). Also renames `max_priority_fee` to `max_priority_fee_bips` in the `Transaction` structure.
 
 - #528 removes the `initial_base_fee_per_gas` parameter from the genesis configuration of the chain state to define a constant `INITIAL_BASE_FEE_PER_GAS` that is common to all crates. Now that we assume the tx sender always has a bank account for the gas token, the non-zero transfer amount hacks from the `reserve_gas` and `refund_remaining_gas` capabilities for the `GasEnforcer` in the `Bank` module are replaced by an account check. If the sender doesn't have a bank account for the gas token, the method fails with the error `AccountDoesNotExist`. This check is done in the EIP-1559 specification.

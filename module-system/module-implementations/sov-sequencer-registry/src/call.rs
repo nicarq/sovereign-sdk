@@ -56,6 +56,10 @@ pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
     /// The provided address is not an allowed sequencer.
     IsNotRegisteredSequencer(Da::Address),
 
+    /// The sequencer tried to unregister itself during the execution of its own batch.
+    #[error("Sequencers may not unregister during execution of their own batch")]
+    CannotUnregisterDuringOwnBatch(Da::Address),
+
     #[error("The address provided as a parameter to the `exit` method does not match the transaction sender")]
     /// The address provided as a parameter to the `exit` method does not match the transaction sender.
     SuppliedAddressDoesNotMatchTxSender {
@@ -149,6 +153,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
     /// Will error
     ///
     /// - If the sequencer is not registered.
+    /// - If the sequencer tries to unregister itself during the execution of its own batch.
     /// - If the supplied `da_address` does not match the transaction sender.
     /// - If the module balance is not high enough to refund the sequencer's staked amount (this is a bug).
     pub(crate) fn exit(
@@ -164,6 +169,12 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             .get_or_err(da_address, working_set)
             .map_err(|_| SequencerRegistryError::IsNotRegisteredSequencer(da_address.clone()))?
             .address;
+
+        if &belongs_to == context.sequencer() {
+            return Err(SequencerRegistryError::CannotUnregisterDuringOwnBatch(
+                da_address.clone(),
+            ));
+        }
 
         if sender != &belongs_to {
             return Err(

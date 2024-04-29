@@ -193,6 +193,23 @@ fn test_allow_exit_last_sequencer() {
         .expect("Last sequencer exit has failed");
 }
 
+/// This regression test ensures that a sequencer cannot exit during processing
+/// of a batch that they've submitted.
+#[test]
+fn test_prevent_exit_during_own_batch() {
+    let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
+
+    let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
+    let sender_context = Context::<S>::new(sequencer_address, sequencer_address, 1);
+    let exit_message = CallMessage::Exit {
+        da_address: GENESIS_SEQUENCER_DA_ADDRESS.to_vec(),
+    };
+    assert!(test_sequencer
+        .registry
+        .call(exit_message, &sender_context, &mut working_set)
+        .is_err());
+}
+
 #[test]
 fn test_preferred_sequencer_returned_and_removed() {
     let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, true);
