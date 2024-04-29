@@ -18,23 +18,6 @@ use crate::runtime::Runtime;
 
 impl<S: Spec, Da: DaSpec> TxHooks for Runtime<S, Da> {
     type Spec = S;
-
-    fn pre_dispatch_tx_hook(
-        &self,
-        _tx: &AuthenticatedTransactionData<Self::Spec>,
-        _working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    fn post_dispatch_tx_hook(
-        &self,
-        _tx: &AuthenticatedTransactionData<Self::Spec>,
-        _ctx: &Context<S>,
-        _working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
 }
 
 impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
