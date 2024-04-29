@@ -120,7 +120,9 @@ fn rollup_bench(_bench: &mut Criterion) {
                 data_to_commit.add_batch(receipts);
             }
 
-            ledger_db.commit_slot(data_to_commit).unwrap();
+            ledger_db
+                .commit_slot(data_to_commit, current_root.as_ref())
+                .unwrap();
             height += 1;
         });
     });

@@ -32,7 +32,7 @@ use sov_rollup_interface::rpc::{
 use tracing::warn;
 use utoipa_swagger_ui::{Config, SwaggerUi};
 
-use crate::HexHash;
+use crate::{HexBytes, HexHash};
 
 type PathMap = PathWithErrorHandling<HashMap<String, NumberOrHash>>;
 
@@ -677,6 +677,7 @@ impl Display for NumberOrHash {
 struct Slot<B, TxReceipt, E> {
     pub number: u64,
     pub hash: HexHash,
+    pub state_root: HexBytes,
     pub batch_range: Range<u64>,
     pub batches: Vec<Batch<B, TxReceipt, E>>,
 }
@@ -694,6 +695,7 @@ impl<B, TxReceipt, E> Slot<B, TxReceipt, E> {
         Self {
             number: slot.number,
             hash: HexHash(slot.hash),
+            state_root: HexBytes(slot.state_root),
             batch_range: slot.batch_range,
             batches,
         }

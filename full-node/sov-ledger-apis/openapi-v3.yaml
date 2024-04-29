@@ -445,6 +445,8 @@ components:
           format: uint64
         hash:
           $ref: "#/components/schemas/Hash"
+        stateRoot:
+          $ref: "#/components/schemas/HexBytes"
         batchRange:
           $ref: "#/components/schemas/Uint64Range"
         batches:
@@ -455,6 +457,7 @@ components:
         - type
         - number
         - hash
+        - stateRoot
         - batchRange
     Batch:
       type: object
@@ -546,6 +549,10 @@ components:
       # Hash prefixed by `0x`, 32 bytes.
       pattern: "^0x[a-fA-F0-9]{64}$"
       description: Hash
+    HexBytes:
+      type: string
+      pattern: "^0x[a-fA-F0-9]+$"
+      description: Hex-encoded byte sequence
     Error:
       type: object
       properties:
