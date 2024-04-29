@@ -16,7 +16,7 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 
 use crate::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
-use crate::{MockZkVerifier, RawTx, TestHasher, TestPrivateKey, TestSpec};
+use crate::{MockZkVerifier, RawTx, TestPrivateKey, TestSpec};
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 
@@ -108,7 +108,7 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
     let (stf_state, ledger_storage) = storage_manager.create_state_for(&genesis_block_header)?;
 
     let genesis_config = create_genesis_config(
-        admin_pkey.to_address::<TestHasher, _>(),
+        (&admin_pkey.pub_key()).into(),
         &[],
         sequencer_rollup_addr,
         SEQUENCER_ADDR.into(),

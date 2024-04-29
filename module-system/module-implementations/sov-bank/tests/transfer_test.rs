@@ -5,7 +5,7 @@ use sov_bank::{
     get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TotalSupplyResponse,
 };
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
+use sov_modules_api::{Context, Error, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -31,7 +31,7 @@ fn transfer_initial_token() {
 
     // Preparation
     let query_user_balance =
-        |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
+        |user_address: <S as Spec>::Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
             bank.get_balance_of(&user_address, token_id, working_set)
         };
 
@@ -281,7 +281,7 @@ fn transfer_deployed_token() {
 
     // Preparation
     let query_user_balance =
-        |user_address: Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
+        |user_address: <S as Spec>::Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
             bank.get_balance_of(&user_address, token_id, working_set)
         };
 

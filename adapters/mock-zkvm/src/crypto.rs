@@ -12,16 +12,15 @@ use ed25519_dalek::{
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 #[cfg(feature = "native")]
 use sov_rollup_interface::schemars;
-use sov_rollup_interface::RollupAddress;
 
 /// Defines private key types and operations
 #[cfg(feature = "native")]
 pub mod private_key {
     use ed25519_dalek::{Signer, SigningKey};
     use rand::rngs::OsRng;
-    use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
+    use sov_rollup_interface::crypto::PrivateKey;
 
-    use super::{Digest, Ed25519PublicKey, Ed25519Signature, U32};
+    use super::{Ed25519PublicKey, Ed25519Signature};
 
     /// A private key for the ed25519 signature scheme.
     /// This struct also stores the corresponding public key.
@@ -72,13 +71,9 @@ pub mod private_key {
         }
 
         /// Returns the address associated with the public key derived from this private key.
-        pub fn to_address<
-            Hasher: Digest<OutputSize = U32>,
-            A: sov_rollup_interface::RollupAddress,
-        >(
-            &self,
-        ) -> A {
-            self.pub_key().to_address::<Hasher, A>()
+        pub fn to_address<A: for<'a> From<&'a <Self as PrivateKey>::PublicKey>>(&self) -> A {
+            let key = self.pub_key();
+            (&key).into()
         }
     }
 
@@ -129,12 +124,17 @@ pub struct Ed25519PublicKey {
     pub(crate) pub_key: DalekPublicKey,
 }
 
-impl sov_rollup_interface::crypto::PublicKey for Ed25519PublicKey {
-    fn to_address<Hasher: Digest<OutputSize = U32>, A: RollupAddress>(&self) -> A {
-        let pub_key_hash = self.secure_hash::<Hasher>();
-        A::from(pub_key_hash.0)
+impl Ed25519PublicKey {
+    /// Returns the address associated with the public key derived from this private key.
+    pub fn to_address<'a, A>(&'a self) -> A
+    where
+        A: From<&'a Self>,
+    {
+        self.into()
     }
+}
 
+impl sov_rollup_interface::crypto::PublicKey for Ed25519PublicKey {
     fn secure_hash<Hasher: Digest<OutputSize = U32>>(&self) -> sov_rollup_interface::crypto::Hash {
         let hash = {
             let mut hasher = Hasher::new();

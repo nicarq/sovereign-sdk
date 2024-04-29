@@ -129,7 +129,12 @@ pub(crate) fn simulate_chain_state_execution(
 
 fn setup_helper(
     mut working_set: WorkingSet<S>,
-) -> (ProverIncentives<S, Da>, Address, Address, WorkingSet<S>) {
+) -> (
+    ProverIncentives<S, Da>,
+    <S as Spec>::Address,
+    <S as Spec>::Address,
+    WorkingSet<S>,
+) {
     // Initialize bank
     let (bank_config, prover_address, sequencer) = create_bank_config();
     let bank = sov_bank::Bank::<S>::default();

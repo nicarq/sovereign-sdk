@@ -5,7 +5,7 @@ use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint, Wo
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator, TestHasher};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, SequencerParams, TestKernel, TestRollup,
@@ -33,7 +33,7 @@ fn test_simple_value_setter_with_chain_state() {
 
     let admin_pub_key = value_setter_messages.messages[0]
         .admin
-        .to_address::<TestHasher, _>();
+        .to_address::<<S as Spec>::Address>();
     let test_kernel = TestKernel::<S, MockDaSpec>::default();
 
     let seq_params = SequencerParams::default();

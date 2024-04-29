@@ -5,9 +5,9 @@ use sov_modules_macros::offchain;
 #[cfg(feature = "offchain")]
 use crate::sql::*;
 #[cfg(feature = "offchain")]
-use crate::utils::get_collection_address;
+use crate::utils::get_collection_id;
 #[cfg(feature = "offchain")]
-use crate::CollectionAddress;
+use crate::CollectionId;
 use crate::{Collection, Nft, OwnerAddress};
 
 /// Syncs a collection to the corresponding table "collections" in postgres
@@ -19,9 +19,9 @@ pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
     let frozen = collection.is_frozen();
     let metadata_url = collection.get_collection_uri();
     let supply = collection.get_supply();
-    let collection_address: CollectionAddress<S> =
-        get_collection_address(collection_name, creator_address.as_ref());
-    let collection_address_str = collection_address.to_string();
+    let collection_id: CollectionId =
+        get_collection_id::<S>(collection_name, creator_address.as_ref());
+    let collection_id_str = collection_id.to_string();
     let creator_address_str = creator_address.to_string();
     // postgres insert
     tokio::task::block_in_place(|| {
@@ -31,7 +31,7 @@ pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
                     let result = client.execute(
                         INSERT_OR_UPDATE_COLLECTION,
                         &[
-                            &collection_address_str,
+                            &collection_id_str,
                             &collection_name,
                             &creator_address_str,
                             &frozen,
@@ -58,7 +58,7 @@ pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
 /// in each collection.
 #[offchain]
 pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<OwnerAddress<S>>) {
-    let collection_address = nft.get_collection_address().to_string();
+    let collection_id = nft.get_collection_id().to_string();
     let nft_id = nft.get_token_id();
     let new_owner_str = nft.get_owner().to_string();
     let frozen = nft.is_frozen();
@@ -71,10 +71,7 @@ pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<Owne
 
             // Check current owner in the database for the NFT
             let rows = client
-                .query(
-                    QUERY_OWNER_FROM_NFTS,
-                    &[&collection_address, &(nft_id as i64)],
-                )
+                .query(QUERY_OWNER_FROM_NFTS, &[&collection_id, &(nft_id as i64)])
                 .unwrap();
 
             let db_owner: Option<String> = rows.first().map(|row| row.get(0));
@@ -90,20 +87,20 @@ pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<Owne
                     // Decrement count for the database owner (which would be the old owner in a transfer scenario)
                     let _ = client.execute(
                         DECREMENT_COUNT_FOR_OLD_OWNER,
-                        &[&db_owner_str, &collection_address],
+                        &[&db_owner_str, &collection_id],
                     );
 
                     // Increment count for new owner
                     let _ = client.execute(
                         INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER,
-                        &[&new_owner_str, &collection_address],
+                        &[&new_owner_str, &collection_id],
                     );
                 }
             } else if old_owner_address.is_none() {
                 // Mint operation, and NFT doesn't exist in the database. Increment for the new owner.
                 let _ = client.execute(
                     INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER,
-                    &[&new_owner_str, &collection_address],
+                    &[&new_owner_str, &collection_id],
                 );
             }
 
@@ -111,7 +108,7 @@ pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<Owne
             let _ = client.execute(
                 INSERT_OR_UPDATE_NFT,
                 &[
-                    &collection_address,
+                    &collection_id,
                     &(nft_id as i64),
                     &metadata_url,
                     &new_owner_str,

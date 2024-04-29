@@ -38,7 +38,7 @@ fn test_tx_revert() {
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
     let admin_key = read_private_keys::<TestSpec>().token_deployer.private_key;
-    let admin_address: <TestSpec as Spec>::Address = admin_key.to_address::<TestHasher, _>();
+    let admin_address: <TestSpec as Spec>::Address = admin_key.to_address();
 
     let storage = {
         let mut storage_manager = create_storage_manager_for_tests(tempdir.path());

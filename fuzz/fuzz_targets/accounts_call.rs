@@ -52,7 +52,7 @@ fuzz_target!(
         let mut used = keys.iter().map(|k| k.as_hex()).collect::<HashSet<_>>();
         let mut state: HashMap<_, _> = keys
             .into_iter()
-            .map(|k| (k.to_address::<TestHasher, _>(), k))
+            .map(|k| (k.to_address::<<S as Spec>::Address>(), k))
             .collect();
         let addresses: Vec<_> = state.keys().copied().collect();
 

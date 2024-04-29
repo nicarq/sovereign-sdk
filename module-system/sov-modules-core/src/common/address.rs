@@ -1,6 +1,12 @@
 //! Module id definitions
 
+#[cfg(feature = "arbitrary")]
+use arbitrary::{Arbitrary, Unstructured};
 use borsh::{BorshDeserialize, BorshSerialize};
+use derivative::Derivative;
+use digest::consts::U32;
+use sha2::Digest;
+use sov_rollup_interface::crypto::PublicKey;
 use sov_rollup_interface::{BasicAddress, RollupAddress};
 
 /// Implement type conversions between a `\[u8;32\]` wrapper and a bech32 string representation.
@@ -179,10 +185,7 @@ macro_rules! impl_hash32_type {
             Clone, Copy, PartialEq, Eq, Hash, borsh::BorshDeserialize, borsh::BorshSerialize,
         )]
         #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-        #[cfg_attr(
-            feature = "arbitrary",
-            derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
-        )]
+        #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
         /// A globally unique identifier.
         pub struct $id([u8; 32]);
 
@@ -238,26 +241,55 @@ macro_rules! impl_hash32_type {
     };
 }
 
-impl_bech32_conversion!(Address, AddressBech32, ADDRESS_PREFIX);
+impl_bech32_conversion!(Address<H>, AddressBech32, ADDRESS_PREFIX);
 
 /// Module id representation
-#[cfg_attr(all(feature = "native", feature = "std"), derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(PartialEq, Hash, Clone, Copy, Eq, BorshDeserialize, BorshSerialize)]
-pub struct Address {
+#[cfg_attr(
+    all(feature = "native", feature = "std"),
+    derive(schemars::JsonSchema),
+    schemars(bound = "", rename = "Address")
+)]
+#[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
+#[derive(Derivative, BorshDeserialize, BorshSerialize)]
+#[derivative(Copy, Hash, PartialEq, Eq)]
+pub struct Address<H> {
     addr: [u8; 32],
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
+    #[cfg_attr(all(feature = "native", feature = "std"), schemars(skip))]
+    phantom: std::marker::PhantomData<H>,
 }
 
-impl AsRef<[u8]> for Address {
+// We manually implement clone so that we can silence this clippy warning.
+// Derivative has o facility to enable that.
+#[allow(clippy::non_canonical_clone_impl)]
+impl<H> Clone for Address<H> {
+    fn clone(&self) -> Self {
+        Self {
+            addr: self.addr,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<H: Digest<OutputSize = U32>, T: PublicKey> From<&T> for Address<H> {
+    fn from(value: &T) -> Self {
+        value.secure_hash::<H>().0.into()
+    }
+}
+
+impl<H> AsRef<[u8]> for Address<H> {
     fn as_ref(&self) -> &[u8] {
         &self.addr
     }
 }
 
-impl Address {
+impl<H> Address<H> {
     /// Creates a new address containing the given bytes
     pub const fn new(addr: [u8; 32]) -> Self {
-        Self { addr }
+        Self {
+            addr,
+            phantom: std::marker::PhantomData,
+        }
     }
 
     /// Exposes the inner bytes of the Address
@@ -266,7 +298,7 @@ impl Address {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for Address {
+impl<'a, H> TryFrom<&'a [u8]> for Address<H> {
     type Error = anyhow::Error;
 
     fn try_from(addr: &'a [u8]) -> Result<Self, Self::Error> {
@@ -275,26 +307,47 @@ impl<'a> TryFrom<&'a [u8]> for Address {
         }
         let mut addr_bytes = [0u8; 32];
         addr_bytes.copy_from_slice(addr);
-        Ok(Self { addr: addr_bytes })
+        Ok(Self {
+            addr: addr_bytes,
+            phantom: std::marker::PhantomData,
+        })
     }
 }
 
-impl From<[u8; 32]> for Address {
+impl<H> From<[u8; 32]> for Address<H> {
     fn from(addr: [u8; 32]) -> Self {
-        Self { addr }
+        Self {
+            addr,
+            phantom: std::marker::PhantomData,
+        }
     }
 }
 
-impl Address {
+impl<H> Address<H> {
     /// Creates a new $id containing the given bytes. This function is needed in addition
     /// to the `From` trait to allow for const conversions
     pub const fn from_const_slice(addr: [u8; 32]) -> Self {
-        Self { addr }
+        Self {
+            addr,
+            phantom: std::marker::PhantomData,
+        }
     }
 }
 
-impl BasicAddress for Address {}
-impl RollupAddress for Address {}
+// Implement arbitrary by hand because the derive can't handle PhantomData
+#[cfg(feature = "arbitrary")]
+impl<'a, H> Arbitrary<'a> for Address<H> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+        let addr = u.arbitrary()?;
+        Ok(Self {
+            addr,
+            phantom: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<H: Send + Sync + 'static> BasicAddress for Address<H> {}
+impl<H: Send + Sync + 'static> RollupAddress for Address<H> {}
 
 // TODO(@preston-evans98): unify core and modules, then
 // enable sov-modules-macros and do this
@@ -306,13 +359,15 @@ mod test {
 
     use core::str::FromStr;
 
+    use sha2::Sha256;
+
     use super::*;
 
     #[test]
     fn test_address_serialization() {
         let address = Address::from([11; 32]);
         let data: String = serde_json::to_string(&address).unwrap();
-        let deserialized_address = serde_json::from_str::<Address>(&data).unwrap();
+        let deserialized_address = serde_json::from_str::<Address<Sha256>>(&data).unwrap();
 
         assert_eq!(address, deserialized_address);
         assert_eq!(
@@ -325,7 +380,7 @@ mod test {
     /// Enforces that we reject the original (less secure) `bech32` encoding for our address type.
     /// Our addresses should use bech32m only.
     fn test_rejects_non_m_bech32_variant() {
-        assert!(Address::from_str(
+        assert!(Address::<Sha256>::from_str(
             "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqklh0qh"
         )
         .is_err());

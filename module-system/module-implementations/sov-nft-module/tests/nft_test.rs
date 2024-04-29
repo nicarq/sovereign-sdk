@@ -1,9 +1,9 @@
 use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
-use sov_nft_module::utils::get_collection_address;
+use sov_nft_module::utils::get_collection_id;
 use sov_nft_module::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::DefaultStorageSpec;
-use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
+use sov_test_utils::{TestPrivateKey, TestSpec};
 
 #[test]
 fn mints_and_transfers() {
@@ -12,12 +12,11 @@ fn mints_and_transfers() {
     let private_key_2 = TestPrivateKey::generate();
     let sequencer_pk = TestPrivateKey::generate();
 
-    let creator_address: <TestSpec as Spec>::Address = creator_pk.to_address::<TestHasher, _>();
-    let sequencer_address = sequencer_pk.to_address::<TestHasher, _>();
+    let creator_address: <TestSpec as Spec>::Address = creator_pk.to_address();
+    let sequencer_address = sequencer_pk.to_address();
     let collection_name = "Test Collection";
     let collection_uri = "http://foo.bar/test_collection";
-    let collection_address =
-        get_collection_address::<TestSpec>(collection_name, creator_address.as_ref());
+    let collection_id = get_collection_id::<TestSpec>(collection_name, creator_address.as_ref());
 
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage::<DefaultStorageSpec>(tmpdir.path()).unwrap();
@@ -39,9 +38,7 @@ fn mints_and_transfers() {
     )
     .expect("Creating Collection failed");
 
-    let actual_collection = nft
-        .get_collection(collection_address.clone(), &mut working_set)
-        .unwrap();
+    let actual_collection = nft.get_collection(collection_id, &mut working_set).unwrap();
 
     assert_eq!(actual_collection.name, collection_name);
     assert_eq!(actual_collection.supply, 0);
@@ -53,7 +50,7 @@ fn mints_and_transfers() {
 
     let token_id = 42;
     let token_uri = "http://foo.bar/test_collection/42";
-    let owner = UserAddress::new(&private_key_1.to_address::<TestHasher, _>());
+    let owner = UserAddress::new(&private_key_1.to_address());
 
     let mint_nft_message = CallMessage::MintNft {
         collection_name: collection_name.to_string(),
@@ -67,15 +64,13 @@ fn mints_and_transfers() {
     nft.call(mint_nft_message, &creator_context, &mut working_set)
         .expect("Minting NFT failed");
 
-    let actual_collection = nft
-        .get_collection(collection_address.clone(), &mut working_set)
-        .unwrap();
+    let actual_collection = nft.get_collection(collection_id, &mut working_set).unwrap();
     assert_eq!(actual_collection.supply, 1);
     let actual_nft = nft
-        .get_nft(collection_address.clone(), token_id, &mut working_set)
+        .get_nft(collection_id, token_id, &mut working_set)
         .unwrap();
     assert_eq!(actual_nft.token_id, token_id);
-    assert_eq!(actual_nft.collection_address, collection_address);
+    assert_eq!(actual_nft.collection_id, collection_id);
     assert_eq!(actual_nft.token_uri, token_uri.to_string());
     assert_eq!(actual_nft.owner, OwnerAddress::new(owner.get_address()));
 
@@ -120,9 +115,7 @@ fn mints_and_transfers() {
     )
     .expect("Updating Collection failed");
 
-    let actual_collection = nft
-        .get_collection(collection_address.clone(), &mut working_set)
-        .unwrap();
+    let actual_collection = nft.get_collection(collection_id, &mut working_set).unwrap();
     assert_eq!(
         actual_collection.collection_uri,
         new_collection_uri.to_string()
@@ -169,9 +162,7 @@ fn mints_and_transfers() {
     )
     .expect("Freeze collection call should succeed");
 
-    let actual_collection = nft
-        .get_collection(collection_address.clone(), &mut working_set)
-        .unwrap();
+    let actual_collection = nft.get_collection(collection_id, &mut working_set).unwrap();
     assert!(actual_collection.frozen);
 
     // Update collection uri for frozen collection
@@ -204,9 +195,7 @@ fn mints_and_transfers() {
         panic!("Expected an error, got Ok");
     }
 
-    let actual_collection = nft
-        .get_collection(collection_address.clone(), &mut working_set)
-        .unwrap();
+    let actual_collection = nft.get_collection(collection_id, &mut working_set).unwrap();
     assert!(actual_collection.frozen);
     // assert that the collection uri hasn't been changed
     assert_eq!(actual_collection.collection_uri, new_collection_uri);
@@ -216,8 +205,7 @@ fn mints_and_transfers() {
     // mint nft to frozen collection
     let new_token_id = 23;
     let new_token_uri = "http://foo.bar/test_collection/23";
-    let owner: OwnerAddress<TestSpec> =
-        OwnerAddress::new(&private_key_1.to_address::<TestHasher, _>());
+    let owner: OwnerAddress<TestSpec> = OwnerAddress::new(&private_key_1.to_address());
 
     let mint_nft_message = CallMessage::MintNft {
         collection_name: collection_name.to_string(),
@@ -243,16 +231,14 @@ fn mints_and_transfers() {
         panic!("Expected an error, got Ok");
     }
 
-    let actual_collection = nft
-        .get_collection(collection_address.clone(), &mut working_set)
-        .unwrap();
+    let actual_collection = nft.get_collection(collection_id, &mut working_set).unwrap();
     // ensure supply hasn't changed
     assert_eq!(actual_collection.supply, 1);
 
     // transfer NFT with non-owner
-    let target_address = private_key_2.to_address::<TestHasher, _>();
+    let target_address = private_key_2.to_address();
     let transfer_nft_message = CallMessage::TransferNft {
-        collection_address: collection_address.clone(),
+        collection_id,
         token_id,
         to: UserAddress::new(&target_address),
     };
@@ -265,8 +251,8 @@ fn mints_and_transfers() {
             sov_modules_api::Error::ModuleError(anyhow_err) => {
                 let err_message = anyhow_err.to_string();
                 let expected_message = format!(
-                    "user: {} does not own nft: {} from collection address: {} , owner is: {}",
-                    creator_address, token_id, collection_address, owner
+                    "user: {} does not own nft: {} from collection id: {} , owner is: {}",
+                    creator_address, token_id, collection_id, owner
                 );
                 assert_eq!(err_message, expected_message);
             }
@@ -276,10 +262,10 @@ fn mints_and_transfers() {
     }
 
     // transfer NFT with non-existent token id
-    let target_address = private_key_2.to_address::<TestHasher, _>();
+    let target_address = private_key_2.to_address();
     let owner_context = Context::<TestSpec>::new(*owner.get_address(), sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
-        collection_address: collection_address.clone(),
+        collection_id,
         token_id: 1000,
         to: UserAddress::new(&target_address),
     };
@@ -290,8 +276,8 @@ fn mints_and_transfers() {
             sov_modules_api::Error::ModuleError(anyhow_err) => {
                 let err_message = anyhow_err.to_string();
                 let expected_message = format!(
-                    "Nft with token_id: {} in collection_address: {} does not exist",
-                    1000, collection_address
+                    "Nft with token_id: {} in collection_id: {} does not exist",
+                    1000, collection_id
                 );
                 assert_eq!(err_message, expected_message);
             }
@@ -301,10 +287,10 @@ fn mints_and_transfers() {
     }
 
     // transfer NFT by owner
-    let target_address = private_key_2.to_address::<TestHasher, _>();
+    let target_address = private_key_2.to_address();
     let owner_context = Context::<TestSpec>::new(*owner.get_address(), sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
-        collection_address: collection_address.clone(),
+        collection_id,
         token_id,
         to: UserAddress::new(&target_address),
     };
@@ -312,18 +298,16 @@ fn mints_and_transfers() {
     assert!(transfer_response.is_ok());
 
     let actual_nft = nft
-        .get_nft(collection_address.clone(), token_id, &mut working_set)
+        .get_nft(collection_id, token_id, &mut working_set)
         .unwrap();
     // ensure token_id didn't change
     assert_eq!(actual_nft.token_id, token_id);
-    assert_eq!(actual_nft.collection_address, collection_address);
+    assert_eq!(actual_nft.collection_id, collection_id);
     assert_eq!(actual_nft.token_uri, token_uri.to_string());
     // ensure that the owner is the new owner
     assert_eq!(actual_nft.owner, OwnerAddress::new(&target_address));
 
-    let actual_collection = nft
-        .get_collection(collection_address.clone(), &mut working_set)
-        .unwrap();
+    let actual_collection = nft.get_collection(collection_id, &mut working_set).unwrap();
     // ensure supply hasn't changed with a transfer
     assert_eq!(actual_collection.supply, 1);
 
@@ -340,11 +324,11 @@ fn mints_and_transfers() {
     assert!(update_response.is_ok());
 
     let actual_nft = nft
-        .get_nft(collection_address.clone(), token_id, &mut working_set)
+        .get_nft(collection_id, token_id, &mut working_set)
         .unwrap();
     // ensure token_id didn't change
     assert_eq!(actual_nft.token_id, token_id);
-    assert_eq!(actual_nft.collection_address, collection_address);
+    assert_eq!(actual_nft.collection_id, collection_id);
     // token uri should be updated
     assert_eq!(actual_nft.token_uri, new_token_uri.to_string());
     // ensure owner is unchanged (new based on previous test)
@@ -364,11 +348,11 @@ fn mints_and_transfers() {
     assert!(update_response.is_ok());
 
     let actual_nft = nft
-        .get_nft(collection_address.clone(), token_id, &mut working_set)
+        .get_nft(collection_id, token_id, &mut working_set)
         .unwrap();
     // ensure token_id didn't change
     assert_eq!(actual_nft.token_id, token_id);
-    assert_eq!(actual_nft.collection_address, collection_address);
+    assert_eq!(actual_nft.collection_id, collection_id);
     // token uri should be updated
     assert_eq!(actual_nft.token_uri, new_token_uri.to_string());
     // ensure owner is unchanged (new based on previous test)
@@ -391,8 +375,8 @@ fn mints_and_transfers() {
             sov_modules_api::Error::ModuleError(anyhow_err) => {
                 let err_message = anyhow_err.to_string();
                 let expected_message = format!(
-                    "NFT with token id {} in collection address {} is frozen",
-                    token_id, collection_address
+                    "NFT with token id {} in collection id {} is frozen",
+                    token_id, collection_id
                 );
                 assert_eq!(err_message, expected_message);
             }
@@ -403,18 +387,18 @@ fn mints_and_transfers() {
 
     // ensure that token uri is unchanged
     let actual_nft = nft
-        .get_nft(collection_address.clone(), token_id, &mut working_set)
+        .get_nft(collection_id, token_id, &mut working_set)
         .unwrap();
     // token uri should be unchanged. it should be new_token_uri, not new_token_uri_fail
     assert_eq!(actual_nft.token_uri, new_token_uri.to_string());
 
     // Transfer on a frozen NFT should still work
     // transfer NFT by owner
-    let target_address = private_key_1.to_address::<TestHasher, _>();
-    let owner = private_key_2.to_address::<TestHasher, _>();
+    let target_address = private_key_1.to_address();
+    let owner = private_key_2.to_address();
     let owner_context = Context::<TestSpec>::new(owner, sequencer_address, 1);
     let transfer_nft_message = CallMessage::TransferNft {
-        collection_address: collection_address.clone(),
+        collection_id,
         token_id,
         to: UserAddress::new(&target_address),
     };
@@ -422,19 +406,17 @@ fn mints_and_transfers() {
     assert!(transfer_response.is_ok());
 
     let actual_nft = nft
-        .get_nft(collection_address.clone(), token_id, &mut working_set)
+        .get_nft(collection_id, token_id, &mut working_set)
         .unwrap();
     // ensure token_id didn't change
     assert_eq!(actual_nft.token_id, token_id);
-    assert_eq!(actual_nft.collection_address, collection_address);
+    assert_eq!(actual_nft.collection_id, collection_id);
     // token uri should be new_token_uri
     assert_eq!(actual_nft.token_uri, new_token_uri.to_string());
     // ensure that the owner is the new owner
     assert_eq!(actual_nft.owner, OwnerAddress::new(&target_address));
 
-    let actual_collection = nft
-        .get_collection(collection_address, &mut working_set)
-        .unwrap();
+    let actual_collection = nft.get_collection(collection_id, &mut working_set).unwrap();
     // ensure supply hasn't changed with a transfer
     assert_eq!(actual_collection.supply, 1);
 }

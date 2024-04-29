@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use super::Hash;
 #[cfg(not(feature = "std"))]
 use crate::alloc::borrow::ToOwned;
-use crate::RollupAddress;
 
 /// Representation of a signature verification error.
 #[derive(Debug)]
@@ -58,9 +57,6 @@ pub trait Signature:
 pub trait PublicKey:
     Eq + hash::Hash + Clone + Debug + Send + Sync + Serialize + for<'a> Deserialize<'a>
 {
-    /// Returns a representation of the public key that can be represented as a rollup address.
-    fn to_address<Hasher: Digest<OutputSize = U32>, A: RollupAddress>(&self) -> A;
-
     /// Returns hashed public key.
     fn secure_hash<Hasher: Digest<OutputSize = U32>>(&self) -> Hash;
 }
@@ -84,11 +80,6 @@ pub trait PrivateKey:
 
     /// Signs the provided message using the private key.
     fn sign(&self, msg: &[u8]) -> Self::Signature;
-
-    /// Returns a representation of the public key that can be used as a rollup address.
-    fn to_address<Hasher: Digest<OutputSize = U32>, A: RollupAddress>(&self) -> A {
-        self.pub_key().to_address::<Hasher, A>()
-    }
 }
 
 /// A hex-encoded public key.

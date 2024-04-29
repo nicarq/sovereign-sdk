@@ -28,10 +28,13 @@ type Da = MockDaSpec;
 
 const LOCKED_AMOUNT: u64 = 200;
 const PREFERRED_SEQUENCER_DA: MockAddress = MockAddress::new([10u8; 32]);
-const PREFERRED_SEQUENCER_ROLLUP: Address = Address::new(*b"preferred_______________________");
+const PREFERRED_SEQUENCER_ROLLUP: <S as Spec>::Address =
+    Address::new(*b"preferred_______________________");
 const REGULAR_SEQUENCER_DA: MockAddress = MockAddress::new([30u8; 32]);
-const REGULAR_SEQUENCER_ROLLUP: Address = Address::new(*b"regular_________________________");
-const REGULAR_REWARD_ROLLUP: Address = Address::new(*b"regular_reward__________________");
+const REGULAR_SEQUENCER_ROLLUP: <S as Spec>::Address =
+    Address::new(*b"regular_________________________");
+const REGULAR_REWARD_ROLLUP: <S as Spec>::Address =
+    Address::new(*b"regular_reward__________________");
 
 fn get_bank_config(
     preferred_sequencer: <S as Spec>::Address,

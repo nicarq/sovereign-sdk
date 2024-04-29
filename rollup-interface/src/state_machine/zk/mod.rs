@@ -42,7 +42,7 @@ pub trait CryptoSpec: PartialEq + Debug + Clone + Send + Sync + 'static {
     type PublicKey: PublicKey;
 
     /// The hasher preferred by the rollup, such as Sha256 or Poseidon.
-    type Hasher: Digest<OutputSize = U32>;
+    type Hasher: Digest<OutputSize = U32> + Send + Sync + 'static;
 
     /// The digital signature scheme used by the rollup.
     type Signature: Signature<PublicKey = Self::PublicKey>

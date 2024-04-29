@@ -1,13 +1,13 @@
 use sov_bank::{BankConfig, GasTokenConfig};
 use sov_modules_api::utils::generate_address as gen_address_generic;
-use sov_modules_api::Address;
+use sov_modules_api::Spec;
 
 type S = sov_test_utils::TestSpec;
 
 // This code is not actually dead; rustc treats each test file as a separate crate
 // so this code looks unused during some of the compilations.
 #[allow(dead_code)]
-pub fn generate_address(name: &str) -> Address {
+pub fn generate_address(name: &str) -> <S as Spec>::Address {
     gen_address_generic::<S>(name)
 }
 

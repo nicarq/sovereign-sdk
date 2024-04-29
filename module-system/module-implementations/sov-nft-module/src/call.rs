@@ -3,7 +3,7 @@ use sov_modules_api::{CallResponse, Context, Spec, WorkingSet};
 
 use crate::address::UserAddress;
 use crate::offchain::{update_collection, update_nft};
-use crate::{Collection, CollectionAddress, Nft, NftIdentifier, NonFungibleToken, TokenId};
+use crate::{Collection, CollectionId, Nft, NftIdentifier, NonFungibleToken, TokenId};
 
 /// A transaction handled by the NFT module. Mints, Transfers, or Burns an NFT by id
 #[cfg_attr(
@@ -68,8 +68,8 @@ pub enum CallMessage<S: Spec> {
     },
     /// Transfer an NFT from an owned address to another address
     TransferNft {
-        /// Collection Address
-        collection_address: CollectionAddress<S>,
+        /// Collection id
+        collection_id: CollectionId,
         /// NFT id of the owned token to be transferred
         token_id: u64,
         /// Target address of the user to transfer the NFT to
@@ -85,7 +85,7 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
-        let (collection_address, collection) = Collection::new(
+        let (collection_id, collection) = Collection::new(
             collection_name,
             collection_uri,
             &self.collections,
@@ -93,7 +93,7 @@ impl<S: Spec> NonFungibleToken<S> {
             working_set,
         )?;
         self.collections
-            .set(&collection_address, &collection, working_set);
+            .set(&collection_id, &collection, working_set);
         update_collection(&collection);
         Ok(CallResponse::default())
     }
@@ -105,7 +105,7 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
-        let (collection_address, collection_state) = Collection::get_owned_collection(
+        let (collection_id, collection_state) = Collection::get_owned_collection(
             collection_name,
             &self.collections,
             context,
@@ -114,7 +114,7 @@ impl<S: Spec> NonFungibleToken<S> {
         let mut collection = collection_state.get_mutable_or_bail()?;
         collection.set_collection_uri(collection_uri);
         self.collections
-            .set(&collection_address, collection.inner(), working_set);
+            .set(&collection_id, collection.inner(), working_set);
         update_collection(collection.inner());
         Ok(CallResponse::default())
     }
@@ -125,7 +125,7 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
-        let (collection_address, collection_state) = Collection::get_owned_collection(
+        let (collection_id, collection_state) = Collection::get_owned_collection(
             collection_name,
             &self.collections,
             context,
@@ -134,7 +134,7 @@ impl<S: Spec> NonFungibleToken<S> {
         let mut collection = collection_state.get_mutable_or_bail()?;
         collection.freeze();
         self.collections
-            .set(&collection_address, collection.inner(), working_set);
+            .set(&collection_id, collection.inner(), working_set);
         update_collection(collection.inner());
         Ok(CallResponse::default())
     }
@@ -150,7 +150,7 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
-        let (collection_address, collection_state) = Collection::get_owned_collection(
+        let (collection_id, collection_state) = Collection::get_owned_collection(
             collection_name,
             &self.collections,
             context,
@@ -162,18 +162,18 @@ impl<S: Spec> NonFungibleToken<S> {
             token_uri,
             mint_to_address,
             frozen,
-            &collection_address,
+            &collection_id,
             &self.nfts,
             working_set,
         )?;
         self.nfts.set(
-            &NftIdentifier(token_id, collection_address.clone()),
+            &NftIdentifier(token_id, collection_id),
             &new_nft,
             working_set,
         );
         collection.increment_supply();
         self.collections
-            .set(&collection_address, collection.inner(), working_set);
+            .set(&collection_id, collection.inner(), working_set);
 
         update_collection(collection.inner());
         update_nft(&new_nft, None);
@@ -184,17 +184,17 @@ impl<S: Spec> NonFungibleToken<S> {
     pub(crate) fn transfer_nft(
         &self,
         nft_id: u64,
-        collection_address: &CollectionAddress<S>,
+        collection_id: &CollectionId,
         to: &UserAddress<S>,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
         let mut owned_nft =
-            Nft::get_owned_nft(nft_id, collection_address, &self.nfts, context, working_set)?;
+            Nft::get_owned_nft(nft_id, collection_id, &self.nfts, context, working_set)?;
         let original_owner = owned_nft.inner().get_owner().clone();
         owned_nft.set_owner(to);
         self.nfts.set(
-            &NftIdentifier(nft_id, collection_address.clone()),
+            &NftIdentifier(nft_id, *collection_id),
             owned_nft.inner(),
             working_set,
         );
@@ -211,7 +211,7 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<CallResponse> {
-        let (collection_address, mut mutable_nft) = Nft::get_mutable_nft(
+        let (collection_id, mut mutable_nft) = Nft::get_mutable_nft(
             token_id,
             collection_name,
             &self.nfts,
@@ -226,7 +226,7 @@ impl<S: Spec> NonFungibleToken<S> {
             mutable_nft.update_token_uri(&uri);
         }
         self.nfts.set(
-            &NftIdentifier(token_id, collection_address.clone()),
+            &NftIdentifier(token_id, collection_id),
             mutable_nft.inner(),
             working_set,
         );

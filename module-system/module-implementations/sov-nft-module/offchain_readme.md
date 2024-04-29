@@ -19,8 +19,8 @@ psql postgres -f sovereign/module-system/module-implementations/sov-nft-module/s
       ```sql
       SELECT owner, count 
         FROM top_owners
-        WHERE collection_address = (
-          SELECT collection_address
+        WHERE collection_id = (
+          SELECT collection_id
           FROM collections
           WHERE collection_name = 'your_collection_name'
         )
@@ -35,9 +35,9 @@ psql postgres -f sovereign/module-system/module-implementations/sov-nft-module/s
         count
       FROM (
           SELECT c.collection_name, t.owner, t.count,
-          RANK() OVER (PARTITION BY t.collection_address ORDER BY t.count DESC) as rank
+          RANK() OVER (PARTITION BY t.collection_id ORDER BY t.count DESC) as rank
           FROM top_owners t
-          INNER JOIN collections c ON c.collection_address = t.collection_address
+          INNER JOIN collections c ON c.collection_id = t.collection_id
       ) sub
       WHERE rank = 1;
       ```        

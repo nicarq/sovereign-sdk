@@ -6,7 +6,7 @@ use sov_modules_api::{Gas, GasArray, ModuleInfo, Spec};
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, SequencerParams, TestRollup, DEFAULT_STAKE_AMOUNT,
@@ -56,9 +56,7 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_
 
     assert_eq!(value_setter.len() as u64, NUM_TXS_PER_BATCH);
 
-    let admin_pub_key = value_setter_messages.messages[0]
-        .admin
-        .to_address::<TestHasher, _>();
+    let admin_pub_key = value_setter_messages.messages[0].admin.to_address();
 
     let seq_params = SequencerParams::default();
     let seq_rollup_addr = seq_params.rollup_address;

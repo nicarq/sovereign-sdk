@@ -2,10 +2,8 @@ use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{Spec, WorkingSet};
 
-use crate::utils::get_collection_address;
-use crate::{
-    CollectionAddress, CreatorAddress, NftIdentifier, NonFungibleToken, OwnerAddress, TokenId,
-};
+use crate::utils::get_collection_id;
+use crate::{CollectionId, CreatorAddress, NftIdentifier, NonFungibleToken, OwnerAddress, TokenId};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(bound(
@@ -28,8 +26,8 @@ pub struct CollectionResponse<S: Spec> {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(bound(
-    serialize = "OwnerAddress<S>: serde::Serialize, CollectionAddress<S>: serde::Serialize",
-    deserialize = "OwnerAddress<S>: serde::Deserialize<'de>, CollectionAddress<S>: serde::Deserialize<'de>"
+    serialize = "OwnerAddress<S>: serde::Serialize",
+    deserialize = "OwnerAddress<S>: serde::Deserialize<'de>"
 ))]
 /// Response for `getNft` method
 pub struct NftResponse<S: Spec> {
@@ -41,19 +39,16 @@ pub struct NftResponse<S: Spec> {
     pub frozen: bool,
     /// Owner of the NFT
     pub owner: OwnerAddress<S>,
-    /// Collection address that the NFT belongs to
-    pub collection_address: CollectionAddress<S>,
+    /// Collection id that the NFT belongs to
+    pub collection_id: CollectionId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(bound(
-    serialize = "CollectionAddress<S>: serde::Serialize",
-    deserialize = "CollectionAddress<S>: serde::Deserialize<'de>"
-))]
-/// Response for `getCollectionAddress` method
-pub struct CollectionAddressResponse<S: Spec> {
+
+/// Response for `getCollectionId` method
+pub struct CollectionIdResponse {
     /// Address of the collection
-    pub collection_address: CollectionAddress<S>,
+    pub collection_id: CollectionId,
 }
 
 #[rpc_gen(client, server, namespace = "nft")]
@@ -62,13 +57,10 @@ impl<S: Spec> NonFungibleToken<S> {
     /// Get the collection details
     pub fn get_collection(
         &self,
-        collection_address: CollectionAddress<S>,
+        collection_id: CollectionId,
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<CollectionResponse<S>> {
-        let c = self
-            .collections
-            .get(&collection_address, working_set)
-            .unwrap();
+        let c = self.collections.get(&collection_id, working_set).unwrap();
 
         Ok(CollectionResponse {
             name: c.get_name().to_string(),
@@ -78,34 +70,32 @@ impl<S: Spec> NonFungibleToken<S> {
             collection_uri: c.get_collection_uri().to_string(),
         })
     }
-    #[rpc_method(name = "getCollectionAddress")]
-    /// Get the collection address
-    pub fn get_collection_address(
+    #[rpc_method(name = "getCollectionId")]
+    /// Get the collection id
+    pub fn get_collection_id(
         &self,
         creator: CreatorAddress<S>,
         collection_name: &str,
-    ) -> RpcResult<CollectionAddressResponse<S>> {
-        let ca = get_collection_address::<S>(collection_name, creator.as_ref());
-        Ok(CollectionAddressResponse {
-            collection_address: ca,
-        })
+    ) -> RpcResult<CollectionIdResponse> {
+        let ca = get_collection_id::<S>(collection_name, creator.as_ref());
+        Ok(CollectionIdResponse { collection_id: ca })
     }
     #[rpc_method(name = "getNft")]
     /// Get the NFT details
     pub fn get_nft(
         &self,
-        collection_address: CollectionAddress<S>,
+        collection_id: CollectionId,
         token_id: TokenId,
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<NftResponse<S>> {
-        let nft_id = NftIdentifier(token_id, collection_address);
+        let nft_id = NftIdentifier(token_id, collection_id);
         let n = self.nfts.get(&nft_id, working_set).unwrap();
         Ok(NftResponse {
             token_id: n.get_token_id(),
             token_uri: n.get_token_uri().to_string(),
             frozen: n.is_frozen(),
             owner: n.get_owner().clone(),
-            collection_address: n.get_collection_address().clone(),
+            collection_id: *n.get_collection_id(),
         })
     }
 }

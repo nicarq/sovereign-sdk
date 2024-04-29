@@ -24,7 +24,7 @@ impl<S: Spec> Accounts<S> {
                 bail!("Account already exists")
             }
 
-            let default_address = pub_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>();
+            let default_address = pub_key.into();
             let _ = self.get_or_create_default(&pub_key_hash, &default_address, working_set);
         }
 

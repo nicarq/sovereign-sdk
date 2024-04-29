@@ -6,12 +6,12 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_nft_module::utils::{
-    get_collection_address, get_create_collection_message, get_mint_nft_message,
+    get_collection_id, get_create_collection_message, get_mint_nft_message,
     get_transfer_nft_message,
 };
-use sov_nft_module::{CallMessage, CollectionAddress};
+use sov_nft_module::{CallMessage, CollectionId};
 use sov_sequencer::utils::SimpleClient;
-use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
+use sov_test_utils::{TestPrivateKey, TestSpec};
 
 const COLLECTION_1: &str = "Sovereign Squirrel Syndicate";
 const COLLECTION_2: &str = "Celestial Dolphins";
@@ -52,7 +52,7 @@ pub fn build_create_collection_transactions(
             let tx = build_transaction(
                 creator_pk,
                 get_create_collection_message(
-                    &creator_pk.to_address::<TestHasher, _>(),
+                    &creator_pk.to_address::<<TestSpec as Spec>::Address>(),
                     collection_name,
                     base_uri,
                 ),
@@ -79,11 +79,11 @@ pub fn build_mint_transactions(
             let tx = build_transaction(
                 creator_pk,
                 get_mint_nft_message(
-                    &creator_pk.to_address::<TestHasher, _>(),
+                    &creator_pk.to_address::<<TestSpec as Spec>::Address>(),
                     collection,
                     *start_nft_id,
                     base_uri,
-                    &owner_pk.to_address::<TestHasher, _>(),
+                    &owner_pk.to_address::<<TestSpec as Spec>::Address>(),
                 ),
                 *start_nonce,
             );
@@ -97,16 +97,16 @@ pub fn build_mint_transactions(
 pub fn build_transfer_transactions(
     signer: &TestPrivateKey,
     start_nonce: &mut u64,
-    collection_address: &CollectionAddress<TestSpec>,
+    collection_id: &CollectionId,
     nft_ids: Vec<u64>,
 ) -> Vec<Transaction<TestSpec>> {
     nft_ids
         .into_iter()
         .map(|nft_id| {
-            let new_owner = TestPrivateKey::generate().to_address::<TestHasher, _>();
+            let new_owner = TestPrivateKey::generate().to_address::<<TestSpec as Spec>::Address>();
             let tx = build_transaction(
                 signer,
-                get_transfer_nft_message(collection_address, nft_id, &new_owner),
+                get_transfer_nft_message(collection_id, nft_id, &new_owner),
                 *start_nonce,
             );
             *start_nonce = start_nonce.wrapping_add(1);
@@ -169,10 +169,10 @@ async fn main() {
     // TODO: remove after https://github.com/Sovereign-Labs/sovereign-sdk/issues/949 is fixed
     tokio::time::sleep(Duration::from_millis(3000)).await;
 
-    let collection_1_address = get_collection_address::<TestSpec>(
+    let collection_1_address = get_collection_id::<TestSpec>(
         COLLECTION_1,
         creator_pk
-            .to_address::<TestHasher, <TestSpec as Spec>::Address>()
+            .to_address::<<TestSpec as Spec>::Address>()
             .as_ref(),
     );
 
