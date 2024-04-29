@@ -18,18 +18,22 @@ pub trait TxHooks {
     /// Runs just before a transaction is dispatched to an appropriate module.
     fn pre_dispatch_tx_hook(
         &self,
-        tx: &AuthenticatedTransactionData<Self::Spec>,
-        working_set: &mut WorkingSet<Self::Spec>,
-    ) -> anyhow::Result<()>;
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
+        _working_set: &mut WorkingSet<Self::Spec>,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 
     /// Runs after the tx is dispatched to an appropriate module.
     /// IF this hook returns error rollup panics
     fn post_dispatch_tx_hook(
         &self,
-        tx: &AuthenticatedTransactionData<Self::Spec>,
-        ctx: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<Self::Spec>,
-    ) -> anyhow::Result<()>;
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
+        _ctx: &Context<Self::Spec>,
+        _working_set: &mut WorkingSet<Self::Spec>,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 /// Hooks related to the Sequencer functionality.
@@ -43,19 +47,22 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_batch_hook(
         &self,
-        batch: &mut BatchWithId,
-        sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<Self::Spec>,
-    ) -> anyhow::Result<()>;
+        _batch: &mut BatchWithId,
+        _sender: &Da::Address,
+        _state_checkpoint: &mut StateCheckpoint<Self::Spec>,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 
     /// Executes at the end of apply_blob and rewards or slashed the sequencer
     /// If this hook returns Err rollup panics
     fn end_batch_hook(
         &self,
-        result: Self::BatchResult,
-        sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<Self::Spec>,
-    );
+        _result: Self::BatchResult,
+        _sender: &Da::Address,
+        _state_checkpoint: &mut StateCheckpoint<Self::Spec>,
+    ) {
+    }
 }
 
 /// Type alias that contains the height of a given transition
@@ -67,11 +74,12 @@ pub trait SlotHooks {
 
     fn begin_slot_hook(
         &self,
-        pre_state_root: <Self::Spec as Spec>::VisibleHash,
-        working_set: &mut VersionedStateReadWriter<StateCheckpoint<Self::Spec>>,
-    );
+        _pre_state_root: <Self::Spec as Spec>::VisibleHash,
+        _working_set: &mut VersionedStateReadWriter<StateCheckpoint<Self::Spec>>,
+    ) {
+    }
 
-    fn end_slot_hook(&self, working_set: &mut StateCheckpoint<Self::Spec>);
+    fn end_slot_hook(&self, _working_set: &mut StateCheckpoint<Self::Spec>) {}
 }
 
 pub trait FinalizeHook {
@@ -79,7 +87,8 @@ pub trait FinalizeHook {
 
     fn finalize_hook(
         &self,
-        root_hash: <Self::Spec as Spec>::VisibleHash,
-        accessory_working_set: &mut impl StateReaderAndWriter<Accessory>,
-    );
+        _root_hash: <Self::Spec as Spec>::VisibleHash,
+        _accessory_working_set: &mut impl StateReaderAndWriter<Accessory>,
+    ) {
+    }
 }

@@ -7,7 +7,6 @@ pub use sov_chain_state::ChainStateConfig;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::macros::DefaultRuntime;
-use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
     AuthenticationError, GasEnforcer, RawTx, RuntimeAuthenticator, RuntimeAuthorization,
 };
@@ -16,7 +15,7 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, ModuleInfo, Spec,
-    StateCheckpoint, StateReaderAndWriter, WorkingSet,
+    StateCheckpoint, WorkingSet,
 };
 use sov_modules_stf_blueprint::{Runtime, SequencerOutcome};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -44,23 +43,6 @@ pub struct TestRuntime<S: Spec, Da: DaSpec> {
 
 impl<S: Spec, Da: DaSpec> TxHooks for TestRuntime<S, Da> {
     type Spec = S;
-
-    fn pre_dispatch_tx_hook(
-        &self,
-        _tx: &AuthenticatedTransactionData<Self::Spec>,
-        _working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    fn post_dispatch_tx_hook(
-        &self,
-        _tx: &AuthenticatedTransactionData<Self::Spec>,
-        _ctx: &Context<Self::Spec>,
-        _working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
 }
 
 impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
@@ -107,26 +89,10 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
 
 impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
     type Spec = S;
-
-    fn begin_slot_hook(
-        &self,
-        _pre_state_root: <Self::Spec as Spec>::VisibleHash,
-        _working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
-    ) {
-    }
-
-    fn end_slot_hook(&self, _working_set: &mut StateCheckpoint<S>) {}
 }
 
 impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
     type Spec = S;
-
-    fn finalize_hook(
-        &self,
-        _root_hash: <Self::Spec as Spec>::VisibleHash,
-        _accessory_working_set: &mut impl StateReaderAndWriter<Accessory>,
-    ) {
-    }
 }
 
 impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for TestRuntime<S, Da> {
