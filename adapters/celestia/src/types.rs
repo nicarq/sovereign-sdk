@@ -13,7 +13,10 @@ use celestia_types::{
     ValidateBasic,
 };
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlockHeaderTrait, CountedBufReader};
+#[cfg(feature = "native")]
+use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::da::CountedBufReader;
+#[cfg(feature = "native")]
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
 use tracing::{debug, info};
@@ -21,7 +24,9 @@ use tracing::{debug, info};
 use crate::shares::{Blob, BlobIterator, NamespaceGroup};
 use crate::utils::BoxError;
 use crate::verifier::address::CelestiaAddress;
-use crate::verifier::{ChainValidityCondition, PARITY_SHARES_NAMESPACE, PFB_NAMESPACE};
+#[cfg(feature = "native")]
+use crate::verifier::ChainValidityCondition;
+use crate::verifier::{PARITY_SHARES_NAMESPACE, PFB_NAMESPACE};
 use crate::{parse_pfb_namespace, CelestiaHeader, TxPosition};
 
 /// Celestia namespace and corresponding shares.
@@ -140,6 +145,7 @@ pub struct FilteredCelestiaBlock {
     pub(crate) rollup_proof_data: NamespaceData,
 }
 
+#[cfg(feature = "native")]
 impl SlotData for FilteredCelestiaBlock {
     type BlockHeader = CelestiaHeader;
     type Cond = ChainValidityCondition;

@@ -10,6 +10,7 @@ use prost::bytes::Buf;
 use prost::Message;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, Time};
+#[cfg(feature = "native")]
 use sov_rollup_interface::services::da::SlotData;
 pub use tendermint::block::Header as TendermintHeader;
 use tendermint::block::Height;
@@ -23,7 +24,9 @@ use tracing::debug;
 
 use crate::shares::{BlobRefIterator, NamespaceGroup};
 use crate::utils::{read_varint, BoxError};
-use crate::verifier::{ChainValidityCondition, TmHash, PFB_NAMESPACE};
+#[cfg(feature = "native")]
+use crate::verifier::ChainValidityCondition;
+use crate::verifier::{TmHash, PFB_NAMESPACE};
 
 pub const GENESIS_PLACEHOLDER_HASH: &[u8; 32] = &[255; 32];
 
@@ -247,6 +250,7 @@ impl BlockHeader for CelestiaHeader {
 
 /// We implement [`SlotData`] for [`CelestiaHeader`] in a similar fashion as for
 /// [`FilteredCelestiaBlock`](crate::types::FilteredCelestiaBlock).
+#[cfg(feature = "native")]
 impl SlotData for CelestiaHeader {
     type BlockHeader = CelestiaHeader;
     type Cond = ChainValidityCondition;

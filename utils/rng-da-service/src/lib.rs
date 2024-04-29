@@ -11,8 +11,10 @@ use sov_mock_da::{
 };
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::{Address, CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, Spec};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
-use sov_rollup_interface::services::da::{DaService, RelevantBlobs, RelevantProofs, SlotData};
+use sov_rollup_interface::da::{
+    BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
+};
+use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
 
 const DEFAULT_CHAIN_ID: u64 = 0;

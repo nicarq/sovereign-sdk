@@ -1,5 +1,6 @@
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, DaVerifier};
-use sov_rollup_interface::services::da::{RelevantBlobs, RelevantProofs};
+use sov_rollup_interface::da::{
+    BlobReaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs,
+};
 
 #[cfg(feature = "native")]
 use crate::MockValidityCondChecker;

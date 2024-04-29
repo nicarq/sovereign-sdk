@@ -10,7 +10,8 @@ use celestia_types::nmt::Namespace;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
-use sov_rollup_interface::services::da::{DaProof, DaService, RelevantBlobs, RelevantProofs};
+use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
+use sov_rollup_interface::services::da::DaService;
 use tokio::sync::Mutex;
 use tracing::{debug, info, instrument, trace};
 
@@ -360,8 +361,8 @@ mod tests {
     use celestia_types::nmt::Namespace;
     use celestia_types::Blob as JsonBlob;
     use serde_json::json;
-    use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
-    use sov_rollup_interface::services::da::{DaService, RelevantBlobs};
+    use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier, RelevantBlobs};
+    use sov_rollup_interface::services::da::DaService;
     use wiremock::matchers::{bearer_token, body_json, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 

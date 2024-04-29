@@ -23,7 +23,7 @@ use sov_modules_api::{
 };
 use sov_modules_core::capabilities::{GasEnforcer, RuntimeAuthenticator};
 use sov_modules_core::VersionedStateReadWriter;
-use sov_rollup_interface::services::da::RelevantBlobIters;
+use sov_rollup_interface::da::RelevantBlobIters;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_state::storage::StateUpdate;

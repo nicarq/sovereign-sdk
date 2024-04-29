@@ -3,7 +3,8 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS}
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
-use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
+use sov_rollup_interface::da::RelevantBlobs;
+use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::bank_data::get_default_token_id;

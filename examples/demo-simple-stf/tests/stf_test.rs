@@ -2,7 +2,7 @@ use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf};
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockValidityCond};
 use sov_mock_zkvm::MockZkVerifier;
-use sov_rollup_interface::services::da::RelevantBlobIters;
+use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::StateTransitionFunction;
 
 #[test]
