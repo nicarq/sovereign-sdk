@@ -22,12 +22,33 @@ use crate::verifier::proofs::{self};
 use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, PFB_NAMESPACE};
 use crate::CelestiaHeader;
 
-// Approximate value, just to make it work.
 // https://github.com/celestiaorg/celestia-app/blob/c90e61d5a2d0c0bd0e123df4ab416f6f0d141b7f/pkg/appconsts/initial_consts.go#L16-L18
-// By default it is 8, but upgraded to 10, to be on the safer side
-const GAS_PER_BYTE: usize = 10;
-// Fixed gas cost for blob calculation. Should be 65_000 in newer Celestia version.
-const FIXED_COST: usize = 75_000;
+// `DefaultGasPerBlobByte`
+const DEFAULT_GAS_PER_BLOB_BYTE: usize = 8;
+
+// const DefaultTxSizeCostPerByte from cosmos-sdk
+// https://github.com/cosmos/cosmos-sdk/blob/d0f6cc6d405fbce4332b5654e60bd6514ee79649/x/auth/types/params.go#L11
+const DEFAULT_TX_SIZE_COST_PER_BYTE: usize = 10;
+
+// BytesPerBlobInfo is a rough estimation for the amount of extra bytes in
+// information a blob adds to the size of the underlying transaction.
+// https://github.com/celestiaorg/celestia-app/blob/a92de7236e7568aa1e9032a29a68c64ef751ce0a/x/blob/types/payforblob.go#L41
+const BYTES_PER_BLOB_INFO: usize = 70;
+
+// https://github.com/celestiaorg/celestia-app/blob/a92de7236e7568aa1e9032a29a68c64ef751ce0a/x/blob/types/payforblob.go#L37
+const PFB_GAS_FIXED_COST: usize = 75_000;
+
+// Second part of summation from here:
+// https://github.com/celestiaorg/celestia-app/blob/a92de7236e7568aa1e9032a29a68c64ef751ce0a/x/blob/types/payforblob.go#L172
+// (txSizeCost * BytesPerBlobInfo * uint64(len(blobSizes))) + PFBGasFixedCost
+// where in our case:
+//  * txSizeCost = DEFAULT_TX_SIZE_COST_PER_BYTE;
+//  * BytesPerBlobInfo = BYTES_PER_BLOB_INFO
+//  * len(blobSizes) = 1;
+//  * PFBGasFixedCost = PFB_GAS_FIXED_COST;
+const DEFAULT_FIXED_COST_SINGLE_BLOB: usize =
+    (DEFAULT_TX_SIZE_COST_PER_BYTE * BYTES_PER_BLOB_INFO) + PFB_GAS_FIXED_COST;
+
 // TODO: set dynamically https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/391
 // Unit is uTIA.
 // 1 uTIA = 10^-6 TIA (https://docs.celestia.org/learn/tia#tia-at-a-glance
@@ -257,7 +278,7 @@ impl DaService for CelestiaService {
         let bytes = blob.len();
         debug!(bytes = bytes, "Sending raw data to Celestia");
 
-        let gas_limit = get_gas_limit_for_bytes(bytes, GAS_PER_BYTE) as u64;
+        let gas_limit = get_gas_limit_for_bytes_as_in_golang(bytes) as u64;
         // TODO: Correct fee calculation: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
         let fee = gas_limit.saturating_mul(GAS_PRICE as u64);
 
@@ -284,7 +305,7 @@ impl DaService for CelestiaService {
     }
 
     async fn send_aggregated_zk_proof(&self, aggregated_proof: &[u8]) -> Result<(), Self::Error> {
-        let gas_limit = get_gas_limit_for_bytes(aggregated_proof.len(), GAS_PER_BYTE) as u64;
+        let gas_limit = get_gas_limit_for_bytes_as_in_golang(aggregated_proof.len()) as u64;
         let fee = gas_limit.saturating_mul(GAS_PRICE as u64);
         let blob = JsonBlob::new(self.rollup_proof_namespace, aggregated_proof.to_vec())?;
 
@@ -325,32 +346,74 @@ impl DaService for CelestiaService {
     }
 }
 
-// https://docs.celestia.org/developers/submit-data#fees-and-gas-limits
-// Gas Limit is calculated as a fixed cost (FC) plus the sum of the product of the size of each blob (SSN(Bi))
-// times the share size (SS) and the gas cost per byte blob (GCPBB) for each blob involved in the transaction.
-// Gas Limit = FC + Σ(from i=1 to n) SSN(Bi) * SS * GCPBB
-// where:
-// FC = fixed cost
-// SSN(Bi) = number of shares needed for the i-th blob
-// SS = share size
-// GCPBB = gas cost per byte
-//
-// Note, that often this function is called for calculating single blob gas limit, so we can simplify it to:
-// Gas Limit = SSN(B) * SS * GCPBB + FC
-// To yield optimal gas limit it needs further testing.
-// For example, we are adding fixed cost for each blob, when node adds it to all blobs.
-fn get_gas_limit_for_bytes(n: usize, gas_per_byte: usize) -> usize {
-    debug_assert_ne!(CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, 0);
-    let continuation_shares_needed = n
-        .saturating_sub(FIRST_SPARSE_SHARE_CONTENT_SIZE)
-        .saturating_div(CONTINUATION_SPARSE_SHARE_CONTENT_SIZE);
-    // 1 full share anyway + continuation shares
-    let shares_needed = continuation_shares_needed.saturating_add(1);
+// ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+/// How many Celestia shares is needed to represent payload of this size.
+/// Celestia has two types of shares:
+///  1. The first has extra metadata about the size of payload
+///  2. Continuation shares have namespace and info bytes.
+/// Technically, we rely on constants about size,
+/// and it should be good as long as there are only two types of shares.
+///
+fn shares_needed_for_bytes(payload_bytes: usize) -> usize {
+    debug_assert_ne!(
+        CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, 0,
+        "Something wrong with celestia lib"
+    );
+    debug_assert_ne!(
+        FIRST_SPARSE_SHARE_CONTENT_SIZE, 0,
+        "Something wrong with celestia lib"
+    );
+    if payload_bytes == 0 {
+        return 0;
+    }
+    if payload_bytes <= FIRST_SPARSE_SHARE_CONTENT_SIZE {
+        return 1;
+    }
+    // we use unchecked subtraction, as we did an explicit check 2 lines before
+    let remaining_payload = payload_bytes - FIRST_SPARSE_SHARE_CONTENT_SIZE;
 
+    let additional_shares = remaining_payload
+        .saturating_add(CONTINUATION_SPARSE_SHARE_CONTENT_SIZE - 1)
+        / CONTINUATION_SPARSE_SHARE_CONTENT_SIZE;
+
+    additional_shares.saturating_add(1)
+}
+
+// // DefaultEstimateGas runs EstimateGas with the system defaults. The network may change these values
+// // through governance, thus this function should predominantly be used in testing.
+// func DefaultEstimateGas(blobSizes []uint32) uint64 {
+// 	return EstimateGas(blobSizes, appconsts.DefaultGasPerBlobByte, auth.DefaultTxSizeCostPerByte)
+// }
+// func EstimateGas(blobSizes []uint32, gasPerByte uint32, txSizeCost uint64) uint64 {
+// 	return GasToConsume(blobSizes, gasPerByte) + (txSizeCost * BytesPerBlobInfo * uint64(len(blobSizes))) + PFBGasFixedCost
+// }
+//
+// // GasToConsume works out the extra gas charged to pay for a set of blobs in a PFB.
+// // Note that transactions will incur other gas costs, such as the signature verification
+// // and reads to the user's account.
+// func GasToConsume(blobSizes []uint32, gasPerByte uint32) uint64 {
+// 	var totalSharesUsed uint64
+// 	for _, size := range blobSizes {
+// 		totalSharesUsed += uint64(appshares.SparseSharesNeeded(size))
+// 	}
+//
+// 	return totalSharesUsed * appconsts.ShareSize * uint64(gasPerByte)
+// }
+// Calculates conservatively as if blob will be the only one in whole DA slot
+fn get_gas_limit_for_bytes_as_in_golang(payload_size: usize) -> usize {
+    gas_to_consume_from_data(payload_size, DEFAULT_GAS_PER_BLOB_BYTE)
+        .saturating_add(DEFAULT_FIXED_COST_SINGLE_BLOB)
+}
+
+// Similar to GasToConsume
+#[allow(dead_code)]
+fn gas_to_consume_from_data(bytes: usize, gas_per_byte: usize) -> usize {
+    let shares_needed = shares_needed_for_bytes(bytes);
     shares_needed
         .saturating_mul(SHARE_SIZE)
         .saturating_mul(gas_per_byte)
-        .saturating_add(FIXED_COST)
 }
 
 #[cfg(test)]
@@ -366,8 +429,11 @@ mod tests {
     use wiremock::matchers::{bearer_token, body_json, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
-    use super::{default_request_timeout_seconds, GAS_PER_BYTE};
-    use crate::da_service::{get_gas_limit_for_bytes, CelestiaConfig, CelestiaService, GAS_PRICE};
+    use super::{
+        default_request_timeout_seconds, get_gas_limit_for_bytes_as_in_golang,
+        shares_needed_for_bytes,
+    };
+    use crate::da_service::{CelestiaConfig, CelestiaService, GAS_PRICE};
     use crate::test_helper::files::*;
     use crate::types::FilteredCelestiaBlock;
     use crate::verifier::address::CelestiaAddress;
@@ -427,7 +493,7 @@ mod tests {
         let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
 
         let blob = [1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
-        let gas_limit = get_gas_limit_for_bytes(blob.len(), GAS_PER_BYTE);
+        let gas_limit = get_gas_limit_for_bytes_as_in_golang(blob.len());
 
         // TODO: Fee is hardcoded for now https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
         let expected_body = json!({
@@ -751,7 +817,7 @@ mod tests {
         let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
 
         let zk_proof: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
-        let gas_limit = get_gas_limit_for_bytes(zk_proof.len(), GAS_PER_BYTE);
+        let gas_limit = get_gas_limit_for_bytes_as_in_golang(zk_proof.len());
 
         let expected_body = json!({
             "id": 0,
@@ -792,35 +858,56 @@ mod tests {
     }
 
     #[test]
-    fn test_gas_limit_for_bytes() {
-        // 0 bytes
-        // 1 byte
-        // 100 KB
-        // 500 KB
-        // 1 MB
-        // 5 MB
-        // 10 MB
-        // 100 MB
-        // 1 GB
-        let cases = vec![
-            (0, 80120),
-            (1, 80120),
-            (102400, 1160440),
-            (512000, 5512440),
-            (1048576, 11211000),
-            (5242880, 55765240),
-            (10485760, 111455480),
-            (104857600, 1113910520),
-            (1073741824, 11405796600),
-            (usize::MAX, usize::MAX),
+    fn test_gas_limit_for_gas_from_go() {
+        // On the left size of single blob in batch
+        // On the right is gas limit returned by
+        // [func DefaultEstimateGas(blobSizes []uint32) uint64]
+        // (https://github.com/celestiaorg/celestia-app/blob/c7bef58d058899de23d2cc9d47403c3898e21f53/x/blob/types/payforblob.go#L177)
+        // func TestGasLimitForSingleBlobs(t *testing.T) {
+        // 	for i := 1100; i <= 1300; i++ {
+        // 		blobSizes := []uint32{i}
+        // 		gasLimit := types.DefaultEstimateGas(blobSizes)
+        // 		fmt.Printf("(%d, %d),\n", i, gasLimit)
+        // 	}
+        // }
+        let test_cases = [
+            (1200, 87988),
+            (1201, 87988),
+            (1300, 87988),
+            (2000, 96180),
+            (3000, 104372),
+            (4000, 112564),
+            (5000, 120756),
+            (6000, 128948),
+            (7000, 137140),
+            (8000, 145332),
+            (9000, 153524),
+            (10000, 161716),
+            (11000, 169908),
+            (12000, 178100),
+            (13000, 186292),
+            (14000, 198580),
+            (15000, 206772),
+            (16000, 214964),
+            (17000, 223156),
+            (18000, 231348),
+            (19000, 239540),
+            (20000, 247732),
+            (21000, 255924),
+            (22000, 264116),
+            (23000, 272308),
+            (24000, 280500),
+            (25000, 288692),
+            (26000, 296884),
+            (27000, 309172),
+            (28000, 317364),
+            (29000, 325556),
+            (30000, 333748),
         ];
 
-        for (blob_size, expected_gas_limit) in cases {
-            let gas_limit = get_gas_limit_for_bytes(blob_size, GAS_PER_BYTE);
-            // To update test uncomment this and comment assert.
-            // Then put it back after data is updated. Don't forget to not replace last use case
-            // println!("({}, {}),", blob_size, gas_limit);
-            assert_eq!(gas_limit, expected_gas_limit);
+        for (bytes, expected_gas_limit) in test_cases {
+            let gas_limit = get_gas_limit_for_bytes_as_in_golang(bytes);
+            assert_eq!(expected_gas_limit, gas_limit);
         }
     }
 
@@ -849,7 +936,7 @@ mod tests {
         let gas_used = 395479;
         let gas_used_upper_bound = (gas_wanted as f64 * 1.4) as usize;
 
-        let gas_limit = get_gas_limit_for_bytes(blob_size, GAS_PER_BYTE);
+        let gas_limit = get_gas_limit_for_bytes_as_in_golang(blob_size);
 
         assert!(gas_limit >= gas_used);
         assert!(gas_limit <= gas_used_upper_bound);
@@ -862,9 +949,41 @@ mod tests {
         #[test]
         fn get_gas_limit_for_bytes_does_not_panic_test(
             blob_size in any::<usize>(),
-            gas_per_bytes in any::<usize>(),
         ) {
-            let _ = get_gas_limit_for_bytes(blob_size, gas_per_bytes);
+            let _ = get_gas_limit_for_bytes_as_in_golang(blob_size);
         }
+    }
+
+    #[test]
+    fn test_blob_size_from_payload() {
+        // This tests checked [`shares_needed_for_bytes`] against actual shares generated by
+        // `Blob::new`
+        let sizes: Vec<usize> = (0..100)
+            .chain(400..700)
+            .chain(900..1200)
+            .chain(4800..5200)
+            .collect();
+        for payload_size in sizes {
+            let payload = vec![255; payload_size];
+            let namespace = Namespace::new_v0(b"test").unwrap();
+            let blob = JsonBlob::new(namespace, payload).unwrap();
+
+            let shares = blob.to_shares().unwrap();
+
+            let shares_count = shares.len();
+            // let total_size: usize = shares.iter().map(|s| s.len()).sum();
+
+            let our_shares = shares_needed_for_bytes(payload_size);
+
+            assert_eq!(
+                shares_count, our_shares,
+                "Failed for payload_size {}",
+                payload_size
+            );
+        }
+
+        let extreme_case = shares_needed_for_bytes(usize::MAX);
+        // Doesn't make much sense, but it does not panic!
+        assert!(extreme_case > 1);
     }
 }
