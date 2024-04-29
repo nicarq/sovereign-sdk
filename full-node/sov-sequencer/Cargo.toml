@@ -19,7 +19,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true, features = ["http1", "http2", "ws", "json", "query"] }
 axum-server = { workspace = true }
-base64 = "0.22"
+base64 = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 dashmap = "5"
@@ -31,7 +31,7 @@ rockbound = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-serde_with = { version = "3.7", features = ["base64"] }
+serde_with = { workspace = true, features = ["base64"] }
 sov-jsonapi-utils = { path = "../jsonapi-utils" }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", features = ["native"] }

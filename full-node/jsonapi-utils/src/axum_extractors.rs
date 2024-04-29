@@ -12,11 +12,11 @@ use axum::http::{StatusCode, Uri};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use super::types::{ErrorObject, ResponseObject};
+use super::types::{ApiResponse, ErrorObject, ResponseObject};
 use crate::json_obj;
 
 /// The "error" ("rejection" in [`axum`] terminology) type for [`ValidatedQuery`].
-pub type ValidatedQueryRejection = (StatusCode, axum::Json<Value>);
+pub type ValidatedQueryRejection = ApiResponse;
 
 /// An alternative to the built-in Axum extractor [`axum::extract::Query`],
 /// which handles properly formatted JSON errors upon deserialization failure
@@ -52,10 +52,7 @@ where
                         }],
                         ..Default::default()
                     };
-                    Err((
-                        StatusCode::BAD_REQUEST,
-                        axum::Json(serde_json::to_value(response_obj).unwrap()),
-                    ))
+                    Err((StatusCode::BAD_REQUEST, axum::Json(response_obj)))
                 } else {
                     Ok(ValidatedQuery(query))
                 }
@@ -72,10 +69,7 @@ where
                     ..Default::default()
                 };
 
-                Err((
-                    StatusCode::BAD_REQUEST,
-                    axum::Json(serde_json::to_value(response_obj).unwrap()),
-                ))
+                Err((StatusCode::BAD_REQUEST, axum::Json(response_obj)))
             }
         }
     }
@@ -153,8 +147,6 @@ mod tests {
     // TODO: add tests for `PathWithErrorHandling`.
 
     mod validated_query {
-        use serde_json::json;
-
         use super::*;
         use crate::test_utils::uri_with_query_params;
 
@@ -182,16 +174,16 @@ mod tests {
             assert_eq!(err.0, StatusCode::BAD_REQUEST);
             assert_eq!(
                 err.1 .0,
-                json!({
-                    "errors": [{
-                        "status": 400,
-                        "title": "Invalid query string",
-                        "details": {
+                ResponseObject {
+                    errors: vec![ErrorObject {
+                        status: StatusCode::BAD_REQUEST.as_u16() as _,
+                        title: "Invalid query string".to_string(),
+                        details: json_obj!({
                             "message": "invalid digit found in string"
-                        }
+                        }),
                     }],
-                    "meta": {}
-                })
+                    ..Default::default()
+                }
             );
         }
 
@@ -204,16 +196,16 @@ mod tests {
             assert_eq!(err.0, StatusCode::BAD_REQUEST);
             assert_eq!(
                 err.1 .0,
-                json!({
-                    "errors": [{
-                        "status": 400,
-                        "title": "Invalid query string",
-                        "details": {
+                ResponseObject {
+                    errors: vec![ErrorObject {
+                        status: StatusCode::BAD_REQUEST.as_u16() as _,
+                        title: "Invalid query string".to_string(),
+                        details: json_obj!({
                             "message": "Integer must be > 0"
-                        }
+                        }),
                     }],
-                    "meta": {}
-                })
+                    ..Default::default()
+                }
             );
         }
 

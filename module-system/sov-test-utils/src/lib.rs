@@ -17,6 +17,8 @@ use sov_prover_storage_manager::new_orphan_storage;
 pub mod attester_incentive_data;
 pub mod bank_data;
 mod evm;
+#[cfg(feature = "demo-stf")]
+pub mod ledger_db;
 pub mod logging;
 pub mod runtime;
 pub mod sequencer;

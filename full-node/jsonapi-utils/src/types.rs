@@ -1,7 +1,19 @@
 //! Core type definitions.
 
+use axum::http::StatusCode;
+use axum::response::Response;
+use axum::Json;
+
+/// The standard response type used by this utility crate.
+pub type ApiResponse = (StatusCode, Json<ResponseObject>);
+/// Use this instead of [`ApiResponse`] when you want to use early return with
+/// `?`.
+pub type ApiResponseResult = Result<ApiResponse, ApiResponse>;
+/// Same as [`ApiResponseResult`], but for middleware.
+pub type ApiMiddlewareResult = Result<Response, ApiResponse>;
+
 /// Top-level response object to be used for all responses.
-#[derive(Debug, Default, serde::Serialize)]
+#[derive(Debug, Default, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseObject {
     /// Core response data. It can be `null`, an array, or an object.
@@ -18,7 +30,7 @@ pub struct ResponseObject {
 }
 
 /// The response object's data (see [`ResponseObject`]).
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum ResponseObjectData {
     /// The data is an object.
@@ -48,7 +60,7 @@ impl TryFrom<serde_json::Value> for ResponseObjectData {
 pub type JsonObject = serde_json::Map<String, serde_json::Value>;
 
 /// Inspired from <https://jsonapi.org/format/#error-objects>.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, PartialEq, Eq)]
 pub struct ErrorObject {
     /// HTTP status code that best describes the error.
     pub status: u16,

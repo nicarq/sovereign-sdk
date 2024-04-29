@@ -16,7 +16,7 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-axum-server = { version = "0.6", features = ["tls-rustls"] }
+axum-server = { workspace = true }
 borsh = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
@@ -28,6 +28,7 @@ ethereum-types = { workspace = true }
 ethers-core = { workspace = true }
 ethers-contract = { workspace = true }
 
+demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"], optional = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
 sov-modules-stf-blueprint = { path = "../sov-modules-stf-blueprint", features = ["native"] }
@@ -39,6 +40,7 @@ sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manage
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-sequencer-registry = { path = "../module-implementations/sov-sequencer-registry", features = ["native"] }
 sov-chain-state = { path = "../module-implementations/sov-chain-state", features = ["native"] }
+sov-db = { path = "../../full-node/sov-db" }
 sov-state = { path = "../sov-state" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
@@ -51,8 +53,12 @@ proptest = { workspace = true }
 
 [features]
 default = []
+# Not every downstream user of this crate may want to / can use `demo-stf` as a
+# dependency, so it's optional.
+demo-stf = [ "dep:demo-stf" ]
 arbitrary = [
 	"ethereum-types/arbitrary",
+	"sov-db/arbitrary",
 	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-rollup-interface/arbitrary",

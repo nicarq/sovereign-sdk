@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::fmt::{Debug, Display};
 
 use axum::body::Body;
-use axum::extract::Request;
+use axum::extract::{OriginalUri, Request};
 use axum::http::{HeaderName, StatusCode};
 use axum::{Json, Router};
 use tower_http::compression::CompressionLayer;
@@ -13,7 +13,7 @@ use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
 use tracing::{error, error_span};
 
-use crate::types::{ErrorObject, ResponseObject};
+use crate::types::{ApiResponse, ErrorObject, ResponseObject};
 
 /// A newtype wrapper around [`Vec<u8>`] which is serialized as a
 /// 0x-prefixed hex string.
@@ -153,14 +153,16 @@ macro_rules! json_obj {
 }
 
 /// A 404 response useful as a catch-all for invalid routes.
-pub async fn global_404() -> (StatusCode, Json<ResponseObject>) {
+pub async fn global_404(OriginalUri(uri): OriginalUri) -> ApiResponse {
     (
         StatusCode::NOT_FOUND,
         Json(ResponseObject {
             errors: vec![ErrorObject {
                 status: StatusCode::NOT_FOUND.as_u16() as _,
-                title: "Invalid URI".to_string(),
-                details: Default::default(),
+                title: "Invalid URL".to_string(),
+                details: json_obj!({
+                    "url": uri.to_string(),
+                }),
             }],
             ..Default::default()
         }),
@@ -168,7 +170,7 @@ pub async fn global_404() -> (StatusCode, Json<ResponseObject>) {
 }
 
 /// Returns a 501 error.
-pub fn not_implemented_501() -> (StatusCode, Json<ResponseObject>) {
+pub fn not_implemented_501() -> ApiResponse {
     (
         StatusCode::NOT_IMPLEMENTED,
         Json(ResponseObject {
@@ -183,10 +185,7 @@ pub fn not_implemented_501() -> (StatusCode, Json<ResponseObject>) {
 }
 
 /// Returns a 404 error when the given resource was not found.
-pub fn not_found_404(
-    resource_name_capitalized: &str,
-    resource_id: impl ToString,
-) -> (StatusCode, Json<ResponseObject>) {
+pub fn not_found_404(resource_name_capitalized: &str, resource_id: impl ToString) -> ApiResponse {
     (
         StatusCode::NOT_FOUND,
         Json(ResponseObject {
@@ -206,21 +205,28 @@ pub fn not_found_404(
     )
 }
 
-/// Returns a 504 error to be used when a database error occurred.
-pub fn gateway_timeout_response_504(err: impl ToString) -> (StatusCode, Json<ResponseObject>) {
+/// Returns a 500 error to be used when a database error occurred.
+pub fn database_error_response_500(err: impl ToString) -> ApiResponse {
     // We don't include the database error in the response, because it may
     // contain sensitive information. But we log it.
     error!(
         error = err.to_string(),
         "Database error while serving request."
     );
+    internal_server_error_response_500("Database error")
+}
+
+/// Returns a 500 internal server error.
+pub fn internal_server_error_response_500(err: impl ToString) -> ApiResponse {
     (
-        StatusCode::GATEWAY_TIMEOUT,
+        StatusCode::INTERNAL_SERVER_ERROR,
         Json(ResponseObject {
             errors: vec![ErrorObject {
-                status: StatusCode::GATEWAY_TIMEOUT.as_u16() as _,
-                title: "Database unavailable".to_string(),
-                details: Default::default(),
+                status: StatusCode::INTERNAL_SERVER_ERROR.as_u16() as _,
+                title: "Internal server error".to_string(),
+                details: json_obj!({
+                    "message": err.to_string(),
+                }),
             }],
             ..Default::default()
         }),
