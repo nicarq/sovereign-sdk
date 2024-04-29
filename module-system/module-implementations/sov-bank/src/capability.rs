@@ -41,6 +41,15 @@ impl<S: Spec> Bank<S> {
             return Err(ReserveGasError::InsufficientBalanceToReserveGas);
         }
 
+        if tx.max_fee() == 0 {
+            tracing::warn!(
+                signer_default_address = %tx.default_address(),
+                nonce = tx.nonce(),
+                %payer,
+                "Trying to reserve gas for tx with zero max fee"
+            );
+        }
+
         // We lock the `max_fee` amount into the `Bank` module.
         self.transfer_from(
             payer,
