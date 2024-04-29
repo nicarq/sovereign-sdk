@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::marker::PhantomData;
 
 #[cfg(feature = "native")]
@@ -9,7 +10,9 @@ use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
 };
-use sov_modules_api::{Context, DaSpec, DispatchCall, Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_api::{
+    Context, DaSpec, DispatchCall, Gas, GasArray, GasMeter, Spec, StateCheckpoint,
+};
 use sov_modules_core::capabilities::AuthenticationError;
 use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
@@ -288,6 +291,25 @@ where
     }
 }
 
+fn compute_sequencer_tx_reward<S: Spec>(
+    tx: &AuthenticatedTransactionData<S>,
+    gas_meter: &GasMeter<S::Gas>,
+) -> i64 {
+    // We transfer the consumed base fee to the base fee recipient address.
+    let base_fee = gas_meter.gas_used().value(gas_meter.gas_price());
+    // We compute the `max_priority_fee_bips` by applying the `max_priority_fee_bips` to the consumed gas.
+    let max_priority_fee_bips = tx
+        .max_priority_fee_bips()
+        .apply(base_fee)
+        // if the computation overflows, we return the max fee - we always have `priority_fee <= max_priority_fee_bips <= tx.max_fee()`
+        .unwrap_or(tx.max_fee());
+
+    // The tip is the minimum of the remaining gas allocated to the transaction and the maximum priority fee per gas.
+    min(max_priority_fee_bips, tx.max_fee() - base_fee)
+        .try_into()
+        .unwrap_or(i64::MAX)
+}
+
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
 /// 1. After the pre-dispatch hook. This ensures that the gas charges are paid even if the transaction fails later during execution
 /// 2. After the post-dispatch hook. This ensures that the transaction can be reverted by the post-dispatch hook if desired.
@@ -428,12 +450,8 @@ where
 
     runtime.refund_remaining_gas(tx, &ctx, &gas_meter, &mut checkpoint);
 
-    let gas_reward = tx
-        .max_priority_fee_per_gas()
-        .apply(gas_meter.gas_used().value(gas_meter.gas_price()))
-        .unwrap_or(u64::MAX)
-        .try_into()
-        .unwrap_or(i64::MAX);
+    let gas_reward = compute_sequencer_tx_reward(tx, &gas_meter);
+
     *sequencer_reward = sequencer_reward.saturating_add(gas_reward);
     debug!(
         tx_hash =

@@ -159,7 +159,7 @@ test-create-token:
 test-create-token-second-seq: check-sov-cli
 test-create-token-second-seq:
 	$(SOV_CLI_REL_PATH) rpc set-url http://127.0.0.1:12355
-	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 0 --path ../test-data/requests/create_token.json
+	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 0 --max-fee 10000 --path ../test-data/requests/create_token.json
 	@echo "Submitting a batch"
 	$(SOV_CLI_REL_PATH) rpc submit-batch by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
 

@@ -37,7 +37,7 @@ impl<S: sov_modules_api::Spec> EthBatchBuilder<S> {
         while let Some(raw_message) = self.mempool.pop_front() {
             // TODO define a strategy to expose chain id and gas tip for ethereum frontend
             let chain_id = 0;
-            let max_priority_fee = PriorityFeeBips::ZERO;
+            let max_priority_fee_bips = PriorityFeeBips::ZERO;
 
             // TODO `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/521>`: These values should be correctly set from the raw message
             let max_fee = 10_000;
@@ -47,7 +47,7 @@ impl<S: sov_modules_api::Spec> EthBatchBuilder<S> {
                 &self.sov_tx_signer_private_key,
                 raw_message,
                 chain_id,
-                max_priority_fee,
+                max_priority_fee_bips,
                 max_fee,
                 gas_limit,
                 *nonce,

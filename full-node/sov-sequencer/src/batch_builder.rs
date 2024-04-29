@@ -314,7 +314,7 @@ mod tests {
         let msg = CallMessage::SetValue(value);
         let msg = <TestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
         let chain_id = 0;
-        let max_priority_fee = PriorityFeeBips::ZERO;
+        let max_priority_fee_bips = PriorityFeeBips::ZERO;
         let max_fee = 10_000;
         let gas_limit = None;
         let nonce = 1;
@@ -323,7 +323,7 @@ mod tests {
             private_key,
             msg,
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             gas_limit,
             nonce,
@@ -343,7 +343,7 @@ mod tests {
     fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey) -> Vec<u8> {
         let msg = generate_random_bytes();
         let chain_id = 0;
-        let max_priority_fee = PriorityFeeBips::ZERO;
+        let max_priority_fee_bips = PriorityFeeBips::ZERO;
         let max_fee = 10_000;
         let gas_limit = None;
         let nonce = 1;
@@ -352,7 +352,7 @@ mod tests {
             private_key,
             msg,
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             gas_limit,
             nonce,

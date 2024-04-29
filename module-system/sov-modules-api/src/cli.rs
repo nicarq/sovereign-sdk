@@ -16,7 +16,7 @@ pub trait CliTxImportArg {
     /// The priority fee to pay the sequencer, expressed as a fraction of the tokens spent on gas in basis points.
     /// for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 1000 tokens spent on gas.
     /// similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas
-    fn max_priority_fee(&self) -> u64;
+    fn max_priority_fee_bips(&self) -> u64;
 
     /// The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
     /// charged for the gas fees of the transaction. This value contains both the tip and the base fee.
@@ -49,7 +49,7 @@ pub struct JsonStringArg {
         similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas",
         default_value = "0"
     )]
-    pub max_priority_fee: u64,
+    pub max_priority_fee_bips: u64,
 
     /// The max fee to pay for the transaction execution.
     #[arg(
@@ -92,7 +92,7 @@ pub struct FileNameArg {
         similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas",
         default_value = "0"
     )]
-    pub max_priority_fee: u64,
+    pub max_priority_fee_bips: u64,
 
     /// The max fee to pay for the transaction execution.
     #[arg(
@@ -121,8 +121,8 @@ impl CliTxImportArg for JsonStringArg {
         self.chain_id
     }
 
-    fn max_priority_fee(&self) -> u64 {
-        self.max_priority_fee
+    fn max_priority_fee_bips(&self) -> u64 {
+        self.max_priority_fee_bips
     }
 
     fn max_fee(&self) -> u64 {
@@ -139,8 +139,8 @@ impl CliTxImportArg for FileNameArg {
         self.chain_id
     }
 
-    fn max_priority_fee(&self) -> u64 {
-        self.max_priority_fee
+    fn max_priority_fee_bips(&self) -> u64 {
+        self.max_priority_fee_bips
     }
 
     fn max_fee(&self) -> u64 {
@@ -158,7 +158,7 @@ impl TryFrom<FileNameArg> for JsonStringArg {
         let FileNameArg {
             path,
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             gas_limit,
         } = arg;
@@ -166,7 +166,7 @@ impl TryFrom<FileNameArg> for JsonStringArg {
         Ok(JsonStringArg {
             json: fs::read_to_string(path)?,
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             gas_limit,
         })

@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use sov_attester_incentives::CallMessage;
-use sov_modules_api::{CryptoSpec, DaSpec, GasArray, Spec};
+use sov_modules_api::transaction::PriorityFeeBips;
+use sov_modules_api::{CryptoSpec, DaSpec, Spec};
 
 use crate::{Message, MessageGenerator};
 
@@ -36,7 +37,13 @@ impl<S: Spec, Da: DaSpec> MessageGenerator for AttesterIncentivesMessageGenerato
     type Module = sov_attester_incentives::AttesterIncentives<S, Da>;
     type Spec = S;
 
-    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+    fn create_messages(
+        &self,
+        chain_id: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        max_fee: u64,
+        gas_usage: Option<<Self::Spec as Spec>::Gas>,
+    ) -> Vec<Message<Self::Spec, Self::Module>> {
         let mut nonce = 0;
 
         self.0
@@ -47,12 +54,10 @@ impl<S: Spec, Da: DaSpec> MessageGenerator for AttesterIncentivesMessageGenerato
                 Message::new(
                     Rc::new(addr.clone()),
                     call_message.clone(),
-                    Self::DEFAULT_CHAIN_ID,
-                    Self::DEFAULT_MAX_PRIORITY_FEE,
-                    Self::DEFAULT_MAX_FEE,
-                    Some(<Self::Spec as Spec>::Gas::from_slice(
-                        &Self::DEFAULT_ESTIMATED_GAS_USAGE,
-                    )),
+                    chain_id,
+                    max_priority_fee_bips,
+                    max_fee,
+                    gas_usage.clone(),
                     nonce,
                 )
             })

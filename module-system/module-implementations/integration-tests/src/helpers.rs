@@ -1,6 +1,6 @@
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, GasTokenConfig};
-use sov_chain_state::ChainStateConfig;
+use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
@@ -8,11 +8,11 @@ use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::namespaces::User;
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::{DaSpec, Spec, Zkvm};
+use sov_modules_api::{DaSpec, Gas, Spec, StateCheckpoint, Zkvm};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, Runtime, StfBlueprint};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
-use sov_sequencer_registry::SequencerConfig;
+use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::{DefaultStorageSpec, Storage};
 use sov_test_utils::runtime::{GenesisConfig, TestRuntime};
@@ -32,6 +32,8 @@ type TxReceiptContents =
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
+
+pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 100;
 
 #[config_constant]
 pub(crate) const GAS_TX_FIXED_COST: [u64; 2];
@@ -135,6 +137,10 @@ impl TestRollup {
         self.stf().kernel()
     }
 
+    pub(crate) fn initial_base_fee_per_gas(&self) -> <<S as Spec>::Gas as Gas>::Price {
+        ChainState::<S, Da>::initial_base_fee_per_gas()
+    }
+
     pub(crate) fn attester_incentives(&self) -> &AttesterIncentives<S, Da> {
         &self.stf().runtime().attester_incentives
     }
@@ -143,8 +149,16 @@ impl TestRollup {
         &self.stf().runtime().bank
     }
 
+    pub(crate) fn sequencer_registry(&self) -> &SequencerRegistry<S, Da> {
+        &self.stf().runtime().sequencer_registry
+    }
+
     pub(crate) fn storage(&mut self) -> <S as Spec>::Storage {
         self.storage_manager.create_storage()
+    }
+
+    pub(crate) fn new_state_checkpoint(&mut self) -> StateCheckpoint<S> {
+        StateCheckpoint::new(self.storage().clone())
     }
 
     pub(crate) fn storage_manager(&mut self) -> &mut SimpleStorageManager<DefaultStorageSpec> {

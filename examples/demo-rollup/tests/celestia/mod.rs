@@ -71,7 +71,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
         });
 
     let chain_id = 0;
-    let max_priority_fee = PriorityFeeBips::ZERO;
+    let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 0;
 
     let messages = generate_call_message::<DefaultSpec<Risc0Verifier, Risc0Verifier>, Da>(
@@ -97,7 +97,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
             &token_deployer.private_key,
             message.try_to_vec().unwrap(),
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             None,
             idx as u64,

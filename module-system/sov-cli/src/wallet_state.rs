@@ -140,7 +140,7 @@ where
     let UnsignedTransaction {
         tx,
         chain_id,
-        max_priority_fee,
+        max_priority_fee_bips,
         max_fee,
         gas_limit,
     } = tx;
@@ -149,7 +149,7 @@ where
         signing_key,
         runtime_msg,
         *chain_id,
-        *max_priority_fee,
+        *max_priority_fee_bips,
         *max_fee,
         gas_limit.clone(),
         nonce,

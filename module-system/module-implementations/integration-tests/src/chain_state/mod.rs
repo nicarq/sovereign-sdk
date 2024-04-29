@@ -25,7 +25,7 @@ fn test_simple_value_setter_with_chain_state() {
     let mut rollup = TestRollup::new();
 
     let value_setter_messages = ValueSetterMessages::prepopulated();
-    let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<S, MockDaSpec>>();
+    let value_setter = value_setter_messages.create_default_raw_txs::<TestRuntime<S, MockDaSpec>>();
     let num_value_setter_txs = value_setter.len();
 
     // We need to multiply each component of the gas used by 2 because there are 2 messages
