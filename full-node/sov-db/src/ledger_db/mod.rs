@@ -256,6 +256,7 @@ impl LedgerDb {
     pub fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
         &self,
         data_to_commit: SlotCommit<S, B, T>,
+        state_root: &[u8],
     ) -> Result<(), anyhow::Error> {
         // Create a scope to ensure that the lock is released before we commit to the db
         let mut current_item_numbers = {
@@ -317,6 +318,7 @@ impl LedgerDb {
         // Once all batches are inserted, Insert slot
         let slot_to_store = StoredSlot {
             hash: data_to_commit.slot_data.hash(),
+            state_root: state_root.to_vec().into(),
             // TODO: Add a method to the slot data trait allowing additional data to be stored
             extra_data: vec![].into(),
             batches: BatchNumber(first_batch_number)..BatchNumber(last_batch_number),

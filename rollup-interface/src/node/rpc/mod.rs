@@ -140,6 +140,9 @@ pub struct SlotResponse<B, Tx> {
     /// The hex encoded slot hash.
     #[serde(with = "utils::rpc_hex")]
     pub hash: [u8; 32],
+    /// The hex encoded state root hash.
+    #[serde(with = "utils::rpc_hex")]
+    pub state_root: Vec<u8>,
     /// The range of batches in this slot.
     pub batch_range: core::ops::Range<u64>,
     /// The batches in this slot, if the [`QueryMode`] of the request is not `Compact`

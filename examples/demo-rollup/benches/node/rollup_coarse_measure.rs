@@ -189,7 +189,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let mut data_to_commit = SlotCommit::new(filtered_block);
     data_to_commit.add_batch(apply_block_result.batch_receipts[0].clone());
-    ledger_db.commit_slot(data_to_commit).unwrap();
+    ledger_db
+        .commit_slot(data_to_commit, current_root.as_ref())
+        .unwrap();
 
     // 3 blocks to finalization
     let fork_length = 3;
@@ -240,7 +242,9 @@ async fn main() -> Result<(), anyhow::Error> {
             data_to_commit.add_batch(receipt);
         }
 
-        ledger_db.commit_slot(data_to_commit).unwrap();
+        ledger_db
+            .commit_slot(data_to_commit, current_root.as_ref())
+            .unwrap();
     }
 
     let total = total.elapsed();

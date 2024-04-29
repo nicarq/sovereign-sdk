@@ -143,7 +143,7 @@ where
     >,
     Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
 {
-    /// Creates a new `StateTransitionRunner`.
+    /// Creates a new [`StateTransitionRunner`].
     ///
     /// If a previous state root is provided, uses that as the starting point
     /// for execution. Otherwise, initializes the chain using the provided
@@ -184,7 +184,7 @@ where
                     Stf::BatchReceiptContents,
                     Stf::TxReceiptContents,
                 > = SlotCommit::new(block);
-                ledger_db.commit_slot(data_to_commit)?;
+                ledger_db.commit_slot(data_to_commit, genesis_root.as_ref())?;
                 let ledger_change_set = ledger_db.clone_change_set();
                 storage_manager.save_change_set(
                     &block_header,
@@ -391,9 +391,10 @@ where
 
             // Post apply slot machinery
             let next_state_root = slot_result.state_root;
-            self.state_root = next_state_root;
+            self.state_root = next_state_root.clone();
 
-            self.ledger_db.commit_slot(data_to_commit)?;
+            self.ledger_db
+                .commit_slot(data_to_commit, next_state_root.as_ref())?;
             self.proof_manager
                 .save_aggregated_proof(next_da_height)
                 .await?;

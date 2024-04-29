@@ -32,7 +32,7 @@ pub async fn add_data_to_ledger_db(ledger_db: &LedgerDb) -> anyhow::Result<()> {
         gas_price: vec![0, 1, u64::MAX],
     });
 
-    ledger_db.commit_slot(slot)?;
+    ledger_db.commit_slot(slot, b"state-root")?;
 
     ledger_db.save_finalized_aggregated_proof(AggregatedProof::new(
         SerializedAggregatedProof {

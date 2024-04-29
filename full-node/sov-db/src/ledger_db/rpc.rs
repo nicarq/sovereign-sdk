@@ -484,10 +484,13 @@ impl LedgerDb {
         slot: StoredSlot,
         mode: QueryMode,
     ) -> Result<SlotResponse<B, T>, anyhow::Error> {
+        let state_root = slot.state_root.as_ref().to_vec();
+
         Ok(match mode {
             QueryMode::Compact => SlotResponse {
                 number,
                 hash: slot.hash,
+                state_root,
                 batch_range: slot.batches.start.into()..slot.batches.end.into(),
                 batches: None,
             },
@@ -502,6 +505,7 @@ impl LedgerDb {
                 SlotResponse {
                     number,
                     hash: slot.hash,
+                    state_root,
                     batch_range: slot.batches.start.into()..slot.batches.end.into(),
                     batches: batch_hashes,
                 }
@@ -516,6 +520,7 @@ impl LedgerDb {
                 SlotResponse {
                     number,
                     hash: slot.hash,
+                    state_root,
                     batch_range: slot.batches.start.into()..slot.batches.end.into(),
                     batches: Some(batches),
                 }
@@ -579,7 +584,10 @@ mod tests {
 
         let mut rx = ledger_db.subscribe_slots();
         ledger_db
-            .commit_slot(SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()))
+            .commit_slot(
+                SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()),
+                b"state-root",
+            )
             .unwrap();
 
         assert_eq!(rx.blocking_recv().unwrap(), 0);

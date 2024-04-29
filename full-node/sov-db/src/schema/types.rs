@@ -66,6 +66,8 @@ pub type JmtValue = Option<Vec<u8>>;
 pub struct StoredSlot {
     /// The slot's hash, as reported by the DA layer.
     pub hash: DbHash,
+    /// The root hash of the slot's JMT state.
+    pub state_root: DbBytes,
     /// Any extra data which the rollup decides to store relating to this slot.
     pub extra_data: DbBytes,
     /// The range of batches which occurred in this slot.
