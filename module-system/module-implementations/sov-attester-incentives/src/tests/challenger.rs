@@ -1,7 +1,7 @@
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{Context, WorkingSet};
+use sov_modules_api::{Context, Spec, WorkingSet};
 use sov_modules_core::GasMeter;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::zk::StateTransitionPublicData;
@@ -129,7 +129,7 @@ fn invalid_proof_helper(
     context: &Context<S>,
     proof: &Vec<u8>,
     reason: SlashingReason,
-    challenger_address: sov_modules_api::Address,
+    challenger_address: <S as Spec>::Address,
     module: &crate::AttesterIncentives<S, MockDaSpec>,
     working_set: &mut WorkingSet<S>,
 ) {

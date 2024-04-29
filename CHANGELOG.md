@@ -1,3 +1,4 @@
+- #547 removes the `From<[u8;32]>` bound on rollup addresses and replaces it with a bound expressing that for any `Spec`, the `Address` type must implement `From<&PublicKey>`. It also removes the nft module's `CollectionAddress` type and replaces it with a 32-byte `CollectionId`. 
 - #546 fixes a bug where sequencer could protect themselves from slashing by exiting while their batch was being processed.
 
 - #545 moves the `RelevantBlobs`, `RelevantBlobIters`, and `DaProof` types from `rollup_interfaces::da::services` to `rollup_interfaces::da`. It also adds a feature gate to require the `native` flag to use `rollup_interfaces::da::services`. 

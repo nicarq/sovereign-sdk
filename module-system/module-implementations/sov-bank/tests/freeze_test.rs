@@ -3,7 +3,7 @@ use sov_bank::{
     TotalSupplyResponse, GAS_TOKEN_ID,
 };
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
+use sov_modules_api::{Context, Error, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -173,7 +173,7 @@ fn freeze_token() {
 
     let query_user_balance =
         |token_id: TokenId,
-         user_address: Address,
+         user_address: <S as Spec>::Address,
          working_set: &mut WorkingSet<S>|
          -> Option<u64> { bank.get_balance_of(&user_address, token_id, working_set) };
     let bal = query_user_balance(token_id_2, minter_address, &mut working_set);

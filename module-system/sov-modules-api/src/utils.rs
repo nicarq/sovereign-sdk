@@ -3,7 +3,10 @@ use sov_modules_core::Spec;
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::zk::CryptoSpec;
 
-pub fn generate_address<S: Spec>(key: &str) -> S::Address {
+pub fn generate_address<S: Spec>(key: &str) -> S::Address
+where
+    S::Address: From<[u8; 32]>,
+{
     let hash: [u8; 32] = <S::CryptoSpec as CryptoSpec>::Hasher::digest(key.as_bytes()).into();
     S::Address::from(hash)
 }

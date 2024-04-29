@@ -37,11 +37,11 @@ pub struct NonFungibleToken<S: Spec> {
 
     #[state]
     /// Mapping of tokens to their owners
-    collections: StateMap<CollectionAddress<S>, Collection<S>>,
+    collections: StateMap<CollectionId, Collection<S>>,
 
     #[state]
     /// Mapping of tokens to their owners
-    nfts: StateMap<NftIdentifier<S>, Nft<S>>,
+    nfts: StateMap<NftIdentifier, Nft<S>>,
 }
 
 impl<S: Spec> Module for NonFungibleToken<S> {
@@ -95,10 +95,10 @@ impl<S: Spec> Module for NonFungibleToken<S> {
                 collection_uri,
             } => self.update_collection(&name, &collection_uri, context, working_set),
             CallMessage::TransferNft {
-                collection_address,
+                collection_id,
                 token_id,
                 to,
-            } => self.transfer_nft(token_id, &collection_address, &to, context, working_set),
+            } => self.transfer_nft(token_id, &collection_id, &to, context, working_set),
             CallMessage::UpdateNft {
                 collection_name,
                 token_id,

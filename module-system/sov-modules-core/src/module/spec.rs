@@ -31,8 +31,7 @@ pub trait Spec: Debug + Clone + Send + Sync + PartialEq + 'static {
         + BorshDeserialize
         + Sync
         + ::schemars::JsonSchema
-        + Into<crate::common::AddressBech32>
-        + From<crate::common::AddressBech32>
+        + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>
         + alloc::str::FromStr<Err = anyhow::Error>;
 
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
@@ -41,13 +40,15 @@ pub trait Spec: Debug + Clone + Send + Sync + PartialEq + 'static {
         + BorshSerialize
         + BorshDeserialize
         + Sync
-        + Into<crate::common::AddressBech32>
-        + From<crate::common::AddressBech32>
+        + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>
         + alloc::str::FromStr<Err = anyhow::Error>;
 
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(not(feature = "native"))]
-    type Address: RollupAddress + BorshSerialize + BorshDeserialize;
+    type Address: RollupAddress
+        + BorshSerialize
+        + BorshDeserialize
+        + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;
 
     /// Authenticated state storage used by the rollup. Typically some variant of a merkle-patricia trie.
     #[cfg(not(feature = "native"))]

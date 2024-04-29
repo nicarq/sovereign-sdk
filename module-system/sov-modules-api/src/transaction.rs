@@ -286,9 +286,7 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
             .pub_key()
             .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
 
-        let default_address = tx
-            .pub_key()
-            .to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>();
+        let default_address = tx.pub_key().into();
 
         Self {
             default_address,

@@ -1,5 +1,5 @@
 use sov_modules_core::{Address, GasUnit, Spec};
-use sov_rollup_interface::zk::Zkvm;
+use sov_rollup_interface::zk::{CryptoSpec, Zkvm};
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 
 #[cfg(feature = "native")]
@@ -40,7 +40,7 @@ impl<InnerZkvm: Zkvm, OuterZkvm: Zkvm> Spec for DefaultSpec<InnerZkvm, OuterZkvm
 where
     InnerZkvm::CryptoSpec: sov_modules_core::CryptoSpecExt,
 {
-    type Address = Address;
+    type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
     type Gas = GasUnit<2>;
 
     type Storage = sov_state::ProverStorage<DefaultStorageSpec>;
@@ -64,7 +64,7 @@ impl<InnerZkvm: Zkvm, OuterZkvm: Zkvm> Spec for ZkDefaultSpec<InnerZkvm, OuterZk
 where
     InnerZkvm::CryptoSpec: sov_modules_core::CryptoSpecExt,
 {
-    type Address = Address;
+    type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
     type Gas = GasUnit<2>;
 
     type Storage = sov_state::ZkStorage<DefaultStorageSpec>;

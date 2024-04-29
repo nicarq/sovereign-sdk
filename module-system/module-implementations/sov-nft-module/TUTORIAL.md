@@ -52,7 +52,7 @@ brew install postgres@14
    DROP TABLE IF EXISTS collections CASCADE;
    CREATE TABLE collections
    (
-   collection_address TEXT PRIMARY KEY,
+   collection_id TEXT PRIMARY KEY,
    collection_name    TEXT    NOT NULL,
    creator_address    TEXT    NOT NULL,
    frozen             BOOLEAN NOT NULL,
@@ -64,18 +64,18 @@ brew install postgres@14
   DROP TABLE IF EXISTS nfts CASCADE;
   CREATE TABLE nfts
   (
-  collection_address TEXT    NOT NULL,
+  collection_id TEXT    NOT NULL,
   nft_id             BIGINT  NOT NULL,
   metadata_url       TEXT,
   owner              TEXT    NOT NULL,
   frozen             BOOLEAN NOT NULL,
-  PRIMARY KEY (collection_address, nft_id)
+  PRIMARY KEY (collection_id, nft_id)
   );
   ```
 
 - The first 2 tables as created above are straightforward and map directly to the two primary data structures in the `sov-nft-module` - `Collection` and `Nft`
-- The `collections` table uses `collection_address` as its primary key.
-- The `nfts` table employs a combination of `collection_address` and `nft_id` as its primary key, given that each NFT is unique within its collection.
+- The `collections` table uses `collection_id` as its primary key.
+- The `nfts` table employs a combination of `collection_id` and `nft_id` as its primary key, given that each NFT is unique within its collection.
 - We will create one more table that can show the benefits of indexing
 
 ```sql
@@ -83,9 +83,9 @@ brew install postgres@14
 CREATE TABLE top_owners
 (
    owner              TEXT   NOT NULL,
-   collection_address TEXT   NOT NULL,
+   collection_id TEXT   NOT NULL,
    count              BIGINT NOT NULL,
-   PRIMARY KEY (owner, collection_address)
+   PRIMARY KEY (owner, collection_id)
 );
 ```
 
@@ -156,10 +156,10 @@ offchain = ["postgres","tokio","tracing"]
 
 ```rust
 pub const INSERT_OR_UPDATE_COLLECTION: &str = "INSERT INTO collections (\
-        collection_address, collection_name, creator_address,\
+        collection_id, collection_name, creator_address,\
         frozen, metadata_url, supply)\
         VALUES ($1, $2, $3, $4, $5, $6)\
-        ON CONFLICT (collection_address)\
+        ON CONFLICT (collection_id)\
         DO UPDATE SET collection_name = EXCLUDED.collection_name,\
                       creator_address = EXCLUDED.creator_address,\
                       frozen = EXCLUDED.frozen,\
@@ -186,9 +186,9 @@ use sov_modules_macros::offchain;
 #[cfg(feature = "offchain")]
 use crate::sql::*;
 #[cfg(feature = "offchain")]
-use crate::utils::get_collection_address;
+use crate::utils::get_collection_id;
 #[cfg(feature = "offchain")]
-use crate::CollectionAddress;
+use crate::CollectionId;
 
 /// Syncs a collection to the corresponding table "collections" in postgres
 #[offchain]
@@ -199,9 +199,9 @@ pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
     let frozen = collection.is_frozen();
     let metadata_url = collection.get_collection_uri();
     let supply = collection.get_supply();
-    let collection_address: CollectionAddress<S> =
-        get_collection_address(collection_name, creator_address.as_ref());
-    let collection_address_str = collection_address.to_string();
+    let collection_id =
+        get_collection_id(collection_name, creator_address.as_ref());
+    let collection_id_str = collection_id.to_string();
     let creator_address_str = creator_address.to_string();
 
     // postgres insert
@@ -212,7 +212,7 @@ pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
                     let result = client.execute(
                       INSERT_OR_UPDATE_COLLECTION,
                         &[
-                            &collection_address_str,
+                            &collection_id_str,
                             &collection_name,
                             &creator_address_str,
                             &frozen,
@@ -244,9 +244,9 @@ use postgres::NoTls;
 #[cfg(feature = "offchain")]
 use crate::sql::*;
 #[cfg(feature = "offchain")]
-use crate::utils::get_collection_address;
+use crate::utils::get_collection_id;
 #[cfg(feature = "offchain")]
-use crate::CollectionAddress;
+use crate::CollectionId;
 ```
 
 - The function is annotated with the offchain macro
@@ -268,14 +268,14 @@ pub fn update_collection<S: sov_modules_api::Spec>(_collection: &Collection<S>) 
     let frozen = collection.is_frozen();
     let metadata_url = collection.get_collection_uri();
     let supply = collection.get_supply();
-    let collection_address: CollectionAddress<S> =
-        get_collection_address(collection_name, creator_address.as_ref());
-    let collection_address_str = collection_address.to_string();
+    let collection_id: CollectionId =
+        get_collection_id(collection_name, creator_address.as_ref());
+    let collection_id_str = collection_id.to_string();
     let creator_address_str = creator_address.to_string();
 ```
 
 - There are a few lines that perform extra processing such as
-  - retrieving the `collection_address` based on the `collection_name` and the `creator_address`
+  - retrieving the `collection_id` based on the `collection_name` and the `creator_address`
   - `to_string()` conversions for addresses
 - We make use of an environment variable `POSTGRES_CONNECTION_STRING` so that we can pass in connection params when starting our rollup binary
 - The query that's executed is from the constant string `INSERT_OR_UPDATE_COLLECTION`
@@ -286,27 +286,27 @@ pub fn update_collection<S: sov_modules_api::Spec>(_collection: &Collection<S>) 
 
 ```rust
 pub const QUERY_OWNER_FROM_NFTS: &str =
-    "SELECT owner FROM nfts WHERE collection_address = $1 AND nft_id = $2";
+    "SELECT owner FROM nfts WHERE collection_id = $1 AND nft_id = $2";
 
 pub const DECREMENT_COUNT_FOR_OLD_OWNER: &str = "UPDATE top_owners SET count = count - 1 \
-        WHERE owner = $1 AND collection_address = $2 AND count > 0";
+        WHERE owner = $1 AND collection_id = $2 AND count > 0";
 
 pub const INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER: &str =
-    "INSERT INTO top_owners (owner, collection_address, count) VALUES ($1, $2, 1) \
-        ON CONFLICT (owner, collection_address) \
+    "INSERT INTO top_owners (owner, collection_id, count) VALUES ($1, $2, 1) \
+        ON CONFLICT (owner, collection_id) \
         DO UPDATE SET count = top_owners.count + 1";
 
 pub const INSERT_OR_UPDATE_NFT: &str = "INSERT INTO nfts (\
-        collection_address, nft_id, metadata_url,\
+        collection_id, nft_id, metadata_url,\
         owner, frozen)\
         VALUES ($1, $2, $3, $4, $5)\
-        ON CONFLICT (collection_address, nft_id)\
+        ON CONFLICT (collection_id, nft_id)\
         DO UPDATE SET metadata_url = EXCLUDED.metadata_url,\
                       owner = EXCLUDED.owner,\
                       frozen = EXCLUDED.frozen";
 ```
 
-- The first query `QUERY_OWNER_FROM_NFTS` is for fetching an NFT from the `nfts` table using the primary key `collection_address` and `nft_id`
+- The first query `QUERY_OWNER_FROM_NFTS` is for fetching an NFT from the `nfts` table using the primary key `collection_id` and `nft_id`
 - The next two queries `DECREMENT_COUNT_FOR_OLD_OWNER` and `INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER` are against the `top_owners` table
   - `DECREMENT_COUNT_FOR_OLD_OWNER` just decrements the count for an for a specific collection by 1
   - `INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER` increments the count but also inserts a new row if its not present
@@ -320,16 +320,16 @@ use postgres::NoTls;
 #[cfg(feature = "offchain")]
 use crate::sql::*;
 #[cfg(feature = "offchain")]
-use crate::utils::get_collection_address;
+use crate::utils::get_collection_id;
 #[cfg(feature = "offchain")]
-use crate::CollectionAddress;
+use crate::CollectionId;
 
 /// Syncs an NFT to the corresponding table "nfts" in postgres
 /// Additionally, this function also has logic to track the counts of NFTs held by each user
 /// in each collection.
 #[offchain]
 pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<OwnerAddress<S>>) {
-    let collection_address = nft.get_collection_address().to_string();
+    let collection_id = nft.get_collection_id().to_string();
     let nft_id = nft.get_token_id();
     let new_owner_str = nft.get_owner().to_string();
     let frozen = nft.is_frozen();
@@ -344,7 +344,7 @@ pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<Owne
             let rows = client
                 .query(
                     QUERY_OWNER_FROM_NFTS,
-                    &[&collection_address, &(nft_id as i64)],
+                    &[&collection_id, &(nft_id as i64)],
                 )
                 .unwrap();
 
@@ -361,20 +361,20 @@ pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<Owne
                     // Decrement count for the database owner (which would be the old owner in a transfer scenario)
                     let _ = client.execute(
                         DECREMENT_COUNT_FOR_OLD_OWNER,
-                        &[&db_owner_str, &collection_address],
+                        &[&db_owner_str, &collection_id],
                     );
 
                     // Increment count for new owner
                     let _ = client.execute(
                         INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER,
-                        &[&new_owner_str, &collection_address],
+                        &[&new_owner_str, &collection_id],
                     );
                 }
             } else if old_owner_address.is_none() {
                 // Mint operation, and NFT doesn't exist in the database. Increment for the new owner.
                 let _ = client.execute(
                     INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER,
-                    &[&new_owner_str, &collection_address],
+                    &[&new_owner_str, &collection_id],
                 );
             }
 
@@ -382,7 +382,7 @@ pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<Owne
             let _ = client.execute(
                 INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER,
                 &[
-                    &collection_address,
+                    &collection_id,
                     &(nft_id as i64),
                     &metadata_url,
                     &new_owner_str,
@@ -408,7 +408,7 @@ old_owner: Option<OwnerAddress<S>>
 - In the beginning of the function we extract the fields that we need, same as we did for `collections`
 
 ```
-    let collection_address = nft.get_collection_address().to_string();
+    let collection_id = nft.get_collection_id().to_string();
     let nft_id = nft.get_token_id();
     let new_owner_str = nft.get_owner().to_string();
     let frozen = nft.is_frozen();
@@ -423,7 +423,7 @@ old_owner: Option<OwnerAddress<S>>
 let rows = client
     .query(
         QUERY_OWNER_FROM_NFTS,
-        &[&collection_address, &(nft_id as i64)],
+        &[&collection_id, &(nft_id as i64)],
     )
     .unwrap();
 ```
@@ -441,13 +441,13 @@ let rows = client
             // Decrement count for the database owner (which would be the old owner in a transfer scenario)
             let _ = client.execute(
                 DECREMENT_COUNT_FOR_OLD_OWNER,
-                &[&db_owner_str, &collection_address],
+                &[&db_owner_str, &collection_id],
             );
 
             // Increment count for new owner
             let _ = client.execute(
                 INCREMENT_OR_UPDATE_COUNT_FOR_NEW_OWNER,
-                &[&new_owner_str, &collection_address],
+                &[&new_owner_str, &collection_id],
             );
 ```
 
@@ -491,7 +491,7 @@ use crate::offchain::{update_collection, update_nft};
 
 ```
     self.collections
-        .set(&collection_address, &collection, working_set);
+        .set(&collection_id, &collection, working_set);
 +    update_collection(&collection);
     Ok(CallResponse::default())
 
@@ -503,13 +503,13 @@ use crate::offchain::{update_collection, update_nft};
 
 ```
         self.nfts.set(
-            &NftIdentifier(token_id, collection_address.clone()),
+            &NftIdentifier(token_id, *collection_id),
             &new_nft,
             working_set,
         );
         collection.increment_supply();
         self.collections
-            .set(&collection_address, collection.inner(), working_set);
+            .set(&collection_id, collection.inner(), working_set);
 
 +        update_collection(collection.inner());
 +        update_nft(&new_nft, None);
@@ -522,7 +522,7 @@ use crate::offchain::{update_collection, update_nft};
 
 ```
         self.nfts.set(
-            &NftIdentifier(nft_id, collection_address.clone()),
+            &NftIdentifier(nft_id, *collection_id),
             owned_nft.inner(),
             working_set,
         );
@@ -585,8 +585,8 @@ $ cargo run
 ```bash
 postgres=# SELECT owner, count
            FROM top_owners
-           WHERE collection_address = (
-             SELECT collection_address
+           WHERE collection_id = (
+             SELECT collection_id
              FROM collections
              WHERE collection_name = 'Sovereign Squirrel Syndicate'
            )
@@ -612,9 +612,9 @@ postgres=# SELECT
   count
 FROM (
     SELECT c.collection_name, t.owner, t.count,
-    RANK() OVER (PARTITION BY t.collection_address ORDER BY t.count DESC) as rank
+    RANK() OVER (PARTITION BY t.collection_id ORDER BY t.count DESC) as rank
     FROM top_owners t
-    INNER JOIN collections c ON c.collection_address = t.collection_address
+    INNER JOIN collections c ON c.collection_id = t.collection_id
 ) sub
 WHERE rank = 1;
        collection_name        |                             owner                              | count

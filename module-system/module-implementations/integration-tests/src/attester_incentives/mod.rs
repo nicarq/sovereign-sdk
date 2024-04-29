@@ -13,7 +13,7 @@ use sov_rollup_interface::stf::TransactionReceipt;
 use sov_state::{DefaultStorageSpec, Storage, StorageRoot};
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher, TestPrivateKey};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestPrivateKey};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, ExecutionSimulationVars, SequencerParams, TestRollup,
@@ -142,8 +142,7 @@ impl AttesterIncentivesTestHandler {
     }
 
     pub fn attester_addr(&self) -> <S as Spec>::Address {
-        self.attester_private_key
-            .to_address::<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher, _>()
+        self.attester_private_key.to_address::<_>()
     }
 
     pub fn sequencer_params(&self) -> SequencerParams<S, Da> {
@@ -162,11 +161,13 @@ impl AttesterIncentivesTestHandler {
             addresses_and_balances: vec![
                 (self.admin_public_key, USER_BALANCE),
                 (
-                    self.attester_private_key.to_address::<TestHasher, _>(),
+                    self.attester_private_key
+                        .to_address::<<S as Spec>::Address>(),
                     self.attester_balance,
                 ),
                 (
-                    self.challenger_private_key.to_address::<TestHasher, _>(),
+                    self.challenger_private_key
+                        .to_address::<<S as Spec>::Address>(),
                     self.challenger_balance,
                 ),
                 (self.seq_rollup_addr, USER_BALANCE),
@@ -177,7 +178,8 @@ impl AttesterIncentivesTestHandler {
     pub fn attester_incentives_params(&self) -> AttesterIncentivesParams<S, Da> {
         AttesterIncentivesParams {
             initial_attesters: vec![(
-                self.attester_private_key.to_address::<TestHasher, _>(),
+                self.attester_private_key
+                    .to_address::<<S as Spec>::Address>(),
                 self.attester_stake,
             )],
             rollup_finality_period: ROLLUP_FINALITY_PERIOD,
@@ -199,7 +201,7 @@ impl AttesterIncentivesTestHandler {
             value_setter: value_setter_messages.create_default_raw_txs::<TestRuntime<S, Da>>(),
             admin_public_key: value_setter_messages.messages[0]
                 .admin
-                .to_address::<TestHasher, _>(),
+                .to_address::<<S as Spec>::Address>(),
             attester_private_key: TestPrivateKey::generate(),
             challenger_private_key: TestPrivateKey::generate(),
             attester_stake: USER_STAKE,
@@ -221,7 +223,7 @@ impl AttesterIncentivesTestHandler {
             value_setter_messages.messages[0].admin.clone();
 
         AttesterIncentivesTestHandler {
-            admin_public_key: admin_private_key.to_address::<TestHasher, _>(),
+            admin_public_key: admin_private_key.to_address::<<S as Spec>::Address>(),
             value_setter,
             attester_private_key: TestPrivateKey::generate(),
             challenger_private_key: TestPrivateKey::generate(),

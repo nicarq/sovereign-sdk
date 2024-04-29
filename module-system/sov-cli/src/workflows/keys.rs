@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_modules_api::{clap, CryptoSpec, PrivateKey, PublicKey};
+use sov_modules_api::{clap, CryptoSpec, PrivateKey};
 
 use crate::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 
@@ -79,9 +79,7 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                 // Try to load the key as a sanity check.
                 let private_key = load_key::<S>(&path)?;
                 let public_key = private_key.pub_key();
-                let address = address_override.unwrap_or_else(|| {
-                    public_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, S::Address>()
-                });
+                let address = address_override.unwrap_or_else(|| (&public_key).into());
                 println!("Imported key pair. address: {}", address);
                 wallet_state
                     .addresses

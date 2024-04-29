@@ -1,8 +1,8 @@
 use anyhow::{anyhow, bail, Context as _};
 use sov_modules_api::{Context, Spec, StateMap, WorkingSet};
 
-use crate::address::CollectionAddress;
-use crate::utils::get_collection_address;
+use crate::address::CollectionId;
+use crate::utils::get_collection_id;
 use crate::CreatorAddress;
 
 #[cfg_attr(
@@ -53,13 +53,13 @@ impl<S: Spec> Collection<S> {
     pub fn new(
         collection_name: &str,
         collection_uri: &str,
-        collections: &StateMap<CollectionAddress<S>, Collection<S>>,
+        collections: &StateMap<CollectionId, Collection<S>>,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<(CollectionAddress<S>, Collection<S>)> {
+    ) -> anyhow::Result<(CollectionId, Collection<S>)> {
         let creator = context.sender();
-        let collection_address = get_collection_address(collection_name, creator.as_ref());
-        let collection = collections.get(&collection_address, working_set);
+        let collection_id = get_collection_id::<S>(collection_name, creator.as_ref());
+        let collection = collections.get(&collection_id, working_set);
         if collection.is_some() {
             Err(anyhow!(
                 "Collection with name: {} already exists creator {}",
@@ -68,7 +68,7 @@ impl<S: Spec> Collection<S> {
             ))
         } else {
             Ok((
-                collection_address,
+                collection_id,
                 Collection {
                     name: collection_name.to_string(),
                     creator: CreatorAddress::new(creator),
@@ -82,19 +82,19 @@ impl<S: Spec> Collection<S> {
 
     pub fn get_owned_collection(
         collection_name: &str,
-        collections: &StateMap<CollectionAddress<S>, Collection<S>>,
+        collections: &StateMap<CollectionId, Collection<S>>,
         context: &Context<S>,
         working_set: &mut WorkingSet<S>,
-    ) -> anyhow::Result<(CollectionAddress<S>, CollectionState<S>)> {
+    ) -> anyhow::Result<(CollectionId, CollectionState<S>)> {
         let creator = context.sender();
-        let collection_address = get_collection_address(collection_name, creator.as_ref());
-        let collection = collections.get(&collection_address, working_set);
+        let collection_id = get_collection_id::<S>(collection_name, creator.as_ref());
+        let collection = collections.get(&collection_id, working_set);
         if let Some(collection) = collection {
             if collection.is_frozen() {
-                Ok((collection_address, CollectionState::Frozen(collection)))
+                Ok((collection_id, CollectionState::Frozen(collection)))
             } else {
                 Ok((
-                    collection_address,
+                    collection_id,
                     CollectionState::Mutable(MutableCollection(collection)),
                 ))
             }

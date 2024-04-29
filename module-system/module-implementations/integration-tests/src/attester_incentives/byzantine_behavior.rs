@@ -10,7 +10,7 @@ use sov_state::jmt::RootHash;
 use sov_state::{DefaultStorageSpec, StorageRoot};
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
 use super::AttesterIncentivesTestHandler;
 use crate::attester_incentives::get_first_transaction_receipt;
@@ -97,7 +97,8 @@ impl AttesterIncentivesTestHandler {
             assert_eq!(
                 rollup.get_user_bond(
                     Role::Attester,
-                    self.attester_private_key.to_address::<TestHasher, _>()
+                    self.attester_private_key
+                        .to_address::<<S as Spec>::Address>()
                 ),
                 0
             );
@@ -171,7 +172,8 @@ impl AttesterIncentivesTestHandler {
             assert_eq!(
                 rollup.get_user_bond(
                     Role::Challenger,
-                    self.challenger_private_key.to_address::<TestHasher, _>()
+                    self.challenger_private_key
+                        .to_address::<<S as Spec>::Address>()
                 ),
                 self.challenger_stake
             );
@@ -189,7 +191,9 @@ impl AttesterIncentivesTestHandler {
             let gas_consumed = 2 * rollup.tx_cost(gas_price);
             assert_eq!(
                 rollup.bank().get_balance_of(
-                    &self.challenger_private_key.to_address::<TestHasher, _>(),
+                    &self
+                        .challenger_private_key
+                        .to_address::<<S as Spec>::Address>(),
                     GAS_TOKEN_ID,
                     &mut working_set
                 ),

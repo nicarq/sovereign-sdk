@@ -3432,6 +3432,7 @@ name = "sov-nft-module"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "bech32 0.11.0",
  "borsh 0.10.3",
  "serde",
  "sov-modules-api",

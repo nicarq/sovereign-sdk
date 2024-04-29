@@ -10,21 +10,28 @@ use sov_mock_da::{
     MockValidityCondChecker, MOCK_SEQUENCER_DA_ADDRESS,
 };
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-use sov_modules_api::{Address, CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
+use sov_test_utils::{TestPrivateKey, TestSpec};
 
 const DEFAULT_CHAIN_ID: u64 = 0;
 const DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
 const DEFAULT_MAX_FEE: u64 = 0;
 const DEFAULT_ESTIMATED_GAS_USAGE: Option<GasUnit<2>> = None;
 
-pub fn sender_address_with_pkey<S: Spec>() -> (Address, TestPrivateKey) {
+pub fn sender_address_with_pkey<S: Spec>() -> (S::Address, TestPrivateKey)
+where
+    S::Address: From<[u8; 32]>,
+{
     let pk = TestPrivateKey::generate();
-    let addr = pk.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, _>();
+    let addr = pk
+        .pub_key()
+        .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>()
+        .0
+        .into();
     (addr, pk)
 }
 
@@ -191,7 +198,7 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
     let mut message_vec = vec![];
     for i in 1..n.saturating_add(1) {
         let priv_key = TestPrivateKey::generate();
-        let address: <TestSpec as Spec>::Address = priv_key.pub_key().to_address::<TestHasher, _>();
+        let address: <TestSpec as Spec>::Address = (&priv_key.pub_key()).into();
         let msg: sov_bank::CallMessage<TestSpec> = sov_bank::CallMessage::<TestSpec>::Transfer {
             to: address,
             coins: Coins {

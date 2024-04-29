@@ -2,7 +2,7 @@ mod helpers;
 
 use helpers::*;
 use sov_bank::{Amount, Bank, CallMessage, Coins, TokenId};
-use sov_modules_api::{Address, Context, Module, StateReaderAndWriter, WorkingSet};
+use sov_modules_api::{Context, Module, Spec, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::storage::{SlotKey, SlotValue, StateUpdate};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -230,8 +230,8 @@ fn transfer_initial_token() {
 fn query_sender_receiver_balances(
     bank: &Bank<S>,
     token_id: TokenId,
-    sender_address: Address,
-    receiver_address: Address,
+    sender_address: <S as Spec>::Address,
+    receiver_address: <S as Spec>::Address,
     working_set: &mut WorkingSet<S>,
 ) -> (u64, u64) {
     let sender_balance = bank
@@ -246,9 +246,9 @@ fn query_sender_receiver_balances(
 fn transfer(
     bank: &Bank<S>,
     token_id: TokenId,
-    sender_address: Address,
-    sequencer_address: Address,
-    receiver_address: Address,
+    sender_address: <S as Spec>::Address,
+    sequencer_address: <S as Spec>::Address,
+    receiver_address: <S as Spec>::Address,
     transfer_amount: Amount,
     working_set: &mut WorkingSet<S>,
 ) {

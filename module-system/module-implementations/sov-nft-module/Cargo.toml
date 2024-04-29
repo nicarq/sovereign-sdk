@@ -18,6 +18,7 @@ serde = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+bech32 = { workspace = true }
 
 sov-modules-api = { path = "../../sov-modules-api" }
 sov-modules-macros = { path = "../../sov-modules-macros" }

@@ -54,7 +54,7 @@ pub struct Collection<S: Spec> {
 An `NFT` is a non-fungible token that has the following attributes:
 
 - `token_id`: An identifier that is unique within the scope of a collection.
-- `collection_address`: The address that uniquely identifies the collection to which this NFT belongs.
+- `collection_id`: The address that uniquely identifies the collection to which this NFT belongs.
 - `owner`: The address of the owner of the NFT.
 - `frozen`: If set to `true`, the NFT is immutable.
 - `token_uri`: A URI pointing to off-chain metadata for the NFT.
@@ -63,12 +63,12 @@ An `NFT` is a non-fungible token that has the following attributes:
 use sov_modules_api::Spec;
 
 pub struct UserAddress<S: Spec>(S::Address);
-pub struct CollectionAddress<S: Spec>(S::Address);
+pub struct CollectionId([u8;32]);
 pub type TokenId = u64;
 
 pub struct Nft<S: Spec> {
     pub token_id: TokenId,
-    pub collection_address: CollectionAddress<S>,
+    pub collection_id: CollectionId,
     pub owner: UserAddress<S>,
     pub frozen: bool,
     pub token_uri: String,
@@ -107,7 +107,7 @@ Transfers ownership of an NFT to another address.
 use sov_modules_api::Spec;
 
 pub struct UserAddress<S: Spec>(S::Address);
-pub struct CollectionAddress<S: Spec>(S::Address);
+pub struct CollectionId([u8;32]);
 pub type TokenId = u64;
 
 pub enum CallMessage<S: Spec> {
@@ -116,7 +116,7 @@ pub enum CallMessage<S: Spec> {
     FreezeCollection { collection_name: String },
     MintNft { collection_name: String, token_uri: String, token_id: TokenId, owner: UserAddress<S>, frozen: bool },
     UpdateNft { collection_name: String, token_id: TokenId, token_uri: Option<String>, frozen: Option<bool> },
-    TransferNft { collection_address: CollectionAddress<S>, token_id: u64, to: UserAddress<S> },
+    TransferNft { collection_id: CollectionId, token_id: u64, to: UserAddress<S> },
 }
 ```
 
@@ -185,7 +185,7 @@ You should see an output in the terminal running the rollup, indicating that the
 To verify that the collection was successfully created, you can run these CURL commands:
 
 ```bash
-curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getCollectionAddress","params":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94","Test Collection"],"id":1}' http://127.0.0.1:12345
+curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getCollectionId","params":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94","Test Collection"],"id":1}' http://127.0.0.1:12345
 ```
 
 ```bash
@@ -234,19 +234,19 @@ You can perform other calls in a similar manner using the above commands as a re
 
 There are 3 simple endpoints for queries to the RPC which can be customized.
 
-- `nft_getCollectionAddress`: This does not query state but is simply used to deterministically derive the collection address from a creator address and a collection name. It can also be run locally, but the RPC method is provided for convenience
+- `nft_getCollectionId`: This does not query state but is simply used to deterministically derive the collection id from a creator address and a collection name. It can also be run locally, but the RPC method is provided for convenience
 
 ```bash
-curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getCollectionAddress","params":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94","Test Collection"],"id":1}' http://127.0.0.1:12345
+curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getCollectionId","params":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94","Test Collection"],"id":1}' http://127.0.0.1:12345
 ```
 
-- `nft_getCollection`: Takes a collection address and returns the collection details.
+- `nft_getCollection`: Takes a collection id and returns the collection details.
 
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getCollection","params":["sov1j2e3dh76nmuw4gctrqduh0wzqdny8c62z36r2q3883rknw3ky3vsk9g02a"],"id":1}' http://127.0.0.1:12345
 ```
 
-- `nft_getNft`: Takes the tokenId and collection address that the NFT belongs to and returns the NFT details
+- `nft_getNft`: Takes the tokenId and collection id that the NFT belongs to and returns the NFT details
 
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"nft_getNft","params":["sov1j2e3dh76nmuw4gctrqduh0wzqdny8c62z36r2q3883rknw3ky3vsk9g02a", 42],"id":1}' http://127.0.0.1:12345

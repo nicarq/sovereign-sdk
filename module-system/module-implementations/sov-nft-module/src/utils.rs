@@ -1,27 +1,27 @@
 use sov_modules_api::digest::Digest;
 use sov_modules_api::CryptoSpec;
 
-use crate::{CallMessage, CollectionAddress, UserAddress};
+use crate::{CallMessage, CollectionId, UserAddress};
 
 /// Derives token ID from `collection_name`, `sender`
-pub fn get_collection_address<S: sov_modules_api::Spec>(
+pub fn get_collection_id<S: sov_modules_api::Spec>(
     collection_name: &str,
     sender: &[u8],
-) -> CollectionAddress<S> {
+) -> CollectionId {
     let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
     hasher.update(sender);
     hasher.update(collection_name.as_bytes());
 
     let hash: [u8; 32] = hasher.finalize().into();
-    CollectionAddress::new(&S::Address::from(hash))
+    hash.into()
 }
 
-fn get_collection_metadata_url(base_url: &str, collection_address: &str) -> String {
-    format!("{}/collection/{}", base_url, collection_address)
+fn get_collection_metadata_url(base_url: &str, collection_id: &str) -> String {
+    format!("{}/collection/{}", base_url, collection_id)
 }
 
-fn get_nft_metadata_url(base_url: &str, collection_address: &str, nft_id: u64) -> String {
-    format!("{}/nft/{}/{}", base_url, collection_address, nft_id)
+fn get_nft_metadata_url(base_url: &str, collection_id: &str, nft_id: u64) -> String {
+    format!("{}/nft/{}/{}", base_url, collection_id, nft_id)
 }
 
 /// Constructs a CallMessage to create a new NFT collection.
@@ -40,9 +40,9 @@ pub fn get_create_collection_message<S: sov_modules_api::Spec>(
     collection_name: &str,
     base_uri: &str,
 ) -> CallMessage<S> {
-    let collection_address = get_collection_address::<S>(collection_name, sender_address.as_ref());
+    let collection_id = get_collection_id::<S>(collection_name, sender_address.as_ref());
 
-    let collection_uri = get_collection_metadata_url(base_uri, &collection_address.to_string());
+    let collection_uri = get_collection_metadata_url(base_uri, &collection_id.to_string());
     CallMessage::<S>::CreateCollection {
         name: collection_name.to_string(),
         collection_uri,
@@ -69,8 +69,8 @@ pub fn get_mint_nft_message<S: sov_modules_api::Spec>(
     base_uri: &str,
     owner: &S::Address,
 ) -> CallMessage<S> {
-    let collection_address = get_collection_address::<S>(collection_name, sender_address.as_ref());
-    let token_uri = get_nft_metadata_url(base_uri, &collection_address.to_string(), token_id);
+    let collection_id = get_collection_id::<S>(collection_name, sender_address.as_ref());
+    let token_uri = get_nft_metadata_url(base_uri, &collection_id.to_string(), token_id);
     CallMessage::<S>::MintNft {
         collection_name: collection_name.to_string(),
         token_uri,
@@ -86,7 +86,7 @@ pub fn get_mint_nft_message<S: sov_modules_api::Spec>(
 ///
 /// * `signer`: The private key used for signing the transaction.
 /// * `nonce`: The nonce to be used for the transaction.
-/// * `collection_address`: The address of the collection to which the NFT belongs.
+/// * `collection_id`: The address of the collection to which the NFT belongs.
 /// * `token_id`: The unique identifier for the NFT being transferred.
 /// * `to`: The address of the user to whom the NFT will be transferred.
 ///
@@ -94,12 +94,12 @@ pub fn get_mint_nft_message<S: sov_modules_api::Spec>(
 ///
 /// Returns a signed transaction for transferring an NFT to a specified user.
 pub fn get_transfer_nft_message<S: sov_modules_api::Spec>(
-    collection_address: &CollectionAddress<S>,
+    collection_id: &CollectionId,
     token_id: u64,
     to: &S::Address,
 ) -> CallMessage<S> {
     CallMessage::<S>::TransferNft {
-        collection_address: collection_address.clone(),
+        collection_id: *collection_id,
         token_id,
         to: UserAddress::new(to),
     }

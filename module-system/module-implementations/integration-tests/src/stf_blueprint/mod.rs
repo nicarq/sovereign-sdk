@@ -5,7 +5,7 @@ use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
 use sov_modules_api::{Context, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
 use crate::helpers::{AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, S};
 
@@ -30,7 +30,7 @@ impl TestRollup {
 
         let admin_pub_key = value_setter_messages.messages[0]
             .admin
-            .to_address::<TestHasher, _>();
+            .to_address::<<S as Spec>::Address>();
 
         let contexts: Vec<Context<S>> = value_setter_messages
             .create_default_messages()
@@ -70,7 +70,7 @@ fn test_stf_internal_updates() {
 
     let admin_pub_key = value_setter_messages.messages[0]
         .admin
-        .to_address::<TestHasher, _>();
+        .to_address::<<S as Spec>::Address>();
 
     let seq_params = SequencerParams::default();
     let seq_rollup_addr = seq_params.rollup_address;

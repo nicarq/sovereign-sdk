@@ -33,4 +33,4 @@ pub trait BasicAddress:
 }
 
 /// An address used inside rollup
-pub trait RollupAddress: BasicAddress + From<[u8; 32]> {}
+pub trait RollupAddress: BasicAddress {}

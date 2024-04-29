@@ -2,13 +2,13 @@ use simple_nft_module::{
     CallMessage, Event, NonFungibleToken, NonFungibleTokenConfig, OwnerResponse,
 };
 use sov_modules_api::utils::generate_address as gen_addr_generic;
-use sov_modules_api::{Address, Context, Module, WorkingSet};
+use sov_modules_api::{Context, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
 pub type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<DefaultStorageSpec>;
-fn generate_address(name: &str) -> Address {
+fn generate_address(name: &str) -> <S as Spec>::Address {
     gen_addr_generic::<S>(name)
 }
 
@@ -88,10 +88,11 @@ fn transfer() {
     let error_message = transfer_attempt.err().unwrap().to_string();
     assert_eq!("Only token owner can transfer token", error_message);
 
-    let query_token_owner = |token_id: u64, working_set: &mut WorkingSet<S>| -> Option<Address> {
-        let query: OwnerResponse<S> = nft.get_owner(token_id, working_set).unwrap();
-        query.owner
-    };
+    let query_token_owner =
+        |token_id: u64, working_set: &mut WorkingSet<S>| -> Option<<S as Spec>::Address> {
+            let query: OwnerResponse<S> = nft.get_owner(token_id, working_set).unwrap();
+            query.owner
+        };
 
     // Normal transfer
     let token1_owner = query_token_owner(1, &mut working_set);

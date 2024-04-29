@@ -1,14 +1,13 @@
 use std::fmt;
 
+use sov_modules_api::impl_hash32_type;
 use sov_modules_macros::address_type;
 
 /// Address representing a simple user capable of owning an NFT.
 #[address_type]
 pub struct UserAddress;
 
-/// Derived Address representing an NFT collection - Derived from CreatorAddress(S::Address) and collection_name: String.
-#[address_type]
-pub struct CollectionAddress;
+impl_hash32_type!(CollectionId, CellectionIdBech32, "collection");
 
 /// Address representing the owner of an NFT.
 #[address_type]

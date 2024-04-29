@@ -278,12 +278,12 @@ mod tests {
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCondChecker};
     use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-    use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, PublicKey, WorkingSet};
+    use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, WorkingSet};
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_state::Storage;
     use sov_test_utils::runtime::{create_genesis_config, TestRuntime};
     use sov_test_utils::sequencer::TestAuth;
-    use sov_test_utils::{TestHasher, TestPrivateKey, TestPublicKey, TestSpec};
+    use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSpec};
     use sov_value_setter::{CallMessage, ValueSetter};
     use tempfile::TempDir;
 
@@ -291,7 +291,7 @@ mod tests {
 
     const MAX_TX_POOL_SIZE: usize = 20;
     const DEFAULT_SEQUENCER_DA_ADDRESS: MockAddress = MockAddress::new([0u8; 32]);
-    const DEFAULT_SEQUENCER_ROLLUP_ADDRESS: Address = Address::new([0u8; 32]);
+    const DEFAULT_SEQUENCER_ROLLUP_ADDRESS: <S as Spec>::Address = Address::new([0u8; 32]);
 
     type S = TestSpec;
 
@@ -391,7 +391,7 @@ mod tests {
         admin: Option<TestPublicKey>,
         additional_accounts: Vec<(TestPublicKey, u64)>,
         seq_da_address: MockAddress,
-        seq_rollup_address: Address,
+        seq_rollup_address: <S as Spec>::Address,
     ) {
         let runtime = TestRuntime::<S, MockDaSpec>::default();
         let storage = batch_builder.current_storage.borrow().clone();
@@ -401,11 +401,11 @@ mod tests {
             let admin_private_key = TestPrivateKey::generate();
             admin_private_key.pub_key()
         });
-        let admin = admin.to_address::<TestHasher, _>();
-        let additional_accounts: Vec<(Address, u64)> = additional_accounts
+        let admin = admin.to_address::<<S as Spec>::Address>();
+        let additional_accounts: Vec<(<S as Spec>::Address, u64)> = additional_accounts
             .iter()
             .map(|(addr, balance)| {
-                let addr = addr.to_address::<TestHasher, _>();
+                let addr = addr.to_address::<<S as Spec>::Address>();
                 (addr, *balance)
             })
             .collect();

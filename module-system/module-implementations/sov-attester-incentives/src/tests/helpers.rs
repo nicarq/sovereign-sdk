@@ -6,8 +6,8 @@ use sov_modules_api::namespaces::User;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Address, CryptoSpec, Gas, GasArray, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
-    PrivateKey, Spec, WorkingSet,
+    CryptoSpec, Gas, GasArray, Genesis, KernelModule, KernelWorkingSet, ModuleInfo, PrivateKey,
+    Spec, WorkingSet,
 };
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::{GasMeter, StateCheckpoint};
@@ -49,8 +49,8 @@ pub(crate) fn create_bank_config_with_token(
     token_name: String,
     addresses_count: usize,
     initial_balance: u64,
-) -> (BankConfig<S>, Vec<Address>) {
-    let address_and_balances: Vec<(Address, u64)> = (0..addresses_count)
+) -> (BankConfig<S>, Vec<<S as Spec>::Address>) {
+    let address_and_balances: Vec<(<S as Spec>::Address, u64)> = (0..addresses_count)
         .map(|i| {
             let key = format!("key_{}", i);
             let addr = generate_address::<S>(&key);
@@ -83,9 +83,9 @@ pub(crate) fn setup(
     mut working_set: WorkingSet<S>,
 ) -> (
     AttesterIncentives<S, MockDaSpec>,
-    Address,
-    Address,
-    Address,
+    <S as Spec>::Address,
+    <S as Spec>::Address,
+    <S as Spec>::Address,
     WorkingSet<S>,
 ) {
     // Initialize bank

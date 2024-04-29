@@ -12,6 +12,7 @@ libfuzzer-sys = "0.4"
 serde_json = "1"
 tempfile = "3"
 rand = "0.8"
+sha2 = "0.10.6"
 
 # Sovereign-maintained dependencies.
 sov-celestia-adapter = { path = "../adapters/celestia", features = ["native"] }
