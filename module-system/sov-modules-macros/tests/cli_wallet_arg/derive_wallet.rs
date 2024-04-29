@@ -136,7 +136,7 @@ fn main() {
             "--chain-id",
             "0",
         ])
-        .expect("parsing must succed")
+        .expect("parsing must succeed")
         .into();
     let foo_ir: RuntimeMessage<JsonStringArg, TestSpec> = foo_from_cli.try_into().unwrap();
     assert_eq!(expected_foo, foo_ir.try_into().unwrap());
@@ -151,7 +151,7 @@ fn main() {
             "--chain-id",
             "0",
         ])
-        .expect("parsing must succed")
+        .expect("parsing must succeed")
         .into();
     let bar_ir: RuntimeMessage<JsonStringArg, TestSpec> = bar_from_cli.try_into().unwrap();
 

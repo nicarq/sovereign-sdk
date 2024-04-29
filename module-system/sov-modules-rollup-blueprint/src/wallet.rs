@@ -87,6 +87,7 @@ where
                 .run::<<Self as RollupBlueprint>::NativeRuntime, <Self as RollupBlueprint>::NativeSpec, JsonStringArg, _, _, _>(
                     &mut wallet_state,
                     app_dir,
+                    std::io::stdout(),
                 )?,
             Workflows::Keys(inner) => inner.run(&mut wallet_state, app_dir)?,
             Workflows::Rpc(inner) => {

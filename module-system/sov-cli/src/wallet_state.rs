@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{clap, CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::{clap, CryptoSpec, PrivateKey};
 
 /// A struct representing the current state of the CLI wallet
 #[derive(Debug, Serialize, Deserialize)]
@@ -16,7 +16,7 @@ pub struct WalletState<Tx, S: sov_modules_api::Spec>
 where
     Tx: BorshSerialize + BorshDeserialize,
 {
-    /// The accumulated transactions to be submitted to the DA layer
+    /// The accumulated transactions to be submitted to the DA layer.
     pub unsent_transactions: Vec<UnsignedTransaction<S, Tx>>,
     /// The addresses in the wallet
     pub addresses: AddressList<S>,
@@ -29,7 +29,7 @@ where
 impl<Tx, S> Default for WalletState<Tx, S>
 where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
-    S: Spec,
+    S: sov_modules_api::Spec,
 {
     fn default() -> Self {
         Self {
@@ -46,7 +46,7 @@ where
 impl<Tx, S> WalletState<Tx, S>
 where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
-    S: Spec,
+    S: sov_modules_api::Spec,
 {
     /// Load the wallet state from the given path on disk
     pub fn load(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
@@ -119,33 +119,43 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
         mem::take(&mut self.unsent_transactions)
             .into_iter()
             .enumerate()
-            .map(
-                |(
-                    offset,
-                    UnsignedTransaction {
-                        tx,
-                        chain_id,
-                        max_priority_fee,
-                        max_fee,
-                        gas_limit,
-                    },
-                )| {
-                    let runtime_msg = tx.try_to_vec().unwrap();
-                    let tx = Transaction::<S>::new_signed_tx(
-                        signing_key,
-                        runtime_msg,
-                        chain_id,
-                        max_priority_fee,
-                        max_fee,
-                        gas_limit,
-                        nonce.wrapping_add(offset as u64),
-                    );
-
-                    tx.try_to_vec().unwrap()
-                },
-            )
+            .map(|(offset, tx)| {
+                let nonce = nonce.checked_add(offset as u64).expect("Nonce overflow");
+                sign_tx(signing_key, &tx, nonce).expect("Tx signing failed")
+            })
             .collect()
     }
+}
+
+/// Returns borsh serialized [`Transaction`].
+pub(crate) fn sign_tx<S, Tx>(
+    signing_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
+    tx: &UnsignedTransaction<S, Tx>,
+    nonce: u64,
+) -> anyhow::Result<Vec<u8>>
+where
+    S: sov_modules_api::Spec,
+    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+{
+    let UnsignedTransaction {
+        tx,
+        chain_id,
+        max_priority_fee,
+        max_fee,
+        gas_limit,
+    } = tx;
+    let runtime_msg = tx.try_to_vec()?;
+    let tx = Transaction::<S>::new_signed_tx(
+        signing_key,
+        runtime_msg,
+        *chain_id,
+        *max_priority_fee,
+        *max_fee,
+        gas_limit.clone(),
+        nonce,
+    );
+    let tx = tx.try_to_vec()?;
+    Ok(tx)
 }
 
 /// A struct representing private key and associated address
@@ -176,7 +186,7 @@ impl<S: sov_modules_api::Spec> PrivateKeyAndAddress<S> {
         }
     }
 
-    /// Generates valid private key and address from given private key
+    /// Generates a valid private key and address from a given private key
     pub fn from_key(private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey) -> Self {
         let address = private_key.to_address::<<S::CryptoSpec as CryptoSpec>::Hasher, S::Address>();
         Self {
@@ -286,6 +296,7 @@ pub enum KeyIdentifier<S: sov_modules_api::Spec> {
         address: S::Address,
     },
 }
+
 impl<S: sov_modules_api::Spec> std::fmt::Display for KeyIdentifier<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -320,7 +331,7 @@ mod pubkey_hex {
 
     /// Deserializes a hex string into raw bytes.
     ///
-    /// Both, upper and lower case characters are valid in the input string and can
+    /// Both upper and lower case characters are valid in the input string and can
     /// even be mixed (e.g. `f9b4ca`, `F9B4CA` and `f9B4Ca` are all valid strings).
     pub fn deserialize<'de, D, C>(deserializer: D) -> Result<C, D::Error>
     where

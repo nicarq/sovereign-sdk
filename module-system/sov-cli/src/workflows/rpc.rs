@@ -18,8 +18,8 @@ use sov_rollup_interface::digest::Digest;
 
 use crate::wallet_state::{AddressEntry, KeyIdentifier, WalletState};
 use crate::workflows::keys::load_key;
-const NO_ACCOUNTS_FOUND: &str =
-    "No accounts found. You can generate one with the `keys generate` subcommand";
+use crate::workflows::NO_ACCOUNTS_FOUND;
+
 const BAD_RPC_URL: &str = "Unable to connect to provided rpc. You can change to a different rpc url with the `rpc set-url` subcommand ";
 
 /// Query the current state of the rollup and send transactions
