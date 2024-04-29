@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId};
+use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{CryptoSpec, PrivateKey as _, PublicKey, Spec};
 
@@ -215,20 +216,25 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
     type Module = Bank<S>;
     type Spec = S;
 
-    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+    fn create_messages(
+        &self,
+        chain_id: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        max_fee: u64,
+        gas_usage: Option<<Self::Spec as Spec>::Gas>,
+    ) -> Vec<Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::<Message<S, Bank<S>>>::new();
 
         let mut nonce = 0;
 
         for create_message in &self.token_create_txs {
-            let gas_limit = None;
             messages.push(Message::new(
                 create_message.minter_pkey.clone(),
                 create_token_tx::<S>(create_message),
-                Self::DEFAULT_CHAIN_ID,
-                Self::DEFAULT_MAX_PRIORITY_FEE,
-                Self::DEFAULT_MAX_FEE,
-                gas_limit,
+                chain_id,
+                max_priority_fee_bips,
+                max_fee,
+                gas_usage.clone(),
                 nonce,
             ));
             nonce += 1;

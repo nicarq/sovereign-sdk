@@ -26,14 +26,14 @@ pub fn build_transaction(
 ) -> Transaction<TestSpec> {
     let runtime_encoded_message = RuntimeCall::<TestSpec, MockDaSpec>::nft(message);
     let chain_id = 0;
-    let max_priority_fee = PriorityFeeBips::ZERO;
+    let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 0;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         signer,
         runtime_encoded_message.try_to_vec().unwrap(),
         chain_id,
-        max_priority_fee,
+        max_priority_fee_bips,
         max_fee,
         gas_limit,
         nonce,

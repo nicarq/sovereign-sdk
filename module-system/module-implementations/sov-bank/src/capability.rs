@@ -99,16 +99,16 @@ impl<S: Spec> Bank<S> {
         )
         .expect("Transferring the consumed base fee gas is infallible");
 
-        // We compute the `max_priority_fee` by applying the `priority_fee_per_gas` to the consumed gas.
-        let max_priority_fee = tx
-            .max_priority_fee_per_gas()
+        // We compute the `max_priority_fee_bips` by applying the `priority_fee_per_gas` to the consumed gas.
+        let max_priority_fee_bips = tx
+            .max_priority_fee_bips()
             .apply(base_fee)
-            // if the computation overflows, we return the max fee - we always have `priority_fee <= tx.max_priority_fee() <= tx.max_fee()`
+            // if the computation overflows, we return the max fee - we always have `priority_fee <= tx.max_priority_fee_bips() <= tx.max_fee()`
             .unwrap_or(tx.max_fee());
 
         // The tip is the minimum of the remaining gas allocated to the transaction and the maximum priority fee per gas.
         // We transfer the tip to the tip recipient address.
-        let tip = min(max_priority_fee, tx.max_fee() - base_fee);
+        let tip = min(max_priority_fee_bips, tx.max_fee() - base_fee);
 
         self.transfer_from(
             self.id.to_payable(),

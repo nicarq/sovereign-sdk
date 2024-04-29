@@ -94,7 +94,7 @@ impl AttesterIncentivesTestHandler {
                     self.attester_private_key.clone(),
                     CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(attestation)),
                 )])
-                .create_raw_txs::<TestRuntime<S, Da>>(),
+                .create_default_raw_txs::<TestRuntime<S, Da>>(),
                 id: [1; 32],
             },
             self.seq_da_addr.as_ref(),
@@ -236,7 +236,7 @@ impl AttesterIncentivesTestHandler {
                         )),
                     ),
                 ])
-                .create_raw_txs::<TestRuntime<S, Da>>(),
+                .create_default_raw_txs::<TestRuntime<S, Da>>(),
                 id: [2; 32],
             },
             self.seq_da_addr.as_ref(),

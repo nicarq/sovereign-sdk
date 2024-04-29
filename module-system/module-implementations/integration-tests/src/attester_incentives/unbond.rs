@@ -41,7 +41,7 @@ fn test_honest_unbonding() {
                 test_handler.attester_private_key.clone(),
                 CallMessage::BeginUnbondingAttester,
             )])
-            .create_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>>(),
             id: [1; 32],
         },
         test_handler.seq_da_addr.as_ref(),
@@ -103,7 +103,7 @@ fn test_honest_unbonding() {
                 test_handler.attester_private_key.clone(),
                 CallMessage::EndUnbondingAttester,
             )])
-            .create_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>>(),
             id: [1; 32],
         },
         test_handler.seq_da_addr.as_ref(),
@@ -178,7 +178,7 @@ fn test_unbonding_without_bonded() {
                 test_handle.attester_private_key.clone(),
                 CallMessage::EndUnbondingAttester,
             )])
-            .create_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>>(),
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),
@@ -228,7 +228,7 @@ fn test_premature_unbonding() {
                 test_handle.attester_private_key.clone(),
                 CallMessage::BeginUnbondingAttester,
             )])
-            .create_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>>(),
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),
@@ -273,7 +273,7 @@ fn test_premature_unbonding() {
                 test_handle.attester_private_key.clone(),
                 CallMessage::EndUnbondingAttester,
             )])
-            .create_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>>(),
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),

@@ -196,7 +196,7 @@ impl AttesterIncentivesTestHandler {
         let sequencer_params = SequencerParams::default();
 
         AttesterIncentivesTestHandler {
-            value_setter: value_setter_messages.create_raw_txs::<TestRuntime<S, Da>>(),
+            value_setter: value_setter_messages.create_default_raw_txs::<TestRuntime<S, Da>>(),
             admin_public_key: value_setter_messages.messages[0]
                 .admin
                 .to_address::<TestHasher, _>(),
@@ -216,7 +216,7 @@ impl AttesterIncentivesTestHandler {
 
         let seq_params = SequencerParams::default();
 
-        let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<S, Da>>();
+        let value_setter = value_setter_messages.create_default_raw_txs::<TestRuntime<S, Da>>();
         let admin_private_key: Rc<Ed25519PrivateKey> =
             value_setter_messages.messages[0].admin.clone();
 

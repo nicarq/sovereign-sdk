@@ -33,7 +33,7 @@ impl TestRollup {
             .to_address::<TestHasher, _>();
 
         let contexts: Vec<Context<S>> = value_setter_messages
-            .create_messages()
+            .create_default_messages()
             .into_iter()
             .map(|m| {
                 self.stf().runtime().resolve_context(
@@ -66,7 +66,7 @@ fn test_stf_internal_updates() {
     let mut rollup = TestRollup::new();
 
     let value_setter_messages = ValueSetterMessages::prepopulated();
-    let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<S, MockDaSpec>>();
+    let value_setter = value_setter_messages.create_default_raw_txs::<TestRuntime<S, MockDaSpec>>();
 
     let admin_pub_key = value_setter_messages.messages[0]
         .admin

@@ -69,19 +69,39 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
 
     fn begin_batch_hook(
         &self,
-        _batch: &mut BatchWithId,
-        _sender: &<Da as DaSpec>::Address,
-        _state_checkpoint: &mut StateCheckpoint<S>,
+        batch: &mut BatchWithId,
+        sender: &<Da as DaSpec>::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
-        Ok(())
+        self.sequencer_registry
+            .begin_batch_hook(batch, sender, state_checkpoint)
     }
 
     fn end_batch_hook(
         &self,
-        _result: Self::BatchResult,
-        _sender: &<Da as DaSpec>::Address,
-        _working_set: &mut StateCheckpoint<S>,
+        result: Self::BatchResult,
+        sender: &<Da as DaSpec>::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
     ) {
+        // Since we need to make sure the `StfBlueprint` doesn't depend on the module system, we need to
+        // convert the `SequencerOutcome` structures manually.
+        let seqencer_outcome = match result {
+            SequencerOutcome::Rewarded(amount) => {
+                sov_sequencer_registry::SequencerOutcome::Rewarded(amount)
+            }
+            SequencerOutcome::Ignored => sov_sequencer_registry::SequencerOutcome::Ignored,
+            SequencerOutcome::Slashed(_reason) => sov_sequencer_registry::SequencerOutcome::Slashed,
+            SequencerOutcome::Penalized(amount) => {
+                sov_sequencer_registry::SequencerOutcome::Penalized(amount)
+            }
+        };
+
+        <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
+            &self.sequencer_registry,
+            seqencer_outcome,
+            sender,
+            state_checkpoint,
+        );
     }
 }
 

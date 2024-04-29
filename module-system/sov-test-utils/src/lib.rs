@@ -10,7 +10,9 @@ use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{CryptoSpec, DaSpec, GasUnit, Module, Spec, StateCheckpoint, WorkingSet};
+use sov_modules_api::{
+    CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint, WorkingSet,
+};
 use sov_modules_stf_blueprint::{Batch, BatchReceipt, TxEffect};
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -36,7 +38,7 @@ pub type TestHasher = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;
 
 /// Test helper: Generates an empty transaction with the given gas parameters.
 pub fn generate_empty_tx(
-    max_priority_fee: PriorityFeeBips,
+    max_priority_fee_bips: PriorityFeeBips,
     max_fee: u64,
     gas_limit: Option<GasUnit<2>>,
 ) -> Transaction<TestSpec> {
@@ -44,7 +46,7 @@ pub fn generate_empty_tx(
         &TestPrivateKey::generate(),
         vec![],
         0,
-        max_priority_fee,
+        max_priority_fee_bips,
         max_fee,
         gas_limit,
         0,
@@ -120,7 +122,7 @@ pub struct Message<S: Spec, Mod: Module> {
     /// The ID of the chain.
     pub chain_id: u64,
     /// The gas tip for the sequencer.
-    pub max_priority_fee: PriorityFeeBips,
+    pub max_priority_fee_bips: PriorityFeeBips,
     /// The gas limit for the transaction execution.
     pub max_fee: u64,
     /// The maximum gas price for the transaction execution.
@@ -134,7 +136,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
         sender_key: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
         content: Mod::CallMessage,
         chain_id: u64,
-        max_priority_fee: PriorityFeeBips,
+        max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
         gas_limit: Option<S::Gas>,
         nonce: u64,
@@ -143,7 +145,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
             sender_key,
             content,
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             gas_limit,
             nonce,
@@ -156,7 +158,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
             &self.sender_key,
             message,
             self.chain_id,
-            self.max_priority_fee,
+            self.max_priority_fee_bips,
             self.max_fee,
             self.gas_limit,
             self.nonce,
@@ -177,12 +179,74 @@ pub trait MessageGenerator {
     /// Module spec
     type Spec: Spec;
 
+    fn create_messages(
+        &self,
+        chain_id: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        max_fee: u64,
+        estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
+    ) -> Vec<Message<Self::Spec, Self::Module>>;
+
     /// Generates a list of messages originating from the module.
-    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>>;
+    fn create_default_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+        self.create_messages(
+            Self::DEFAULT_CHAIN_ID,
+            Self::DEFAULT_MAX_PRIORITY_FEE,
+            Self::DEFAULT_MAX_FEE,
+            Some(<Self::Spec as Spec>::Gas::from_slice(
+                &Self::DEFAULT_ESTIMATED_GAS_USAGE,
+            )),
+        )
+    }
+
+    fn create_default_messages_without_gas_usage(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+        self.create_messages(
+            Self::DEFAULT_CHAIN_ID,
+            Self::DEFAULT_MAX_PRIORITY_FEE,
+            Self::DEFAULT_MAX_FEE,
+            None,
+        )
+    }
 
     /// Creates a vector of raw transactions from the module.
-    fn create_raw_txs<Encoder: EncodeCall<Self::Module>>(&self) -> Vec<RawTx> {
-        let messages_iter = self.create_messages().into_iter().peekable();
+    fn create_default_raw_txs<Encoder: EncodeCall<Self::Module>>(&self) -> Vec<RawTx> {
+        self.create_raw_txs::<Encoder>(
+            Self::DEFAULT_CHAIN_ID,
+            Self::DEFAULT_MAX_PRIORITY_FEE,
+            Self::DEFAULT_MAX_FEE,
+            Some(<Self::Spec as Spec>::Gas::from_slice(
+                &Self::DEFAULT_ESTIMATED_GAS_USAGE,
+            )),
+        )
+    }
+
+    fn create_default_raw_txs_without_gas_usage<Encoder: EncodeCall<Self::Module>>(
+        &self,
+    ) -> Vec<RawTx> {
+        self.create_raw_txs::<Encoder>(
+            Self::DEFAULT_CHAIN_ID,
+            Self::DEFAULT_MAX_PRIORITY_FEE,
+            Self::DEFAULT_MAX_FEE,
+            None,
+        )
+    }
+
+    /// Creates a vector of raw transactions from the module.
+    fn create_raw_txs<Encoder: EncodeCall<Self::Module>>(
+        &self,
+        chain_id: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        max_fee: u64,
+        estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
+    ) -> Vec<RawTx> {
+        let messages_iter = self
+            .create_messages(
+                chain_id,
+                max_priority_fee_bips,
+                max_fee,
+                estimated_gas_usage,
+            )
+            .into_iter();
         let mut serialized_messages = Vec::default();
         for message in messages_iter {
             let tx = message.to_tx::<Encoder>();
@@ -193,25 +257,9 @@ pub trait MessageGenerator {
         serialized_messages
     }
 
-    /// Creates a vector of raw transactions from the module.
-    fn create_raw_txs_with_maximum_gas_price<Encoder: EncodeCall<Self::Module>>(
-        &self,
-        gas_limit: <Self::Spec as Spec>::Gas,
-    ) -> Vec<RawTx> {
-        let messages_iter = self.create_messages().into_iter().peekable();
-        let mut serialized_messages = Vec::default();
-        for mut message in messages_iter {
-            message.gas_limit.replace(gas_limit.clone());
-            serialized_messages.push(RawTx {
-                data: message.to_tx::<Encoder>().try_to_vec().unwrap(),
-            });
-        }
-        serialized_messages
-    }
-
     fn create_blobs<Encoder: EncodeCall<Self::Module>>(&self) -> Vec<u8> {
         let txs: Vec<Vec<u8>> = self
-            .create_raw_txs::<Encoder>()
+            .create_default_raw_txs::<Encoder>()
             .into_iter()
             .map(|tx| tx.data)
             .collect();

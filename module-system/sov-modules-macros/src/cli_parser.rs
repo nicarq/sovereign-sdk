@@ -31,7 +31,7 @@ impl CliParserMacro {
         let mut module_json_parser_arms = vec![];
         let mut module_message_arms = vec![];
         let mut tx_args_subcommand_match_arms_chain_id = vec![];
-        let mut tx_args_subcommand_match_arms_max_priority_fee = vec![];
+        let mut tx_args_subcommand_match_arms_max_priority_fee_bips = vec![];
         let mut tx_args_subcommand_match_arms_max_fee = vec![];
         let mut tx_args_subcommand_match_arms_gas_limit = vec![];
         let mut try_from_subcommand_match_arms = vec![];
@@ -90,8 +90,8 @@ impl CliParserMacro {
                     RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::chain_id(&contents),
                 });
 
-                tx_args_subcommand_match_arms_max_priority_fee.push(quote! {
-                    RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::max_priority_fee(&contents),
+                tx_args_subcommand_match_arms_max_priority_fee_bips.push(quote! {
+                    RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::max_priority_fee_bips(&contents),
                 });
 
                 tx_args_subcommand_match_arms_max_fee.push(quote! {
@@ -211,9 +211,9 @@ impl CliParserMacro {
                     }
                 }
 
-                fn max_priority_fee(&self) -> u64 {
+                fn max_priority_fee_bips(&self) -> u64 {
                     match self {
-                        #( #tx_args_subcommand_match_arms_max_priority_fee )*
+                        #( #tx_args_subcommand_match_arms_max_priority_fee_bips )*
                         RuntimeSubcommand::____phantom(_) => unreachable!(),
                     }
                 }

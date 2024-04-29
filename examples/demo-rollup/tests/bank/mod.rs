@@ -97,14 +97,14 @@ fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSp
             authorized_minters: vec![],
         });
     let chain_id = 0;
-    let max_priority_fee = PriorityFeeBips::ZERO;
+    let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = MAX_TX_FEE;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,
         msg.try_to_vec().unwrap(),
         chain_id,
-        max_priority_fee,
+        max_priority_fee_bips,
         max_fee,
         gas_limit,
         nonce,
@@ -124,14 +124,14 @@ fn build_transfer_token_tx(
             coins: Coins { amount, token_id },
         });
     let chain_id = 0;
-    let max_priority_fee = PriorityFeeBips::ZERO;
+    let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = MAX_TX_FEE;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,
         msg.try_to_vec().unwrap(),
         chain_id,
-        max_priority_fee,
+        max_priority_fee_bips,
         max_fee,
         gas_limit,
         nonce,

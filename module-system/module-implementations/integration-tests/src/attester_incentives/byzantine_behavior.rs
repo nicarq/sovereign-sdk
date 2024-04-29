@@ -65,7 +65,7 @@ impl AttesterIncentivesTestHandler {
                         fake_attestation,
                     )),
                 )])
-                .create_raw_txs::<TestRuntime<S, Da>>(),
+                .create_default_raw_txs::<TestRuntime<S, Da>>(),
                 id: [1; 32],
             },
             self.seq_da_addr.as_ref(),
@@ -139,7 +139,7 @@ impl AttesterIncentivesTestHandler {
                         CallMessage::ProcessChallenge(proof, 1),
                     ),
                 ])
-                .create_raw_txs::<TestRuntime<S, Da>>(),
+                .create_default_raw_txs::<TestRuntime<S, Da>>(),
                 id: [2; 32],
             },
             self.seq_da_addr.as_ref(),

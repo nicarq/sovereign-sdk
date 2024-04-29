@@ -16,7 +16,7 @@ use tempfile::TempDir;
 /// Generates a hanful of transactions and returns the hash of the first one.
 fn generate_txs(admin_private_key: TestPrivateKey) -> (TxHash, Vec<Transaction<TestSpec>>) {
     let bank_generator = BankMessageGenerator::<TestSpec>::with_minter(admin_private_key);
-    let messages_iter = bank_generator.create_messages().into_iter();
+    let messages_iter = bank_generator.create_default_messages().into_iter();
     let mut txs = Vec::default();
     for message in messages_iter {
         let tx = message.to_tx::<TestRuntime<TestSpec, MockDaSpec>>();

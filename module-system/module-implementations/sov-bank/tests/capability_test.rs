@@ -22,14 +22,14 @@ struct CapabilityTestParams {
 /// with the given gas parameters, reserves some gas, checks the resulting gas meter, and returns useful test parameters.
 fn reserve_gas_helper(
     initial_balance: u64,
-    max_priority_fee: PriorityFeeBips,
+    max_priority_fee_bips: PriorityFeeBips,
     gas_limit: Option<GasUnit<2>>,
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
 ) -> CapabilityTestParams {
     let (sender_address, bank, mut checkpoint) = simple_bank_setup(initial_balance);
 
     let transaction: Transaction<S> =
-        generate_empty_tx(max_priority_fee, initial_balance, gas_limit.clone());
+        generate_empty_tx(max_priority_fee_bips, initial_balance, gas_limit.clone());
 
     // We try to reserve gas, this should succeed because we have enough balance.
     let gas_meter = bank
@@ -148,7 +148,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
 #[test]
 fn test_honest_reserve_gas_capability_with_priority_fee() {
     let initial_balance = 100;
-    let max_priority_fee = PriorityFeeBips::from_percentage(10);
+    let max_priority_fee_bips = PriorityFeeBips::from_percentage(10);
     let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
 
     let mut params = reserve_gas_helper(
@@ -182,7 +182,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
 
     let refund_amount = initial_balance
         - gas_to_charge_value
-        - max_priority_fee
+        - max_priority_fee_bips
             .apply(gas_to_charge_value)
             .expect("This should not overflow");
 

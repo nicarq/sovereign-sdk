@@ -84,7 +84,7 @@ pub struct Transaction<S: Spec> {
     /// The maximum priority fee that can be paid for this transaction expressed as a basis point percentage of the gas consumed by the transaction.
     /// Ie if the transaction has consumed `100` gas tokens, and the priority fee is set to `100_000` (10%), the
     /// gas tip will be `10` tokens.
-    pub max_priority_fee: PriorityFeeBips,
+    pub max_priority_fee_bips: PriorityFeeBips,
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
     pub max_fee: u64,
     /// The gas limit of the transaction.
@@ -125,7 +125,8 @@ impl<S: Spec> Transaction<S> {
 
         serialized_tx.extend_from_slice(self.runtime_msg());
         serialized_tx.extend_from_slice(&self.chain_id.to_le_bytes());
-        serialized_tx.extend_from_slice(&Into::<u64>::into(self.max_priority_fee).to_le_bytes());
+        serialized_tx
+            .extend_from_slice(&Into::<u64>::into(self.max_priority_fee_bips).to_le_bytes());
         serialized_tx.extend_from_slice(&self.max_fee.to_le_bytes());
         serialized_tx.extend_from_slice(&self.nonce.to_le_bytes());
 
@@ -153,7 +154,7 @@ impl<S: Spec> Transaction<S> {
         message: Vec<u8>,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
         chain_id: u64,
-        max_priority_fee: PriorityFeeBips,
+        max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
         gas_limit: Option<S::Gas>,
         nonce: u64,
@@ -163,7 +164,7 @@ impl<S: Spec> Transaction<S> {
             runtime_msg: message,
             pub_key,
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             gas_limit,
             nonce,
@@ -178,7 +179,7 @@ impl<S: Spec> Transaction<S> {
         priv_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
         mut message: Vec<u8>,
         chain_id: u64,
-        max_priority_fee: PriorityFeeBips,
+        max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
         gas_limit: Option<S::Gas>,
         nonce: u64,
@@ -196,7 +197,7 @@ impl<S: Spec> Transaction<S> {
 
         message[len..len + 8].copy_from_slice(&chain_id.to_le_bytes());
         message[len + 8..len + 16]
-            .copy_from_slice(&Into::<u64>::into(max_priority_fee).to_le_bytes());
+            .copy_from_slice(&Into::<u64>::into(max_priority_fee_bips).to_le_bytes());
         message[len + 16..len + 24].copy_from_slice(&max_fee.to_le_bytes());
         message[len + 24..len + 32].copy_from_slice(&nonce.to_le_bytes());
 
@@ -225,7 +226,7 @@ impl<S: Spec> Transaction<S> {
             runtime_msg: message,
             pub_key,
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             gas_limit,
             nonce,
@@ -244,9 +245,9 @@ where
     pub tx: Tx,
     /// The ID of the target chain
     pub chain_id: u64,
-    /// The maximum priority fee that can be paid for this transaction expressed as a percentage.
+    /// The maximum priority fee that can be paid for this transaction expressed in bips.
     /// This priority fee is computed as a percentage of the total gas consumed by the transaction
-    pub max_priority_fee: PriorityFeeBips,
+    pub max_priority_fee_bips: PriorityFeeBips,
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
     pub max_fee: u64,
     /// The estimated gas usage of the transaction
@@ -263,14 +264,14 @@ where
     pub const fn new(
         tx: Tx,
         chain_id: u64,
-        max_priority_fee: PriorityFeeBips,
+        max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
             tx,
             chain_id,
-            max_priority_fee,
+            max_priority_fee_bips,
             max_fee,
             gas_limit,
         }
@@ -294,7 +295,7 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
             runtime_msg_len: tx.runtime_msg.len(),
             pub_key_hash,
             chain_id: tx.chain_id,
-            max_priority_fee: tx.max_priority_fee,
+            max_priority_fee_bips: tx.max_priority_fee_bips,
             max_fee: tx.max_fee,
             gas_limit: tx.gas_limit,
             nonce: tx.nonce,
@@ -309,7 +310,7 @@ pub struct AuthenticatedTransactionData<S: Spec> {
     pub_key_hash: Hash,
     default_address: S::Address,
     chain_id: u64,
-    max_priority_fee: PriorityFeeBips,
+    max_priority_fee_bips: PriorityFeeBips,
     max_fee: u64,
     gas_limit: Option<S::Gas>,
     nonce: u64,
@@ -336,9 +337,10 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
         self.chain_id
     }
 
-    /// The maximum priority fee that can be paid for this transaction expressed as a percentage.
-    pub const fn max_priority_fee_per_gas(&self) -> &PriorityFeeBips {
-        &self.max_priority_fee
+    /// The maximum priority fee that can be paid for this transaction expressed in bips.
+    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
+    pub const fn max_priority_fee_bips(&self) -> &PriorityFeeBips {
+        &self.max_priority_fee_bips
     }
 
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount

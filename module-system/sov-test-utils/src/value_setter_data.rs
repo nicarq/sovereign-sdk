@@ -1,4 +1,4 @@
-use sov_modules_api::{CryptoSpec, GasArray, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_value_setter::ValueSetter;
 
 use super::*;
@@ -30,7 +30,13 @@ impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
     type Module = ValueSetter<S>;
     type Spec = S;
 
-    fn create_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
+    fn create_messages(
+        &self,
+        chain_id: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        max_fee: u64,
+        gas_usage: Option<<Self::Spec as Spec>::Gas>,
+    ) -> Vec<Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::default();
         for value_setter_message in &self.messages {
             let admin = value_setter_message.admin.clone();
@@ -44,12 +50,10 @@ impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
                 messages.push(Message::new(
                     admin.clone(),
                     set_value_msg,
-                    Self::DEFAULT_CHAIN_ID,
-                    Self::DEFAULT_MAX_PRIORITY_FEE,
-                    Self::DEFAULT_MAX_FEE,
-                    Some(<Self::Spec as Spec>::Gas::from_slice(
-                        &Self::DEFAULT_ESTIMATED_GAS_USAGE,
-                    )),
+                    chain_id,
+                    max_priority_fee_bips,
+                    max_fee,
+                    gas_usage.clone(),
                     value_setter_admin_nonce.try_into().unwrap(),
                 ));
             }
