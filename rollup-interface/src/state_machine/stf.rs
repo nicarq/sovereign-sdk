@@ -7,9 +7,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::da::DaSpec;
+use crate::da::{DaSpec, RelevantBlobIters};
 use crate::maybestd::vec::Vec;
-use crate::services::da::RelevantBlobIters;
 use crate::zk::{ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "arbitrary"))]

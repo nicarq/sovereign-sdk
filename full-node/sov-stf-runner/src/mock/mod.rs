@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
-use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::RelevantBlobIters;
+use sov_rollup_interface::da::{DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{
     ApplySlotOutput, BatchReceipt, SlotResult, StateTransitionFunction,
 };

@@ -2,59 +2,13 @@
 
 use alloc::vec::Vec;
 
-use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-use crate::da::BlockHeaderTrait;
+use crate::da::{BlockHeaderTrait, RelevantBlobs, RelevantProofs};
 #[cfg(feature = "native")]
 use crate::da::{DaSpec, DaVerifier};
 use crate::zk::ValidityCondition;
-
-/// A proof that a set of blobs belongs to a given DA block.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DaProof<InclusionMultiProof, CompletenessProof> {
-    /// A proof that each tx in a set of blob transactions is included in a given block.
-    pub inclusion_proof: InclusionMultiProof,
-    /// A proof that a claimed set of transactions is complete.
-    pub completeness_proof: CompletenessProof,
-}
-
-/// Contains the proofs that data from the relevant namespaces belong to a given DA block.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RelevantProofs<InclusionMultiProof, CompletenessProof> {
-    /// Proof for the `batch` namespace data.
-    pub batch: DaProof<InclusionMultiProof, CompletenessProof>,
-    /// Proof for the `proof` namespace data.
-    pub proof: DaProof<InclusionMultiProof, CompletenessProof>,
-}
-
-/// Contains all the blobs from the relevant namespaces in the DA block.
-#[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, Clone)]
-pub struct RelevantBlobs<B> {
-    /// Blobs from the `proof` namespace.
-    pub proof_blobs: Vec<B>,
-    /// Blobs from the `batch` namespace.
-    pub batch_blobs: Vec<B>,
-}
-
-impl<B> RelevantBlobs<B> {
-    /// Iterates over the blobs in this block.
-    pub fn as_iters(&mut self) -> RelevantBlobIters<&mut [B]> {
-        RelevantBlobIters {
-            proof_blobs: self.proof_blobs.as_mut_slice(),
-            batch_blobs: self.batch_blobs.as_mut_slice(),
-        }
-    }
-}
-
-/// Holds iterators over the blobs in a given block.
-pub struct RelevantBlobIters<I: IntoIterator> {
-    /// ProofNamespace blobs.
-    pub proof_blobs: I,
-    /// BatchNamespace blobs.
-    pub batch_blobs: I,
-}
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
 /// It is *not* part of the logic that is zk-proven.

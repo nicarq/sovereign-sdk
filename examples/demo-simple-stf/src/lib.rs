@@ -3,8 +3,7 @@
 use std::marker::PhantomData;
 
 use sha2::Digest;
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
-use sov_rollup_interface::services::da::RelevantBlobIters;
+use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{
     ApplySlotOutput, BatchReceipt, SlotResult, StateTransitionFunction,
 };

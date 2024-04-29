@@ -13,7 +13,9 @@ mod state_machine;
 pub use schemars;
 pub use state_machine::*;
 
+#[cfg(feature = "native")]
 mod node;
+#[cfg(feature = "native")]
 pub use node::*;
 pub use {anyhow, digest};
 

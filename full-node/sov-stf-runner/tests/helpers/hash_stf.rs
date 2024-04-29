@@ -5,8 +5,7 @@ use sov_mock_da::{
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::namespaces::User;
 use sov_prover_storage_manager::SimpleStorageManager;
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
-use sov_rollup_interface::services::da::RelevantBlobIters;
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue, StateAccesses};

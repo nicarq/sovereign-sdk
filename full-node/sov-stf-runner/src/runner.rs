@@ -547,7 +547,7 @@ mod tests {
         MockValidityCond,
     };
     use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
-    use sov_rollup_interface::services::da::{DaProof, RelevantBlobs, RelevantProofs};
+    use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
 
     use super::*;
     use crate::mock::MockStf;

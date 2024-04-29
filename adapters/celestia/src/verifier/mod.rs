@@ -3,10 +3,10 @@ use celestia_types::nmt::Namespace;
 use celestia_types::{Commitment, DataAvailabilityHeader, NamespacedShares};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    self, BlobReaderTrait, BlockHashTrait as BlockHash, BlockHeaderTrait, DaSpec,
+    self, BlobReaderTrait, BlockHashTrait as BlockHash, BlockHeaderTrait, DaSpec, RelevantBlobs,
+    RelevantProofs,
 };
 use sov_rollup_interface::digest::Digest;
-use sov_rollup_interface::services::da::{RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::zk::{ValidityCondition, ValidityConditionChecker};
 use sov_rollup_interface::Buf;
 use thiserror::Error;

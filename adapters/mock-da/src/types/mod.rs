@@ -6,8 +6,11 @@ use std::hash::Hasher;
 pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlockHashTrait, BlockHeaderTrait, CountedBufReader, Time};
-use sov_rollup_interface::services::da::{RelevantBlobs, SlotData};
+use sov_rollup_interface::da::{
+    BlockHashTrait, BlockHeaderTrait, CountedBufReader, RelevantBlobs, Time,
+};
+#[cfg(feature = "native")]
+use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
 
 use crate::utils::hash_to_array;
@@ -224,6 +227,7 @@ pub struct MockBlock {
     pub proof_blobs: Vec<MockBlob>,
 }
 
+#[cfg(feature = "native")]
 impl SlotData for MockBlock {
     type BlockHeader = MockBlockHeader;
     type Cond = MockValidityCond;

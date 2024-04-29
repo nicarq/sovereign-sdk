@@ -5,10 +5,10 @@ use std::time::Duration;
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
-use sov_rollup_interface::services::da::{
-    DaProof, DaService, RelevantBlobs, RelevantProofs, SlotData,
+use sov_rollup_interface::da::{
+    BlockHeaderTrait, DaProof, DaSpec, RelevantBlobs, RelevantProofs, Time,
 };
+use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::sync::{broadcast, Mutex, RwLock};
 use tokio::time;
 use tracing::debug;

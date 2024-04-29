@@ -4,8 +4,7 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::Zkvm;
-use sov_rollup_interface::da::Time;
-use sov_rollup_interface::services::da::{DaProof, RelevantBlobs, RelevantProofs};
+use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs, Time};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_stf_runner::mock::MockStf;
