@@ -118,7 +118,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for TestRuntime<S, Da> {
         &self,
         raw_tx: &RawTx,
     ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
-        sov_modules_api::authenticate::<S, Self>(raw_tx)
+        sov_modules_api::authenticate::<S, Self>(&raw_tx.data)
     }
 }
 

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use demo_stf::authentication::ModAuth;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
@@ -82,14 +83,16 @@ impl RollupBlueprint for CelestiaDemoRollup {
         let sequencer = rollup_config.da.own_celestia_address.clone();
 
         #[allow(unused_mut)]
-        let (mut rpc_methods, axum_router) =
-            sov_modules_rollup_blueprint::register_endpoints::<Self>(
-                storage.clone(),
-                ledger_db,
-                sequencer_db,
-                da_service,
-                sequencer,
-            )?;
+        let (mut rpc_methods, axum_router) = sov_modules_rollup_blueprint::register_endpoints::<
+            Self,
+            ModAuth<Self::NativeSpec, Self::DaSpec>,
+        >(
+            storage.clone(),
+            ledger_db,
+            sequencer_db,
+            da_service,
+            sequencer,
+        )?;
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366

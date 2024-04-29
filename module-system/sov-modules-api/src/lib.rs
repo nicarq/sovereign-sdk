@@ -57,7 +57,7 @@ pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
 }
 
-pub use authentication::authenticate;
+pub use authentication::{authenticate, Authenticator};
 
 struct ModuleVisitor<'a, S: Spec> {
     visited: HashSet<&'a ModuleId>,

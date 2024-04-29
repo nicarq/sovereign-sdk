@@ -1,6 +1,10 @@
+- #519 Adds an `Authenticator` trait which abstracts away the transaction authentication logic. This is a breaking change so the consumers of the SDK will need to implement the new trait.
+See `authentication.rs` in `demo-rollup`.
+
 - #538 removes the chain state from the EVM module because it was unused.
 
 - #528 removes the `initial_base_fee_per_gas` parameter from the genesis configuration of the chain state to define a constant `INITIAL_BASE_FEE_PER_GAS` that is common to all crates. Now that we assume the tx sender always has a bank account for the gas token, the non-zero transfer amount hacks from the `reserve_gas` and `refund_remaining_gas` capabilities for the `GasEnforcer` in the `Bank` module are replaced by an account check. If the sender doesn't have a bank account for the gas token, the method fails with the error `AccountDoesNotExist`. This check is done in the EIP-1559 specification.
+
 - #526 `Bank::create_token` & `Bank::mint` now accept an `impl Payable` as arguments. This is a breaking change. `&S::Address` already implements `Payable`, and `ModuleId` can be promoted to `Payable` via `ModuleId::as_token_holder`.
 
 - #525 mitigates the bug where a transaction which was included multiple times would always return the `Duplicate` tx status rather than returning info about the original tx execution. In this commit we use a simple heuristic (first tx wins) to guess which instance is the "correct" one.
