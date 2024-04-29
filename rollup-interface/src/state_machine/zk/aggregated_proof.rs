@@ -83,9 +83,15 @@ impl AggregatedProof {
             public_data,
         }
     }
+
     /// Public input of the aggregated proof.
     pub fn public_data(&self) -> &AggregatedProofPublicData {
         &self.public_data
+    }
+
+    /// The serialized proof raw bytes.
+    pub fn serialized_proof(&self) -> &[u8] {
+        &self.serialized_proof.raw_aggregated_proof
     }
 }
 

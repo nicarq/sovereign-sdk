@@ -20,8 +20,7 @@
 mod axum_extractors;
 mod pagination;
 mod sorting;
-#[cfg(test)]
-pub(crate) mod test_utils;
+pub mod test_utils;
 pub mod types;
 pub mod utils;
 

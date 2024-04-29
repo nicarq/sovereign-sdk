@@ -27,7 +27,7 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 /// # Example
 /// ```
 /// use std::sync::{Arc, RwLock};
-/// use sov_ledger_apis::server::rpc_module;
+/// use sov_ledger_apis::rpc::server::rpc_module;
 /// use tempfile::tempdir;
 /// use sov_db::ledger_db::LedgerDb;
 /// use sov_db::schema::{CacheContainer, CacheDb};

@@ -58,8 +58,6 @@ pub struct BankGasConfig<GU: Gas> {
 /// - Token burn.
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
-// #[derive(ModuleInfo, Clone)]
-
 pub struct Bank<S: sov_modules_api::Spec> {
     /// The id of the sov-bank module.
     #[id]

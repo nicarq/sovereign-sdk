@@ -1,7 +1,7 @@
 [package]
-name = "sov-sequencer-json-client"
+name = "sov-ledger-json-client"
 authors = { workspace = true }
-description = "A simple client for the Sovereign SDK sequencer JSON API"
+description = "A simple client for the Sovereign SDK ledger JSON API"
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
@@ -23,6 +23,7 @@ progenitor = { git = "https://github.com/oxidecomputer/progenitor", rev = "0050f
 regress = "0.4.1"
 reqwest = { version = "0.11", features = ["json", "stream"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # Needed for websockets, as documented by the `progenitor` docs.
 base64 = "0.21"

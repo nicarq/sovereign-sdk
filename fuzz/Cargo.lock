@@ -5088,6 +5088,7 @@ dependencies = [
  "sov-attester-incentives",
  "sov-bank",
  "sov-chain-state",
+ "sov-db",
  "sov-kernels",
  "sov-mock-da",
  "sov-mock-zkvm",

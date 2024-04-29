@@ -1,66 +1,17 @@
-use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
-
-use demo_stf::runtime::Runtime;
-use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
+use common::LedgerTestService;
+use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::params::ArrayParams;
-use sov_db::ledger_db::LedgerDb;
-use sov_db::schema::{CacheContainer, CacheDb};
-use sov_ledger_apis::client::RpcClient;
-use sov_ledger_apis::server::rpc_module;
+use sov_ledger_apis::rpc::client::RpcClient;
 use sov_ledger_apis::HexHash;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::StoredEvent;
-use sov_rollup_interface::rpc::{
-    BatchResponse, EventIdentifier, QueryMode, SlotResponse, TxIdAndOffset, TxIdentifier,
-    TxResponse,
-};
-use sov_test_utils::TestSpec;
-use tempfile::tempdir;
+use sov_rollup_interface::rpc::{EventIdentifier, QueryMode, TxIdAndOffset, TxIdentifier};
 
-async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
-    let dir = tempdir().unwrap();
-    let schema_db = LedgerDb::setup_schema_db(dir.path()).unwrap();
-    let cache_container =
-        CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
-    let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
-    let ledger_db = LedgerDb::with_cache_db(cache_db).unwrap();
-    let rpc_module = rpc_module::<
-        LedgerDb,
-        u32,
-        u32,
-        sov_modules_api::RuntimeEventResponse<
-            <Runtime<TestSpec, MockDaSpec> as sov_modules_api::RuntimeEventProcessor>::RuntimeEvent,
-        >,
-    >(ledger_db)
-    .unwrap();
-
-    let server = jsonrpsee::server::ServerBuilder::default()
-        .build("127.0.0.1:0")
-        .await
-        .unwrap();
-    let addr = server.local_addr().unwrap();
-    (server.start(rpc_module), addr)
-}
-
-async fn rpc_client(
-    addr: SocketAddr,
-) -> Arc<
-    impl RpcClient<SlotResponse<u32, u32>, BatchResponse<u32, u32>, TxResponse<u32>>
-        + SubscriptionClientT,
-> {
-    Arc::new(
-        jsonrpsee::ws_client::WsClientBuilder::new()
-            .build(format!("ws://{}", addr))
-            .await
-            .unwrap(),
-    )
-}
+mod common;
 
 #[tokio::test]
 async fn getters_succeed() {
-    let (_server_handle, addr) = rpc_server().await;
-    let rpc_client = rpc_client(addr).await;
+    let ledger_service = LedgerTestService::new().await.unwrap();
+    let rpc_client = ledger_service.rpc_client().await;
 
     rpc_client.get_head(QueryMode::Compact).await.unwrap();
     rpc_client.get_head(QueryMode::Standard).await.unwrap();
@@ -123,16 +74,16 @@ async fn getters_succeed() {
 
 #[tokio::test]
 async fn subscribe_slots_succeeds() {
-    let (_server_handle, addr) = rpc_server().await;
-    let rpc_client = rpc_client(addr).await;
+    let ledger_service = LedgerTestService::new().await.unwrap();
+    let rpc_client = ledger_service.rpc_client().await;
 
     rpc_client.subscribe_slots().await.unwrap();
 }
 
 #[tokio::test]
 async fn get_head_with_optional_query_mode() {
-    let (_server_handle, addr) = rpc_server().await;
-    let rpc_client = rpc_client(addr).await;
+    let ledger_service = LedgerTestService::new().await.unwrap();
+    let rpc_client = ledger_service.rpc_client().await;
 
     // No QueryMode param.
     {
@@ -163,8 +114,8 @@ async fn get_head_with_optional_query_mode() {
 /// `"params": [{"txId": 1, "offset": 2}]`).
 #[tokio::test]
 async fn get_events_patterns() {
-    let (_server_handle, addr) = rpc_server().await;
-    let rpc_client = rpc_client(addr).await;
+    let ledger_service = LedgerTestService::new().await.unwrap();
+    let rpc_client = ledger_service.rpc_client().await;
 
     rpc_client
         .get_events(vec![EventIdentifier::Number(2)])
