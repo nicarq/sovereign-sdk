@@ -136,6 +136,10 @@ jobs:
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
+      - name: Exit if working tree is dirty
+        # A dirty working tree likely means that `sov-modules-schemas` was
+        # out of date.
+        run: git diff --exit-code
 
   prover_bench_check:
     name: prover_bench_check
