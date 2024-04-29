@@ -350,10 +350,16 @@ where
         //
         // This also ensures that the `gas_used` stays in sync with the `remaining_funds` counter.
         let funds_to_charge = gas.value(&self.gas_price);
-        self.remaining_funds = self
-            .remaining_funds
+        let remaining_funds = self.remaining_funds;
+        self.remaining_funds = remaining_funds
             .checked_sub(funds_to_charge)
-            .ok_or_else(|| anyhow::anyhow!("Not enough gas"))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Not enough funds to charge gas, required: {} remaining: {}",
+                    funds_to_charge,
+                    remaining_funds
+                )
+            })?;
 
         self.gas_used.combine(gas);
 
