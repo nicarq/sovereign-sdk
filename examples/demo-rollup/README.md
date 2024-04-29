@@ -139,7 +139,7 @@ $ cargo run --bin sov-cli -- --help
 Usage: sov-cli <COMMAND>
 
 Commands:
-  transactions  Generate, sign, and list transactions
+  transactions  Generate, sign, list and remove transactions
   keys          View and manage keys associated with this wallet
   rpc           Query the current state of the rollup and send transactions
   help          Print this message or the help of the given subcommand(s)

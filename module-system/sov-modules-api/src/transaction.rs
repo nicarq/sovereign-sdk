@@ -251,7 +251,7 @@ where
     pub max_fee: u64,
     /// The estimated gas usage of the transaction
     /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
-    /// accross the different gas dimensions. If provided, this quantity will be used along
+    /// across the different gas dimensions. If provided, this quantity will be used along
     /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
     pub gas_limit: Option<S::Gas>,
 }
