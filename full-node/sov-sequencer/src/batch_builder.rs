@@ -1,13 +1,13 @@
 //! Concrete implementation(s) of [`BatchBuilder`].
 
-use anyhow::{bail, Context as ErrorContext};
+use core::marker::PhantomData;
+
+use anyhow::bail;
 use async_trait::async_trait;
-use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::transaction::{AuthenticatedTransactionAndRawHash, Transaction};
-use sov_modules_api::{CryptoSpec, Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_api::{Authenticator, CryptoSpec, Gas, GasArray, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::{apply_tx, ExecutionMode, Runtime, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
@@ -38,20 +38,22 @@ pub struct FairBatchBuilderConfig<Da: DaSpec> {
 /// Transactions are included in batches by following a largest-first,
 /// least-recent-first priority. Only transactions that were successfully
 /// dispatched are included.
-pub struct FairBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>, K> {
+pub struct FairBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>, K, Auth: Authenticator> {
     runtime: R,
     kernel: K,
     mempool: FairMempool,
     max_batch_size_bytes: usize,
     current_storage: watch::Receiver<S::Storage>,
     sequencer: Da::Address,
+    _phantom: PhantomData<Auth>,
 }
 
-impl<S, Da, R, K> FairBatchBuilder<S, Da, R, K>
+impl<S, Da, R, K, Auth> FairBatchBuilder<S, Da, R, K, Auth>
 where
     S: Spec,
     Da: DaSpec,
     R: Runtime<S, Da>,
+    Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
     /// [`BatchBuilder`] constructor.
     pub fn new(
@@ -68,6 +70,7 @@ where
             kernel,
             current_storage,
             sequencer: config.sequencer_address,
+            _phantom: PhantomData,
         })
     }
 
@@ -84,18 +87,9 @@ where
             return Ok(None);
         }
 
-        let tx = Transaction::<S>::deserialize(&mut mempool_tx.tx_bytes.as_slice())
-            .context("Failed to deserialize transaction")?;
+        let (tx_and_raw_hash, msg) = Auth::authenticate(&mempool_tx.tx_bytes)?;
 
-        // expect(): The transaction was accepted into the pool,
-        // so we know that the runtime message is valid.
-        let msg = R::decode_call(tx.runtime_msg())
-            .expect("Undecodable transaction has been accepted into the pool");
-
-        let tx_and_raw_hash: AuthenticatedTransactionAndRawHash<S> =
-            AuthenticatedTransactionAndRawHash::new(mempool_tx.hash, tx.into());
-
-        let (after_state_checkpoint, tx_receipt) = apply_tx(
+        let (after_state_checkpoint, tx_receipt) = apply_tx::<S, _, _>(
             &self.runtime,
             &tx_and_raw_hash,
             msg,
@@ -123,12 +117,13 @@ where
 }
 
 #[async_trait]
-impl<S, Da, R, K> BatchBuilder for FairBatchBuilder<S, Da, R, K>
+impl<S, Da, R, K, Auth> BatchBuilder for FairBatchBuilder<S, Da, R, K, Auth>
 where
     S: Spec,
     Da: DaSpec,
     R: Runtime<S, Da>,
     K: Kernel<S, Da> + Send + Sync,
+    Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
     /// Attempt to add transaction to the mempool.
     ///
@@ -146,17 +141,7 @@ where
             )
         }
 
-        // Deserialize
-        let tx = Transaction::<S>::deserialize(&mut raw.as_slice())
-            .context("Failed to deserialize transaction")?;
-
-        // Verify
-        tx.verify().context("Failed to verify transaction")?;
-
-        // Make sure the runtime message is valid
-        R::decode_call(tx.runtime_msg())
-            .map_err(anyhow::Error::new)
-            .context("Failed to decode message in transaction")?;
+        Auth::authenticate(&raw)?;
 
         let hash = calculate_hash::<S>(&raw);
         tracing::debug!(
@@ -295,9 +280,9 @@ mod tests {
     use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, PublicKey, WorkingSet};
     use sov_prover_storage_manager::new_orphan_storage;
-    use sov_rollup_interface::services::batch_builder::BatchBuilder;
     use sov_state::Storage;
     use sov_test_utils::runtime::{create_genesis_config, TestRuntime};
+    use sov_test_utils::sequencer::TestAuth;
     use sov_test_utils::{TestHasher, TestPrivateKey, TestPublicKey, TestSpec};
     use sov_value_setter::{CallMessage, ValueSetter};
     use tempfile::TempDir;
@@ -309,6 +294,14 @@ mod tests {
     const DEFAULT_SEQUENCER_ROLLUP_ADDRESS: Address = Address::new([0u8; 32]);
 
     type S = TestSpec;
+
+    type BatchBuilder = FairBatchBuilder<
+        S,
+        MockDaSpec,
+        TestRuntime<S, MockDaSpec>,
+        BasicKernel<S, MockDaSpec>,
+        TestAuth<S, MockDaSpec>,
+    >;
 
     fn generate_random_valid_tx() -> Vec<u8> {
         let private_key = TestPrivateKey::generate();
@@ -326,7 +319,7 @@ mod tests {
         let gas_limit = None;
         let nonce = 1;
 
-        Transaction::<TestSpec>::new_signed_tx(
+        Transaction::<S>::new_signed_tx(
             private_key,
             msg,
             chain_id,
@@ -355,7 +348,7 @@ mod tests {
         let gas_limit = None;
         let nonce = 1;
 
-        Transaction::<TestSpec>::new_signed_tx(
+        Transaction::<S>::new_signed_tx(
             private_key,
             msg,
             chain_id,
@@ -372,8 +365,7 @@ mod tests {
         batch_size_bytes: usize,
         tmpdir: &TempDir,
         sequencer_address: MockAddress,
-    ) -> FairBatchBuilder<S, MockDaSpec, TestRuntime<S, MockDaSpec>, BasicKernel<S, MockDaSpec>>
-    {
+    ) -> BatchBuilder {
         let state_path = tmpdir.path().join("state");
         let sequencer_db_path = tmpdir.path().join("mempool");
         let storage = watch::Sender::new(new_orphan_storage(state_path).unwrap()).subscribe();
@@ -384,7 +376,7 @@ mod tests {
             max_batch_size_bytes: batch_size_bytes,
             sequencer_address,
         };
-        FairBatchBuilder::new(
+        BatchBuilder::new(
             TestRuntime::<S, MockDaSpec>::default(),
             BasicKernel::default(),
             storage.clone(),
@@ -395,12 +387,7 @@ mod tests {
     }
 
     fn setup_runtime(
-        batch_builder: &mut FairBatchBuilder<
-            S,
-            MockDaSpec,
-            TestRuntime<S, MockDaSpec>,
-            BasicKernel<S, MockDaSpec>,
-        >,
+        batch_builder: &mut BatchBuilder,
         admin: Option<TestPublicKey>,
         additional_accounts: Vec<(TestPublicKey, u64)>,
         seq_da_address: MockAddress,
@@ -439,6 +426,8 @@ mod tests {
     }
 
     mod accept_tx {
+        use sov_rollup_interface::services::batch_builder::BatchBuilder;
+
         use super::*;
 
         #[tokio::test]
@@ -499,10 +488,6 @@ mod tests {
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
-            assert!(accept_result
-                .unwrap_err()
-                .to_string()
-                .starts_with("Failed to deserialize transaction"));
         }
 
         #[tokio::test]
@@ -519,7 +504,7 @@ mod tests {
             assert!(accept_result
                 .unwrap_err()
                 .to_string()
-                .starts_with("Failed to decode message"));
+                .starts_with("transaction decoding error"));
         }
 
         #[tokio::test]
@@ -541,6 +526,8 @@ mod tests {
     }
 
     mod build_batch {
+        use sov_rollup_interface::services::batch_builder::BatchBuilder;
+
         use super::*;
 
         #[tokio::test]

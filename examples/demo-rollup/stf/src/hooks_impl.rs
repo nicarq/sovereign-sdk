@@ -4,14 +4,10 @@ use sov_bank::IntoPayable;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::namespaces::Accessory;
-use sov_modules_api::runtime::capabilities::{
-    AuthenticationError, GasEnforcer, RawTx, RuntimeAuthenticator, RuntimeAuthorization,
-};
-use sov_modules_api::transaction::{
-    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
-};
+use sov_modules_api::runtime::capabilities::{GasEnforcer, RuntimeAuthorization};
+use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    Context, DispatchCall, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
+    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 use sov_modules_stf_blueprint::SequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
@@ -213,19 +209,5 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for Runtime<S, Da> {
             .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
         let sender = self.accounts.resolve_sender_address(tx, working_set);
         Context::new(sender, sequencer, height)
-    }
-}
-
-impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for Runtime<S, Da> {
-    type Decodable = <Self as DispatchCall>::Decodable;
-
-    type Tx = AuthenticatedTransactionAndRawHash<S>;
-
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn authenticate(
-        &self,
-        raw_tx: &RawTx,
-    ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
-        sov_modules_api::authenticate::<S, Self>(raw_tx)
     }
 }

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use demo_stf::authentication::ModAuth;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDb;
@@ -75,14 +76,16 @@ impl RollupBlueprint for MockDemoRollup {
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Result<(jsonrpsee::RpcModule<()>, axum::Router<()>), anyhow::Error> {
         #[allow(unused_mut)]
-        let (mut rpc_methods, axum_router) =
-            sov_modules_rollup_blueprint::register_endpoints::<Self>(
-                storage.clone(),
-                ledger_db,
-                sequencer_db,
-                da_service,
-                rollup_config.da.sender_address,
-            )?;
+        let (mut rpc_methods, axum_router) = sov_modules_rollup_blueprint::register_endpoints::<
+            Self,
+            ModAuth<Self::NativeSpec, Self::DaSpec>,
+        >(
+            storage.clone(),
+            ledger_db,
+            sequencer_db,
+            da_service,
+            rollup_config.da.sender_address,
+        )?;
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366

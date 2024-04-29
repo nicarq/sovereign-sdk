@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
+use demo_stf::authentication::EvmAuth;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_ethereum::{EthRpcConfig, GasPriceOracleConfig};
 use sov_modules_api::{CryptoSpec, Spec};
@@ -50,7 +51,11 @@ pub(crate) fn register_ethereum<S: Spec, Da: DaService>(
         }
     };
 
-    let ethereum_rpc = sov_ethereum::get_ethereum_rpc::<S, Da>(da_service, eth_rpc_config, storage);
+    let ethereum_rpc = sov_ethereum::get_ethereum_rpc::<S, Da, EvmAuth<S, Da::Spec>>(
+        da_service,
+        eth_rpc_config,
+        storage,
+    );
     methods
         .merge(ethereum_rpc)
         .context("Failed to merge Ethereum RPC modules")

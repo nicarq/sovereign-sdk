@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::jsonapi::LedgerRoutes;
-use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse, Spec};
+use sov_modules_api::{Authenticator, RuntimeEventProcessor, RuntimeEventResponse, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
@@ -11,7 +11,7 @@ use tokio::sync::watch;
 use crate::RollupBlueprint;
 
 /// Register rollup's default RPC methods and Axum router.
-pub fn register_endpoints<B>(
+pub fn register_endpoints<B, Auth>(
     storage: watch::Receiver<<B::NativeSpec as Spec>::Storage>,
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
@@ -22,6 +22,7 @@ where
     B: RollupBlueprint + 'static,
     B::NativeRuntime: RuntimeEventProcessor,
     <B::DaService as DaService>::TransactionId: Clone + Send + Sync + serde::Serialize,
+    Auth: Authenticator<Spec = B::NativeSpec, DispatchCall = B::NativeRuntime>,
 {
     let mut axum_router = axum::Router::<()>::new();
 
@@ -53,16 +54,21 @@ where
             max_batch_size_bytes: 1024 * 100,
             sequencer_address: sequencer.clone(),
         };
-        let batch_builder =
-            FairBatchBuilder::<B::NativeSpec, B::DaSpec, B::NativeRuntime, B::NativeKernel>::new(
-                B::NativeRuntime::default(),
-                B::NativeKernel::default(),
-                storage,
-                sequencer_db.clone(),
-                config,
-            )?;
+        let batch_builder = FairBatchBuilder::<
+            B::NativeSpec,
+            B::DaSpec,
+            B::NativeRuntime,
+            B::NativeKernel,
+            Auth,
+        >::new(
+            B::NativeRuntime::default(),
+            B::NativeKernel::default(),
+            storage,
+            sequencer_db.clone(),
+            config,
+        )?;
 
-        let sequencer = Sequencer::new(batch_builder, da_service.clone());
+        let sequencer = Sequencer::<_, _, Auth>::new(batch_builder, da_service.clone());
 
         rpc_methods
             .merge(sequencer.rpc())

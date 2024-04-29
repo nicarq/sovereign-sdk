@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use borsh::BorshSerialize;
@@ -6,8 +7,8 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use serde::Serialize;
 use sov_modules_api::batch::Batch;
-use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
+use sov_modules_api::Authenticator;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
 use sov_rollup_interface::services::da::DaService;
@@ -20,29 +21,32 @@ use super::{AcceptTxResponse, HexHash, SubmittedBatchInfo};
 const SEQUENCER_RPC_ERROR: &str = "SEQUENCER_RPC_ERROR";
 
 /// Single data structure that manages mempool and batch producing.
-pub struct Sequencer<B: BatchBuilder, Da: DaService>(Arc<Inner<B, Da>>);
+pub struct Sequencer<B: BatchBuilder, Da: DaService, Auth: Authenticator>(Arc<Inner<B, Da, Auth>>);
 
-impl<B, Da> Clone for Sequencer<B, Da>
+impl<B, Da, Auth> Clone for Sequencer<B, Da, Auth>
 where
     B: BatchBuilder,
     Da: DaService,
+    Auth: Authenticator,
 {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-struct Inner<B: BatchBuilder, Da: DaService> {
+struct Inner<B: BatchBuilder, Da: DaService, Auth: Authenticator> {
     batch_builder: Mutex<B>,
     da_service: Da,
     tx_status_notifier: Arc<TxStatusNotifier<Da>>,
+    _phantom: PhantomData<Auth>,
 }
 
-impl<B, Da> Sequencer<B, Da>
+impl<B, Da, Auth> Sequencer<B, Da, Auth>
 where
     B: BatchBuilder + Send + Sync + 'static,
     Da: DaService,
     Da::TransactionId: Clone + Send + Sync + serde::Serialize,
+    Auth: Authenticator,
 {
     /// Creates new Sequencer from BatchBuilder and DaService
     pub fn new(batch_builder: B, da_service: Da) -> Self {
@@ -50,6 +54,7 @@ where
             batch_builder: Mutex::new(batch_builder),
             da_service,
             tx_status_notifier: Arc::new(TxStatusNotifier::new()),
+            _phantom: PhantomData,
         }))
     }
 
@@ -88,10 +93,18 @@ where
 
         let blob_txs = batch_builder.get_next_blob(da_height).await?;
         let num_txs = blob_txs.len();
-        let (txs, tx_hashes) = blob_txs
-            .into_iter()
-            .map(|tx| (RawTx { data: tx.raw_tx }, tx.hash))
-            .unzip::<_, _, Vec<_>, Vec<_>>();
+
+        let mut txs = Vec::with_capacity(num_txs);
+        let mut tx_hashes = Vec::with_capacity(num_txs);
+
+        for tx in blob_txs {
+            txs.push(
+                Auth::encode(tx.raw_tx)
+                    .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?,
+            );
+
+            tx_hashes.push(tx.hash);
+        }
 
         let batch = Batch { txs };
         let serialized_batch = batch.try_to_vec()?;
@@ -147,11 +160,12 @@ mod jsonrpc {
         pub body: Vec<u8>,
     }
 
-    impl<B, Da> Sequencer<B, Da>
+    impl<B, Da, Auth> Sequencer<B, Da, Auth>
     where
         B: BatchBuilder + Send + Sync + 'static,
         Da: DaService,
         Da::TransactionId: Clone + Send + Sync + serde::Serialize,
+        Auth: Authenticator + Send + Sync + 'static,
     {
         /// Returns the [`jsonrpsee::RpcModule`] for the sequencer-related RPC
         /// methods.
@@ -294,11 +308,12 @@ mod axum_router {
     }
 
     // Web server and Axum-related methods.
-    impl<B, Da> Sequencer<B, Da>
+    impl<B, Da, Auth> Sequencer<B, Da, Auth>
     where
         B: BatchBuilder + Send + Sync + 'static,
         Da: DaService,
         Da::TransactionId: Clone + Send + Sync + serde::Serialize,
+        Auth: Authenticator + Send + Sync + 'static,
     {
         /// Creates an Axum router for the sequencer.
         pub fn axum_router(&self, path_prefix: &str) -> axum::Router<Self> {
@@ -435,9 +450,11 @@ mod axum_router {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
-    use sov_mock_da::{MockAddress, MockDaService};
+    use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
     use sov_rollup_interface::da::BlobReaderTrait;
     use sov_rollup_interface::services::batch_builder::TxWithHash;
+    use sov_test_utils::sequencer::TestAuth;
+    use sov_test_utils::TestSpec;
 
     use self::axum_router::openapi_spec;
     use super::*;
@@ -445,7 +462,7 @@ mod tests {
     fn sequencer_rpc(
         batch_builder: MockBatchBuilder,
         da_service: MockDaService,
-    ) -> RpcModule<Sequencer<MockBatchBuilder, MockDaService>> {
+    ) -> RpcModule<Sequencer<MockBatchBuilder, MockDaService, TestAuth<TestSpec, MockDaSpec>>> {
         Sequencer::new(batch_builder, da_service).rpc()
     }
 
