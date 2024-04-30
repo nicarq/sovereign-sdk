@@ -275,23 +275,23 @@ impl<S: sov_modules_api::Spec> Token<S> {
     }
 
     /// Creates a token from a given set of parameters.
-    /// The `token_name`, `sender` address (as a `u8` slice), and the `salt` (`u64` number) are used as an input
+    /// The `token_name`, `originator`  (as a `u8` slice), and the `salt` (`u64` number) are used as an input
     /// to an hash function that computes the token ID. Then the initial accounts and balances are populated
-    /// from the `address_and_balances` slice and the `total_supply` of tokens is updated each time.
+    /// from the `identities_and_balances` slice and the `total_supply` of tokens is updated each time.
     /// Returns a tuple containing the computed `token_id` and the created `token` object.
     pub(crate) fn create(
         token_name: &str,
-        address_and_balances: &[(TokenHolderRef<'_, S>, u64)],
+        identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
         authorized_minters: &[TokenHolderRef<'_, S>],
-        sender: &S::Address,
+        originator: impl Payable<S>,
         salt: u64,
         parent_prefix: &Prefix,
         working_set: &mut WorkingSet<S>,
     ) -> anyhow::Result<(TokenId, Self)> {
-        let token_id = super::get_token_id::<S>(token_name, sender, salt);
+        let token_id = super::get_token_id::<S>(token_name, originator, salt);
         let token = Self::create_with_token_id(
             token_name,
-            address_and_balances,
+            identities_and_balances,
             authorized_minters,
             &token_id,
             parent_prefix,
@@ -303,7 +303,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
     /// Shouldn't be used directly, only by genesis call
     pub(crate) fn create_with_token_id(
         token_name: &str,
-        address_and_balances: &[(TokenHolderRef<'_, S>, u64)],
+        identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
         authorized_minters: &[TokenHolderRef<'_, S>],
         token_id: &TokenId,
         parent_prefix: &Prefix,
@@ -313,7 +313,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         let balances = sov_modules_api::StateMap::new(token_prefix);
 
         let mut total_supply: Option<u64> = Some(0);
-        for (address, balance) in address_and_balances.iter() {
+        for (address, balance) in identities_and_balances.iter() {
             balances.set(address, balance, working_set);
             total_supply = total_supply.and_then(|ts| ts.checked_add(*balance));
         }
