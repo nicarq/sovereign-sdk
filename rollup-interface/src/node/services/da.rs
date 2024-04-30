@@ -10,6 +10,61 @@ use crate::da::{BlockHeaderTrait, RelevantBlobs, RelevantProofs};
 use crate::da::{DaSpec, DaVerifier};
 use crate::zk::ValidityCondition;
 
+/// Perform a checked arithmetic, returning None if the result is invalid.
+pub trait CheckedMath<Rhs = Self> {
+    /// The output type of arithmetic operations
+    type Output;
+
+    /// Performs checked multiplication, returning None if the result would overflow.
+    fn checked_mul(&self, rhs: Rhs) -> Option<Self::Output>;
+    /// Performs checked division, returning None if the caller attempts divide by zero.
+    fn checked_div(&self, rhs: Rhs) -> Option<Self::Output>;
+    /// Performs checked subtraction, returning None if the result would underflow.
+    fn checked_sub(&self, rhs: Rhs) -> Option<Self::Output>;
+    /// Performs checked addition, returning None if the result would overflow.
+    fn checked_add(&self, rhs: Rhs) -> Option<Self::Output>;
+}
+
+macro_rules! impl_checked_math_primitive {
+    ($($t:ty),*) => {
+        $(impl CheckedMath for $t {
+            type Output = Self;
+
+            fn checked_mul(&self, rhs: Self) -> Option<Self::Output> {
+                <$t>::checked_mul(*self, rhs)
+            }
+
+            fn checked_div(&self, rhs: Self) -> Option<Self::Output> {
+                <$t>::checked_div(*self, rhs)
+            }
+
+            fn checked_sub(&self, rhs: Self) -> Option<Self::Output> {
+                <$t>::checked_sub(*self, rhs)
+            }
+
+            fn checked_add(&self, rhs: Self) -> Option<Self::Output> {
+                <$t>::checked_add(*self, rhs)
+            }
+        })*
+    };
+}
+
+impl_checked_math_primitive!(u8, u16, u32, u64, u128, usize);
+impl_checked_math_primitive!(i8, i16, i32, i64, i128, isize);
+
+/// The fee on a blockchain. This is usually expressed as a combination of a gas limit
+/// and a fee rate (tokens per gas).
+pub trait Fee {
+    /// The price per unit of data
+    type FeeRate: CheckedMath + CheckedMath<u64> + Clone + Send + Sync;
+
+    /// Returns the price per unit of data.
+    fn fee_rate(&self) -> Self::FeeRate;
+
+    /// Updates the price per unit of data.
+    fn set_fee_rate(&mut self, rate: Self::FeeRate);
+}
+
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
 /// It is *not* part of the logic that is zk-proven.
 ///
@@ -39,6 +94,9 @@ pub trait DaService: Send + Sync + 'static {
 
     /// The error type for fallible methods.
     type Error: core::fmt::Debug + Send + Sync + core::fmt::Display;
+
+    /// The fee type for the DA layer.
+    type Fee: Fee;
 
     /// Fetch the block at the given height, waiting for one to be mined if necessary.
     /// The returned block may not be final, and can be reverted without a consensus violation.
@@ -105,16 +163,24 @@ pub trait DaService: Send + Sync + 'static {
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
-    async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error>;
+    async fn send_transaction(
+        &self,
+        blob: &[u8],
+        fee: Self::Fee,
+    ) -> Result<Self::TransactionId, Self::Error>;
 
     /// Sends am aggregated ZK proofs to the DA layer.
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof_data: &[u8],
+        fee: Self::Fee,
     ) -> Result<(), Self::Error>;
 
     /// Fetches all aggregated ZK proofs at a specified block height.
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
+
+    /// Estimates the appropriate fee for a blob with a given size
+    async fn estimate_fee(&self, blob_size: usize) -> Result<Self::Fee, Self::Error>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

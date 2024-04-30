@@ -1,3 +1,4 @@
+- #572 adds a new `da_service` method `estimate_fee()` and requires all blob submission methods to provide a `fee` as an argument. 
 - #573 Changes the `Bank::create_token signature`, allowing modules to create tokens.
 
 - #547 removes the `From<[u8;32]>` bound on rollup addresses and replaces it with a bound expressing that for any `Spec`, the `Address` type must implement `From<&PublicKey>`. It also removes the nft module's `CollectionAddress` type and replaces it with a 32-byte `CollectionId`. 

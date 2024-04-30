@@ -54,13 +54,15 @@ pub async fn get_blocks_from_da() -> anyhow::Result<Vec<MockBlock>> {
             private_key_and_address.private_key,
         );
     let blob = create_token_message_gen.create_blobs::<<MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeRuntime>();
-    da_service.send_transaction(&blob).await.unwrap();
+    let fee = da_service.estimate_fee(blob.len()).await.unwrap();
+    da_service.send_transaction(&blob, fee).await.unwrap();
     let block1 = da_service.get_block_at(1).await.unwrap();
     blocks.push(block1);
 
     for i in 0..block_cnt {
         let blob = transfer_message_gen.create_blobs::<<MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeRuntime>();
-        da_service.send_transaction(&blob).await.unwrap();
+        let fee = da_service.estimate_fee(blob.len()).await.unwrap();
+        da_service.send_transaction(&blob, fee).await.unwrap();
         let blocki = da_service.get_block_at(2 + i).await.unwrap();
         blocks.push(blocki);
     }

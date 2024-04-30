@@ -8,7 +8,7 @@ use futures::StreamExt;
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaProof, DaSpec, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::services::da::{DaService, Fee, SlotData};
 use tokio::sync::{broadcast, Mutex, RwLock};
 use tokio::time;
 use tracing::debug;
@@ -294,6 +294,29 @@ impl MockDaService {
     }
 }
 
+/// A fee implementation for the MockDaService. Fees are currently unused.
+#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+pub struct MockFee(u64);
+
+impl MockFee {
+    /// Creates a new `MockFee` with the given rate.
+    pub const fn zero() -> Self {
+        Self(0)
+    }
+}
+
+impl Fee for MockFee {
+    type FeeRate = u64;
+
+    fn fee_rate(&self) -> Self::FeeRate {
+        self.0
+    }
+
+    fn set_fee_rate(&mut self, rate: Self::FeeRate) {
+        self.0 = rate;
+    }
+}
+
 #[async_trait]
 impl DaService for MockDaService {
     type Spec = MockDaSpec;
@@ -302,6 +325,7 @@ impl DaService for MockDaService {
     type HeaderStream = BoxStream<'static, anyhow::Result<MockBlockHeader>>;
     type TransactionId = ();
     type Error = anyhow::Error;
+    type Fee = MockFee;
 
     /// Gets block at given height
     /// If block is not available, waits until it is
@@ -396,7 +420,7 @@ impl DaService for MockDaService {
         }
     }
 
-    async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(&self, blob: &[u8], _fee: Self::Fee) -> Result<(), Self::Error> {
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         let mut proof_blobs = Vec::new();
         while let Some(proof) = proof_buffer.pop_front() {
@@ -413,7 +437,11 @@ impl DaService for MockDaService {
 
     /// Sends aggregated proof to the MockDA. The submitted proof is internally buffered and will be included on the MockDA
     /// alongside the next batch of transactions (after calling the `send_transaction` function).
-    async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<(), Self::Error> {
+    async fn send_aggregated_zk_proof(
+        &self,
+        proof: &[u8],
+        _fee: Self::Fee,
+    ) -> Result<(), Self::Error> {
         debug!("Proof received. Buffering for later inclusion.");
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(Proof(proof.to_vec()));
@@ -430,6 +458,9 @@ impl DaService for MockDaService {
                 proof_blob.blob.accumulator().to_vec()
             })
             .collect())
+    }
+    async fn estimate_fee(&self, _blob_size: usize) -> Result<Self::Fee, Self::Error> {
+        Ok(MockFee(0))
     }
 }
 
@@ -513,7 +544,8 @@ mod tests {
             let published_blob: Vec<u8> = vec![i as u8; i + 1];
             let height = i as u64;
 
-            da.send_transaction(&published_blob).await.unwrap();
+            let fee = da.estimate_fee(published_blob.len()).await.unwrap();
+            da.send_transaction(&published_blob, fee).await.unwrap();
 
             let mut block = da.get_block_at(height).await.unwrap();
 
@@ -554,7 +586,8 @@ mod tests {
         for (i, blob) in blobs.iter().enumerate() {
             let height = (i + 1) as u64;
             // Send transaction should pass
-            da.send_transaction(blob).await.unwrap();
+            let fee = da.estimate_fee(blob.len()).await.unwrap();
+            da.send_transaction(blob, fee).await.unwrap();
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
             validate_get_finalized_header_response(
                 height,
@@ -633,10 +666,11 @@ mod tests {
             da.wait_attempts = 2;
 
             // 1 -> 2 -> 3
+            let fee = da.estimate_fee(4).await.unwrap();
 
-            da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1]).await.unwrap();
+            da.send_transaction(&[1, 2, 3, 4], fee).await.unwrap();
+            da.send_transaction(&[4, 5, 6, 7], fee).await.unwrap();
+            da.send_transaction(&[8, 9, 0, 1], fee).await.unwrap();
 
             let block_1_before = da.get_block_at(1).await.unwrap();
             let block_2_before = da.get_block_at(2).await.unwrap();
@@ -663,20 +697,24 @@ mod tests {
     async fn test_zk_submission() -> Result<(), anyhow::Error> {
         let da = MockDaService::new(MockAddress::new([1; 32]));
         let aggregated_proof_data = vec![1, 2, 3];
-        da.send_aggregated_zk_proof(&aggregated_proof_data).await?;
+        let fee = da.estimate_fee(aggregated_proof_data.len()).await?;
+        da.send_aggregated_zk_proof(&aggregated_proof_data, fee)
+            .await?;
 
         let tx_data = vec![1];
-        da.send_transaction(&tx_data).await?;
+        let fee = da.estimate_fee(tx_data.len()).await?;
+        da.send_transaction(&tx_data, fee).await?;
 
         let proofs = da.get_aggregated_proofs_at(1).await?;
         assert_eq!(vec![aggregated_proof_data], proofs);
 
         for i in 2..5 {
             let aggregated_proof_data = vec![i];
-            da.send_aggregated_zk_proof(&aggregated_proof_data).await?;
+            da.send_aggregated_zk_proof(&aggregated_proof_data, fee)
+                .await?;
         }
         let tx_data = vec![1];
-        da.send_transaction(&tx_data).await?;
+        da.send_transaction(&tx_data, fee).await?;
 
         let proofs = da.get_aggregated_proofs_at(2).await?;
         assert_eq!(vec![vec![2], vec![3], vec![4]], proofs);
@@ -695,13 +733,14 @@ mod tests {
             //      \ -> 3.2 -> 4.2
 
             // 1
-            da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
+            let fee = da.estimate_fee(4).await.unwrap();
+            da.send_transaction(&[1, 2, 3, 4], fee).await.unwrap();
             // 2
-            da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
+            da.send_transaction(&[4, 5, 6, 7], fee).await.unwrap();
             // 3.1
-            da.send_transaction(&[8, 9, 0, 1]).await.unwrap();
+            da.send_transaction(&[8, 9, 0, 1], fee).await.unwrap();
             // 4.1
-            da.send_transaction(&[2, 3, 4, 5]).await.unwrap();
+            da.send_transaction(&[2, 3, 4, 5], fee).await.unwrap();
 
             let _block_1 = da.get_block_at(1).await.unwrap();
             let block_2 = da.get_block_at(2).await.unwrap();
@@ -728,10 +767,11 @@ mod tests {
 
             // 1 -> 2 -> 3 -> 4
 
-            da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1]).await.unwrap();
-            da.send_transaction(&[2, 3, 4, 5]).await.unwrap();
+            let fee = da.estimate_fee(4).await.unwrap();
+            da.send_transaction(&[1, 2, 3, 4], fee).await.unwrap();
+            da.send_transaction(&[4, 5, 6, 7], fee).await.unwrap();
+            da.send_transaction(&[8, 9, 0, 1], fee).await.unwrap();
+            da.send_transaction(&[2, 3, 4, 5], fee).await.unwrap();
 
             let block_1_before = da.get_block_at(1).await.unwrap();
             let block_2_before = da.get_block_at(2).await.unwrap();
@@ -781,9 +821,10 @@ mod tests {
             da.set_planned_fork(planned_fork).await.unwrap();
             assert!(da.planned_fork.is_some());
 
-            da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1]).await.unwrap();
+            let fee = da.estimate_fee(4).await.unwrap();
+            da.send_transaction(&[1, 2, 3, 4], fee).await.unwrap();
+            da.send_transaction(&[4, 5, 6, 7], fee).await.unwrap();
+            da.send_transaction(&[8, 9, 0, 1], fee).await.unwrap();
 
             let block_1_before = da.get_block_at(1).await.unwrap();
             let block_2_before = da.get_block_at(2).await.unwrap();
@@ -810,11 +851,12 @@ mod tests {
                 PlannedFork::new(4, 2, vec![vec![13, 13, 13, 13], vec![14, 14, 14, 14]]);
             da.set_planned_fork(planned_fork).await.unwrap();
 
-            da.send_transaction(&[1, 1, 1, 1]).await.unwrap();
-            da.send_transaction(&[2, 2, 2, 2]).await.unwrap();
-            da.send_transaction(&[3, 3, 3, 3]).await.unwrap();
-            da.send_transaction(&[4, 4, 4, 4]).await.unwrap();
-            da.send_transaction(&[5, 5, 5, 5]).await.unwrap();
+            let fee = da.estimate_fee(4).await.unwrap();
+            da.send_transaction(&[1, 1, 1, 1], fee).await.unwrap();
+            da.send_transaction(&[2, 2, 2, 2], fee).await.unwrap();
+            da.send_transaction(&[3, 3, 3, 3], fee).await.unwrap();
+            da.send_transaction(&[4, 4, 4, 4], fee).await.unwrap();
+            da.send_transaction(&[5, 5, 5, 5], fee).await.unwrap();
 
             let block_1_before = da.get_block_at(1).await.unwrap();
             let block_2_before = da.get_block_at(2).await.unwrap();

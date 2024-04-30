@@ -164,8 +164,13 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
             .try_to_vec()
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
+        let fee = self
+            .da_service
+            .estimate_fee(serialized_batch.len())
+            .await
+            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
         self.da_service
-            .send_transaction(&serialized_batch)
+            .send_transaction(&serialized_batch, fee)
             .await
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
         tracing::debug!("ETH Batch has been submitted");
