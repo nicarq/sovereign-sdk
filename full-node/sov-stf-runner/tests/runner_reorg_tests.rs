@@ -55,7 +55,8 @@ async fn test_simple_reorg_case() {
 
     let da_service = Arc::new(da_service);
     for b in &main_chain_blobs {
-        da_service.send_transaction(b).await.unwrap();
+        let fee = da_service.estimate_fee(b.len()).await.unwrap();
+        da_service.send_transaction(b, fee).await.unwrap();
     }
 
     let (expected_state_root, _expected_final_root_hash) =
@@ -87,10 +88,20 @@ async fn test_instant_finality_data_stored() {
     let da_service = Arc::new(MockDaService::new(sequencer_address).with_wait_attempts(2));
 
     let genesis_block = da_service.get_block_at(0).await.unwrap();
+    let fee = da_service.estimate_fee(4).await.unwrap();
 
-    da_service.send_transaction(&[1, 1, 1, 1]).await.unwrap();
-    da_service.send_transaction(&[2, 2, 2, 2]).await.unwrap();
-    da_service.send_transaction(&[3, 3, 3, 3]).await.unwrap();
+    da_service
+        .send_transaction(&[1, 1, 1, 1], fee)
+        .await
+        .unwrap();
+    da_service
+        .send_transaction(&[2, 2, 2, 2], fee)
+        .await
+        .unwrap();
+    da_service
+        .send_transaction(&[3, 3, 3, 3], fee)
+        .await
+        .unwrap();
 
     let (expected_state_root, expected_root_hash) = get_expected_execution_hash_from(
         &genesis_params,

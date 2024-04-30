@@ -117,8 +117,12 @@ where
                     bytes = agg_proof.raw_aggregated_proof.len(),
                     "Sending aggregated proof to DA"
                 );
+                let fee = self
+                    .da_service
+                    .estimate_fee(agg_proof.raw_aggregated_proof.len())
+                    .await?;
                 self.da_service
-                    .send_aggregated_zk_proof(&agg_proof.raw_aggregated_proof)
+                    .send_aggregated_zk_proof(&agg_proof.raw_aggregated_proof, fee)
                     .await?;
             }
         }

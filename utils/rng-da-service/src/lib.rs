@@ -14,7 +14,7 @@ use sov_modules_api::{CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, Sp
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::services::da::{DaService, Fee, SlotData};
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
 const DEFAULT_CHAIN_ID: u64 = 0;
@@ -62,6 +62,20 @@ impl DaSpec for RngDaSpec {
     type ChainParams = ();
 }
 
+/// A unit type representing the (nonexistent) fees on the RngDaService.
+#[derive(Debug, Clone, Copy)]
+pub struct RngDaFee;
+
+impl Fee for RngDaFee {
+    type FeeRate = u64;
+
+    fn fee_rate(&self) -> Self::FeeRate {
+        0
+    }
+
+    fn set_fee_rate(&mut self, _rate: Self::FeeRate) {}
+}
+
 #[async_trait]
 impl DaService for RngDaService {
     type Spec = RngDaSpec;
@@ -70,6 +84,7 @@ impl DaService for RngDaService {
     type HeaderStream = BoxStream<'static, anyhow::Result<MockBlockHeader>>;
     type TransactionId = ();
     type Error = anyhow::Error;
+    type Fee = RngDaFee;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         let num_bytes = height.to_le_bytes();
@@ -154,15 +169,23 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
-    async fn send_transaction(&self, _blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(&self, _blob: &[u8], _fee: Self::Fee) -> Result<(), Self::Error> {
         unimplemented!()
     }
 
-    async fn send_aggregated_zk_proof(&self, _proof: &[u8]) -> Result<(), Self::Error> {
+    async fn send_aggregated_zk_proof(
+        &self,
+        _proof: &[u8],
+        _fee: Self::Fee,
+    ) -> Result<(), Self::Error> {
         unimplemented!()
     }
 
     async fn get_aggregated_proofs_at(&self, _height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+        unimplemented!()
+    }
+
+    async fn estimate_fee(&self, _blob_size: usize) -> Result<Self::Fee, Self::Error> {
         unimplemented!()
     }
 }

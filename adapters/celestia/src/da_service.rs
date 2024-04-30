@@ -10,8 +10,9 @@ use celestia_types::nmt::Namespace;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, Fee};
 use tokio::sync::Mutex;
 use tracing::{debug, info, instrument, trace};
 
@@ -50,9 +51,9 @@ const DEFAULT_FIXED_COST_SINGLE_BLOB: usize =
     (DEFAULT_TX_SIZE_COST_PER_BYTE * BYTES_PER_BLOB_INFO) + PFB_GAS_FIXED_COST;
 
 // TODO: set dynamically https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/391
-// Unit is uTIA.
-// 1 uTIA = 10^-6 TIA (https://docs.celestia.org/learn/tia#tia-at-a-glance
-const GAS_PRICE: usize = 1;
+/// The gas price expressed in nano tia for precision. Note that the Celestia packages expect
+/// fees demoninated in micro-tia ("uTIA"), so we have to scale by a factor of 1000 before submitting.
+const GAS_PRICE_NANO_TIA: u64 = 1000;
 
 #[derive(Debug, Clone)]
 pub struct CelestiaService {
@@ -136,6 +137,45 @@ impl CelestiaService {
     }
 }
 
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// The fee for submitting a transaction to Celestia.
+pub struct CelestiaFee {
+    /// The fee rate (in nano-tia per gas).
+    fee_per_gas: u64,
+    /// The gas limit for the transaction.
+    gas_limit: u64,
+}
+
+impl CelestiaFee {
+    pub(crate) fn estimated(blob_size: usize) -> Self {
+        CelestiaFee {
+            fee_per_gas: GAS_PRICE_NANO_TIA,
+            gas_limit: get_gas_limit_for_bytes_as_in_golang(blob_size) as u64,
+        }
+    }
+}
+
+impl From<CelestiaFee> for SubmitOptions {
+    fn from(fee: CelestiaFee) -> Self {
+        SubmitOptions {
+            fee: Some((fee.gas_limit.saturating_mul(fee.fee_per_gas)) / 1000), // divide by 1000 to convert to the expected uTIA
+            gas_limit: Some(fee.gas_limit),
+        }
+    }
+}
+
+impl Fee for CelestiaFee {
+    type FeeRate = u64;
+
+    fn fee_rate(&self) -> Self::FeeRate {
+        self.fee_per_gas
+    }
+
+    fn set_fee_rate(&mut self, rate: Self::FeeRate) {
+        self.fee_per_gas = rate;
+    }
+}
+
 #[async_trait]
 impl DaService for CelestiaService {
     type Spec = CelestiaSpec;
@@ -146,6 +186,7 @@ impl DaService for CelestiaService {
     type HeaderStream = BoxStream<'static, anyhow::Result<CelestiaHeader>>;
     type TransactionId = ();
     type Error = BoxError;
+    type Fee = CelestiaFee;
 
     #[instrument(skip(self), err)]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
@@ -274,52 +315,40 @@ impl DaService for CelestiaService {
     }
 
     #[instrument(skip_all, err)]
-    async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(&self, blob: &[u8], fee: Self::Fee) -> Result<(), Self::Error> {
         let bytes = blob.len();
         debug!(bytes = bytes, "Sending raw data to Celestia");
-
-        let gas_limit = get_gas_limit_for_bytes_as_in_golang(bytes) as u64;
-        // TODO: Correct fee calculation: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
-        let fee = gas_limit.saturating_mul(GAS_PRICE as u64);
 
         let blob = JsonBlob::new(self.rollup_batch_namespace, blob.to_vec())?;
         info!(
             commitment = hex::encode(blob.commitment.0),
-            gas_limit, fee, bytes, "Submitting a blob"
+            ?fee,
+            bytes,
+            "Submitting a blob"
         );
 
         let height = self
             .client
             .lock()
             .await
-            .blob_submit(
-                &[blob],
-                SubmitOptions {
-                    fee: Some(fee),
-                    gas_limit: Some(gas_limit),
-                },
-            )
+            .blob_submit(&[blob], fee.into())
             .await?;
         info!(height, "Blob has been submitted to Celestia");
         Ok(())
     }
 
-    async fn send_aggregated_zk_proof(&self, aggregated_proof: &[u8]) -> Result<(), Self::Error> {
-        let gas_limit = get_gas_limit_for_bytes_as_in_golang(aggregated_proof.len()) as u64;
-        let fee = gas_limit.saturating_mul(GAS_PRICE as u64);
+    async fn send_aggregated_zk_proof(
+        &self,
+        aggregated_proof: &[u8],
+        fee: Self::Fee,
+    ) -> Result<(), Self::Error> {
         let blob = JsonBlob::new(self.rollup_proof_namespace, aggregated_proof.to_vec())?;
 
         let _height = self
             .client
             .lock()
             .await
-            .blob_submit(
-                &[blob],
-                SubmitOptions {
-                    fee: Some(fee),
-                    gas_limit: Some(gas_limit),
-                },
-            )
+            .blob_submit(&[blob], fee.into())
             .await?;
 
         Ok(())
@@ -343,6 +372,10 @@ impl DaService for CelestiaService {
                 Ok(Vec::default())
             }
         }
+    }
+
+    async fn estimate_fee(&self, blob_size: usize) -> Result<Self::Fee, Self::Error> {
+        Ok(CelestiaFee::estimated(blob_size))
     }
 }
 
@@ -433,7 +466,7 @@ mod tests {
         default_request_timeout_seconds, get_gas_limit_for_bytes_as_in_golang,
         shares_needed_for_bytes,
     };
-    use crate::da_service::{CelestiaConfig, CelestiaService, GAS_PRICE};
+    use crate::da_service::{CelestiaConfig, CelestiaFee, CelestiaService, GAS_PRICE_NANO_TIA};
     use crate::test_helper::files::*;
     use crate::types::FilteredCelestiaBlock;
     use crate::verifier::address::CelestiaAddress;
@@ -504,7 +537,7 @@ mod tests {
                 [JsonBlob::new(rollup_params.rollup_batch_namespace, blob.to_vec()).unwrap()],
                 {
                     "GasLimit": gas_limit,
-                    "Fee": gas_limit * GAS_PRICE,
+                    "Fee": (gas_limit * (GAS_PRICE_NANO_TIA / 1000) as usize),
                 },
             ]
         });
@@ -528,8 +561,8 @@ mod tests {
             .up_to_n_times(1)
             .mount(&mock_server)
             .await;
-
-        da_service.send_transaction(&blob).await?;
+        let fee = CelestiaFee::estimated(blob.len());
+        da_service.send_transaction(&blob, fee).await?;
 
         Ok(())
     }
@@ -563,8 +596,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
+        let fee = CelestiaFee {
+            fee_per_gas: GAS_PRICE_NANO_TIA,
+            gas_limit: 1,
+        };
         let error = da_service
-            .send_transaction(&blob)
+            .send_transaction(&blob, fee)
             .await
             .unwrap_err()
             .to_string();
@@ -590,8 +627,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
+        let fee = CelestiaFee::estimated(blob.len());
         let error = da_service
-            .send_transaction(&blob)
+            .send_transaction(&blob, fee)
             .await
             .unwrap_err()
             .to_string();
@@ -634,6 +672,7 @@ mod tests {
             .set_body_json(response_json);
 
         let blob: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
+        let fee = CelestiaFee::estimated(blob.len());
 
         // Do not check API token or expected body here.
         // Only interested in behaviour on response
@@ -645,7 +684,7 @@ mod tests {
             .await;
 
         let error = da_service
-            .send_transaction(&blob)
+            .send_transaction(&blob, fee)
             .await
             .unwrap_err()
             .to_string();
@@ -827,7 +866,7 @@ mod tests {
                 [JsonBlob::new(rollup_params.rollup_proof_namespace, zk_proof.to_vec()).unwrap()],
                 {
                     "GasLimit": gas_limit,
-                    "Fee": gas_limit * GAS_PRICE,
+                    "Fee": gas_limit * (GAS_PRICE_NANO_TIA / 1000) as usize, // convert to utia
                 },
             ]
         });
@@ -852,7 +891,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        da_service.send_aggregated_zk_proof(&zk_proof).await?;
+        let fee = CelestiaFee::estimated(zk_proof.len());
+        da_service.send_aggregated_zk_proof(&zk_proof, fee).await?;
 
         Ok(())
     }

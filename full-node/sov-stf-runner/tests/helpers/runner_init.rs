@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::{
-    MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockValidityCond,
+    MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
+    MockValidityCond,
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -48,12 +49,12 @@ pub struct TestNode {
 impl TestNode {
     /// Creates a DA block containing a transaction blob, optionally including an aggregated proof.
     pub async fn send_transaction(&self) -> Result<(), anyhow::Error> {
-        self.da.send_transaction(&[1, 2, 3]).await
+        self.da.send_transaction(&[1, 2, 3], MockFee::zero()).await
     }
 
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.  
     pub async fn try_send_aggregated_proof(&self) -> Result<(), anyhow::Error> {
-        self.da.send_transaction(&[]).await
+        self.da.send_transaction(&[], MockFee::zero()).await
     }
 
     /// Unlocks the prover service worker thread and completes the block proof.

@@ -602,7 +602,8 @@ mod tests {
         // Filling the seen data and da service
         for height in 1..=last_block {
             let raw_blob: Vec<u8> = vec![height as u8; 32];
-            da_service.send_transaction(&raw_blob).await.unwrap();
+            let fee = da_service.estimate_fee(raw_blob.len()).await.unwrap();
+            da_service.send_transaction(&raw_blob, fee).await.unwrap();
             if height < fork_point {
                 // Just take a block from the service
                 let block = da_service.get_block_at(height).await.unwrap();
@@ -680,7 +681,8 @@ mod tests {
         // Filling the seen data and da service
         for height in 1..=last_block {
             let raw_blob: Vec<u8> = vec![height as u8; 32];
-            da_service.send_transaction(&raw_blob).await.unwrap();
+            let fee = da_service.estimate_fee(raw_blob.len()).await.unwrap();
+            da_service.send_transaction(&raw_blob, fee).await.unwrap();
 
             let prev_header = header_from_height(height - 1);
             // Just double it from "canonical" chain

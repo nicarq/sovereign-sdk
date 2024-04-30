@@ -109,7 +109,19 @@ where
         let batch = Batch { txs };
         let serialized_batch = batch.try_to_vec()?;
 
-        let da_tx_id = match self.0.da_service.send_transaction(&serialized_batch).await {
+        let fee = match self.0.da_service.estimate_fee(serialized_batch.len()).await {
+            Ok(fee) => fee,
+            Err(e) => anyhow::bail!(
+                "failed to submit batch: could not determine appropriate fee rate: {}",
+                e
+            ),
+        };
+        let da_tx_id = match self
+            .0
+            .da_service
+            .send_transaction(&serialized_batch, fee)
+            .await
+        {
             Ok(id) => id,
             Err(e) => anyhow::bail!("failed to submit batch: {}", e),
         };
