@@ -10,7 +10,9 @@ target/
 demo_data/
 demo_data_1/
 demo_data_2/
-/.vscode/*
+
+.vscode/*
+!.vscode/settings.default.json
 
 /docker/credentials/*
 !/docker/credentials/bridge-0.addr

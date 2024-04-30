@@ -27,6 +27,7 @@ hex = { workspace = true }
 jmt = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
@@ -65,6 +66,7 @@ arbitrary = [
 ]
 native = [
 	"async-trait",
+	"serde_json",
 	"sov-db",
 	"sov-mock-da/native",
 	"sov-modules-api/native",

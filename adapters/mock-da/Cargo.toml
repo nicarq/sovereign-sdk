@@ -18,7 +18,9 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true, features = ["bytes"] }
 bytes = { workspace = true, features = ["serde"] }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true }
+serde_json = { workspace = true, optional = true }
 hex = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, optional = true }
@@ -37,6 +39,8 @@ sov-mock-da = { path = ".", features = ["native"] }
 default = []
 native = [
 	"dep:futures",
+	"dep:schemars",
+	"dep:serde_json",
 	"dep:tokio",
 	"sov-mock-da/native",
 	"sov-rollup-interface/native",

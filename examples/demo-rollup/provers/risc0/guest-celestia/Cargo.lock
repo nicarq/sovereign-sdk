@@ -3391,6 +3391,7 @@ dependencies = [
  "proptest",
  "schemars",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "sov-rollup-interface",
  "thiserror",

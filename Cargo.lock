@@ -7407,6 +7407,7 @@ dependencies = [
  "bytes",
  "futures",
  "hex",
+ "schemars",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -7441,6 +7442,8 @@ dependencies = [
 name = "sov-module-schemas"
 version = "0.3.0"
 dependencies = [
+ "schemars",
+ "serde_json",
  "sov-accounts",
  "sov-bank",
  "sov-evm",
@@ -7448,6 +7451,8 @@ dependencies = [
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-prover-incentives",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-value-setter",
 ]
