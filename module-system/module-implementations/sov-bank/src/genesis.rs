@@ -9,6 +9,11 @@ use crate::{Bank, TokenId, GAS_TOKEN_ID};
 
 /// Initial configuration for sov-bank module.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    schemars(bound = "S: ::sov_modules_api::Spec", rename = "BankConfig")
+)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
 pub struct BankConfig<S: sov_modules_api::Spec> {
     /// Configuration for the gas token
@@ -20,6 +25,11 @@ pub struct BankConfig<S: sov_modules_api::Spec> {
 /// [`TokenConfig`] specifies a configuration used when generating a token for the bank
 /// module.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    schemars(bound = "S: ::sov_modules_api::Spec", rename = "TokenConfig")
+)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
 pub struct TokenConfig<S: sov_modules_api::Spec> {
     /// The name of the token.
@@ -61,6 +71,11 @@ impl<S: sov_modules_api::Spec> core::fmt::Display for TokenConfig<S> {
 
 /// [`GasTokenConfig`] specifies a configuration for the rollup's gas token.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    schemars(bound = "S: ::sov_modules_api::Spec", rename = "GasTokenConfig")
+)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
 pub struct GasTokenConfig<S: sov_modules_api::Spec> {
     /// The name of the token.

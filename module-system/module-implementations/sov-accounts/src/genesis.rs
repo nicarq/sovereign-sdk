@@ -4,6 +4,11 @@ use sov_modules_api::{CryptoSpec, PublicKey, Spec, WorkingSet};
 use crate::Accounts;
 /// Initial configuration for sov-accounts module.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    schemars(bound = "S: ::sov_modules_api::Spec", rename = "AccountConfig")
+)]
 #[serde(
     bound = "<S::CryptoSpec as CryptoSpec>::PublicKey: serde::Serialize + serde::de::DeserializeOwned"
 )]

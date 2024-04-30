@@ -243,19 +243,13 @@ macro_rules! impl_hash32_type {
 
 impl_bech32_conversion!(Address<H>, AddressBech32, ADDRESS_PREFIX);
 
-/// Module id representation
-#[cfg_attr(
-    all(feature = "native", feature = "std"),
-    derive(schemars::JsonSchema),
-    schemars(bound = "", rename = "Address")
-)]
+/// Module ID representation.
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 #[derive(Derivative, BorshDeserialize, BorshSerialize)]
 #[derivative(Copy, Hash, PartialEq, Eq)]
 pub struct Address<H> {
     addr: [u8; 32],
     #[derivative(Hash = "ignore", PartialEq = "ignore")]
-    #[cfg_attr(all(feature = "native", feature = "std"), schemars(skip))]
     phantom: std::marker::PhantomData<H>,
 }
 
@@ -268,6 +262,25 @@ impl<H> Clone for Address<H> {
             addr: self.addr,
             phantom: std::marker::PhantomData,
         }
+    }
+}
+
+#[cfg(all(feature = "native", feature = "std"))]
+impl<H> schemars::JsonSchema for Address<H> {
+    fn schema_name() -> String {
+        "Address".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        serde_json::from_value(serde_json::json!({
+            "type": "string",
+            // TODO(@neysofu): this regex pattern is currently correct, but it
+            // must be updated if `Address` allows for custom prefixes, instead
+            // of hardcoding `sov`.
+            "pattern": "^sov1[a-zA-Z0-9]+$",
+            "description": "Address",
+        }))
+        .unwrap()
     }
 }
 

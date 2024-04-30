@@ -21,6 +21,23 @@ impl MockAddress {
     }
 }
 
+#[cfg(feature = "native")]
+impl schemars::JsonSchema for MockAddress {
+    fn schema_name() -> String {
+        "MockAddress".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        serde_json::from_value(serde_json::json!({
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{64}$",
+            // This description assumes that `serializer` uses a human-readable format.
+            "description": "Mock address; 32 bytes in hex-encoded format",
+        }))
+        .unwrap()
+    }
+}
+
 impl serde::Serialize for MockAddress {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

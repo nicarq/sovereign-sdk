@@ -16,9 +16,13 @@ publish = false
 workspace = true
 
 [build-dependencies]
-sov-modules-api = { path = "../sov-modules-api" }
+schemars = { workspace = true }
+serde_json = { workspace = true }
+sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }
+sov-risc0-adapter = { path = "../../adapters/risc0", version = "0.3", features = ["native"] }
+sov-rollup-interface = { path = "../../rollup-interface", version = "0.3", features = ["native"] }
 
 # Modules
 sov-accounts = { path = "../module-implementations/sov-accounts", features = ["native"] }

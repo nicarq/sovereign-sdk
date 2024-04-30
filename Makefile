@@ -20,6 +20,10 @@ test-default-features:  ## Runs test suite using default features
 	@cargo nextest run --workspace --status-level skip
 
 install-dev-tools:  ## Installs all necessary cargo helpers
+	## Backup VS Code settings to `.vscode/settings.json.bak`.
+	cp -u .vscode/settings.json .vscode/settings.json.bak || true
+	## Install the default suggested VS Code settings.
+	cp -u .vscode/settings.default.json .vscode/settings.json
 	cargo install cargo-llvm-cov
 	cargo install cargo-hack
 	cargo install cargo-udeps

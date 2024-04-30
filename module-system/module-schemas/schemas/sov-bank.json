@@ -181,23 +181,9 @@
   ],
   "definitions": {
     "Address": {
-      "description": "Module id representation",
-      "type": "object",
-      "required": [
-        "addr"
-      ],
-      "properties": {
-        "addr": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          },
-          "maxItems": 32,
-          "minItems": 32
-        }
-      }
+      "description": "Address",
+      "type": "string",
+      "pattern": "^sov1[a-zA-Z0-9]+$"
     },
     "Coins": {
       "description": "Structure that stores information specifying a given `amount` (type [`Amount`]) of coins stored at a `token_id` (type [`crate::TokenId`]).",

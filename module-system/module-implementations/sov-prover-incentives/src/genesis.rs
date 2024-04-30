@@ -9,6 +9,14 @@ use crate::{Amount, ProverIncentives};
 /// the allowed verifier method and a set of initial provers with their
 /// bonding amount.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    schemars(
+        bound = "S: ::sov_modules_api::Spec",
+        rename = "ProverIncentivesConfig"
+    )
+)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
 pub struct ProverIncentivesConfig<S: sov_modules_api::Spec> {
     /// A penalty for provers who submit a proof for transitions that were already proven

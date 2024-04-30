@@ -5,6 +5,11 @@ use super::ValueSetter;
 
 /// Initial configuration for sov-value-setter module.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    schemars(bound = "S: ::sov_modules_api::Spec", rename = "ValueSetterConfig")
+)]
 pub struct ValueSetterConfig<S: sov_modules_api::Spec> {
     /// Admin of the module.
     pub admin: S::Address,
