@@ -34,6 +34,13 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
+        tracing::info!(
+            sequencer_rollup_address = %config.seq_rollup_address,
+            sequencer_da_address = %config.seq_da_address,
+            is_preferred_sequencer = config.is_preferred_sequencer,
+            minimum_bond = config.minimum_bond,
+            "Starting sequencer registry genesis..."
+        );
         self.minimum_bond.set(&config.minimum_bond, working_set);
 
         self.register_sequencer(

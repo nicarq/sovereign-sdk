@@ -2,14 +2,16 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{KernelWorkingSet, Spec, Zkvm};
+use sov_modules_api::{KernelWorkingSet, Zkvm};
 
 use crate::ChainState;
 
 /// Initial configuration of the chain state
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct ChainStateConfig<S: Spec> {
-    /// The time at genesis
+pub struct ChainStateConfig<S: sov_modules_api::Spec> {
+    /// The time at `genesis_da_height` slot according to the DA layer.
+    /// So the format depends on DA layer time representation.
+    /// Most probably is used for bridging purposes.
     pub current_time: Time,
 
     /// The code commitment to be used for verifying the rollup's execution.
@@ -29,6 +31,13 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         config: &<Self as sov_modules_api::KernelModule>::Config,
         working_set: &mut KernelWorkingSet<S>,
     ) -> Result<()> {
+        tracing::info!(
+            current_time = ?config.current_time,
+            genesis_da_height = config.genesis_da_height,
+            inner_code_commitment = ?config.inner_code_commitment,
+            outer_code_commitment = ?config.outer_code_commitment,
+            "Starting chain state genesis...",
+        );
         self.true_slot_number.set(&0, working_set);
         self.next_visible_slot_number.set(&1, working_set);
 
