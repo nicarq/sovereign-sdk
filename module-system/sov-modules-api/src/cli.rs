@@ -14,8 +14,8 @@ pub trait CliTxImportArg {
     fn chain_id(&self) -> u64;
 
     /// The priority fee to pay the sequencer, expressed as a fraction of the tokens spent on gas in basis points.
-    /// for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 1000 tokens spent on gas.
-    /// similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas
+    /// for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 10_000 tokens spent on gas.
+    /// similarly, setting this value to 50_000 pays 5 tokens to the sequencer for every token spent on gas
     fn max_priority_fee_bips(&self) -> u64;
 
     /// The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
@@ -45,8 +45,8 @@ pub struct JsonStringArg {
     #[arg(
         long,
         help = "The priority fee to pay the sequencer, expressed as a fraction of the tokens spent on gas in basis points.
-        for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 1000 tokens spent on gas.
-        similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas",
+        for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 10_000 tokens spent on gas.
+        similarly, setting this value to 50_000 pays 5 tokens to the sequencer for every token spent on gas",
         default_value = "0"
     )]
     pub max_priority_fee_bips: u64,
@@ -88,8 +88,8 @@ pub struct FileNameArg {
     #[arg(
         long,
         help = "The priority fee to pay the sequencer, expressed as a fraction of the tokens spent on gas in basis points.
-        for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 1000 tokens spent on gas.
-        similarly, setting this value to 5000 pays 5 tokens to the sequencer for every token spent on gas",
+        for example, setting this value to 1 pays a tip of 1 token to the sequencer for every 10_000 tokens spent on gas.
+        similarly, setting this value to 50_000 pays 5 tokens to the sequencer for every token spent on gas",
         default_value = "0"
     )]
     pub max_priority_fee_bips: u64,
