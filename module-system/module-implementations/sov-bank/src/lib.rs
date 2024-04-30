@@ -112,7 +112,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
                     initial_balance,
                     &minter_address,
                     authorized_minters,
-                    context,
+                    context.sender(),
                     working_set,
                 )?;
                 Ok(CallResponse::default())

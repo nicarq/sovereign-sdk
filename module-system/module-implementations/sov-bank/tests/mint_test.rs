@@ -281,7 +281,7 @@ fn mint_token() {
 #[test]
 fn mint_token_from_module_and_address() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let bank = Bank::default();
 
@@ -307,7 +307,7 @@ fn mint_token_from_module_and_address() {
             initial_balance,
             mod_minter,
             vec![mod_minter, addr_minter],
-            &sender_context,
+            sender_context.sender(),
             &mut working_set,
         )
         .unwrap();
@@ -359,4 +359,42 @@ fn mint_token_from_module_and_address() {
 
         assert_eq!(initial_balance + 2 * coins.amount, total_supply);
     }
+}
+
+#[test]
+fn create_token_from_module() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+
+    let bank = Bank::default();
+
+    let module_id = ModuleId::from([0; 32]);
+    let mod_originator = module_id.to_payable();
+
+    let addr = &generate_address::<S>("addr_minter");
+    let addr_minter = addr.as_token_holder();
+
+    let initial_balance = 500;
+
+    // Create token.
+    let token_id = bank
+        .create_token(
+            "Token1".to_owned(),
+            1,
+            initial_balance,
+            addr_minter,
+            vec![addr_minter],
+            mod_originator,
+            &mut working_set,
+        )
+        .unwrap();
+
+    let minter_balance = bank.get_balance_of(addr_minter, token_id, &mut working_set);
+    assert_eq!(Some(initial_balance), minter_balance);
+
+    let total_supply = bank
+        .get_total_supply_of(&token_id, &mut working_set)
+        .unwrap();
+
+    assert_eq!(initial_balance, total_supply);
 }

@@ -78,10 +78,10 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         initial_balance: Amount,
         minter: impl Payable<S>,
         authorized_minters: Vec<impl Payable<S>>,
-        context: &Context<S>,
+        originator: impl Payable<S>,
         working_set: &mut WorkingSet<S>,
     ) -> Result<TokenId> {
-        tracing::info!(%token_name, %salt, %initial_balance, %minter, sender= %context.sender(), "Create token request");
+        tracing::info!(%token_name, %salt, %initial_balance, %minter, sender= %originator, "Create token request");
 
         let authorized_minters = authorized_minters
             .iter()
@@ -92,7 +92,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             &token_name,
             &[(minter.as_token_holder(), initial_balance)],
             &authorized_minters,
-            context.sender(),
+            originator,
             salt,
             self.tokens.prefix(),
             working_set,

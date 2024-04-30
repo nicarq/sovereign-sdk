@@ -8,14 +8,14 @@ use sov_state::storage::EncodeKeyLike;
 
 use crate::TokenId;
 
-/// Derives token ID from `token_name`, `sender` and `salt`.
+/// Derives token ID from `token_name`, `originator` and `salt`.
 pub fn get_token_id<S: sov_modules_api::Spec>(
     token_name: &str,
-    sender: &S::Address,
+    originator: impl Payable<S>,
     salt: u64,
 ) -> TokenId {
     let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
-    hasher.update(sender.as_ref());
+    hasher.update(originator.as_token_holder().as_bytes());
     hasher.update(token_name.as_bytes());
     hasher.update(salt.to_le_bytes());
 
@@ -113,6 +113,16 @@ pub enum TokenHolderRef<'a, S: Spec> {
     User(&'a S::Address),
     /// A reference to a module's ID
     Module(&'a ModuleId),
+}
+
+impl<'a, S: Spec> TokenHolderRef<'a, S> {
+    /// Converts `TokenHolderRef` to byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            TokenHolderRef::User(addr) => addr.as_ref(),
+            TokenHolderRef::Module(id) => id.as_ref(),
+        }
+    }
 }
 
 impl<'a, S: Spec> Hash for TokenHolderRef<'a, S> {
