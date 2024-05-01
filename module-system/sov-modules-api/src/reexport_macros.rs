@@ -197,9 +197,4 @@ pub mod macros {
     /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::CliWalletArg;
-    /// Derives a custom [`Default`] implementation for the underlying type.
-    /// We decided to implement a custom macro DefaultRuntime that would implement a custom Default
-    /// trait for the Runtime because the stdlib implementation of the default trait imposes the generic
-    /// arguments to have the Default trait, which is not needed in our case.
-    pub use sov_modules_macros::DefaultRuntime;
 }

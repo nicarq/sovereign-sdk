@@ -1,14 +1,13 @@
 mod modules;
 use modules::third_test_module::{self, ModuleThreeStorable};
 use modules::{first_test_module, second_test_module};
-use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::{
     Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, ModuleInfo, Spec,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
 
-#[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+#[derive(Default, Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct Runtime<S, T>
 where

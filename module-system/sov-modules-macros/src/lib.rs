@@ -12,7 +12,6 @@
 #[cfg(feature = "native")]
 mod cli_parser;
 mod common;
-mod default_runtime;
 mod dispatch;
 mod event;
 mod make_constants;
@@ -26,7 +25,6 @@ mod rpc;
 
 #[cfg(feature = "native")]
 use cli_parser::{derive_cli_wallet_arg, CliParserMacro};
-use default_runtime::DefaultRuntimeMacro;
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
 use dispatch::message_codec::MessageCodec;
@@ -56,14 +54,6 @@ pub fn kernel_module_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
 
     handle_macro_error(module_info::derive_module_info(input, ModuleType::Kernel))
-}
-
-#[proc_macro_derive(DefaultRuntime)]
-pub fn default_runtime(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input);
-    let default_config_macro = DefaultRuntimeMacro::new("DefaultRuntime");
-
-    handle_macro_error(default_config_macro.derive_default_runtime(input))
 }
 
 #[proc_macro_derive(Genesis)]

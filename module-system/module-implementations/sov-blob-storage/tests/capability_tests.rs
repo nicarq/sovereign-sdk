@@ -11,7 +11,6 @@ use sov_kernels::soft_confirmations::{
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::da::Time;
-use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks, RawTx};
 use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, KernelWorkingSet, MessageCodec,
@@ -759,7 +758,7 @@ impl<B> BlobWithAppearance<B> {
     }
 }
 
-#[derive(sov_modules_api::Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+#[derive(Default, sov_modules_api::Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct TestRuntime<S: Spec, Da: DaSpec> {
     pub bank: sov_bank::Bank<S>,

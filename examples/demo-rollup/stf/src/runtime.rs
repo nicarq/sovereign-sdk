@@ -37,7 +37,6 @@ use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
 use sov_bank::{BankRpcImpl, BankRpcServer};
 #[cfg(feature = "native")]
 use sov_evm::{EvmRpcImpl, EvmRpcServer};
-use sov_modules_api::macros::DefaultRuntime;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
@@ -56,7 +55,7 @@ use crate::genesis_config::GenesisPaths;
 
 /// The `demo-stf runtime`.
 #[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
-#[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
+#[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
 #[serialization(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,

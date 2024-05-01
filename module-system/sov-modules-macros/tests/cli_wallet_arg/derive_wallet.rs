@@ -1,6 +1,6 @@
 use clap::Parser;
 use sov_modules_api::cli::JsonStringArg;
-use sov_modules_api::macros::{CliWallet, CliWalletArg, DefaultRuntime};
+use sov_modules_api::macros::{CliWallet, CliWalletArg};
 use sov_modules_api::{
     CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleId,
     ModuleInfo, Spec, StateValue, WorkingSet,
@@ -115,7 +115,7 @@ pub mod second_test_module {
     }
 }
 
-#[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime, CliWallet)]
+#[derive(Default, Genesis, DispatchCall, MessageCodec, CliWallet)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct Runtime<S: Spec> {
     pub first: first_test_module::FirstTestStruct<S>,

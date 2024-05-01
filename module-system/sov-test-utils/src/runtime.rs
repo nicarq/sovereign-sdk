@@ -6,7 +6,6 @@ pub use sov_bank::{Bank, BankConfig, Coins, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::runtime::capabilities::{
     AuthenticationError, GasEnforcer, RawTx, RuntimeAuthenticator, RuntimeAuthorization,
 };
@@ -27,7 +26,7 @@ const MAX_ATTESTED_HEIGHT: u64 = 0;
 const LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
 const ROLLUP_FINALITY_PERIOD: u64 = 1;
 
-#[derive(Genesis, DispatchCall, Event, MessageCodec, DefaultRuntime)]
+#[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
 #[serialization(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
