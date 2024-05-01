@@ -66,7 +66,7 @@ use sov_bank::{BankRpcImpl, BankRpcServer};
     feature = "native",
     expose_rpc(DefaultContext)
 )]
-#[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+#[derive(Default, Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct Runtime<S: Spec> {
     pub bank: sov_bank::Bank<S>,

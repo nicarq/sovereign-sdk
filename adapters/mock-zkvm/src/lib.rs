@@ -84,7 +84,7 @@ struct Inner {
 }
 
 /// The verifier for mock zk proofs.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct MockZkVerifier;
 
 impl sov_rollup_interface::zk::Zkvm for MockZkVerifier {

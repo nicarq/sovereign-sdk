@@ -2,6 +2,7 @@ use serde::Serialize;
 
 use crate::MockZkVerifier;
 /// A mock implementing the Guest.
+#[derive(Default)]
 pub struct MockZkGuest {}
 
 impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {

@@ -33,7 +33,7 @@ impl BlobReaderTrait for MockBlob {
 }
 
 /// A [`sov_rollup_interface::da::DaSpec`] suitable for testing.
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Default, serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct MockDaSpec;
 
 impl DaSpec for MockDaSpec {

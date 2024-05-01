@@ -1,3 +1,5 @@
+- #584 removes support for the `DefaultRuntime` derive macro. You must replace all proc-macro invocations of `DefaultRuntime` with `#[derive(Default)]`.
+
 - #572 adds a new `da_service` method `estimate_fee()` and requires all blob submission methods to provide a `fee` as an argument. 
 - #573 Changes the `Bank::create_token signature`, allowing modules to create tokens.
 

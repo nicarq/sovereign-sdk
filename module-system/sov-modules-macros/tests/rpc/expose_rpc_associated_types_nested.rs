@@ -1,5 +1,5 @@
 use jsonrpsee::core::RpcResult;
-use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
+use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
     ModuleId, ModuleInfo, Spec, StateValue, WorkingSet,
@@ -11,7 +11,7 @@ pub trait Message: 'static {
     type Caller: std::fmt::Display;
     type Data: Data;
 }
-pub trait TestSpec: 'static {
+pub trait TestSpec: Default + 'static {
     type Message: Message;
 }
 
@@ -102,7 +102,7 @@ pub mod my_module {
 use my_module::rpc::{QueryModuleRpcImpl, QueryModuleRpcServer};
 
 #[expose_rpc]
-#[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+#[derive(Default, Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct Runtime<S: Spec, T: TestSpec> {
     pub first: my_module::QueryModule<S, <<T as TestSpec>::Message as Message>::Data>,
@@ -115,6 +115,7 @@ impl Message for ActualMessage {
     type Data = u32;
 }
 
+#[derive(Default)]
 struct ActualSpec;
 
 impl TestSpec for ActualSpec {

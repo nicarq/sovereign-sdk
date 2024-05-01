@@ -2,14 +2,12 @@ mod modules;
 
 use modules::third_test_module::{self, ModuleThreeStorable};
 use modules::{first_test_module, second_test_module};
-use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::{DispatchCall, Genesis, MessageCodec, Spec};
 use sov_state::ZkStorage;
-
 use sov_test_utils::ZkTestSpec;
 
 // Debugging hint: To expand the macro in tests run: `cargo expand --test tests`
-#[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+#[derive(Default, Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct Runtime<S, T>
 where

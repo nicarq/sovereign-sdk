@@ -20,7 +20,7 @@ use crate::{PublicKeyExt, SignatureExt};
 /// while a rollup running in an elliptic-curve based SNARK such as `Placeholder` from the =nil; foundation might
 /// prefer a Pedersen hash. By using a generic Context and Spec, a rollup developer can trivially customize their
 /// code for either (or both!) of these environments without touching their module implementations.
-pub trait Spec: Debug + Clone + Send + Sync + PartialEq + 'static {
+pub trait Spec: Default + Debug + Clone + Send + Sync + PartialEq + 'static {
     /// Gas unit for the gas price computation.
     type Gas: Gas;
 

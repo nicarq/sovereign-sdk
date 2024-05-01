@@ -4,7 +4,7 @@ use sov_state::{ArrayWitness, DefaultStorageSpec};
 
 #[cfg(feature = "native")]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(bound = "")]
 pub struct DefaultSpec<InnerZkvm, OuterZkvm>(std::marker::PhantomData<(InnerZkvm, OuterZkvm)>);
 
@@ -56,7 +56,7 @@ where
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(bound = "")]
 pub struct ZkDefaultSpec<InnerZkvm, OuterZkvm>(std::marker::PhantomData<(InnerZkvm, OuterZkvm)>);
 

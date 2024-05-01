@@ -96,6 +96,7 @@ impl CryptoSpec for Risc0CryptoSpec {
 }
 
 /// A verifier for Risc0 proofs.
+#[derive(Default)]
 pub struct Risc0Verifier;
 
 #[cfg(not(target_os = "zkvm"))]
