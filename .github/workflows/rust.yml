@@ -123,7 +123,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -164,7 +164,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -200,7 +200,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -236,7 +236,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -304,7 +304,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
@@ -338,7 +338,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
@@ -372,7 +372,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust
@@ -415,7 +415,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -543,7 +543,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust
@@ -582,7 +582,7 @@ jobs:
         with:
           tool: cargo-risczero@0.20
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-02-08.1
+        run: make install-risc0-toolchain
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Bashtestmd

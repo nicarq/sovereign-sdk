@@ -1,4 +1,7 @@
-- #584 removes support for the `DefaultRuntime` derive macro. You must replace all proc-macro invocations of `DefaultRuntime` with `#[derive(Default)]`.
+- #590 upgrade rustc version to 1.77. Installation new risc0 toolchain is needed. Simply
+  run `make install-risc0-toolchain`
+- #584 removes support for the `DefaultRuntime` derive macro. You must replace all proc-macro invocations
+  of `DefaultRuntime` with `#[derive(Default)]`.
 
 - #572 adds a new `da_service` method `estimate_fee()` and requires all blob submission methods to provide a `fee` as an argument. 
 - #580 `sov-cli` now returns an error on duplicate nickname key import or generation.

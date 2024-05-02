@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::services::da::{DaService, Fee};
 use tokio::sync::Mutex;
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, info, trace};
 
 use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
 use crate::utils::BoxError;
@@ -188,7 +188,6 @@ impl DaService for CelestiaService {
     type Error = BoxError;
     type Fee = CelestiaFee;
 
-    #[instrument(skip(self), err)]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         let client = self.client.lock().await;
 
@@ -314,7 +313,6 @@ impl DaService for CelestiaService {
         RelevantProofs { proof, batch }
     }
 
-    #[instrument(skip_all, err)]
     async fn send_transaction(&self, blob: &[u8], fee: Self::Fee) -> Result<(), Self::Error> {
         let bytes = blob.len();
         debug!(bytes = bytes, "Sending raw data to Celestia");

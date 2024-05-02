@@ -35,6 +35,11 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	rustup target add thumbv6m-none-eabi
 	rustup target add wasm32-unknown-unknown
 
+install-risc0-toolchain:
+	cargo risczero install --version v2024-04-22.0
+	@echo "Risc0 toolchain version:"
+	cargo +risc0 --version
+
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
 	cargo +nightly fmt --all --check
