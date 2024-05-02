@@ -9,7 +9,7 @@ use sov_modules_api::{clap, CryptoSpec, PrivateKey};
 use crate::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 
 #[derive(clap::Subcommand)]
-/// View and manage keys associated with this wallet
+/// View and manage keys associated with this wallet.
 pub enum KeyWorkflow<S: sov_modules_api::Spec> {
     /// Generate a new key pair
     Generate {
@@ -58,7 +58,8 @@ pub enum KeyWorkflow<S: sov_modules_api::Spec> {
 }
 
 impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
-    /// Run the key workflow to import, generate, activate, remove or list keys
+    /// Run the key workflow to import, generate, activate, remove or list keys.
+    /// WalletState shouldn't be saved in case of Error.
     pub fn run<Tx>(
         self,
         wallet_state: &mut WalletState<Tx, S>,
@@ -80,10 +81,10 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                 let private_key = load_key::<S>(&path)?;
                 let public_key = private_key.pub_key();
                 let address = address_override.unwrap_or_else(|| (&public_key).into());
-                println!("Imported key pair. address: {}", address);
                 wallet_state
                     .addresses
-                    .add(address, nickname, public_key, path);
+                    .add(address.clone(), nickname, public_key, path)?;
+                println!("Imported key pair. address: {}", address);
             }
             KeyWorkflow::Show { identifier } => {
                 let addr = wallet_state.addresses.get_address(&identifier);
@@ -143,14 +144,18 @@ where
     let public_key = key_and_address.private_key.pub_key();
     let address = key_and_address.address.clone();
     let key_path = app_dir.as_ref().join(format!("{}.json", address));
+    // First try to serialize, before making anything dirty
+    let serialized_key = serde_json::to_string(&key_and_address)?;
+    // Trying to add key state
+    wallet_state
+        .addresses
+        .add(address.clone(), nickname, public_key, key_path.clone())?;
     println!(
         "Generated key pair with address: {}. Saving to {}",
         address,
         key_path.display()
     );
-    std::fs::write(&key_path, serde_json::to_string(&key_and_address)?)?;
-    wallet_state
-        .addresses
-        .add(address, nickname, public_key, key_path);
+    // If this fails, caller should not save errored wallet state
+    std::fs::write(&key_path, serialized_key)?;
     Ok(())
 }
