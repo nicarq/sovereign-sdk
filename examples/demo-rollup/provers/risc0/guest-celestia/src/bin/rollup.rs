@@ -8,7 +8,7 @@ use demo_stf::StfVerifier;
 use sov_celestia_adapter::types::Namespace;
 use sov_celestia_adapter::verifier::CelestiaVerifier;
 use sov_kernels::basic::BasicKernel;
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::{MockZkGuest, MockZkVerifier};
 use sov_modules_api::default_spec::ZkDefaultSpec;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -27,12 +27,11 @@ pub fn main() {
     let stf: StfBlueprint<
         ZkDefaultSpec<Risc0Verifier, MockZkVerifier>,
         _,
-        Risc0Verifier,
         Runtime<_, _>,
         BasicKernel<_, _>,
     > = StfBlueprint::new();
 
-    let stf_verifier = StfVerifier::<_, Risc0Guest, _, _, _>::new(
+    let stf_verifier = StfVerifier::<_, _, _, _, Risc0Guest, MockZkGuest>::new(
         stf,
         CelestiaVerifier {
             rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,

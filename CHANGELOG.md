@@ -1,3 +1,7 @@
+- #586 Adds a second Zkvm generic to the `StateTransitionFunction` API. This VM is used for generation of *`Aggregate`* zk proofs, 
+while the first VM continues Ato be used for block production. The signature of the `StfVerifier<DA, Vm, ZkSpec, RT, K>` was also changed to `StfVerifier<DA ZkSpec, RT, K, InnerVm, OuterVm>`
+
+- #584 removes support for the `DefaultRuntime` derive macro. You must replace all proc-macro invocations of `DefaultRuntime` with `#[derive(Default)]`.
 - #590 upgrade rustc version to 1.77. Installation new risc0 toolchain is needed. Simply
   run `make install-risc0-toolchain`
 - #584 removes support for the `DefaultRuntime` derive macro. You must replace all proc-macro invocations

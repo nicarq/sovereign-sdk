@@ -23,7 +23,8 @@ use tokio::sync::watch;
 
 use crate::helpers::hash_stf::HashStf;
 
-type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaService>;
+type MockInitVariant =
+    InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockZkVerifier, MockDaService>;
 type S = DefaultStorageSpec;
 type StorageManager = ProverStorageManager<MockDaSpec, S>;
 
@@ -89,6 +90,7 @@ impl TestNode {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub fn initialize_runner(
     da_service: Arc<MockDaService>,
     path: &std::path::Path,
@@ -100,6 +102,7 @@ pub fn initialize_runner(
         HashStf<MockValidityCond>,
         StorageManager,
         MockDaService,
+        MockZkvm,
         MockZkvm,
         MockProverService,
     >,

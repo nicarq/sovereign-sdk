@@ -17,7 +17,6 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_risc0_adapter::Risc0Verifier;
 use sov_rng_da_service::{RngDaService, RngDaSpec};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -119,7 +118,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let stf = StfBlueprint::<
         TestSpec,
         RngDaSpec,
-        Risc0Verifier,
         Runtime<TestSpec, RngDaSpec>,
         BasicKernel<TestSpec, _>,
     >::new();

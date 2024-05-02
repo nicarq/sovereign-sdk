@@ -20,6 +20,7 @@ use prettytable::Table;
 use regex::Regex;
 use risc0::MOCK_DA_ELF;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::SlotData;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -34,7 +35,6 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionWitness, ZkvmHost};
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
-use sov_test_utils::TestSpec;
 use tempfile::TempDir;
 
 use crate::datagen::{generate_genesis_config, get_bench_blocks};
@@ -148,12 +148,13 @@ fn chain_stats(num_blocks: usize, num_blocks_with_txns: usize, num_txns: usize, 
     table.printstd();
 }
 
+type BenchSpec = DefaultSpec<Risc0Verifier, Risc0Verifier>;
+
 type BenchSTF<'a> = StfBlueprint<
-    TestSpec,
+    BenchSpec,
     MockDaSpec,
-    Risc0Verifier,
-    Runtime<TestSpec, MockDaSpec>,
-    BasicKernel<TestSpec, MockDaSpec>,
+    Runtime<BenchSpec, MockDaSpec>,
+    BasicKernel<BenchSpec, MockDaSpec>,
 >;
 
 #[tokio::main]
@@ -197,7 +198,7 @@ async fn main() -> Result<(), anyhow::Error> {
     generate_genesis_config(genesis_conf_dir.as_str())?;
 
     let genesis_config = {
-        let rt_params = create_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(
+        let rt_params = create_genesis_config::<BenchSpec, _>(&GenesisPaths::from_dir(
             genesis_conf_dir.as_str(),
         ))
         .unwrap();
@@ -266,8 +267,8 @@ async fn main() -> Result<(), anyhow::Error> {
         }
 
         let data = StateTransitionWitness::<
-            <BenchSTF as StateTransitionFunction<Risc0Verifier, MockDaSpec>>::StateRoot,
-            <BenchSTF as StateTransitionFunction<Risc0Verifier, MockDaSpec>>::Witness,
+            <BenchSTF as StateTransitionFunction<Risc0Verifier, Risc0Verifier, MockDaSpec>>::StateRoot,
+            <BenchSTF as StateTransitionFunction<Risc0Verifier, Risc0Verifier, MockDaSpec>>::Witness,
             MockDaSpec,
         > {
             initial_state_root: prev_state_root,

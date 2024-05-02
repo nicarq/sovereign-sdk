@@ -4,22 +4,24 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransitionPublicData, StateTransitionWitness, ZkvmGuest};
 /// Verifies a state transition
-pub struct StateTransitionVerifier<ST, Da, Zk>
+pub struct StateTransitionVerifier<ST, Da, InnerVm, OuterVm>
 where
     Da: DaVerifier,
-    Zk: ZkvmGuest,
-    ST: StateTransitionFunction<Zk::Verifier, Da::Spec>,
+    InnerVm: ZkvmGuest,
+    OuterVm: ZkvmGuest,
+    ST: StateTransitionFunction<InnerVm::Verifier, OuterVm::Verifier, Da::Spec>,
 {
     app: ST,
     da_verifier: Da,
-    phantom: PhantomData<Zk>,
+    phantom: PhantomData<(InnerVm, OuterVm)>,
 }
 
-impl<Stf, Da, Zk> StateTransitionVerifier<Stf, Da, Zk>
+impl<Stf, Da, InnerVm, OuterVm> StateTransitionVerifier<Stf, Da, InnerVm, OuterVm>
 where
     Da: DaVerifier,
-    Zk: ZkvmGuest,
-    Stf: StateTransitionFunction<Zk::Verifier, Da::Spec>,
+    InnerVm: ZkvmGuest,
+    OuterVm: ZkvmGuest,
+    Stf: StateTransitionFunction<InnerVm::Verifier, OuterVm::Verifier, Da::Spec>,
 {
     /// Create a [`StateTransitionVerifier`]
     pub fn new(app: Stf, da_verifier: Da) -> Self {
@@ -31,7 +33,7 @@ where
     }
 
     /// Verify the next block
-    pub fn run_block(&self, zkvm: Zk, pre_state: Stf::PreState) -> Result<(), Da::Error> {
+    pub fn run_block(&self, zkvm: InnerVm, pre_state: Stf::PreState) -> Result<(), Da::Error> {
         let mut data: StateTransitionWitness<_, _, Da::Spec> = zkvm.read_from_host();
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header,

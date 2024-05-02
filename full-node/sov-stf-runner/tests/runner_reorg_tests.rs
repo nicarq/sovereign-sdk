@@ -18,7 +18,8 @@ use tempfile::TempDir;
 
 use crate::helpers::runner_init::initialize_runner;
 
-type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaService>;
+type MockInitVariant =
+    InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockZkVerifier, MockDaService>;
 #[tokio::test]
 async fn test_simple_reorg_case() {
     let tmp_dir = tempfile::tempdir().unwrap();

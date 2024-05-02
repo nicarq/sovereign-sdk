@@ -1,9 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{DaSpec, RelevantBlobIters};
-use sov_rollup_interface::stf::{
-    ApplySlotOutput, BatchReceipt, SlotResult, StateTransitionFunction,
-};
+use sov_rollup_interface::stf::{ApplySlotOutput, BatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 
 /// A mock implementation of the [`StateTransitionFunction`]
@@ -12,13 +10,14 @@ pub struct MockStf<Cond> {
     phantom_data: PhantomData<Cond>,
 }
 
-impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, Da>
-    for MockStf<Cond>
+impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
+    StateTransitionFunction<InnerVm, OuterVm, Da> for MockStf<Cond>
 {
     type StateRoot = Vec<u8>;
     type GenesisParams = ();
     type PreState = ();
     type ChangeSet = ();
+    type ProofReceiptContents = ();
     type TxReceiptContents = ();
     type BatchReceiptContents = ();
     type Witness = ();
@@ -41,13 +40,14 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
         _relevant_blobs: RelevantBlobIters<I>,
-    ) -> ApplySlotOutput<Vm, Da, Self>
+    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        SlotResult {
+        ApplySlotOutput {
             state_root: Vec::default(),
             change_set: (),
+            proof_receipts: vec![],
             batch_receipts: vec![BatchReceipt {
                 batch_hash: [0; 32],
                 tx_receipts: vec![],

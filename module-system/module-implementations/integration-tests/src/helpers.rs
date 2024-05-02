@@ -11,24 +11,18 @@ use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{DaSpec, Gas, Spec, StateCheckpoint, Zkvm};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, Runtime, StfBlueprint};
 use sov_prover_storage_manager::SimpleStorageManager;
-use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::{DefaultStorageSpec, Storage};
 use sov_test_utils::runtime::{GenesisConfig, TestRuntime};
 use sov_value_setter::ValueSetterConfig;
 
-type TestStf = StfBlueprint<
-    S,
-    MockDaSpec,
-    MockZkVerifier,
-    TestRuntime<S, MockDaSpec>,
-    BasicKernel<S, MockDaSpec>,
->;
+type TestStf = StfBlueprint<S, MockDaSpec, TestRuntime<S, MockDaSpec>, BasicKernel<S, MockDaSpec>>;
 type BatchReceiptContents =
-    <TestStf as StateTransitionFunction<MockZkVerifier, Da>>::BatchReceiptContents;
+    <TestStf as StateTransitionFunction<MockZkVerifier, MockZkVerifier, Da>>::BatchReceiptContents;
 type TxReceiptContents =
-    <TestStf as StateTransitionFunction<MockZkVerifier, Da>>::TxReceiptContents;
+    <TestStf as StateTransitionFunction<MockZkVerifier, MockZkVerifier, Da>>::TxReceiptContents;
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
@@ -122,14 +116,12 @@ pub(crate) struct ExecutionSimulationVars {
 }
 
 pub(crate) struct TestRollup {
-    stf: StfBlueprint<S, Da, MockZkVerifier, TestRuntime<S, Da>, TestKernel<S, Da>>,
+    stf: StfBlueprint<S, Da, TestRuntime<S, Da>, TestKernel<S, Da>>,
     storage_manager: SimpleStorageManager<DefaultStorageSpec>,
 }
 
 impl TestRollup {
-    pub(crate) fn stf(
-        &self,
-    ) -> &StfBlueprint<S, Da, MockZkVerifier, TestRuntime<S, Da>, TestKernel<S, Da>> {
+    pub(crate) fn stf(&self) -> &StfBlueprint<S, Da, TestRuntime<S, Da>, TestKernel<S, Da>> {
         &self.stf
     }
 
@@ -285,7 +277,7 @@ impl TestRollup {
 
             let storage = self.storage();
 
-            let SlotResult {
+            let ApplySlotOutput {
                 state_root: new_root_hash,
                 change_set,
                 batch_receipts,

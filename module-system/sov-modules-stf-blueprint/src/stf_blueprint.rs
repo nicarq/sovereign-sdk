@@ -28,13 +28,12 @@ pub(crate) type ApplyBatch = ApplyBatchResult<BatchReceipt<SequencerOutcome, TxE
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<S: Spec, Da: DaSpec, Vm, RT: Runtime<S, Da>, K: KernelSlotHooks<S, Da>> {
+pub struct StfBlueprint<S: Spec, Da: DaSpec, RT: Runtime<S, Da>, K: KernelSlotHooks<S, Da>> {
     /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
     pub(crate) kernel: K,
     phantom_context: PhantomData<S>,
-    phantom_vm: PhantomData<Vm>,
     phantom_da: PhantomData<Da>,
 }
 
@@ -76,7 +75,7 @@ impl From<ApplyBatchError> for BatchReceipt<SequencerOutcome, TxEffect> {
     }
 }
 
-impl<S, Vm, Da, RT, K> Default for StfBlueprint<S, Da, Vm, RT, K>
+impl<S, Da, RT, K> Default for StfBlueprint<S, Da, RT, K>
 where
     S: Spec,
     Da: DaSpec,
@@ -88,7 +87,7 @@ where
     }
 }
 
-impl<S, Vm, Da, RT, K> StfBlueprint<S, Da, Vm, RT, K>
+impl<S, Da, RT, K> StfBlueprint<S, Da, RT, K>
 where
     S: Spec,
     Da: DaSpec,
@@ -101,7 +100,6 @@ where
             runtime: RT::default(),
             kernel: K::default(),
             phantom_context: PhantomData,
-            phantom_vm: PhantomData,
             phantom_da: PhantomData,
         }
     }

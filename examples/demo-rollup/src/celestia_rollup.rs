@@ -57,13 +57,7 @@ impl RollupBlueprint for CelestiaDemoRollup {
         Self::DaService,
         Self::InnerZkvmHost,
         Self::OuterZkvmHost,
-        StfBlueprint<
-            Self::ZkSpec,
-            Self::DaSpec,
-            <<Self::InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-            Self::ZkRuntime,
-            Self::ZkKernel,
-        >,
+        StfBlueprint<Self::ZkSpec, Self::DaSpec, Self::ZkRuntime, Self::ZkKernel>,
     >;
 
     fn create_outer_code_commitment(

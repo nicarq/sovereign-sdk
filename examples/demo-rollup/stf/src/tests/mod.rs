@@ -19,8 +19,7 @@ pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
 
 pub(crate) type RuntimeTest = Runtime<S, Da>;
-pub(crate) type StfBlueprintTest =
-    StfBlueprint<S, Da, sov_mock_zkvm::MockZkVerifier, RuntimeTest, BasicKernel<S, Da>>;
+pub(crate) type StfBlueprintTest = StfBlueprint<S, Da, RuntimeTest, BasicKernel<S, Da>>;
 
 pub(crate) struct TestPrivateKeys<S: Spec> {
     pub token_deployer: PrivateKeyAndAddress<S>,

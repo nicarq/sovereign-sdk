@@ -17,7 +17,7 @@ pub trait CheckedMath<Rhs = Self> {
 
     /// Performs checked multiplication, returning None if the result would overflow.
     fn checked_mul(&self, rhs: Rhs) -> Option<Self::Output>;
-    /// Performs checked division, returning None if the caller attempts divide by zero.
+    /// Performs checked division, returning None if the caller attempts divide by zero or if the calculation overflows.
     fn checked_div(&self, rhs: Rhs) -> Option<Self::Output>;
     /// Performs checked subtraction, returning None if the result would underflow.
     fn checked_sub(&self, rhs: Rhs) -> Option<Self::Output>;
@@ -55,13 +55,13 @@ impl_checked_math_primitive!(i8, i16, i32, i64, i128, isize);
 /// The fee on a blockchain. This is usually expressed as a combination of a gas limit
 /// and a fee rate (tokens per gas).
 pub trait Fee {
-    /// The price per unit of data
+    /// The price per unit of gas.
     type FeeRate: CheckedMath + CheckedMath<u64> + Clone + Send + Sync;
 
-    /// Returns the price per unit of data.
+    /// Returns the price per unit of gas.
     fn fee_rate(&self) -> Self::FeeRate;
 
-    /// Updates the price per unit of data.
+    /// Updates the price per unit of gas.
     fn set_fee_rate(&mut self, rate: Self::FeeRate);
 }
 
