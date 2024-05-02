@@ -240,7 +240,15 @@ impl<S: sov_modules_api::Spec> AddressList<S> {
         nickname: Option<String>,
         public_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         location: PathBuf,
-    ) {
+    ) -> anyhow::Result<()> {
+        if nickname.is_some()
+            && self
+                .addresses
+                .iter()
+                .any(|entry| entry.nickname == nickname)
+        {
+            anyhow::bail!("Key with nickname '{}' already exists", nickname.unwrap());
+        }
         let entry = AddressEntry {
             address,
             nickname,
@@ -248,11 +256,23 @@ impl<S: sov_modules_api::Spec> AddressList<S> {
             pub_key: public_key,
         };
         self.addresses.push(entry);
+
+        Ok(())
+    }
+
+    /// Returns the number of addresses in the list.
+    pub fn len(&self) -> usize {
+        self.addresses.len()
+    }
+
+    /// Returns if [`AddressList`] is empty or not.
+    pub fn is_empty(&self) -> bool {
+        self.addresses.is_empty()
     }
 }
 
 /// An entry in the address list
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
 pub struct AddressEntry<S: sov_modules_api::Spec> {
     /// The address
