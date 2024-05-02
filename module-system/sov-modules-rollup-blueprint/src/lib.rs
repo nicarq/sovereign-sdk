@@ -27,6 +27,8 @@ use sov_stf_runner::{
 use tokio::sync::{oneshot, watch};
 pub use wallet::*;
 
+type Verifier<Host> = <<Host as ZkvmHost>::Guest as ZkvmGuest>::Verifier;
+
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
 #[async_trait]
 pub trait RollupBlueprint: Sized + Send + Sync {
@@ -44,9 +46,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type OuterZkvmHost: ZkvmHost + Send;
 
     /// Context for Zero Knowledge environment.
-    type ZkSpec: Spec;
+    type ZkSpec: Spec<
+        InnerZkvm = Verifier<Self::InnerZkvmHost>,
+        OuterZkvm = Verifier<Self::OuterZkvmHost>,
+    >;
     /// Context for Native environment.
-    type NativeSpec: Spec;
+    type NativeSpec: Spec<
+        InnerZkvm = Verifier<Self::InnerZkvmHost>,
+        OuterZkvm = Verifier<Self::OuterZkvmHost>,
+    >;
 
     /// Manager for the native storage lifecycle.
     type StorageManager: HierarchicalStorageManager<
@@ -245,16 +253,11 @@ pub struct Rollup<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
     pub runner: StateTransitionRunner<
-        StfBlueprint<
-            S::NativeSpec,
-            S::DaSpec,
-            <<S::InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-            S::NativeRuntime,
-            S::NativeKernel,
-        >,
+        StfBlueprint<S::NativeSpec, S::DaSpec, S::NativeRuntime, S::NativeKernel>,
         S::StorageManager,
         S::DaService,
         S::InnerZkvmHost,
+        S::OuterZkvmHost,
         S::ProverService,
     >,
     /// RPC methods for the rollup.

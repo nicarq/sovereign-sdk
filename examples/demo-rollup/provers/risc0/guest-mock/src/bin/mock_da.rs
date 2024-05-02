@@ -3,7 +3,7 @@ use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::MockDaVerifier;
-pub use sov_mock_zkvm::MockZkVerifier;
+pub use sov_mock_zkvm::{MockZkGuest, MockZkVerifier};
 use sov_modules_api::default_spec::ZkDefaultSpec;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -39,12 +39,11 @@ pub fn main() {
     let stf: StfBlueprint<
         ZkDefaultSpec<Risc0Verifier, MockZkVerifier>,
         _,
-        _,
         Runtime<_, _>,
         BasicKernel<_, _>,
     > = StfBlueprint::new();
 
-    let stf_verifier = StfVerifier::new(stf, MockDaVerifier {});
+    let stf_verifier = StfVerifier::<_, _, _, _, _, MockZkGuest>::new(stf, MockDaVerifier {});
 
     stf_verifier
         .run_block(guest, storage)

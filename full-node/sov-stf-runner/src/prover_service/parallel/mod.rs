@@ -18,14 +18,21 @@ use crate::{
     ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
 };
 
-pub(crate) struct Verifier<Da, Vm, V>
+pub(crate) struct Verifier<Da, InnerVm, OuterVm, V>
 where
     Da: DaService,
-    Vm: ZkvmHost,
-    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
+    InnerVm: ZkvmHost,
+    OuterVm: ZkvmHost,
+    V: StateTransitionFunction<
+            <InnerVm::Guest as ZkvmGuest>::Verifier,
+            <OuterVm::Guest as ZkvmGuest>::Verifier,
+            Da::Spec,
+        > + Send
+        + Sync,
 {
     pub(crate) da_verifier: Da::Verifier,
-    pub(crate) stf_verifier: StateTransitionVerifier<V, Da::Verifier, Vm::Guest>,
+    pub(crate) stf_verifier:
+        StateTransitionVerifier<V, Da::Verifier, InnerVm::Guest, OuterVm::Guest>,
 }
 
 /// Prover service that generates proofs in parallel.
@@ -36,7 +43,12 @@ where
     Da: DaService,
     InnerVm: ZkvmHost,
     OuterVm: ZkvmHost,
-    V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
+    V: StateTransitionFunction<
+            <InnerVm::Guest as ZkvmGuest>::Verifier,
+            <OuterVm::Guest as ZkvmGuest>::Verifier,
+            Da::Spec,
+        > + Send
+        + Sync,
 {
     inner_vm: InnerVm,
     outer_vm: OuterVm,
@@ -45,7 +57,7 @@ where
     zk_storage: V::PreState,
     prover_state: Prover<StateRoot, Witness, Da>,
 
-    verifier: Arc<Verifier<Da, InnerVm, V>>,
+    verifier: Arc<Verifier<Da, InnerVm, OuterVm, V>>,
 }
 
 impl<StateRoot, Witness, Da, InnerVm, OuterVm, V>
@@ -56,7 +68,12 @@ where
     Da: DaService,
     InnerVm: ZkvmHost,
     OuterVm: ZkvmHost,
-    V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec> + Send + Sync,
+    V: StateTransitionFunction<
+            <InnerVm::Guest as ZkvmGuest>::Verifier,
+            <OuterVm::Guest as ZkvmGuest>::Verifier,
+            Da::Spec,
+        > + Send
+        + Sync,
     V::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
@@ -71,10 +88,11 @@ where
         num_threads: usize,
         code_commitment: CodeCommitment,
     ) -> Self {
-        let stf_verifier = StateTransitionVerifier::<V, Da::Verifier, InnerVm::Guest>::new(
-            zk_stf,
-            da_verifier.clone(),
-        );
+        let stf_verifier =
+            StateTransitionVerifier::<V, Da::Verifier, InnerVm::Guest, OuterVm::Guest>::new(
+                zk_stf,
+                da_verifier.clone(),
+            );
 
         let verifier = Arc::new(Verifier {
             da_verifier,
@@ -127,8 +145,11 @@ where
     Da: DaService,
     InnerVm: ZkvmHost + 'static,
     OuterVm: ZkvmHost + 'static,
-    V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec>
-        + Send
+    V: StateTransitionFunction<
+            <InnerVm::Guest as ZkvmGuest>::Verifier,
+            <OuterVm::Guest as ZkvmGuest>::Verifier,
+            Da::Spec,
+        > + Send
         + Sync
         + 'static,
     V::PreState: Clone + Send + Sync,

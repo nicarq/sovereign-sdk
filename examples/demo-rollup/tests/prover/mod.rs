@@ -6,6 +6,7 @@ use demo_stf::runtime::Runtime;
 use risc0::MOCK_DA_ELF;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
+use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::SlotData;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -34,7 +35,6 @@ const DEFAULT_GENESIS_CONFIG_DIR: &str = "../test-data/genesis/integration-tests
 type TestSTF<'a> = StfBlueprint<
     DefaultSpec,
     MockDaSpec,
-    Risc0Verifier,
     Runtime<DefaultSpec, MockDaSpec>,
     BasicKernel<DefaultSpec, MockDaSpec>,
 >;
@@ -119,8 +119,8 @@ async fn test_proof_generation() {
         );
 
         let data = StateTransitionWitness::<
-            <TestSTF as StateTransitionFunction<Risc0Verifier, MockDaSpec>>::StateRoot,
-            <TestSTF as StateTransitionFunction<Risc0Verifier, MockDaSpec>>::Witness,
+            <TestSTF as StateTransitionFunction<Risc0Verifier, MockZkVerifier, MockDaSpec>>::StateRoot,
+            <TestSTF as StateTransitionFunction<Risc0Verifier, MockZkVerifier, MockDaSpec>>::Witness,
             MockDaSpec,
         > {
             initial_state_root: prev_state_root,

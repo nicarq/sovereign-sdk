@@ -7,7 +7,8 @@ mod helpers;
 use helpers::runner_init::initialize_runner;
 
 use crate::helpers::hash_stf::HashStf;
-type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockDaService>;
+type MockInitVariant =
+    InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockZkVerifier, MockDaService>;
 
 #[tokio::test]
 async fn init_and_restart() {

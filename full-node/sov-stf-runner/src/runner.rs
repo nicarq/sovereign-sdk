@@ -20,17 +20,23 @@ use tracing::{debug, error, info};
 
 use crate::{ProofManager, ProverService, RunnerConfig, StateTransitionInfo};
 
-type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
-type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
+type StateRoot<ST, InnerVm, OuterVm, Da> =
+    <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::StateRoot;
+type GenesisParams<ST, InnerVm, OuterVm, Da> =
+    <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
+
+type Verifier<Host> = <<Host as ZkvmHost>::Guest as ZkvmGuest>::Verifier;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
-pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+pub struct StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm, Ps>
 where
     Da: DaService,
-    Vm: ZkvmHost,
+    InnerVm: ZkvmHost,
+    OuterVm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
-        <Vm::Guest as ZkvmGuest>::Verifier,
+        Verifier<InnerVm>,
+        Verifier<OuterVm>,
         Da::Spec,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
     >,
@@ -43,7 +49,7 @@ where
     storage_manager: Sm,
     rpc_storage_sender: watch::Sender<Sm::StfState>,
     ledger_db: LedgerDb,
-    state_root: StateRoot<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>,
+    state_root: StateRoot<Stf, Verifier<InnerVm>, Verifier<OuterVm>, Da::Spec>,
     listen_address_rpc: SocketAddr,
     listen_address_axum: SocketAddr,
     proof_manager: ProofManager<Ps>,
@@ -117,7 +123,12 @@ impl DaSyncState {
 }
 
 /// How [`StateTransitionRunner`] is initialized
-pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da::Spec>, Vm: Zkvm, Da: DaService> {
+pub enum InitVariant<
+    Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
+    Da: DaService,
+> {
     /// From give state root
     Initialized(Stf::StateRoot),
     /// From empty state root
@@ -125,17 +136,19 @@ pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da::Spec>, Vm: Zkvm, Da: D
         /// Genesis block header should be finalized at initialization moment.
         block: Da::FilteredBlock,
         /// Genesis params for Stf::init.
-        genesis_params: GenesisParams<Stf, Vm, Da::Spec>,
+        genesis_params: GenesisParams<Stf, InnerVm, OuterVm, Da::Spec>,
     },
 }
 
-impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+impl<Stf, Sm, Da, InnerVm, OuterVm, Ps> StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm, Ps>
 where
     Da: DaService<Error = anyhow::Error> + Clone,
-    Vm: ZkvmHost,
+    InnerVm: ZkvmHost,
+    OuterVm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = ChangeSet, LedgerState = CacheDb>,
     Stf: StateTransitionFunction<
-        <Vm::Guest as ZkvmGuest>::Verifier,
+        <InnerVm::Guest as ZkvmGuest>::Verifier,
+        <OuterVm::Guest as ZkvmGuest>::Verifier,
         Da::Spec,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
         PreState = Sm::StfState,
@@ -156,7 +169,12 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         rpc_storage_sender: watch::Sender<Sm::StfState>,
-        init_variant: InitVariant<Stf, <Vm::Guest as ZkvmGuest>::Verifier, Da>,
+        init_variant: InitVariant<
+            Stf,
+            <InnerVm::Guest as ZkvmGuest>::Verifier,
+            <OuterVm::Guest as ZkvmGuest>::Verifier,
+            Da,
+        >,
         proof_manager: ProofManager<Ps>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
@@ -321,7 +339,12 @@ where
                 height: new_height,
                 block: new_block,
                 pre_state_root,
-            }) = has_reorg_happened::<Stf, Da, <Vm::Guest as ZkvmGuest>::Verifier>(
+            }) = has_reorg_happened::<
+                Stf,
+                Da,
+                <InnerVm::Guest as ZkvmGuest>::Verifier,
+                <OuterVm::Guest as ZkvmGuest>::Verifier,
+            >(
                 &filtered_block,
                 &mut seen_state_transition,
                 &self.da_service,
@@ -502,7 +525,7 @@ struct ForkPoint<Da: DaService, StateRoot> {
 // Errors if reorg happened, but it cannot backtrack to the seen block from the current chain.
 // This cab indicate that rollup started from non-finalized block.
 // Also can error if da_service returns error.
-async fn has_reorg_happened<Stf, Da, Vm>(
+async fn has_reorg_happened<Stf, Da, InnerVm, OuterVm>(
     filtered_block: &Da::FilteredBlock,
     seen_state_transition: &mut VecDeque<
         StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>,
@@ -511,8 +534,9 @@ async fn has_reorg_happened<Stf, Da, Vm>(
 ) -> anyhow::Result<Option<ForkPoint<Da, Stf::StateRoot>>>
 where
     Da: DaService<Error = anyhow::Error> + Clone,
-    Vm: Zkvm,
-    Stf: StateTransitionFunction<Vm, Da::Spec>,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
+    Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
 {
     if let Some(state_transition) = seen_state_transition.back() {
         if state_transition.da_block_header().hash() != filtered_block.header().prev_hash() {
@@ -557,9 +581,11 @@ mod tests {
     type Stf = MockStf<MockValidityCond>;
     type StateRoot = <MockStf<MockValidityCond> as StateTransitionFunction<
         <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
         MockDaSpec,
     >>::StateRoot;
     type StfWitness = <MockStf<MockValidityCond> as StateTransitionFunction<
+        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
         <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
         MockDaSpec,
     >>::Witness;
@@ -571,7 +597,7 @@ mod tests {
         > = VecDeque::new();
         let filtered_block = MockBlock::default();
         let da_service = MockDaService::new(MockAddress::new([0; 32]));
-        let result = has_reorg_happened::<Stf, Da, MockZkVerifier>(
+        let result = has_reorg_happened::<Stf, Da, MockZkVerifier, MockZkVerifier>(
             &filtered_block,
             &mut seen_state_transition_info,
             &da_service,
@@ -634,7 +660,7 @@ mod tests {
         }
 
         let block_head = da_service.get_block_at(last_block).await.unwrap();
-        let result = has_reorg_happened::<Stf, Da, MockZkVerifier>(
+        let result = has_reorg_happened::<Stf, Da, MockZkVerifier, MockZkVerifier>(
             &block_head,
             &mut seen_state_transition_info,
             &da_service,
@@ -694,7 +720,7 @@ mod tests {
         }
 
         let block_head = da_service.get_block_at(last_block).await.unwrap();
-        let result = has_reorg_happened::<Stf, Da, MockZkVerifier>(
+        let result = has_reorg_happened::<Stf, Da, MockZkVerifier, MockZkVerifier>(
             &block_head,
             &mut seen_state_transition_info,
             &da_service,

@@ -18,14 +18,16 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
 };
 use sov_modules_api::{
-    DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet, RuntimeEventProcessor, Spec,
-    StateCheckpoint, Zkvm,
+    BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
+    RuntimeEventProcessor, Spec, StateCheckpoint,
 };
 use sov_modules_core::capabilities::{GasEnforcer, RuntimeAuthenticator};
 use sov_modules_core::VersionedStateReadWriter;
 use sov_rollup_interface::da::RelevantBlobIters;
 pub use sov_rollup_interface::stf::BatchReceipt;
-use sov_rollup_interface::stf::{ApplySlotOutput, SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    ApplySlotOutput, ProofOutcome, ProofReceipt, StateTransitionFunction,
+};
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
 pub use stf_blueprint::{apply_tx, ExecutionMode, StfBlueprint};
@@ -116,10 +118,9 @@ pub enum SlashingReason {
     InvalidTransactionEncoding,
 }
 
-impl<S, RT, Vm, Da, K> StfBlueprint<S, Da, Vm, RT, K>
+impl<S, RT, Da, K> StfBlueprint<S, Da, RT, K>
 where
     S: Spec,
-    Vm: Zkvm,
     Da: DaSpec,
     RT: Runtime<S, Da>,
     K: KernelSlotHooks<S, Da>,
@@ -188,11 +189,11 @@ where
     }
 }
 
-impl<S, RT, Vm, Da, K> StateTransitionFunction<Vm, Da> for StfBlueprint<S, Da, Vm, RT, K>
+impl<S, RT, Da, K> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, Da>
+    for StfBlueprint<S, Da, RT, K>
 where
     S: Spec,
     Da: DaSpec,
-    Vm: Zkvm,
     RT: Runtime<S, Da>,
     K: KernelSlotHooks<S, Da, Batch = BatchWithId>,
 {
@@ -206,6 +207,8 @@ where
     type TxReceiptContents = TxEffect;
 
     type BatchReceiptContents = SequencerOutcome;
+
+    type ProofReceiptContents = ();
 
     type Witness = <S::Storage as Storage>::Witness;
 
@@ -257,7 +260,7 @@ where
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<I>,
-    ) -> ApplySlotOutput<Vm, Da, Self>
+    ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
@@ -270,7 +273,14 @@ where
         );
 
         let proof_blobs = relevant_blobs.proof_blobs;
+        let mut proof_receipts = Vec::new();
         for proof in proof_blobs.into_iter() {
+            // Since we're not currently processing receipts, we just mark that in the DB for now
+            proof_receipts.push(ProofReceipt {
+                blob_hash: proof.hash(),
+                outcome: ProofOutcome::<Da, Self::StateRoot>::Ignored,
+                extra_data: (),
+            });
             checkpoint = self.apply_proof(checkpoint, proof, &gas_price);
         }
 
@@ -321,9 +331,10 @@ where
         }
 
         let (state_root, witness, storage) = self.end_slot(pre_state, &total_gas, checkpoint);
-        SlotResult {
+        ApplySlotOutput {
             state_root,
             change_set: storage.to_change_set(),
+            proof_receipts,
             batch_receipts,
             witness,
         }

@@ -57,21 +57,25 @@ where
         }
     }
 
-    pub(crate) fn start_proving<InnerVm, V>(
+    pub(crate) fn start_proving<InnerVm, OuterVm, V>(
         &self,
         state_transition_info: StateTransitionInfo<StateRoot, Witness, <Da as DaService>::Spec>,
         config: Arc<RollupProverConfig>,
         mut inner_vm: InnerVm,
         zk_storage: V::PreState,
-        verifier: Arc<Verifier<Da, InnerVm, V>>,
+        verifier: Arc<Verifier<Da, InnerVm, OuterVm, V>>,
     ) -> Result<
         ProofProcessingStatus<StateRoot, Witness, <Da as DaService>::Spec>,
         ProverServiceError,
     >
     where
         InnerVm: ZkvmHost + 'static,
-        V: StateTransitionFunction<<InnerVm::Guest as ZkvmGuest>::Verifier, Da::Spec>
-            + Send
+        OuterVm: ZkvmHost + 'static,
+        V: StateTransitionFunction<
+                <InnerVm::Guest as ZkvmGuest>::Verifier,
+                <OuterVm::Guest as ZkvmGuest>::Verifier,
+                Da::Spec,
+            > + Send
             + Sync
             + 'static,
         V::PreState: Send + Sync + 'static,
@@ -105,7 +109,7 @@ where
 
             self.pool.spawn(move || {
                 tracing::info_span!("guest_execution").in_scope(|| {
-                    let proof = make_inner_proof::<_, _, Da>(
+                    let proof = make_inner_proof::<_, InnerVm, OuterVm, Da>(
                         inner_vm,
                         config,
                         zk_storage,
@@ -216,17 +220,21 @@ where
     }
 }
 
-fn make_inner_proof<V, Vm, Da>(
-    mut vm: Vm,
+fn make_inner_proof<V, InnerVm, OuterVm, Da>(
+    mut vm: InnerVm,
     config: Arc<RollupProverConfig>,
     zk_storage: V::PreState,
-    stf_verifier: &StateTransitionVerifier<V, Da::Verifier, Vm::Guest>,
+    stf_verifier: &StateTransitionVerifier<V, Da::Verifier, InnerVm::Guest, OuterVm::Guest>,
 ) -> Result<Vec<u8>, anyhow::Error>
 where
     Da: DaService,
-    Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<<Vm::Guest as ZkvmGuest>::Verifier, Da::Spec>
-        + Send
+    InnerVm: ZkvmHost + 'static,
+    OuterVm: ZkvmHost + 'static,
+    V: StateTransitionFunction<
+            <InnerVm::Guest as ZkvmGuest>::Verifier,
+            <OuterVm::Guest as ZkvmGuest>::Verifier,
+            Da::Spec,
+        > + Send
         + Sync
         + 'static,
     V::PreState: Send + Sync + 'static,
@@ -240,12 +248,12 @@ where
         RollupProverConfig::Execute => {
             info!(
                 "Executing in VM without constructing proof using {}",
-                std::any::type_name::<Vm>()
+                std::any::type_name::<InnerVm>()
             );
             vm.run(false)
         }
         RollupProverConfig::Prove => {
-            info!("Generating proof with {}", std::any::type_name::<Vm>());
+            info!("Generating proof with {}", std::any::type_name::<InnerVm>());
             vm.run(true)
         }
     };

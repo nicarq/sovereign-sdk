@@ -9,19 +9,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::{DaSpec, RelevantBlobIters};
 use crate::maybestd::vec::Vec;
-use crate::zk::{ValidityCondition, Zkvm};
+use crate::zk::aggregated_proof::AggregatedProofPublicData;
+use crate::zk::{StateTransitionPublicData, ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "arbitrary"))]
 pub mod fuzzing;
-
-/// Type alias for the output type of [`StateTransitionFunction::apply_slot`].
-pub type ApplySlotOutput<Vm, Da, Stf> = SlotResult<
-    <Stf as StateTransitionFunction<Vm, Da>>::StateRoot,
-    <Stf as StateTransitionFunction<Vm, Da>>::ChangeSet,
-    <Stf as StateTransitionFunction<Vm, Da>>::BatchReceiptContents,
-    <Stf as StateTransitionFunction<Vm, Da>>::TxReceiptContents,
-    <Stf as StateTransitionFunction<Vm, Da>>::Witness,
->;
 
 /// The configuration of a full node of the rollup which creates zk proofs.
 pub struct ProverConfig;
@@ -85,21 +77,54 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     pub inner: BatchReceiptContents,
 }
 
-/// Result of applying a slot to current state
-/// Where:
-///  - S - generic for state root
-///  - B - generic for batch receipt contents
-///  - T - generic for transaction receipt contents
-///  - W - generic for witness
-pub struct SlotResult<S, Cs, B, T, W> {
+/// A receipt for data posted into the proof namespace
+pub struct ProofReceipt<Da: DaSpec, Root, Extra> {
+    /// The hash of the blob which contained the proof
+    pub blob_hash: [u8; 32],
+    /// The outcome of the proof
+    pub outcome: ProofOutcome<Da, Root>,
+    /// Any extra structured data to store with the proof receipt. For example, this might
+    /// be the full contents of the proof (for an aggregate proof), or a proof that the sender
+    /// of an attestation was bonded.
+    pub extra_data: Extra,
+}
+
+/// The contents of a proof receipt.
+pub enum ProofReceiptContents<Da: DaSpec, Root> {
+    /// A receipt for an aggregate proof contains the public data form the proof.
+    AggregateProof(AggregatedProofPublicData),
+    /// A receipt for a block proof contains the public data from the state transition which was proven.
+    BlockProof(StateTransitionPublicData<Da, Root>),
+    /// A receipt for an attestation contains the public data that the attestation made a claim about.
+    Attestation(StateTransitionPublicData<Da, Root>),
+}
+
+/// The outcome of a proof
+pub enum ProofOutcome<Da: DaSpec, Root> {
+    /// The blob was filtered out as irrelevant
+    Ignored,
+    /// The blob is some kind of valid proof
+    Valid(ProofReceiptContents<Da, Root>),
+    /// The blob is some kind of invalid proof
+    Invalid,
+}
+/// The result of applying a slot to current state.
+pub struct ApplySlotOutput<
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
+    Da: DaSpec,
+    Stf: StateTransitionFunction<InnerVm, OuterVm, Da>,
+> {
     /// Final state root after all blobs were applied
-    pub state_root: S,
+    pub state_root: Stf::StateRoot,
     /// Container for all state alterations that happened during slot execution
-    pub change_set: Cs,
+    pub change_set: Stf::ChangeSet,
+    /// Receipt for each applied proof transaction
+    pub proof_receipts: Vec<ProofReceipt<Da, Stf::StateRoot, Stf::ProofReceiptContents>>,
     /// Receipt for each applied batch
-    pub batch_receipts: Vec<BatchReceipt<B, T>>,
+    pub batch_receipts: Vec<BatchReceipt<Stf::BatchReceiptContents, Stf::TxReceiptContents>>,
     /// Witness after applying the whole block
-    pub witness: W,
+    pub witness: Stf::Witness,
 }
 
 // TODO(@preston-evans98): update spec with simplified API
@@ -109,7 +134,11 @@ pub struct SlotResult<S, Cs, B, T, W> {
 ///  - block: DA layer block
 ///  - batch: Set of transactions grouped together, or block on L2
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
-pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
+///
+/// The STF is generic over a DA layer and two `Zkvm`s. The `InnerVm` is used to prove individual slots,
+/// while the `OuterVm` is used to generate recursive proofs over multiple slots. The two VMs *may* be set to be
+/// the  same type.
+pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Sized {
     /// Root hash of state merkle tree
     type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]>;
 
@@ -121,6 +150,9 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
 
     /// State of the rollup after transition.
     type ChangeSet;
+
+    /// The contents of a proof receipt. This is the data that is persisted in the database
+    type ProofReceiptContents: Serialize + DeserializeOwned + Clone;
 
     /// The contents of a transaction receipt. This is the data that is persisted in the database
     type TxReceiptContents: Serialize + DeserializeOwned + Clone;
@@ -166,7 +198,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<I>,
-    ) -> ApplySlotOutput<Vm, Da, Self>
+    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
 }

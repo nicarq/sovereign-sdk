@@ -4,9 +4,7 @@ use std::marker::PhantomData;
 
 use sha2::Digest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, RelevantBlobIters};
-use sov_rollup_interface::stf::{
-    ApplySlotOutput, BatchReceipt, SlotResult, StateTransitionFunction,
-};
+use sov_rollup_interface::stf::{ApplySlotOutput, BatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 
 /// An implementation of the [`StateTransitionFunction`]
@@ -25,8 +23,8 @@ pub enum ApplySlotResult {
     Success,
 }
 
-impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, Da>
-    for CheckHashPreimageStf<Cond>
+impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
+    StateTransitionFunction<InnerVm, OuterVm, Da> for CheckHashPreimageStf<Cond>
 {
     // Since our rollup is stateless, we don't need to consider the StateRoot.
     type StateRoot = [u8; 0];
@@ -38,6 +36,9 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
     // We could incorporate the concept of a transaction into the rollup, but we leave it as an exercise for the reader.
     type TxReceiptContents = ();
+
+    // Similarly, we don't bother implementing special receipts for proofs in this tutorial
+    type ProofReceiptContents = ();
 
     // This is the type that will be returned as a result of `apply_blob`.
     type BatchReceiptContents = ApplySlotResult;
@@ -65,7 +66,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<I>,
-    ) -> ApplySlotOutput<Vm, Da, Self>
+    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
@@ -95,9 +96,10 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             });
         }
 
-        SlotResult {
+        ApplySlotOutput {
             state_root: [],
             change_set: (),
+            proof_receipts: vec![],
             batch_receipts: receipts,
             witness: (),
         }

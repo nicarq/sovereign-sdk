@@ -16,7 +16,7 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 
 use crate::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
-use crate::{MockZkVerifier, RawTx, TestPrivateKey, TestSpec};
+use crate::{RawTx, TestPrivateKey, TestSpec};
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 
@@ -49,7 +49,6 @@ impl<S: Spec, Da: DaSpec> Authenticator for TestAuth<S, Da> {
 pub type Blueprint = StfBlueprint<
     TestSpec,
     MockDaSpec,
-    MockZkVerifier,
     TestRuntime<TestSpec, MockDaSpec>,
     BasicKernel<TestSpec, MockDaSpec>,
 >;
