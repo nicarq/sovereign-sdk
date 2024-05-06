@@ -1,8 +1,6 @@
 use syn::DeriveInput;
 
-pub fn derive_module_call_json_schema(
-    input: DeriveInput,
-) -> Result<proc_macro::TokenStream, syn::Error> {
+pub fn derive_module_call_json_schema(input: DeriveInput) -> syn::Result<proc_macro::TokenStream> {
     let DeriveInput {
         ident, generics, ..
     } = input;
@@ -10,10 +8,11 @@ pub fn derive_module_call_json_schema(
     let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
 
     let tokens = quote::quote! {
-        use ::schemars::JsonSchema as _;
-
+        #[automatically_derived]
         impl #impl_generics ::sov_modules_api::ModuleCallJsonSchema for #ident #type_generics #where_clause {
             fn json_schema() -> ::std::string::String {
+                use ::schemars::JsonSchema as _;
+
                 let schema = ::schemars::schema_for!(
                     <Self as ::sov_modules_api::Module>::CallMessage
                 );

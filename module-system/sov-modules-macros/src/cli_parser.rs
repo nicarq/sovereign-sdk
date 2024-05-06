@@ -39,41 +39,42 @@ impl CliParserMacro {
         let mut from_json_match_arms = vec![];
         let mut deserialize_constraints: Vec<syn::WherePredicate> = vec![];
 
-        // Loop over the fields
-        'outer: for field in &fields {
-            // Skip fields with the attribute cli_skip
-            for attr in field.attrs.iter() {
-                if attr.path.is_ident("cli_skip") {
-                    continue 'outer;
-                }
+        // Loop over the fields.
+        for field in &fields {
+            // Skip fields with the attribute `cli_skip`.
+            if field.contains_attr("cli_skip") {
+                continue;
             }
 
             // For each type path we encounter, we need to extract the generic type parameters for that field
             // and construct a `Generics` struct that contains the bounds for each of those generic type parameters.
-            if let syn::Type::Path(type_path) = &field.ty {
-                let module_path = type_path.path.clone();
-                let field_name = field.ident.clone();
-                let doc_str = format!("A subcommand for the `{}` module", &field_name);
-                let doc_contents = format!("A clap argument for the `{}` module", &field_name);
+            let syn::Type::Path(type_path) = &field.ty else {
+                continue;
+            };
 
-                module_json_parser_arms.push(quote! {
-                    #[doc = #doc_str]
-                    #field_name {
-                        #[doc = #doc_contents]
-                        #[clap(flatten)]
-                        contents: __Inner
-                    }
-                });
+            let module_path = type_path.path.clone();
+            let field_name = field.ident.clone();
+            let doc_str = format!("A subcommand for the `{}` module", &field_name);
+            let doc_contents = format!("A clap argument for the `{}` module", &field_name);
 
-                module_message_arms.push(quote! {
-                    #[doc = #doc_str]
-                    #field_name {
-                        #[doc = #doc_contents]
-                        contents: __Inner
-                    }
-                });
+            module_json_parser_arms.push(quote! {
+                #[doc = #doc_str]
+                #field_name {
+                    #[doc = #doc_contents]
+                    #[clap(flatten)]
+                    contents: __Inner
+                }
+            });
 
-                from_json_match_arms.push(quote! {
+            module_message_arms.push(quote! {
+                #[doc = #doc_str]
+                #field_name {
+                    #[doc = #doc_contents]
+                    contents: __Inner
+                }
+            });
+
+            from_json_match_arms.push(quote! {
                     RuntimeMessage::#field_name{ contents } => {
                                 ::serde_json::from_str::<<#module_path as ::sov_modules_api::Module>::CallMessage>(&contents.json).map(
                                     // Use the enum variant as a constructor
@@ -82,44 +83,43 @@ impl CliParserMacro {
                             },
                          });
 
-                try_map_match_arms.push(quote! {
+            try_map_match_arms.push(quote! {
                     RuntimeMessage::#field_name { contents } => RuntimeMessage::#field_name { contents: contents.try_into()? },
                 });
 
-                tx_args_subcommand_match_arms_chain_id.push(quote! {
+            tx_args_subcommand_match_arms_chain_id.push(quote! {
                     RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::chain_id(&contents),
                 });
 
-                tx_args_subcommand_match_arms_max_priority_fee_bips.push(quote! {
+            tx_args_subcommand_match_arms_max_priority_fee_bips.push(quote! {
                     RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::max_priority_fee_bips(&contents),
                 });
 
-                tx_args_subcommand_match_arms_max_fee.push(quote! {
+            tx_args_subcommand_match_arms_max_fee.push(quote! {
                     RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::max_fee(&contents),
                 });
 
-                tx_args_subcommand_match_arms_gas_limit.push(quote! {
+            tx_args_subcommand_match_arms_gas_limit.push(quote! {
                     RuntimeSubcommand::#field_name { contents } => <__Inner as ::sov_modules_api::cli::CliTxImportArg>::gas_limit(&contents),
                 });
 
-                try_from_subcommand_match_arms.push(quote! {
+            try_from_subcommand_match_arms.push(quote! {
                     RuntimeSubcommand::#field_name { contents } => RuntimeMessage::#field_name { contents: contents.try_into()? },
                 });
 
-                // Build a constraint requiring that all call messages support serde deserialization
-                let deserialization_constraint = {
-                    let type_path: syn::TypePath = syn::parse_quote! {<#module_path as ::sov_modules_api::Module>::CallMessage };
-                    let bounds: syn::TypeParamBound =
-                        syn::parse_quote! {::serde::de::DeserializeOwned};
-                    syn::WherePredicate::Type(syn::PredicateType {
-                        lifetimes: None,
-                        bounded_ty: syn::Type::Path(type_path),
-                        colon_token: Default::default(),
-                        bounds: vec![bounds].into_iter().collect(),
-                    })
-                };
-                deserialize_constraints.push(deserialization_constraint);
-            }
+            // Build a constraint requiring that all call messages support serde deserialization
+            let deserialization_constraint = {
+                let type_path: syn::TypePath =
+                    syn::parse_quote! {<#module_path as ::sov_modules_api::Module>::CallMessage };
+                let bounds: syn::TypeParamBound = syn::parse_quote! {::serde::de::DeserializeOwned};
+                syn::WherePredicate::Type(syn::PredicateType {
+                    lifetimes: None,
+                    bounded_ty: syn::Type::Path(type_path),
+                    colon_token: Default::default(),
+                    bounds: vec![bounds].into_iter().collect(),
+                })
+            };
+            deserialize_constraints.push(deserialization_constraint);
         }
 
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -190,8 +190,6 @@ impl CliParserMacro {
 
         // Merge and generate the new code
         let expanded = quote! {
-
-
             /// An enum expressing the subcommands available to this runtime. Contains
             /// one subcommand for each module, except modules annotated with the #[cli_skip] attribute
             #[derive(::clap::Parser)]
@@ -207,28 +205,28 @@ impl CliParserMacro {
                 fn chain_id(&self) -> u64 {
                     match self {
                         #( #tx_args_subcommand_match_arms_chain_id )*
-                        RuntimeSubcommand::____phantom(_) => unreachable!(),
+                        _ => unreachable!(),
                     }
                 }
 
                 fn max_priority_fee_bips(&self) -> u64 {
                     match self {
                         #( #tx_args_subcommand_match_arms_max_priority_fee_bips )*
-                        RuntimeSubcommand::____phantom(_) => unreachable!(),
+                        _ => unreachable!(),
                     }
                 }
 
                 fn max_fee(&self) -> u64 {
                     match self {
                         #( #tx_args_subcommand_match_arms_max_fee )*
-                        RuntimeSubcommand::____phantom(_) => unreachable!(),
+                        _ => unreachable!(),
                     }
                 }
 
                 fn gas_limit(&self) -> Option<&[u64]> {
                     match self {
                         #( #tx_args_subcommand_match_arms_gas_limit )*
-                        RuntimeSubcommand::____phantom(_) => unreachable!(),
+                        _ => unreachable!(),
                     }
                 }
             }

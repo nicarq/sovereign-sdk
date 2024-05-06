@@ -16,10 +16,10 @@ pub trait RuntimeEventProcessor {
     fn convert_to_runtime_event(event: crate::storage::TypedEvent) -> Option<Self::RuntimeEvent>;
 }
 
-/// Trait to get the module name from a specific runtime event
+/// Trait to get the module name from a specific runtime event.
 pub trait EventModuleName {
-    /// function to get module name
-    fn get_module_name(&self) -> String;
+    /// Returns the name of the module that emitted this event.
+    fn module_name(&self) -> &'static str;
 }
 
 /// The response type for a module specific event
@@ -70,7 +70,7 @@ where
         let key_str = String::from_utf8(stored_event.key().inner().clone())
             .unwrap_or_else(|_| hex::encode(stored_event.key().inner()));
 
-        let module_name = runtime_event.get_module_name();
+        let module_name = runtime_event.module_name().to_string();
 
         Ok(Self {
             event_key: key_str,

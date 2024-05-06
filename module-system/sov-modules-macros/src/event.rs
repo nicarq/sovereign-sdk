@@ -38,7 +38,7 @@ impl EventMacro {
     pub(crate) fn derive_event_enum(
         &self,
         input: DeriveInput,
-    ) -> Result<proc_macro::TokenStream, syn::Error> {
+    ) -> syn::Result<proc_macro::TokenStream> {
         let mut derive_methods = get_serialization_attrs(&input)?;
         derive_methods.push(quote::quote! { Clone });
 
@@ -91,15 +91,16 @@ impl EventMacro {
         let from_event_cases = struct_def.fields.iter().map(|field| {
             let variant_name = &field.ident;
             quote::quote! {
-            #event_enum_name::#variant_name(ref event) => {
-                     stringify!(#variant_name).to_string()
+                #event_enum_name::#variant_name(ref event) => {
+                     stringify!(#variant_name)
                 }
             }
         });
 
         let impl_runtime_event_module_name = quote::quote! {
+            #[automatically_derived]
             impl #impl_generics ::sov_modules_api::EventModuleName for #event_enum_name #type_generics {
-                fn get_module_name(&self) -> String {
+                fn module_name(&self) -> &'static str {
                     match self {
                         #(#from_event_cases),*
                     }
@@ -108,6 +109,7 @@ impl EventMacro {
         };
 
         let impl_runtime_event_processor = quote::quote! {
+            #[automatically_derived]
             impl #impl_generics ::sov_modules_api::RuntimeEventProcessor for #ident_name #type_generics {
                 type RuntimeEvent = #event_enum_name #type_generics;
 
@@ -129,7 +131,6 @@ impl EventMacro {
             #impl_runtime_event_processor
 
             #impl_runtime_event_module_name
-        }
-            .into())
+        }.into())
     }
 }

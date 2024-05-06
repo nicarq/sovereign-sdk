@@ -19,6 +19,11 @@ impl StructNamedField {
             .filter(filter)
             .collect();
     }
+
+    #[cfg_attr(not(feature = "native"), allow(unused))]
+    pub(crate) fn contains_attr(&self, attr_ident: &str) -> bool {
+        self.attrs.iter().any(|attr| attr.path.is_ident(attr_ident))
+    }
 }
 
 impl ToTokens for StructNamedField {

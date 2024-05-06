@@ -59,18 +59,14 @@ impl<'a> Manifest<'a> {
     ///
     /// The `parent` is used to report the errors to the correct span location.
     pub fn read_constants(parent: &'a Ident) -> Result<Self, syn::Error> {
-        #[cfg(not(test))]
-        let mut name = "constants.json";
-
-        #[cfg(test)]
-        let mut name = "constants.test.json";
-
-        // workaround to https://github.com/dtolnay/trybuild/issues/231
-        // despite trybuild being a crate to build tests, it won't set the `test` flag. It isn't
+        // The flag check is a workaround to <https://github.com/dtolnay/trybuild/issues/231>.
+        // Despite trybuild being a crate to build tests, it won't set the `test` flag. It isn't
         // setting the `trybuild` flag properly either.
-        if env::var_os("CONSTANTS_MANIFEST_TRYBUILD").is_some() {
-            name = "constants.test.json";
-        }
+        let name = if cfg!(test) || env::var_os("CONSTANTS_MANIFEST_TEST_MODE").is_some() {
+            "constants.test.json"
+        } else {
+            "constants.json"
+        };
 
         let constants_dir = env::var_os("CONSTANTS_MANIFEST")
             .map(PathBuf::from)
