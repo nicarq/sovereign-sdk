@@ -6,28 +6,36 @@ pub fn address_type_helper(input: DeriveInput) -> Result<TokenStream, syn::Error
     let name = &input.ident;
     let name_str = format!("{}", name);
     let attrs: Vec<Attribute> = input.attrs;
+    let visibility = input.vis;
 
     let expanded = quote! {
-        #[cfg(feature = "native")]
-        #[derive(schemars::JsonSchema)]
-        #[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = #name_str)]
-        #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            Hash,
+            borsh::BorshDeserialize,
+            borsh::BorshSerialize,
+            serde::Serialize,
+            serde::Deserialize,
+        )]
+        #[cfg_attr(
+            feature = "native",
+            derive(schemars::JsonSchema),
+            schemars(bound = "S::Address: ::schemars::JsonSchema", rename = #name_str),
+        )]
         #(#attrs)*
-        pub struct #name<S: ::sov_modules_api::Spec>(S::Address);
-
-        #[cfg(not(feature = "native"))]
-        #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-        #(#attrs)*
-        pub struct #name<S: ::sov_modules_api::Spec>(S::Address);
+        #visibility struct #name<S: ::sov_modules_api::Spec>(S::Address);
 
         impl<S: ::sov_modules_api::Spec> #name<S> {
             /// Public constructor
-            pub fn new(address: &S::Address) -> Self {
+            #visibility fn new(address: &S::Address) -> Self {
                 #name(address.clone())
             }
 
             /// Public getter
-            pub fn get_address(&self) -> &S::Address {
+            #visibility fn get_address(&self) -> &S::Address {
                 &self.0
             }
         }
