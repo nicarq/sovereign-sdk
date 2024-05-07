@@ -98,13 +98,33 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     );
 }
 
+/// Authorizes the sequencer to submit and process batches.
+pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
+    /// Checks if the sequencer has staked the minimum bond to attest transactions.
+    /// Returns an error if the sequencer is not registered or does not have enough staked amount.
+    fn authorize_sequencer(
+        &self,
+        sequencer: &Da::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) -> Result<(), anyhow::Error>;
+
+    /// Penalizes the sequencer without slashing his account.
+    /// If the sequencer is penalized, the stake amount of the sequencer is reduced, potentially preventing future transactions from being executed.
+    fn penalize_sequencer(
+        &self,
+        sequencer: &Da::Address,
+        penalty_amount: u64,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    );
+}
+
 /// Authorizes transactions to be executed.
 pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
     /// The transaction that is being authorized.
     type Tx;
 
     /// Resolves the context for a transaction.
-    // TODO(@preston-evans98): This should be a read-only method https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384
+    /// TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
     fn resolve_context(
         &self,
         tx: &Self::Tx,
@@ -137,15 +157,37 @@ pub struct RawTx {
     pub data: Vec<u8>,
 }
 
-/// Authentication error type.
-#[derive(Error, Debug)]
-pub enum AuthenticationError {
+/// Error variants that can be raised as a [`AuthenticationError::FatalError`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Error)]
+pub enum FatalError {
+    /// Transaction deserialization failed.
+    #[error("Transaction deserialization error: {0}")]
+    DeserializationFailed(String),
     /// Signature verification failed.
-    #[error("signature verification error: {0}")]
+    #[error("Signature verification error: {0}")]
     SigVerificationFailed(String),
     /// Transaction decoding failed.
-    #[error("transaction decoding error: {0}, tx hash: {1:?}")]
+    #[error("Transaction decoding error: {0}, tx hash: {1:?}")]
     MessageDecodingFailed(String, [u8; 32]),
+    /// A variant to capture any other fatal error.
+    #[error("Other fatal error: {0}")]
+    Other(String),
+}
+
+/// Authentication error type.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Error)]
+pub enum AuthenticationError {
+    /// The transaction authentication failed in a way that should have been detected by the sequencer before they accepted the transaction. The sequencer is slashed.
+    #[error("Transaction authentication raised a fatal error, error: {0}")]
+    FatalError(FatalError),
+    /// The transaction authentication returned an error, but including it could have been an honest mistake. The sequencer should be charged enough to cover the cost of checking the transaction but not slashed.
+    #[error("Transaction authentication was invalid. error: {reason}. penalization amount: {penalization_amount}")]
+    Invalid {
+        /// The reason for the penalization.       
+        reason: String,
+        /// The amount of tokens that were consumed so far. The sequencer should be penalized for this amount.
+        penalization_amount: u64,
+    },
 }
 
 /// Authenticates raw transactions. Implementations of this trait should provide a way to interpret the raw bytes of the transaction and authenticate it.

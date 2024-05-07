@@ -7,6 +7,7 @@
 
 #![deny(missing_docs)]
 mod call;
+mod capabilities;
 mod event;
 mod genesis;
 mod hooks;
@@ -28,17 +29,36 @@ use sov_modules_api::{
     StateCheckpoint, StateMap, StateValue, WorkingSet,
 };
 use sov_state::codec::BcsCodec;
+use thiserror::Error;
 
 use crate::event::Event;
 
 /// An allowed sequencer for a rollup.
 #[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
-pub(crate) struct AllowedSequencer<S: Spec> {
+pub struct AllowedSequencer<S: Spec> {
     /// The rollup address of the sequencer.
     pub address: S::Address,
     /// The staked balance of the sequencer.
     pub balance: Amount,
+}
+
+/// Errors that can be raised by the [`SequencerRegistry`] module during hooks execution.
+#[derive(
+    Debug, Clone, Error, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
+)]
+pub enum AllowedSequencerError {
+    /// The amount of gas tokens that the sender is has staken is too low.
+    #[error("The amount staked by the sequencer is less than the minimum bond. Amount currently staked: {bond_amount}, minimum bond amount: {minimum_bond_amount}")]
+    InsufficientStakeAmount {
+        /// The amount of gas tokens that the sender is has staken.
+        bond_amount: Amount,
+        /// The minimum amount of gas tokens that the sequencer must stake.
+        minimum_bond_amount: Amount,
+    },
+    /// The sequencer is not registered.
+    #[error("The sequencer is not registered")]
+    NotRegistered,
 }
 
 /// Reason why sequencer was slashed.
@@ -87,8 +107,6 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
 pub enum SequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
     Rewarded(u64),
-    /// Sequencer was penalized (on net) for including invalid (but not provably malicious) transactions
-    Penalized(u64),
     /// Sequencer loses its deposit and receives no reward
     Slashed,
     /// Batch was ignored, sequencer deposit left untouched.
@@ -255,26 +273,30 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     }
 
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
+    /// If so, returns the allowed sequencer in a [`AllowedSequencer`] object.
+    /// Otherwise, returns a [`AllowedSequencerError`].
     pub fn is_sender_allowed(
         &self,
         sender: &Da::Address,
         working_set: &mut impl StateAccessor,
-    ) -> bool {
-        let balance = match self.allowed_sequencers.get(sender, working_set) {
-            Some(a) => a.balance,
-            None => return false,
-        };
+    ) -> Result<AllowedSequencer<S>, AllowedSequencerError> {
+        if let Some(sequencer) = self.allowed_sequencers.get(sender, working_set) {
+            let min_bond = self
+                .minimum_bond
+                .get(working_set)
+                .expect("The minimum bond should be set at genesis");
 
-        let min_bond = self
-            .minimum_bond
-            .get(working_set)
-            .expect("The minimum bond should be set at genesis");
+            if sequencer.balance < min_bond {
+                return Err(AllowedSequencerError::InsufficientStakeAmount {
+                    bond_amount: sequencer.balance,
+                    minimum_bond_amount: min_bond,
+                });
+            }
 
-        if balance < min_bond {
-            return false;
+            return Ok(sequencer);
         }
 
-        true
+        Err(AllowedSequencerError::NotRegistered)
     }
 
     /// Returns the balance of the provided sender, if present.

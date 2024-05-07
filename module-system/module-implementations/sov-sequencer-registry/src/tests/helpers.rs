@@ -107,7 +107,9 @@ impl TestSequencer {
         user_address: &<Da as DaSpec>::Address,
         working_set: &mut impl StateAccessor,
     ) -> bool {
-        self.registry.is_sender_allowed(user_address, working_set)
+        self.registry
+            .is_sender_allowed(user_address, working_set)
+            .is_ok()
     }
 
     pub fn set_coins_amount_to_lock(

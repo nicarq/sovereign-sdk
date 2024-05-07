@@ -1,10 +1,13 @@
+use anyhow::Context as _;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use sov_bank::IntoPayable;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::namespaces::Accessory;
-use sov_modules_api::runtime::capabilities::{GasEnforcer, RuntimeAuthorization};
+use sov_modules_api::runtime::capabilities::{
+    GasEnforcer, RuntimeAuthorization, SequencerAuthorization,
+};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
@@ -59,15 +62,6 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                 <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
                     &self.sequencer_registry,
                     sov_sequencer_registry::SequencerOutcome::Slashed,
-                    sender,
-                    state_checkpoint,
-                );
-            }
-            SequencerOutcome::Penalized(amount) => {
-                info!(amount, "Penalizing sequencer");
-                <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
-                    &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Penalized(amount),
                     sender,
                     state_checkpoint,
                 );
@@ -149,6 +143,28 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
             &self.sequencer_registry.id().to_payable(),
             state_checkpoint,
         );
+    }
+}
+
+impl<S: Spec, Da: DaSpec> SequencerAuthorization<S, Da> for Runtime<S, Da> {
+    fn authorize_sequencer(
+        &self,
+        sequencer: &<Da as DaSpec>::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) -> Result<(), anyhow::Error> {
+        self.sequencer_registry
+            .authorize_sequencer(sequencer, state_checkpoint)
+            .context("An error occurred while checking the sequencer bond")
+    }
+
+    fn penalize_sequencer(
+        &self,
+        sequencer: &Da::Address,
+        amount: u64,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        self.sequencer_registry
+            .penalize_sequencer(sequencer, amount, state_checkpoint);
     }
 }
 

@@ -1,12 +1,15 @@
 use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::{PrivateKey, PublicKey, Spec, WorkingSet};
-use sov_modules_stf_blueprint::{SequencerOutcome, SlashingReason, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint, TxEffect};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_state::DefaultStorageSpec;
 use sov_test_utils::bank_data::get_default_token_id;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestHasher, TestSpec};
 
@@ -201,7 +204,9 @@ fn test_tx_bad_signature() {
 
         assert_eq!(
             SequencerOutcome::Slashed(
-                SlashingReason::StatelessVerificationFailed,
+                FatalError::SigVerificationFailed(
+                    "Bad signature signature error: Verification equation was not satisfied".to_string()
+                ),
             ),
             apply_blob_outcome.inner,
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"
@@ -240,6 +245,21 @@ fn test_tx_bad_signature() {
     }
 }
 
+fn get_attester_stake_for_block(
+    block: &MockBlock,
+    storage_manager: &mut ProverStorageManager<MockDaSpec, DefaultStorageSpec>,
+    stf: &StfBlueprintTest,
+) -> u64 {
+    let (stf_state, _ledger_state) = storage_manager.create_state_for(block.header()).unwrap();
+
+    let mut working_set = WorkingSet::new(stf_state);
+    stf.runtime()
+        .sequencer_registry
+        .get_sender_balance(&(MOCK_SEQUENCER_DA_ADDRESS.into()), &mut working_set)
+        .expect("The sequencer should be registered")
+}
+
+/// This test ensures that the sequencer gets penalized for submitting a proof that has a wrong nonce.
 #[test]
 fn test_tx_bad_nonce() {
     let tempdir = tempfile::tempdir().unwrap();
@@ -248,6 +268,7 @@ fn test_tx_bad_nonce() {
     let config = create_genesis_config_for_tests();
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
+    let block_2 = block_1.next_mock();
     let admin_key = read_private_keys::<TestSpec>().token_deployer.private_key;
     {
         let mut storage_manager = create_storage_manager_for_tests(path);
@@ -259,6 +280,7 @@ fn test_tx_bad_nonce() {
         storage_manager
             .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
             .unwrap();
+
         let txs = simulate_da_with_bad_nonce(admin_key);
 
         let blob = new_test_blob_from_batch(
@@ -272,8 +294,11 @@ fn test_tx_bad_nonce() {
             batch_blobs: vec![blob],
         };
 
-        let (stf_state, _ledger_state) =
-            storage_manager.create_state_for(block_1.header()).unwrap();
+        let initial_sequencer_stake =
+            get_attester_stake_for_block(&block_1, &mut storage_manager, &stf);
+
+        let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
+
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             stf_state,
@@ -292,12 +317,31 @@ fn test_tx_bad_nonce() {
         // happened while the transaction was in-flight. However, we do *penalize* the sequencer
         // in this case.
         // We're asserting that here to track if the logic changes
+
+        // Since the sequencer is penalized, he is rewarded with 0 tokens.
         let sequencer_outcome = apply_block_result.batch_receipts[0].inner.clone();
         match sequencer_outcome {
-            SequencerOutcome::Rewarded(amount) => assert_eq!(amount, 0), // If the gas price is zero, the sequencer might not be rewarded or penalized.
-            SequencerOutcome::Penalized(amount) => assert!(amount > 0),
+            SequencerOutcome::Rewarded(amount) => assert!(amount == 0),
             _ => panic!("Sequencer should have been penalized"),
         }
+
+        // We can check that the sequencer staked amount went down.
+        storage_manager
+            .save_change_set(
+                block_1.header(),
+                apply_block_result.change_set,
+                ledger_state.into(),
+            )
+            .expect("Saving the change set should not fail");
+
+        let final_sequencer_stake =
+            get_attester_stake_for_block(&block_2, &mut storage_manager, &stf);
+
+        assert!(
+            final_sequencer_stake < initial_sequencer_stake,
+            "The sequencer stake should have decreased, final_sequencer_stake = {:?}, initial_sequencer_stake = {:?}",
+            final_sequencer_stake, initial_sequencer_stake
+        );
     }
 }
 
@@ -374,7 +418,7 @@ fn test_tx_bad_serialization() {
 
         assert_eq!(
             SequencerOutcome::Slashed (
-                 SlashingReason::InvalidTransactionEncoding ,
+                FatalError::MessageDecodingFailed("Unexpected variant index: 110".to_string(), [210, 84, 119, 49, 64, 12, 6, 68, 188, 255, 107, 181, 229, 18, 190, 134, 64, 112, 190, 131, 236, 116, 93, 23, 248, 247, 172, 189, 121, 235, 55, 106]),
             ),
             apply_blob_outcome.inner,
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"
