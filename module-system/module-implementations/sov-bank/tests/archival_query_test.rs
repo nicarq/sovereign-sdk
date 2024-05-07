@@ -2,9 +2,10 @@ mod helpers;
 
 use helpers::*;
 use sov_bank::{Amount, Bank, CallMessage, Coins, TokenId};
-use sov_modules_api::{Context, Module, Spec, StateReaderAndWriter, WorkingSet};
+use sov_modules_api::namespaces::Accessory;
+use sov_modules_api::{Context, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::storage::{SlotKey, SlotValue, StateUpdate};
+use sov_state::storage::{SlotKey, SlotValue, StateReader, StateUpdate, StateWriter};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 type S = sov_test_utils::TestSpec;
@@ -173,9 +174,12 @@ fn transfer_initial_token() {
     );
     assert_eq!((sender_balance, receiver_balance), (70, 130));
 
-    let mut accessory_state = working_set.accessory_state();
-    accessory_state.set(&SlotKey::from_slice(b"k"), SlotValue::from(b"v1".to_vec()));
-    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
+    StateWriter::<Accessory>::set(
+        &mut working_set,
+        &SlotKey::from_slice(b"k"),
+        SlotValue::from(b"v1".to_vec()),
+    );
+    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     commit(working_set, prover_storage.clone());
@@ -200,9 +204,12 @@ fn transfer_initial_token() {
         &mut working_set,
     );
     assert_eq!((sender_balance, receiver_balance), (60, 140));
-    let mut accessory_state = working_set.accessory_state();
-    accessory_state.set(&SlotKey::from_slice(b"k"), SlotValue::from(b"v2".to_vec()));
-    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
+    StateWriter::<Accessory>::set(
+        &mut working_set,
+        &SlotKey::from_slice(b"k"),
+        SlotValue::from(b"v2".to_vec()),
+    );
+    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
     commit(working_set, prover_storage.clone());
@@ -212,18 +219,20 @@ fn transfer_initial_token() {
     let archival_slot = 3;
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     let mut archival = working_set.get_archival_at(archival_slot);
-    let mut accessory_state = archival.accessory_state();
-    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
+    let val = StateReader::<Accessory>::get(&mut archival, &SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     // archival accessory set
 
-    accessory_state.set(&SlotKey::from_slice(b"k"), SlotValue::from(b"v3".to_vec()));
-    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
+    StateWriter::<Accessory>::set(
+        &mut archival,
+        &SlotKey::from_slice(b"k"),
+        SlotValue::from(b"v3".to_vec()),
+    );
+    let val = StateReader::<Accessory>::get(&mut archival, &SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v3", String::from_utf8(val.value().to_vec()).unwrap());
 
-    let mut accessory_state = working_set.accessory_state();
-    let val = accessory_state.get(&SlotKey::from_slice(b"k")).unwrap();
+    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 }
 

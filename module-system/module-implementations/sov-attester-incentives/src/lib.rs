@@ -21,7 +21,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use rpc::*;
 use sov_bank::{Amount, BurnRate};
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, WorkingSet};
+use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, TxState, WorkingSet};
 
 use crate::event::Event;
 
@@ -129,7 +129,7 @@ where
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::BondAttester(bond_amount) => self

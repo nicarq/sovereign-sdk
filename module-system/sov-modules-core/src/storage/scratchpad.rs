@@ -14,69 +14,12 @@ use crate::namespaces::{self, Accessory, CompileTimeNamespace, User};
 #[cfg(feature = "native")]
 use crate::storage::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
 use crate::storage::{
-    ProvableStorageCache, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage,
+    ProvableStorageCache, SlotKey, SlotValue, StateReader, StateReaderAndWriter, StateWriter,
+    Storage, UniversalStateAccessor,
 };
-use crate::{Gas, Namespace, StateAccesses};
-
-/// A storage reader and writer which can access a particular namespace.
-pub trait StateReaderAndWriter<N: CompileTimeNamespace> {
-    /// Get a value from the storage.
-    fn get(&mut self, key: &SlotKey) -> Option<SlotValue>;
-
-    /// Replaces a storage value.
-    fn set(&mut self, key: &SlotKey, value: SlotValue);
-
-    /// Deletes a storage value.
-    fn delete(&mut self, key: &SlotKey);
-
-    /// Removes a storage value
-    fn remove(&mut self, key: &SlotKey) -> Option<SlotValue> {
-        let value = self.get(key);
-        self.delete(key);
-        value
-    }
-
-    /// Get a decoded value from the storage.
-    fn get_decoded<V, Codec>(&mut self, storage_key: &SlotKey, codec: &Codec) -> Option<V>
-    where
-        Codec: StateCodec,
-        Codec::ValueCodec: StateItemCodec<V>,
-    {
-        let storage_value = self.get(storage_key)?;
-
-        Some(codec.value_codec().decode_unwrap(storage_value.value()))
-    }
-
-    /// Remove a value from storage and decode the result
-    fn remove_decoded<V, Codec>(&mut self, key: &SlotKey, codec: &Codec) -> Option<V>
-    where
-        Codec: StateCodec,
-        Codec::ValueCodec: StateItemCodec<V>,
-    {
-        let value = self.get_decoded(key, codec);
-        self.delete(key);
-        value
-    }
-}
-
-/// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
-trait UniversalStateAccessor {
-    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue>;
-    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue);
-    fn delete(&mut self, namespace: Namespace, key: &SlotKey);
-}
-
 #[cfg(feature = "native")]
-/// Allows a type to retrieve state values with a proof of their presence/absence.
-pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWriter<N> {
-    /// The underlying storage whose proof is returned
-    type Proof;
-    /// Fetch the value with the requested key and provide a proof of its presence/absence.
-    fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof>
-    where
-        Self: StateReaderAndWriter<N>,
-        N: ProvableCompileTimeNamespace;
-}
+use crate::ProvenStateAccessor;
+use crate::{EventContainer, Gas, GasTracker, Namespace, StateAccesses, TxState};
 
 /// A [`Delta`] is a diff over an underlying `Storage` instance. When queried, it first checks
 /// whether the value is in its local cache and, if so, returns it. Otherwise, it queries the
@@ -198,14 +141,16 @@ impl<S: Storage> AccessoryDelta<S> {
     }
 }
 
-impl<S: Storage> StateReaderAndWriter<Accessory> for AccessoryDelta<S> {
+impl<S: Storage> StateReader<Accessory> for AccessoryDelta<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if let Some(value) = self.writes.get(key) {
             return value.clone().map(Into::into);
         }
         self.storage.get_accessory(key, self.version)
     }
+}
 
+impl<S: Storage> StateWriter<Accessory> for AccessoryDelta<S> {
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
         self.writes.insert(key.clone(), Some(value));
     }
@@ -285,14 +230,19 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 }
 
-impl<N, S: Spec> StateReaderAndWriter<N> for StateCheckpoint<S>
+impl<N, S: Spec> StateReader<N> for StateCheckpoint<S>
 where
     N: CompileTimeNamespace,
 {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         self.delta.get(N::NAMESPACE, key)
     }
+}
 
+impl<N, S: Spec> StateWriter<N> for StateCheckpoint<S>
+where
+    N: CompileTimeNamespace,
+{
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
         self.delta.set(N::NAMESPACE, key, value);
     }
@@ -379,14 +329,6 @@ impl<S: Spec> WorkingSet<S> {
         }
     }
 
-    /// Returns a handler for the accessory state (non-JMT state).
-    ///
-    /// You can use this method when calling getters and setters on accessory
-    /// state containers, like AccessoryStateMap.
-    pub fn accessory_state(&mut self) -> AccessoryWorkingSet<S> {
-        AccessoryWorkingSet { ws: self }
-    }
-
     /// Returns a handler for the kernel state (priveleged jmt state)
     ///
     /// You can use this method when calling getters and setters on accessory
@@ -439,11 +381,6 @@ impl<S: Spec> WorkingSet<S> {
         )
     }
 
-    /// Adds a typed event to the working set.
-    pub fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
-        self.events.push(TypedEvent::new(event_key, event));
-    }
-
     /// Extracts all typed events from this working set.
     pub fn take_events(&mut self) -> Vec<TypedEvent> {
         core::mem::take(&mut self.events)
@@ -479,12 +416,6 @@ impl<S: Spec> WorkingSet<S> {
         self.gas_meter.set_gas_price(gas_price);
     }
 
-    /// Attempts to charge the provided gas unit from the gas meter, using the internal price to
-    /// compute the scalar value.
-    pub fn charge_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
-        self.gas_meter.charge_gas(gas)
-    }
-
     /// Returns the gas price.
     pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
         self.gas_meter.gas_price()
@@ -495,6 +426,19 @@ impl<S: Spec> WorkingSet<S> {
         self.gas_meter.gas_used()
     }
 }
+
+impl<S: Spec> EventContainer for WorkingSet<S> {
+    fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
+        self.events.push(TypedEvent::new(event_key, event));
+    }
+}
+
+impl<S: Spec> GasTracker<S> for WorkingSet<S> {
+    fn charge_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+        self.gas_meter.charge_gas(gas)
+    }
+}
+impl<S: Spec> TxState<S> for WorkingSet<S> {}
 
 #[cfg(feature = "native")]
 impl<N: ProvableCompileTimeNamespace, S: Spec> ProvenStateAccessor<N> for WorkingSet<S>
@@ -510,12 +454,13 @@ where
             .get_with_proof::<N>(key, self.delta.inner.version)
     }
 }
-
-impl<S: Spec> StateReaderAndWriter<User> for WorkingSet<S> {
+impl<S: Spec> StateReader<User> for WorkingSet<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         self.delta.get(User::NAMESPACE, key)
     }
+}
 
+impl<S: Spec> StateWriter<User> for WorkingSet<S> {
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
         self.delta.set(User::NAMESPACE, key, value);
     }
@@ -525,27 +470,23 @@ impl<S: Spec> StateReaderAndWriter<User> for WorkingSet<S> {
     }
 }
 
-/// A wrapper over [`WorkingSet`] that only allows access to the accessory
-/// state (non-JMT state).
-pub struct AccessoryWorkingSet<'a, S: Spec> {
-    ws: &'a mut WorkingSet<S>,
-}
-
-impl<'a, S: Spec> StateReaderAndWriter<Accessory> for AccessoryWorkingSet<'a, S> {
+impl<S: Spec> StateReader<Accessory> for WorkingSet<S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if !cfg!(feature = "native") {
             None
         } else {
-            self.ws.delta.get(Accessory::NAMESPACE, key)
+            self.delta.get(Accessory::NAMESPACE, key)
         }
     }
+}
 
+impl<S: Spec> StateWriter<Accessory> for WorkingSet<S> {
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.ws.delta.set(Accessory::NAMESPACE, key, value);
+        self.delta.set(Accessory::NAMESPACE, key, value);
     }
 
     fn delete(&mut self, key: &SlotKey) {
-        self.ws.delta.delete(Accessory::NAMESPACE, key);
+        self.delta.delete(Accessory::NAMESPACE, key);
     }
 }
 
@@ -555,7 +496,7 @@ pub struct AccessoryStateCheckpoint<'a, S: Spec> {
     checkpoint: &'a mut StateCheckpoint<S>,
 }
 
-impl<'a, S: Spec> StateReaderAndWriter<Accessory> for AccessoryStateCheckpoint<'a, S> {
+impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
     fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
         if !cfg!(feature = "native") {
             None
@@ -563,7 +504,9 @@ impl<'a, S: Spec> StateReaderAndWriter<Accessory> for AccessoryStateCheckpoint<'
             self.checkpoint.delta.get(Accessory::NAMESPACE, key)
         }
     }
+}
 
+impl<'a, S: Spec> StateWriter<Accessory> for AccessoryStateCheckpoint<'a, S> {
     fn set(&mut self, key: &SlotKey, value: SlotValue) {
         self.checkpoint.delta.set(Accessory::NAMESPACE, key, value);
     }
@@ -629,13 +572,17 @@ pub mod kernel_state {
         }
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel>
+    impl<'a, S: Spec> StateReader<namespaces::Kernel>
         for VersionedStateReadWriter<'a, StateCheckpoint<S>>
     {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.ws.delta.get(namespaces::Kernel::NAMESPACE, key)
         }
+    }
 
+    impl<'a, S: Spec> StateWriter<namespaces::Kernel>
+        for VersionedStateReadWriter<'a, StateCheckpoint<S>>
+    {
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.ws.delta.set(namespaces::Kernel::NAMESPACE, key, value);
         }
@@ -645,13 +592,13 @@ pub mod kernel_state {
         }
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel>
-        for VersionedStateReadWriter<'a, WorkingSet<S>>
-    {
+    impl<'a, S: Spec> StateReader<namespaces::Kernel> for VersionedStateReadWriter<'a, WorkingSet<S>> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.ws.delta.get(namespaces::Kernel::NAMESPACE, key)
         }
+    }
 
+    impl<'a, S: Spec> StateWriter<namespaces::Kernel> for VersionedStateReadWriter<'a, WorkingSet<S>> {
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.ws.delta.set(namespaces::Kernel::NAMESPACE, key, value);
         }
@@ -667,11 +614,13 @@ pub mod kernel_state {
         pub(crate) inner: &'a mut StateCheckpoint<S>,
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter<User> for BootstrapWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReader<User> for BootstrapWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.inner.delta.get(User::NAMESPACE, key)
         }
+    }
 
+    impl<'a, S: Spec> StateWriter<User> for BootstrapWorkingSet<'a, S> {
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.inner.delta.set(User::NAMESPACE, key, value);
         }
@@ -681,11 +630,13 @@ pub mod kernel_state {
         }
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel> for BootstrapWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReader<namespaces::Kernel> for BootstrapWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.inner.delta.get(namespaces::Kernel::NAMESPACE, key)
         }
+    }
 
+    impl<'a, S: Spec> StateWriter<namespaces::Kernel> for BootstrapWorkingSet<'a, S> {
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.inner
                 .delta
@@ -765,11 +716,13 @@ pub mod kernel_state {
         }
     }
 
-    impl<'a, S: Spec> StateReaderAndWriter<User> for KernelWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReader<User> for KernelWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.inner.delta.get(User::NAMESPACE, key)
         }
+    }
 
+    impl<'a, S: Spec> StateWriter<User> for KernelWorkingSet<'a, S> {
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.inner.delta.set(User::NAMESPACE, key, value);
         }
@@ -778,12 +731,13 @@ pub mod kernel_state {
             self.inner.delta.delete(User::NAMESPACE, key);
         }
     }
-
-    impl<'a, S: Spec> StateReaderAndWriter<namespaces::Kernel> for KernelWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReader<namespaces::Kernel> for KernelWorkingSet<'a, S> {
         fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
             self.inner.delta.get(namespaces::Kernel::NAMESPACE, key)
         }
+    }
 
+    impl<'a, S: Spec> StateWriter<namespaces::Kernel> for KernelWorkingSet<'a, S> {
         fn set(&mut self, key: &SlotKey, value: SlotValue) {
             self.inner
                 .delta

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Context as _};
-use sov_modules_api::{Context, Spec, StateMap, WorkingSet};
+use sov_modules_api::{Context, Spec, StateAccessor, StateMap};
 
 use crate::address::CollectionId;
 use crate::utils::get_collection_id;
@@ -55,7 +55,7 @@ impl<S: Spec> Collection<S> {
         collection_uri: &str,
         collections: &StateMap<CollectionId, Collection<S>>,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<(CollectionId, Collection<S>)> {
         let creator = context.sender();
         let collection_id = get_collection_id::<S>(collection_name, creator.as_ref());
@@ -84,7 +84,7 @@ impl<S: Spec> Collection<S> {
         collection_name: &str,
         collections: &StateMap<CollectionId, Collection<S>>,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<(CollectionId, CollectionState<S>)> {
         let creator = context.sender();
         let collection_id = get_collection_id::<S>(collection_name, creator.as_ref());

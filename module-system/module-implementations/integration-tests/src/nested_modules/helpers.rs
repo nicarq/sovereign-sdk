@@ -15,7 +15,7 @@ pub(crate) enum Event {
 }
 
 pub mod module_a {
-    use sov_modules_api::{Module, ModuleId};
+    use sov_modules_api::{Module, ModuleId, TxState};
 
     use super::*;
 
@@ -47,7 +47,7 @@ pub mod module_a {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut WorkingSet<Self::Spec>,
+            _working_set: &mut impl TxState<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
@@ -64,7 +64,7 @@ pub mod module_a {
 }
 
 pub mod module_b {
-    use sov_modules_api::{Module, ModuleId};
+    use sov_modules_api::{Module, ModuleId, TxState};
 
     use super::*;
 
@@ -93,7 +93,7 @@ pub mod module_b {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut WorkingSet<Self::Spec>,
+            _working_set: &mut impl TxState<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
@@ -110,7 +110,7 @@ pub mod module_b {
 }
 
 pub(crate) mod module_c {
-    use sov_modules_api::{Module, ModuleId};
+    use sov_modules_api::{Module, ModuleId, TxState};
 
     use super::*;
 
@@ -139,7 +139,7 @@ pub(crate) mod module_c {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut WorkingSet<Self::Spec>,
+            _working_set: &mut impl TxState<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }

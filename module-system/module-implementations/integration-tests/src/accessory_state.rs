@@ -1,6 +1,6 @@
 use sov_modules_api::{
     AccessoryStateValue, CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, Spec,
-    WorkingSet,
+    TxState, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::Storage;
@@ -36,7 +36,7 @@ impl<S: Spec> Module for TestModule<S> {
         &self,
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
-        _working_set: &mut WorkingSet<S>,
+        _working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, ModuleError> {
         unimplemented!()
     }
@@ -63,7 +63,7 @@ fn test_accessory_value_setter() {
     let (reads_writes, _, witness) = ws1.checkpoint().0.freeze();
     let state_root_hash_initial = storage.validate_and_commit(reads_writes, &witness).unwrap();
 
-    module.accessory_state.set(&42, &mut ws2.accessory_state());
+    module.accessory_state.set(&42, &mut ws2);
 
     let checkpoint = ws2.checkpoint();
     let (reads_writes, accessory_writes, witness) = checkpoint.0.freeze();
@@ -79,25 +79,17 @@ fn test_accessory_value_setter() {
 
     assert_eq!(
         42,
-        module
-            .accessory_state
-            .get(&mut ws3.accessory_state())
-            .unwrap(),
+        module.accessory_state.get(&mut ws3).unwrap(),
         "AccessoryStateValue read has returned an incorrect value"
     );
 
-    module
-        .accessory_state
-        .set(&1000, &mut ws3.accessory_state());
+    module.accessory_state.set(&1000, &mut ws3);
 
     ws3.revert();
 
     assert_eq!(
         42,
-        module
-            .accessory_state
-            .get(&mut ws4.accessory_state())
-            .unwrap(),
+        module.accessory_state.get(&mut ws4).unwrap(),
         "AccessoryStateValue revert has failed"
     );
 }

@@ -14,7 +14,7 @@ use sov_modules_api::{
     Context, DaSpec, DispatchCall, Gas, GasArray, GasMeter, Spec, StateCheckpoint,
 };
 use sov_modules_core::capabilities::{AuthenticationError, FatalError};
-use sov_modules_core::WorkingSet;
+use sov_modules_core::{GasTracker, WorkingSet};
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error, info};
 
@@ -112,7 +112,7 @@ where
         }
     }
 
-    #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
+    #[tracing::instrument(skip_all, name = "StfBlueprint::apply_proof")]
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub(crate) fn apply_proof(
         &self,

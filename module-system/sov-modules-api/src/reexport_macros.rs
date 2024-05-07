@@ -22,7 +22,7 @@ pub use sov_modules_macros::MessageCodec;
 /// ```
 /// use std::marker::PhantomData;
 ///
-/// use sov_modules_api::{WorkingSet, ModuleId, Spec, Error, CallResponse, Context, Module, ModuleInfo, ModuleCallJsonSchema, StateMap};
+/// use sov_modules_api::{WorkingSet, ModuleId, Spec, Error, CallResponse, Context, Module, ModuleInfo, ModuleCallJsonSchema, StateMap, TxState};
 /// use sov_test_utils::ZkTestSpec;
 ///
 /// #[derive(ModuleInfo, ModuleCallJsonSchema)]
@@ -47,7 +47,7 @@ pub use sov_modules_macros::MessageCodec;
 ///        &self,
 ///        _msg: Self::CallMessage,
 ///        _context: &Context<Self::Spec>,
-///        _working_set: &mut WorkingSet<S>,
+///        _working_set: &mut impl TxState<S>,
 ///     ) -> Result<CallResponse, Error> {
 ///        Ok(CallResponse {})
 ///     }

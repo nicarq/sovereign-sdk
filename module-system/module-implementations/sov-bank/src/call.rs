@@ -2,6 +2,7 @@ use anyhow::{bail, Context as _, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, WorkingSet};
+use sov_state::storage::TxState;
 
 use crate::event::Event;
 use crate::utils::{Payable, TokenHolderRef};
@@ -79,7 +80,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         minter: impl Payable<S>,
         authorized_minters: Vec<impl Payable<S>>,
         originator: impl Payable<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<TokenId> {
         tracing::info!(%token_name, %salt, %initial_balance, %minter, sender= %originator, "Create token request");
 
@@ -122,7 +123,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         to: impl Payable<S>,
         coins: Coins,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         self.transfer_from(context.sender(), to, coins.clone(), working_set)
             .map(|response| {
@@ -149,7 +150,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         coins: Coins,
         owner: impl Payable<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<()> {
         let owner = owner.as_token_holder();
         let context_logger = || format!("Failed to burn coins({}) from owner {}", coins, owner);
@@ -188,7 +189,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         coins: Coins,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         self.burn(coins, context.sender(), working_set)?;
         Ok(CallResponse::default())
@@ -204,7 +205,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         coins: &Coins,
         mint_to_identity: impl Payable<S>,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<()> {
         self.mint(
             coins,
@@ -223,7 +224,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         coins: &Coins,
         mint_to_identity: impl Payable<S>,
         authorizer: impl Payable<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> Result<()> {
         let mint_to_identity = mint_to_identity.as_token_holder();
         let context_logger = || {
@@ -253,7 +254,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         token_id: TokenId,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let context_logger = || {
             format!(

@@ -27,7 +27,7 @@ mod event;
 mod helpers;
 
 use revm::primitives::Address;
-use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, TxState, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
@@ -135,14 +135,14 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         Ok(self.execute_call(msg.tx, context, working_set)?)
     }
 }
 
 impl<S: sov_modules_api::Spec> Evm<S> {
-    pub(crate) fn get_db<'a>(&self, working_set: &'a mut WorkingSet<S>) -> EvmDb<'a, S> {
+    pub(crate) fn get_db<'a, Ws>(&self, working_set: &'a mut Ws) -> EvmDb<'a, Ws> {
         EvmDb::new(self.accounts.clone(), self.code.clone(), working_set)
     }
 }

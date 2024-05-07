@@ -1,7 +1,7 @@
 use anyhow::Result;
 use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered};
 use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
-use sov_modules_api::{CallResponse, Context, WorkingSet};
+use sov_modules_api::{CallResponse, Context, TxState};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -29,7 +29,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         &self,
         tx: RlpEvmTransaction,
         _context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let evm_tx_recovered: TransactionSignedEcRecovered = tx.try_into()?;
         let block_env = self
@@ -40,7 +40,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
-        let evm_db: EvmDb<'_, S> = self.get_db(working_set);
+        let evm_db: EvmDb<'_, _> = self.get_db(working_set);
         let result = executor::execute_tx(evm_db, &block_env, &evm_tx_recovered, cfg_env);
         let previous_transaction = self.pending_transactions.last(working_set);
         let previous_transaction_cumulative_gas_used = previous_transaction

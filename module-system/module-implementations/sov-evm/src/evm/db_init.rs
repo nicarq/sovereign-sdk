@@ -2,6 +2,7 @@ use reth_primitives::Bytes;
 #[cfg(test)]
 use revm::db::{CacheDB, EmptyDB};
 use revm::primitives::{Address, B256};
+use sov_modules_api::StateAccessor;
 
 use super::db::EvmDb;
 use super::{AccountInfo, DbAccount};
@@ -12,7 +13,7 @@ pub(crate) trait InitEvmDb {
     fn insert_code(&mut self, code_hash: B256, code: Bytes);
 }
 
-impl<'a, S: sov_modules_api::Spec> InitEvmDb for EvmDb<'a, S> {
+impl<'a, Ws: StateAccessor> InitEvmDb for EvmDb<'a, Ws> {
     fn insert_account_info(&mut self, sender: Address, info: AccountInfo) {
         let parent_prefix = self.accounts.prefix();
         let db_account = DbAccount::new_with_info(parent_prefix, sender, info);

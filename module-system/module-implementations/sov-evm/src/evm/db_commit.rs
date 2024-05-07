@@ -1,10 +1,11 @@
 use revm::primitives::{Account, Address, HashMap};
 use revm::DatabaseCommit;
+use sov_modules_api::StateAccessor;
 
 use super::db::EvmDb;
 use super::DbAccount;
 
-impl<'a, S: sov_modules_api::Spec> DatabaseCommit for EvmDb<'a, S> {
+impl<'a, Ws: StateAccessor> DatabaseCommit for EvmDb<'a, Ws> {
     fn commit(&mut self, changes: HashMap<Address, Account>) {
         for (address, account) in changes {
             // TODO figure out what to do when account is destroyed.

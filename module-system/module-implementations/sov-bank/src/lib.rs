@@ -17,6 +17,7 @@ pub use call::*;
 pub use genesis::*;
 use sov_modules_api::macros::config_bech32;
 use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleId, ModuleInfo, WorkingSet};
+use sov_state::storage::TxState;
 use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, BurnRate, Coins, TokenId, TokenIdBech32};
@@ -88,7 +89,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::CreateToken {

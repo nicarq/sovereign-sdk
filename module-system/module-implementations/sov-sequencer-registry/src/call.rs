@@ -3,7 +3,7 @@ use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::{
     CallResponse, Context, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor, StateCheckpoint,
-    WorkingSet,
+    TxState,
 };
 use thiserror::Error;
 
@@ -139,7 +139,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         da_address: &Da::Address,
         amount: Amount,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
         let sequencer = context.sender();
         self.register_sequencer(da_address, sequencer, amount, working_set)?;
@@ -160,7 +160,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         &self,
         da_address: &Da::Address,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
         let sender = context.sender();
 
@@ -240,7 +240,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         &self,
         sender: &Da::Address,
         amount: Amount,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
         let AllowedSequencer { address, balance } =
             self.allowed_sequencers.get(sender, working_set).ok_or(

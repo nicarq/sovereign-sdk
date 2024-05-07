@@ -9,7 +9,6 @@ use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::SimpleStorageContract;
 
-use super::db::EvmDb;
 use super::db_init::InitEvmDb;
 use super::executor;
 use crate::evm::primitive_types::BlockEnv;
@@ -26,7 +25,7 @@ fn simple_contract_execution_sov_state() {
         WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let evm = Evm::<S>::default();
-    let evm_db: EvmDb<'_, S> = evm.get_db(&mut working_set);
+    let evm_db = evm.get_db(&mut working_set);
 
     simple_contract_execution(evm_db);
 }

@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
     CallResponse, Context, Error, EventEmitter, ModuleId, ModuleInfo, Spec, StateAccessor,
-    StateCheckpoint, StateMap, StateValue, WorkingSet,
+    StateCheckpoint, StateMap, StateValue, TxState, WorkingSet,
 };
 use sov_state::codec::BcsCodec;
 use thiserror::Error;
@@ -130,7 +130,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
         &self,
         message: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, Error> {
         Ok(match message {
             CallMessage::Register { da_address, amount } => {
@@ -178,7 +178,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         da_address: &Da::Address,
         address: &S::Address,
         amount: Amount,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<(), SequencerRegistryError<S, Da>> {
         if self
             .allowed_sequencers
@@ -303,7 +303,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn get_sender_balance(
         &self,
         sender: &Da::Address,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> Option<Amount> {
         self.allowed_sequencers
             .get(sender, working_set)
