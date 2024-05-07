@@ -1,7 +1,7 @@
 use std::fmt;
 
 use sov_modules_api::impl_hash32_type;
-use sov_modules_macros::address_type;
+use sov_modules_api::macros::address_type;
 
 /// Address representing a simple user capable of owning an NFT.
 #[address_type]

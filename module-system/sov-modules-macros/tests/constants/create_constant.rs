@@ -1,28 +1,21 @@
 use sov_bank::TokenId;
-use sov_modules_api::macros::config_bech32_constant;
-use sov_modules_api::macros::config_constant;
-#[config_constant]
-pub const TEST_U32: u32;
+use sov_modules_api::macros::{config_bech32, config_value};
 
-#[config_constant]
-pub const TEST_ARRAY_OF_U8: [u8; 32];
+pub const TEST_U32: u32 = config_value!("TEST_U32");
 
-#[config_constant]
-pub const TEST_SLICE: &[u8];
+pub const TEST_ARRAY_OF_U8: [u8; 32] = config_value!("TEST_ARRAY_OF_U8");
 
-#[config_constant]
+pub const TEST_SLICE: &[u8] = &config_value!("TEST_SLICE");
+
 /// This one has a doc attr
-pub const TEST_NESTED_ARRAY: [[u8; 3]; 2];
+pub const TEST_NESTED_ARRAY: [[u8; 3]; 2] = config_value!("TEST_NESTED_ARRAY");
 
-#[config_constant]
-pub const TEST_BOOL: bool;
+pub const TEST_BOOL: bool = config_value!("TEST_BOOL");
 
-#[config_constant]
 /// This one is not visible
-const TEST_STRING: &str;
+const TEST_STRING: &str = config_value!("TEST_STRING");
 
-#[config_bech32_constant]
-const TEST_TOKEN_ID: TokenId;
+const TEST_TOKEN_ID: TokenId = config_bech32!("TEST_TOKEN_ID", TokenId);
 
 fn main() {
     assert_eq!(TEST_U32, 42);

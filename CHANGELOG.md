@@ -1,3 +1,25 @@
+- #599 changes the way you define Rust constants which use the `constants.json` file.
+  Instead of the attribute macro `#[config_constant]`, you'll now use `config_value!`, like this:
+
+  ```rust
+  // Before
+  #[config_constant]
+  pub(crate) const GAS_TX_FIXED_COST: [u64; 2];
+
+  // After
+  pub(crate) const GAS_TX_FIXED_COST: [u64; 2] = config_value!("GAS_TX_FIXED_COST");
+
+  // For Bech32:
+  // Before
+  #[config_bech32_constant]
+  const TEST_TOKEN_ID: TokenId;
+
+  // After
+  const TEST_TOKEN_ID: TokenId = config_bech32!("TEST_TOKEN_ID", TokenId);
+  ```
+
+  Read the PR description for more details.
+
 - #586 Adds a second Zkvm generic to the `StateTransitionFunction` API. This VM is used for generation of *`Aggregate`* zk proofs, 
 while the first VM continues Ato be used for block production. The signature of the `StfVerifier<DA, Vm, ZkSpec, RT, K>` was also changed to `StfVerifier<DA ZkSpec, RT, K, InnerVm, OuterVm>`
 

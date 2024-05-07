@@ -243,6 +243,52 @@ pub(crate) fn get_attribute_values(
     values
 }
 
+fn lit_to_expr(lit: syn::Lit) -> syn::Expr {
+    syn::Expr::Lit(syn::ExprLit {
+        attrs: Vec::new(),
+        lit,
+    })
+}
+
+pub fn json_value_to_expr(value: &serde_json::Value, span: Span) -> syn::Result<syn::Expr> {
+    let error = |json_type: &str| {
+        syn::Error::new(span, format!("failed to convert JSON value into Rust expression; its JSON value type ({}) is not supported: `{:?}`", json_type, value))
+    };
+
+    match value {
+        serde_json::Value::Null => Err(error("null")),
+        serde_json::Value::Object(_) => Err(error("object")),
+        serde_json::Value::Bool(b) => Ok(lit_to_expr(syn::Lit::Bool(syn::LitBool::new(*b, span)))),
+        serde_json::Value::Number(num) => {
+            if num.is_f64() {
+                Ok(lit_to_expr(syn::Lit::Float(syn::LitFloat::new(
+                    &num.to_string(),
+                    span,
+                ))))
+            } else if num.is_i64() {
+                Ok(lit_to_expr(syn::Lit::Int(syn::LitInt::new(
+                    &num.to_string(),
+                    span,
+                ))))
+            } else {
+                Err(error("number not within supported range"))
+            }
+        }
+        serde_json::Value::String(s) => Ok(lit_to_expr(syn::Lit::Str(syn::LitStr::new(s, span)))),
+        serde_json::Value::Array(arr) => {
+            let values: Vec<syn::Expr> = arr
+                .iter()
+                .map(|v| json_value_to_expr(v, span))
+                .collect::<syn::Result<_>>()?;
+            Ok(syn::Expr::Array(syn::ExprArray {
+                attrs: Vec::new(),
+                bracket_token: syn::token::Bracket { span },
+                elems: syn::punctuated::Punctuated::from_iter(values),
+            }))
+        }
+    }
+}
+
 pub(crate) fn get_serialization_attrs(
     item: &syn::DeriveInput,
 ) -> Result<Vec<TokenStream>, syn::Error> {

@@ -39,9 +39,11 @@ sov-test-utils = { path = "../sov-test-utils" }
 
 [dependencies]
 anyhow = { workspace = true }
+blake2 = "0.10"
 borsh = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
+prettier-please = { version = "0.1", default-features = false }
 proc-macro2 = "1.0"
 quote = "1.0"
 schemars = { workspace = true }

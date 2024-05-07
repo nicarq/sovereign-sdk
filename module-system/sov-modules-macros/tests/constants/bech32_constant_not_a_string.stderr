@@ -1,13 +1,6 @@
-error: failed to parse manifest `$WORKSPACE/constants.test.json` for `TEST_ARRAY_OF_U8`: Error decoding constants: The value of `TEST_ARRAY_OF_U8` located at `$WORKSPACE/constants.test.json` is not a valid bech32m value for type `TokenId`.
-
-       `[11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11]` is not a bech32 encoded string
- --> tests/constants/bech32_constant_not_a_string.rs:6:7
+error: The constant named `TEST_ARRAY_OF_U8` inside `$WORKSPACE/constants.test.json` should be a bech32 string, but it's not a string in the first place: `[11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+       11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11]`
+ --> tests/constants/bech32_constant_not_a_string.rs:4:50
   |
-6 | const TEST_ARRAY_OF_U8: TokenId;
-  |       ^^^^^^^^^^^^^^^^
-
-error[E0425]: cannot find value `TEST_ARRAY_OF_U8` in this scope
-  --> tests/constants/bech32_constant_not_a_string.rs:10:16
-   |
-10 |     assert_eq!(TEST_ARRAY_OF_U8, TokenId::from([0; 32]));
-   |                ^^^^^^^^^^^^^^^^ not found in this scope
+4 | const TEST_ARRAY_OF_U8: TokenId = config_bech32!("TEST_ARRAY_OF_U8", TokenId);
+  |                                                  ^^^^^^^^^^^^^^^^^^

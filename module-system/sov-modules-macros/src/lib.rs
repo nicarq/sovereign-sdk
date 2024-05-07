@@ -12,9 +12,10 @@
 #[cfg(feature = "native")]
 mod cli_parser;
 mod common;
+mod compile_manifest_constants;
 mod dispatch;
 mod event;
-mod make_constants;
+mod expand_macro;
 mod manifest;
 mod module_call_json_schema;
 mod module_info;
@@ -25,11 +26,11 @@ mod rpc;
 
 #[cfg(feature = "native")]
 use cli_parser::{derive_cli_wallet_arg, CliParserMacro};
+use compile_manifest_constants::{make_const_bech32, make_const_value};
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
 use dispatch::message_codec::MessageCodec;
 use event::EventMacro;
-use make_constants::{make_const, make_const_from_bech32, PartialItemConst};
 use module_call_json_schema::derive_module_call_json_schema;
 use module_info::ModuleType;
 use new_types::address_type_helper;
@@ -39,11 +40,33 @@ use proc_macro::TokenStream;
 use rpc::ExposeRpcMacro;
 use syn::{parse_macro_input, DeriveInput, ItemFn};
 
+/// Returns the name of the function that invoked the proc-macro.
+// Shamelessly copy-pasted from <https://stackoverflow.com/a/40234666/5148606>.
+macro_rules! fn_name {
+    () => {{
+        fn f() {}
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let name = type_name_of(f);
+        // We wouldn't want to crash if something goes wrong here (that would be
+        // very confusing!).
+        name.strip_suffix("::f")
+            .unwrap_or("UNKNOWN")
+            .split("::")
+            .last()
+            .unwrap_or("UNKNOWN")
+    }};
+}
+
 #[proc_macro_derive(ModuleInfo, attributes(state, module, kernel_module, id, gas, phantom))]
 pub fn module_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
 
-    handle_macro_error(module_info::derive_module_info(input, ModuleType::Standard))
+    handle_macro_error_and_expand(
+        fn_name!(),
+        module_info::derive_module_info(input, ModuleType::Standard),
+    )
 }
 
 #[proc_macro_derive(
@@ -53,7 +76,10 @@ pub fn module_info(input: TokenStream) -> TokenStream {
 pub fn kernel_module_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
 
-    handle_macro_error(module_info::derive_module_info(input, ModuleType::Kernel))
+    handle_macro_error_and_expand(
+        fn_name!(),
+        module_info::derive_module_info(input, ModuleType::Kernel),
+    )
 }
 
 #[proc_macro_derive(Genesis)]
@@ -61,7 +87,7 @@ pub fn genesis(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let genesis_macro = GenesisMacro::new("Genesis");
 
-    handle_macro_error(genesis_macro.derive_genesis(input))
+    handle_macro_error_and_expand(fn_name!(), genesis_macro.derive_genesis(input))
 }
 
 #[proc_macro_derive(DispatchCall, attributes(serialization))]
@@ -69,7 +95,7 @@ pub fn dispatch_call(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let call_macro = DispatchCallMacro::new("Call");
 
-    handle_macro_error(call_macro.derive_dispatch_call(input))
+    handle_macro_error_and_expand(fn_name!(), call_macro.derive_dispatch_call(input))
 }
 
 #[proc_macro_derive(Event, attributes(serialization))]
@@ -77,13 +103,13 @@ pub fn event(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let event_macro = EventMacro::new("Event");
 
-    handle_macro_error(event_macro.derive_event_enum(input))
+    handle_macro_error_and_expand(fn_name!(), event_macro.derive_event_enum(input))
 }
 
 #[proc_macro_derive(ModuleCallJsonSchema)]
 pub fn module_call_json_schema(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
-    handle_macro_error(derive_module_call_json_schema(input))
+    handle_macro_error_and_expand(fn_name!(), derive_module_call_json_schema(input))
 }
 
 /// Adds encoding functionality to the underlying type.
@@ -92,26 +118,33 @@ pub fn codec(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let codec_macro = MessageCodec::new("MessageCodec");
 
-    handle_macro_error(codec_macro.derive_message_codec(input))
+    handle_macro_error_and_expand(fn_name!(), codec_macro.derive_message_codec(input))
 }
 
-/// Sets a constant from the manifest file instead of hard-coding it inline.
-#[proc_macro_attribute]
-pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as PartialItemConst);
-    handle_macro_error(
-        make_const(&input.ident, &input.ty, input.vis, &input.attrs).map(|ok| ok.into()),
-    )
+#[proc_macro]
+pub fn config_bech32(tokens: TokenStream) -> TokenStream {
+    struct ConstBech32Input {
+        lit_str: syn::LitStr,
+        ty: syn::Type,
+    }
+
+    impl syn::parse::Parse for ConstBech32Input {
+        fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+            let lit_str = input.parse()?;
+            input.parse::<syn::Token![,]>()?;
+            let ty = input.parse()?;
+            Ok(ConstBech32Input { lit_str, ty })
+        }
+    }
+
+    let ConstBech32Input { lit_str, ty } = parse_macro_input!(tokens as ConstBech32Input);
+    handle_macro_error_and_expand(fn_name!(), make_const_bech32(&lit_str, &ty))
 }
 
-/// Sets a constant by decoding bech32 from the manifest file.
-#[proc_macro_attribute]
-pub fn config_bech32_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as PartialItemConst);
-    handle_macro_error(
-        make_const_from_bech32(&input.ident, &input.ty, input.vis, &input.attrs)
-            .map(|ok| ok.into()),
-    )
+#[proc_macro]
+pub fn config_value(item: TokenStream) -> TokenStream {
+    let constant_name = parse_macro_input!(item as syn::LitStr);
+    handle_macro_error_and_expand(fn_name!(), make_const_value(&constant_name).map(Into::into))
 }
 
 /// Derives a [`jsonrpsee`] implementation for the underlying type. Any code relying on this macro
@@ -204,11 +237,7 @@ pub fn config_bech32_constant(_attr: TokenStream, item: TokenStream) -> TokenStr
 pub fn rpc_gen(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr: Vec<syn::NestedMeta> = parse_macro_input!(attr);
     let input = parse_macro_input!(item as syn::ItemImpl);
-    handle_macro_error(rpc::rpc_gen(attr, input).map(|ok| ok.into()))
-}
-
-fn handle_macro_error(result: Result<proc_macro::TokenStream, syn::Error>) -> TokenStream {
-    result.unwrap_or_else(|err| err.to_compile_error().into())
+    handle_macro_error_and_expand(fn_name!(), rpc::rpc_gen(attr, input).map(|ok| ok.into()))
 }
 
 #[cfg(feature = "native")]
@@ -217,7 +246,7 @@ pub fn expose_rpc(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let original = input.clone();
     let input = parse_macro_input!(input);
     let expose_macro = ExposeRpcMacro::new("Expose");
-    handle_macro_error(expose_macro.generate_rpc(original, input))
+    handle_macro_error_and_expand(fn_name!(), expose_macro.generate_rpc(original, input))
 }
 
 #[cfg(feature = "native")]
@@ -225,13 +254,13 @@ pub fn expose_rpc(_attr: TokenStream, input: TokenStream) -> TokenStream {
 pub fn cli_parser(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let cli_parser = CliParserMacro::new("Cmd");
-    handle_macro_error(cli_parser.cli_macro(input))
+    handle_macro_error_and_expand(fn_name!(), cli_parser.cli_macro(input))
 }
 #[cfg(feature = "native")]
 #[proc_macro_derive(CliWalletArg)]
 pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = parse_macro_input!(input);
-    handle_macro_error(derive_cli_wallet_arg(input))
+    handle_macro_error_and_expand(fn_name!(), derive_cli_wallet_arg(input))
 }
 
 /// Simple convenience macro for adding some common derive macros and
@@ -295,7 +324,7 @@ pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn address_type(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    handle_macro_error(address_type_helper(input))
+    handle_macro_error_and_expand(fn_name!(), address_type_helper(input))
 }
 
 /// The offchain macro is used to annotate functions that should only be executed by the rollup
@@ -330,5 +359,29 @@ pub fn address_type(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn offchain(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
-    handle_macro_error(offchain_generator(input))
+    handle_macro_error_and_expand(fn_name!(), offchain_generator(input))
+}
+
+fn expand_code(macro_name: &str, input: TokenStream) -> TokenStream {
+    if std::env::var_os("SOVEREIGN_SDK_EXPAND_PROC_MACROS").is_some() {
+        expand_macro::expand_to_file(input.clone(), macro_name).unwrap_or_else(|err| {
+            eprintln!(
+                "Failed to write to file proc-macro generated code: {:?}",
+                err
+            );
+            input
+        })
+    } else {
+        input
+    }
+}
+
+fn handle_macro_error_and_expand(
+    macro_name: &str,
+    result: Result<proc_macro::TokenStream, syn::Error>,
+) -> TokenStream {
+    expand_code(
+        macro_name,
+        result.unwrap_or_else(|err| err.to_compile_error().into()),
+    )
 }

@@ -1,6 +1,6 @@
 #[cfg(feature = "offchain")]
 use postgres::NoTls;
-use sov_modules_macros::offchain;
+use sov_modules_api::macros::offchain;
 
 #[cfg(feature = "offchain")]
 use crate::sql::*;

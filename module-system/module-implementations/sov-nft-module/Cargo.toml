@@ -21,7 +21,6 @@ jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], 
 bech32 = { workspace = true }
 
 sov-modules-api = { path = "../../sov-modules-api" }
-sov-modules-macros = { path = "../../sov-modules-macros" }
 sov-state = { path = "../../sov-state" }
 
 postgres = { version = "0.19.7", optional = true }
@@ -43,7 +42,6 @@ native = [
 	"schemars",
 	"serde_json",
 	"sov-modules-api/native",
-	"sov-modules-macros/native",
 	"sov-nft-module/native",
 	"sov-state/native",
 ]

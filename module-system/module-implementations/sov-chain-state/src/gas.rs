@@ -1,7 +1,7 @@
 use std::cmp::max;
 
 use serde::{Deserialize, Serialize};
-use sov_modules_api::macros::config_constant;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::{DaSpec, Gas, GasArray, GasPrice, GasUnit, Spec};
 use thiserror::Error;
 
@@ -64,10 +64,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Since this value is then cached in the [`ChainState::BASE_FEE_MAX_CHANGE_DENOMINATOR`] constant, one should prefer to
     /// use the constant directly instead of this function.
     const fn base_fee_change_denominator() -> NonZeroRatio {
-        #[config_constant]
-        const BASE_FEE_MAX_CHANGE_DENOMINATOR: u8;
-
-        NonZeroRatio::from_u8_unwrap(BASE_FEE_MAX_CHANGE_DENOMINATOR)
+        NonZeroRatio::from_u8_unwrap(config_value!("BASE_FEE_MAX_CHANGE_DENOMINATOR"))
     }
 
     /// Constant used to control the range of variation of the gas price elasticity.
@@ -77,10 +74,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Since this value is then cached in the [`ChainState::ELASTICITY_MULTIPLIER`] constant, one should prefer to
     /// use the constant directly instead of this function.
     const fn elasticity_multiplier() -> NonZeroRatio {
-        #[config_constant]
-        const ELASTICITY_MULTIPLIER: u8;
-
-        NonZeroRatio::from_u8_unwrap(ELASTICITY_MULTIPLIER)
+        NonZeroRatio::from_u8_unwrap(config_value!("ELASTICITY_MULTIPLIER"))
     }
 
     /// Constant used to control the variations of the base fee updates.
@@ -105,7 +99,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     ///
     /// # TODO
     /// This method should be converted in a constant time constructor. The current implementation of the
-    /// [`config_constant`] macro cannot be used to define [`sov_modules_api::GasPrice`] constants, so this will probably
+    /// [`config_value!`] macro cannot be used to define [`sov_modules_api::GasPrice`] constants, so this will probably
     /// require a new proc-macro, see `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/475>`.
     ///
     /// # Note
@@ -115,8 +109,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// # Safety
     /// This method panics if the initial gas price is not set at genesis
     pub fn initial_base_fee_per_gas() -> <S::Gas as Gas>::Price {
-        #[config_constant]
-        const INITIAL_BASE_FEE_PER_GAS: &[u64];
+        const INITIAL_BASE_FEE_PER_GAS: &[u64] = &config_value!("INITIAL_BASE_FEE_PER_GAS");
 
         <<S as Spec>::Gas as Gas>::Price::from_slice(INITIAL_BASE_FEE_PER_GAS)
     }
@@ -126,15 +119,14 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     ///
     /// # TODO
     /// This method should be converted in a constant time constructor. The current implementation of the
-    /// [`config_constant`] macro cannot be used to define [`sov_modules_api::GasUnit`] constants, so this will probably
+    /// [`config_value!`] macro cannot be used to define [`sov_modules_api::GasUnit`] constants, so this will probably
     /// require a new proc-macro `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/475>`.
     ///
     /// # Note
     /// This constant is the same as the `INITIAL_BASE_FEE_PER_GAS` constant
     /// defined in the EIP-1559 specification its default value is `[1, 1]`.
     pub fn initial_gas_limit() -> S::Gas {
-        #[config_constant]
-        const INITIAL_GAS_LIMIT: &[u64];
+        const INITIAL_GAS_LIMIT: &[u64] = &config_value!("INITIAL_GAS_LIMIT");
 
         S::Gas::from_slice(INITIAL_GAS_LIMIT)
     }

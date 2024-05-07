@@ -1,13 +1,5 @@
-error: failed to parse manifest `$WORKSPACE/constants.test.json` for `TEST_TOKEN_ID_INVALID_CHECKSUM`: Error decoding constants: The value of `TEST_TOKEN_ID_INVALID_CHECKSUM` located at `$WORKSPACE/constants.test.json` is not a valid bech32m value for type `TokenId`.
-
-        Bech32m decoding of the provided value `token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqabcdef` failed with the following error: parse failed
- --> tests/constants/bech32_constant_invalid_checksum.rs:6:7
+error: The constant named `TEST_TOKEN_ID_INVALID_CHECKSUM` inside `$WORKSPACE/constants.test.json` is not a valid bech32 string; decoding failed: parse failed
+ --> tests/constants/bech32_constant_invalid_checksum.rs:5:20
   |
-6 | const TEST_TOKEN_ID_INVALID_CHECKSUM: TokenId;
-  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-error[E0425]: cannot find value `TEST_TOKEN_ID_INVALID_CHECKSUM` in this scope
-  --> tests/constants/bech32_constant_invalid_checksum.rs:10:16
-   |
-10 |     assert_eq!(TEST_TOKEN_ID_INVALID_CHECKSUM, TokenId::from([0; 32]));
-   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+5 |     config_bech32!("TEST_TOKEN_ID_INVALID_CHECKSUM", TokenId);
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -15,7 +15,7 @@ mod token;
 pub mod utils;
 pub use call::*;
 pub use genesis::*;
-use sov_modules_api::macros::config_bech32_constant;
+use sov_modules_api::macros::config_bech32;
 use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleId, ModuleInfo, WorkingSet};
 use token::Token;
 /// Specifies an interface to interact with tokens.
@@ -29,9 +29,8 @@ pub use utils::{get_token_id, IntoPayable, Payable};
 pub mod event;
 use crate::event::Event;
 
-#[config_bech32_constant]
 /// The [`TokenId`] of the rollup's gas token.
-pub const GAS_TOKEN_ID: TokenId;
+pub const GAS_TOKEN_ID: TokenId = config_bech32!("GAS_TOKEN_ID", TokenId);
 
 /// Gas configuration for the bank module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

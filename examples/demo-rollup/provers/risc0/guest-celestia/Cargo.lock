@@ -2228,6 +2228,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
+name = "prettier-please"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be31b7957122175fcf33c6d8f54489a5262176020bf096026a86b308b7fa5b23"
+dependencies = [
+ "proc-macro2",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "prettyplease"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3403,8 +3413,10 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bech32 0.11.0",
+ "blake2",
  "borsh 0.10.3",
  "hex",
+ "prettier-please",
  "proc-macro2",
  "quote",
  "schemars",
@@ -3437,7 +3449,6 @@ dependencies = [
  "borsh 0.10.3",
  "serde",
  "sov-modules-api",
- "sov-modules-macros",
  "sov-state",
 ]
 
