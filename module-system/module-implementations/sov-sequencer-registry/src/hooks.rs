@@ -19,13 +19,9 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegi
         sender: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
-        #[cfg(all(target_os = "zkvm", feature = "bench"))]
-        print_cycle_count();
-        if !self.is_sender_allowed(sender, state_checkpoint) {
+        if self.is_sender_allowed(sender, state_checkpoint).is_err() {
             anyhow::bail!("sender {} is not allowed to submit blobs", sender);
         }
-        #[cfg(all(target_os = "zkvm", feature = "bench"))]
-        print_cycle_count();
         Ok(())
     }
 
@@ -41,9 +37,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegi
             }
             SequencerOutcome::Slashed => {
                 self.slash_sequencer(sender, state_checkpoint);
-            }
-            SequencerOutcome::Penalized(amount) => {
-                self.penalize_sequencer(sender, amount, state_checkpoint);
             }
             SequencerOutcome::Ignored => {}
         };

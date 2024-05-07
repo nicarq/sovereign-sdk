@@ -7,8 +7,8 @@ use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec};
 use sov_test_utils::generate_empty_tx;
 
-use super::helpers::{TestSequencer, INITIAL_BALANCE, S};
-use crate::tests::helpers::INITIAL_BALANCE_LARGE;
+use super::helpers::{TestSequencer, S};
+use crate::tests::helpers::{INITIAL_BALANCE, INITIAL_BALANCE_LARGE};
 use crate::SequencerOutcome;
 
 /// Tests that the sequencer gets correctly rewarded when it processes a batch and:
@@ -118,17 +118,19 @@ fn test_penalize_sequencer() {
     let mut state_checkpoint = working_set.checkpoint().0;
 
     // We penalize the sequencer by removing all its stake
-    sequencer_test.registry.end_batch_hook(
-        SequencerOutcome::Penalized(seq_stake_after_genesis),
+    sequencer_test.registry.penalize_sequencer(
         &seq_da_address,
+        seq_stake_after_genesis,
         &mut state_checkpoint,
     );
 
     // The sequencer stake should be zero
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
     assert_eq!(
         sequencer_test
-            .query_sender_balance(&seq_da_address, &mut working_set)
+            .query_sender_balance(
+                &seq_da_address,
+                &mut state_checkpoint.to_revertable(GasMeter::unmetered())
+            )
             .unwrap(),
         0
     );

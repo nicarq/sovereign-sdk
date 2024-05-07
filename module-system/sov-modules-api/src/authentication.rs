@@ -1,12 +1,12 @@
 use borsh::BorshDeserialize;
-use sov_modules_core::capabilities::{AuthenticationError, RawTx};
+use sov_modules_core::capabilities::{AuthenticationError, FatalError, RawTx};
 use sov_modules_core::{DispatchCall, Spec};
 use sov_rollup_interface::zk::CryptoSpec;
 
 use crate::digest::Digest;
 use crate::transaction::{AuthenticatedTransactionAndRawHash, Transaction};
 
-///A single rollup can support several authentication mechanisms.
+/// A single rollup can support several authentication mechanisms.
 /// For example, within the same rollup, some transactions can be signed with the SignatureA scheme and others with the SignatureB scheme.
 /// The Authenticator trait makes it possible to abstract away the details of how the transaction should be validated.
 pub trait Authenticator: Send + Sync + 'static {
@@ -26,6 +26,7 @@ pub trait Authenticator: Send + Sync + 'static {
         ),
         AuthenticationError,
     >;
+
     /// Encodes transaction bytes using a particular authenticator.
     fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error>;
 }
@@ -36,14 +37,20 @@ pub fn authenticate<S: Spec, D: DispatchCall>(
 ) -> Result<(AuthenticatedTransactionAndRawHash<S>, D::Decodable), AuthenticationError> {
     let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
 
-    let tx = Transaction::<S>::deserialize(&mut raw_tx)
-        .map_err(|e| AuthenticationError::SigVerificationFailed(e.to_string()))?;
+    let tx = Transaction::<S>::deserialize(&mut raw_tx).map_err(|e| {
+        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+    })?;
 
-    tx.verify()
-        .map_err(|e| AuthenticationError::SigVerificationFailed(e.to_string()))?;
+    tx.verify().map_err(|e| {
+        AuthenticationError::FatalError(FatalError::SigVerificationFailed(e.to_string()))
+    })?;
 
-    let runtime_call = D::decode_call(tx.runtime_msg())
-        .map_err(|e| AuthenticationError::MessageDecodingFailed(e.to_string(), raw_tx_hash))?;
+    let runtime_call = D::decode_call(tx.runtime_msg()).map_err(|e| {
+        AuthenticationError::FatalError(FatalError::MessageDecodingFailed(
+            e.to_string(),
+            raw_tx_hash,
+        ))
+    })?;
 
     let tx_and_raw_hash = AuthenticatedTransactionAndRawHash::new(raw_tx_hash, tx.into());
 

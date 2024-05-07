@@ -1,14 +1,13 @@
 //! Concrete implementation(s) of [`BatchBuilder`].
-
 use core::marker::PhantomData;
 
 use anyhow::bail;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::digest::Digest;
-use sov_modules_api::runtime::capabilities::Kernel;
+use sov_modules_api::runtime::capabilities::{AuthenticationError, Kernel};
 use sov_modules_api::{Authenticator, CryptoSpec, Gas, GasArray, Spec, StateCheckpoint};
-use sov_modules_stf_blueprint::{apply_tx, ExecutionMode, Runtime, TxEffect};
+use sov_modules_stf_blueprint::{apply_tx, ApplyTxResult, ExecutionMode, Runtime, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
 use sov_rollup_interface::stf::TransactionReceipt;
@@ -87,22 +86,45 @@ where
             return Ok(None);
         }
 
-        let (tx_and_raw_hash, msg) = Auth::authenticate(&mempool_tx.tx_bytes)?;
+        let (tx_and_raw_hash, msg) = match Auth::authenticate(&mempool_tx.tx_bytes) {
+            // The [`AutenticationResult::FatalError`] variant should return an error - adding it to the batch would get
+            // the sequencer slashed. We may want to discard the transaction in that case,
+            // because it may not be properly signed or formatted.
+            Err(AuthenticationError::FatalError(err)) => return Err(err.into()),
+            // The [`AuthenticationResult::Invalid`] variant should simply return [`Option::None`]. Adding it to the batch would get
+            // the sequencer penalized.
+            Err(AuthenticationError::Invalid {
+                reason,
+                penalization_amount,
+            }) => {
+                tracing::warn!(
+                penalization_amount = %penalization_amount,
+                reason = ?reason,
+                "This transaction is invalid and couldn't be authorized against the current rollup state. Accepting the 
+                transaction would cause the sequencer to be penalized. Skipping transaction");
+                return Ok(None);
+            }
+            Ok((tx, message)) => (tx, message),
+        };
 
-        let (after_state_checkpoint, tx_receipt) = apply_tx::<S, _, _>(
+        let ApplyTxResult {
+            new_checkpoint,
+            receipt: tx_receipt,
+            sequencer_reward,
+        } = apply_tx::<S, _, _>(
             &self.runtime,
             &tx_and_raw_hash,
             msg,
             // Temporarily take ownership of the `StateCheckpoint`...
             ctx.state_checkpoint.take().unwrap(),
             &self.sequencer,
-            &mut ctx.reward,
             ExecutionMode::Speculative,
             &ctx.gas_price,
             ctx.visible_height,
         );
         // ...and immediately store the new `StateCheckpoint`.
-        ctx.state_checkpoint = Some(after_state_checkpoint);
+        ctx.state_checkpoint = Some(new_checkpoint);
+        ctx.reward += sequencer_reward;
 
         Ok(Some(tx_receipt))
     }
@@ -141,7 +163,14 @@ where
             )
         }
 
-        Auth::authenticate(&raw)?;
+        // Note: We cannot use context here because we test the content of the inner message.
+        // Instead of returning [`anyhow::Result`], we should maybe return a custom error type.
+        Auth::authenticate(&raw).map_err(|e| {
+            anyhow::anyhow!(
+                "Authentication error while building a batch: {}",
+                e.to_string()
+            )
+        })?;
 
         let hash = calculate_hash::<S>(&raw);
         tracing::debug!(
@@ -261,7 +290,7 @@ where
 
 struct BatchConstructionContext<S: Spec> {
     visible_height: u64,
-    reward: i64,
+    reward: u64,
     gas_price: <S::Gas as Gas>::Price,
     state_checkpoint: Option<StateCheckpoint<S>>,
     current_batch_size_in_bytes: usize,
@@ -504,7 +533,8 @@ mod tests {
             assert!(accept_result
                 .unwrap_err()
                 .to_string()
-                .starts_with("transaction decoding error"));
+                .to_lowercase()
+                .contains("transaction decoding error"));
         }
 
         #[tokio::test]

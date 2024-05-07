@@ -1,3 +1,8 @@
+- #612 refactors the `StfBlueprint` to deserialize, perform signature checks and execute transactions in one pass instead of doing pre-checks for the entire batch followed by the batch execution. Simplifies and fix the sequencer reward workflow. In particular:
+  - Replace the previous mechanism that was using a mutable `i64` typed, `sequencer_reward` variable that accumulated the reward/penalties for the sequencer in the entire batch. This mechanism was buggy and did not properly account for side effects (e.g when the sequencer gets penalized more than his current stake, his transactions shouldn't be processed anymore).
+  - Augment the authorization error for the `rawTx` verification with an enum with 2 variants: `FatalError` (sequencer gets slashed for acting maliciously) and `Invalid` (sequencer gets penalized a constant amount from his balance). 
+  - Remove the `Penalized` variant from the `SequencerOutcome`. This is replaced by the `penalize_sequencer` capability that is called whenever the sequencer gets penalized.
+  - Add a `authorize_sequencer` capability that verifies that the sequencer has locked enough tokens to execute the next transaction. Since the sequencer bond can vary between transactions (because he may get penalized), this method needs to be called whenever the sequencer start executing a new transaction.
 - #599 changes the way you define Rust constants which use the `constants.json` file.
   Instead of the attribute macro `#[config_constant]`, you'll now use `config_value!`, like this:
 

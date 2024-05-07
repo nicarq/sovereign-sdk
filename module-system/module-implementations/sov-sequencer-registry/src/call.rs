@@ -290,34 +290,6 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         Ok(CallResponse::default())
     }
 
-    /// Penalizes the sequencer with the `amount` of gas tokens.
-    /// This method simply deducts the reward from the sequencer's staked amount.
-    ///
-    /// # Safety note:
-    /// - If the sender is not registered this method silently exits.
-    /// - If the sender is registered and the penalty is greater than the sequencer's staked amount, the sequencer's staked amount is set to 0
-    /// but the sequencer is not removed from the list of allowed sequencers.
-    pub(crate) fn penalize_sequencer(
-        &self,
-        sender: &Da::Address,
-        amount: Amount,
-        working_set: &mut StateCheckpoint<S>,
-    ) {
-        if let Some(AllowedSequencer { address, balance }) =
-            self.allowed_sequencers.get(sender, working_set)
-        {
-            let new_balance = balance.saturating_sub(amount);
-            self.allowed_sequencers.set(
-                sender,
-                &AllowedSequencer {
-                    address,
-                    balance: new_balance,
-                },
-                working_set,
-            );
-        }
-    }
-
     /// Rewards the sequencer with the `amount` of gas tokens.
     /// Transfers the reward from the module's account to the sequencer's account.
     ///

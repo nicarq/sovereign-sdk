@@ -28,6 +28,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         // TODO(@vlopes11): Add gas check
         self.sequencer_registry
             .is_sender_allowed(&b.sender(), working_set)
+            .is_ok()
     }
 
     /// Slash a particular sequencer.

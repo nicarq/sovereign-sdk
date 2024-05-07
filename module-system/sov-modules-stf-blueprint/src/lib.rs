@@ -21,7 +21,9 @@ use sov_modules_api::{
     BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, Spec, StateCheckpoint,
 };
-use sov_modules_core::capabilities::{GasEnforcer, RuntimeAuthenticator};
+use sov_modules_core::capabilities::{
+    FatalError, GasEnforcer, RuntimeAuthenticator, SequencerAuthorization,
+};
 use sov_modules_core::VersionedStateReadWriter;
 use sov_rollup_interface::da::RelevantBlobIters;
 pub use sov_rollup_interface::stf::BatchReceipt;
@@ -30,7 +32,7 @@ use sov_rollup_interface::stf::{
 };
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
-pub use stf_blueprint::{apply_tx, ExecutionMode, StfBlueprint};
+pub use stf_blueprint::{apply_tx, ApplyTxResult, ExecutionMode, StfBlueprint};
 use tracing::{debug, info};
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
 ///
@@ -38,6 +40,7 @@ use tracing::{debug, info};
 /// to be executed.
 pub trait Runtime<S: Spec, Da: DaSpec>:
     DispatchCall<Spec = S>
+    + SequencerAuthorization<S, Da>
     + RuntimeAuthorization<S, Da, Tx = AuthenticatedTransactionData<S>>
     + RuntimeAuthenticator<
         Tx = AuthenticatedTransactionAndRawHash<S>,
@@ -88,12 +91,10 @@ pub enum TxEffect {
 pub enum SequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
     Rewarded(u64),
-    /// Sequencer was penalized (on net) for including invalid (but not provably malicious) transactions
-    Penalized(u64),
     /// Sequencer loses its deposit and receives no reward
     Slashed(
         /// Reason why sequencer was slashed.
-        SlashingReason,
+        FatalError,
     ),
     /// Batch was ignored, sequencer deposit left untouched.
     Ignored,
@@ -105,17 +106,6 @@ pub struct GenesisParams<RuntimeConfig, KernelConfig> {
     pub runtime: RuntimeConfig,
     /// The kernel's genesis parameters
     pub kernel: KernelConfig,
-}
-
-/// Reason why sequencer was slashed.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum SlashingReason {
-    /// This status indicates problem with batch deserialization.
-    InvalidBatchEncoding,
-    /// Stateless verification failed, for example deserialized transactions have invalid signatures.
-    StatelessVerificationFailed,
-    /// This status indicates problem with transaction deserialization.
-    InvalidTransactionEncoding,
 }
 
 impl<S, RT, Da, K> StfBlueprint<S, Da, RT, K>
