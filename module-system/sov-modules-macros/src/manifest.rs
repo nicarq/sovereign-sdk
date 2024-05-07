@@ -1,26 +1,17 @@
 use std::path::{Path, PathBuf};
-use std::{env, fmt, fs, ops, process};
+use std::{env, fmt, fs, process};
 
-use bech32::primitives::decode::CheckedHrpstring;
-use bech32::Bech32m;
 use proc_macro2::{Ident, TokenStream};
-use quote::format_ident;
 use serde_json::{Map, Value};
 use syn::{PathArguments, Type, TypePath};
+
+use crate::common::json_value_to_expr;
 
 #[derive(Debug, Clone)]
 pub struct Manifest<'a> {
     parent: &'a Ident,
     path: PathBuf,
     value: Value,
-}
-
-impl<'a> ops::Deref for Manifest<'a> {
-    type Target = Value;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
 }
 
 impl<'a> Manifest<'a> {
@@ -151,6 +142,10 @@ impl<'a> Manifest<'a> {
         Self::read_str(constants, constants_path, parent)
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     /// Gets the requested object from the manifest by key
     fn get_object(&self, field: &Ident, key: &str) -> Result<&Map<String, Value>, syn::Error> {
         self.value
@@ -277,19 +272,7 @@ impl<'a> Manifest<'a> {
         })
     }
 
-    pub fn parse_constant(
-        &self,
-        ty: &Type,
-        field: &Ident,
-        vis: syn::Visibility,
-        attrs: &[syn::Attribute],
-        value_extractor_fn: impl Fn(
-            &Self,
-            &Ident,
-            &serde_json::Value,
-            &Type,
-        ) -> Result<TokenStream, syn::Error>,
-    ) -> Result<TokenStream, syn::Error> {
+    pub fn parse_expression(&self, field: &Ident) -> Result<TokenStream, syn::Error> {
         let root = self.get_object(field, "constants")?;
         let value = root.get(&field.to_string()).ok_or_else(|| {
             Self::err(
@@ -298,125 +281,9 @@ impl<'a> Manifest<'a> {
                 format!("manifest does not contain a `{}` attribute", field),
             )
         })?;
-        let value = value_extractor_fn(self, field, value, ty)?;
 
-        if let Type::Reference(tr) = ty {
-            if tr.lifetime.is_none() {
-                let output = quote::quote! {
-                    #(#attrs)*
-                    #vis const #field: #ty = & #value;
-                };
-                return Ok(output);
-            }
-        }
-
-        Ok(quote::quote! {
-            #(#attrs)*
-            #vis const #field: #ty = #value;
-        })
-    }
-
-    pub fn value_from_bech32(
-        &self,
-        field: &Ident,
-        value: &serde_json::Value,
-        ty: &Type,
-    ) -> Result<TokenStream, syn::Error> {
-        let type_name = quote::quote! { #ty };
-        let err_msg = format!("Error decoding constants: The value of `{}` located at `{}` is not a valid bech32m value for type `{}`.", field, self.path.display(), &type_name);
-        if let Value::String(s) = value {
-            let hrp_string = CheckedHrpstring::new::<Bech32m>(s).map_err(|e| {
-                Self::err(
-                    &self.path,
-                    field,
-                    format!("{}\n\n Bech32m decoding of the provided value `{}` failed with the following error: {}", err_msg, s, e),
-                )
-            })?;
-            let values = hrp_string.byte_iter();
-            let found_prefix = hrp_string.hrp().to_string();
-            let mut assertions = vec![];
-            let bad_prefix_err_msg = format!("{}\n\n  Help: The value `{}` is a valid bech32m string, but the prefix `{}` does not match the expected prefix for values of type `{}`.\n    Consult the documentation for `{}` to find the correct value\n", err_msg, s, &found_prefix, &type_name, &type_name);
-
-            assertions.push(quote::quote!(assert!(#ty::bech32_prefix().len() == #found_prefix.len(), #bad_prefix_err_msg);));
-            for (idx, byte) in found_prefix.as_bytes().iter().enumerate() {
-                assertions.push(quote::quote!(assert!(#byte == #ty::bech32_prefix().as_bytes()[#idx], #bad_prefix_err_msg);));
-            }
-
-            let res = quote::quote!( {
-                #(#assertions)*
-                #ty::from_const_slice( [#(#values,)*])
-            } );
-            Ok(res)
-        } else {
-            Err(Self::err(
-                &self.path,
-                field,
-                format!("{}\n\n`{}` is not a bech32 encoded string", err_msg, value),
-            ))
-        }
-    }
-    pub fn value_to_tokens(
-        &self,
-        field: &Ident,
-        value: &serde_json::Value,
-        ty: &Type,
-    ) -> Result<TokenStream, syn::Error> {
-        match value {
-            Value::Null => Err(Self::err(
-                &self.path,
-                field,
-                format!("`{}` is `null`", field),
-            )),
-            Value::Bool(b) => Ok(quote::quote!(#b)),
-            Value::Number(n) => {
-                if n.is_u64() {
-                    let n = n.as_u64().unwrap();
-                    Ok(quote::quote!(#n as #ty))
-                } else if n.is_i64() {
-                    let n = n.as_i64().unwrap();
-                    Ok(quote::quote!(#n as #ty))
-                } else {
-                    Err(Self::err(&self.path, field, "All numeric values must be representable as 64 bit integers during parsing.".to_string()))
-                }
-            }
-            Value::String(s) => Ok(quote::quote!(#s)),
-            Value::Array(arr) => {
-                let mut values = Vec::with_capacity(arr.len());
-                let ty = match ty {
-                    Type::Array(ty) => &ty.elem,
-                    Type::Reference(ty) => {
-                        match ty.elem.as_ref() {
-                            Type::Slice(ty) => &ty.elem,
-                            _ => return Err(Self::err(
-                                &self.path,
-                                field,
-                                format!(
-                                    "Found value of type {:?} while parsing `{}` but expected a slice type ",
-                                    ty, field
-                                ),
-                            )),
-                        }
-                    }
-                    _ => return Err(Self::err(
-                        &self.path,
-                        field,
-                        format!(
-                            "Found value of type {:?} while parsing `{}` but expected an array type ",
-                            ty, field
-                        ),
-                    ))
-                };
-                for (idx, value) in arr.iter().enumerate() {
-                    values.push(self.value_to_tokens(
-                        &format_ident!("{field}_{idx}"),
-                        value,
-                        ty,
-                    )?);
-                }
-                Ok(quote::quote!([#(#values,)*]))
-            }
-            Value::Object(_) => todo!(),
-        }
+        let expr = json_value_to_expr(value, field.span())?;
+        Ok(quote::quote!(#expr))
     }
 
     fn err<P, T>(path: P, ident: &syn::Ident, msg: T) -> syn::Error
@@ -436,66 +303,70 @@ impl<'a> Manifest<'a> {
     }
 }
 
-#[test]
-fn parse_gas_config_works() {
-    let input = r#"{
-        "comment": "Sovereign SDK constants",
-        "gas": {
-            "complex_math_operation": [1, 2, 3],
-            "some_other_operation": [4, 5, 6]
-        }
-    }"#;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let parent = Ident::new("Foo", proc_macro2::Span::call_site());
-    let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
-    let field: Ident = syn::parse_str("foo_gas_config").unwrap();
+    #[test]
+    fn parse_gas_config_works() {
+        let input = r#"{
+            "comment": "Sovereign SDK constants",
+            "gas": {
+                "complex_math_operation": [1, 2, 3],
+                "some_other_operation": [4, 5, 6]
+            }
+        }"#;
 
-    let decl = Manifest::read_str(input, PathBuf::from("foo.json"), &parent)
-        .unwrap()
-        .parse_gas_config(&gas_config, &field)
-        .unwrap();
+        let parent = Ident::new("Foo", proc_macro2::Span::call_site());
+        let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
+        let field: Ident = syn::parse_str("foo_gas_config").unwrap();
 
-    #[rustfmt::skip]
-    assert_eq!(
-        decl.to_string(),
-        quote::quote!(
-            let foo_gas_config = FooGasConfig {
-                complex_math_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[1u64, 2u64, 3u64, ]),
-                some_other_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[4u64, 5u64, 6u64, ]),
-            };
-        )
-        .to_string()
-    );
-}
+        let decl = Manifest::read_str(input, PathBuf::from("foo.json"), &parent)
+            .unwrap()
+            .parse_gas_config(&gas_config, &field)
+            .unwrap();
 
-#[test]
-fn parse_gas_config_single_dimension_works() {
-    let input = r#"{
-        "comment": "Sovereign SDK constants",
-        "gas": {
-            "complex_math_operation": 1,
-            "some_other_operation": 2
-        }
-    }"#;
+        #[rustfmt::skip]
+        assert_eq!(
+            decl.to_string(),
+            quote::quote!(
+                let foo_gas_config = FooGasConfig {
+                    complex_math_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[1u64, 2u64, 3u64, ]),
+                    some_other_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[4u64, 5u64, 6u64, ]),
+                };
+            )
+            .to_string()
+        );
+    }
 
-    let parent = Ident::new("Foo", proc_macro2::Span::call_site());
-    let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
-    let field: Ident = syn::parse_str("foo_gas_config").unwrap();
+    #[test]
+    fn parse_gas_config_single_dimension_works() {
+        let input = r#"{
+            "comment": "Sovereign SDK constants",
+            "gas": {
+                "complex_math_operation": 1,
+                "some_other_operation": 2
+            }
+        }"#;
 
-    let decl = Manifest::read_str(input, PathBuf::from("foo.json"), &parent)
-        .unwrap()
-        .parse_gas_config(&gas_config, &field)
-        .unwrap();
+        let parent = Ident::new("Foo", proc_macro2::Span::call_site());
+        let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
+        let field: Ident = syn::parse_str("foo_gas_config").unwrap();
 
-    #[rustfmt::skip]
-    assert_eq!(
-        decl.to_string(),
-        quote::quote!(
-            let foo_gas_config = FooGasConfig {
-                complex_math_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[1u64, ]),
-                some_other_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[2u64, ]),
-            };
-        )
-        .to_string()
-    );
+        let decl = Manifest::read_str(input, PathBuf::from("foo.json"), &parent)
+            .unwrap()
+            .parse_gas_config(&gas_config, &field)
+            .unwrap();
+
+        #[rustfmt::skip]
+        assert_eq!(
+            decl.to_string(),
+            quote::quote!(
+                let foo_gas_config = FooGasConfig {
+                    complex_math_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[1u64, ]),
+                    some_other_operation: <<<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas as ::sov_modules_api::GasArray>::from_slice(&[2u64, ]),
+                };
+            ).to_string()
+        );
+    }
 }

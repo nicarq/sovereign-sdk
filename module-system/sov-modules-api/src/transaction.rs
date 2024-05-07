@@ -4,7 +4,7 @@ use risc0_cycle_macros::cycle_tracker;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_core::{GasArray, Spec};
-use sov_modules_macros::config_constant;
+use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::{Hash, PublicKey, Signature as _};
@@ -352,11 +352,9 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
     }
 
     pub fn gas_fixed_cost(&self) -> S::Gas {
-        #[config_constant]
-        const GAS_TX_FIXED_COST: &[u64];
+        const GAS_TX_FIXED_COST: &[u64] = &config_value!("GAS_TX_FIXED_COST");
 
-        #[config_constant]
-        const GAS_TX_COST_PER_BYTE: &[u64];
+        const GAS_TX_COST_PER_BYTE: &[u64] = &config_value!("GAS_TX_COST_PER_BYTE");
 
         let gas_tx_fixed_cost = S::Gas::from_slice(GAS_TX_FIXED_COST);
         let mut gas_tx_cost = S::Gas::from_slice(GAS_TX_COST_PER_BYTE);

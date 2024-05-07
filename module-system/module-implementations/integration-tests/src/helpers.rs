@@ -5,7 +5,7 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::da::Time;
-use sov_modules_api::macros::config_constant;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::namespaces::User;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{DaSpec, Gas, Spec, StateCheckpoint, Zkvm};
@@ -29,8 +29,7 @@ pub(crate) type Da = MockDaSpec;
 
 pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 100;
 
-#[config_constant]
-pub(crate) const GAS_TX_FIXED_COST: [u64; 2];
+pub(crate) const GAS_TX_FIXED_COST: [u64; 2] = config_value!("GAS_TX_FIXED_COST");
 
 pub struct SequencerParams<S: Spec, Da: DaSpec> {
     pub rollup_address: S::Address,

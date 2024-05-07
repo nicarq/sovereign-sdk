@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::macros::config_constant;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::{
     KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, ModuleId, StateCheckpoint,
@@ -14,8 +14,7 @@ use sov_modules_api::{
 use sov_state::codec::BcsCodec;
 
 /// For how many slots deferred blobs are stored before being executed
-#[config_constant]
-pub const DEFERRED_SLOTS_COUNT: u64;
+pub const DEFERRED_SLOTS_COUNT: u64 = config_value!("DEFERRED_SLOTS_COUNT");
 
 /// The sequence number for a batch from the preferred sequencer.   
 pub type SequenceNumber = u64;

@@ -101,10 +101,18 @@ pub use sov_modules_macros::ModuleInfo;
 /// Procedural macros to assist with creating new modules.
 #[cfg(feature = "macros")]
 pub mod macros {
-    /// Sets the value of a constant at compile time by reading from the Manifest file and decoding from bech32.
-    pub use sov_modules_macros::config_bech32_constant;
-    /// Sets the value of a constant at compile time by reading from the Manifest file.
-    pub use sov_modules_macros::config_constant;
+    /// Reads a string value from the rollup configuration manifest file and
+    /// decodes it as a Bech32 value.
+    ///
+    /// The macro takes two arguments:
+    ///  1. The name of the constant to be read from the manifest file, as a string literal.
+    ///  2. The Bech32 newtype to decode the value into. This type must be
+    ///     defined by [`impl_hash32_type`](crate::impl_hash32_type).
+    pub use sov_modules_macros::config_bech32;
+    /// Reads a JSON value from the rollup configuration manifest file and
+    /// converts it into a Rust expression available at compile time. Nulls and
+    /// objects are not supported.
+    pub use sov_modules_macros::config_value;
     /// The macro exposes RPC endpoints from all modules in the runtime.
     /// It gets storage from the Context generic
     /// and utilizes output of [`#[rpc_gen]`] macro to generate RPC methods.
@@ -197,4 +205,5 @@ pub mod macros {
     /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::CliWalletArg;
+    pub use sov_modules_macros::{address_type, offchain};
 }

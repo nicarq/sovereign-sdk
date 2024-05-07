@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::macros::config_constant;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
     CallResponse, Context, DaSpec, EventEmitter, Gas, StateTransitionPublicData, WorkingSet, Zkvm,
@@ -234,8 +234,7 @@ where
 {
     /// Returns the burn rate for the reward
     pub fn burn_rate(&self) -> BurnRate {
-        #[config_constant]
-        const PERCENT_BASE_FEE_TO_BURN: u8;
+        const PERCENT_BASE_FEE_TO_BURN: u8 = config_value!("PERCENT_BASE_FEE_TO_BURN");
 
         BurnRate::new_unchecked(PERCENT_BASE_FEE_TO_BURN)
     }

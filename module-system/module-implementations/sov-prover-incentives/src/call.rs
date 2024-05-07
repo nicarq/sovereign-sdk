@@ -5,7 +5,7 @@ use anyhow::{Context as AnyhowContext, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
-use sov_modules_api::macros::config_constant;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::{
     AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec, WorkingSet,
     Zkvm,
@@ -58,8 +58,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// The burn rate of the reward price for the provers.
     /// The burn rate is a percentage of the base fee that is burned - this prevents provers from proving empty blocks.
     pub(crate) const fn burn_rate(&self) -> BurnRate {
-        #[config_constant]
-        const PERCENT_BASE_FEE_TO_BURN: u8;
+        const PERCENT_BASE_FEE_TO_BURN: u8 = config_value!("PERCENT_BASE_FEE_TO_BURN");
 
         BurnRate::new_unchecked(PERCENT_BASE_FEE_TO_BURN)
     }
