@@ -172,8 +172,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         self.head.set(&block, working_set);
         #[cfg(feature = "native")]
         {
-            self.pending_head
-                .set(&block, &mut working_set.accessory_state());
+            self.pending_head.set(&block, working_set);
         }
 
         Ok(())

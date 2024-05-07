@@ -15,9 +15,7 @@ pub use versioned_value::VersionedStateValue;
 mod test {
     use sov_mock_da::{MockBlockHeader, MockDaSpec};
     use sov_modules_core::namespaces::User;
-    use sov_modules_core::{
-        SlotKey, SlotValue, StateReaderAndWriter, Storage, Version, WorkingSet,
-    };
+    use sov_modules_core::{SlotKey, SlotValue, StateWriter, Storage, Version, WorkingSet};
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_state::DefaultStorageSpec;
@@ -73,7 +71,7 @@ mod test {
                     let mut working_set: WorkingSet<TestSpec> =
                         WorkingSet::new(prover_storage.clone());
 
-                    working_set.set(&test.key, test.value.clone());
+                    StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone());
                     let (cache, _, witness) = working_set.checkpoint().0.freeze();
                     prover_storage
                         .validate_and_commit(cache, &witness)
@@ -135,7 +133,7 @@ mod test {
             let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
             assert!(prover_storage.is_empty());
             let mut storage: WorkingSet<TestSpec> = WorkingSet::new(prover_storage.clone());
-            storage.set(&key, value.clone());
+            StateWriter::<User>::set(&mut storage, &key, value.clone());
             let (cache, _, witness) = storage.checkpoint().0.freeze();
             prover_storage
                 .validate_and_commit(cache, &witness)

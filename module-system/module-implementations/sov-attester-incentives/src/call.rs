@@ -11,7 +11,8 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, EventEmitter, Gas, StateTransitionPublicData, WorkingSet, Zkvm,
+    CallResponse, Context, DaSpec, EventEmitter, Gas, StateAccessor, StateTransitionPublicData,
+    TxState, Zkvm,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use thiserror::Error;
@@ -265,7 +266,7 @@ where
         user: &S::Address,
         role: Role,
         reason: SlashingReason,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> u64 {
         let bonded_set = match role {
             Role::Attester => {
@@ -301,7 +302,7 @@ where
         user: &S::Address,
         role: Role,
         reason: SlashingReason,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> AttesterIncentiveErrors {
         self.slash_user(user, role, reason, working_set);
         AttesterIncentiveErrors::UserSlashed(reason)
@@ -313,7 +314,7 @@ where
         attester: &S::Address,
         height: TransitionHeight,
         reason: SlashingReason,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> AttesterIncentiveErrors {
         let reward = self.slash_user(attester, Role::Attester, reason, working_set);
 
@@ -335,7 +336,7 @@ where
         &self,
         context: &Context<S>,
         amount: u64,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> Result<CallResponse, AttesterIncentiveErrors> {
         self.transfer_tokens_to_sender(
             context,
@@ -349,7 +350,7 @@ where
         &self,
         context: &Context<S>,
         amount: u64,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> Result<CallResponse, AttesterIncentiveErrors> {
         let coins = Coins {
             token_id: GAS_TOKEN_ID,
@@ -371,7 +372,7 @@ where
         bond_amount: u64,
         user_address: &S::Address,
         role: Role,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, AttesterIncentiveErrors> {
         // If the user is an attester, we have to check that he's not trying to unbond
         if role == Role::Attester
@@ -437,7 +438,7 @@ where
     pub(crate) fn unbond_challenger(
         &self,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse> {
         // Get the user's old balance.
         if let Some(old_balance) = self.bonded_challengers.get(context.sender(), working_set) {
@@ -465,7 +466,7 @@ where
     pub(crate) fn begin_unbond_attester(
         &self,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         // First get the bonded attester
         if let Some(bond) = self.bonded_attesters.get(context.sender(), working_set) {
@@ -494,7 +495,7 @@ where
     pub(crate) fn end_unbond_attester(
         &self,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         // We have to ensure that the attester is unbonding, and that the unbonding transaction
         // occurred at least `finality_period` blocks ago to let the attester unbond
@@ -552,7 +553,7 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<(), AttesterIncentiveErrors> {
         let bonding_root = {
             // If we cannot get the transition before the current one, it means that we are trying
@@ -612,7 +613,7 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         if let Some(curr_tx) = self
             .chain_state
@@ -652,7 +653,7 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         // Normal state
         if let Some(transition) = self
@@ -721,7 +722,7 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         let attestation = attestation.inner;
         // We first need to check that the attester is still in the bonding set
@@ -841,7 +842,7 @@ where
         &self,
         public_outputs: StateTransitionPublicData<Da, <S::Storage as Storage>::Root>,
         height: &TransitionHeight,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<(), SlashingReason> {
         let transition = self
             .chain_state
@@ -884,7 +885,7 @@ where
         context: &Context<S>,
         proof: &[u8],
         transition_num: &TransitionHeight,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         // Get the challenger's old balance.
         // Revert if they aren't bonded

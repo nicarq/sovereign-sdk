@@ -2,7 +2,7 @@ use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
-    ModuleId, ModuleInfo, Spec, StateValue, WorkingSet,
+    ModuleId, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -63,7 +63,7 @@ pub mod my_module {
             &self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            working_set: &mut WorkingSet<S>,
+            working_set: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
             self.data.set(&msg, working_set);
             Ok(CallResponse::default())

@@ -13,10 +13,11 @@ use crate::common::{AlignedVec, Prefix, Version, Witness};
 mod cache;
 mod codec;
 mod scratchpad;
-
+mod traits;
 pub use cache::*;
 pub use codec::*;
 pub use scratchpad::*;
+pub use traits::*;
 
 use self::namespaces::ProvableCompileTimeNamespace;
 
@@ -67,7 +68,8 @@ pub enum ProvableNamespace {
     Kernel,
 }
 
-/// Defines type-level representations of  namespaces.
+/// Defines
+/// ype-level representations of  namespaces.
 pub mod namespaces {
     use crate::Namespace;
 

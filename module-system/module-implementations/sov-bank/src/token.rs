@@ -8,7 +8,8 @@ use std::num::ParseIntError;
 use anyhow::{bail, Context};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{impl_hash32_type, Spec, StateAccessor, WorkingSet};
+use sov_modules_api::namespaces::User;
+use sov_modules_api::{impl_hash32_type, Spec, StateAccessor, StateReaderAndWriter};
 use sov_state::Prefix;
 use thiserror::Error;
 
@@ -186,7 +187,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         &mut self,
         from: TokenHolderRef<'_, S>,
         amount: Amount,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         let new_balance = self.check_balance(from, amount, working_set)?;
         self.balances.set(&from, &new_balance, working_set);
@@ -216,7 +217,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         authorizer: TokenHolderRef<'_, S>,
         mint_to_identity: TokenHolderRef<'_, S>,
         amount: Amount,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         if self.authorized_minters.is_empty() {
             bail!("Attempt to mint frozen token {}", self.name)
@@ -286,7 +287,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         originator: impl Payable<S>,
         salt: u64,
         parent_prefix: &Prefix,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateReaderAndWriter<User>,
     ) -> anyhow::Result<(TokenId, Self)> {
         let token_id = super::get_token_id::<S>(token_name, originator, salt);
         let token = Self::create_with_token_id(
@@ -307,7 +308,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         authorized_minters: &[TokenHolderRef<'_, S>],
         token_id: &TokenId,
         parent_prefix: &Prefix,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateReaderAndWriter<User>,
     ) -> anyhow::Result<Token<S>> {
         let token_prefix = prefix_from_address_with_parent(parent_prefix, token_id);
         let balances = sov_modules_api::StateMap::new(token_prefix);

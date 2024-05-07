@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sov_modules_api::{CallResponse, Context, Spec, WorkingSet};
+use sov_modules_api::{CallResponse, Context, Spec, TxState};
 
 use crate::address::UserAddress;
 use crate::offchain::{update_collection, update_nft};
@@ -83,7 +83,7 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_name: &str,
         collection_uri: &str,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let (collection_id, collection) = Collection::new(
             collection_name,
@@ -103,7 +103,7 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_name: &str,
         collection_uri: &str,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let (collection_id, collection_state) = Collection::get_owned_collection(
             collection_name,
@@ -123,7 +123,7 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         collection_name: &str,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let (collection_id, collection_state) = Collection::get_owned_collection(
             collection_name,
@@ -148,7 +148,7 @@ impl<S: Spec> NonFungibleToken<S> {
         mint_to_address: &UserAddress<S>,
         frozen: bool,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let (collection_id, collection_state) = Collection::get_owned_collection(
             collection_name,
@@ -187,7 +187,7 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_id: &CollectionId,
         to: &UserAddress<S>,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let mut owned_nft =
             Nft::get_owned_nft(nft_id, collection_id, &self.nfts, context, working_set)?;
@@ -209,7 +209,7 @@ impl<S: Spec> NonFungibleToken<S> {
         token_uri: Option<String>,
         frozen: Option<bool>,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let (collection_id, mut mutable_nft) = Nft::get_mutable_nft(
             token_id,

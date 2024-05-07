@@ -6,7 +6,8 @@ use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, Kernel, User
 #[cfg(feature = "arbitrary")]
 use sov_modules_core::WorkingSet;
 use sov_modules_core::{
-    EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReaderAndWriter,
+    EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReader,
+    StateReaderAndWriter, StateWriter,
 };
 #[cfg(feature = "native")]
 use sov_modules_core::{ProvenStateAccessor, Spec, StateItemDecoder, Storage};
@@ -123,7 +124,7 @@ where
     ///
     /// The key may be any borrowed form of the
     /// map’s key type.
-    pub fn set<Q>(&self, key: &Q, value: &V, working_set: &mut impl StateReaderAndWriter<N>)
+    pub fn set<Q>(&self, key: &Q, value: &V, working_set: &mut impl StateWriter<N>)
     where
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
@@ -163,7 +164,7 @@ where
     ///     map.get(&key[..], ws)
     /// }
     /// ```
-    pub fn get<Q>(&self, key: &Q, working_set: &mut impl StateReaderAndWriter<N>) -> Option<V>
+    pub fn get<Q>(&self, key: &Q, working_set: &mut impl StateReader<N>) -> Option<V>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
@@ -178,7 +179,7 @@ where
     pub fn get_or_err<Q>(
         &self,
         key: &Q,
-        working_set: &mut impl StateReaderAndWriter<N>,
+        working_set: &mut impl StateReader<N>,
     ) -> Result<V, StateMapError<N>>
     where
         Codec: StateCodec,
@@ -235,7 +236,7 @@ where
     ///
     /// This is equivalent to [`NamespacedStateMap::remove`], but doesn't deserialize and
     /// return the value before deletion.
-    pub fn delete<Q>(&self, key: &Q, working_set: &mut impl StateReaderAndWriter<N>)
+    pub fn delete<Q>(&self, key: &Q, working_set: &mut impl StateWriter<N>)
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,

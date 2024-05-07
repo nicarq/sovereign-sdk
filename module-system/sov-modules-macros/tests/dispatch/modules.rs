@@ -1,5 +1,5 @@
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, WorkingSet,
+    CallResponse, Context, Error, Module, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
 };
 
 pub mod first_test_module {
@@ -58,7 +58,7 @@ pub mod first_test_module {
             &self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            working_set: &mut WorkingSet<S>,
+            working_set: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
             self.state_in_first_struct.set(&msg, working_set);
             Ok(CallResponse::default())
@@ -120,7 +120,7 @@ pub mod second_test_module {
             &self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            working_set: &mut WorkingSet<S>,
+            working_set: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
             self.state_in_second_struct.set(&msg, working_set);
             Ok(CallResponse::default())
@@ -190,7 +190,7 @@ pub mod third_test_module {
             &self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            working_set: &mut WorkingSet<S>,
+            working_set: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
             self.state_in_third_struct.set(&msg, working_set);
             Ok(CallResponse::default())

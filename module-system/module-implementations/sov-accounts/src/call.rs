@@ -1,5 +1,7 @@
 use anyhow::{ensure, Result};
-use sov_modules_api::{CallResponse, Context, Hash, Spec, WorkingSet};
+use sov_modules_api::namespaces::User;
+use sov_modules_api::{CallResponse, Context, Hash, Spec};
+use sov_state::storage::{StateReader, TxState};
 
 use crate::Accounts;
 
@@ -31,7 +33,7 @@ impl<S: Spec> Accounts<S> {
         &self,
         new_pub_key_hash: Hash,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         self.exit_if_account_exists(&new_pub_key_hash, working_set)?;
 
@@ -54,7 +56,7 @@ impl<S: Spec> Accounts<S> {
     fn exit_if_account_exists(
         &self,
         new_pub_key_hash: &Hash,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateReader<User>,
     ) -> Result<()> {
         anyhow::ensure!(
             self.accounts.get(new_pub_key_hash, working_set).is_none(),

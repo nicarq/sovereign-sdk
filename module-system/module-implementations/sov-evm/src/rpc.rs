@@ -7,7 +7,7 @@ use revm::primitives::{
     KECCAK_EMPTY, U256,
 };
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{StateAccessor, WorkingSet};
 use tracing::debug;
 
 use crate::call::get_cfg_env_with_handler;
@@ -67,7 +67,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let block_number_hex = self
             .block_hashes
-            .get(&block_hash, &mut working_set.accessory_state())
+            .get(&block_hash, working_set)
             .map(|number| hex::encode(number.to_be_bytes()))
             .expect("Block number for known block hash must be set");
 
@@ -96,7 +96,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         let transactions_with_ids = block.transactions.clone().map(|id| {
             let tx = self
                 .transactions
-                .get(id as usize, &mut working_set.accessory_state())
+                .get(id as usize, working_set)
                 .expect("Transaction must be set");
             (id, tx)
         });
@@ -253,22 +253,20 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         hash: B256,
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
-        let mut accessory_state = working_set.accessory_state();
-
-        let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
+        let tx_number = self.transaction_hashes.get(&hash, working_set);
 
         let transaction = tx_number.map(|number| {
             let tx = self
                 .transactions
-                .get(number as usize, &mut accessory_state)
+                .get(number as usize, working_set)
                 .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
                                           hash,
                                           number,
-                                          self.transactions.len(&mut accessory_state)));
+                                          self.transactions.len( working_set)));
 
             let block = self
                 .blocks
-                .get(tx.block_number as usize, &mut accessory_state)
+                .get(tx.block_number as usize, working_set)
                 .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
                                           tx.block_number,
                                           tx.signed_transaction.hash));
@@ -303,23 +301,21 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             "EVM module JSON-RPC request to `eth_getTransactionReceipt`"
         );
 
-        let mut accessory_state = working_set.accessory_state();
-
-        let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
+        let tx_number = self.transaction_hashes.get(&hash, working_set);
 
         let receipt = tx_number.map(|number| {
             let tx = self
                 .transactions
-                .get(number as usize, &mut accessory_state)
+                .get(number as usize, working_set)
                 .expect("Transaction with known hash must be set");
             let block = self
                 .blocks
-                .get(tx.block_number as usize, &mut accessory_state)
+                .get(tx.block_number as usize, working_set)
                 .expect("Block number for known transaction must be set");
 
             let receipt = self
                 .receipts
-                .get(tx_number.unwrap() as usize, &mut accessory_state)
+                .get(tx_number.unwrap() as usize, working_set)
                 .expect("Receipt for known transaction must be set");
 
             build_rpc_receipt(block, tx, tx_number.unwrap(), receipt)
@@ -357,7 +353,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         let cfg = self.cfg.get(working_set).unwrap_or_default();
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, Some(get_cfg_env_template()));
 
-        let evm_db: EvmDb<'_, S> = self.get_db(working_set);
+        let evm_db: EvmDb<'_, _> = self.get_db(working_set);
 
         let result = match executor::inspect(evm_db, &block_env, tx_env, cfg_env) {
             Ok(result) => result.result,
@@ -370,10 +366,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
     /// Handler for: `eth_blockNumber`
     #[rpc_method(name = "eth_blockNumber")]
     pub fn block_number(&self, working_set: &mut WorkingSet<S>) -> RpcResult<U256> {
-        let block_number = self
-            .blocks
-            .len(&mut working_set.accessory_state())
-            .saturating_sub(1);
+        let block_number = self.blocks.len(working_set).saturating_sub(1);
         debug!(%block_number, "EVM module JSON-RPC request to `eth_blockNumber`");
 
         Ok(U256::from(block_number))
@@ -597,23 +590,23 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         match block_number {
             Some(ref block_number) if block_number == "earliest" => self
                 .blocks
-                .get(0, &mut working_set.accessory_state())
+                .get(0, working_set)
                 .expect("Genesis block must be set"),
             Some(ref block_number) if block_number == "latest" => self
                 .blocks
-                .last(&mut working_set.accessory_state())
+                .last(working_set)
                 .expect("Head block must be set"),
             Some(ref block_number) => {
                 // hex representation may have 0x prefix
                 let block_number = usize::from_str_radix(block_number.trim_start_matches("0x"), 16)
                     .expect("Block number must be a valid hex number, with or without 0x prefix");
                 self.blocks
-                    .get(block_number, &mut working_set.accessory_state())
+                    .get(block_number, working_set)
                     .expect("Block must be set")
             }
             None => self
                 .blocks
-                .last(&mut working_set.accessory_state())
+                .last(working_set)
                 .expect("Head block must be set"),
         }
     }
@@ -698,11 +691,11 @@ pub(crate) fn build_rpc_receipt(
     }
 }
 
-fn map_out_of_gas_err<S: sov_modules_api::Spec>(
+fn map_out_of_gas_err<Ws: StateAccessor>(
     block_env: BlockEnv,
     mut tx_env: revm::primitives::TxEnv,
     cfg_env_with_handler: revm::primitives::CfgEnvWithHandlerCfg,
-    db: EvmDb<'_, S>,
+    db: EvmDb<'_, Ws>,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;

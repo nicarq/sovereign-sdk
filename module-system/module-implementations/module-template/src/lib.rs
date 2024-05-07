@@ -8,7 +8,7 @@ pub use event::Event;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, TxState, WorkingSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExampleModuleConfig {}
@@ -55,7 +55,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for ExampleModule<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::SetValue(new_value) => {

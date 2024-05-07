@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Context as _};
-use sov_modules_api::{Context, Spec, StateMap, WorkingSet};
+use sov_modules_api::{Context, Spec, StateAccessor, StateMap};
 
 use crate::collection::Collection;
 use crate::{CollectionId, OwnerAddress, UserAddress};
@@ -90,7 +90,7 @@ impl<S: Spec> Nft<S> {
         frozen: bool,
         collection_id: &CollectionId,
         nfts: &StateMap<NftIdentifier, Nft<S>>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<Self> {
         if nfts
             .get(&NftIdentifier(token_id, *collection_id), working_set)
@@ -116,7 +116,7 @@ impl<S: Spec> Nft<S> {
         collection_id: &CollectionId,
         nfts: &StateMap<NftIdentifier, Nft<S>>,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<OwnedNft<S>> {
         let nft_identifier = NftIdentifier(token_id, *collection_id);
         let nft = nfts
@@ -137,7 +137,7 @@ impl<S: Spec> Nft<S> {
         nfts: &StateMap<NftIdentifier, Nft<S>>,
         collections: &StateMap<CollectionId, Collection<S>>,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<(CollectionId, MutableNft<S>)> {
         let (collection_id, _) =
             Collection::get_owned_collection(collection_name, collections, context, working_set)?;

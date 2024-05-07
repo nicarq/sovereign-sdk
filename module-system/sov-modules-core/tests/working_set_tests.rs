@@ -1,9 +1,9 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::namespaces::Kernel;
+use sov_modules_api::namespaces::{Kernel, User};
 use sov_modules_core::capabilities::mocks::MockKernel;
 use sov_modules_core::{
-    Address, Context, KernelWorkingSet, SlotKey, SlotValue, StateCheckpoint, StateReaderAndWriter,
-    WorkingSet,
+    Address, Context, KernelWorkingSet, SlotKey, SlotValue, StateCheckpoint, StateReader,
+    StateWriter, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::codec::BcsCodec;
@@ -20,9 +20,10 @@ fn test_workingset_get() {
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
     let mut working_set = WorkingSet::<TestSpec>::new(storage.clone());
-    working_set.set(&storage_key, storage_value.clone());
+    StateWriter::<User>::set(&mut working_set, &storage_key, storage_value.clone());
+    let value = StateReader::<User>::get(&mut working_set, &storage_key);
 
-    assert_eq!(Some(storage_value), working_set.get(&storage_key));
+    assert_eq!(Some(storage_value), value);
 }
 
 #[test]
@@ -59,10 +60,10 @@ fn test_kernel_workingset_get() {
     let mut working_set = StateCheckpoint::<TestSpec>::new(storage.clone());
     let mut working_set = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
 
-    StateReaderAndWriter::<Kernel>::set(&mut working_set, &storage_key, storage_value.clone());
+    StateWriter::<Kernel>::set(&mut working_set, &storage_key, storage_value.clone());
 
     assert_eq!(
         Some(storage_value),
-        StateReaderAndWriter::<Kernel>::get(&mut working_set, &storage_key)
+        StateReader::<Kernel>::get(&mut working_set, &storage_key)
     );
 }

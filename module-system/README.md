@@ -38,11 +38,11 @@ any `#[state]` fields get mapped onto unique storage keys so that only this part
 At this stage, it's also very important to note that the state values are external to the module. This struct definition defines the
 _shape_ of the values that will be stored, but the values themselves don't live inside the module struct. In other words, a module doesn't
 secretly have a reference to some underlying database. Instead a module defines the _logic_ used to access state values,
-and the values themselves live in a special struct called a `WorkingSet`.
+and the values themselves live in an external struct whiich implements the `StateReader` and/or `StateWriter` traits.
 
 This has several consequences. First, it means that modules are always cheap to clone. Second it means that calling `my_module.clone()`
 always yields the same result as calling `MyModule::new()`. Finally, it means that every method of the module which reads or
-modifies state needs to take a `WorkingSet` as an argument.
+modifies state needs to take its state as an argument.
 
 ### Gas configuration
 
@@ -111,7 +111,7 @@ fn call(
     &self,
     msg: Self::CallMessage,
     context: &Context<Self::Spec>,
-    working_set: &mut WorkingSet<S>,
+    working_set: &mut impl TxState<S>,
 ) -> Result<sov_modules_api::CallResponse, Error> {
     match msg {
         call::CallMessage::CreateToken {
@@ -180,7 +180,7 @@ tells the `call` function which inner method of the module to invoke. So a typic
 ```rust
 impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 	// Several definitions elided here ...
-    fn call(&self, msg: Self::CallMessage, context: &Context<Self::Spec>, working_set: &mut WorkingSet<S>) {
+    fn call(&self, msg: Self::CallMessage, context: &Context<Self::Spec>, working_set: &mut impl TxState<S>) {
         match msg {
             CallMessage::CreateToken {
                 token_name,
@@ -206,7 +206,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         user_address: S::Address,
         token_id: TokenId,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> RpcResult<BalanceResponse> {
         Ok(BalanceResponse {
             amount: self.get_balance_of(user_address, token_id, working_set),
@@ -397,7 +397,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 ```
 
 Once set, you can use a value of the type Event inside any call function and emit it as needed.
-`emit_event` has the following signature `fn emit_event(&self, working_set: &mut WorkingSet<Self::Spec>, event_key: &str, event: Self::Event)`
+`emit_event` has the following signature `fn emit_event(&self, working_set: &mut impl TxState<Self::Spec>, event_key: &str, event: Self::Event)`
 
 Some things to note -
 
@@ -419,7 +419,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         to: S::Address,
         coins: Coins,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         // Implementation details elided...
 q

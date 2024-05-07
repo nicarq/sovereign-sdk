@@ -252,7 +252,7 @@ fn get_attester_stake_for_block(
 ) -> u64 {
     let (stf_state, _ledger_state) = storage_manager.create_state_for(block.header()).unwrap();
 
-    let mut working_set = WorkingSet::new(stf_state);
+    let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(stf_state);
     stf.runtime()
         .sequencer_registry
         .get_sender_balance(&(MOCK_SEQUENCER_DA_ADDRESS.into()), &mut working_set)

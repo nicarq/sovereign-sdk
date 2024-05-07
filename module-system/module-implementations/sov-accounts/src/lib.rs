@@ -15,6 +15,7 @@ mod event;
 mod tests;
 pub use call::CallMessage;
 use sov_modules_api::{Context, CryptoSpec, Error, Hash, ModuleId, ModuleInfo, Spec, WorkingSet};
+use sov_state::storage::TxState;
 
 use crate::event::Event;
 
@@ -72,7 +73,7 @@ impl<S: Spec> sov_modules_api::Module for Accounts<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::UpdatePublicKey(new_pub_key_hash) => {

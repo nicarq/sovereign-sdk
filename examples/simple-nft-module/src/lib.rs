@@ -11,7 +11,7 @@ mod rpc;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, WorkingSet,
+    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, TxState, WorkingSet,
 };
 mod event;
 pub use crate::event::Event;
@@ -32,16 +32,6 @@ pub struct NonFungibleToken<S: Spec> {
     #[state]
     /// Mapping of tokens to their owners.
     owners: sov_modules_api::StateMap<u64, S::Address>,
-
-    /// Mapping from owners to their NFT ownership count.
-    ///
-    /// Note, this is an "accessory" state value, meaning it is not part of the
-    /// proven state and should only be used for tooling, RPC, and debugging.
-    /// You should only ever read and write to this value from within the
-    /// `native` feature flag. See [`sov_modules_api::AccessoryStateValue`] for
-    /// more information.
-    #[state]
-    nft_count_by_owner: sov_modules_api::AccessoryStateMap<S::Address, u64>,
 }
 
 impl<S: Spec> Module for NonFungibleToken<S> {
@@ -61,7 +51,7 @@ impl<S: Spec> Module for NonFungibleToken<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, Error> {
         let call_result = match msg {
             CallMessage::Mint { id } => self.mint(id, context, working_set),

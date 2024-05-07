@@ -1,5 +1,5 @@
 use sov_modules_api::{
-    Context, CryptoSpec, Module, ModuleId, ModuleInfo, Spec, StateMap, WorkingSet,
+    Context, CryptoSpec, Module, ModuleId, ModuleInfo, Spec, StateMap, TxState,
 };
 use sov_test_utils::ZkTestSpec;
 
@@ -34,7 +34,7 @@ pub mod first_test_module {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut WorkingSet<Self::Spec>,
+            _working_set: &mut impl TxState<S>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
@@ -70,7 +70,7 @@ mod second_test_module {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut WorkingSet<Self::Spec>,
+            _working_set: &mut impl TxState<S>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }

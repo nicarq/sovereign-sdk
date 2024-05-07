@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use anyhow::Result;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, Context, EventEmitter, WorkingSet};
+use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
 use thiserror::Error;
 
 use super::ValueSetter;
@@ -46,7 +46,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         &self,
         new_value: u32,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         // If admin is not then early return:
         let admin = self.admin.get_or_err(working_set)?;
@@ -68,7 +68,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         &self,
         new_value: Vec<u8>,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let admin = self.admin.get_or_err(working_set)?;
 

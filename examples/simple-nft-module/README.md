@@ -193,7 +193,7 @@ impl<S: sov_modules_api::Spec> Module for NonFungibleToken<S> {
         &self,
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
-        _working_set: &mut WorkingSet<S>,
+        _working_set: &mut impl TxState<S>,
     ) -> anyhow::Result<sov_modules_api::CallResponse, Error> {
         Ok(sov_modules_api::CallResponse::default())
     }
@@ -325,7 +325,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for NonFungibleToken<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         let call_result = match msg {
             CallMessage::Mint { id } => self.mint(id, context, working_set),

@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{
-    AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec, WorkingSet,
-    Zkvm,
+    AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec,
+    StateAccessor, TxState, Zkvm,
 };
 use thiserror::Error;
 
@@ -68,7 +68,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         bond_amount: u64,
         prover: &S::Address,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Transfer the bond amount from the sender to the module's id.
         // On failure, no state is changed
@@ -116,7 +116,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         bond_amount: u64,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         self.bond_prover_helper(bond_amount, context.sender(), working_set)
     }
@@ -125,7 +125,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     pub(crate) fn unbond_prover(
         &self,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
         if let Some(old_balance) = self.bonded_provers.get(context.sender(), working_set) {
@@ -152,7 +152,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     fn check_proof_outputs(
         &self,
         public_outputs: &AggregatedProofPublicData,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> Result<(), SlashingReason> {
         let expected_genesis_hash = self
             .chain_state
@@ -244,7 +244,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         total_reward: u64,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> Result<(), ProverIncentiveError> {
         let coins = Coins {
             token_id: GAS_TOKEN_ID,
@@ -267,7 +267,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         final_slot_num: u64,
         old_balance: u64,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<u64, ProverIncentiveError> {
         // Let's compute the total reward
         let mut total_reward = 0;
@@ -347,7 +347,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         proof: &[u8],
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
         // Revert if they aren't bonded

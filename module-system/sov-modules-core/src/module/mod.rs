@@ -8,7 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::common::{ModuleError, ModulePrefix};
 use crate::storage::WorkingSet;
-use crate::ModuleId;
+use crate::{EventContainer, ModuleId, TxState};
 
 mod dispatch;
 mod event;
@@ -52,7 +52,7 @@ pub trait Module {
         &self,
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
-        _working_set: &mut WorkingSet<Self::Spec>,
+        _working_set: &mut impl TxState<Self::Spec>,
     ) -> Result<CallResponse, ModuleError>;
 
     /// Attempts to charge the provided amount of gas from the working set.
@@ -60,7 +60,7 @@ pub trait Module {
     /// The scalar gas value will be computed from the price defined on the working set.
     fn charge_gas(
         &self,
-        working_set: &mut WorkingSet<Self::Spec>,
+        working_set: &mut impl TxState<Self::Spec>,
         gas: &<Self::Spec as Spec>::Gas,
     ) -> anyhow::Result<()> {
         working_set.charge_gas(gas)
@@ -104,7 +104,7 @@ pub trait EventEmitter {
     /// Emit event
     fn emit_event(
         &self,
-        working_set: &mut WorkingSet<Self::Spec>,
+        working_set: &mut impl EventContainer,
         event_key: &str,
         event: Self::Event,
     );
@@ -118,7 +118,7 @@ where
     type Event = <T as Module>::Event;
     fn emit_event(
         &self,
-        working_set: &mut WorkingSet<Self::Spec>,
+        working_set: &mut impl EventContainer,
         event_key: &str,
         event: Self::Event,
     ) {

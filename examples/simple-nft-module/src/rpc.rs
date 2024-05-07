@@ -31,19 +31,4 @@ impl<S: Spec> NonFungibleToken<S> {
             owner: self.owners.get(&token_id, working_set),
         })
     }
-
-    /// Returns the amount of NFTs owned by a certain address.
-    #[rpc_method(name = "getNftsCount")]
-    pub fn get_nfts_count(
-        &self,
-        owner: S::Address,
-        working_set: &mut WorkingSet<S>,
-    ) -> RpcResult<NftsCountResponse> {
-        Ok(NftsCountResponse {
-            count: self
-                .nft_count_by_owner
-                .get(&owner, &mut working_set.accessory_state())
-                .unwrap_or_default(),
-        })
-    }
 }

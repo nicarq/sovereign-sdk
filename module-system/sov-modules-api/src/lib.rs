@@ -29,12 +29,12 @@ pub use clap;
 pub use schemars;
 pub use sov_modules_core::{
     impl_bech32_conversion, impl_hash32_type, namespaces, runtime, AccessoryStateCheckpoint,
-    AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context, CryptoSpecExt,
-    DispatchCall, EncodeCall, EventEmitter, EventModuleName, Gas, GasArray, GasMeter, GasPrice,
-    GasUnit, Genesis, KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
+    Address, AddressBech32, CallResponse, Context, CryptoSpecExt, DispatchCall, EncodeCall,
+    EventEmitter, EventModuleName, Gas, GasArray, GasMeter, GasPrice, GasUnit, Genesis,
+    KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
     ModuleError as Error, ModuleId, ModuleIdBech32, ModuleInfo, ModulePrefix, PublicKeyExt,
-    RuntimeEventProcessor, RuntimeEventResponse, SignatureExt, Spec, StateCheckpoint,
-    StateReaderAndWriter, TypedEvent, VersionedStateReadWriter, WorkingSet,
+    RuntimeEventProcessor, RuntimeEventResponse, SignatureExt, Spec, StateCheckpoint, StateReader,
+    StateReaderAndWriter, StateWriter, TxState, TypedEvent, VersionedStateReadWriter, WorkingSet,
 };
 #[cfg(feature = "native")]
 pub use sov_modules_core::{LedgerStateProviderExt, ProvenStateAccessor};

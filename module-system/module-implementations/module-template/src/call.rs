@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use anyhow::Result;
-use sov_modules_api::{CallResponse, Context, EventEmitter, WorkingSet};
+use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
 use thiserror::Error;
 
 use crate::event::Event;
@@ -31,7 +31,7 @@ impl<S: sov_modules_api::Spec> ExampleModule<S> {
         &self,
         new_value: u32,
         _context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse> {
         self.value.set(&new_value, working_set);
         self.emit_event(working_set, "set_value", Event::Set { value: new_value });

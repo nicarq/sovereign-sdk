@@ -16,7 +16,7 @@ mod rpc;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateMap, WorkingSet,
+    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateMap, TxState, WorkingSet,
 };
 mod event;
 mod offchain;
@@ -65,7 +65,7 @@ impl<S: Spec> Module for NonFungibleToken<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse, Error> {
         let call_result = match msg {
             CallMessage::CreateCollection {

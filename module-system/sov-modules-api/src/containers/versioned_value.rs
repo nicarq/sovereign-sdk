@@ -5,7 +5,7 @@ use sov_modules_core::kernel_state::VersionReader;
 use sov_modules_core::namespaces::Kernel;
 use sov_modules_core::{
     KernelWorkingSet, Namespace, Prefix, SlotKey, SlotValue, Spec, StateCodec, StateItemCodec,
-    StateReaderAndWriter,
+    StateReader, StateWriter,
 };
 use sov_state::codec::BorshCodec;
 
@@ -85,7 +85,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateReaderAndWriter::<Kernel>::set(
+        StateWriter::<Kernel>::set(
             ws,
             &self.encode_key(&ws.current_version()),
             SlotValue::new(value, self.codec.value_codec()),
@@ -99,7 +99,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateReaderAndWriter::<Kernel>::set(
+        StateWriter::<Kernel>::set(
             ws,
             &self.encode_key(key),
             SlotValue::new(value, self.codec.value_codec()),
@@ -113,7 +113,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateReaderAndWriter::<Kernel>::get_decoded(ws, &self.encode_key(key), &self.codec)
+        StateReader::<Kernel>::get_decoded(ws, &self.encode_key(key), &self.codec)
     }
 }
 

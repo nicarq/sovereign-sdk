@@ -2,7 +2,8 @@ use std::marker::PhantomData;
 
 use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
 use sov_modules_core::{
-    Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReaderAndWriter,
+    Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReader, StateReaderAndWriter,
+    StateWriter,
 };
 use sov_state::codec::BorshCodec;
 use thiserror::Error;
@@ -90,19 +91,19 @@ where
     }
 
     /// Sets the value.
-    pub fn set(&self, value: &V, working_set: &mut impl StateReaderAndWriter<N>) {
+    pub fn set(&self, value: &V, working_set: &mut impl StateWriter<N>) {
         working_set.set(&self.slot_key(), self.slot_value(value));
     }
 
     /// Gets the value from state or returns None if the value is absent.
-    pub fn get(&self, working_set: &mut impl StateReaderAndWriter<N>) -> Option<V> {
+    pub fn get(&self, working_set: &mut impl StateReader<N>) -> Option<V> {
         working_set.get_decoded(&self.slot_key(), self.codec())
     }
 
     /// Gets the value from state or Error if the value is absent.
     pub fn get_or_err(
         &self,
-        working_set: &mut impl StateReaderAndWriter<N>,
+        working_set: &mut impl StateReader<N>,
     ) -> Result<V, StateValueError<N>> {
         self.get(working_set)
             .ok_or_else(|| StateValueError::<N>::MissingValue(self.prefix().clone(), PhantomData))
@@ -123,7 +124,7 @@ where
     }
 
     /// Deletes a value from state.
-    pub fn delete(&self, working_set: &mut impl StateReaderAndWriter<N>) {
+    pub fn delete(&self, working_set: &mut impl StateWriter<N>) {
         working_set.delete(&self.slot_key());
     }
 }

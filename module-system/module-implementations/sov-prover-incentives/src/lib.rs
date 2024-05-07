@@ -17,7 +17,7 @@ pub use genesis::*;
 pub use rpc::*;
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, WorkingSet};
+use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, TxState, WorkingSet};
 
 use crate::event::Event;
 
@@ -77,7 +77,7 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::BondProver(bond_amount) => {

@@ -3,22 +3,22 @@ use std::convert::Infallible;
 use reth_primitives::Bytes;
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Address, Bytecode, B256, U256};
 use revm::Database;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::StateAccessor;
 use sov_state::codec::BcsCodec;
 
 use super::DbAccount;
 
-pub(crate) struct EvmDb<'a, S: sov_modules_api::Spec> {
+pub(crate) struct EvmDb<'a, Ws> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
     pub(crate) code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
-    pub(crate) working_set: &'a mut WorkingSet<S>,
+    pub(crate) working_set: &'a mut Ws,
 }
 
-impl<'a, S: sov_modules_api::Spec> EvmDb<'a, S> {
+impl<'a, Ws> EvmDb<'a, Ws> {
     pub(crate) fn new(
         accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
         code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
-        working_set: &'a mut WorkingSet<S>,
+        working_set: &'a mut Ws,
     ) -> Self {
         Self {
             accounts,
@@ -28,7 +28,7 @@ impl<'a, S: sov_modules_api::Spec> EvmDb<'a, S> {
     }
 }
 
-impl<'a, S: sov_modules_api::Spec> Database for EvmDb<'a, S> {
+impl<'a, Ws: StateAccessor> Database for EvmDb<'a, Ws> {
     type Error = Infallible;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
