@@ -5,7 +5,7 @@ use libfuzzer_sys::{fuzz_target, Corpus};
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
-use sov_accounts::{AccountConfig, Accounts, CallMessage};
+use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
 use sov_modules_api::PublicKey;
 use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -44,7 +44,16 @@ fuzz_target!(
         let working_set = &mut WorkingSet::new(storage);
 
         let sequencer = <S as Spec>::Address::from(sequencer);
-        let config: AccountConfig<S> = keys.iter().map(|k| k.pub_key()).collect();
+        let accounts: Vec<_> = keys
+            .iter()
+            .map(|k| AccountData {
+                pub_key_hash: k.pub_key().secure_hash::<TestHasher>(),
+                address: k.to_address(),
+            })
+            .collect();
+
+        let config = AccountConfig { accounts };
+
         let accounts: Accounts<S> = Accounts::default();
         accounts.genesis(&config, working_set).unwrap();
 

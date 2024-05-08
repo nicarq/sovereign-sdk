@@ -113,7 +113,7 @@ rocksdb = { version = "0.21.0", features = ["lz4"] }
 serde = { version = "1.0.196", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_yaml = { version = "0.9", default-features = false }
-serde_with = "3.7"
+serde_with = { version = "3.7", features = ["schemars_0_8"] }
 sha2 = { version = "0.10.6", default-features = false }
 thiserror = "1.0.50"
 tower = { version = "0.4", default-features = false }

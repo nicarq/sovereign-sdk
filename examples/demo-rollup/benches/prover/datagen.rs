@@ -3,21 +3,16 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-use serde::Serialize;
+use demo_stf::genesis_config::{AccountConfig, AccountData};
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
-use sov_modules_api::{PrivateKey, Spec};
+use sov_modules_api::{PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::services::da::DaService;
 use sov_test_utils::bank_data::BankMessageGenerator;
-use sov_test_utils::{MessageGenerator, TestPrivateKey, TestPublicKey};
+use sov_test_utils::{MessageGenerator, TestHasher, TestPrivateKey, TestSpec};
 
 type S = <MockDemoRollup as sov_modules_rollup_blueprint::RollupBlueprint>::NativeSpec;
-
-#[derive(Serialize)]
-struct AccountsData {
-    pub_keys: Vec<TestPublicKey>,
-}
 
 const DEFAULT_BLOCKS: u64 = 10;
 const DEFAULT_TXNS_PER_BLOCK: u64 = 100;
@@ -32,20 +27,24 @@ pub fn generate_genesis_config(config_dir: &str) -> anyhow::Result<()> {
         }
     };
 
+    let mut accs = vec![];
+
+    let priv_keys = (0..num_pub_keys).map(|_| TestPrivateKey::generate());
+
+    for priv_key in priv_keys {
+        let pub_key_hash = priv_key.pub_key().secure_hash::<TestHasher>();
+        let account = AccountData::<<TestSpec as Spec>::Address> {
+            pub_key_hash,
+            address: priv_key.to_address(),
+        };
+        accs.push(account);
+    }
+
+    let config = AccountConfig::<TestSpec> { accounts: accs };
+
     let file = File::create(Path::join(Path::new(config_dir), "accounts.json")).unwrap();
-    let accounts_pub_keys: Vec<_> = (0..num_pub_keys)
-        .map(|_| {
-            let pkey = TestPrivateKey::generate();
-            pkey.pub_key()
-        })
-        .collect();
-
-    let data = AccountsData {
-        pub_keys: accounts_pub_keys,
-    };
-
     let data_buf = BufWriter::new(file);
-    Ok(serde_json::ser::to_writer(data_buf, &data)?)
+    Ok(serde_json::ser::to_writer(data_buf, &config)?)
 }
 
 const PRIVATE_KEYS_DIR: &str = "../test-data/keys";

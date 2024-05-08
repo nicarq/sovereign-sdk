@@ -1,7 +1,21 @@
 use anyhow::{bail, Result};
-use sov_modules_api::{CryptoSpec, PublicKey, Spec, WorkingSet};
+use serde_with::{serde_as, DisplayFromStr};
+use sov_modules_api::{Hash, Spec, WorkingSet};
 
-use crate::Accounts;
+use crate::{Account, Accounts};
+
+/// Account data for the genesis.
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
+pub struct AccountData<Address> {
+    /// Hash of the public key.
+    #[serde_as(as = "DisplayFromStr")]
+    pub pub_key_hash: Hash,
+    /// Address of the account.
+    pub address: Address,
+}
+
 /// Initial configuration for sov-accounts module.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(
@@ -9,12 +23,9 @@ use crate::Accounts;
     derive(schemars::JsonSchema),
     schemars(bound = "S: ::sov_modules_api::Spec", rename = "AccountConfig")
 )]
-#[serde(
-    bound = "<S::CryptoSpec as CryptoSpec>::PublicKey: serde::Serialize + serde::de::DeserializeOwned"
-)]
 pub struct AccountConfig<S: Spec> {
-    /// Public keys to initialize the rollup.
-    pub pub_keys: Vec<<S::CryptoSpec as CryptoSpec>::PublicKey>,
+    /// Accounts to initialize the rollup.
+    pub accounts: Vec<AccountData<S::Address>>,
 }
 
 impl<S: Spec> Accounts<S> {
@@ -23,14 +34,21 @@ impl<S: Spec> Accounts<S> {
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<S>,
     ) -> Result<()> {
-        for pub_key in config.pub_keys.iter() {
-            let pub_key_hash = pub_key.secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-            if self.accounts.get(&pub_key_hash, working_set).is_some() {
+        for acc in config.accounts.iter() {
+            if self.accounts.get(&acc.pub_key_hash, working_set).is_some() {
                 bail!("Account already exists")
             }
 
-            let default_address = pub_key.into();
-            let _ = self.get_or_create_default(&pub_key_hash, &default_address, working_set);
+            let new_account = Account {
+                addr: acc.address.clone(),
+                nonce: 0,
+            };
+
+            self.accounts
+                .set(&acc.pub_key_hash, &new_account, working_set);
+
+            self.public_keys
+                .set(&acc.address, &acc.pub_key_hash, working_set);
         }
 
         Ok(())
@@ -41,7 +59,8 @@ impl<S: Spec> Accounts<S> {
 mod tests {
     use std::str::FromStr;
 
-    use sov_test_utils::{TestPublicKey, TestSpec};
+    use sov_modules_api::PublicKey;
+    use sov_test_utils::{TestHasher, TestPublicKey, TestSpec};
 
     use super::*;
 
@@ -53,12 +72,15 @@ mod tests {
         .unwrap();
 
         let config = AccountConfig::<TestSpec> {
-            pub_keys: vec![pub_key.clone()],
+            accounts: vec![AccountData {
+                pub_key_hash: pub_key.secure_hash::<TestHasher>(),
+                address: pub_key.into(),
+            }],
         };
 
         let data = r#"
         {
-            "pub_keys":["1cd4e2d9d5943e6f3d12589d31feee6bb6c11e7b8cd996a393623e207da72cbf"]
+            "accounts":[{"pub_key_hash":"0xa7f38e6a301da8763eb3ba323e761c76e5122f443604c40cd0c3b74ce5a8495a","address":"sov15lecu63srk58v04nhgeruasuwmj3yt6yxczvgrxscwm5eedgf9dq5w2een"}]
         }"#;
 
         let parsed_config: AccountConfig<TestSpec> = serde_json::from_str(data).unwrap();

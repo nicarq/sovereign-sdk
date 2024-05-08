@@ -14,20 +14,10 @@ mod event;
 #[cfg(test)]
 mod tests;
 pub use call::CallMessage;
-use sov_modules_api::{Context, CryptoSpec, Error, Hash, ModuleId, ModuleInfo, Spec, WorkingSet};
+use sov_modules_api::{Context, Error, Hash, ModuleId, ModuleInfo, Spec, WorkingSet};
 use sov_state::storage::TxState;
 
 use crate::event::Event;
-
-impl<S: Spec> FromIterator<<S::CryptoSpec as CryptoSpec>::PublicKey> for AccountConfig<S> {
-    fn from_iter<T: IntoIterator<Item = <S::CryptoSpec as CryptoSpec>::PublicKey>>(
-        iter: T,
-    ) -> Self {
-        Self {
-            pub_keys: iter.into_iter().collect(),
-        }
-    }
-}
 
 /// An account on the rollup.
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Copy, Clone)]
