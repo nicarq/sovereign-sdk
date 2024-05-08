@@ -1,3 +1,4 @@
+- #623 updates the AccountConfig structure. This change is breaking for consumers of the SDK, as the format of the accounts.json configuration files has been changed.
 - #617 adds a `gas_estimate` method to the DA layer `Fee` trait
 - #614 Change the final argument of `Module::call` from a concrete `WorkingSet` to an abstract `impl TxState` type. It also removes the `working_set.accessory_state()` method and grants direct access to that state through the `WorkingSet` (read/write) and `impl TxState` (read-only). 
 - #612 refactors the `StfBlueprint` to deserialize, perform signature checks and execute transactions in one pass instead of doing pre-checks for the entire batch followed by the batch execution. Simplifies and fix the sequencer reward workflow. In particular:

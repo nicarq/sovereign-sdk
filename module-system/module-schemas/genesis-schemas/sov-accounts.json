@@ -4,36 +4,44 @@
   "description": "Initial configuration for sov-accounts module.",
   "type": "object",
   "required": [
-    "pub_keys"
+    "accounts"
   ],
   "properties": {
-    "pub_keys": {
-      "description": "Public keys to initialize the rollup.",
+    "accounts": {
+      "description": "Accounts to initialize the rollup.",
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Risc0PublicKey"
+        "$ref": "#/definitions/AccountData_for_Address"
       }
     }
   },
   "definitions": {
-    "Risc0PublicKey": {
-      "description": "The public key of an ed25519 keypair. Wraps the optimized Risc0 fork of the ed25519-dalek crate.",
+    "AccountData_for_Address": {
+      "description": "Account data for the genesis.",
       "type": "object",
       "required": [
-        "pub_key"
+        "address",
+        "pub_key_hash"
       ],
       "properties": {
-        "pub_key": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          },
-          "maxItems": 32,
-          "minItems": 32
+        "address": {
+          "description": "Address of the account.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Address"
+            }
+          ]
+        },
+        "pub_key_hash": {
+          "description": "Hash of the public key.",
+          "type": "string"
         }
       }
+    },
+    "Address": {
+      "description": "Address",
+      "type": "string",
+      "pattern": "^sov1[a-zA-Z0-9]+$"
     }
   }
 }

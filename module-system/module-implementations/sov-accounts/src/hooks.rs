@@ -4,7 +4,7 @@ use sov_modules_api::{Hash, Spec, StateAccessor, StateCheckpoint};
 use crate::{Account, Accounts};
 
 impl<S: Spec> Accounts<S> {
-    pub(crate) fn get_or_create_default(
+    fn get_or_create_default(
         &self,
         pub_key_hash: &Hash,
         default_address: &S::Address,
@@ -35,7 +35,6 @@ impl<S: Spec> Accounts<S> {
     ) -> Result<(), anyhow::Error> {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
         // This will require a change to the account state layout
-
         let sender_nonce = self
             .accounts
             .get(tx.pub_key_hash(), state_checkpoint)

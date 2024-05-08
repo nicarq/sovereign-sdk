@@ -14,11 +14,11 @@ pub use signatures::*;
     serde::Deserialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
 )]
 pub struct Hash(pub [u8; 32]);
 
-#[cfg(feature = "native")]
 impl core::str::FromStr for Hash {
     type Err = anyhow::Error;
 
@@ -29,7 +29,6 @@ impl core::str::FromStr for Hash {
     }
 }
 
-#[cfg(feature = "native")]
 impl core::fmt::Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x{}", hex::encode(self.0))

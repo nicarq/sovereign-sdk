@@ -1,7 +1,7 @@
 use arbitrary::{Arbitrary, Unstructured};
 use sov_modules_api::{CryptoSpec, Hash, Module, Spec, WorkingSet};
 
-use crate::{Account, AccountConfig, Accounts, CallMessage};
+use crate::{Account, AccountConfig, AccountData, Accounts, CallMessage};
 
 impl<'a> Arbitrary<'a> for CallMessage {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
@@ -22,16 +22,24 @@ where
     }
 }
 
+impl<'a, Addr: arbitrary::Arbitrary<'a>> Arbitrary<'a> for AccountData<Addr> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self {
+            pub_key_hash: Hash(u.arbitrary()?),
+            address: u.arbitrary()?,
+        })
+    }
+}
+
 impl<'a, S> Arbitrary<'a> for AccountConfig<S>
 where
     S: Spec,
+    S::Address: Arbitrary<'a>,
     <S::CryptoSpec as CryptoSpec>::PublicKey: Arbitrary<'a>,
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        // TODO we might want a dedicated struct that will generate the private key counterpart so
-        // payloads can be signed and verified
         Ok(Self {
-            pub_keys: u.arbitrary_iter()?.collect::<Result<_, _>>()?,
+            accounts: u.arbitrary_iter()?.collect::<Result<_, _>>()?,
         })
     }
 }

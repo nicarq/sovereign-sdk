@@ -5,7 +5,7 @@
 use std::convert::AsRef;
 use std::path::{Path, PathBuf};
 
-pub use sov_accounts::AccountConfig;
+pub use sov_accounts::{AccountConfig, AccountData};
 pub use sov_bank::{BankConfig, Coins, TokenConfig};
 pub use sov_chain_state::ChainStateConfig;
 pub use sov_evm::EvmConfig;
