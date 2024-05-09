@@ -115,8 +115,10 @@ fn prepare_data(size: usize, db: DB) -> TestData {
 
 fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
     let tempdir = tempfile::tempdir().unwrap();
-    let state_db = StateDb::setup_schema_db(tempdir.path()).unwrap();
-    let TestData { db, random_key, .. } = prepare_data(size, state_db);
+    let state_rocksdb = StateDb::get_rockbound_options()
+        .default_setup_db_in_path(tempdir.path())
+        .unwrap();
+    let TestData { db, random_key, .. } = prepare_data(size, state_rocksdb);
     let version = db.get_next_version() - 1;
     g.bench_with_input(
         BenchmarkId::new("bench_random_read", size),
@@ -137,12 +139,14 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
 
 fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
     let tempdir = tempfile::tempdir().unwrap();
-    let state_db = StateDb::setup_schema_db(tempdir.path()).unwrap();
+    let state_rocksdb = StateDb::get_rockbound_options()
+        .default_setup_db_in_path(tempdir.path())
+        .unwrap();
     let TestData {
         db,
         largest_key: _largest_key,
         ..
-    } = prepare_data(size, state_db);
+    } = prepare_data(size, state_rocksdb);
     let version = db.get_next_version() - 1;
     g.bench_with_input(
         BenchmarkId::new("bench_largest_read", size),
@@ -163,12 +167,14 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
 
 fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
     let tempdir = tempfile::tempdir().unwrap();
-    let state_db = StateDb::setup_schema_db(tempdir.path()).unwrap();
+    let state_rocksdb = StateDb::get_rockbound_options()
+        .default_setup_db_in_path(tempdir.path())
+        .unwrap();
     let TestData {
         db,
         non_existing_key,
         ..
-    } = prepare_data(size, state_db);
+    } = prepare_data(size, state_rocksdb);
     let version = db.get_next_version() - 1;
     g.bench_with_input(
         BenchmarkId::new("bench_not_found_read", size),

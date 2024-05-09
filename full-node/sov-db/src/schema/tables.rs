@@ -28,7 +28,7 @@
 use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::Version;
-use rockbound::schema::{KeyDecoder, KeyEncoder, ValueCodec};
+use rockbound::schema::{ColumnFamilyName, KeyDecoder, KeyEncoder, ValueCodec};
 use rockbound::{CodecError, SeekKeyEncoder};
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
@@ -42,7 +42,7 @@ use super::types::{
 
 /// A list of all tables used by the LedgerDb. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
-pub const LEDGER_TABLES: &[&str] = &[
+pub const LEDGER_TABLES: &[ColumnFamilyName] = &[
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
     BatchByHash::table_name(),
@@ -57,7 +57,7 @@ pub const LEDGER_TABLES: &[&str] = &[
 /// A list of all tables used by the AccessoryDB. These tables store
 /// "accessory" state only accessible from a native execution context, to be
 /// used for JSON-RPC and other tooling.
-pub const ACCESSORY_TABLES: &[&str] = &[ModuleAccessoryState::table_name()];
+pub const ACCESSORY_TABLES: &[ColumnFamilyName] = &[ModuleAccessoryState::table_name()];
 
 /// Macro to define a table that implements [`rockbound::Schema`].
 /// `KeyCodec<Schema>` and `ValueCodec<Schema>` must be implemented separately.

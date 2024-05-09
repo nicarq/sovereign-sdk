@@ -1,13 +1,12 @@
-use std::path::Path;
 use std::sync::Arc;
 
 use rockbound::cache::cache_db::CacheDb;
 use rockbound::cache::change_set::ChangeSet;
 use rockbound::SchemaBatch;
 
-use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{ModuleAccessoryState, ACCESSORY_TABLES};
 use crate::schema::types::AccessoryKey;
+use crate::DbOptions;
 
 /// Specifies a particular version of the Accessory state.
 pub type Version = u64;
@@ -23,15 +22,13 @@ impl AccessoryDb {
     const DB_PATH_SUFFIX: &'static str = "accessory";
     const DB_NAME: &'static str = "accessory-db";
 
-    /// Initialize [`rockbound::DB`] that matches tables and columns for [`AccessoryDb`]
-    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<rockbound::DB> {
-        let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
-        rockbound::DB::open(
-            path,
-            Self::DB_NAME,
-            ACCESSORY_TABLES.iter().copied(),
-            &gen_rocksdb_options(&Default::default(), false),
-        )
+    /// Get [`DbOptions`] for [`AccessoryDb`]
+    pub fn get_rockbound_options() -> DbOptions {
+        DbOptions {
+            name: Self::DB_NAME,
+            path_suffix: Self::DB_PATH_SUFFIX,
+            columns: ACCESSORY_TABLES.to_vec(),
+        }
     }
 
     /// Convert it to [`ChangeSet`] which cannot be edited anymore
@@ -88,6 +85,7 @@ impl AccessoryDb {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::path::Path;
     use std::sync::RwLock;
 
     use rockbound::cache::cache_container::CacheContainer;
@@ -96,7 +94,9 @@ mod tests {
     use super::*;
 
     fn setup_db(path: &Path) -> AccessoryDb {
-        let db = AccessoryDb::setup_schema_db(path).unwrap();
+        let db = AccessoryDb::get_rockbound_options()
+            .default_setup_db_in_path(path)
+            .unwrap();
         let to_parent = Arc::new(RwLock::new(HashMap::new()));
         let cache_container = Arc::new(RwLock::new(CacheContainer::new(
             db,

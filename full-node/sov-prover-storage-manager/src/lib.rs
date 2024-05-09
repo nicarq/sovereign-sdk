@@ -48,20 +48,20 @@ where
     Da::SlotHash: Hash,
 {
     fn with_db_handles(
-        state_db: rockbound::DB,
-        accessory_db: rockbound::DB,
-        ledger_db: rockbound::DB,
+        state_rocksdb: rockbound::DB,
+        accessory_rocksdb: rockbound::DB,
+        ledger_rocksdb: rockbound::DB,
     ) -> Self {
         let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
 
         let read_only_snapshot_id_to_parent = ReadOnlyLock::new(snapshot_id_to_parent.clone());
 
         let state_cache_container =
-            CacheContainer::new(state_db, read_only_snapshot_id_to_parent.clone());
+            CacheContainer::new(state_rocksdb, read_only_snapshot_id_to_parent.clone());
         let accessory_cache_container =
-            CacheContainer::new(accessory_db, read_only_snapshot_id_to_parent.clone());
+            CacheContainer::new(accessory_rocksdb, read_only_snapshot_id_to_parent.clone());
         let ledger_cache_container =
-            CacheContainer::new(ledger_db, read_only_snapshot_id_to_parent.clone());
+            CacheContainer::new(ledger_rocksdb, read_only_snapshot_id_to_parent.clone());
 
         let cache_containers = CacheContainerRwLockGroup::new(
             state_cache_container,
@@ -84,11 +84,17 @@ where
     /// Create new [`ProverStorageManager`] from state config
     pub fn new(config: sov_state::config::Config) -> anyhow::Result<Self> {
         let path = config.path;
-        let state_db = StateDb::setup_schema_db(&path)?;
-        let accessory_db = AccessoryDb::setup_schema_db(&path)?;
-        let ledger_db = LedgerDb::setup_schema_db(&path)?;
 
-        Ok(Self::with_db_handles(state_db, accessory_db, ledger_db))
+        let state_rocksdb = StateDb::get_rockbound_options().default_setup_db_in_path(&path)?;
+        let accessory_rocksdb =
+            AccessoryDb::get_rockbound_options().default_setup_db_in_path(&path)?;
+        let ledger_rocksdb = LedgerDb::get_rockbound_options().default_setup_db_in_path(&path)?;
+
+        Ok(Self::with_db_handles(
+            state_rocksdb,
+            accessory_rocksdb,
+            ledger_rocksdb,
+        ))
     }
 
     #[cfg(test)]
@@ -436,11 +442,12 @@ where
 pub fn new_orphan_storage<S: MerkleProofSpec>(
     path: impl AsRef<std::path::Path>,
 ) -> anyhow::Result<ProverStorage<S>> {
-    let state_db_raw = StateDb::setup_schema_db(path.as_ref())?;
+    let state_db_raw = StateDb::get_rockbound_options().default_setup_db_in_path(path.as_ref())?;
     let state_db_sm = Arc::new(RwLock::new(CacheContainer::orphan(state_db_raw)));
     let state_db_snapshot = CacheDb::new(0, state_db_sm.into());
     let state_db = StateDb::with_cache_db(state_db_snapshot)?;
-    let accessory_db_raw = AccessoryDb::setup_schema_db(path.as_ref())?;
+    let accessory_db_raw =
+        AccessoryDb::get_rockbound_options().default_setup_db_in_path(path.as_ref())?;
     let accessory_db_sm = Arc::new(RwLock::new(CacheContainer::orphan(accessory_db_raw)));
     let accessory_db_snapshot = CacheDb::new(0, accessory_db_sm.into());
     let accessory_db = AccessoryDb::with_cache_db(accessory_db_snapshot)?;
@@ -456,20 +463,26 @@ pub struct SimpleStorageManager<S: MerkleProofSpec> {
 #[cfg(feature = "test-utils")]
 impl<S: MerkleProofSpec> SimpleStorageManager<S> {
     pub fn new(path: impl AsRef<std::path::Path>) -> Self {
-        let state_db = StateDb::setup_schema_db(&path).unwrap();
-        let accessory_db = AccessoryDb::setup_schema_db(&path).unwrap();
-        let ledger_db = LedgerDb::setup_schema_db(&path).unwrap();
+        let state_rocksdb = StateDb::get_rockbound_options()
+            .default_setup_db_in_path(path.as_ref())
+            .unwrap();
+        let accessory_rocksdb = AccessoryDb::get_rockbound_options()
+            .default_setup_db_in_path(path.as_ref())
+            .unwrap();
+        let ledger_rocksdb = LedgerDb::get_rockbound_options()
+            .default_setup_db_in_path(path.as_ref())
+            .unwrap();
 
         let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
 
         let read_only_snapshot_id_to_parent = ReadOnlyLock::new(snapshot_id_to_parent.clone());
 
         let state_cache_container =
-            CacheContainer::new(state_db, read_only_snapshot_id_to_parent.clone());
+            CacheContainer::new(state_rocksdb, read_only_snapshot_id_to_parent.clone());
         let accessory_cache_container =
-            CacheContainer::new(accessory_db, read_only_snapshot_id_to_parent.clone());
+            CacheContainer::new(accessory_rocksdb, read_only_snapshot_id_to_parent.clone());
         let ledger_cache_container =
-            CacheContainer::new(ledger_db, read_only_snapshot_id_to_parent.clone());
+            CacheContainer::new(ledger_rocksdb, read_only_snapshot_id_to_parent.clone());
 
         let cache_containers = CacheContainerRwLockGroup::new(
             state_cache_container,
@@ -577,11 +590,17 @@ mod tests {
     }
 
     fn build_dbs(path: &std::path::Path) -> (rockbound::DB, rockbound::DB, rockbound::DB) {
-        let state_db = StateDb::setup_schema_db(path).unwrap();
-        let accessory_db = AccessoryDb::setup_schema_db(path).unwrap();
-        let ledger_db = LedgerDb::setup_schema_db(path).unwrap();
+        let state_rocksdb = StateDb::get_rockbound_options()
+            .default_setup_db_in_path(path)
+            .unwrap();
+        let accessory_rocksdb = AccessoryDb::get_rockbound_options()
+            .default_setup_db_in_path(path)
+            .unwrap();
+        let ledger_rocksdb = LedgerDb::get_rockbound_options()
+            .default_setup_db_in_path(path)
+            .unwrap();
 
-        (state_db, accessory_db, ledger_db)
+        (state_rocksdb, accessory_rocksdb, ledger_rocksdb)
     }
 
     #[test]
@@ -954,7 +973,7 @@ mod tests {
 
     #[tokio::test]
     async fn try_save_bootstrap_storage() {
-        // This test checks following things:
+        // This test checks the following things:
         //  - bootstrap state only has access to the finalized data.
         //  - bootstrap state can be "saved" back without error and without affecting data
         let tmpdir = tempfile::tempdir().unwrap();

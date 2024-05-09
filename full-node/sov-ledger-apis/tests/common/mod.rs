@@ -33,7 +33,7 @@ impl LedgerTestService {
     /// Instantiates a new [`LedgerDb`] and starts serving data over both JSON-RPC and Axum.
     pub async fn new() -> anyhow::Result<LedgerTestService> {
         let dir = tempdir()?;
-        let schema_db = LedgerDb::setup_schema_db(dir.path())?;
+        let schema_db = LedgerDb::get_rockbound_options().default_setup_db_in_path(dir.path())?;
         let cache_container =
             CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
         let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
