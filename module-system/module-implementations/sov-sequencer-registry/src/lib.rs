@@ -19,6 +19,7 @@ mod tests;
 mod rpc;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
+pub use capabilities::SequencerStakeMeter;
 pub use genesis::*;
 #[cfg(feature = "native")]
 pub use rpc::*;

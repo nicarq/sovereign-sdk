@@ -3,7 +3,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, ModuleInfo, Spec};
-use sov_modules_stf_blueprint::SequencerOutcome;
+use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
@@ -102,7 +102,7 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_
     let batch_receipt = &exec_simulation[0].batch_receipts[0];
     assert_eq!(
         batch_receipt.inner,
-        SequencerOutcome::Rewarded(expected_reward),
+        BatchSequencerOutcome::Rewarded(expected_reward),
         "The sequencer should get rewarded"
     );
 

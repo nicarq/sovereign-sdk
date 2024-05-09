@@ -1,6 +1,8 @@
 use sov_bank::{Bank, IntoPayable, ReserveGasError, GAS_TOKEN_ID};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-use sov_modules_api::{Address, Gas, GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint};
+use sov_modules_api::{
+    Address, Gas, GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint, TxGasMeter,
+};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::{generate_empty_tx, simple_bank_setup};
 mod helpers;
@@ -13,7 +15,7 @@ pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>
 struct CapabilityTestParams {
     pub bank: Bank<S>,
     pub transaction: Transaction<S>,
-    pub gas_meter: GasMeter<<S as Spec>::Gas>,
+    pub gas_meter: TxGasMeter<<S as Spec>::Gas>,
     pub sender_address: <S as Spec>::Address,
     pub state_checkpoint: StateCheckpoint<S>,
 }
@@ -48,7 +50,7 @@ fn reserve_gas_helper(
 
     assert_eq!(
         gas_meter,
-        GasMeter::new(expected_balance_reserved, gas_price.clone())
+        TxGasMeter::new(expected_balance_reserved, gas_price.clone())
     );
 
     CapabilityTestParams {

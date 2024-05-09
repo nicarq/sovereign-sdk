@@ -3,7 +3,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS}
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::{PrivateKey, PublicKey, Spec, WorkingSet};
-use sov_modules_stf_blueprint::{SequencerOutcome, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{BatchSequencerOutcome, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
@@ -81,7 +81,7 @@ fn test_tx_revert() {
         let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
         assert_eq!(
-            SequencerOutcome::Rewarded(0),
+            BatchSequencerOutcome::Rewarded(0),
             apply_blob_outcome.inner,
             "Unexpected outcome: Batch execution should have succeeded",
         );
@@ -203,7 +203,7 @@ fn test_tx_bad_signature() {
         let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
         assert_eq!(
-            SequencerOutcome::Slashed(
+            BatchSequencerOutcome::Slashed(
                 FatalError::SigVerificationFailed(
                     "Bad signature signature error: Verification equation was not satisfied".to_string()
                 ),
@@ -321,7 +321,7 @@ fn test_tx_bad_nonce() {
         // Since the sequencer is penalized, he is rewarded with 0 tokens.
         let sequencer_outcome = apply_block_result.batch_receipts[0].inner.clone();
         match sequencer_outcome {
-            SequencerOutcome::Rewarded(amount) => assert!(amount == 0),
+            BatchSequencerOutcome::Rewarded(amount) => assert!(amount == 0),
             _ => panic!("Sequencer should have been penalized"),
         }
 
@@ -417,7 +417,7 @@ fn test_tx_bad_serialization() {
         let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
         assert_eq!(
-            SequencerOutcome::Slashed (
+            BatchSequencerOutcome::Slashed (
                 FatalError::MessageDecodingFailed("Unexpected variant index: 110".to_string(), [210, 84, 119, 49, 64, 12, 6, 68, 188, 255, 107, 181, 229, 18, 190, 134, 64, 112, 190, 131, 236, 116, 93, 23, 248, 247, 172, 189, 121, 235, 55, 106]),
             ),
             apply_blob_outcome.inner,

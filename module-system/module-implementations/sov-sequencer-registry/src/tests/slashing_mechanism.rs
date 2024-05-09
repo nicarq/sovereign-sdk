@@ -2,7 +2,7 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
-use sov_modules_api::{Context, GasMeter, Module};
+use sov_modules_api::{Context, Module, TxGasMeter};
 
 use crate::tests::helpers::{
     generate_address, Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY,
@@ -88,7 +88,7 @@ fn end_batch_hook_slash_preferred_sequencer() {
         &mut state_checkpoint,
     );
 
-    let working_set = &mut state_checkpoint.to_revertable(GasMeter::unmetered());
+    let working_set = &mut state_checkpoint.to_revertable(TxGasMeter::unmetered());
     let resp = test_sequencer.query_sequencer_balance(working_set).unwrap();
     assert_eq!(balance_after_genesis, resp);
     let resp = test_sequencer
@@ -122,7 +122,7 @@ fn end_batch_hook_slash_unknown_sequencer() {
         )
         .unwrap();
 
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
 
     let resp = test_sequencer
         .registry
@@ -138,7 +138,7 @@ fn end_batch_hook_slash_unknown_sequencer() {
         &mut state_checkpoint,
     );
 
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
     let resp = test_sequencer
         .registry
         .sequencer_address(sequencer_address, &mut working_set)
@@ -279,7 +279,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
         &genesis_sequencer_da_address,
         &mut state_checkpoint,
     );
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
 
     assert!(
         !test_sequencer

@@ -1,7 +1,7 @@
 use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, WorkingSet};
-use sov_modules_core::GasMeter;
+use sov_modules_core::TxGasMeter;
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::call::AttesterIncentiveErrors;
@@ -52,7 +52,7 @@ fn test_two_phase_unbonding() {
         state_checkpoint,
     );
 
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
     // Start unbonding and then try to prove a transition. User slashed
     module
         .begin_unbond_attester(&context, &mut working_set)

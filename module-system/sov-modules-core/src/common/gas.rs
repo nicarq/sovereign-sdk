@@ -1,7 +1,7 @@
 //! Gas unit definitions and implementations.
 
 use alloc::vec::Vec;
-use core::fmt;
+use core::fmt::{self, Debug, Display};
 
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -11,6 +11,7 @@ use serde::Serialize;
 /// A multi-dimensional gas unit represented as an array of `u64`.`
 pub trait GasArray:
     fmt::Debug
+    + Display
     + Clone
     + Send
     + Sync
@@ -203,6 +204,34 @@ macro_rules! impl_gas_unit {
 
         impl_gas_dimensions!(GasUnit<$n>, $n);
         impl_gas_dimensions!(GasPrice<$n>, $n);
+
+        impl fmt::Display for GasUnit<$n> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(
+                    f,
+                    "GasUnit[{}]",
+                    self.0
+                        .iter()
+                        .map(|g| g.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+        }
+
+        impl fmt::Display for GasPrice<$n> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(
+                    f,
+                    "GasPrice[{}]",
+                    self.as_slice()
+                        .iter()
+                        .map(|g| g.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+        }
     };
 }
 
@@ -275,9 +304,33 @@ impl From<u64> for GasUnit<1> {
     }
 }
 
-/// A gas meter.
+/// A type-safe trait that should track the gas consumed by a finite ressource over time.
+pub trait GasMeter<GU: Gas> {
+    /// Charges some gas in the gas meter.
+    ///
+    /// # Error
+    /// May raises an error if the gas to charge is greater than the funds available
+    fn charge_gas(&mut self, amount: &GU) -> Result<(), anyhow::Error>;
+
+    /// Returns the current gas used accumulated by the stake meter.
+    fn gas_used(&self) -> &GU;
+
+    /// Returns the current gas price.
+    fn gas_price(&self) -> &GU::Price;
+
+    /// Returns the gas used as a token amount.
+    fn gas_used_value(&self) -> u64 {
+        self.gas_used().value(self.gas_price())
+    }
+}
+
+/// A gas meter for transaction execution.
+/// TODO(@theochap) after `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/501>` is solved:
+/// this struct should be moved with the `Transaction` struct to the `transaction.rs` file.
+/// so that we can constraint this struct to be used only for transaction execution. We need to merge `sov-modules-core` and
+/// `sov-modules-api` crates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GasMeter<GU>
+pub struct TxGasMeter<GU>
 where
     GU: Gas,
 {
@@ -286,7 +339,7 @@ where
     gas_used: GU,
 }
 
-impl<GU> Default for GasMeter<GU>
+impl<GU> Default for TxGasMeter<GU>
 where
     GU: Gas,
 {
@@ -299,7 +352,46 @@ where
     }
 }
 
-impl<GU> GasMeter<GU>
+impl<GU> GasMeter<GU> for TxGasMeter<GU>
+where
+    GU: Gas,
+{
+    /// Returns the total gas incurred.
+    fn gas_used(&self) -> &GU {
+        &self.gas_used
+    }
+
+    /// Deducts the provided gas unit from the remaining funds, computing the scalar value of the
+    /// funds from the price of the instance.
+    fn charge_gas(&mut self, gas: &GU) -> Result<(), anyhow::Error> {
+        // Check that there's enough gas to cover the cost before mutating the gas_used counter.
+        // This ensures that in the corner case where...
+        //  - User wants to do expensive operation
+        //  - User does not have enough gas left
+        // ... the check fails and the user does not lose any gas - which is what we want
+        // since the operation won't be performed.
+        //
+        // This also ensures that the `gas_used` stays in sync with the `remaining_funds` counter.
+        let funds_to_charge = gas.value(&self.gas_price);
+        let remaining_funds = self.remaining_funds;
+        self.remaining_funds = remaining_funds
+            .checked_sub(funds_to_charge)
+            .ok_or_else(|| anyhow::anyhow!(
+                "Insufficient funds to charge gas. Required {funds_to_charge}, remaining {remaining_funds}"
+            ))?;
+
+        self.gas_used.combine(gas);
+
+        Ok(())
+    }
+
+    /// Returns the gas price.
+    fn gas_price(&self) -> &GU::Price {
+        &self.gas_price
+    }
+}
+
+impl<GU> TxGasMeter<GU>
 where
     GU: Gas,
 {
@@ -317,61 +409,110 @@ where
         self.remaining_funds
     }
 
-    /// Returns the total gas incurred.
-    pub const fn gas_used(&self) -> &GU {
-        &self.gas_used
-    }
-
-    /// Returns the gas price.
-    pub const fn gas_price(&self) -> &GU::Price {
-        &self.gas_price
-    }
-
     /// Overrides the current gas funds available for transaction execution.
+    /// TODO(@theochap) after `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/501>` is solved:
+    /// this method should be removed or made only available for testing
     pub fn set_gas_funds(&mut self, funds: u64) {
         self.remaining_funds = funds;
         self.gas_used = GU::ZEROED;
     }
 
     /// Overrides the current gas price for transaction execution.
+    /// TODO(@theochap) after `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/501>` is solved:
+    /// this method should be removed or made only available for testing
     pub fn set_gas_price(&mut self, gas_price: GU::Price) {
         self.gas_price = gas_price;
     }
 
-    /// Deducts the provided gas unit from the remaining funds, computing the scalar value of the
-    /// funds from the price of the instance.
-    pub fn charge_gas(&mut self, gas: &GU) -> Result<()> {
-        // Check that there's enough gas to cover the cost before mutating the gas_used counter.
-        // This ensures that in the corner case where...
-        //  - User wants to do expensive operation
-        //  - User does not have enough gas left
-        // ... the check fails and the user does not lose any gas - which is what we want
-        // since the operation won't be performed.
-        //
-        // This also ensures that the `gas_used` stays in sync with the `remaining_funds` counter.
-        let funds_to_charge = gas.value(&self.gas_price);
-        let remaining_funds = self.remaining_funds;
-        self.remaining_funds = remaining_funds
-            .checked_sub(funds_to_charge)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Not enough funds to charge gas, required: {} remaining: {}",
-                    funds_to_charge,
-                    remaining_funds
-                )
-            })?;
-
-        self.gas_used.combine(gas);
-
-        Ok(())
-    }
-
     /// Returns a gas meter which does not charge for gas.
+    /// TODO(@theochap) after `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/501>` is solved:
+    /// this method should be removed and replaced by the [`UnlimitedGasMeter`] for typesafety reasons.
     pub fn unmetered() -> Self {
         Self {
             remaining_funds: u64::MAX,
             gas_price: GU::Price::ZEROED,
             gas_used: GU::ZEROED,
         }
+    }
+}
+
+/// An unlimited gas meter. Only tracks the amount of gas consumed.
+/// The [`UnlimitedGasMeter::charge_gas`] method will always succeed.
+/// Only use this if you are certain that the gas meter will never run out of funds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnlimitedGasMeter<GU: Gas> {
+    gas_used: GU,
+    gas_price: GU::Price,
+}
+
+impl<GU: Gas> UnlimitedGasMeter<GU> {
+    /// Creates a new unlimited gas meter with the provided gas price.
+    pub const fn new_with_price(gas_price: GU::Price) -> Self {
+        Self {
+            gas_used: GU::ZEROED,
+            gas_price,
+        }
+    }
+    /// Creates a new unlimited gas meter with the provided gas price.
+    pub const fn new() -> Self {
+        Self {
+            gas_used: GU::ZEROED,
+            gas_price: GU::Price::ZEROED,
+        }
+    }
+}
+
+impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
+    fn charge_gas(&mut self, gas: &GU) -> std::result::Result<(), anyhow::Error> {
+        self.gas_used.combine(gas);
+        std::result::Result::Ok(())
+    }
+
+    fn gas_used(&self) -> &GU {
+        &self.gas_used
+    }
+
+    /// Returns the gas price.
+    fn gas_price(&self) -> &GU::Price {
+        &self.gas_price
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{GasArray, GasPrice, GasUnit};
+
+    #[test]
+    fn test_gas_display_unidimensional() {
+        let gas_unit = GasUnit::<1>::from(100);
+        assert_eq!(
+            "GasUnit[100]",
+            gas_unit.to_string(),
+            "The gas unit should be displayed correctly"
+        );
+
+        let gas_price = GasPrice::<1>::from(100);
+        assert_eq!(
+            "GasPrice[100]",
+            gas_price.to_string(),
+            "The gas unit should be displayed correctly"
+        );
+    }
+
+    #[test]
+    fn test_gas_display_multidimensional() {
+        let gas_unit = GasUnit::<2>::from_slice(&[100, 50]);
+        assert_eq!(
+            "GasUnit[100, 50]",
+            gas_unit.to_string(),
+            "The gas unit should be displayed correctly"
+        );
+
+        let gas_price = GasPrice::<2>::from_slice(&[100, 50]);
+        assert_eq!(
+            "GasPrice[100, 50]",
+            gas_price.to_string(),
+            "The gas unit should be displayed correctly"
+        );
     }
 }

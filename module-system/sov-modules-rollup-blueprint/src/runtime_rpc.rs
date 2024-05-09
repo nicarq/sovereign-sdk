@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::jsonapi::LedgerRoutes;
 use sov_modules_api::{Authenticator, RuntimeEventProcessor, RuntimeEventResponse, Spec};
-use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
+use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime as RuntimeTrait, TxEffect};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
@@ -33,14 +33,14 @@ where
     {
         rpc_methods.merge(sov_ledger_apis::rpc::server::rpc_module::<
             LedgerDb,
-            SequencerOutcome,
+            BatchSequencerOutcome,
             TxEffect,
             RuntimeEventResponse<<B::NativeRuntime as RuntimeEventProcessor>::RuntimeEvent>,
         >(ledger_db.clone())?)?;
 
         let ledger_axum_router = LedgerRoutes::<
             LedgerDb,
-            SequencerOutcome,
+            BatchSequencerOutcome,
             TxEffect,
             <B::NativeRuntime as RuntimeEventProcessor>::RuntimeEvent,
         >::axum_router(ledger_db.clone(), "/ledger");

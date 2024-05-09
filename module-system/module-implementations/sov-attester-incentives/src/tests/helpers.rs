@@ -6,11 +6,11 @@ use sov_modules_api::namespaces::User;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    CryptoSpec, Gas, GasArray, Genesis, KernelModule, KernelWorkingSet, ModuleInfo, PrivateKey,
-    Spec, WorkingSet,
+    CryptoSpec, Gas, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
+    PrivateKey, Spec, WorkingSet,
 };
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
-use sov_modules_core::{GasMeter, StateCheckpoint};
+use sov_modules_core::{StateCheckpoint, TxGasMeter};
 use sov_rollup_interface::da::Time;
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
 use sov_state::{DefaultStorageSpec, ProverStorage, SparseMerkleProof, StorageRoot};
@@ -120,7 +120,7 @@ pub(crate) fn setup(
         )
         .expect("Chain state genesis must succeed");
 
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
     // initialize prover incentives
     let module = AttesterIncentives::<S, MockDaSpec>::default();
     let config = crate::AttesterIncentivesConfig {

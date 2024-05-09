@@ -1,7 +1,7 @@
 use std::cmp::min;
 
 use sov_modules_api::transaction::AuthenticatedTransactionData;
-use sov_modules_api::{Gas, GasMeter, Spec, StateCheckpoint};
+use sov_modules_api::{Gas, GasMeter, Spec, StateCheckpoint, TxGasMeter};
 use thiserror::Error;
 
 use crate::utils::IntoPayable;
@@ -31,7 +31,7 @@ impl<S: Spec> Bank<S> {
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Result<GasMeter<S::Gas>, ReserveGasError> {
+    ) -> Result<TxGasMeter<S::Gas>, ReserveGasError> {
         let balance = self
             .get_balance_of(&payer.clone(), GAS_TOKEN_ID, state_checkpoint)
             .ok_or(ReserveGasError::AccountDoesNotExist)?;
@@ -77,7 +77,7 @@ impl<S: Spec> Bank<S> {
             None => tx.max_fee(),
         };
 
-        let gas_meter = GasMeter::new(amount_to_consume, gas_price.clone());
+        let gas_meter = TxGasMeter::new(amount_to_consume, gas_price.clone());
 
         Ok(gas_meter)
     }
@@ -86,7 +86,7 @@ impl<S: Spec> Bank<S> {
     pub fn refund_remaining_gas(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        gas_meter: &sov_modules_api::GasMeter<S::Gas>,
+        gas_meter: &sov_modules_api::TxGasMeter<S::Gas>,
         payer: &S::Address,
         // The address that receives the base fee. Typically, this is the module id of either the `ProverIncentives` or the `AttesterIncentives` module.
         base_fee_recipient: &impl Payable<S>,

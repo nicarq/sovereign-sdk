@@ -6,8 +6,8 @@ use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Address, CryptoSpec, Gas, KernelModule, KernelWorkingSet, Module, ModuleInfo, PrivateKey, Spec,
-    StateCheckpoint, WorkingSet,
+    Address, CryptoSpec, Gas, GasMeter, KernelModule, KernelWorkingSet, Module, ModuleInfo,
+    PrivateKey, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;

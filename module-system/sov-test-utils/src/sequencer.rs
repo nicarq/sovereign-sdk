@@ -5,7 +5,9 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec, MockValidityCondChecker};
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
-use sov_modules_api::{Address, Authenticator, CryptoSpec, DaSpec, DispatchCall, PrivateKey, Spec};
+use sov_modules_api::{
+    Address, Authenticator, CryptoSpec, DaSpec, DispatchCall, GasMeter, PrivateKey, Spec,
+};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -31,6 +33,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for TestAuth<S, Da> {
 
     fn authenticate(
         tx: &[u8],
+        stake_meter: &mut impl GasMeter<S::Gas>,
     ) -> Result<
         (
             AuthenticatedTransactionAndRawHash<Self::Spec>,
@@ -38,7 +41,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for TestAuth<S, Da> {
         ),
         sov_modules_api::runtime::capabilities::AuthenticationError,
     > {
-        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx)
+        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx, stake_meter)
     }
 
     fn encode(tx: Vec<u8>) -> Result<sov_modules_api::runtime::capabilities::RawTx, anyhow::Error> {

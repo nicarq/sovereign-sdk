@@ -6,8 +6,12 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::runtime::capabilities::{AuthenticationError, Kernel};
-use sov_modules_api::{Authenticator, CryptoSpec, Gas, GasArray, Spec, StateCheckpoint};
-use sov_modules_stf_blueprint::{apply_tx, ApplyTxResult, ExecutionMode, Runtime, TxEffect};
+use sov_modules_api::{
+    Authenticator, CryptoSpec, Gas, GasArray, GasMeter, Spec, StateCheckpoint, UnlimitedGasMeter,
+};
+use sov_modules_stf_blueprint::{
+    apply_tx, ApplyTxResult, ExecutionMode, Runtime, TxEffect, TxSequencerOutcome,
+};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
 use sov_rollup_interface::stf::TransactionReceipt;
@@ -86,19 +90,26 @@ where
             return Ok(None);
         }
 
-        let (tx_and_raw_hash, msg) = match Auth::authenticate(&mempool_tx.tx_bytes) {
+        // TODO(`<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/625>`). Hack: we need to temporarily take ownership of the `StateCheckpoint` to be able to call [`sov_modules_api::runtime::capabilities::SequencerAuthorization::authorize_sequencer`].
+        let mut state_checkpoint = ctx.state_checkpoint.take().unwrap();
+        let mut sequencer_stake_meter = self.runtime.authorize_sequencer(&self.sequencer, &ctx.gas_price, &mut state_checkpoint).map_err(|e| {
+            anyhow::anyhow!("An error occurred while trying to reserve gas for the pre-execution checks: {e}")
+        })?;
+        ctx.state_checkpoint = Some(state_checkpoint);
+
+        let (tx_and_raw_hash, msg) = match Auth::authenticate(
+            &mempool_tx.tx_bytes,
+            &mut sequencer_stake_meter,
+        ) {
             // The [`AutenticationResult::FatalError`] variant should return an error - adding it to the batch would get
             // the sequencer slashed. We may want to discard the transaction in that case,
             // because it may not be properly signed or formatted.
             Err(AuthenticationError::FatalError(err)) => return Err(err.into()),
             // The [`AuthenticationResult::Invalid`] variant should simply return [`Option::None`]. Adding it to the batch would get
             // the sequencer penalized.
-            Err(AuthenticationError::Invalid {
-                reason,
-                penalization_amount,
-            }) => {
+            Err(AuthenticationError::Invalid(reason)) => {
                 tracing::warn!(
-                penalization_amount = %penalization_amount,
+                penalization_amount = %sequencer_stake_meter.gas_used_value(),
                 reason = ?reason,
                 "This transaction is invalid and couldn't be authorized against the current rollup state. Accepting the 
                 transaction would cause the sequencer to be penalized. Skipping transaction");
@@ -110,7 +121,7 @@ where
         let ApplyTxResult {
             new_checkpoint,
             receipt: tx_receipt,
-            sequencer_reward,
+            tx_sequencer_outcome: sequencer_reward,
         } = apply_tx::<S, _, _>(
             &self.runtime,
             &tx_and_raw_hash,
@@ -118,13 +129,17 @@ where
             // Temporarily take ownership of the `StateCheckpoint`...
             ctx.state_checkpoint.take().unwrap(),
             &self.sequencer,
+            sequencer_stake_meter,
             ExecutionMode::Speculative,
             &ctx.gas_price,
             ctx.visible_height,
         );
         // ...and immediately store the new `StateCheckpoint`.
         ctx.state_checkpoint = Some(new_checkpoint);
-        ctx.reward += sequencer_reward;
+
+        if let TxSequencerOutcome::Rewarded(reward) = sequencer_reward {
+            ctx.reward += reward;
+        }
 
         Ok(Some(tx_receipt))
     }
@@ -163,9 +178,12 @@ where
             )
         }
 
+        // TODO(@theochap): Maybe we should give access to the gas price in the `accept_tx` method. So that we can use it to compute the penalization amount.
+        let mut unlimited_gas_meter = UnlimitedGasMeter::<S::Gas>::new();
+
         // Note: We cannot use context here because we test the content of the inner message.
         // Instead of returning [`anyhow::Result`], we should maybe return a custom error type.
-        Auth::authenticate(&raw).map_err(|e| {
+        Auth::authenticate(&raw, &mut unlimited_gas_meter).map_err(|e| {
             anyhow::anyhow!(
                 "Authentication error while building a batch: {}",
                 e.to_string()
@@ -610,7 +628,6 @@ mod tests {
         }
 
         #[tokio::test]
-        #[should_panic = "Sequencer is no longer registered by the time of context resolution. This is a bug"]
         async fn build_batch_invalidates_everything_on_missed_genesis() {
             let value_setter_admin = TestPrivateKey::generate();
             let txs = [
@@ -631,7 +648,20 @@ mod tests {
 
             assert_eq!(txs.len(), batch_builder.mempool.len());
 
-            batch_builder.get_next_blob(1).await.ok();
+            let batch_builder_result = batch_builder.get_next_blob(1).await;
+            assert!(
+                batch_builder_result.is_err(),
+                "The batch builder should fail and not accept any txs"
+            );
+            assert!(
+                batch_builder_result
+                    .unwrap_err()
+                    .to_string()
+                    .to_lowercase()
+                    .contains("the sequencer is not registered"),
+                "The batch builder should have failed because the sequencer is not registered. 
+            This is because genesis has been skipped"
+            );
         }
 
         #[tokio::test]

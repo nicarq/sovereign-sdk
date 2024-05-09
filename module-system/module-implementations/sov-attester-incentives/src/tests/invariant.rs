@@ -1,6 +1,6 @@
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, WorkingSet};
-use sov_modules_core::GasMeter;
+use sov_modules_core::TxGasMeter;
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::call::AttesterIncentiveErrors;
@@ -40,7 +40,7 @@ fn test_transition_invariant() {
         &attester_address,
         state_checkpoint,
     );
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
 
     let context = Context::<S>::new(attester_address, sequencer, INIT_HEIGHT + 2);
 

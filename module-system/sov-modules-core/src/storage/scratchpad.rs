@@ -8,7 +8,7 @@ use core::fmt;
 pub use kernel_state::{KernelWorkingSet, VersionedStateReadWriter};
 use sov_rollup_interface::maybestd::collections::HashMap;
 
-use crate::common::GasMeter;
+use crate::common::{GasMeter, TxGasMeter};
 use crate::module::{Context, Spec};
 use crate::namespaces::{self, Accessory, CompileTimeNamespace, User};
 #[cfg(feature = "native")]
@@ -206,7 +206,7 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 
     /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
-    pub fn to_revertable(self, gas_meter: GasMeter<S::Gas>) -> WorkingSet<S> {
+    pub fn to_revertable(self, gas_meter: TxGasMeter<S::Gas>) -> WorkingSet<S> {
         WorkingSet {
             delta: RevertableWriter::new(self.delta),
             events: Default::default(),
@@ -306,7 +306,7 @@ impl TypedEvent {
 pub struct WorkingSet<S: Spec> {
     delta: RevertableWriter<Delta<S::Storage>>,
     events: Vec<TypedEvent>,
-    gas_meter: GasMeter<S::Gas>,
+    gas_meter: TxGasMeter<S::Gas>,
 }
 
 impl<S: Spec> WorkingSet<S> {
@@ -360,7 +360,7 @@ impl<S: Spec> WorkingSet<S> {
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
     /// committing the changes to the underlying [`Storage`] via
     /// [`StateCheckpoint::freeze`].
-    pub fn checkpoint(self) -> (StateCheckpoint<S>, GasMeter<S::Gas>, Vec<TypedEvent>) {
+    pub fn checkpoint(self) -> (StateCheckpoint<S>, TxGasMeter<S::Gas>, Vec<TypedEvent>) {
         (
             StateCheckpoint {
                 delta: self.delta.commit(),
@@ -372,7 +372,7 @@ impl<S: Spec> WorkingSet<S> {
 
     /// Reverts the most recent changes to this [`WorkingSet`], returning a pristine
     /// [`StateCheckpoint`] instance.
-    pub fn revert(self) -> (StateCheckpoint<S>, GasMeter<S::Gas>) {
+    pub fn revert(self) -> (StateCheckpoint<S>, TxGasMeter<S::Gas>) {
         (
             StateCheckpoint {
                 delta: self.delta.revert(),
@@ -416,13 +416,19 @@ impl<S: Spec> WorkingSet<S> {
         self.gas_meter.set_gas_price(gas_price);
     }
 
+    /// Attempts to charge the provided gas unit from the gas meter, using the internal price to
+    /// compute the scalar value.
+    pub fn charge_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+        self.gas_meter.charge_gas(gas)
+    }
+
     /// Returns the gas price.
-    pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
+    pub fn gas_price(&self) -> &<S::Gas as Gas>::Price {
         self.gas_meter.gas_price()
     }
 
     /// Returns the total gas incurred.
-    pub const fn gas_used(&self) -> &S::Gas {
+    pub fn gas_used(&self) -> &S::Gas {
         self.gas_meter.gas_used()
     }
 }
