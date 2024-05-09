@@ -2,6 +2,18 @@
 
 We welcome contributions from the entire community to enhance the Sovereign SDK. Feel free to submit suggestions, report bugs, propose pull requests, or provide valuable feedback following the guidelines outlined in this document.
 
+## Setting up your editor
+
+Most contributors use VS Code with the [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) extension. If you do as well, we suggest copying the contents of `.vscode/settings.default.json` to `.vscode/settings.json` to enable our recommended settings.
+
+## Setting up your machine
+
+Run this:
+
+```sh
+make install-dev-tools
+```
+
 ## Submitting bug reports and feature requests
 
 When submitting a bug report or requesting assistance, please provide sufficient information for us to reproduce the observed behavior. For guidance on supplying such details, refer to the instructions on creating a [Minimal, Comprehensive, and Verifiable Example].
