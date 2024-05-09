@@ -6,6 +6,7 @@ use sov_state::{ArrayWitness, DefaultStorageSpec, Prefix, Storage, ZkStorage};
 
 type S = sov_test_utils::TestSpec;
 type Zk = sov_test_utils::ZkTestSpec;
+type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
 enum Operation {
     Merge,
@@ -168,8 +169,8 @@ fn test_witness_round_trip() {
 
     // Native execution
     let witness: ArrayWitness = {
-        let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
-        // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+        let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
+        // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
         let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
@@ -183,7 +184,7 @@ fn test_witness_round_trip() {
     };
 
     {
-        let storage = ZkStorage::<DefaultStorageSpec>::new();
+        let storage = ZkStorage::<StorageSpec>::new();
         let mut working_set: WorkingSet<Zk> = WorkingSet::with_witness(storage.clone(), witness);
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
@@ -410,8 +411,8 @@ fn test_state_value_user_namespace() {
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
-    // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+    let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
+    // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
 
     let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
     state_value.set(&11, &mut working_set);
@@ -450,8 +451,8 @@ fn test_state_value_kernel_namespace() {
     let state_value = KernelStateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
-    // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+    let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
+    // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
 
     let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
 
@@ -494,8 +495,8 @@ fn test_state_map_user_namespace() {
     let state_value = StateMap::new(Prefix::new(vec![0]));
 
     // Native execution
-    let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
-    // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+    let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
+    // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
 
     let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
     state_value.set(&11, &0, &mut working_set);
@@ -534,8 +535,8 @@ fn test_versioned_state_value_kernel_namespace() {
     let state_value = VersionedStateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
-    // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+    let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
+    // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
 
     let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
 

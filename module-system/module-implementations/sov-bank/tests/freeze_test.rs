@@ -9,7 +9,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage};
 
 mod helpers;
 type S = sov_test_utils::TestSpec;
-pub type Storage = ProverStorage<DefaultStorageSpec>;
+pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
 
 #[test]
 fn freeze_token() {

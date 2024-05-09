@@ -14,7 +14,7 @@ use sov_state::{
     ProverStorage, Storage,
 };
 
-pub type S = DefaultStorageSpec;
+pub type S = DefaultStorageSpec<sha2::Sha256>;
 
 #[derive(Default, Clone)]
 pub struct HashStf<Cond> {

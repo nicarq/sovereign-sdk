@@ -538,12 +538,12 @@ mod tests {
     };
     use sov_state::storage::namespaces::User;
     use sov_state::storage::{StateAccesses, StateUpdate};
-    use sov_state::{ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Storage};
+    use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 
     use super::*;
 
     type Da = sov_mock_da::MockDaSpec;
-    type S = sov_state::DefaultStorageSpec;
+    type S = sov_state::DefaultStorageSpec<sha2::Sha256>;
 
     fn validate_internal_consistency(storage_manager: &ProverStorageManager<Da, S>) {
         let snapshot_id_to_parent = storage_manager.snapshot_id_to_parent.read().unwrap();
@@ -1128,7 +1128,7 @@ mod tests {
     }
 
     fn do_writes(
-        storage: &ProverStorage<DefaultStorageSpec>,
+        storage: &ProverStorage<S>,
         witness: &ArrayWitness,
         state_writes: &[(u64, Option<u64>)],
         accessory_writes: &[(u64, Option<u64>)],

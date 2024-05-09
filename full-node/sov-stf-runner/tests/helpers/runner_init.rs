@@ -25,7 +25,7 @@ use crate::helpers::hash_stf::HashStf;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockZkVerifier, MockDaService>;
-type S = DefaultStorageSpec;
+type S = DefaultStorageSpec<sha2::Sha256>;
 type StorageManager = ProverStorageManager<MockDaSpec, S>;
 
 pub type MockProverService = ParallelProverService<

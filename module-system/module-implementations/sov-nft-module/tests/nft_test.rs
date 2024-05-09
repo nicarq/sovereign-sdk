@@ -3,7 +3,7 @@ use sov_nft_module::utils::get_collection_id;
 use sov_nft_module::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::DefaultStorageSpec;
-use sov_test_utils::{TestPrivateKey, TestSpec};
+use sov_test_utils::{TestHasher, TestPrivateKey, TestSpec};
 
 #[test]
 fn mints_and_transfers() {
@@ -19,7 +19,7 @@ fn mints_and_transfers() {
     let collection_id = get_collection_id::<TestSpec>(collection_name, creator_address.as_ref());
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage::<DefaultStorageSpec>(tmpdir.path()).unwrap();
+    let storage = new_orphan_storage::<DefaultStorageSpec<TestHasher>>(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage);
     let nft = NonFungibleToken::default();
 

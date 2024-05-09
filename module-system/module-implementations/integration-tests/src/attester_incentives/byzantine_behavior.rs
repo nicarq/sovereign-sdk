@@ -10,11 +10,13 @@ use sov_state::jmt::RootHash;
 use sov_state::{DefaultStorageSpec, StorageRoot};
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
 
 use super::AttesterIncentivesTestHandler;
 use crate::attester_incentives::get_first_transaction_receipt;
 use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
+
+type Storage = DefaultStorageSpec<TestHasher>;
 
 impl AttesterIncentivesTestHandler {
     fn check_attester_bonded(&self, rollup: &mut TestRollup) {
@@ -36,10 +38,10 @@ impl AttesterIncentivesTestHandler {
     // Let's try to produce a faulty attestation for the last transition
     fn try_produce_faulty_attestation(
         &self,
-        init_state_root: StorageRoot<DefaultStorageSpec>,
+        init_state_root: StorageRoot<Storage>,
         exec_result: Vec<ExecutionSimulationVars>,
         rollup: &mut TestRollup,
-    ) -> Vec<StorageRoot<DefaultStorageSpec>> {
+    ) -> Vec<StorageRoot<Storage>> {
         let ExecutionSimulationVars {
             state_root: fst_state_root,
             state_proof: first_state_proof,
@@ -109,8 +111,8 @@ impl AttesterIncentivesTestHandler {
 
     fn try_challenge_faulty_attestation(
         &self,
-        init_state_root: StorageRoot<DefaultStorageSpec>,
-        transition_roots: Vec<StorageRoot<DefaultStorageSpec>>,
+        init_state_root: StorageRoot<Storage>,
+        transition_roots: Vec<StorageRoot<Storage>>,
         rollup: &mut TestRollup,
     ) {
         let first_state_root = transition_roots[0];

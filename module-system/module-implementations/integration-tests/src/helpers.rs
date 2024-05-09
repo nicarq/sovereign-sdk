@@ -26,6 +26,7 @@ type TxReceiptContents =
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
+pub(crate) type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
 pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 100;
 
@@ -116,7 +117,7 @@ pub(crate) struct ExecutionSimulationVars {
 
 pub(crate) struct TestRollup {
     stf: StfBlueprint<S, Da, TestRuntime<S, Da>, TestKernel<S, Da>>,
-    storage_manager: SimpleStorageManager<DefaultStorageSpec>,
+    storage_manager: SimpleStorageManager<StorageSpec>,
 }
 
 impl TestRollup {
@@ -152,7 +153,7 @@ impl TestRollup {
         StateCheckpoint::new(self.storage().clone())
     }
 
-    pub(crate) fn storage_manager(&mut self) -> &mut SimpleStorageManager<DefaultStorageSpec> {
+    pub(crate) fn storage_manager(&mut self) -> &mut SimpleStorageManager<StorageSpec> {
         &mut self.storage_manager
     }
 

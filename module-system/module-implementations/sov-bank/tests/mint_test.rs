@@ -10,7 +10,7 @@ mod helpers;
 use sov_bank::{IntoPayable, Payable};
 
 type S = sov_test_utils::TestSpec;
-pub type Storage = ProverStorage<DefaultStorageSpec>;
+pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
 
 #[test]
 fn mint_token() {

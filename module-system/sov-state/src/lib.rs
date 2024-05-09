@@ -39,17 +39,18 @@ pub trait MerkleProofSpec: Send + Sync {
     type Hasher: Digest<OutputSize = sha2::digest::typenum::U32> + Send + Sync;
 }
 
-use sha2::Sha256;
+use sha2::digest::typenum::U32;
 
 /// The default [`MerkleProofSpec`] implementation.
 ///
 /// This type is typically found as a type parameter for [`ProverStorage`].
 #[derive(Clone)]
-pub struct DefaultStorageSpec;
-// TODO(@preston-evans98): Make this type generic over a hasher <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/188>
+pub struct DefaultStorageSpec<H: Digest<OutputSize = U32> + Send + Sync> {
+    _marker: std::marker::PhantomData<H>,
+}
 
-impl MerkleProofSpec for DefaultStorageSpec {
+impl<H: Digest<OutputSize = U32> + Send + Sync> MerkleProofSpec for DefaultStorageSpec<H> {
     type Witness = ArrayWitness;
 
-    type Hasher = Sha256;
+    type Hasher = H;
 }

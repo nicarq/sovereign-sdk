@@ -46,9 +46,11 @@ fn rollup_bench(_bench: &mut Criterion) {
     let storage_config = sov_state::config::Config {
         path: rollup_config.storage.path,
     };
-    let mut storage_manager =
-        ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
-            .expect("ProverStorage initialization failed");
+    let mut storage_manager = ProverStorageManager::<
+        MockDaSpec,
+        DefaultStorageSpec<sov_test_utils::TestHasher>,
+    >::new(storage_config)
+    .expect("ProverStorage initialization failed");
     let block_0 = MockBlockHeader::from_height(0);
     let (stf_state, ledger_state) = storage_manager
         .create_state_for(&block_0)

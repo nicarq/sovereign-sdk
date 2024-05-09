@@ -2,13 +2,13 @@ use module_template::{CallMessage, Event, ExampleModule, ExampleModuleConfig, Re
 use sov_modules_api::{Address, Context, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ZkStorage};
-use sov_test_utils::{TestSpec, ZkTestSpec};
+use sov_test_utils::{TestHasher, TestSpec, ZkTestSpec};
 
 #[test]
 fn test_value_setter() {
     let tmpdir = tempfile::tempdir().unwrap();
 
-    let storage = new_orphan_storage::<DefaultStorageSpec>(tmpdir.path()).unwrap();
+    let storage = new_orphan_storage::<DefaultStorageSpec<TestHasher>>(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage);
 
     let admin = Address::from([1; 32]);

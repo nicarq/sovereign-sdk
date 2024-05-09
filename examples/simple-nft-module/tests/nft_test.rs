@@ -7,7 +7,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
 pub type S = sov_test_utils::TestSpec;
-pub type Storage = ProverStorage<DefaultStorageSpec>;
+pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
 fn generate_address(name: &str) -> <S as Spec>::Address {
     gen_addr_generic::<S>(name)
 }

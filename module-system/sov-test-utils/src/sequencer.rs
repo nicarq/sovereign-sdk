@@ -16,7 +16,7 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 
 use crate::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
-use crate::{RawTx, TestPrivateKey, TestSpec};
+use crate::{RawTx, TestHasher, TestPrivateKey, TestSpec};
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 
@@ -102,7 +102,7 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
         path: dir.path().to_path_buf(),
     };
     let mut storage_manager =
-        ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)?;
+        ProverStorageManager::<MockDaSpec, DefaultStorageSpec<TestHasher>>::new(storage_config)?;
     let genesis_block_header = MockBlockHeader::from_height(0);
     let (stf_state, ledger_storage) = storage_manager.create_state_for(&genesis_block_header)?;
 

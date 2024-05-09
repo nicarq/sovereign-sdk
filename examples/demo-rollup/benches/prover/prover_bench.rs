@@ -190,9 +190,11 @@ async fn main() -> Result<(), anyhow::Error> {
         path: rollup_config.storage.path,
     };
 
-    let mut storage_manager =
-        ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
-            .expect("ProverStorageManager initialization has failed");
+    let mut storage_manager = ProverStorageManager::<
+        MockDaSpec,
+        DefaultStorageSpec<sov_test_utils::TestHasher>,
+    >::new(storage_config)
+    .expect("ProverStorageManager initialization has failed");
     let stf = BenchSTF::new();
 
     generate_genesis_config(genesis_conf_dir.as_str())?;

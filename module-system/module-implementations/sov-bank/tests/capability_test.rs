@@ -7,7 +7,7 @@ mod helpers;
 use sov_modules_api::GasArray;
 
 type S = sov_test_utils::TestSpec;
-pub type Storage = ProverStorage<DefaultStorageSpec>;
+pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
 
 /// Helper struct that gets instantiated following the `reserve_gas_helper` method. Contains useful test parameters.
 struct CapabilityTestParams {

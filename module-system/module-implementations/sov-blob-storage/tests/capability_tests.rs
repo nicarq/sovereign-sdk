@@ -24,6 +24,7 @@ use tracing::{debug, info};
 
 type S = sov_test_utils::TestSpec;
 type Da = MockDaSpec;
+type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
 const LOCKED_AMOUNT: u64 = 200;
 const PREFERRED_SEQUENCER_DA: MockAddress = MockAddress::new([10u8; 32]);
@@ -769,9 +770,9 @@ impl TestRuntime<S, MockDaSpec> {
     pub fn pre_initialized(
         with_preferred_sequencer: bool,
     ) -> (
-        ProverStorage<DefaultStorageSpec>,
+        ProverStorage<StorageSpec>,
         Self,
-        <ProverStorage<DefaultStorageSpec> as Storage>::Root,
+        <ProverStorage<StorageSpec> as Storage>::Root,
     ) {
         use sov_modules_api::Genesis;
         let tmpdir = tempfile::tempdir().unwrap();

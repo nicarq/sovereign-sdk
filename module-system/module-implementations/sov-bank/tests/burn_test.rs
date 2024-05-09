@@ -12,7 +12,7 @@ use crate::helpers::create_bank_config_with_token;
 
 mod helpers;
 
-pub type Storage = ProverStorage<DefaultStorageSpec>;
+pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
 
 #[test]
 fn burn_deployed_tokens() {
