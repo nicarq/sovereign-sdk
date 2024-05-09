@@ -247,7 +247,7 @@ fn test_tx_bad_signature() {
 
 fn get_attester_stake_for_block(
     block: &MockBlock,
-    storage_manager: &mut ProverStorageManager<MockDaSpec, DefaultStorageSpec>,
+    storage_manager: &mut ProverStorageManager<MockDaSpec, DefaultStorageSpec<TestHasher>>,
     stf: &StfBlueprintTest,
 ) -> u64 {
     let (stf_state, _ledger_state) = storage_manager.create_state_for(block.header()).unwrap();

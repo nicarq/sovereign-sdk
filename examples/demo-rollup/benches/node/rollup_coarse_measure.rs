@@ -24,7 +24,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
-use sov_test_utils::TestSpec;
+use sov_test_utils::{TestHasher, TestSpec};
 use tempfile::TempDir;
 
 fn print_times(
@@ -104,7 +104,7 @@ async fn main() -> Result<(), anyhow::Error> {
         path: rollup_config.storage.path.clone(),
     };
     let mut storage_manager =
-        ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
+        ProverStorageManager::<MockDaSpec, DefaultStorageSpec<TestHasher>>::new(storage_config)
             .expect("ProverStorage initialization failed");
 
     let genesis_block_header = MockBlockHeader::from_height(0);

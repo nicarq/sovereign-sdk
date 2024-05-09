@@ -275,7 +275,10 @@ fn transfer(
         .expect("Transfer call failed");
 }
 
-fn commit(working_set: WorkingSet<S>, storage: ProverStorage<DefaultStorageSpec>) {
+fn commit(
+    working_set: WorkingSet<S>,
+    storage: ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>,
+) {
     // Save checkpoint
     let checkpoint = working_set.checkpoint();
 

@@ -393,7 +393,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_prover_storage_manager::{new_orphan_storage};
 
 pub type S = sov_test_utils::TestSpec;
-pub type Storage = ProverStorage<DefaultStorageSpec>;
+pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
 
 
 #[test]

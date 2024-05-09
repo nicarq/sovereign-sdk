@@ -18,6 +18,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage, SparseMerkleProof, StorageRoo
 use crate::AttesterIncentives;
 
 type S = sov_test_utils::TestSpec;
+type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
 pub const TOKEN_NAME: &str = "TEST_TOKEN";
 pub const BOND_AMOUNT: u64 = 1_000_000;
@@ -33,9 +34,9 @@ pub const NUM_BANK_ACCOUNTS: usize = 3;
 /// Consumes and commit the existing working set on the underlying storage
 /// `storage` must be the underlying storage defined on the working set for this method to work.
 pub(crate) fn commit_get_new_state_checkpoint(
-    storage: &ProverStorage<DefaultStorageSpec>,
+    storage: &ProverStorage<StorageSpec>,
     checkpoint: StateCheckpoint<S>,
-) -> (StorageRoot<DefaultStorageSpec>, StateCheckpoint<S>) {
+) -> (StorageRoot<StorageSpec>, StateCheckpoint<S>) {
     let (reads_writes, _, witness) = checkpoint.freeze();
 
     let new_root = storage
@@ -147,7 +148,7 @@ pub(crate) fn setup(
 }
 
 pub(crate) struct ExecutionSimulationVars {
-    pub state_root: StorageRoot<DefaultStorageSpec>,
+    pub state_root: StorageRoot<StorageSpec>,
     pub state_proof:
         StorageProof<SparseMerkleProof<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
     pub base_fee_per_gas: <<S as Spec>::Gas as Gas>::Price,
@@ -165,7 +166,7 @@ impl ExecutionSimulationVars {
     pub(crate) fn execute(
         rounds: u8,
         module: &AttesterIncentives<S, MockDaSpec>,
-        storage: &ProverStorage<DefaultStorageSpec>,
+        storage: &ProverStorage<StorageSpec>,
         sequencer: &<S as Spec>::Address,
         attester_address: &<S as Spec>::Address,
         mut state_checkpoint: StateCheckpoint<S>,

@@ -43,7 +43,8 @@ where
     type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
     type Gas = GasUnit<2>;
 
-    type Storage = sov_state::ProverStorage<DefaultStorageSpec>;
+    type Storage =
+        sov_state::ProverStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpec>::Hasher>>;
 
     type VisibleHash = sov_state::VisibleHash;
 
@@ -67,7 +68,8 @@ where
     type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
     type Gas = GasUnit<2>;
 
-    type Storage = sov_state::ZkStorage<DefaultStorageSpec>;
+    type Storage =
+        sov_state::ZkStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpec>::Hasher>>;
 
     type VisibleHash = sov_state::VisibleHash;
 

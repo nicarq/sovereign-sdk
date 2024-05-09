@@ -19,7 +19,9 @@ mod test {
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_state::DefaultStorageSpec;
-    use sov_test_utils::TestSpec;
+    use sov_test_utils::{TestHasher, TestSpec};
+
+    type StorageSpec = DefaultStorageSpec<TestHasher>;
 
     #[derive(Clone)]
     struct TestCase {
@@ -62,7 +64,7 @@ mod test {
         };
         {
             let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config.clone())
+                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config.clone())
                     .unwrap();
             let header = MockBlockHeader::default();
             let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
@@ -92,8 +94,7 @@ mod test {
 
         {
             let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config)
-                    .unwrap();
+                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config).unwrap();
             let header = MockBlockHeader::default();
             let (storage, _) = storage_manager.create_state_for(&header).unwrap();
             for test in tests {
@@ -115,7 +116,7 @@ mod test {
         };
         {
             let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config.clone())
+                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config.clone())
                     .unwrap();
             let header = MockBlockHeader::default();
             let (prover_storage, _) = storage_manager.create_state_for(&header).unwrap();
@@ -127,7 +128,7 @@ mod test {
         // First restart
         {
             let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config.clone())
+                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config.clone())
                     .unwrap();
             let header = MockBlockHeader::default();
             let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
@@ -147,7 +148,7 @@ mod test {
         // Correctly restart from disk
         {
             let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, DefaultStorageSpec>::new(storage_config.clone())
+                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config.clone())
                     .unwrap();
             let mock_block_header = MockBlockHeader::from_height(100000);
             let (prover_storage, _ledger_state) = storage_manager

@@ -14,7 +14,7 @@ use sov_state::storage::namespaces::User;
 use sov_state::storage::{SlotKey, SlotValue, StateAccesses};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 type Da = sov_mock_da::MockDaSpec;
-type S = sov_state::DefaultStorageSpec;
+type S = sov_state::DefaultStorageSpec<sha2::Sha256>;
 
 fn generate_random_bytes<R: Rng>(
     rng: &mut R,

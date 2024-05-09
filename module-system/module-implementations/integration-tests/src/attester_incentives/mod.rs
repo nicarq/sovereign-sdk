@@ -13,7 +13,7 @@ use sov_rollup_interface::stf::TransactionReceipt;
 use sov_state::{DefaultStorageSpec, Storage, StorageRoot};
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestPrivateKey};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher, TestPrivateKey};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, ExecutionSimulationVars, SequencerParams, TestRollup,
@@ -28,6 +28,8 @@ mod unbond;
 const USER_STAKE: u64 = 100;
 const ROLLUP_FINALITY_PERIOD: u64 = 2;
 const USER_BALANCE: u64 = 100_000;
+
+type StorageSpec = DefaultStorageSpec<TestHasher>;
 
 fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionReceipt<TxEffect> {
     env.batch_receipts
@@ -51,7 +53,7 @@ impl TestRollup {
     pub(crate) fn increase_and_commit_light_client_attested_height(
         &mut self,
         height: u64,
-    ) -> StorageRoot<DefaultStorageSpec> {
+    ) -> StorageRoot<StorageSpec> {
         let mut working_set = WorkingSet::<S>::new(self.storage());
         let attester_incentives = &self.attester_incentives();
 
@@ -239,7 +241,7 @@ impl AttesterIncentivesTestHandler {
     // Try to execute two value setter transactions in one single slot.
     fn try_execute_two_value_setter_transactions(
         &self,
-        genesis_root: StorageRoot<DefaultStorageSpec>,
+        genesis_root: StorageRoot<StorageSpec>,
         rollup: &mut TestRollup,
     ) -> Vec<ExecutionSimulationVars> {
         let blob = new_test_blob_from_batch(

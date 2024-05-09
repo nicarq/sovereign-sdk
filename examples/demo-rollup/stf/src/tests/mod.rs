@@ -28,7 +28,7 @@ pub(crate) struct TestPrivateKeys<S: Spec> {
 
 pub(crate) fn create_storage_manager_for_tests(
     path: impl AsRef<Path>,
-) -> ProverStorageManager<MockDaSpec, DefaultStorageSpec> {
+) -> ProverStorageManager<MockDaSpec, DefaultStorageSpec<sov_test_utils::TestHasher>> {
     let config = sov_state::config::Config {
         path: path.as_ref().to_path_buf(),
     };

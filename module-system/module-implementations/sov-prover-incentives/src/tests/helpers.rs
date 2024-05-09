@@ -94,7 +94,7 @@ pub(crate) fn simulate_chain_state_execution(
         let gas_price = module.chain_state.begin_slot_hook(
             &slot_header,
             &MockValidityCond { is_valid: true },
-            &StorageRoot::<DefaultStorageSpec>::new(RootHash([i; 32]), RootHash([i; 32])),
+            &StorageRoot::<DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>::new(RootHash([i; 32]), RootHash([i; 32])),
             &mut kernel_working_set,
         );
 
