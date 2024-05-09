@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use rockbound::cache::cache_db::CacheDb;
@@ -10,7 +9,6 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
-use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, ProofByUniqueId, SlotByHash,
     SlotByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
@@ -19,6 +17,7 @@ use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, ProofUniqueId, SlotNumber, StoredBatch,
     StoredSlot, StoredTransaction, TxNumber,
 };
+use crate::DbOptions;
 
 /// Helper functions to query from events.
 pub mod event_helper;
@@ -98,15 +97,13 @@ impl LedgerDb {
     const DB_PATH_SUFFIX: &'static str = "ledger";
     const DB_NAME: &'static str = "ledger-db";
 
-    /// Initialize [`rockbound::DB`] that matches tables and columns for [`LedgerDb`]
-    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<rockbound::DB> {
-        let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
-        rockbound::DB::open(
-            path,
-            Self::DB_NAME,
-            LEDGER_TABLES.iter().copied(),
-            &gen_rocksdb_options(&Default::default(), false),
-        )
+    /// Create [`DbOptions`] for [`LedgerDb`].
+    pub fn get_rockbound_options() -> DbOptions {
+        DbOptions {
+            name: Self::DB_NAME,
+            path_suffix: Self::DB_PATH_SUFFIX,
+            columns: LEDGER_TABLES.to_vec(),
+        }
     }
 
     fn load_next_item_numbers(db_snapshot: &CacheDb) -> anyhow::Result<ItemNumbers> {

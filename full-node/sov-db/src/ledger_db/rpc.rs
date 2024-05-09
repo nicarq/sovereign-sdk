@@ -580,7 +580,8 @@ mod tests {
 
     #[test]
     fn test_slot_subscription() {
-        let ledger_db = create_ledger();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let ledger_db = create_ledger(temp_dir.path());
 
         let mut rx = ledger_db.subscribe_slots();
         ledger_db
@@ -593,10 +594,10 @@ mod tests {
         assert_eq!(rx.blocking_recv().unwrap(), 0);
     }
 
-    fn create_ledger() -> LedgerDb {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let path = temp_dir.path();
-        let db = LedgerDb::setup_schema_db(path).unwrap();
+    fn create_ledger(path: &std::path::Path) -> LedgerDb {
+        let db = LedgerDb::get_rockbound_options()
+            .default_setup_db_in_path(path)
+            .unwrap();
         let cache_container = Arc::new(RwLock::new(CacheContainer::new(
             db,
             Arc::new(RwLock::new(Default::default())).into(),
@@ -607,7 +608,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_save_aggregated_proof() {
-        let ledger_db = create_ledger();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let ledger_db = create_ledger(temp_dir.path());
         let _rx = ledger_db.proof_subscriptions.subscribe();
 
         let proof_from_db = ledger_db.get_latest_aggregated_proof().await.unwrap();

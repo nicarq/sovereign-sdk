@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use anyhow::ensure;
@@ -10,8 +9,8 @@ use rockbound::cache::change_set::ChangeSet;
 use rockbound::{SchemaBatch, SchemaKey};
 
 use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
-use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::namespace::{JmtNodes, JmtValues, KeyHashToKey};
+use crate::DbOptions;
 
 /// A typed wrapper around the db for storing rollup state. Internally,
 /// this is roughly just an [`Arc<rockbound::CacheDB>`].
@@ -67,19 +66,16 @@ impl StateDb {
         Ok(next_version)
     }
 
-    /// Initialize [`rockbound::DB`] that should be used by snapshots.
-    /// Should initialize all the namespace tables under the same DB.
-    /// Maybe we can use a macro to loop over all the namespaces.
-    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<rockbound::DB> {
-        let state_db_path = path.as_ref().join(Self::DB_PATH_SUFFIX);
-        rockbound::DB::open(
-            state_db_path,
-            Self::DB_NAME,
-            UserNamespace::get_table_names()
+    /// [`DbOptions`] for [`StateDb`].
+    pub fn get_rockbound_options() -> DbOptions {
+        DbOptions {
+            name: Self::DB_NAME,
+            path_suffix: Self::DB_PATH_SUFFIX,
+            columns: UserNamespace::get_table_names()
                 .into_iter()
-                .chain(KernelNamespace::get_table_names()),
-            &gen_rocksdb_options(&Default::default(), false),
-        )
+                .chain(KernelNamespace::get_table_names())
+                .collect(),
+        }
     }
 
     /// Convert it to [`ChangeSet`] which cannot be edited anymore
@@ -220,7 +216,9 @@ mod state_db_tests {
     use crate::state_db::{JmtHandler, StateDb};
 
     fn init_cache_db(path: &path::Path) -> CacheDb {
-        let db = StateDb::setup_schema_db(path).unwrap();
+        let db = StateDb::get_rockbound_options()
+            .default_setup_db_in_path(path)
+            .unwrap();
         let cache_container =
             CacheContainer::new(db, Arc::new(RwLock::new(Default::default())).into());
 

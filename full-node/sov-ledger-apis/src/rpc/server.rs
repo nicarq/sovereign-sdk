@@ -39,7 +39,9 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 /// /// Creates a new [`LedgerDb`] and starts serving JSON-RPC requests.
 /// async fn rpc_server() -> jsonrpsee::server::ServerHandle {
 ///     let dir = tempdir().unwrap();
-///     let schema_db = LedgerDb::setup_schema_db(dir.path()).unwrap();
+///     let schema_db = LedgerDb::get_rockbound_options()
+///             .default_setup_db_in_path(dir.path())
+///             .unwrap();
 ///     let cache_container = CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
 ///     let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
 ///     let ledger_db = LedgerDb::with_cache_db(cache_db).unwrap();
