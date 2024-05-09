@@ -170,6 +170,26 @@ impl<S: Spec> Transaction<S> {
             nonce,
         }
     }
+
+    /// The gas cost to pay to perform pre-execution checks for a given transaction.
+    /// Contains a fixed amount which corresponds to the cost of signature verification
+    /// and a variable amount which corresponds to the cost of transaction deserialization/message decoding.
+    ///
+    /// TODO(@theochap): This method will be removed in the next PRs in favor of granular checks happening directly in the
+    /// `Stf`
+    pub fn gas_fixed_cost(&self) -> S::Gas {
+        const GAS_TX_FIXED_COST: [u64; 2] = config_value!("GAS_TX_FIXED_COST");
+
+        const GAS_TX_COST_PER_BYTE: [u64; 2] = config_value!("GAS_TX_COST_PER_BYTE");
+
+        let gas_tx_fixed_cost = S::Gas::from_slice(&GAS_TX_FIXED_COST);
+        let mut gas_tx_cost = S::Gas::from_slice(&GAS_TX_COST_PER_BYTE);
+
+        gas_tx_cost.scalar_product(self.runtime_msg.len() as u64);
+        gas_tx_cost.combine(&gas_tx_fixed_cost);
+
+        gas_tx_cost
+    }
 }
 
 #[cfg(feature = "native")]
@@ -290,7 +310,6 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
 
         Self {
             default_address,
-            runtime_msg_len: tx.runtime_msg.len(),
             pub_key_hash,
             chain_id: tx.chain_id,
             max_priority_fee_bips: tx.max_priority_fee_bips,
@@ -304,7 +323,6 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
 /// Transaction data that has been authenticated.
 /// This is the output of the `RuntimeAuthenticator`.
 pub struct AuthenticatedTransactionData<S: Spec> {
-    runtime_msg_len: usize,
     pub_key_hash: Hash,
     default_address: S::Address,
     chain_id: u64,
@@ -349,20 +367,6 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
     /// The estimated gas usage of the transaction
     pub const fn gas_limit(&self) -> Option<&S::Gas> {
         self.gas_limit.as_ref()
-    }
-
-    pub fn gas_fixed_cost(&self) -> S::Gas {
-        const GAS_TX_FIXED_COST: &[u64] = &config_value!("GAS_TX_FIXED_COST");
-
-        const GAS_TX_COST_PER_BYTE: &[u64] = &config_value!("GAS_TX_COST_PER_BYTE");
-
-        let gas_tx_fixed_cost = S::Gas::from_slice(GAS_TX_FIXED_COST);
-        let mut gas_tx_cost = S::Gas::from_slice(GAS_TX_COST_PER_BYTE);
-
-        gas_tx_cost.scalar_product(self.runtime_msg_len as u64);
-        gas_tx_cost.combine(&gas_tx_fixed_cost);
-
-        gas_tx_cost
     }
 }
 

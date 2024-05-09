@@ -103,7 +103,7 @@ pub fn new_test_blob_from_batch(
 }
 
 pub fn has_tx_events(
-    apply_blob_outcome: &BatchReceipt<sov_modules_stf_blueprint::SequencerOutcome, TxEffect>,
+    apply_blob_outcome: &BatchReceipt<sov_modules_stf_blueprint::BatchSequencerOutcome, TxEffect>,
 ) -> bool {
     let events = apply_blob_outcome
         .tx_receipts

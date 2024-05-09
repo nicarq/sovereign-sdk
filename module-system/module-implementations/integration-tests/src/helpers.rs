@@ -28,7 +28,7 @@ pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
 pub(crate) type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
-pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 100;
+pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 2000;
 
 pub(crate) const GAS_TX_FIXED_COST: [u64; 2] = config_value!("GAS_TX_FIXED_COST");
 
@@ -44,7 +44,7 @@ impl Default for SequencerParams<S, MockDaSpec> {
         SequencerParams {
             rollup_address: [1_u8; 32].into(),
             da_address: [1_u8; 32].into(),
-            stake_amount: 100,
+            stake_amount: DEFAULT_STAKE_AMOUNT,
             is_preferred_sequencer: true,
         }
     }

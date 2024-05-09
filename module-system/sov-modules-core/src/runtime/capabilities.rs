@@ -12,7 +12,9 @@ use thiserror::Error;
 
 use crate::kernel_state::BootstrapWorkingSet;
 use crate::module::Context;
-use crate::{Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, Storage, WorkingSet};
+use crate::{
+    Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, Storage, TxGasMeter, WorkingSet,
+};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
@@ -78,6 +80,7 @@ pub trait BatchSelector<Da: DaSpec> {
 pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     /// The transaction type that the gas enforcer knows how to parse
     type Tx;
+
     /// Reserves enough gas for the transaction to be processed, if possible.
     #[allow(clippy::result_large_err)]
     fn try_reserve_gas(
@@ -93,27 +96,57 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
         &self,
         tx: &Self::Tx,
         context: &Context<S>,
-        gas_meter: &GasMeter<S::Gas>,
+        gas_meter: &TxGasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
     );
 }
 
 /// Authorizes the sequencer to submit and process batches.
 pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
+    /// A type-safe struct that should track the staked amount of the sequencer and the eventual execution penalities.
+    type SequencerStakeMeter: GasMeter<S::Gas>;
+
     /// Checks if the sequencer has staked the minimum bond to attest transactions.
+    ///
+    /// ## Returns
     /// Returns an error if the sequencer is not registered or does not have enough staked amount.
+    /// Returns a [`SequencerAuthorization::SequencerStakeMeter`] if the sequencer is registered and has enough staked amount.
     fn authorize_sequencer(
         &self,
         sequencer: &Da::Address,
+        base_fee_per_gas: &<S::Gas as Gas>::Price,
         state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Result<(), anyhow::Error>;
+    ) -> Result<Self::SequencerStakeMeter, anyhow::Error>;
+
+    /// Partially refunds the sequencer's staked amount.
+    /// It should simply increase the remaining funds in the sequencer's staked meter.
+    ///
+    /// ## Use
+    /// This method should be called to diminish the penalty amount of the sequencer when
+    /// a transaction has a partial amount of the gas needed for pre-execution checks.
+    /// The gas locked in the transaction should be refunded to the sequencer.
+    ///
+    /// Another use is to refund the sequencer's batch deserialization cost when a transaction is correctly deserialized and executed.
+    ///
+    /// ## Note
+    /// This method should always succeed.
+    fn refund_sequencer(
+        &self,
+        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
+        refund_amount: u64,
+    );
 
     /// Penalizes the sequencer without slashing his account.
     /// If the sequencer is penalized, the stake amount of the sequencer is reduced, potentially preventing future transactions from being executed.
+    ///
+    /// ## Note
+    /// This method consumes the [`SequencerAuthorization::SequencerStakeMeter`].
+    /// It should only be called once the sequencer cannot be penalized anymore.
+    /// The penalty should be accumulated in the [`SequencerAuthorization::SequencerStakeMeter`] during the execution of the transaction.
     fn penalize_sequencer(
         &self,
         sequencer: &Da::Address,
-        penalty_amount: u64,
+        stake_meter: Self::SequencerStakeMeter,
         state_checkpoint: &mut StateCheckpoint<S>,
     );
 }
@@ -181,13 +214,11 @@ pub enum AuthenticationError {
     #[error("Transaction authentication raised a fatal error, error: {0}")]
     FatalError(FatalError),
     /// The transaction authentication returned an error, but including it could have been an honest mistake. The sequencer should be charged enough to cover the cost of checking the transaction but not slashed.
-    #[error("Transaction authentication was invalid. error: {reason}. penalization amount: {penalization_amount}")]
-    Invalid {
+    #[error("Transaction authentication was invalid. error: {0}.")]
+    Invalid(
         /// The reason for the penalization.       
-        reason: String,
-        /// The amount of tokens that were consumed so far. The sequencer should be penalized for this amount.
-        penalization_amount: u64,
-    },
+        String,
+    ),
 }
 
 /// Authenticates raw transactions. Implementations of this trait should provide a way to interpret the raw bytes of the transaction and authenticate it.
@@ -197,8 +228,16 @@ pub trait RuntimeAuthenticator {
     type Decodable;
     /// Authenticated transaction.
     type Tx;
+    /// The gas representation used.
+    type Gas: Gas;
+    /// A struct that tracks the staked amount of the sequencer and the eventual execution penalities.
+    type SequencerStakeMeter: GasMeter<Self::Gas>;
     /// Authenticates raw transaction.
-    fn authenticate(&self, tx: &RawTx) -> Result<(Self::Tx, Self::Decodable), AuthenticationError>;
+    fn authenticate(
+        &self,
+        tx: &RawTx,
+        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
+    ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError>;
 }
 
 #[cfg(feature = "mocks")]

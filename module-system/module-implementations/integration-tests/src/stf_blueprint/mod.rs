@@ -7,7 +7,9 @@ use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
-use crate::helpers::{AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, S};
+use crate::helpers::{
+    AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, DEFAULT_STAKE_AMOUNT, S,
+};
 
 impl TestRollup {
     // Check the current kernel height and that the context are correctly built
@@ -76,8 +78,8 @@ fn test_stf_internal_updates() {
     let seq_rollup_addr = seq_params.rollup_address;
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::with_addresses_and_balances(vec![
-        (seq_params.rollup_address, 100),
-        (admin_pub_key, 100),
+        (seq_params.rollup_address, DEFAULT_STAKE_AMOUNT),
+        (admin_pub_key, DEFAULT_STAKE_AMOUNT),
     ]);
     let attester_params = AttesterIncentivesParams::default();
 

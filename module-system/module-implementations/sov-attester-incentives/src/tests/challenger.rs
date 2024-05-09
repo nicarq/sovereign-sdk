@@ -2,7 +2,7 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{Context, Spec, WorkingSet};
-use sov_modules_core::GasMeter;
+use sov_modules_core::TxGasMeter;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::zk::StateTransitionPublicData;
 
@@ -34,7 +34,7 @@ fn test_valid_challenge() {
         state_checkpoint,
     );
 
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
 
     let _ = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();
@@ -181,7 +181,7 @@ fn test_invalid_challenge() {
         &attester_address,
         state_checkpoint,
     );
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
 
     let _ = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();

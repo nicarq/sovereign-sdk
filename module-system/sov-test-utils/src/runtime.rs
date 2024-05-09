@@ -17,7 +17,8 @@ use sov_modules_api::{
     Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, ModuleInfo, Spec,
     StateCheckpoint, WorkingSet,
 };
-use sov_modules_stf_blueprint::{Runtime, SequencerOutcome};
+use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
+use sov_sequencer_registry::SequencerStakeMeter;
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use tokio::sync::watch;
@@ -47,7 +48,7 @@ impl<S: Spec, Da: DaSpec> TxHooks for TestRuntime<S, Da> {
 
 impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
     type Spec = S;
-    type BatchResult = SequencerOutcome;
+    type BatchResult = BatchSequencerOutcome;
 
     fn begin_batch_hook(
         &self,
@@ -68,11 +69,13 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for TestRuntime<S, Da> {
         // Since we need to make sure the `StfBlueprint` doesn't depend on the module system, we need to
         // convert the `SequencerOutcome` structures manually.
         let seqencer_outcome = match result {
-            SequencerOutcome::Rewarded(amount) => {
+            BatchSequencerOutcome::Rewarded(amount) => {
                 sov_sequencer_registry::SequencerOutcome::Rewarded(amount)
             }
-            SequencerOutcome::Ignored => sov_sequencer_registry::SequencerOutcome::Ignored,
-            SequencerOutcome::Slashed(_reason) => sov_sequencer_registry::SequencerOutcome::Slashed,
+            BatchSequencerOutcome::Ignored => sov_sequencer_registry::SequencerOutcome::Ignored,
+            BatchSequencerOutcome::Slashed(_reason) => {
+                sov_sequencer_registry::SequencerOutcome::Slashed
+            }
         };
 
         <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
@@ -97,11 +100,15 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for TestRuntime<S, Da> {
 
     type Tx = AuthenticatedTransactionAndRawHash<S>;
 
+    type Gas = S::Gas;
+    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+
     fn authenticate(
         &self,
         raw_tx: &RawTx,
+        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
     ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
-        sov_modules_api::authenticate::<S, Self>(&raw_tx.data)
+        sov_modules_api::authenticate::<S, Self>(&raw_tx.data, sequencer_stake_meter)
     }
 }
 
@@ -149,7 +156,7 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
         &self,
         tx: &Self::Tx,
         context: &Context<S>,
-        gas_meter: &sov_modules_api::GasMeter<S::Gas>,
+        gas_meter: &sov_modules_api::TxGasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         self.bank.refund_remaining_gas(
@@ -164,26 +171,41 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
 }
 
 impl<S: Spec, Da: DaSpec> SequencerAuthorization<S, Da> for TestRuntime<S, Da> {
+    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+
     fn authorize_sequencer(
         &self,
         sequencer: &<Da as DaSpec>::Address,
+        base_fee_per_gas: &<S::Gas as Gas>::Price,
         state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<Self::SequencerStakeMeter, anyhow::Error> {
         self.sequencer_registry
-            .authorize_sequencer(sequencer, state_checkpoint)
+            .authorize_sequencer(sequencer, base_fee_per_gas, state_checkpoint)
             .map_err(|e| {
                 anyhow::anyhow!("An error occurred while checking the sequencer bond: {e}")
             })
     }
 
+    fn refund_sequencer(
+        &self,
+        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
+        refund_amount: u64,
+    ) {
+        self.sequencer_registry
+            .refund_sequencer(sequencer_stake_meter, refund_amount);
+    }
+
     fn penalize_sequencer(
         &self,
         sequencer: &Da::Address,
-        amount: u64,
+        sequencer_stake_meter: Self::SequencerStakeMeter,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        self.sequencer_registry
-            .penalize_sequencer(sequencer, amount, state_checkpoint);
+        self.sequencer_registry.penalize_sequencer(
+            sequencer,
+            sequencer_stake_meter,
+            state_checkpoint,
+        );
     }
 }
 

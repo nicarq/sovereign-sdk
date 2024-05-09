@@ -33,8 +33,9 @@ pub use sov_modules_core::{
     EventEmitter, EventModuleName, Gas, GasArray, GasMeter, GasPrice, GasUnit, Genesis,
     KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
     ModuleError as Error, ModuleId, ModuleIdBech32, ModuleInfo, ModulePrefix, PublicKeyExt,
-    RuntimeEventProcessor, RuntimeEventResponse, SignatureExt, Spec, StateCheckpoint, StateReader,
-    StateReaderAndWriter, StateWriter, TxState, TypedEvent, VersionedStateReadWriter, WorkingSet,
+    RuntimeEventProcessor, RuntimeEventResponse, SignatureExt, Spec, StateCheckpoint,
+    StateReaderAndWriter, TxGasMeter, TxState, TypedEvent, UnlimitedGasMeter,
+    VersionedStateReadWriter, WorkingSet,
 };
 #[cfg(feature = "native")]
 pub use sov_modules_core::{LedgerStateProviderExt, ProvenStateAccessor};

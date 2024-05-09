@@ -4,11 +4,11 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec};
+use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, TxGasMeter};
 use sov_test_utils::generate_empty_tx;
 
 use super::helpers::{TestSequencer, S};
-use crate::tests::helpers::{INITIAL_BALANCE, INITIAL_BALANCE_LARGE};
+use crate::tests::helpers::{INITIAL_BALANCE, INITIAL_BALANCE_LARGE, LOCKED_AMOUNT};
 use crate::SequencerOutcome;
 
 /// Tests that the sequencer gets correctly rewarded when it processes a batch and:
@@ -111,16 +111,25 @@ fn test_penalize_sequencer() {
     let (sequencer_test, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
     let seq_da_address = sequencer_test.sequencer_config.seq_da_address;
 
-    let seq_stake_after_genesis = sequencer_test
-        .query_sender_balance(&seq_da_address, &mut working_set)
-        .unwrap();
+    let mut sequencer_stake_meter = sequencer_test
+        .registry
+        .authorize_sequencer(
+            &seq_da_address,
+            &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]),
+            &mut working_set,
+        )
+        .expect("The sequencer should be registered and have enough staked amount");
 
     let mut state_checkpoint = working_set.checkpoint().0;
+
+    sequencer_stake_meter
+        .charge_gas(&<S as Spec>::Gas::from_slice(&[LOCKED_AMOUNT / 2; 2]))
+        .unwrap();
 
     // We penalize the sequencer by removing all its stake
     sequencer_test.registry.penalize_sequencer(
         &seq_da_address,
-        seq_stake_after_genesis,
+        sequencer_stake_meter,
         &mut state_checkpoint,
     );
 
@@ -129,7 +138,7 @@ fn test_penalize_sequencer() {
         sequencer_test
             .query_sender_balance(
                 &seq_da_address,
-                &mut state_checkpoint.to_revertable(GasMeter::unmetered())
+                &mut state_checkpoint.to_revertable(TxGasMeter::unmetered())
             )
             .unwrap(),
         0

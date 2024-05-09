@@ -1,6 +1,6 @@
 use borsh::BorshDeserialize;
 use sov_modules_core::capabilities::{AuthenticationError, FatalError, RawTx};
-use sov_modules_core::{DispatchCall, Spec};
+use sov_modules_core::{DispatchCall, GasMeter, Spec};
 use sov_rollup_interface::zk::CryptoSpec;
 
 use crate::digest::Digest;
@@ -16,9 +16,11 @@ pub trait Authenticator: Send + Sync + 'static {
     type DispatchCall: DispatchCall;
 
     /// Accepts raw tx and interprets it as a transaction, performing validation relevant to a particular authentication scheme.
+    /// The `stake_meter` is used to track and accumulate potential penalties for the sequencer.
     #[allow(clippy::type_complexity)]
     fn authenticate(
         raw_tx: &[u8],
+        stake_meter: &mut impl GasMeter<<Self::Spec as Spec>::Gas>,
     ) -> Result<
         (
             AuthenticatedTransactionAndRawHash<Self::Spec>,
@@ -34,11 +36,21 @@ pub trait Authenticator: Send + Sync + 'static {
 // Authenticate raw transaction.
 pub fn authenticate<S: Spec, D: DispatchCall>(
     mut raw_tx: &[u8],
+    stake_meter: &mut impl GasMeter<S::Gas>,
 ) -> Result<(AuthenticatedTransactionAndRawHash<S>, D::Decodable), AuthenticationError> {
     let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
 
+    // TODO(@theochap): Charge gas for deserialization.
+
     let tx = Transaction::<S>::deserialize(&mut raw_tx).map_err(|e| {
         AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+    })?;
+
+    stake_meter.charge_gas(&tx.gas_fixed_cost()).map_err(|e| {
+        AuthenticationError::Invalid(format!(
+            "Failed to reserve gas for signature checks from the sequencer's stake: {:?}",
+            e
+        ))
     })?;
 
     tx.verify().map_err(|e| {

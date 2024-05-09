@@ -5,7 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::runtime::capabilities::{AuthenticationError, RawTx, RuntimeAuthenticator};
 use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
-use sov_modules_api::{Authenticator, DaSpec, DispatchCall, Spec};
+use sov_modules_api::{Authenticator, DaSpec, DispatchCall, GasMeter, Spec};
+use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::Runtime;
 
@@ -14,12 +15,17 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for Runtime<S, Da> {
 
     type Tx = AuthenticatedTransactionAndRawHash<S>;
 
+    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+
+    type Gas = S::Gas;
+
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn authenticate(
         &self,
         raw_tx: &RawTx,
+        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
     ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
-        sov_modules_api::authenticate::<S, Self>(&raw_tx.data)
+        sov_modules_api::authenticate::<S, Self>(&raw_tx.data, sequencer_stake_meter)
     }
 }
 
@@ -39,6 +45,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for ModAuth<S, Da> {
     type DispatchCall = Runtime<S, Da>;
     fn authenticate(
         tx: &[u8],
+        stake_meter: &mut impl GasMeter<S::Gas>,
     ) -> Result<
         (
             AuthenticatedTransactionAndRawHash<Self::Spec>,
@@ -46,7 +53,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for ModAuth<S, Da> {
         ),
         AuthenticationError,
     > {
-        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx)
+        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx, stake_meter)
     }
 
     fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {
@@ -64,6 +71,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
     type DispatchCall = Runtime<S, Da>;
     fn authenticate(
         tx: &[u8],
+        stake_meter: &mut impl GasMeter<S::Gas>,
     ) -> Result<
         (
             AuthenticatedTransactionAndRawHash<Self::Spec>,
@@ -71,7 +79,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
         ),
         AuthenticationError,
     > {
-        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx)
+        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx, stake_meter)
     }
 
     fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {

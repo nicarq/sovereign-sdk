@@ -1,3 +1,11 @@
+- #619 starts charging gas for signature checks in the StfBlueprint and completes the refactoring effort started in #612. There was the following changes in the interface:
+  - Introduction of a `GasMeter` trait and the three associated implementations: `TxGasMeter` (what used to be the `GasMeter` struct), `UnlimitedGasMeter` (a gas meter that holds an infinite reserve of gas) and the `SequencerStakeMeter` (a gas meter specially designed to track the sequencer stake and accumulate penalties).
+  - Adding the `sequencer_stake_meter` as an argument of the `authenticate` method of the `RuntimeAuthenticator` (as an associated type) and the `Authenticator` (as a `&mut impl GasMeter` in that case). 
+  - Adding the `refund_sequencer` capability which can be used to refund the sequencer some of the penalties he accumulated during the pre-execution checks. 
+  - Modify the `authorize_sequencer` and `penalize_sequencer` capabilities to take the `SequencerGasMeter` as a parameter instead of a fixed amount. This allows type safety and removes the unsafe `saturating_sub` in the implementation of `penalize_sequencer`.
+  - Add a `TxSequencerOutcome` which is an enum with the variants `Rewarded(amount)` and `Penalized`. 
+  - Rename `SequencerOutcome` to `BatchSequencerOutcome` to represent the `SequencerOutcome` following batch execution. 
+
 - #188 Make `DefaultStorageSpec` generic over a `Hasher` instead of defaulting to `Sha256`
 - #623 updates the AccountConfig structure. This change is breaking for consumers of the SDK, as the format of the accounts.json configuration files has been changed.
 - #617 adds a `gas_estimate` method to the DA layer `Fee` trait

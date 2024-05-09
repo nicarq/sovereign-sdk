@@ -2,7 +2,7 @@ use sov_chain_state::{BlockGasInfo, ChainState, StateTransition, TransitionInPro
 use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint, WorkingSet};
-use sov_modules_stf_blueprint::SequencerOutcome;
+use sov_modules_stf_blueprint::{BatchSequencerOutcome, TxEffect};
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
@@ -81,8 +81,17 @@ fn test_simple_value_setter_with_chain_state() {
         assert_eq!(1, batch_receipts.len());
 
         let apply_blob_outcome = batch_receipts[0].clone();
+
+        for tx_receipt in apply_blob_outcome.tx_receipts.iter() {
+            assert_eq!(
+                tx_receipt.receipt,
+                TxEffect::Successful,
+                "The transaction should have been successfully executed"
+            );
+        }
+
         assert_eq!(
-            SequencerOutcome::Rewarded(0),
+            BatchSequencerOutcome::Rewarded(0),
             apply_blob_outcome.inner,
             "Sequencer execution should have succeeded but failed "
         );
@@ -146,7 +155,7 @@ fn test_simple_value_setter_with_chain_state() {
         assert_eq!(1, batch_receipts.len());
         let apply_blob_outcome = batch_receipts[0].clone();
         assert_eq!(
-            SequencerOutcome::Rewarded(0),
+            BatchSequencerOutcome::Rewarded(0),
             apply_blob_outcome.inner,
             "Sequencer execution should have succeeded but failed "
         );

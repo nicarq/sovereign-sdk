@@ -11,19 +11,19 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
 };
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Gas, GasArray, GasMeter, Spec, StateCheckpoint,
+    Context, DaSpec, DispatchCall, Gas, GasArray, GasMeter, Spec, StateCheckpoint, TxGasMeter,
 };
-use sov_modules_core::capabilities::{AuthenticationError, FatalError};
-use sov_modules_core::{GasTracker, WorkingSet};
+use sov_modules_core::capabilities::{AuthenticationError, FatalError, SequencerAuthorization};
+use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error, info};
 
-use crate::{Runtime, SequencerOutcome, TxEffect};
+use crate::{BatchSequencerOutcome, Runtime, TxEffect, TxSequencerOutcome};
 
 type ApplyBatchResult<T> = Result<T, ApplyBatchError<TxEffect>>;
 
 #[allow(type_alias_bounds)]
-pub(crate) type ApplyBatch = ApplyBatchResult<BatchReceipt<SequencerOutcome, TxEffect>>;
+pub(crate) type ApplyBatch = ApplyBatchResult<BatchReceipt<BatchSequencerOutcome, TxEffect>>;
 
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
@@ -59,13 +59,13 @@ pub enum ExecutionMode {
     Speculative,
 }
 
-impl From<ApplyBatchError<TxEffect>> for BatchReceipt<SequencerOutcome, TxEffect> {
+impl From<ApplyBatchError<TxEffect>> for BatchReceipt<BatchSequencerOutcome, TxEffect> {
     fn from(value: ApplyBatchError<TxEffect>) -> Self {
         match value {
             ApplyBatchError::Ignored(hash) => BatchReceipt {
                 batch_hash: hash,
                 tx_receipts: Vec::new(),
-                inner: SequencerOutcome::Ignored,
+                inner: BatchSequencerOutcome::Ignored,
                 gas_price: Vec::new(),
             },
             ApplyBatchError::Slashed {
@@ -76,7 +76,7 @@ impl From<ApplyBatchError<TxEffect>> for BatchReceipt<SequencerOutcome, TxEffect
             } => BatchReceipt {
                 batch_hash: hash,
                 tx_receipts,
-                inner: SequencerOutcome::Slashed(reason),
+                inner: BatchSequencerOutcome::Slashed(reason),
                 gas_price,
             },
         }
@@ -174,26 +174,33 @@ where
             let sequencer_da_address = sender;
             // Checks the sequencer balance before the transaction is executed.
             // If the sequencer balance is not high enough, the transaction is rejected.
-            if let Err(e) = self
-                .runtime
-                .authorize_sequencer(sequencer_da_address, &mut checkpoint)
-            {
-                error!(
-                    error = %e,
-                    batch_id = hex::encode(batch.id),
-                    sequencer_da_address = %sequencer_da_address,
-                    "Error: The batch was rejected by the 'authorize_sequencer' capability. Skipping batch without slashing the sequencer",
-                );
+            let mut sequencer_stake_meter = match self.runtime.authorize_sequencer(
+                sequencer_da_address,
+                gas_price,
+                &mut checkpoint,
+            ) {
+                Ok(sequencer_stake_meter) => sequencer_stake_meter,
+                Err(e) => {
+                    error!(
+                        error = %e,
+                        batch_id = hex::encode(batch.id),
+                        sequencer_da_address = %sequencer_da_address,
+                        "Error: The batch was rejected by the 'authorize_sequencer' capability. Skipping batch without slashing the sequencer",
+                    );
 
-                break;
+                    break;
+                }
             };
 
-            match self.runtime.authenticate(raw_tx) {
+            match self
+                .runtime
+                .authenticate(raw_tx, &mut sequencer_stake_meter)
+            {
                 Err(AuthenticationError::FatalError(err)) => {
                     error!(err=%err, "Tx authentication failed");
 
                     self.runtime.end_batch_hook(
-                        SequencerOutcome::Slashed(err.clone()),
+                        BatchSequencerOutcome::Slashed(err.clone()),
                         sequencer_da_address,
                         &mut checkpoint,
                     );
@@ -209,21 +216,18 @@ where
                         gas_used,
                     );
                 }
-                Err(AuthenticationError::Invalid {
-                    reason,
-                    penalization_amount,
-                }) => {
+                Err(AuthenticationError::Invalid(reason)) => {
                     info!(
                         sequencer_da_address = %sequencer_da_address,
-                        penalization_amount = %penalization_amount,
-                        "Sequencer was penalized for the reason: {:?}",
+                        penalization_amount = %sequencer_stake_meter.gas_used_value(),
+                        "Sequencer was penalized during transaction authentication for the reason: {:?}",
                         reason
                     );
 
                     // Applies the outcome of the transaction execution to update the sequencer's state.
                     self.runtime.penalize_sequencer(
                         sequencer_da_address,
-                        penalization_amount,
+                        sequencer_stake_meter,
                         &mut checkpoint,
                     );
                 }
@@ -235,6 +239,7 @@ where
                         message,
                         checkpoint,
                         sequencer_da_address,
+                        sequencer_stake_meter,
                         ExecutionMode::Normal,
                         gas_price,
                         height,
@@ -242,13 +247,18 @@ where
 
                     gas_used.combine(&S::Gas::from_slice(&res.receipt.gas_used));
                     tx_receipts.push(res.receipt);
-                    accumulated_reward += res.sequencer_reward;
+
+                    if let TxSequencerOutcome::Rewarded(sequencer_reward) = res.tx_sequencer_outcome
+                    {
+                        accumulated_reward += sequencer_reward;
+                    }
+
                     checkpoint = res.new_checkpoint;
                 }
             }
         }
 
-        let sequencer_outcome = SequencerOutcome::Rewarded(accumulated_reward);
+        let sequencer_outcome = BatchSequencerOutcome::Rewarded(accumulated_reward);
         self.runtime
             .end_batch_hook(sequencer_outcome.clone(), sender, &mut checkpoint);
 
@@ -267,7 +277,7 @@ where
 
 fn compute_sequencer_tx_reward<S: Spec>(
     tx: &AuthenticatedTransactionData<S>,
-    gas_meter: &GasMeter<S::Gas>,
+    gas_meter: &TxGasMeter<S::Gas>,
 ) -> u64 {
     // We transfer the consumed base fee to the base fee recipient address.
     let base_fee = gas_meter.gas_used().value(gas_meter.gas_price());
@@ -294,7 +304,7 @@ pub struct ApplyTxResult<S: Spec> {
     /// The transaction receipt.
     pub receipt: TransactionReceipt<TxEffect>,
     /// The amount of gas tokens that the sequencer should be rewarded.
-    pub sequencer_reward: u64,
+    pub tx_sequencer_outcome: TxSequencerOutcome,
 }
 
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
@@ -308,6 +318,7 @@ pub fn apply_tx<S, RT, Da>(
     message: <RT as DispatchCall>::Decodable,
     mut state_checkpoint: StateCheckpoint<S>,
     sequencer: &Da::Address,
+    mut sequencer_stake_meter: <RT as SequencerAuthorization<S, Da>>::SequencerStakeMeter,
     execution_mode: ExecutionMode,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
@@ -326,15 +337,13 @@ where
         error!(
             error = %e,
             raw_tx_hash = hex::encode(raw_tx_hash),
+            sequencer_penalization_amount = %sequencer_stake_meter.gas_used_value(),
             "Tx was rejected by the 'check_uniqueness' hook",
         );
+
         if execution_mode != ExecutionMode::Speculative {
             // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-            runtime.penalize_sequencer(
-                sequencer,
-                tx.gas_fixed_cost().value(gas_price),
-                &mut state_checkpoint,
-            );
+            runtime.penalize_sequencer(sequencer, sequencer_stake_meter, &mut state_checkpoint);
         }
 
         return ApplyTxResult {
@@ -344,9 +353,10 @@ where
                 body_to_save: None,
                 events: vec![],
                 receipt: TxEffect::Duplicate,
-                gas_used: tx.gas_fixed_cost().to_vec(),
+                // The gas used is always zero here, since we didn't reserve any gas for the transaction yet.
+                gas_used: <S::Gas as Gas>::zero().to_vec(),
             },
-            sequencer_reward: 0,
+            tx_sequencer_outcome: TxSequencerOutcome::Penalized,
         };
     }
 
@@ -355,15 +365,13 @@ where
         Err(mut checkpoint) => {
             error!(
                 raw_tx_hash = hex::encode(raw_tx_hash),
-                "Tx was rejected by the 'try_reserve_gas' hook.",
+                sequencer_penalization_amount = %sequencer_stake_meter.gas_used_value(),
+                "Tx was rejected by the 'try_reserve_gas' hook. The gas reserve check failed.",
             );
+
             if execution_mode != ExecutionMode::Speculative {
                 // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-                runtime.penalize_sequencer(
-                    sequencer,
-                    tx.gas_fixed_cost().value(gas_price),
-                    &mut checkpoint,
-                );
+                runtime.penalize_sequencer(sequencer, sequencer_stake_meter, &mut checkpoint);
             }
 
             return ApplyTxResult {
@@ -372,14 +380,59 @@ where
                     tx_hash: *raw_tx_hash,
                     body_to_save: None,
                     events: vec![],
-                    receipt: TxEffect::InsufficientBaseGas,
-                    gas_used: tx.gas_fixed_cost().to_vec(),
+                    receipt: TxEffect::CannotReserveGas,
+                    gas_used: <S::Gas as Gas>::zero().to_vec(),
                 },
-                sequencer_reward: 0,
+                tx_sequencer_outcome: TxSequencerOutcome::Penalized,
             };
         }
     };
     let initial_funds = working_set.gas_remaining_funds();
+
+    // We charge gas for the pre-execution checks. This corresponds to the gas locked in the sequencer's stake meter
+    // We need to clone this value because [`SequencerAuthorization::penalize_sequencer`] will
+    // consume the `SequencerStakeMeter`.
+    let gas_used_for_pre_execution_checks = sequencer_stake_meter.gas_used().clone();
+    if let Err(e) = working_set.charge_gas(&gas_used_for_pre_execution_checks) {
+        let (mut state_checkpoint, gas_meter) = working_set.revert();
+        let locked_tx_funds = gas_meter.remaining_funds();
+
+        error!(
+            error = ?e,
+            raw_tx_hash = hex::encode(raw_tx_hash),
+            sequencer_penalization_amount = (sequencer_stake_meter.gas_used_value() - locked_tx_funds),
+            "Insufficient funds to pay for the transaction pre-execution checks",
+        );
+
+        // The sequencer got penalized for the amount of gas that was used to execute the pre transaction checks
+        // and was refunded the funds locked in the transaction.
+
+        if execution_mode != ExecutionMode::Speculative {
+            // We need to refund the gas contained in the working set to the sequencer.
+            runtime.refund_sequencer(&mut sequencer_stake_meter, locked_tx_funds);
+
+            // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
+            runtime.penalize_sequencer(sequencer, sequencer_stake_meter, &mut state_checkpoint);
+
+            // We mark the transaction as attempted to prevent it from being executed again.
+            runtime.mark_tx_attempted(tx, sequencer, &mut state_checkpoint);
+        }
+
+        return ApplyTxResult {
+            new_checkpoint: state_checkpoint,
+            receipt: TransactionReceipt {
+                tx_hash: *raw_tx_hash,
+                body_to_save: None,
+                // We don't emit events because the transaction wasn't even executed
+                events: vec![],
+                receipt: TxEffect::InsufficientGasForPreExecutionChecks,
+                // This is an edge case... The `gas_used` field is set to the amount of gas used for the pre-execution checks
+                // although the transaction couldn't pay for all of it. The sequencer payed the difference.
+                gas_used: gas_used_for_pre_execution_checks.to_vec(),
+            },
+            tx_sequencer_outcome: TxSequencerOutcome::Penalized,
+        };
+    }
 
     let tx_result = attempt_tx(runtime, tx, message, &mut working_set, &ctx);
     let (mut checkpoint, receipt, mut gas_meter) = match tx_result {
@@ -423,6 +476,8 @@ where
         }
     };
 
+    let gas_reward = compute_sequencer_tx_reward(tx, &gas_meter);
+
     // If the transaction failed in speculative mode, we act as though it never happened.
     if execution_mode == ExecutionMode::Speculative && receipt.receipt != TxEffect::Successful {
         tracing::info!(
@@ -435,15 +490,13 @@ where
         return ApplyTxResult {
             new_checkpoint: checkpoint,
             receipt,
-            sequencer_reward: 0,
+            tx_sequencer_outcome: TxSequencerOutcome::Rewarded(gas_reward),
         };
     }
 
     runtime.mark_tx_attempted(tx, sequencer, &mut checkpoint);
 
     runtime.refund_remaining_gas(tx, &ctx, &gas_meter, &mut checkpoint);
-
-    let gas_reward = compute_sequencer_tx_reward(tx, &gas_meter);
 
     debug!(
         tx_hash =
@@ -456,7 +509,7 @@ where
     ApplyTxResult {
         new_checkpoint: checkpoint,
         receipt,
-        sequencer_reward: gas_reward,
+        tx_sequencer_outcome: TxSequencerOutcome::Rewarded(gas_reward),
     }
 }
 
@@ -472,15 +525,12 @@ where
     Da: DaSpec,
     RT: Runtime<S, Da>,
 {
-    working_set.charge_gas(&tx.gas_fixed_cost())?;
-    // TODO(@preston-evans98): Consider moving this before the gas resolution.
-    // Also consider whether this needs to be fallible
-
     runtime.pre_dispatch_tx_hook(tx, working_set)?;
 
     runtime
         .dispatch_call(message, working_set, ctx)
         .map_err(Into::<anyhow::Error>::into)?;
+
     runtime.post_dispatch_tx_hook(tx, ctx, working_set)?;
 
     Ok(())

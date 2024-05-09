@@ -45,11 +45,13 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + RuntimeAuthenticator<
         Tx = AuthenticatedTransactionAndRawHash<S>,
         Decodable = <Self as DispatchCall>::Decodable,
+        Gas = S::Gas,
+        SequencerStakeMeter = <Self as SequencerAuthorization<S, Da>>::SequencerStakeMeter,
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>
     + SlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
-    + ApplyBatchHooks<Da, Spec = S, BatchResult = SequencerOutcome>
+    + ApplyBatchHooks<Da, Spec = S, BatchResult = BatchSequencerOutcome>
     + Default
     + RuntimeEventProcessor
     + GasEnforcer<S, Da, Tx = AuthenticatedTransactionData<S>>
@@ -79,16 +81,30 @@ pub enum TxEffect {
     Reverted,
     /// Batch was processed successfully.
     Successful,
-    /// The transaction was not applied because it did not purchase the minimum required gas.
-    /// In this case, the sequencer should be charged the base gas fee.
-    InsufficientBaseGas,
+    /// The transaction was not applied because it didn't pass the pre-execution gas checks
+    /// (from the [`GasEnforcer::try_reserve_gas`] capability).
+    /// In this case, the sequencer should be charged the amount of gas used for the pre-execution checks.
+    CannotReserveGas,
+    /// The transaction was not applied because it didn't have enough gas to pay the pre-execution checks
+    /// (signature verification, transaction decoding, etc.).
+    /// In that case, the sequencer should be charged the amount of gas used for the pre-execution checks and
+    /// refunded all the gas fee locked in the transaction.
+    InsufficientGasForPreExecutionChecks,
     /// The transaction was not applied because it was a duplicate
     Duplicate,
 }
 
+/// Possible outcomes of a transaction execution for the sequencer.
+pub enum TxSequencerOutcome {
+    /// The transaction was successfully executed.
+    Rewarded(u64),
+    /// The sequencer was penalized during the execution of the transaction.
+    Penalized,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 /// Represents the different outcomes that can occur for a sequencer after batch processing.
-pub enum SequencerOutcome {
+pub enum BatchSequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
     Rewarded(u64),
     /// Sequencer loses its deposit and receives no reward
@@ -196,7 +212,7 @@ where
 
     type TxReceiptContents = TxEffect;
 
-    type BatchReceiptContents = SequencerOutcome;
+    type BatchReceiptContents = BatchSequencerOutcome;
 
     type ProofReceiptContents = ();
 

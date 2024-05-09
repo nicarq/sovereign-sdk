@@ -2,7 +2,7 @@ use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Context, GasMeter, KernelWorkingSet, Module, StateCheckpoint, VersionedStateReadWriter,
+    Context, KernelWorkingSet, Module, StateCheckpoint, TxGasMeter, VersionedStateReadWriter,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
@@ -49,7 +49,7 @@ fn call_test() {
     evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
 
     let set_arg = 999;
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
     {
         let sender_address = generate_address::<S>("sender");
         let sequencer_address = generate_address::<S>("sequencer");
@@ -119,7 +119,7 @@ fn failed_transaction_test() {
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
 
     evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
-    let mut working_set = state_checkpoint.to_revertable(GasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
     {
         let sender_address = generate_address::<S>("sender");
         let sequencer_address = generate_address::<S>("sequencer");
