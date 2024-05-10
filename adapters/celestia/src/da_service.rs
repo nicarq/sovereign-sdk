@@ -174,6 +174,10 @@ impl Fee for CelestiaFee {
     fn set_fee_rate(&mut self, rate: Self::FeeRate) {
         self.fee_per_gas = rate;
     }
+
+    fn gas_estimate(&self) -> u64 {
+        self.gas_limit
+    }
 }
 
 #[async_trait]

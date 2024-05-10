@@ -315,6 +315,10 @@ impl Fee for MockFee {
     fn set_fee_rate(&mut self, rate: Self::FeeRate) {
         self.0 = rate;
     }
+
+    fn gas_estimate(&self) -> u64 {
+        1
+    }
 }
 
 #[async_trait]

@@ -74,6 +74,10 @@ impl Fee for RngDaFee {
     }
 
     fn set_fee_rate(&mut self, _rate: Self::FeeRate) {}
+
+    fn gas_estimate(&self) -> u64 {
+        0
+    }
 }
 
 #[async_trait]
