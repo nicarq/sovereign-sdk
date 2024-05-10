@@ -1,10 +1,11 @@
-use clap::Parser;
 use sov_modules_api::macros::CliWalletArg;
 
 #[derive(CliWalletArg, Debug, PartialEq)]
 pub struct MyStruct(u32, String);
 
 fn main() {
+    use sov_modules_api::prelude::clap::Parser;
+
     let expected = MyStruct(1, "hello".to_string());
     let actual = <MyStruct as sov_modules_api::CliWalletArg>::CliStringRepr::try_parse_from(&[
         "main",

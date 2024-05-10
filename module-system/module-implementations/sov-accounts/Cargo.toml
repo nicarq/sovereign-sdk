@@ -19,10 +19,8 @@ anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
 serde_with = { workspace = true }
 thiserror = { workspace = true }
-clap = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
@@ -51,10 +49,8 @@ arbitrary = [
 	"sov-test-utils/arbitrary",
 ]
 native = [
-	"clap",
 	"jsonrpsee",
 	"schemars",
-	"serde_json",
 	"sov-accounts/native",
 	"sov-modules-api/native",
 	"sov-state/native",

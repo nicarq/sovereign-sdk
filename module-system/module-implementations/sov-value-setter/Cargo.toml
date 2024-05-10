@@ -29,19 +29,15 @@ sov-modules-api = { path = "../../sov-modules-api" }
 sov-state = { path = "../../sov-state" }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
-clap = { workspace = true, optional = true }
 
 [features]
 default = []
 native = [
-	"clap",
 	"jsonrpsee",
 	"schemars",
-	"serde_json",
 	"sov-modules-api/native",
 	"sov-state/native",
 	"sov-value-setter/native",

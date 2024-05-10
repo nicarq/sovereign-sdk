@@ -72,7 +72,8 @@ mod tests {
     use std::str::FromStr;
 
     use sov_mock_da::{MockAddress, MockDaSpec};
-    use sov_modules_api::{AddressBech32, Spec};
+    use sov_modules_api::prelude::*;
+    use sov_modules_api::AddressBech32;
     use sov_test_utils::TestSpec;
 
     use crate::SequencerConfig;

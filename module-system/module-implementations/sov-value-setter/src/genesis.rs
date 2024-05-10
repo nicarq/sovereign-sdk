@@ -29,6 +29,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
 
 #[cfg(test)]
 mod tests {
+    use sov_modules_api::prelude::serde_json;
     use sov_modules_api::Address;
     use sov_test_utils::TestSpec;
 

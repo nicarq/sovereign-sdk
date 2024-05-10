@@ -1,4 +1,5 @@
 use sov_modules_api::da::{NanoSeconds, Time};
+use sov_modules_api::prelude::serde_json;
 use sov_test_utils::TestSpec;
 
 use crate::ChainStateConfig;

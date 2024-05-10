@@ -8,7 +8,10 @@ pub struct NonFungibleTokenConfig {}
 
 #[cfg(test)]
 mod tests {
+    use sov_modules_api::prelude::serde_json;
+
     use crate::NonFungibleTokenConfig;
+
     #[test]
     fn test_config_serialization() {
         let config = NonFungibleTokenConfig {};

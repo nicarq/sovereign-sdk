@@ -8,8 +8,9 @@ use std::num::ParseIntError;
 use anyhow::{bail, Context};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_modules_api::impl_hash32_type;
 use sov_modules_api::namespaces::User;
-use sov_modules_api::{impl_hash32_type, Spec, StateAccessor, StateReaderAndWriter};
+use sov_modules_api::prelude::*;
 use sov_state::Prefix;
 use thiserror::Error;
 

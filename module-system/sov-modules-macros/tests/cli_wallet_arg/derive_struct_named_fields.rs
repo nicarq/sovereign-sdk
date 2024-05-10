@@ -1,4 +1,3 @@
-use clap::Parser;
 use sov_modules_api::macros::CliWalletArg;
 
 #[derive(CliWalletArg, Debug, PartialEq)]
@@ -8,6 +7,8 @@ pub struct MyStruct {
 }
 
 fn main() {
+    use sov_modules_api::prelude::clap::Parser;
+
     let expected = MyStruct {
         first_field: 1,
         str_field: "hello".to_string(),

@@ -28,7 +28,6 @@ borsh = { workspace = true, features = ["rc"] }
 bincode = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 
@@ -42,7 +41,6 @@ default = []
 native = [
 	"jsonrpsee",
 	"schemars",
-	"serde_json",
 	"sov-bank/native",
 	"sov-chain-state/native",
 	"sov-mock-da/native",

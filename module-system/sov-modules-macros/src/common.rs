@@ -1,7 +1,9 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, ToTokens};
 use syn::spanned::Spanned;
-use syn::{DataStruct, Fields, GenericParam, ImplGenerics, Meta, TypeGenerics};
+use syn::{
+    DataStruct, Fields, GenericParam, ImplGenerics, Meta, TypeGenerics, VisPublic, Visibility,
+};
 
 #[derive(Clone)]
 pub(crate) struct StructNamedField {
@@ -67,9 +69,15 @@ impl StructFieldExtractor {
     }
 
     /// Extract the named fields from a struct, or generate named fields matching the fields of an unnamed struct.
-    /// Names follow the pattern `field0`, `field1`, etc.
+    /// Names follow the pattern `field0`, `field1`, etc..
+    ///
+    /// The `public` parameter, if set, makes it so the generated fields are
+    /// public; if not, the parent visibility is used.
     #[cfg_attr(not(feature = "native"), allow(unused))]
-    pub(crate) fn get_or_generate_named_fields(fields: &Fields) -> Vec<StructNamedField> {
+    pub(crate) fn get_or_generate_named_fields(
+        fields: &Fields,
+        public: bool,
+    ) -> Vec<StructNamedField> {
         match fields {
             Fields::Unnamed(unnamed_fields) => unnamed_fields
                 .unnamed
@@ -78,9 +86,16 @@ impl StructFieldExtractor {
                 .map(|(i, field)| {
                     let ident = Ident::new(&format!("field{}", i), field.span());
                     let ty = &field.ty;
+                    let vis = if public {
+                        Visibility::Public(VisPublic {
+                            pub_token: Default::default(),
+                        })
+                    } else {
+                        field.vis.clone()
+                    };
                     StructNamedField {
                         attrs: field.attrs.clone(),
-                        vis: field.vis.clone(),
+                        vis,
                         ident,
                         ty: ty.clone(),
                     }
@@ -91,9 +106,16 @@ impl StructFieldExtractor {
                 .iter()
                 .map(|field| {
                     let ty = &field.ty;
+                    let vis = if public {
+                        Visibility::Public(VisPublic {
+                            pub_token: Default::default(),
+                        })
+                    } else {
+                        field.vis.clone()
+                    };
                     StructNamedField {
                         attrs: field.attrs.clone(),
-                        vis: field.vis.clone(),
+                        vis,
                         ident: field.ident.clone().expect("Named fields must have names!"),
                         ty: ty.clone(),
                     }
