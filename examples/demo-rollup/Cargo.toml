@@ -38,7 +38,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true, optional = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time", "macros"]}
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 prometheus_exporter = "0.8.5"
 
@@ -71,7 +71,7 @@ bincode = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 proptest = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["full"]}
 rand = { workspace = true }
 
 ethereum-types = { workspace = true }

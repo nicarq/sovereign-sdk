@@ -18,7 +18,6 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true }
 serde = { workspace = true }
-tokio = { workspace = true }
 futures = { workspace = true }
 # Sovereign dependencies
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }

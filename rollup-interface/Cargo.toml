@@ -30,7 +30,7 @@ sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 # TODO: Remove tokio when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161 is resolved
-tokio = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["sync"] }
 
 # Proptest should be a dev-dependency, but those can't be optional
 proptest = { workspace = true, optional = true }
