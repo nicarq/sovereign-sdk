@@ -63,6 +63,11 @@ pub trait Fee {
 
     /// Updates the price per unit of gas.
     fn set_fee_rate(&mut self, rate: Self::FeeRate);
+
+    /// The amount of gas that the transaction is expected to consume.
+    /// Multiplying this quantity by the fee rate gives the total fee.
+    /// for the transaction
+    fn gas_estimate(&self) -> u64;
 }
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
