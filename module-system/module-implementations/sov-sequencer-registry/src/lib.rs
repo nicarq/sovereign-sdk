@@ -74,7 +74,6 @@ pub enum SlashingReason {
 }
 
 /// The `sov-sequencer-registry` module `struct`.
-#[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(Clone, ModuleInfo)]
 pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
     /// The ID of the `sov_sequencer_registry` module.

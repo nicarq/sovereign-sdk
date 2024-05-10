@@ -102,7 +102,9 @@ pub mod prelude {
     // This means that, in practice, re-exporting proc-macros is often difficult
     // or can't always be done.
 
-    pub use crate::{DaSpec, Spec, StateAccessor, StateReaderAndWriter, WorkingSet};
+    pub use crate::{
+        DaSpec, ModuleCallJsonSchema, Spec, StateAccessor, StateReaderAndWriter, WorkingSet,
+    };
 
     #[cfg(feature = "native")]
     pub extern crate clap;

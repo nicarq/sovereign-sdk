@@ -29,7 +29,6 @@ pub struct Account<S: Spec> {
 }
 
 /// A module responsible for managing accounts on the rollup.
-#[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
 #[cfg_attr(feature = "arbitrary", derive(Debug))]
 pub struct Accounts<S: Spec> {

@@ -21,7 +21,6 @@ pub struct ExampleModuleConfig {}
 ///   This is optional, and is only used to generate a JSON Schema for your
 ///   module's call messages (which is useful to develop clients, CLI tooling
 ///   etc.).
-#[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo)]
 pub struct ExampleModule<S: sov_modules_api::Spec> {
     /// Id of the module.
