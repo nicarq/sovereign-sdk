@@ -39,7 +39,7 @@ sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-bluepr
 sov-state = { path = "../../module-system/sov-state", version = "0.3" }
 sov-db = { path = "../sov-db", version = "0.3" }
 tracing = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt"]}
 utoipa = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 
@@ -60,4 +60,4 @@ sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-db = { path = "../sov-db" }
 tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["test-util", "macros"]}

@@ -17,7 +17,7 @@ workspace = true
 [dependencies]
 # Common dependencies
 jsonrpsee = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["macros"]}
 borsh = { workspace = true }
 serde = "1"
 serde_json = "1"
@@ -48,7 +48,7 @@ sov-ledger-json-client = { path = "../sov-ledger-json-client" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"], version = "0.3" }
 sov-test-utils = { path = "../../module-system/sov-test-utils", features = ["demo-stf"] }
 tempfile = "3"
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["test-util"] }
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"], version = "0.3" }
 
 [features]

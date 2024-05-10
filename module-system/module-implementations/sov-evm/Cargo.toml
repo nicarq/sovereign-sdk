@@ -54,7 +54,7 @@ revm-primitives = { workspace = true }
 
 [dev-dependencies]
 sov-evm = { path = ".", features = ["native"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"]}
 tempfile = { workspace = true }
 bytes = { workspace = true }
 ethers-signers = { workspace = true }

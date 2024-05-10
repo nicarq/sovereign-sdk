@@ -137,7 +137,7 @@ use sov_modules_macros::offchain;
 ```toml
  sov-modules-macros = { path = "../../sov-modules-macros" }
  postgres = { version = "0.19.7", optional = true }
- tokio = { version = "1.32.0", features=["full"], optional = true }
+ tokio = { workspace = true, features=["rt-multi-thread"], optional = true }
  tracing = { workspace = true, optional = true }
 ```
 

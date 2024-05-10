@@ -35,4 +35,4 @@ borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["sync"]}

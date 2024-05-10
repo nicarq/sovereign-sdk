@@ -3557,7 +3557,6 @@ dependencies = [
  "sov-test-utils",
  "sov-value-setter",
  "tempfile",
- "tokio",
  "tracing",
 ]
 
@@ -7712,7 +7711,6 @@ dependencies = [
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-test-utils",
- "tokio",
 ]
 
 [[package]]
