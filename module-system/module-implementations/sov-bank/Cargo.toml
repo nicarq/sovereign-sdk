@@ -17,11 +17,9 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
-clap = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 bech32 = { workspace = true }
@@ -39,10 +37,8 @@ sov-test-utils = { path = "../../sov-test-utils" }
 [features]
 default = []
 native = [
-	"clap",
 	"jsonrpsee",
 	"schemars",
-	"serde_json",
 	"sov-bank/native",
 	"sov-modules-api/native",
 	"sov-state/native",

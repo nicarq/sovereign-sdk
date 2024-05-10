@@ -19,7 +19,6 @@ workspace = true
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
-clap = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 sov-bank = { path = "../sov-bank", version = "0.3" }
@@ -27,7 +26,6 @@ sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 risc0-cycle-macros = { workspace = true, optional = true }
@@ -65,11 +63,9 @@ arbitrary = [
 	"sov-test-utils/arbitrary",
 ]
 native = [
-	"clap",
 	"jsonrpsee",
 	"risc0-cycle-utils?/native",
 	"schemars",
-	"serde_json",
 	# This:
 	"sov-bank/native",
 	"sov-mock-da/native",

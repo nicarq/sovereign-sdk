@@ -1,4 +1,3 @@
-use clap::Parser;
 use sov_modules_api::cli::JsonStringArg;
 use sov_modules_api::macros::{CliWallet, CliWalletArg};
 use sov_modules_api::{
@@ -123,6 +122,8 @@ pub struct Runtime<S: Spec> {
 }
 
 fn main() {
+    use sov_modules_api::prelude::clap::Parser;
+
     let expected_foo = RuntimeCall::first(first_test_module::MyStruct {
         first_field: 1,
         str_field: "hello".to_string(),

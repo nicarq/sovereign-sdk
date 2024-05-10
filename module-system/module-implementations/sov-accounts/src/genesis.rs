@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use serde_with::{serde_as, DisplayFromStr};
-use sov_modules_api::{Hash, Spec, WorkingSet};
+use sov_modules_api::prelude::*;
+use sov_modules_api::Hash;
 
 use crate::{Account, Accounts};
 

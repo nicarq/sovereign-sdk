@@ -142,6 +142,11 @@ pub mod macros {
     ///     pub bank: sov_bank::Bank<S>,
     ///     // ...
     /// }
+    ///
+    /// fn main() {}
+    //  ^^^^^^^^^^^^
+    //  COMMENT: the above `main` function is a workaround for
+    //  <https://github.com/rust-lang/rust/issues/83583#issuecomment-1083300448>.
     /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::CliWallet;

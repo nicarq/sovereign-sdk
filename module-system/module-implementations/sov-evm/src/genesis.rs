@@ -185,6 +185,7 @@ mod tests {
 
     use reth_primitives::Bytes;
     use revm::primitives::{Address, SpecId};
+    use sov_modules_api::prelude::serde_json;
 
     use crate::{AccountData, EvmConfig};
 

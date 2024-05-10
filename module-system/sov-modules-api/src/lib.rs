@@ -61,6 +61,55 @@ pub mod da {
 
 pub use authentication::{authenticate, Authenticator};
 
+/// Prelude with re-exports of external crates used by macros, as well as
+/// important traits and types.
+///
+/// This is meant to be "glob" imported wherever you'll use
+/// [`sov_modules_api::macros`](crate::macros).
+///
+/// ```rust
+/// use sov_modules_api::prelude::*;
+/// use sov_modules_api::macros::CliWalletArg;
+///
+/// #[derive(CliWalletArg)]
+/// struct MyStruct;
+/// ```
+pub mod prelude {
+    // A NOTE ABOUT PRELUDES
+    // ---------------------
+    // I'm generally against preludes in Rust code, and the rest of the Rust
+    // community seems to agree. I believe our use case warrants a prelude, though,
+    // as we reexport many macros from many different crates, and a "glob" import is
+    // the only way for us to inject all of these dependencies into downstream code
+    // without its authors having to mess with their Cargo manifests.
+    //
+    // There's another thing to consider. Oftentimes, downstream code will only ever
+    // use proc-macros when the `native` Cargo feature is enabled, which would mean
+    // that the prelude "glob" import generates an "unused import" warning when
+    // `native` is disabled. To avoid this, it's a good idea for us to also re-export
+    // some other items that will (almost) always be used regardless of Cargo
+    // features. `Spec`, for example, fits the bill. This ensures the lowest
+    // possible amount of warnings, and thus the amount of linting exceptions
+    // that users will have to deal with.
+    //
+    // In some cases, it's easy for proc-macros to depend on dependencies
+    // re-exported here. In others, however, the original proc-macro references
+    // its dependency with an absolute path, e.g. `::serde`. There is,
+    // unfortunately, no way around that, unless said proc-macro also allows
+    // configuring the crate path, e.g.
+    // `#[serde(crate = "sov_modules_api::prelude::serde")]`
+    //
+    // This means that, in practice, re-exporting proc-macros is often difficult
+    // or can't always be done.
+
+    pub use crate::{DaSpec, Spec, StateAccessor, StateReaderAndWriter, WorkingSet};
+
+    #[cfg(feature = "native")]
+    pub extern crate clap;
+    #[cfg(feature = "native")]
+    pub extern crate serde_json;
+}
+
 struct ModuleVisitor<'a, S: Spec> {
     visited: HashSet<&'a ModuleId>,
     visited_on_this_path: Vec<&'a ModuleId>,

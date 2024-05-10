@@ -19,7 +19,6 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 tracing = { workspace = true }	
 derivative = { workspace = true }
@@ -42,7 +41,6 @@ default = []
 test-utils = []
 native = [
 	"jsonrpsee",
-	"serde_json",
 	"sov-chain-state/native",
 	"sov-mock-da/native",
 	"sov-mock-zkvm/native",

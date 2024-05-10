@@ -16,7 +16,8 @@ pub fn derive_module_call_json_schema(input: DeriveInput) -> syn::Result<proc_ma
                 let schema = ::schemars::schema_for!(
                     <Self as ::sov_modules_api::Module>::CallMessage
                 );
-                ::serde_json::to_string_pretty(&schema).expect("Failed to serialize JSON schema; this is a bug in the module")
+                ::sov_modules_api::prelude::serde_json::to_string_pretty(&schema)
+                    .expect("Failed to serialize JSON schema; this is a bug in the module")
             }
         }
     };

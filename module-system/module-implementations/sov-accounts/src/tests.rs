@@ -1,4 +1,5 @@
-use sov_modules_api::{Address, Context, Module, PrivateKey, PublicKey, Spec, WorkingSet};
+use sov_modules_api::prelude::*;
+use sov_modules_api::{Address, Context, Module, PrivateKey, PublicKey};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 

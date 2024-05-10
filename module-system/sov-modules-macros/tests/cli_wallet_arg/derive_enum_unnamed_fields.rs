@@ -1,4 +1,3 @@
-use clap::Parser;
 use sov_modules_api::macros::CliWalletArg;
 
 #[derive(CliWalletArg, Debug, PartialEq)]
@@ -8,6 +7,8 @@ pub enum MyEnum {
 }
 
 fn main() {
+    use sov_modules_api::prelude::clap::Parser;
+
     let expected_foo = MyEnum::Foo(1, "hello".to_string());
     let actual_foo = <MyEnum as sov_modules_api::CliWalletArg>::CliStringRepr::try_parse_from(&[
         "myenum", "foo", "1", "hello",

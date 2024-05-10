@@ -16,7 +16,6 @@ anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 serde = { workspace = true }
 schemars = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 bech32 = { workspace = true }
 
@@ -40,7 +39,6 @@ offchain = [ "postgres", "sov-nft-module/offchain", "tokio", "tracing" ]
 native = [
 	"jsonrpsee",
 	"schemars",
-	"serde_json",
 	"sov-modules-api/native",
 	"sov-nft-module/native",
 	"sov-state/native",

@@ -23,9 +23,7 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 bytes = { workspace = true }
 schemars = { workspace = true, optional = true }
-clap = { workspace = true, optional = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = [
@@ -73,13 +71,11 @@ sov-eth-dev-signer = { path = "../../../full-node/sov-eth-dev-signer" }
 default = []
 native = [
 	"alloy-rpc-types",
-	"clap",
 	"jsonrpsee",
 	"revm-inspectors",
 	# Optional for speed up in native mode
 	# "revm/asm-keccak"
 	"schemars",
-	"serde_json",
 	"sov-evm/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",

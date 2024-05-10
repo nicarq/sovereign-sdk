@@ -33,7 +33,6 @@ borsh = { workspace = true, features = ["rc"] }
 bcs =  { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
 derivative = { workspace = true }
 tracing = { workspace = true }
 
@@ -46,7 +45,6 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 [features]
 default = []
 native = [
-	"serde_json",
 	"sov-attester-incentives/native",
 	"sov-bank/native",
 	"sov-chain-state/native",

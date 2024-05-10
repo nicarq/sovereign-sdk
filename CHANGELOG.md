@@ -1,3 +1,4 @@
+- #621 removes the need for a prelude `sov_modules_api::prelude` which re-exposes a few common types for convenience, as well as external crates like `clap` and `serde_json` (for now, more will follow). You can remove these dependencies from your `Cargo.toml` if you wish.
 - #620 Adds more fields to the `Event`s emitted by the `sov-bank` module. Start emitting events for token minting.
 - #619 starts charging gas for signature checks in the StfBlueprint and completes the refactoring effort started in #612. There was the following changes in the interface:
   - Introduction of a `GasMeter` trait and the three associated implementations: `TxGasMeter` (what used to be the `GasMeter` struct), `UnlimitedGasMeter` (a gas meter that holds an infinite reserve of gas) and the `SequencerStakeMeter` (a gas meter specially designed to track the sequencer stake and accumulate penalties).
@@ -7,6 +8,7 @@
   - Add a `TxSequencerOutcome` which is an enum with the variants `Rewarded(amount)` and `Penalized`. 
   - Rename `SequencerOutcome` to `BatchSequencerOutcome` to represent the `SequencerOutcome` following batch execution. 
 
+- #622 Make `DefaultStorageSpec` generic over a `Hasher` instead of defaulting to `Sha256`
 - #622 Make `DefaultStorageSpec` generic over a `Hasher` instead of defaulting to `Sha256`
 - #623 updates the AccountConfig structure. This change is breaking for consumers of the SDK, as the format of the accounts.json configuration files has been changed.
 - #617 adds a `gas_estimate` method to the DA layer `Fee` trait

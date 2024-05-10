@@ -24,8 +24,6 @@ mod offchain;
 #[cfg(feature = "native")]
 mod rpc;
 
-#[cfg(feature = "native")]
-use cli_parser::{derive_cli_wallet_arg, CliParserMacro};
 use compile_manifest_constants::{make_const_bech32, make_const_value};
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
@@ -253,14 +251,14 @@ pub fn expose_rpc(_attr: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_derive(CliWallet, attributes(cli_skip))]
 pub fn cli_parser(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
-    let cli_parser = CliParserMacro::new("Cmd");
-    handle_macro_error_and_expand(fn_name!(), cli_parser.cli_macro(input))
+    handle_macro_error_and_expand(fn_name!(), cli_parser::derive_cli_wallet("Cmd", input))
 }
+
 #[cfg(feature = "native")]
 #[proc_macro_derive(CliWalletArg)]
 pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = parse_macro_input!(input);
-    handle_macro_error_and_expand(fn_name!(), derive_cli_wallet_arg(input))
+    handle_macro_error_and_expand(fn_name!(), cli_parser::derive_cli_wallet_arg(input))
 }
 
 /// Simple convenience macro for adding some common derive macros and
