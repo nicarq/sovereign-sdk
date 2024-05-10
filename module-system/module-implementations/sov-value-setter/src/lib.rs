@@ -21,7 +21,6 @@ use crate::event::Event;
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-#[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo)]
 pub struct ValueSetter<S: sov_modules_api::Spec> {
     /// The ID of the module.

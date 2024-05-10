@@ -14,49 +14,6 @@ pub use sov_modules_macros::Genesis;
 pub use sov_modules_macros::KernelModuleInfo;
 #[cfg(feature = "macros")]
 pub use sov_modules_macros::MessageCodec;
-/// Derives the [`ModuleCallJsonSchema`](trait.ModuleCallJsonSchema.html) trait for
-/// the underlying type.
-///
-/// ## Example
-///
-/// ```
-/// use std::marker::PhantomData;
-///
-/// use sov_modules_api::{WorkingSet, ModuleId, Spec, Error, CallResponse, Context, Module, ModuleInfo, ModuleCallJsonSchema, StateMap, TxState};
-/// use sov_test_utils::ZkTestSpec;
-///
-/// #[derive(ModuleInfo, ModuleCallJsonSchema)]
-/// struct TestModule<S: Spec> {
-///     #[id]
-///     id: ModuleId,
-///
-///     #[state]
-///     pub state_map: StateMap<String, u32>,
-///
-///     #[phantom]
-///     phantom: std::marker::PhantomData<S>,
-/// }
-///
-/// impl<S: Spec> Module for TestModule<S> {
-///     type Spec = S;
-///     type Config = PhantomData<S>;
-///     type CallMessage = ();
-///     type Event = ();
-///     
-///     fn call(
-///        &self,
-///        _msg: Self::CallMessage,
-///        _context: &Context<Self::Spec>,
-///        _working_set: &mut impl TxState<S>,
-///     ) -> Result<CallResponse, Error> {
-///        Ok(CallResponse {})
-///     }
-/// }
-///
-/// println!("JSON Schema: {}", TestModule::<ZkTestSpec>::json_schema());
-/// ```
-#[cfg(feature = "macros")]
-pub use sov_modules_macros::ModuleCallJsonSchema;
 /// Derives the [`ModuleInfo`] trait for the underlying `struct`.
 ///
 /// The underlying type must respect the following conditions, or compilation

@@ -26,7 +26,6 @@ mod sql;
 pub mod utils;
 use crate::event::Event;
 
-#[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
 /// Module for non-fungible tokens (NFT).
 /// Each token is represented by a unique ID.

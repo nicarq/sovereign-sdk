@@ -17,7 +17,6 @@ mod dispatch;
 mod event;
 mod expand_macro;
 mod manifest;
-mod module_call_json_schema;
 mod module_info;
 mod new_types;
 mod offchain;
@@ -29,7 +28,6 @@ use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
 use dispatch::message_codec::MessageCodec;
 use event::EventMacro;
-use module_call_json_schema::derive_module_call_json_schema;
 use module_info::ModuleType;
 use new_types::address_type_helper;
 use offchain::offchain_generator;
@@ -102,12 +100,6 @@ pub fn event(input: TokenStream) -> TokenStream {
     let event_macro = EventMacro::new("Event");
 
     handle_macro_error_and_expand(fn_name!(), event_macro.derive_event_enum(input))
-}
-
-#[proc_macro_derive(ModuleCallJsonSchema)]
-pub fn module_call_json_schema(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input);
-    handle_macro_error_and_expand(fn_name!(), derive_module_call_json_schema(input))
 }
 
 /// Adds encoding functionality to the underlying type.

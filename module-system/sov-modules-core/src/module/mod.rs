@@ -71,12 +71,25 @@ pub trait Module {
 /// Schema](https://json-schema.org/) for its [`Module::CallMessage`].
 ///
 /// This trait is intended to support code generation tools, CLIs, and
-/// documentation. You can derive it with `#[derive(ModuleCallJsonSchema)]`, or
-/// implement it manually if your use case demands more control over the JSON
-/// Schema generation.
+/// documentation. This trait is blanket-implemented for all modules with a
+/// [`Module::CallMessage`] associated type that implements
+/// [`schemars::JsonSchema`].
 pub trait ModuleCallJsonSchema: Module {
     /// Returns the JSON schema for [`Module::CallMessage`].
     fn json_schema() -> String;
+}
+
+impl<T> ModuleCallJsonSchema for T
+where
+    T: Module,
+    T::CallMessage: schemars::JsonSchema,
+{
+    fn json_schema() -> String {
+        let schema = ::schemars::schema_for!(T::CallMessage);
+
+        serde_json::to_string_pretty(&schema)
+            .expect("Failed to serialize JSON schema; this is a bug in the module")
+    }
 }
 
 /// Every module has to implement this trait.
