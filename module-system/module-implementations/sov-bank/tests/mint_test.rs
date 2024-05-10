@@ -66,6 +66,7 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message.clone(), &minter_context, &mut working_set)
         .expect("Failed to mint token");
+    assert_eq!(working_set.events().len(), 1);
 
     let total_supply = query_total_supply(token_id, &mut working_set);
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
@@ -83,6 +84,7 @@ fn mint_token() {
     let sequencer_address = generate_address::<S>("sequencer");
     let unauthorized_context = Context::<S>::new(unauthorized_address, sequencer_address, 1);
     let unauthorized_mint = bank.call(mint_message, &unauthorized_context, &mut working_set);
+    assert_eq!(working_set.events().len(), 1);
 
     assert!(unauthorized_mint.is_err());
 
@@ -128,7 +130,7 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message, &minter_context, &mut working_set)
         .expect("Failed to mint token");
-    assert_eq!(working_set.events().len(), 1);
+    assert_eq!(working_set.events().len(), 2);
 
     // Try to mint new token with original token creator, in this case minter_context
     let mint_amount = 10;
@@ -178,7 +180,7 @@ fn mint_token() {
         .call(mint_message, &authorized_minter_2_context, &mut working_set)
         .expect("Failed to mint token");
     let supply = query_total_supply(token_id, &mut working_set);
-    assert_eq!(working_set.events().len(), 1);
+    assert_eq!(working_set.events().len(), 3);
     assert_eq!(Some(110), supply);
 
     // Try to mint new token with authorized sender 1
@@ -196,7 +198,7 @@ fn mint_token() {
         .call(mint_message, &authorized_minter_1_context, &mut working_set)
         .expect("Failed to mint token");
     let supply = query_total_supply(token_id, &mut working_set);
-    assert_eq!(working_set.events().len(), 1);
+    assert_eq!(working_set.events().len(), 4);
     assert_eq!(Some(120), supply);
 
     // Overflow test - account balance

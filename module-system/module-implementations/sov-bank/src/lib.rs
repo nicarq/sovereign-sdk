@@ -79,7 +79,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 
     type CallMessage = call::CallMessage<S>;
 
-    type Event = Event;
+    type Event = Event<S>;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)

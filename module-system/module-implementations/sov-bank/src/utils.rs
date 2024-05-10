@@ -125,6 +125,21 @@ impl<'a, S: Spec> TokenHolderRef<'a, S> {
     }
 }
 
+impl<'a, S: Spec> From<&TokenHolderRef<'a, S>> for TokenHolder<S> {
+    fn from(item: &TokenHolderRef<'a, S>) -> Self {
+        match item {
+            TokenHolderRef::User(addr) => TokenHolder::User((*addr).clone()),
+            TokenHolderRef::Module(id) => TokenHolder::Module(**id),
+        }
+    }
+}
+
+impl<'a, S: Spec> From<TokenHolderRef<'a, S>> for TokenHolder<S> {
+    fn from(item: TokenHolderRef<'a, S>) -> Self {
+        Self::from(&item)
+    }
+}
+
 impl<'a, S: Spec> Hash for TokenHolderRef<'a, S> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {

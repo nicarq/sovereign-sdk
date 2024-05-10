@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
-use sov_bank::TokenId;
+use sov_bank::utils::TokenHolder;
+use sov_bank::{Coins, TokenId};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_mock_da::{MockBlock, MockDaSpec};
-use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, StoredEvent};
+use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, ModuleId, StoredEvent};
 use sov_modules_stf_blueprint::BatchReceipt;
 use sov_rollup_interface::stf::TransactionReceipt;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
@@ -60,15 +61,27 @@ pub async fn add_data_to_ledger_db(ledger_db: &LedgerDb) -> anyhow::Result<()> {
 }
 
 fn events() -> Vec<StoredEvent> {
+    let holder = TokenHolder::Module(ModuleId::from([0; 32]));
     let token_id =
         TokenId::from_str("token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6")
             .unwrap();
 
     let event_value1 = demo_stf::runtime::RuntimeEvent::<TestSpec, MockDaSpec>::bank(
-        sov_bank::event::Event::TokenCreated { token_id },
+        sov_bank::event::Event::TokenCreated {
+            token_name: "token".to_string(),
+            coins: Coins {
+                amount: 0,
+                token_id,
+            },
+            minter: holder.clone(),
+            authorized_minters: vec![],
+        },
     );
     let event_value2 = demo_stf::runtime::RuntimeEvent::<TestSpec, MockDaSpec>::bank(
-        sov_bank::event::Event::TokenFrozen { token_id },
+        sov_bank::event::Event::TokenFrozen {
+            token_id,
+            freezer: holder,
+        },
     );
 
     vec![

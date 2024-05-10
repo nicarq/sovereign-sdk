@@ -166,7 +166,7 @@ fn freeze_token() {
     let _minted = bank
         .call(mint_message, &minter_context, &mut working_set)
         .expect("Failed to mint token");
-    assert_eq!(working_set.events().len(), 2);
+    assert_eq!(working_set.events().len(), 3);
 
     let total_supply = query_total_supply(token_id_2, &mut working_set);
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
