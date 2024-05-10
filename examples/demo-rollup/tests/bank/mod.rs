@@ -6,6 +6,7 @@ use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::rpc_params;
 use serde_json::{from_value, Value};
 use sov_bank::event::Event as BankEvent;
+use sov_bank::utils::TokenHolder;
 use sov_bank::{Coins, TokenId};
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_ledger_apis::rpc::client::RpcClient;
@@ -251,10 +252,10 @@ fn assert_aggregated_proof_public_data(
     assert_eq!(final_slot, pub_data.final_slot_number);
 }
 
-async fn assert_bank_event(
+async fn assert_bank_event<S: Spec>(
     client: &SimpleClient,
     event_number: u64,
-    expected_event: BankEvent,
+    expected_event: BankEvent<S>,
 ) -> Result<(), anyhow::Error> {
     let response_event = <HttpClient as RpcClient<String, String, String>>::get_event_by_number(
         client.http(),
@@ -268,8 +269,8 @@ async fn assert_bank_event(
         // Ensure "bank" is present in response json
         assert_eq!(map.get("module_name").unwrap(), "bank");
         // Attempt to deserialize the "body" of the bank key in the response to the Event type
-        let bank_event =
-            from_value::<BankEvent>(event_value.clone()).expect("Unable to deserialize Bank event");
+        let bank_event = from_value::<BankEvent<S>>(event_value.clone())
+            .expect("Unable to deserialize Bank event");
         // Ensure the event generated is a TokenCreated event with the correct token_id
         assert_eq!(bank_event, expected_event);
     } else {
@@ -331,22 +332,43 @@ async fn send_test_bank_txs(
     let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
     send_transactions_and_wait_slot(&client, &txs).await?;
 
-    assert_bank_event(&client, 0, BankEvent::TokenCreated { token_id }).await?;
-    assert_bank_event(
+    assert_bank_event::<TestSpec>(
         &client,
-        1,
-        BankEvent::TokenTransferred {
-            token_id,
-            amount: 100,
+        0,
+        BankEvent::TokenCreated {
+            token_name: TOKEN_NAME.to_owned(),
+            coins: Coins {
+                amount: 1000,
+                token_id,
+            },
+            minter: TokenHolder::User(user_address),
+            authorized_minters: vec![],
         },
     )
     .await?;
-    assert_bank_event(
+    assert_bank_event::<TestSpec>(
+        &client,
+        1,
+        BankEvent::TokenTransferred {
+            from: TokenHolder::User(user_address),
+            to: TokenHolder::User(recipient_address),
+            coins: Coins {
+                amount: 100,
+                token_id,
+            },
+        },
+    )
+    .await?;
+    assert_bank_event::<TestSpec>(
         &client,
         2,
         BankEvent::TokenTransferred {
-            token_id,
-            amount: 200,
+            from: TokenHolder::User(user_address),
+            to: TokenHolder::User(recipient_address),
+            coins: Coins {
+                amount: 200,
+                token_id,
+            },
         },
     )
     .await?;

@@ -111,7 +111,15 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         self.emit_event(
             working_set,
             "token_created",
-            Event::TokenCreated { token_id },
+            Event::TokenCreated {
+                token_name: token_name.clone(),
+                coins: Coins {
+                    amount: initial_balance,
+                    token_id,
+                },
+                minter: minter.as_token_holder().into(),
+                authorized_minters: authorized_minters.iter().map(|m| m.into()).collect(),
+            },
         );
         tracing::info!(%token_name, %token_id, "Token created");
         Ok(token_id)
@@ -125,7 +133,9 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         context: &Context<S>,
         working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        self.transfer_from(context.sender(), to, coins.clone(), working_set)
+        let to = to.as_token_holder();
+        let sender = context.sender();
+        self.transfer_from(sender, to, coins.clone(), working_set)
             .map(|response| {
                 // TODO: move this back into the body of transfer_from once we create a trait for StateAccessor + EventEmitter
                 // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/168
@@ -133,8 +143,9 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                     working_set,
                     "token_transfer",
                     Event::TokenTransferred {
-                        token_id: coins.token_id,
-                        amount: coins.amount,
+                        from: sender.as_token_holder().into(),
+                        to: to.into(),
+                        coins,
                     },
                 );
                 response
@@ -176,8 +187,8 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             working_set,
             "token_burned",
             Event::TokenBurned {
-                token_id: coins.token_id,
-                amount: coins.amount,
+                owner: owner.into(),
+                coins,
             },
         );
 
@@ -224,7 +235,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         coins: &Coins,
         mint_to_identity: impl Payable<S>,
         authorizer: impl Payable<S>,
-        working_set: &mut impl StateAccessor,
+        working_set: &mut impl TxState<S>,
     ) -> Result<()> {
         let mint_to_identity = mint_to_identity.as_token_holder();
         let context_logger = || {
@@ -243,6 +254,14 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             .mint(authorizer, mint_to_identity, coins.amount, working_set)
             .with_context(context_logger)?;
         self.tokens.set(&coins.token_id, &token, working_set);
+        self.emit_event(
+            working_set,
+            "token_minted",
+            Event::TokenMinted {
+                mint_to_identity: mint_to_identity.into(),
+                coins: coins.clone(),
+            },
+        );
 
         Ok(())
     }
@@ -269,12 +288,19 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             .get_or_err(&token_id, working_set)
             .with_context(context_logger)?;
 
-        token
-            .freeze(context.sender().as_token_holder())
-            .with_context(context_logger)?;
+        let sender_ref = context.sender();
+        let sender = sender_ref.as_token_holder();
+        token.freeze(sender).with_context(context_logger)?;
 
         self.tokens.set(&token_id, &token, working_set);
-        self.emit_event(working_set, "token_frozen", Event::TokenFrozen { token_id });
+        self.emit_event(
+            working_set,
+            "token_frozen",
+            Event::TokenFrozen {
+                freezer: sender.into(),
+                token_id,
+            },
+        );
 
         Ok(CallResponse::default())
     }

@@ -344,16 +344,9 @@ fn unique_minters<S: Spec>(minters: &[TokenHolderRef<'_, S>]) -> Vec<TokenHolder
 
     for item in minters.iter() {
         if indices.insert(item) {
-            auth_minter_list.push(clone_to_token_holder(item));
+            auth_minter_list.push(item.into());
         }
     }
 
     auth_minter_list
-}
-
-fn clone_to_token_holder<S: Spec>(token_holder_ref: &TokenHolderRef<'_, S>) -> TokenHolder<S> {
-    match token_holder_ref {
-        TokenHolderRef::User(addr) => TokenHolder::User((*addr).clone()),
-        TokenHolderRef::Module(id) => TokenHolder::Module(**id),
-    }
 }

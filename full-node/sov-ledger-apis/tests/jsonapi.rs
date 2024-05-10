@@ -150,11 +150,26 @@ async fn get_event() {
     let client = ledger_service.axum_client;
 
     let response = client.get_event_by_id(0).await.unwrap();
+    let expected_value = r#"
+{
+    "TokenCreated": {
+        "authorized_minters": [],
+        "coins": {
+            "amount": 0,
+            "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
+        },
+        "minter": {
+            "Module": "module_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqn7stmj"
+        },
+        "token_name": "token"
+    }
+}
+"#;
     assert_eq!(response.status(), 200);
     assert_eq!(response.data.key, "foo");
     assert_eq!(
         response.data.value,
-        serde_json::from_str(r#"{"TokenCreated": {"token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}}"#).unwrap()
+        serde_json::from_str(expected_value).unwrap()
     );
     assert_eq!(response.data.module.name, "bank");
 }
