@@ -283,13 +283,13 @@ fn compute_sequencer_tx_reward<S: Spec>(
     let base_fee = gas_meter.gas_used().value(gas_meter.gas_price());
     // We compute the `max_priority_fee_bips` by applying the `max_priority_fee_bips` to the consumed gas.
     let max_priority_fee_bips = tx
-        .max_priority_fee_bips()
+        .max_priority_fee_bips
         .apply(base_fee)
         // if the computation overflows, we return the max fee - we always have `priority_fee <= max_priority_fee_bips <= tx.max_fee()`
-        .unwrap_or(tx.max_fee());
+        .unwrap_or(tx.max_fee);
 
     // The tip is the minimum of the remaining gas allocated to the transaction and the maximum priority fee per gas.
-    min(max_priority_fee_bips, tx.max_fee() - base_fee)
+    min(max_priority_fee_bips, tx.max_fee - base_fee)
 }
 
 /// The result of applying a transaction to the state.
@@ -331,7 +331,36 @@ where
     let raw_tx_hash = &tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
-    let ctx = runtime.resolve_context(tx, sequencer, height, &mut state_checkpoint);
+    let maybe_ctx = runtime.resolve_context(tx, sequencer, height, &mut state_checkpoint);
+    let ctx = match maybe_ctx {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            error!(
+                error = %e,
+                raw_tx_hash = hex::encode(raw_tx_hash),
+                sequencer_penalization_amount = %sequencer_stake_meter.gas_used_value(),
+                "Tx was rejected by the 'resolve_context' hook",
+            );
+
+            if execution_mode != ExecutionMode::Speculative {
+                // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
+                runtime.penalize_sequencer(sequencer, sequencer_stake_meter, &mut state_checkpoint);
+            }
+
+            return ApplyTxResult {
+                new_checkpoint: state_checkpoint,
+                receipt: TransactionReceipt {
+                    tx_hash: *raw_tx_hash,
+                    body_to_save: None,
+                    events: vec![],
+                    receipt: TxEffect::CannotResolveContext,
+                    gas_used: <S::Gas as Gas>::zero().to_vec(),
+                },
+                tx_sequencer_outcome: TxSequencerOutcome::Penalized,
+            };
+        }
+    };
+
     // Check that the transaction isn't a duplicate
     if let Err(e) = runtime.check_uniqueness(tx, &ctx, &mut state_checkpoint) {
         error!(

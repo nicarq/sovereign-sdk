@@ -306,7 +306,7 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
             .pub_key()
             .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
 
-        let default_address = tx.pub_key().into();
+        let default_address = Some(tx.pub_key().into());
 
         Self {
             default_address,
@@ -323,51 +323,20 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
 /// Transaction data that has been authenticated.
 /// This is the output of the `RuntimeAuthenticator`.
 pub struct AuthenticatedTransactionData<S: Spec> {
-    pub_key_hash: Hash,
-    default_address: S::Address,
-    chain_id: u64,
-    max_priority_fee_bips: PriorityFeeBips,
-    max_fee: u64,
-    gas_limit: Option<S::Gas>,
-    nonce: u64,
-}
-
-impl<S: Spec> AuthenticatedTransactionData<S> {
-    /// Hash of the signer.
-    pub const fn pub_key_hash(&self) -> &Hash {
-        &self.pub_key_hash
-    }
-
+    pub pub_key_hash: Hash,
     /// The default address of the signer.
-    pub const fn default_address(&self) -> &S::Address {
-        &self.default_address
-    }
-
-    /// The nonce.
-    pub const fn nonce(&self) -> u64 {
-        self.nonce
-    }
-
+    pub default_address: Option<S::Address>,
     /// The chain ID.
-    pub const fn chain_id(&self) -> u64 {
-        self.chain_id
-    }
-
+    pub chain_id: u64,
     /// The maximum priority fee that can be paid for this transaction expressed in bips.
     /// This priority fee is computed as a percentage of the total gas consumed by the transaction
-    pub const fn max_priority_fee_bips(&self) -> &PriorityFeeBips {
-        &self.max_priority_fee_bips
-    }
-
+    pub max_priority_fee_bips: PriorityFeeBips,
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub const fn max_fee(&self) -> u64 {
-        self.max_fee
-    }
-
+    pub max_fee: u64,
     /// The estimated gas usage of the transaction
-    pub const fn gas_limit(&self) -> Option<&S::Gas> {
-        self.gas_limit.as_ref()
-    }
+    pub gas_limit: Option<S::Gas>,
+    /// The nonce.
+    pub nonce: u64,
 }
 
 pub struct AuthenticatedTransactionAndRawHash<S: Spec> {

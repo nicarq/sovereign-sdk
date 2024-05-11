@@ -77,7 +77,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
 /// The receipts of all the transactions in a batch.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TxEffect {
-    /// The transaction was reverted during execution
+    /// The transaction was reverted during execution.
     Reverted,
     /// Batch was processed successfully.
     Successful,
@@ -90,8 +90,10 @@ pub enum TxEffect {
     /// In that case, the sequencer should be charged the amount of gas used for the pre-execution checks and
     /// refunded all the gas fee locked in the transaction.
     InsufficientGasForPreExecutionChecks,
-    /// The transaction was not applied because it was a duplicate
+    /// The transaction was not applied because it was a duplicate.
     Duplicate,
+    /// The transaction was not applied because the `Context` could not be resolved.
+    CannotResolveContext,
 }
 
 /// Possible outcomes of a transaction execution for the sequencer.

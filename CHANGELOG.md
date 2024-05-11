@@ -1,4 +1,5 @@
 - #631 removes the need for modules to `#[derive(ModuleCallJsonSchema)]`; the trait is automatically blanket-implemented for all modules as long as `CallMessage` implements `schemars::JsonSchema`.
+- #628 all the account resolution logic was moved to `resolve_context`. This method now returns a `Result<Context, _ >` instead of a `Context`. This is a breaking change for consumers of the SDK.
 - #621 removes the need for a prelude `sov_modules_api::prelude` which re-exposes a few common types for convenience, as well as external crates like `clap` and `serde_json` (for now, more will follow). You can remove these dependencies from your `Cargo.toml` if you wish.
 - #620 Adds more fields to the `Event`s emitted by the `sov-bank` module. Start emitting events for token minting.
 - #619 starts charging gas for signature checks in the StfBlueprint and completes the refactoring effort started in #612. There was the following changes in the interface:
