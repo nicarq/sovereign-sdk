@@ -1,10 +1,12 @@
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Address, Context, Module, PrivateKey, PublicKey};
+use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
+use sov_modules_api::{Address, Context, Gas, Hash, Module, PrivateKey, PublicKey, TxGasMeter};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
 use crate::rpc::{self, Response};
 use crate::{call, AccountConfig, AccountData, Accounts};
+
 type S = sov_test_utils::TestSpec;
 
 #[test]
@@ -193,6 +195,55 @@ fn test_get_account_after_pub_key_update() {
         .unwrap();
 
     assert_eq!(acc.addr, sender_addr);
+}
+
+#[test]
+fn test_resolve_sender_address() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (mut checkpoint, _, _) = working_set.checkpoint();
+    let accounts = &mut Accounts::<S>::default();
+
+    let priv_key = TestPrivateKey::generate();
+    let sender = priv_key.pub_key();
+    let sender_addr = sender.to_address::<<S as Spec>::Address>();
+    let sender_hash = sender.secure_hash::<TestHasher>();
+
+    let tx = create_test_tx::<S>(None, sender_hash.clone());
+
+    let maybe_address = accounts.resolve_sender_address(&tx, &mut checkpoint);
+    assert_eq!(
+        maybe_address.unwrap_err().to_string(),
+        format!("No default address found for {}", sender_hash)
+    );
+
+    let tx = create_test_tx::<S>(Some(sender_addr), sender_hash.clone());
+    accounts
+        .resolve_sender_address(&tx, &mut checkpoint)
+        .unwrap();
+
+    let mut working_set = checkpoint.to_revertable(TxGasMeter::unmetered());
+    let acc = accounts
+        .accounts
+        .get(&sender_hash, &mut working_set)
+        .unwrap();
+
+    assert_eq!(acc.addr, sender_addr);
+}
+
+fn create_test_tx<S: Spec>(
+    sender_addr: Option<S::Address>,
+    sender_hash: Hash,
+) -> AuthenticatedTransactionData<S> {
+    AuthenticatedTransactionData::<S> {
+        pub_key_hash: sender_hash,
+        default_address: sender_addr,
+        chain_id: 0,
+        max_priority_fee_bips: PriorityFeeBips::ZERO,
+        max_fee: 0,
+        gas_limit: Some(<S as Spec>::Gas::zero()),
+        nonce: 0,
+    }
 }
 
 #[test]

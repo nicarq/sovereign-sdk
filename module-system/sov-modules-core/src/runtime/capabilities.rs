@@ -164,7 +164,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         sequencer: &Da::Address,
         height: u64,
         state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Context<S>;
+    ) -> Result<Context<S>, anyhow::Error>;
 
     /// Prevents duplicate transactions from running.
     fn check_uniqueness(

@@ -45,7 +45,6 @@ pub mod private_key {
 
         fn generate() -> Self {
             let mut csprng = OsRng;
-
             Self {
                 key_pair: SigningKey::generate(&mut csprng),
             }

@@ -37,14 +37,14 @@ impl<S: Spec> Bank<S> {
             .ok_or(ReserveGasError::AccountDoesNotExist)?;
 
         // the signer must be able to afford the transaction
-        if balance < tx.max_fee() {
+        if balance < tx.max_fee {
             return Err(ReserveGasError::InsufficientBalanceToReserveGas);
         }
 
-        if tx.max_fee() == 0 {
+        if tx.max_fee == 0 {
             tracing::warn!(
-                signer_default_address = %tx.default_address(),
-                nonce = tx.nonce(),
+                signer_default_address = ?tx.default_address,
+                nonce = tx.nonce,
                 %payer,
                 "Trying to reserve gas for tx with zero max fee"
             );
@@ -55,7 +55,7 @@ impl<S: Spec> Bank<S> {
             payer,
             self.id.to_payable(),
             Coins {
-                amount: tx.max_fee(),
+                amount: tx.max_fee,
                 token_id: GAS_TOKEN_ID,
             },
             state_checkpoint,
@@ -63,18 +63,18 @@ impl<S: Spec> Bank<S> {
         .expect("Since the balance is checked above, this should be infallible. This is a bug");
 
         // We compute the gas amount that the transaction should consume.
-        let amount_to_consume = match tx.gas_limit() {
+        let amount_to_consume = match &tx.gas_limit {
             // If the user has provided a gas limit, we use the `gas_limit * gas_price` as the amount to consume (EIP-1559).
             Some(gas_limit) => {
                 // We need to check the gas price in case the user has provided a gas limit.
-                if tx.max_fee() < gas_limit.value(gas_price) {
+                if tx.max_fee < gas_limit.value(gas_price) {
                     return Err(ReserveGasError::CurrentGasPriceTooHigh);
                 }
 
                 gas_limit.value(gas_price)
             }
             // If the user has not provided a gas limit, we use the `max_fee` as the amount to consume.
-            None => tx.max_fee(),
+            None => tx.max_fee,
         };
 
         let gas_meter = TxGasMeter::new(amount_to_consume, gas_price.clone());
@@ -110,14 +110,14 @@ impl<S: Spec> Bank<S> {
 
         // We compute the `max_priority_fee_bips` by applying the `priority_fee_per_gas` to the consumed gas.
         let max_priority_fee_bips = tx
-            .max_priority_fee_bips()
+            .max_priority_fee_bips
             .apply(base_fee)
             // if the computation overflows, we return the max fee - we always have `priority_fee <= tx.max_priority_fee_bips() <= tx.max_fee()`
-            .unwrap_or(tx.max_fee());
+            .unwrap_or(tx.max_fee);
 
         // The tip is the minimum of the remaining gas allocated to the transaction and the maximum priority fee per gas.
         // We transfer the tip to the tip recipient address.
-        let tip = min(max_priority_fee_bips, tx.max_fee() - base_fee);
+        let tip = min(max_priority_fee_bips, tx.max_fee - base_fee);
 
         self.transfer_from(
             self.id.to_payable(),
@@ -132,7 +132,7 @@ impl<S: Spec> Bank<S> {
 
         // We refund the payer. We need to give back the remaining funds on the gas meter, plus the unspent tip.
         // This is also the maximum fee minus everything that was spent for the tip and base fee.
-        let amount = tx.max_fee() - tip - base_fee;
+        let amount = tx.max_fee - tip - base_fee;
 
         self.transfer_from(
             self.id.to_payable(),

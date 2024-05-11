@@ -38,12 +38,15 @@ impl TestRollup {
             .create_default_messages()
             .into_iter()
             .map(|m| {
-                self.stf().runtime().resolve_context(
-                    &m.to_tx::<TestRuntime<S, Da>>().into(),
-                    &seq_da_addr,
-                    height,
-                    &mut state_checkpoint,
-                )
+                self.stf()
+                    .runtime()
+                    .resolve_context(
+                        &m.to_tx::<TestRuntime<S, Da>>().into(),
+                        &seq_da_addr,
+                        height,
+                        &mut state_checkpoint,
+                    )
+                    .unwrap()
             })
             .collect();
 
