@@ -90,7 +90,7 @@ pub trait CodeCommitment:
 
 /// A Zk proof system capable of proving and verifying arbitrary Rust code
 /// Must support recursive proofs.
-pub trait Zkvm: Default + Send + Sync + 'static {
+pub trait Zkvm: Default + Clone + Send + Sync + 'static {
     /// A commitment to the zkVM program which is being proven
     type CodeCommitment: CodeCommitment;
 

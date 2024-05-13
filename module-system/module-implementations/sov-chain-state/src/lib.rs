@@ -211,8 +211,7 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
 }
 
 /// The chain state module definition. Contains the current state of the da layer.
-#[derive(Derivative, KernelModuleInfo)]
-#[derivative(Clone(bound = "S: Spec, Da: DaSpec"))]
+#[derive(Clone, KernelModuleInfo)]
 pub struct ChainState<S: Spec, Da: DaSpec> {
     /// The ID of the module.
     #[id]
@@ -274,12 +273,6 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     #[state]
     outer_code_commitment:
         sov_modules_api::StateValue<<S::OuterZkvm as Zkvm>::CodeCommitment, BcsCodec>,
-
-    /// This is a constant value that is used as the gas price for the genesis block.
-    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/469>`: this field should be replaced with a constant value defined in the `constants{.test}.json` file.
-    /// This is not yet the case because that would break the tests that set the initial gas price to zero.
-    #[state]
-    initial_base_fee_per_gas: sov_modules_api::KernelStateValue<<S::Gas as Gas>::Price>,
 }
 
 impl<S: Spec, Da: DaSpec> ChainState<S, Da> {

@@ -22,11 +22,7 @@ use crate::{AttesterIncentives, Event, UnbondingInfo};
 
 /// A wrapper for attestations which implements `borsh` serialization. This is necessary since
 /// Attestations are treated as `CallMessage`s, and we only support borsh encoding for transactions.
-#[derive(Derivative, Clone, Serialize, Deserialize)]
-#[derivative(
-    PartialEq(bound = "Da: DaSpec, StorageProof: PartialEq + Eq, Root: PartialEq + Eq"),
-    Eq(bound = "Da: DaSpec, StorageProof: PartialEq + Eq, Root: PartialEq + Eq")
-)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WrappedAttestation<Da: DaSpec, StorageProof, Root> {
     #[serde(
         bound = "Da::SlotHash: Serialize + DeserializeOwned, StorageProof: Serialize + DeserializeOwned, Root: Serialize + DeserializeOwned"
