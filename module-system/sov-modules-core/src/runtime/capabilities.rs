@@ -251,8 +251,7 @@ pub mod mocks {
     use crate::{KernelWorkingSet, StateCheckpoint};
 
     /// A mock kernel for use in tests
-    #[derive(Debug, Clone, derivative::Derivative)]
-    #[derivative(Default(bound = ""))]
+    #[derive(Debug, Clone, Default)]
     pub struct MockKernel<S, Da> {
         /// The current slot number
         pub true_slot_number: u64,
