@@ -20,10 +20,6 @@ struct CallFees {
     /// `gasPrice` for legacy,
     /// `maxFeePerGas` for EIP-1559
     gas_price: U256,
-    /// Max Fee per Blob gas for EIP-4844 transactions
-    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    #[allow(dead_code)]
-    max_fee_per_blob_gas: Option<U256>,
 }
 
 // === impl CallFees ===
@@ -34,22 +30,12 @@ impl CallFees {
     /// If no `gasPrice` or `maxFeePerGas` is set, then the `gas_price` in the returned `gas_price`
     /// will be `0`. See: <https://github.com/ethereum/go-ethereum/blob/2754b197c935ee63101cbbca2752338246384fec/internal/ethapi/transaction_args.go#L242-L255>
     ///
-    /// # EIP-4844 transactions
-    ///
-    /// Blob transactions have an additional fee parameter `maxFeePerBlobGas`.
-    /// If the `maxFeePerBlobGas` or `blobVersionedHashes` are set, we treat it as an EIP-4844
-    /// transaction.
-    ///
-    /// Note: Due to the `Default` impl of [BlockEnv] (Some(0)) this assumes the `block_blob_fee` is
-    /// always `Some`
+    /// EIP-4844 transactions are not supported by the rollup by design.
     fn ensure_fees(
         call_gas_price: Option<U256>,
         call_max_fee: Option<U256>,
         call_priority_fee: Option<U256>,
         block_base_fee: U256,
-        blob_versioned_hashes: Option<&[B256]>,
-        max_fee_per_blob_gas: Option<U256>,
-        block_blob_fee: Option<U256>,
     ) -> EthResult<CallFees> {
         /// Ensures that the transaction's max fee is lower than the priority fee, if any.
         fn ensure_valid_fee_cap(
@@ -68,55 +54,23 @@ impl CallFees {
             Ok(())
         }
 
-        let has_blob_hashes = blob_versioned_hashes
-            .as_ref()
-            .map(|blobs| !blobs.is_empty())
-            .unwrap_or(false);
-
-        match (
-            call_gas_price,
-            call_max_fee,
-            call_priority_fee,
-            max_fee_per_blob_gas,
-        ) {
-            (gas_price, None, None, None) => {
+        match (call_gas_price, call_max_fee, call_priority_fee) {
+            (gas_price, None, None) => {
                 // either legacy transaction or no fee fields are specified
                 // when no fields are specified, set gas price to zero
                 let gas_price = gas_price.unwrap_or(U256::ZERO);
                 Ok(CallFees {
                     gas_price,
                     max_priority_fee_per_gas: None,
-                    max_fee_per_blob_gas: has_blob_hashes.then_some(block_blob_fee).flatten(),
                 })
             }
-            (None, max_fee_per_gas, max_priority_fee_per_gas, None) => {
-                // request for eip-1559 transaction
+            (None, max_fee_per_gas, max_priority_fee_per_gas) => {
                 let max_fee = max_fee_per_gas.unwrap_or(block_base_fee);
                 ensure_valid_fee_cap(max_fee, max_priority_fee_per_gas)?;
-
-                let max_fee_per_blob_gas = has_blob_hashes.then_some(block_blob_fee).flatten();
 
                 Ok(CallFees {
                     gas_price: max_fee,
                     max_priority_fee_per_gas,
-                    max_fee_per_blob_gas,
-                })
-            }
-            (None, max_fee_per_gas, max_priority_fee_per_gas, Some(max_fee_per_blob_gas)) => {
-                // request for eip-4844 transaction
-                let max_fee = max_fee_per_gas.unwrap_or(block_base_fee);
-                ensure_valid_fee_cap(max_fee, max_priority_fee_per_gas)?;
-
-                // Ensure blob_hashes are present
-                if !has_blob_hashes {
-                    // Blob transaction but no blob hashes
-                    return Err(RpcInvalidTransactionError::BlobTransactionMissingBlobHashes.into());
-                }
-
-                Ok(CallFees {
-                    gas_price: max_fee,
-                    max_priority_fee_per_gas,
-                    max_fee_per_blob_gas: Some(max_fee_per_blob_gas),
                 })
             }
             _ => {
@@ -151,18 +105,11 @@ pub(crate) fn prepare_call_env(
     let CallFees {
         max_priority_fee_per_gas,
         gas_price,
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        max_fee_per_blob_gas: _,
     } = CallFees::ensure_fees(
         gas_price,
         max_fee_per_gas,
         max_priority_fee_per_gas,
         U256::from(block_env.basefee),
-        // EIP-4844 related fields
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        None,
-        None,
-        None,
     )?;
 
     let gas_limit = gas.unwrap_or(U256::from(block_env.gas_limit.min(u64::MAX)));
@@ -185,9 +132,8 @@ pub(crate) fn prepare_call_env(
         data: input.try_into_unique_input()?.unwrap_or_default(),
         chain_id: chain_id.map(|c| c.to()),
         access_list: access_list.map(|x| x.flattened()).unwrap_or_default(),
-        // EIP-4844 related fields
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        blob_hashes: vec![],
+        // EIP-4844 related fields:
+        blob_hashes: Default::default(),
         max_fee_per_blob_gas: None,
     };
 
@@ -267,9 +213,9 @@ pub fn from_recovered_with_block_context(
 
     let (gas_price, max_fee_per_gas) = match signed_tx.tx_type() {
         TxType::Legacy | TxType::Eip2930 => (Some(U128::from(signed_tx.max_fee_per_gas())), None),
-        TxType::Eip1559 | TxType::Eip4844 => {
-            // the gas price field for EIP1559 is set to `min(tip, gasFeeCap - baseFee) +
-            // baseFee`
+        TxType::Eip1559 => {
+            // the gas price field for EIP-1559 is set to
+            // `min(tip, gasFeeCap - baseFee) + baseFee`
             let gas_price = base_fee
                 .and_then(|base_fee| {
                     signed_tx
@@ -283,10 +229,12 @@ pub fn from_recovered_with_block_context(
                 Some(U128::from(signed_tx.max_fee_per_gas())),
             )
         }
+        TxType::Eip4844 => {
+            panic!("EIP-4844 transactions are not supported by the rollup")
+        }
     };
 
     let chain_id = signed_tx.chain_id().map(U64::from);
-    let mut blob_versioned_hashes = Vec::new();
 
     let access_list = match &mut signed_tx.transaction {
         PrimitiveTransaction::Legacy(_) => None,
@@ -310,20 +258,8 @@ pub fn from_recovered_with_block_context(
                 })
                 .collect(),
         ),
-        PrimitiveTransaction::Eip4844(tx) => {
-            // extract the blob hashes from the transaction
-            blob_versioned_hashes = std::mem::take(&mut tx.blob_versioned_hashes);
-
-            Some(
-                tx.access_list
-                    .0
-                    .iter()
-                    .map(|item| AccessListItem {
-                        address: item.address.0.into(),
-                        storage_keys: item.storage_keys.iter().map(|key| key.0.into()).collect(),
-                    })
-                    .collect(),
-            )
+        PrimitiveTransaction::Eip4844(_tx) => {
+            panic!("EIP-4844 transactions are not supported by the rollup");
         }
     };
 
@@ -354,8 +290,9 @@ pub fn from_recovered_with_block_context(
         block_number: block_number.map(U256::from),
         transaction_index,
         // EIP-4844 fields
-        max_fee_per_blob_gas: signed_tx.max_fee_per_blob_gas().map(U128::from),
-        blob_versioned_hashes,
+        max_fee_per_blob_gas: Default::default(),
+        blob_versioned_hashes: Default::default(),
+        // Other fields
         other: Default::default(),
     }
 }
