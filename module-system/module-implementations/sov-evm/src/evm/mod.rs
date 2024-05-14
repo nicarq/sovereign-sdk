@@ -4,7 +4,7 @@
 
 use reth_primitives::BaseFeeParams;
 use revm::primitives::specification::SpecId;
-use revm::primitives::{Address, B256, U256};
+use revm::primitives::{AccountInfo, Address, U256};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::StateMap;
 use sov_state::Prefix;
@@ -22,14 +22,6 @@ mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;
-
-// Stores information about an EVM account
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone, Default)]
-pub(crate) struct AccountInfo {
-    pub(crate) balance: U256,
-    pub(crate) code_hash: B256,
-    pub(crate) nonce: u64,
-}
 
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]

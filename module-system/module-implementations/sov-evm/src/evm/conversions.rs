@@ -1,34 +1,10 @@
 use reth_primitives::{
     Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
 };
-use revm::primitives::{
-    AccountInfo as ReVmAccountInfo, BlockEnv as ReVmBlockEnv, CreateScheme, TransactTo, TxEnv, U256,
-};
+use revm::primitives::{BlockEnv as ReVmBlockEnv, CreateScheme, TransactTo, TxEnv, U256};
 
 use super::primitive_types::{BlockEnv, RlpEvmTransaction};
-use super::AccountInfo;
 use crate::error::rpc::EthApiError;
-
-impl From<AccountInfo> for ReVmAccountInfo {
-    fn from(info: AccountInfo) -> Self {
-        Self {
-            nonce: info.nonce,
-            balance: info.balance,
-            code: None,
-            code_hash: info.code_hash,
-        }
-    }
-}
-
-impl From<ReVmAccountInfo> for AccountInfo {
-    fn from(info: ReVmAccountInfo) -> Self {
-        Self {
-            balance: info.balance,
-            code_hash: info.code_hash,
-            nonce: info.nonce,
-        }
-    }
-}
 
 impl From<&BlockEnv> for ReVmBlockEnv {
     fn from(block_env: &BlockEnv) -> Self {

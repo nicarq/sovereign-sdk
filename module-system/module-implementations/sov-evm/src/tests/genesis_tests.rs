@@ -10,7 +10,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
 
 use crate::evm::primitive_types::{Block, SealedBlock};
-use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
+use crate::evm::{DbAccount, EvmChainConfig};
 use crate::{AccountData, Evm, EvmConfig};
 
 type S = sov_test_utils::TestSpec;
@@ -70,10 +70,11 @@ fn genesis_data() {
         DbAccount::new_with_info(
             evm_db.accounts.prefix(),
             TEST_CONFIG.data[0].address,
-            AccountInfo {
+            revm::primitives::AccountInfo {
                 balance: account.balance,
                 code_hash: account.code_hash,
                 nonce: account.nonce,
+                code: None,
             }
         ),
     );

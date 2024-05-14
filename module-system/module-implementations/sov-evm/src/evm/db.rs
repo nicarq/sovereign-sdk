@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use reth_primitives::Bytes;
-use revm::primitives::{AccountInfo as ReVmAccountInfo, Address, Bytecode, B256, U256};
+use revm::primitives::{Address, Bytecode, B256, U256};
 use revm::Database;
 use sov_modules_api::StateAccessor;
 use sov_state::codec::BcsCodec;
@@ -31,9 +31,12 @@ impl<'a, Ws> EvmDb<'a, Ws> {
 impl<'a, Ws: StateAccessor> Database for EvmDb<'a, Ws> {
     type Error = Infallible;
 
-    fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
+    fn basic(
+        &mut self,
+        address: Address,
+    ) -> Result<Option<revm::primitives::AccountInfo>, Self::Error> {
         let db_account = self.accounts.get(&address, self.working_set);
-        Ok(db_account.map(|acc| acc.info.into()))
+        Ok(db_account.map(|acc| acc.info))
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
