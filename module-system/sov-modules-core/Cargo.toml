@@ -21,7 +21,6 @@ async-trait = { workspace = true, optional = true }
 bech32 = { workspace = true }
 borsh = { workspace = true }
 derivative = { workspace = true }
-derive_more = { workspace = true, features = ["display", "into"] }
 digest = { workspace = true }
 hex = { workspace = true }
 jmt = { workspace = true, optional = true }
@@ -81,7 +80,6 @@ std = [
 	"bech32/std",
 	"borsh/default",
 	"borsh/std",
-	"derive_more/default",
 	"digest/default",
 	"digest/std",
 	"hex/default",

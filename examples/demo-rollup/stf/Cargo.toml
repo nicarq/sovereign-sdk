@@ -15,9 +15,7 @@ workspace = true
 anyhow = { workspace = true }
 borsh = { workspace = true }
 serde = { workspace = true }
-hex = { workspace = true }
 serde_json = { workspace = true, optional = true }
-clap = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
 tracing = { workspace = true }
@@ -27,7 +25,6 @@ sov-rollup-interface = { path = "../../../rollup-interface" }
 sov-cli = { path = "../../../module-system/sov-cli", optional = true }
 sov-sequencer-registry = { path = "../../../module-system/module-implementations/sov-sequencer-registry" }
 sov-prover-incentives = { path = "../../../module-system/module-implementations/sov-prover-incentives" }
-sov-blob-storage = { path = "../../../module-system/module-implementations/sov-blob-storage" }
 sov-bank = { path = "../../../module-system/module-implementations/sov-bank" }
 sov-nft-module = { path = "../../../module-system/module-implementations/sov-nft-module" }
 sov-kernels = { path = "../../../module-system/sov-kernels" }
@@ -56,13 +53,11 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 default = []
 offchain = [ "demo-stf/offchain", "sov-nft-module/offchain" ]
 native = [
-	"clap",
 	"demo-stf/native",
 	"jsonrpsee",
 	"serde_json",
 	"sov-accounts/native",
 	"sov-bank/native",
-	"sov-blob-storage/native",
 	"sov-chain-state/native",
 	"sov-cli",
 	"sov-evm/native",
