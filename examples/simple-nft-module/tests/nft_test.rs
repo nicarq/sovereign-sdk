@@ -4,10 +4,11 @@ use simple_nft_module::{
 use sov_modules_api::utils::generate_address as gen_addr_generic;
 use sov_modules_api::{Context, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_state::ProverStorage;
+use sov_test_utils::TestStorageSpec;
 
 pub type S = sov_test_utils::TestSpec;
-pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
+pub type Storage = ProverStorage<TestStorageSpec>;
 fn generate_address(name: &str) -> <S as Spec>::Address {
     gen_addr_generic::<S>(name)
 }

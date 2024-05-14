@@ -5,14 +5,11 @@ use sov_bank::{
 };
 use sov_modules_api::{Context, Error, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::{DefaultStorageSpec, ProverStorage};
 
 type S = sov_test_utils::TestSpec;
 use crate::helpers::create_bank_config_with_token;
 
 mod helpers;
-
-pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
 
 #[test]
 fn burn_deployed_tokens() {

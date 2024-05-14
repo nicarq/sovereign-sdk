@@ -2,11 +2,12 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::TxGasMeter;
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_USER_BALANCE, INIT_HEIGHT,
+    commit_get_new_storage, setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_USER_BALANCE,
+    INIT_HEIGHT,
 };
 type S = sov_test_utils::TestSpec;
 
@@ -14,7 +15,8 @@ type S = sov_test_utils::TestSpec;
 #[test]
 fn test_process_valid_attestation() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let working_set = WorkingSet::new(storage.clone());
     let (module, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
@@ -30,13 +32,13 @@ fn test_process_valid_attestation() {
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
     let state_checkpoint = working_set.checkpoint().0;
+    commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         3,
         &module,
-        &storage,
+        &mut storage_manager,
         &sequencer,
         &attester_address,
-        state_checkpoint,
     );
 
     let context = Context::<S>::new(attester_address, sequencer, 1);
@@ -100,7 +102,7 @@ fn test_process_valid_attestation() {
             .bank
             .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut working_set)
             .unwrap(),
-        // The attester is bonded at the beginning so he loses BOND_AMOUNT
+        // The attester is bonded at the beginning, so he loses BOND_AMOUNT
         INITIAL_USER_BALANCE - BOND_AMOUNT
             // Since the base fee per gas evolves over time, we need to compute the reward for each transition
             // separately
@@ -116,7 +118,8 @@ fn test_process_valid_attestation() {
 #[test]
 fn test_burn_on_invalid_attestation() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let working_set = WorkingSet::new(storage.clone());
     let (module, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
@@ -135,13 +138,13 @@ fn test_burn_on_invalid_attestation() {
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
     let state_checkpoint = working_set.checkpoint().0;
+    commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         3,
         &module,
-        &storage,
+        &mut storage_manager,
         &sequencer,
         &attester_address,
-        state_checkpoint,
     );
 
     let transition_2 = exec_vars.pop().unwrap();
@@ -210,7 +213,7 @@ fn test_burn_on_invalid_attestation() {
         // The working set has only returned one event
         assert_eq!(working_set.events().len(), 1);
 
-        // This is the valid attestation event
+        // This is a valid attestation event.
         let valid_event = working_set.take_event(0).unwrap();
         let valid_event = valid_event.downcast::<crate::Event<S>>().unwrap();
 

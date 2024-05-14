@@ -10,11 +10,21 @@ use crate::{
     BlobStorage, PreferredBatch, PreferredBatchWithId, SequenceNumber, DEFERRED_SLOTS_COUNT,
 };
 
+/// Why blob can be discarded
+#[derive(Debug)]
+pub(crate) enum BlobDiscardReason {
+    /// Sender simply not registered in the registry
+    SenderNotAllowed,
+    /// More complicated case for preferred sequencer. Ping @prestonevans__ at Twitter for more info
+    SequenceNumberTooLow,
+}
+
 impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
-    pub(crate) fn log_discarded_blob(&self, b: &Da::BlobTransaction) {
+    pub(crate) fn log_discarded_blob(&self, b: &Da::BlobTransaction, reason: BlobDiscardReason) {
         info!(
             blob_hash = hex::encode(b.hash()),
             sender = hex::encode(b.sender()),
+            ?reason,
             "Discarding blob"
         );
     }
@@ -72,7 +82,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             }
             Ordering::Less => {
                 // If the sequence number is less than the expected one, we discard the blob
-                self.log_discarded_blob(blob);
+                self.log_discarded_blob(blob, BlobDiscardReason::SequenceNumberTooLow);
                 None
             }
         }
@@ -108,7 +118,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                 let mut new_batches = Vec::new();
                 for blob in current_blobs.into_iter() {
                     if !self.blob_is_allowed(blob, working_set.inner) {
-                        self.log_discarded_blob(blob);
+                        self.log_discarded_blob(blob, BlobDiscardReason::SenderNotAllowed);
                         continue;
                     }
                     match self.deserialize_batch::<Batch>(blob) {
@@ -172,7 +182,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         let mut batches = Vec::new();
         for blob in current_blobs.into_iter() {
             if !self.blob_is_allowed(blob, working_set.inner) {
-                self.log_discarded_blob(blob);
+                self.log_discarded_blob(blob, BlobDiscardReason::SenderNotAllowed);
                 continue;
             }
             match self.deserialize_batch::<Batch>(blob) {
@@ -232,7 +242,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         for blob in current_blobs.into_iter() {
             // Step 1: Filter any ineligible blobs from current slot.
             if !self.blob_is_allowed(blob, working_set.inner) {
-                self.log_discarded_blob(blob);
+                self.log_discarded_blob(blob, BlobDiscardReason::SenderNotAllowed);
                 continue;
             }
 

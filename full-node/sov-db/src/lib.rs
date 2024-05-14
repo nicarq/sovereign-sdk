@@ -26,6 +26,8 @@ pub mod accessory_db;
 
 /// Define namespaces at the database level
 pub mod namespaces;
+#[cfg(test)]
+mod test_utils;
 
 /// Options on how to setup [`rockbound::DB`] or any other persistence
 pub struct DbOptions {

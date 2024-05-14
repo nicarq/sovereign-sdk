@@ -130,7 +130,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn commit(&self, _node_batch: &Self::StateUpdate) {}
+    fn materialize_changes(&self, _node_batch: &Self::StateUpdate) {}
 
     fn open_proof(
         state_root: Self::Root,
@@ -144,7 +144,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         } = state_proof;
         let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
 
-        // We need to verify the proof against the correct root hash
+        // We need to verify the proof against the correct root hash,
         // Hence we match the key against its namespace
         match namespace {
             ProvableNamespace::User => proof.inner().verify(
@@ -161,12 +161,6 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
 
         Ok((key, value))
     }
-
-    fn is_empty(&self) -> bool {
-        unimplemented!("Needs simplification in JellyfishMerkleTree: https://github.com/Sovereign-Labs/sovereign-sdk/issues/362")
-    }
-
-    fn to_change_set(self) -> Self::ChangeSet {}
 }
 
 #[cfg(feature = "native")]

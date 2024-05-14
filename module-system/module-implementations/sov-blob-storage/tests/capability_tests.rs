@@ -16,15 +16,14 @@ use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, KernelWorkingSet, MessageCodec,
     Module, Spec, StateCheckpoint, WorkingSet,
 };
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 use sov_sequencer_registry::SequencerConfig;
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
-use sov_test_utils::new_test_blob_from_batch;
+use sov_state::{ProverStorage, Storage};
+use sov_test_utils::{new_test_blob_from_batch, TestStorageSpec as StorageSpec};
 use tracing::{debug, info};
 
 type S = sov_test_utils::TestSpec;
 type Da = MockDaSpec;
-type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
 const LOCKED_AMOUNT: u64 = 200;
 const PREFERRED_SEQUENCER_DA: MockAddress = MockAddress::new([10u8; 32]);
@@ -776,7 +775,8 @@ impl TestRuntime<S, MockDaSpec> {
     ) {
         use sov_modules_api::Genesis;
         let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+        let storage = storage_manager.create_storage();
 
         let genesis_config = Self::build_genesis_config(with_preferred_sequencer);
         let runtime: Self = Default::default();
@@ -799,10 +799,14 @@ impl TestRuntime<S, MockDaSpec> {
             .unwrap();
 
         let (reads_writes, _, witness) = working_set.checkpoint().0.freeze();
-        let genesis_root = storage.validate_and_commit(reads_writes, &witness).unwrap();
+        let (genesis_root, change_set) = storage
+            .validate_and_materialize(reads_writes, &witness)
+            .unwrap();
+
+        storage_manager.commit(change_set);
 
         // let root = storage.validate_and_commit()
-        (storage, runtime, genesis_root)
+        (storage_manager.create_storage(), runtime, genesis_root)
     }
 
     fn build_genesis_config(with_preferred_sequencer: bool) -> GenesisConfig<S, MockDaSpec> {

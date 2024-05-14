@@ -3,12 +3,13 @@ use sov_mock_da::{MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{Context, Spec, WorkingSet};
 use sov_modules_core::TxGasMeter;
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::zk::StateTransitionPublicData;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_USER_BALANCE, INIT_HEIGHT,
+    commit_get_new_storage, setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_USER_BALANCE,
+    INIT_HEIGHT,
 };
 use crate::SlashingReason;
 
@@ -18,20 +19,21 @@ type S = sov_test_utils::TestSpec;
 #[test]
 fn test_valid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let working_set = WorkingSet::new(storage.clone());
     let (module, attester_address, challenger_address, sequencer, working_set) = setup(working_set);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
     let state_checkpoint = working_set.checkpoint().0;
+    commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         3,
         &module,
-        &storage,
+        &mut storage_manager,
         &sequencer,
         &attester_address,
-        state_checkpoint,
     );
 
     let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
@@ -166,20 +168,21 @@ fn invalid_proof_helper(
 #[test]
 fn test_invalid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let working_set = WorkingSet::new(storage.clone());
     let (module, attester_address, challenger_address, sequencer, working_set) = setup(working_set);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
     let state_checkpoint = working_set.checkpoint().0;
+    commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         3,
         &module,
-        &storage,
+        &mut storage_manager,
         &sequencer,
         &attester_address,
-        state_checkpoint,
     );
     let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
 

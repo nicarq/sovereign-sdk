@@ -10,10 +10,12 @@ use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::stf::TransactionReceipt;
-use sov_state::{DefaultStorageSpec, Storage, StorageRoot};
+use sov_state::{Storage, StorageRoot};
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher, TestPrivateKey};
+use sov_test_utils::{
+    new_test_blob_from_batch, MessageGenerator, TestPrivateKey, TestStorageSpec as StorageSpec,
+};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, ExecutionSimulationVars, SequencerParams, TestRollup,
@@ -28,8 +30,6 @@ mod unbond;
 const USER_STAKE: u64 = 2_000;
 const ROLLUP_FINALITY_PERIOD: u64 = 2;
 const USER_BALANCE: u64 = 100_000;
-
-type StorageSpec = DefaultStorageSpec<TestHasher>;
 
 fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionReceipt<TxEffect> {
     env.batch_receipts
@@ -67,11 +67,11 @@ impl TestRollup {
 
         let storage = self.storage();
 
-        let new_state_root = storage
-            .validate_and_commit(reads_writes, &Default::default())
+        let (new_state_root, change_set) = storage
+            .validate_and_materialize(reads_writes, &Default::default())
             .unwrap();
 
-        self.storage_manager().commit(storage.try_into().unwrap());
+        self.storage_manager().commit(change_set);
 
         new_state_root
     }

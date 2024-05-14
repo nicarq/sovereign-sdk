@@ -1,17 +1,16 @@
 #![no_main]
 
+use std::collections::{HashMap, HashSet};
+
 use libfuzzer_sys::arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::{fuzz_target, Corpus};
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
-use sov_modules_api::PublicKey;
-use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{Context, Module, PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_test_utils::TestHasher;
-use sov_test_utils::TestPrivateKey;
-use std::collections::{HashMap, HashSet};
+use sov_test_utils::{TestHasher, TestPrivateKey};
 
 type S = sov_test_utils::TestSpec;
 // Check well-formed calls

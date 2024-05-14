@@ -14,8 +14,9 @@ use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::storage::{NativeStorage, StorageProof};
-use sov_state::{DefaultStorageSpec, Storage};
+use sov_state::Storage;
 use sov_test_utils::runtime::{GenesisConfig, TestRuntime};
+pub(crate) use sov_test_utils::TestStorageSpec as StorageSpec;
 use sov_value_setter::ValueSetterConfig;
 
 type TestStf = StfBlueprint<S, MockDaSpec, TestRuntime<S, MockDaSpec>, BasicKernel<S, MockDaSpec>>;
@@ -26,7 +27,6 @@ type TxReceiptContents =
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
-pub(crate) type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
 pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 2000;
 

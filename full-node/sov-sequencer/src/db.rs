@@ -46,13 +46,13 @@ impl SequencerDb {
         Ok(txs)
     }
 
-    /// Deletes a group of transaction from the mempool (atomically).
+    /// Deletes a group of transactions from the mempool (atomically).
     pub fn remove(&self, hashes: &[TxHash]) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
         for hash in hashes {
             batch.delete::<MempoolTxByHash>(hash)?;
         }
-        self.db.write_schemas(batch)?;
+        self.db.write_schemas(&batch)?;
         Ok(())
     }
 

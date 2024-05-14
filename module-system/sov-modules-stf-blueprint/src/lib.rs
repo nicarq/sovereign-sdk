@@ -173,7 +173,7 @@ where
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::Witness,
-        S::Storage,
+        <S::Storage as Storage>::ChangeSet,
     ) {
         // Run end_slot_hook
         self.runtime.end_slot_hook(&mut checkpoint);
@@ -191,9 +191,9 @@ where
             .finalize_hook(visible_root_hash, &mut accessory_delta);
 
         state_update.add_accessory_items(accessory_delta.freeze());
-        storage.commit(&state_update);
+        let change_set = storage.materialize_changes(&state_update);
 
-        (root_hash, witness, storage)
+        (root_hash, witness, change_set)
     }
 }
 
@@ -255,9 +255,9 @@ where
 
         state_update.add_accessory_items(accessory_delta.freeze());
 
-        pre_state.commit(&state_update);
+        let change_set = pre_state.materialize_changes(&state_update);
 
-        (genesis_hash, pre_state.to_change_set())
+        (genesis_hash, change_set)
     }
 
     fn apply_slot<'a, I>(
@@ -338,10 +338,10 @@ where
             total_gas.combine(&gas_used);
         }
 
-        let (state_root, witness, storage) = self.end_slot(pre_state, &total_gas, checkpoint);
+        let (state_root, witness, change_set) = self.end_slot(pre_state, &total_gas, checkpoint);
         ApplySlotOutput {
             state_root,
-            change_set: storage.to_change_set(),
+            change_set,
             proof_receipts,
             batch_receipts,
             witness,

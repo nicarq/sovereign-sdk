@@ -108,14 +108,10 @@ fn setup_storage(
         let (_, state_update) = stf_state
             .compute_state_update(state_accesses, &witness)
             .unwrap();
-        stf_state.commit(&state_update);
+        let change_set = stf_state.materialize_changes(&state_update);
 
         storage_manager
-            .save_change_set(
-                &block_header,
-                stf_state.to_change_set(),
-                ledger_state.into(),
-            )
+            .save_change_set(&block_header, change_set, ledger_state.into())
             .unwrap();
 
         if h > fork_len {

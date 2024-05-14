@@ -33,8 +33,8 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionWitness, ZkvmHost};
-use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
+use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
 
 use crate::datagen::{generate_genesis_config, get_bench_blocks};
@@ -190,11 +190,9 @@ async fn main() -> Result<(), anyhow::Error> {
         path: rollup_config.storage.path,
     };
 
-    let mut storage_manager = ProverStorageManager::<
-        MockDaSpec,
-        DefaultStorageSpec<sov_test_utils::TestHasher>,
-    >::new(storage_config)
-    .expect("ProverStorageManager initialization has failed");
+    let mut storage_manager =
+        ProverStorageManager::<MockDaSpec, TestStorageSpec>::new(storage_config)
+            .expect("ProverStorageManager initialization has failed");
     let stf = BenchSTF::new();
 
     generate_genesis_config(genesis_conf_dir.as_str())?;

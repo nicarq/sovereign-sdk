@@ -7,16 +7,14 @@ use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Gas, GasArray, Spec, StateTransitionPublicData, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::jmt::RootHash;
-use sov_state::{DefaultStorageSpec, StorageRoot};
+use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestStorageSpec as Storage};
 
 use super::AttesterIncentivesTestHandler;
 use crate::attester_incentives::get_first_transaction_receipt;
 use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
-
-type Storage = DefaultStorageSpec<TestHasher>;
 
 impl AttesterIncentivesTestHandler {
     fn check_attester_bonded(&self, rollup: &mut TestRollup) {

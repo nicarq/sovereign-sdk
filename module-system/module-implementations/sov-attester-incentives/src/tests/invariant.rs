@@ -1,11 +1,12 @@
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::TxGasMeter;
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    setup, ExecutionSimulationVars, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
+    commit_get_new_storage, setup, ExecutionSimulationVars, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY,
+    INIT_HEIGHT,
 };
 type S = sov_test_utils::TestSpec;
 
@@ -13,7 +14,8 @@ type S = sov_test_utils::TestSpec;
 #[test]
 fn test_transition_invariant() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let working_set = WorkingSet::new(storage.clone());
     let (module, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
@@ -32,13 +34,13 @@ fn test_transition_invariant() {
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
     let state_checkpoint = working_set.checkpoint().0;
+    commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     let (exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         20,
         &module,
-        &storage,
+        &mut storage_manager,
         &sequencer,
         &attester_address,
-        state_checkpoint,
     );
     let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
 
@@ -98,7 +100,7 @@ fn test_transition_invariant() {
     for i in 0..usize::try_from(DEFAULT_ROLLUP_FINALITY + 1).unwrap() {
         let old_attestation = Attestation {
             initial_state_root: exec_vars[new_height - 1].state_root,
-            slot_hash: [(new_height).try_into().unwrap(); 32].into(),
+            slot_hash: [new_height.try_into().unwrap(); 32].into(),
             post_state_root: exec_vars[new_height].state_root,
             proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
                 claimed_transition_num: new_height.try_into().unwrap(),
@@ -116,7 +118,7 @@ fn test_transition_invariant() {
             },
         };
 
-        // Testing the transition invariant
+        // Testing the transition invariant.
         // We suppose that these values are always defined, otherwise we panic
         let last_height_attested = module
             .maximum_attested_height
@@ -165,7 +167,7 @@ fn test_transition_invariant() {
         },
     };
 
-    // Testing the transition invariant
+    // Testing the transition invariant.
     // We suppose that these values are always defined, otherwise we panic
     let last_height_attested = module
         .maximum_attested_height

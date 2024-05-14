@@ -124,7 +124,7 @@ fn test_honest_unbonding() {
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
-        assert_eq!(tx_receipt.receipt, TxEffect::Successful);
+        assert_eq!(TxEffect::Successful, tx_receipt.receipt);
 
         let mut working_set = WorkingSet::<S>::new(rollup.storage());
 

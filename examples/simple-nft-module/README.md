@@ -390,7 +390,6 @@ use simple_nft_module::{CallMessage, NonFungibleToken, NonFungibleTokenConfig, O
 use sov_modules_api::{Address, Context, Module, WorkingSet};
 use simple_nft_module::Event;
 use sov_state::{DefaultStorageSpec, ProverStorage};
-use sov_prover_storage_manager::{new_orphan_storage};
 
 pub type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;

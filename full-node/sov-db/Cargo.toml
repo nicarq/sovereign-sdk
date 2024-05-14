@@ -32,20 +32,19 @@ serde = { workspace = true, default-features = true, features = ["rc"] }
 tempfile = { workspace = true, optional = true }
 rocksdb = { workspace = true }
 bincode = { workspace = true }
-tokio = { workspace = true, features = ["sync"]}
+tokio = { workspace = true, features = ["sync"] }
 hex = { workspace = true }
 
 [dev-dependencies]
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
-sov-prover-storage-manager = { path = "../sov-prover-storage-manager" }
 tempfile = { workspace = true }
 criterion = "0.5.1"
 rand = { workspace = true }
 sha2 = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["test-util", "macros"]}
+tokio = { workspace = true, features = ["test-util", "macros"] }
 
 [features]
 arbitrary = [

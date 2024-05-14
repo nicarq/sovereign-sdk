@@ -41,7 +41,7 @@ pub enum Namespace {
     User,
     /// The kernel namespace. Used by the Kernel modules and is synchronised with the true height.
     Kernel,
-    /// The accessory namespace. Values in this namespace are not writeable but not readable inside the state transition
+    /// The accessory namespace. Values in this namespace are writeable but not readable inside the state transition
     /// function. They are used to provide auxiliary data via RPC.
     Accessory,
 }
@@ -68,8 +68,7 @@ pub enum ProvableNamespace {
     Kernel,
 }
 
-/// Defines
-/// ype-level representations of  namespaces.
+/// Defines a type-level representations of  namespaces.
 pub mod namespaces {
     use crate::Namespace;
 
@@ -331,7 +330,7 @@ impl StateUpdate for () {
     }
 }
 
-/// An interface for storing and retrieving values in the storage.
+/// An interface for retrieving values from the storage and producing change set of new write operations.
 pub trait Storage: Clone {
     /// The witness type for this storage instance.
     type Witness: Witness + Send + Sync;
@@ -351,7 +350,7 @@ pub trait Storage: Clone {
         + PartialEq
         + Eq;
 
-    /// A cryptographic commitment to the contents of this storage
+    /// A cryptographic commitment to the contents of this storage.
     type Root: Serialize
         + DeserializeOwned
         + fmt::Debug
@@ -397,35 +396,35 @@ pub trait Storage: Clone {
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error>;
 
-    /// Commits state changes to the underlying storage.
-    fn commit(&self, state_update: &Self::StateUpdate);
+    /// Materializes changes from given [`Self::StateUpdate`] into [`Self::ChangeSet`].
+    fn materialize_changes(&self, state_update: &Self::StateUpdate) -> Self::ChangeSet;
 
-    /// A version of [`Storage::validate_and_commit`] that allows for "accessory" non-JMT updates.
-    fn validate_and_commit_with_accessory_update(
+    /// A version of [`Storage::validate_and_materialize`] that allows for "accessory" non-JMT updates.
+    fn validate_and_materialize_with_accessory_update(
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
         accessory_updates: Vec<(SlotKey, Option<SlotValue>)>,
-    ) -> Result<Self::Root, anyhow::Error> {
+    ) -> Result<(Self::Root, Self::ChangeSet), anyhow::Error> {
         let (root_hash, mut node_batch) = self.compute_state_update(state_accesses, witness)?;
         for write in accessory_updates {
             node_batch.add_accessory_item(write.0, write.1);
         }
-        self.commit(&node_batch);
+        let change_set = self.materialize_changes(&node_batch);
 
-        Ok(root_hash)
+        Ok((root_hash, change_set))
     }
 
-    /// Validate all of the storage accesses in a particular cache log,
-    /// returning the new state root after applying all writes.
+    /// Validate all the storage accesses in a particular cache log,
+    /// returning the new state root and change set after applying all writes.
     /// This function is equivalent to calling:
-    /// `self.compute_state_update & self.commit`
-    fn validate_and_commit(
+    /// `self.compute_state_update` & `self.materialize_changes`
+    fn validate_and_materialize(
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
-    ) -> Result<Self::Root, anyhow::Error> {
-        Self::validate_and_commit_with_accessory_update(
+    ) -> Result<(Self::Root, Self::ChangeSet), anyhow::Error> {
+        Self::validate_and_materialize_with_accessory_update(
             self,
             state_accesses,
             witness,
@@ -439,13 +438,6 @@ pub trait Storage: Clone {
         state_root: Self::Root,
         proof: StorageProof<Self::Proof>,
     ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error>;
-
-    /// Indicates if storage is empty or not.
-    /// Useful during initialization.
-    fn is_empty(&self) -> bool;
-
-    /// Converts the storage into a change set.
-    fn to_change_set(self) -> Self::ChangeSet;
 }
 
 /// Used only in tests.

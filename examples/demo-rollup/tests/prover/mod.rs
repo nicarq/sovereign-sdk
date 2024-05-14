@@ -17,9 +17,8 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionWitness, ZkvmHost};
-use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
-use sov_test_utils::TestHasher;
+use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
 
 use crate::prover::datagen::get_blocks_from_da;
@@ -59,7 +58,7 @@ async fn test_proof_generation() {
     };
 
     let mut storage_manager =
-        ProverStorageManager::<MockDaSpec, DefaultStorageSpec<TestHasher>>::new(storage_config)
+        ProverStorageManager::<MockDaSpec, TestStorageSpec>::new(storage_config)
             .expect("ProverStorageManager initialization has failed");
     let stf = TestSTF::new();
 
