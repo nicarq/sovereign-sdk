@@ -465,7 +465,7 @@ mod tests {
     use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
     use sov_rollup_interface::da::BlobReaderTrait;
     use sov_rollup_interface::services::batch_builder::TxWithHash;
-    use sov_test_utils::sequencer::TestAuth;
+    use sov_test_utils::auth::TestAuth;
     use sov_test_utils::TestSpec;
 
     use self::axum_router::openapi_spec;

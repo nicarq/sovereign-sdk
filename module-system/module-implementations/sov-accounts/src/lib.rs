@@ -36,11 +36,11 @@ pub struct Accounts<S: Spec> {
     #[id]
     pub id: ModuleId,
 
-    /// Mapping from an account address to a corresponding public key.
+    /// Mapping from an account address to a corresponding public key hash.
     #[state]
     pub(crate) public_keys: sov_modules_api::StateMap<S::Address, Hash>,
 
-    /// Mapping from a public key to a corresponding account.
+    /// Mapping from a public key hash to a corresponding account.
     #[state]
     pub(crate) accounts: sov_modules_api::StateMap<Hash, Account<S>>,
 }

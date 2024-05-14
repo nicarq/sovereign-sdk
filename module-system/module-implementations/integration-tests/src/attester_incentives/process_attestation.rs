@@ -8,6 +8,7 @@ use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
+use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestStorageSpec};
 
@@ -94,7 +95,7 @@ impl AttesterIncentivesTestHandler {
                     self.attester_private_key.clone(),
                     CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(attestation)),
                 )])
-                .create_default_raw_txs::<TestRuntime<S, Da>>(),
+                .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
                 id: [1; 32],
             },
             self.seq_da_addr.as_ref(),
@@ -236,7 +237,7 @@ impl AttesterIncentivesTestHandler {
                         )),
                     ),
                 ])
-                .create_default_raw_txs::<TestRuntime<S, Da>>(),
+                .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
                 id: [2; 32],
             },
             self.seq_da_addr.as_ref(),

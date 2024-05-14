@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::runtime::capabilities::{AuthenticationError, RawTx, RuntimeAuthenticator};
+use sov_modules_api::runtime::capabilities::{
+    AuthenticationError, FatalError, RawTx, RuntimeAuthenticator,
+};
 use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
 use sov_modules_api::{Authenticator, DaSpec, DispatchCall, GasMeter, Spec};
 use sov_sequencer_registry::SequencerStakeMeter;
@@ -25,7 +27,14 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for Runtime<S, Da> {
         raw_tx: &RawTx,
         sequencer_stake_meter: &mut Self::SequencerStakeMeter,
     ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
-        sov_modules_api::authenticate::<S, Self>(&raw_tx.data, sequencer_stake_meter)
+        let auth = Auth::try_from_slice(raw_tx.data.as_slice()).map_err(|e| {
+            AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+        })?;
+
+        match auth {
+            Auth::Mod(tx) => ModAuth::<S, Da>::authenticate(&tx, sequencer_stake_meter),
+            Auth::Evm(tx) => EvmAuth::<S, Da>::authenticate(&tx, sequencer_stake_meter),
+        }
     }
 }
 
@@ -57,7 +66,8 @@ impl<S: Spec, Da: DaSpec> Authenticator for ModAuth<S, Da> {
     }
 
     fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {
-        Ok(RawTx { data: tx })
+        let data = Auth::Mod(tx).try_to_vec()?;
+        Ok(RawTx { data })
     }
 }
 
@@ -83,6 +93,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
     }
 
     fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {
-        Ok(RawTx { data: tx })
+        let data = Auth::Evm(tx).try_to_vec()?;
+        Ok(RawTx { data })
     }
 }

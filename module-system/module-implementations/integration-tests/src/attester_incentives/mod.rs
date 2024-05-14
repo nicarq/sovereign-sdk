@@ -11,6 +11,7 @@ use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, Worki
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::stf::TransactionReceipt;
 use sov_state::{Storage, StorageRoot};
+use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{
@@ -200,7 +201,8 @@ impl AttesterIncentivesTestHandler {
         let sequencer_params = SequencerParams::default();
 
         AttesterIncentivesTestHandler {
-            value_setter: value_setter_messages.create_default_raw_txs::<TestRuntime<S, Da>>(),
+            value_setter: value_setter_messages
+                .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
             admin_public_key: value_setter_messages.messages[0]
                 .admin
                 .to_address::<<S as Spec>::Address>(),
@@ -220,7 +222,8 @@ impl AttesterIncentivesTestHandler {
 
         let seq_params = SequencerParams::default();
 
-        let value_setter = value_setter_messages.create_default_raw_txs::<TestRuntime<S, Da>>();
+        let value_setter =
+            value_setter_messages.create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
         let admin_private_key: Rc<Ed25519PrivateKey> =
             value_setter_messages.messages[0].admin.clone();
 
