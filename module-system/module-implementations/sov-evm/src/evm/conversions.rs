@@ -41,7 +41,6 @@ impl From<&BlockEnv> for ReVmBlockEnv {
             basefee: U256::from(block_env.basefee),
             gas_limit: U256::from(block_env.gas_limit),
             // EIP-4844 related field
-            // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
             blob_excess_gas_and_price: None,
         }
     }
@@ -66,8 +65,7 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
         // TODO handle access list
         access_list: vec![],
         // EIP-4844 related fields
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        blob_hashes: vec![],
+        blob_hashes: Default::default(),
         max_fee_per_blob_gas: None,
     }
 }

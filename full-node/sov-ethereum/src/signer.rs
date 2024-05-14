@@ -191,30 +191,10 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
                 },
             ))
         }
-        // EIP4884
-        // all blob fields required
-        (None, _, _, Some(max_fee_per_blob_gas), Some(blob_versioned_hashes), Some(sidecar)) => {
-            // As per the EIP, we follow the same semantics as EIP-1559.
-            Some(reth_rpc_types::TypedTransactionRequest::EIP4844(
-                reth_rpc_types::transaction::EIP4844TransactionRequest {
-                    chain_id: 0,
-                    nonce: nonce.unwrap_or_default(),
-                    max_priority_fee_per_gas: max_priority_fee_per_gas.unwrap_or_default(),
-                    max_fee_per_gas: max_fee_per_gas.unwrap_or_default(),
-                    gas_limit: gas.unwrap_or_default(),
-                    value: value.unwrap_or_default(),
-                    input: data.into_input().unwrap_or_default(),
-                    kind: address_to_tx_kind(to),
-                    access_list: access_list.unwrap_or_default(),
-
-                    // eip-4844 specific.
-                    max_fee_per_blob_gas,
-                    blob_versioned_hashes,
-                    sidecar,
-                },
-            ))
+        // EIP-4844
+        (None, _, _, Some(_), Some(_), Some(_)) => {
+            return Err(sov_evm::EthApiError::Unsupported("EIP-4844 is not supported").into())
         }
-
         _ => None,
     };
 
@@ -240,12 +220,8 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
 
             reth_rpc_types::TypedTransactionRequest::EIP1559(m)
         }
-        Some(reth_rpc_types::TypedTransactionRequest::EIP4844(mut m)) => {
-            m.chain_id = chain_id;
-            m.gas_limit = gas_limit;
-            m.max_fee_per_gas = max_fee_per_gas.unwrap_or_default();
-
-            reth_rpc_types::TypedTransactionRequest::EIP4844(m)
+        Some(reth_rpc_types::TypedTransactionRequest::EIP4844(_)) => {
+            return Err(sov_evm::EthApiError::Unsupported("EIP-4844 is not supported").into())
         }
         None => return Err(sov_evm::EthApiError::ConflictingFeeFieldsInRequest.into()),
     })
