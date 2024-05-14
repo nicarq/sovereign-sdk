@@ -378,7 +378,7 @@ pub(crate) fn prefix_from_address_with_parent(
     parent_prefix: &sov_state::Prefix,
     token_id: &TokenId,
 ) -> sov_state::Prefix {
-    let mut prefix = parent_prefix.as_aligned_vec().clone().into_inner();
+    let mut prefix = parent_prefix.as_ref().to_vec();
     prefix.extend_from_slice(format!("{}", token_id).as_bytes());
     sov_state::Prefix::new(prefix)
 }
