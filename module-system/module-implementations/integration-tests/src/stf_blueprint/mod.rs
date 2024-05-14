@@ -3,6 +3,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
 use sov_modules_api::{Context, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
+use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
@@ -71,7 +72,8 @@ fn test_stf_internal_updates() {
     let mut rollup = TestRollup::new();
 
     let value_setter_messages = ValueSetterMessages::prepopulated();
-    let value_setter = value_setter_messages.create_default_raw_txs::<TestRuntime<S, MockDaSpec>>();
+    let value_setter = value_setter_messages
+        .create_default_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>();
 
     let admin_pub_key = value_setter_messages.messages[0]
         .admin

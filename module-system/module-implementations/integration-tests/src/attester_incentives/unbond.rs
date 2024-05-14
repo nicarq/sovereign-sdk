@@ -6,6 +6,7 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
+use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
@@ -41,7 +42,7 @@ fn test_honest_unbonding() {
                 test_handler.attester_private_key.clone(),
                 CallMessage::BeginUnbondingAttester,
             )])
-            .create_default_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
             id: [1; 32],
         },
         test_handler.seq_da_addr.as_ref(),
@@ -103,7 +104,7 @@ fn test_honest_unbonding() {
                 test_handler.attester_private_key.clone(),
                 CallMessage::EndUnbondingAttester,
             )])
-            .create_default_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
             id: [1; 32],
         },
         test_handler.seq_da_addr.as_ref(),
@@ -178,7 +179,7 @@ fn test_unbonding_without_bonded() {
                 test_handle.attester_private_key.clone(),
                 CallMessage::EndUnbondingAttester,
             )])
-            .create_default_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),
@@ -228,7 +229,7 @@ fn test_premature_unbonding() {
                 test_handle.attester_private_key.clone(),
                 CallMessage::BeginUnbondingAttester,
             )])
-            .create_default_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),
@@ -273,7 +274,7 @@ fn test_premature_unbonding() {
                 test_handle.attester_private_key.clone(),
                 CallMessage::EndUnbondingAttester,
             )])
-            .create_default_raw_txs::<TestRuntime<S, Da>>(),
+            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),

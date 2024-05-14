@@ -3,6 +3,7 @@ use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, TxEffect};
+use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
@@ -25,7 +26,8 @@ fn test_simple_value_setter_with_chain_state() {
     let mut rollup = TestRollup::new();
 
     let value_setter_messages = ValueSetterMessages::prepopulated();
-    let value_setter = value_setter_messages.create_default_raw_txs::<TestRuntime<S, MockDaSpec>>();
+    let value_setter = value_setter_messages
+        .create_default_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>();
     let num_value_setter_txs = value_setter.len();
 
     // We need to multiply each component of the gas used by 2 because there are 2 messages

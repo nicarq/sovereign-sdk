@@ -11,12 +11,13 @@ use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
-    CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint, WorkingSet,
+    Authenticator, CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_modules_stf_blueprint::{Batch, BatchReceipt, TxEffect};
 use sov_prover_storage_manager::new_orphan_storage;
 
 pub mod attester_incentive_data;
+pub mod auth;
 pub mod bank_data;
 mod evm;
 #[cfg(feature = "demo-stf")]
@@ -210,8 +211,10 @@ pub trait MessageGenerator {
     }
 
     /// Creates a vector of raw transactions from the module.
-    fn create_default_raw_txs<Encoder: EncodeCall<Self::Module>>(&self) -> Vec<RawTx> {
-        self.create_raw_txs::<Encoder>(
+    fn create_default_raw_txs<Encoder: EncodeCall<Self::Module>, Auth: Authenticator>(
+        &self,
+    ) -> Vec<RawTx> {
+        self.create_raw_txs::<Encoder, Auth>(
             Self::DEFAULT_CHAIN_ID,
             Self::DEFAULT_MAX_PRIORITY_FEE,
             Self::DEFAULT_MAX_FEE,
@@ -221,10 +224,13 @@ pub trait MessageGenerator {
         )
     }
 
-    fn create_default_raw_txs_without_gas_usage<Encoder: EncodeCall<Self::Module>>(
+    fn create_default_raw_txs_without_gas_usage<
+        Encoder: EncodeCall<Self::Module>,
+        Auth: Authenticator,
+    >(
         &self,
     ) -> Vec<RawTx> {
-        self.create_raw_txs::<Encoder>(
+        self.create_raw_txs::<Encoder, Auth>(
             Self::DEFAULT_CHAIN_ID,
             Self::DEFAULT_MAX_PRIORITY_FEE,
             Self::DEFAULT_MAX_FEE,
@@ -233,7 +239,7 @@ pub trait MessageGenerator {
     }
 
     /// Creates a vector of raw transactions from the module.
-    fn create_raw_txs<Encoder: EncodeCall<Self::Module>>(
+    fn create_raw_txs<Encoder: EncodeCall<Self::Module>, Auth: Authenticator>(
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
@@ -251,16 +257,14 @@ pub trait MessageGenerator {
         let mut serialized_messages = Vec::default();
         for message in messages_iter {
             let tx = message.to_tx::<Encoder>();
-            serialized_messages.push(RawTx {
-                data: tx.try_to_vec().unwrap(),
-            });
+            serialized_messages.push(Auth::encode(tx.try_to_vec().unwrap()).unwrap());
         }
         serialized_messages
     }
 
-    fn create_blobs<Encoder: EncodeCall<Self::Module>>(&self) -> Vec<u8> {
+    fn create_blobs<Encoder: EncodeCall<Self::Module>, Auth: Authenticator>(&self) -> Vec<u8> {
         let txs: Vec<Vec<u8>> = self
-            .create_default_raw_txs::<Encoder>()
+            .create_default_raw_txs::<Encoder, Auth>()
             .into_iter()
             .map(|tx| tx.data)
             .collect();

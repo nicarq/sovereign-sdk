@@ -1,13 +1,9 @@
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec, MockValidityCondChecker};
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
-use sov_modules_api::{
-    Address, Authenticator, CryptoSpec, DaSpec, DispatchCall, GasMeter, PrivateKey, Spec,
-};
+use sov_modules_api::{Address, CryptoSpec, PrivateKey, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -17,37 +13,11 @@ use sov_state::DefaultStorageSpec;
 use tempfile::TempDir;
 use tokio::sync::watch;
 
+use crate::auth::TestAuth;
 use crate::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
-use crate::{RawTx, TestHasher, TestPrivateKey, TestSpec};
+use crate::{TestHasher, TestPrivateKey, TestSpec};
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
-
-/// TODO
-pub struct TestAuth<S: Spec, Da: DaSpec> {
-    _phantom: PhantomData<(S, Da)>,
-}
-
-impl<S: Spec, Da: DaSpec> Authenticator for TestAuth<S, Da> {
-    type Spec = S;
-    type DispatchCall = TestRuntime<S, Da>;
-
-    fn authenticate(
-        tx: &[u8],
-        stake_meter: &mut impl GasMeter<S::Gas>,
-    ) -> Result<
-        (
-            AuthenticatedTransactionAndRawHash<Self::Spec>,
-            <Self::DispatchCall as DispatchCall>::Decodable,
-        ),
-        sov_modules_api::runtime::capabilities::AuthenticationError,
-    > {
-        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx, stake_meter)
-    }
-
-    fn encode(tx: Vec<u8>) -> Result<sov_modules_api::runtime::capabilities::RawTx, anyhow::Error> {
-        Ok(RawTx { data: tx })
-    }
-}
 
 pub type Blueprint = StfBlueprint<
     TestSpec,

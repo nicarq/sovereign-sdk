@@ -328,8 +328,8 @@ mod tests {
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, WorkingSet};
     use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
     use sov_state::{ProverStorage, Storage};
+    use sov_test_utils::auth::TestAuth;
     use sov_test_utils::runtime::{create_genesis_config, TestRuntime};
-    use sov_test_utils::sequencer::TestAuth;
     use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSpec, TestStorageSpec as StorageSpec};
     use sov_value_setter::{CallMessage, ValueSetter};
     use tempfile::TempDir;

@@ -5,11 +5,12 @@ use sov_bank::Bank;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{EncodeCall, PrivateKey};
+use sov_modules_api::{Authenticator, EncodeCall, PrivateKey};
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::value_setter_data::{ValueSetterMessage, ValueSetterMessages};
 use sov_test_utils::{MessageGenerator, TestPrivateKey};
 
+use crate::authentication::ModAuth;
 use crate::runtime::Runtime;
 
 pub(crate) type S = sov_test_utils::TestSpec;
@@ -25,14 +26,14 @@ pub fn simulate_da(admin: TestPrivateKey) -> Vec<RawTx> {
         admin: Rc::new(admin),
         messages: vec![99, 33],
     }]);
-    messages.extend(value_setter.create_default_raw_txs_without_gas_usage::<Runtime<S, Da>>());
+    messages.extend(
+        value_setter.create_default_raw_txs_without_gas_usage::<Runtime<S, Da>, ModAuth<S, Da>>(),
+    );
     let nonce_offset = messages.len() as u64;
     for mut msg in bank_messages {
         msg.nonce += nonce_offset;
         let tx = msg.to_tx::<Runtime<S, Da>>();
-        messages.push(RawTx {
-            data: tx.try_to_vec().unwrap(),
-        });
+        messages.push(encode_with_auth(tx));
     }
     messages
 }
@@ -40,7 +41,8 @@ pub fn simulate_da(admin: TestPrivateKey) -> Vec<RawTx> {
 pub fn simulate_da_with_revert_msg(admin: TestPrivateKey) -> Vec<RawTx> {
     let mut messages = Vec::default();
     let bank_generator = BankMessageGenerator::<S>::create_invalid_transfer(admin);
-    let bank_txns = bank_generator.create_default_raw_txs_without_gas_usage::<Runtime<S, Da>>();
+    let bank_txns =
+        bank_generator.create_default_raw_txs_without_gas_usage::<Runtime<S, Da>, ModAuth<S, Da>>();
     messages.extend(bank_txns);
     messages
 }
@@ -61,9 +63,7 @@ pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<RawTx> {
     );
     // Overwrite the signature with the signature of the empty message
 
-    vec![RawTx {
-        data: tx.try_to_vec().unwrap(),
-    }]
+    vec![encode_with_auth(tx)]
 }
 
 pub fn simulate_da_with_bad_nonce(key: TestPrivateKey) -> Vec<RawTx> {
@@ -72,9 +72,7 @@ pub fn simulate_da_with_bad_nonce(key: TestPrivateKey) -> Vec<RawTx> {
     // Overwrite the nonce with the maximum value
     create_token_message.nonce = u64::MAX;
     let tx = create_token_message.to_tx::<Runtime<S, Da>>();
-    vec![RawTx {
-        data: tx.try_to_vec().unwrap(),
-    }]
+    vec![encode_with_auth(tx)]
 }
 
 pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<RawTx> {
@@ -90,7 +88,10 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<RawTx> {
         create_token_message.nonce,
     );
 
-    vec![RawTx {
-        data: tx.try_to_vec().unwrap(),
-    }]
+    vec![encode_with_auth(tx)]
+}
+
+fn encode_with_auth(tx: Transaction<S>) -> RawTx {
+    let tx_bytes = tx.try_to_vec().unwrap();
+    ModAuth::<S, Da>::encode(tx_bytes).unwrap()
 }

@@ -4,6 +4,7 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, ModuleInfo, Spec};
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
+use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
@@ -47,12 +48,13 @@ fn check_sequencer_and_registry_balances(
 
 fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_reward: u64) {
     let value_setter_messages = ValueSetterMessages::prepopulated();
-    let value_setter = value_setter_messages.create_raw_txs::<TestRuntime<S, MockDaSpec>>(
-        0,
-        TEST_PRIORITY_FEE,
-        max_fee,
-        None,
-    );
+    let value_setter = value_setter_messages
+        .create_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>(
+            0,
+            TEST_PRIORITY_FEE,
+            max_fee,
+            None,
+        );
 
     assert_eq!(value_setter.len() as u64, NUM_TXS_PER_BATCH);
 
