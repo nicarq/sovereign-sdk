@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use anyhow::Result;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{Bloom, Bytes, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
-use revm::primitives::{Address, SpecId, B256, U256};
+use revm::primitives::{AccountInfo, Address, SpecId, B256, U256};
 use sov_modules_api::WorkingSet;
 
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
-use crate::evm::{AccountInfo, EvmChainConfig};
+use crate::evm::EvmChainConfig;
 use crate::Evm;
 
 /// Evm account.
@@ -95,6 +95,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
                     balance: acc.balance,
                     code_hash: acc.code_hash,
                     nonce: acc.nonce,
+                    code: None,
                 },
             );
 

@@ -31,7 +31,7 @@ impl<'a, Ws: StateAccessor> DatabaseCommit for EvmDb<'a, Ws> {
                 }
             }
 
-            db_account.info = account_info.into();
+            db_account.info = account_info;
 
             for (key, value) in account.storage.into_iter() {
                 let value = value.present_value();

@@ -12,7 +12,6 @@ use sov_test_utils::SimpleStorageContract;
 use super::db_init::InitEvmDb;
 use super::executor;
 use crate::evm::primitive_types::BlockEnv;
-use crate::evm::AccountInfo;
 use crate::tests::test_signer::TestSigner;
 use crate::{Evm, SpecId};
 
@@ -37,10 +36,11 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     let caller = dev_signer.address();
     evm_db.insert_account_info(
         caller,
-        AccountInfo {
+        revm::primitives::AccountInfo {
             balance: U256::from(1000000000),
             code_hash: KECCAK_EMPTY,
             nonce: 1,
+            code: None,
         },
     );
 

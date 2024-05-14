@@ -1,11 +1,11 @@
 use reth_primitives::Bytes;
 #[cfg(test)]
 use revm::db::{CacheDB, EmptyDB};
-use revm::primitives::{Address, B256};
+use revm::primitives::{AccountInfo, Address, B256};
 use sov_modules_api::StateAccessor;
 
 use super::db::EvmDb;
-use super::{AccountInfo, DbAccount};
+use super::DbAccount;
 
 /// Initializes database with a predefined account.
 pub(crate) trait InitEvmDb {
@@ -29,7 +29,7 @@ impl<'a, Ws: StateAccessor> InitEvmDb for EvmDb<'a, Ws> {
 #[cfg(test)]
 impl InitEvmDb for CacheDB<EmptyDB> {
     fn insert_account_info(&mut self, sender: Address, acc: AccountInfo) {
-        self.insert_account_info(sender, acc.into());
+        self.insert_account_info(sender, acc);
     }
 
     fn insert_code(&mut self, code_hash: B256, code: Bytes) {
