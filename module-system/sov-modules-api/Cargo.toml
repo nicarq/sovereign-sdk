@@ -31,14 +31,10 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 sha2 = { workspace = true }
 bech32 = { workspace = true }
-derive_more = { workspace = true, default-features = true }
 serde_json = { workspace = true, optional = true }
 hex = { workspace = true }
 clap = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true, features = [] }
-
-# The risc0 patch only applies to version 2.0.0 exactly.
-rand = { workspace = true, optional = true }
 
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
@@ -80,7 +76,6 @@ native = [
 	"clap",
 	"jsonrpsee",
 	"macros",
-	"rand",
 	"schemars",
 	"serde_json",
 	"sov-bank/native",

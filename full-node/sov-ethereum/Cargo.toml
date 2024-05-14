@@ -28,7 +28,6 @@ sov-eth-dev-signer = { path = "../sov-eth-dev-signer" }
 
 borsh = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
 
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }

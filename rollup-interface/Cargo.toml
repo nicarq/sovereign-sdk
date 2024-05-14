@@ -24,7 +24,6 @@ digest = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
-derivative = { workspace = true }
 schemars = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
