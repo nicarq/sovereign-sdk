@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::maybestd::{vec, RefCount};
 
-use crate::common::{AlignedVec, Prefix, Version, Witness};
+use crate::common::{Prefix, Version, Witness};
 
 mod cache;
 mod codec;
@@ -211,15 +211,13 @@ impl SlotKey {
         Q: ?Sized,
     {
         let encoded_key = codec.encode_key_like(key);
-        let encoded_key = AlignedVec::new(encoded_key);
 
-        let full_key = Vec::<u8>::with_capacity(prefix.len().saturating_add(encoded_key.len()));
-        let mut full_key = AlignedVec::new(full_key);
-        full_key.extend(prefix.as_aligned_vec());
+        let mut full_key = Vec::<u8>::with_capacity(prefix.len().saturating_add(encoded_key.len()));
+        full_key.extend(prefix.as_ref());
         full_key.extend(&encoded_key);
 
         Self {
-            key: RefCount::new(full_key.into_inner()),
+            key: RefCount::new(full_key),
         }
     }
 
@@ -241,7 +239,7 @@ impl SlotKey {
     /// Creates a new [`SlotKey`] that combines a prefix and a key.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
-            key: RefCount::new(prefix.as_aligned_vec().clone().into_inner()),
+            key: RefCount::new(prefix.as_ref().to_vec()),
         }
     }
 }
