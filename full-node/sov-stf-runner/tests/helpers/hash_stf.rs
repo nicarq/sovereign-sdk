@@ -56,9 +56,9 @@ impl<Cond> HashStf<Cond> {
             .compute_state_update(state_accesses, witness)
             .unwrap();
 
-        storage.commit(&state_update);
+        let change_set = storage.materialize_changes(&state_update);
 
-        (jmt_root_hash.into(), storage.to_change_set())
+        (jmt_root_hash.into(), change_set)
     }
 }
 

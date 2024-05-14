@@ -1,165 +1,204 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::*;
 use sov_modules_core::ProvableNamespace;
-use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::{ArrayWitness, DefaultStorageSpec, Prefix, Storage, ZkStorage};
+use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
+use sov_state::{ArrayWitness, Prefix, ProverStorage, Storage, ZkStorage};
+use sov_test_utils::TestStorageSpec as StorageSpec;
 
 type S = sov_test_utils::TestSpec;
 type Zk = sov_test_utils::ZkTestSpec;
-type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
-enum Operation {
-    Merge,
-    Finalize,
+trait StateThing {
+    type Value: core::fmt::Debug + Eq + PartialEq;
+
+    /// Write itself to WorkingSet
+    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self;
+
+    /// Gets owb value from [`WorkingSet`]
+    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value;
+
+    /// Changes itself in [`WorkingSet`]
+    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>);
 }
 
-impl Operation {
-    fn execute<S: Spec>(&self, working_set: WorkingSet<S>, db: S::Storage) -> StateCheckpoint<S> {
+#[allow(dead_code)]
+enum Condition {
+    Checkpoint,
+    Revert,
+}
+
+#[allow(dead_code)]
+impl Condition {
+    fn replace_working_set<S: Spec>(&self, working_set: WorkingSet<S>) -> WorkingSet<S> {
         match self {
-            Operation::Merge => working_set.checkpoint().0,
-            Operation::Finalize => {
-                let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
-
-                db.validate_and_commit(cache_log, &witness)
-                    .expect("JMT update is valid");
-
-                StateCheckpoint::new(db)
+            Condition::Checkpoint => {
+                let (checkpoint, gas_meter, _events) = working_set.checkpoint();
+                checkpoint.to_revertable(gas_meter)
+            }
+            Condition::Revert => {
+                let (checkpoint, gas_meter) = working_set.revert();
+                checkpoint.to_revertable(gas_meter)
             }
         }
     }
-}
 
-struct StorageOperation {
-    operations: Vec<Operation>,
-}
-
-impl StorageOperation {
-    fn execute<S: Spec>(&self, mut working_set: WorkingSet<S>, db: S::Storage) -> WorkingSet<S> {
-        for op in self.operations.iter() {
-            working_set = op
-                .execute(working_set, db.clone())
-                .to_revertable(Default::default());
+    fn process_thing<S: Spec, St: StateThing>(
+        &self,
+        thing: &St,
+        mut working_set: WorkingSet<S>,
+    ) -> WorkingSet<S> {
+        let value_before = thing.value(&mut working_set);
+        thing.change(&mut working_set);
+        working_set = self.replace_working_set(working_set);
+        let value_after = thing.value(&mut working_set);
+        match self {
+            Condition::Checkpoint => {
+                assert_ne!(
+                    value_before, value_after,
+                    "Value hasn't been changed after `.checkpoint()`"
+                );
+            }
+            Condition::Revert => {
+                assert_eq!(
+                    value_before, value_after,
+                    "Value has changed after `.revert()`"
+                );
+            }
         }
         working_set
     }
 }
 
-fn create_storage_operations() -> Vec<(StorageOperation, StorageOperation)> {
-    // Test cases for various interweavings of storage operations.
-    vec![
-        (
-            StorageOperation { operations: vec![] },
-            StorageOperation { operations: vec![] },
-        ),
-        (
-            StorageOperation {
-                operations: vec![Operation::Merge],
-            },
-            StorageOperation { operations: vec![] },
-        ),
-        (
-            StorageOperation {
-                operations: vec![Operation::Merge, Operation::Finalize],
-            },
-            StorageOperation { operations: vec![] },
-        ),
-        (
-            StorageOperation {
-                operations: vec![Operation::Merge],
-            },
-            StorageOperation {
-                operations: vec![Operation::Finalize],
-            },
-        ),
-        (
-            StorageOperation { operations: vec![] },
-            StorageOperation {
-                operations: vec![Operation::Merge, Operation::Finalize],
-            },
-        ),
-    ]
-}
-
-fn create_state_map(key: u32, value: u32, working_set: &mut WorkingSet<S>) -> StateMap<u32, u32> {
-    let state_map = StateMap::new(Prefix::new(vec![0]));
-    state_map.set(&key, &value, working_set);
-    state_map
-}
-
-#[test]
-fn test_state_map_with_remove() {
+/// Creates thing and checks it with all condition combinations
+fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: StateThing>(
+    conditions: &[Condition],
+) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_remove, after_remove) in create_storage_operations() {
-        let key = 1;
-        let value = 11;
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_map = create_state_map(key, value, &mut working_set);
+    let mut working_set = WorkingSet::new(storage);
+    let thing = St::create::<S>(&mut working_set);
 
-        working_set = before_remove.execute(working_set, storage.clone());
-        assert_eq!(state_map.remove(&key, &mut working_set).unwrap(), value);
-
-        working_set = after_remove.execute(working_set, storage.clone());
-        assert!(state_map.get(&key, &mut working_set).is_none());
+    for condition in conditions {
+        working_set = condition.process_thing(&thing, working_set);
     }
 }
 
-#[test]
-fn test_state_map_with_delete() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_delete, after_delete) in create_storage_operations() {
-        let key = 1;
-        let value = 11;
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_map = create_state_map(key, value, &mut working_set);
+struct StateValueSet(StateValue<u32>);
 
-        working_set = before_delete.execute(working_set, storage.clone());
-        state_map.delete(&key, &mut working_set);
+impl StateThing for StateValueSet {
+    type Value = u32;
 
-        working_set = after_delete.execute(working_set, storage.clone());
-        assert!(state_map.get(&key, &mut working_set).is_none());
+    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self {
+        let state_value = StateValue::new(Prefix::new(vec![0]));
+        state_value.set(&10, working_set);
+        StateValueSet(state_value)
+    }
+
+    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value {
+        self.0.get(working_set).expect("Value wasn't set")
+    }
+
+    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>) {
+        let mut value = self.value(working_set);
+        value += 1;
+        self.0.set(&value, working_set);
     }
 }
 
-fn create_state_value(value: u32, working_set: &mut WorkingSet<S>) -> StateValue<u32> {
-    let state_value = StateValue::new(Prefix::new(vec![0]));
-    state_value.set(&value, working_set);
-    state_value
-}
+struct StateVecSet(StateVec<u32>);
 
-#[test]
-fn test_state_value_with_remove() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_remove, after_remove) in create_storage_operations() {
-        let value = 11;
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_value = create_state_value(value, &mut working_set);
+impl StateThing for StateVecSet {
+    type Value = Vec<u32>;
 
-        working_set = before_remove.execute(working_set, storage.clone());
-        assert_eq!(state_value.remove(&mut working_set).unwrap(), value);
+    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self {
+        let state_vec = StateVec::new(Prefix::new(vec![0]));
+        state_vec.set_all(vec![10, 20, 30, 40, 50, 60], working_set);
+        StateVecSet(state_vec)
+    }
 
-        working_set = after_remove.execute(working_set, storage.clone());
-        assert!(state_value.get(&mut working_set).is_none());
+    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value {
+        self.0.iter(working_set).collect()
+    }
+
+    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>) {
+        let mut value = self.value(working_set);
+        for v in value.iter_mut() {
+            // TODO: More sophisticated ways of updating it
+            *v += 1;
+        }
+        self.0.set_all(value, working_set);
     }
 }
 
-#[test]
-fn test_state_value_with_delete() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_delete, after_delete) in create_storage_operations() {
-        let value = 11;
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_value = create_state_value(value, &mut working_set);
+struct StateVecPush(StateVec<u32>);
 
-        working_set = before_delete.execute(working_set, storage.clone());
-        state_value.delete(&mut working_set);
+impl StateThing for StateVecPush {
+    type Value = Vec<u32>;
 
-        working_set = after_delete.execute(working_set, storage.clone());
-        assert!(state_value.get(&mut working_set).is_none());
+    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self {
+        let state_vec = StateVec::new(Prefix::new(vec![0]));
+        state_vec.set_all(vec![10], working_set);
+        StateVecPush(state_vec)
     }
+
+    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value {
+        self.0.iter(working_set).collect()
+    }
+
+    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>) {
+        let value = self.0.get(0, working_set).expect("Value wasn't set");
+        self.0.push(&(value + 1), working_set);
+    }
+}
+
+struct StateVecRemove(StateVec<u32>);
+
+impl StateThing for StateVecRemove {
+    type Value = Vec<u32>;
+
+    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self {
+        let state_vec = StateVec::new(Prefix::new(vec![0]));
+        state_vec.set_all(vec![3u32; 100], working_set);
+        StateVecRemove(state_vec)
+    }
+
+    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value {
+        self.0.iter(working_set).collect()
+    }
+
+    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>) {
+        self.0.pop(working_set);
+    }
+}
+
+const CONDITIONS: [Condition; 8] = [
+    Condition::Checkpoint,
+    Condition::Revert,
+    Condition::Checkpoint,
+    Condition::Revert,
+    Condition::Checkpoint,
+    Condition::Revert,
+    Condition::Revert,
+    Condition::Checkpoint,
+];
+
+#[test]
+fn test_state_value_set() {
+    test_state_thing::<S, StateValueSet>(&CONDITIONS[..]);
+}
+
+#[test]
+fn test_state_vec_set() {
+    test_state_thing::<S, StateVecSet>(&CONDITIONS[..]);
+}
+
+#[test]
+fn test_state_vec_push() {
+    test_state_thing::<S, StateVecSet>(&CONDITIONS[..]);
+}
+
+#[test]
+fn test_state_vec_remove() {
+    test_state_thing::<S, StateVecRemove>(&CONDITIONS[..]);
 }
 
 #[test]
@@ -170,7 +209,6 @@ fn test_witness_round_trip() {
     // Native execution
     let witness: ArrayWitness = {
         let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
-        // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
         let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
@@ -178,7 +216,7 @@ fn test_witness_round_trip() {
         let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
         let _ = storage
-            .validate_and_commit(cache_log, &witness)
+            .validate_and_materialize(cache_log, &witness)
             .expect("Native jmt validation should succeed");
         witness
     };
@@ -192,237 +230,32 @@ fn test_witness_round_trip() {
         let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
         let _ = storage
-            .validate_and_commit(cache_log, &witness)
+            .validate_and_materialize(cache_log, &witness)
             .expect("ZK validation should succeed");
     };
-}
-
-fn create_state_vec<T: BorshDeserialize + BorshSerialize>(
-    values: Vec<T>,
-    working_set: &mut WorkingSet<S>,
-) -> StateVec<T> {
-    let state_vec = StateVec::new(Prefix::new(vec![0]));
-    state_vec.set_all(values, working_set);
-    state_vec
-}
-
-#[test]
-fn test_state_vec_len() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_len, after_len) in create_storage_operations() {
-        let values = vec![11, 22, 33];
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_vec = create_state_vec(values.clone(), &mut working_set);
-
-        working_set = before_len.execute(working_set, storage.clone());
-
-        working_set = after_len.execute(working_set, storage.clone());
-
-        assert_eq!(state_vec.len(&mut working_set), values.len());
-    }
-}
-
-#[test]
-fn test_state_vec_get() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_get, after_get) in create_storage_operations() {
-        let values = vec![56, 55, 54];
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_vec = create_state_vec(values.clone(), &mut working_set);
-
-        working_set = before_get.execute(working_set, storage.clone());
-
-        let val = state_vec.get(1, &mut working_set);
-        let err_val = state_vec.get_or_err(3, &mut working_set);
-        assert!(val.is_some());
-        assert!(err_val.is_err());
-
-        let val = val.unwrap();
-        assert_eq!(val, values.get(1).unwrap().clone());
-
-        working_set = after_get.execute(working_set, storage.clone());
-        let val = state_vec.get(1, &mut working_set);
-        let err_val = state_vec.get_or_err(3, &mut working_set);
-        assert!(val.is_some());
-        assert!(err_val.is_err());
-
-        let val = val.unwrap();
-        assert_eq!(val, values.get(1).unwrap().clone());
-    }
-}
-
-#[test]
-fn test_state_vec_set() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_set, after_set) in create_storage_operations() {
-        let values = vec![56, 55, 54];
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_vec = create_state_vec(values.clone(), &mut working_set);
-
-        working_set = before_set.execute(working_set, storage.clone());
-        let val = state_vec.set(1, &99, &mut working_set);
-        assert!(val.is_ok());
-
-        let val_err = state_vec.set(3, &99, &mut working_set);
-        assert!(val_err.is_err());
-
-        working_set = after_set.execute(working_set, storage.clone());
-
-        let val = state_vec.get(1, &mut working_set);
-        let err_val = state_vec.get_or_err(3, &mut working_set);
-
-        assert!(val.is_some());
-        assert!(err_val.is_err());
-
-        let val = val.unwrap();
-        assert_eq!(val, 99);
-    }
-}
-
-#[test]
-fn test_state_vec_push() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_push, after_push) in create_storage_operations() {
-        let values = vec![56, 55, 54];
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_vec = create_state_vec(values.clone(), &mut working_set);
-
-        working_set = before_push.execute(working_set, storage.clone());
-
-        state_vec.push(&53, &mut working_set);
-
-        working_set = after_push.execute(working_set, storage.clone());
-
-        let len = state_vec.len(&mut working_set);
-        assert_eq!(len, 4);
-
-        let val = state_vec.get(3, &mut working_set);
-        assert!(val.is_some());
-
-        let val = val.unwrap();
-        assert_eq!(val, 53);
-    }
-}
-
-#[test]
-fn test_state_vec_pop() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_pop, after_pop) in create_storage_operations() {
-        let values = vec![56, 55, 54];
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_vec = create_state_vec(values.clone(), &mut working_set);
-
-        working_set = before_pop.execute(working_set, storage.clone());
-
-        let popped = state_vec.pop(&mut working_set);
-
-        assert_eq!(popped.unwrap(), 54);
-
-        working_set = after_pop.execute(working_set, storage.clone());
-
-        let len = state_vec.len(&mut working_set);
-        assert_eq!(len, 2);
-
-        let val = state_vec.get(1, &mut working_set);
-        assert!(val.is_some());
-
-        let val = val.unwrap();
-        assert_eq!(val, 55);
-    }
-}
-
-#[test]
-fn test_state_vec_set_all() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_set_all, after_set_all) in create_storage_operations() {
-        let values = vec![56, 55, 54];
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_vec = create_state_vec(values.clone(), &mut working_set);
-
-        working_set = before_set_all.execute(working_set, storage.clone());
-
-        let new_values: Vec<u32> = vec![1];
-        state_vec.set_all(new_values, &mut working_set);
-
-        working_set = after_set_all.execute(working_set, storage.clone());
-
-        let val = state_vec.get(0, &mut working_set);
-
-        assert!(val.is_some());
-
-        let val = val.unwrap();
-        assert_eq!(val, 1);
-
-        let len = state_vec.len(&mut working_set);
-        assert_eq!(len, 1);
-
-        let val = state_vec.get_or_err(1, &mut working_set);
-
-        assert!(val.is_err());
-    }
-}
-
-#[test]
-fn test_state_vec_diff_type() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    for (before_ops, after_ops) in create_storage_operations() {
-        let values = vec![String::from("Hello"), String::from("World")];
-        let mut working_set = WorkingSet::new(storage.clone());
-        let state_vec = create_state_vec(values.clone(), &mut working_set);
-
-        working_set = before_ops.execute(working_set, storage.clone());
-
-        let val0 = state_vec.get(0, &mut working_set);
-        let val1 = state_vec.pop(&mut working_set);
-        state_vec.push(&String::from("new str"), &mut working_set);
-
-        working_set = after_ops.execute(working_set, storage.clone());
-
-        assert!(val0.is_some());
-        assert!(val1.is_some());
-
-        let val0 = val0.unwrap();
-        let val1 = val1.unwrap();
-        assert_eq!(val0, String::from("Hello"));
-        assert_eq!(val1, String::from("World"));
-
-        let val = state_vec.get(1, &mut working_set);
-        assert!(val.is_some());
-
-        let val = val.unwrap();
-        assert_eq!(val, String::from("new str"));
-
-        let len = state_vec.len(&mut working_set);
-        assert_eq!(len, 2);
-    }
 }
 
 /// Test that the state values with a standard working set get written to the user space
 #[test]
 fn test_state_value_user_namespace() {
-    let tempdir = tempfile::tempdir().unwrap();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
+
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
-    // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
-
     let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
     state_value.set(&11, &mut working_set);
     let _ = state_value.get(&mut working_set);
     state_value.set(&22, &mut working_set);
     let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
-    let _ = storage
-        .validate_and_commit(cache_log, &witness)
-        .expect("Native jmt validation should succeed");
+    let (_, change_set) = storage
+        .validate_and_materialize(cache_log, &witness)
+        .expect("Native JMT validation should succeed");
+    storage_manager.commit(change_set);
+    let storage = storage_manager.create_storage();
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
@@ -447,13 +280,13 @@ fn test_state_value_user_namespace() {
 /// Test that the state values with a kernel working set get written to the kernel space
 #[test]
 fn test_state_value_kernel_namespace() {
-    let tempdir = tempfile::tempdir().unwrap();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
+
     let state_value = KernelStateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
-    // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
-
     let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
 
     let mut state_checkpoint = working_set.checkpoint().0;
@@ -464,9 +297,11 @@ fn test_state_value_kernel_namespace() {
 
     let (cache_log, _, witness) = state_checkpoint.freeze();
 
-    let _ = storage
-        .validate_and_commit(cache_log, &witness)
-        .expect("Native jmt validation should succeed");
+    let (_, change_set) = storage
+        .validate_and_materialize(cache_log, &witness)
+        .expect("Native JMT validation should succeed");
+    storage_manager.commit(change_set);
+    let storage = storage_manager.create_storage();
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
@@ -491,22 +326,24 @@ fn test_state_value_kernel_namespace() {
 /// Test that the state maps with a standard working set get written to the user space
 #[test]
 fn test_state_map_user_namespace() {
-    let tempdir = tempfile::tempdir().unwrap();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
+
     let state_value = StateMap::new(Prefix::new(vec![0]));
 
     // Native execution
-    let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
-    // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
-
     let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
     state_value.set(&11, &0, &mut working_set);
     let _ = state_value.get(&0, &mut working_set);
     state_value.set(&22, &0, &mut working_set);
     let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
-    let _ = storage
-        .validate_and_commit(cache_log, &witness)
-        .expect("Native jmt validation should succeed");
+    let (_, change_set) = storage
+        .validate_and_materialize(cache_log, &witness)
+        .expect("Native JMT validation should succeed");
+    storage_manager.commit(change_set);
+    let storage = storage_manager.create_storage();
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
@@ -531,13 +368,13 @@ fn test_state_map_user_namespace() {
 /// Test that the kernel state maps with a kernel working set get written to the kernel space
 #[test]
 fn test_versioned_state_value_kernel_namespace() {
-    let tempdir = tempfile::tempdir().unwrap();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
+
     let state_value = VersionedStateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
-    // let storage = ProverStorage::<Storage>::with_path(path).unwrap();
-
     let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
 
     let mut state_checkpoint = working_set.checkpoint().0;
@@ -548,9 +385,11 @@ fn test_versioned_state_value_kernel_namespace() {
 
     let (cache_log, _, witness) = state_checkpoint.freeze();
 
-    let _ = storage
-        .validate_and_commit(cache_log, &witness)
-        .expect("Native jmt validation should succeed");
+    let (_, change_set) = storage
+        .validate_and_materialize(cache_log, &witness)
+        .expect("Native JMT validation should succeed");
+    storage_manager.commit(change_set);
+    let storage = storage_manager.create_storage();
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage

@@ -3990,7 +3990,7 @@ dependencies = [
 [[package]]
 name = "rockbound"
 version = "1.0.0"
-source = "git+https://github.com/sovereign-Labs/rockbound?tag=v2.0.1#110936ac9d9cace77344e557ea384cb7eaa64a2a"
+source = "git+https://github.com/sovereign-Labs/rockbound?rev=6febf63f61bc775324b96dc1d1a0290b8a3d9e41#6febf63f61bc775324b96dc1d1a0290b8a3d9e41"
 dependencies = [
  "anyhow",
  "byteorder",

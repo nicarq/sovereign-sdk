@@ -36,7 +36,7 @@ fn nested_module_call_test() {
 
     let (log, _, witness) = working_set.checkpoint().0.freeze();
     prover_storage
-        .validate_and_commit(log, &witness)
+        .validate_and_materialize(log, &witness)
         .expect("State update is valid");
 
     // Test the `zk` execution.

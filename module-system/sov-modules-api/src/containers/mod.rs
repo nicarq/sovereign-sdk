@@ -13,15 +13,10 @@ pub use versioned_value::VersionedStateValue;
 
 #[cfg(test)]
 mod test {
-    use sov_mock_da::{MockBlockHeader, MockDaSpec};
     use sov_modules_core::namespaces::User;
     use sov_modules_core::{SlotKey, SlotValue, StateWriter, Storage, Version, WorkingSet};
-    use sov_prover_storage_manager::ProverStorageManager;
-    use sov_rollup_interface::storage::HierarchicalStorageManager;
-    use sov_state::DefaultStorageSpec;
-    use sov_test_utils::{TestHasher, TestSpec};
-
-    type StorageSpec = DefaultStorageSpec<TestHasher>;
+    use sov_prover_storage_manager::SimpleStorageManager;
+    use sov_test_utils::{TestSpec, TestStorageSpec as StorageSpec};
 
     #[derive(Clone)]
     struct TestCase {
@@ -57,46 +52,34 @@ mod test {
 
     #[test]
     fn test_jmt_storage() {
-        let tempdir = tempfile::tempdir().unwrap();
+        let tmpdir = tempfile::tempdir().unwrap();
         let tests = create_tests();
-        let storage_config = sov_state::config::Config {
-            path: tempdir.path().to_path_buf(),
-        };
         {
-            let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config.clone())
-                    .unwrap();
-            let header = MockBlockHeader::default();
-            let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
-            for test in tests.clone() {
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            for test in &tests {
                 {
-                    let mut working_set: WorkingSet<TestSpec> =
-                        WorkingSet::new(prover_storage.clone());
-
+                    let storage = storage_manager.create_storage();
+                    let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage.clone());
                     StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone());
-                    let (cache, _, witness) = working_set.checkpoint().0.freeze();
-                    prover_storage
-                        .validate_and_commit(cache, &witness)
+                    let (checkpoint, _gas_meter, _) = working_set.checkpoint();
+                    let (cache, _, witness) = checkpoint.freeze();
+                    let (_, change_set) = storage
+                        .validate_and_materialize(cache, &witness)
                         .expect("storage is valid");
+                    storage_manager.commit(change_set);
+                    let storage = storage_manager.create_storage();
                     assert_eq!(
-                        test.value,
-                        prover_storage
-                            .get::<User>(&test.key, None, &witness)
-                            .unwrap()
+                        Some(test.value.clone()),
+                        storage.get::<User>(&test.key, None, &witness),
+                        "Prover storage does not have correct value"
                     );
                 }
             }
-            storage_manager
-                .save_change_set(&header, prover_storage.to_change_set(), ledger_state.into())
-                .unwrap();
-            storage_manager.finalize(&header).unwrap();
         }
 
         {
-            let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config).unwrap();
-            let header = MockBlockHeader::default();
-            let (storage, _) = storage_manager.create_state_for(&header).unwrap();
+            let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+            let storage = storage_manager.create_storage();
             for test in tests {
                 assert_eq!(
                     test.value,
@@ -111,53 +94,33 @@ mod test {
     #[test]
     fn test_restart_lifecycle() {
         let tempdir = tempfile::tempdir().unwrap();
-        let storage_config = sov_state::config::Config {
-            path: tempdir.path().to_path_buf(),
-        };
+        let mut storage_manager = SimpleStorageManager::new(tempdir.path());
         {
-            let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config.clone())
-                    .unwrap();
-            let header = MockBlockHeader::default();
-            let (prover_storage, _) = storage_manager.create_state_for(&header).unwrap();
-            assert!(prover_storage.is_empty());
+            let storage = storage_manager.create_storage();
+            assert!(storage.is_empty());
         }
 
         let key = SlotKey::from_slice(b"some_key");
         let value = SlotValue::from("some_value");
         // First restart
         {
-            let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config.clone())
-                    .unwrap();
-            let header = MockBlockHeader::default();
-            let (prover_storage, ledger_state) = storage_manager.create_state_for(&header).unwrap();
-            assert!(prover_storage.is_empty());
-            let mut storage: WorkingSet<TestSpec> = WorkingSet::new(prover_storage.clone());
-            StateWriter::<User>::set(&mut storage, &key, value.clone());
-            let (cache, _, witness) = storage.checkpoint().0.freeze();
-            prover_storage
-                .validate_and_commit(cache, &witness)
+            let storage = storage_manager.create_storage();
+            assert!(storage.is_empty());
+            let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage.clone());
+            StateWriter::<User>::set(&mut working_set, &key, value.clone());
+            let (cache, _, witness) = working_set.checkpoint().0.freeze();
+            let (_, change_set) = storage
+                .validate_and_materialize(cache, &witness)
                 .expect("storage is valid");
-            storage_manager
-                .save_change_set(&header, prover_storage.to_change_set(), ledger_state.into())
-                .unwrap();
-            storage_manager.finalize(&header).unwrap();
+            storage_manager.commit(change_set);
         }
 
         // Correctly restart from disk
         {
-            let mut storage_manager =
-                ProverStorageManager::<MockDaSpec, StorageSpec>::new(storage_config.clone())
-                    .unwrap();
-            let mock_block_header = MockBlockHeader::from_height(100000);
-            let (prover_storage, _ledger_state) = storage_manager
-                .create_state_for(&mock_block_header)
-                .unwrap();
-            assert!(!prover_storage.is_empty());
+            let storage = storage_manager.create_storage();
             assert_eq!(
                 value,
-                prover_storage
+                storage
                     .get::<User>(&key, None, &Default::default())
                     .unwrap()
             );

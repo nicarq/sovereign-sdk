@@ -6,14 +6,14 @@ use criterion::measurement::WallTime;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkGroup, BenchmarkId, Criterion,
 };
-use jmt::storage::TreeWriter;
-use jmt::{JellyfishMerkleTree, KeyHash};
+use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rockbound::cache::cache_container::CacheContainer;
 use rockbound::cache::cache_db::CacheDb;
-use rockbound::{ReadOnlyLock, DB};
-use sov_db::namespaces::UserNamespace;
+use rockbound::cache::change_set::ChangeSet;
+use rockbound::{ReadOnlyLock, SchemaBatch, DB};
+use sov_db::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use sov_db::state_db::{JmtHandler, StateDb};
 
 // TODO: Improve for collisions
@@ -41,16 +41,49 @@ struct TestData {
     db: StateDb,
 }
 
-fn prepare_data(size: usize, db: DB) -> TestData {
+fn put_data<N: Namespace>(
+    state_db: &StateDb,
+    raw_data: Vec<Vec<u8>>,
+    version: Version,
+) -> SchemaBatch {
+    let mut key_preimages = Vec::with_capacity(raw_data.len());
+    let mut batch = Vec::with_capacity(raw_data.len());
+
+    for chunk in raw_data.chunks(2) {
+        let key = &chunk[0];
+        let value = chunk[1].clone();
+        let key_hash = KeyHash::with::<sha2::Sha256>(&key);
+        key_preimages.push((key_hash, key));
+        batch.push((key_hash, Some(value)));
+    }
+
+    let mut preimages_batch = StateDb::materialize_preimages::<N>(key_preimages).unwrap();
+
+    let db_handler: JmtHandler<'_, N> = state_db.get_jmt_handler();
+
+    let jmt = JellyfishMerkleTree::<JmtHandler<N>, sha2::Sha256>::new(&db_handler);
+
+    let (_new_root, _update_proof, tree_update) = jmt
+        .put_value_set_with_proof(batch, version)
+        .expect("JMT update must succeed");
+    let node_batch = state_db
+        .materialize_node_batch::<N>(&tree_update.node_batch, Some(&preimages_batch))
+        .unwrap();
+    preimages_batch.merge(node_batch);
+
+    preimages_batch
+}
+
+fn prepare_data(size: usize, rocksdb: DB) -> TestData {
     assert!(size > 0, "Do not generate empty TestData");
     let to_parent = Arc::new(RwLock::new(Default::default()));
-    let manager = ReadOnlyLock::new(Arc::new(RwLock::new(CacheContainer::new(
-        db,
+    let cache_container = Arc::new(RwLock::new(CacheContainer::new(
+        rocksdb,
         to_parent.clone().into(),
-    ))));
-    let db_snapshot = CacheDb::new(0, manager);
-    let db = StateDb::with_cache_db(db_snapshot).unwrap();
-    db.inc_next_version();
+    )));
+    let manager = ReadOnlyLock::new(cache_container.clone());
+    let cache_db = CacheDb::new(0, manager);
+    let state_db = StateDb::with_cache_db(cache_db).unwrap();
 
     let mut raw_data = generate_random_bytes(size * 2 + 1);
     let non_existing_key = raw_data.pop().unwrap();
@@ -63,33 +96,23 @@ fn prepare_data(size: usize, db: DB) -> TestData {
         .unwrap()
         .clone();
 
-    let mut key_preimages = Vec::with_capacity(size);
-    let mut batch = Vec::with_capacity(size);
+    let version = 1;
+    let mut user_data = put_data::<UserNamespace>(&state_db, raw_data.clone(), version);
+    // TODO: Fails if kernel data does not have anything https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/648
+    let kernel_data = put_data::<KernelNamespace>(&state_db, vec![vec![1], vec![2]], version);
+    user_data.merge(kernel_data);
 
-    for chunk in raw_data.chunks(2) {
-        let key = &chunk[0];
-        let value = chunk[1].clone();
-        let key_hash = KeyHash::with::<sha2::Sha256>(&key);
-        key_preimages.push((key_hash, key));
-        batch.push((key_hash, Some(value)));
+    {
+        let mut cache_container = cache_container.write().unwrap();
+        let change_set = ChangeSet::new_with_operations(0, user_data);
+        cache_container.add_snapshot(change_set).unwrap();
+        cache_container.commit_snapshot(&0).unwrap();
     }
 
-    let namespaced_db_handler: JmtHandler<'_, UserNamespace> = db.get_jmt_handler();
-
-    let jmt =
-        JellyfishMerkleTree::<JmtHandler<UserNamespace>, sha2::Sha256>::new(&namespaced_db_handler);
-
-    let (_new_root, _update_proof, tree_update) = jmt
-        .put_value_set_with_proof(batch, 1)
-        .expect("JMT update must succeed");
-
-    db.put_preimages::<UserNamespace>(key_preimages).unwrap();
-
-    namespaced_db_handler
-        .write_node_batch(&tree_update.node_batch)
-        .unwrap();
-
-    // Sanity check:
+    // re-initialize `StateDb` so latest version is updated.
+    let manager = ReadOnlyLock::new(cache_container.clone());
+    let cache_db = CacheDb::new(0, manager);
+    let db = StateDb::with_cache_db(cache_db).unwrap();
     let version = db.get_next_version() - 1;
     for chunk in raw_data.chunks(2) {
         let key = &chunk[0];

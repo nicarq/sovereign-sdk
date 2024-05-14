@@ -7,10 +7,8 @@ use sov_bank::{
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::{DefaultStorageSpec, ProverStorage};
 
 type S = sov_test_utils::TestSpec;
-pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
 
 #[test]
 fn transfer_initial_token() {

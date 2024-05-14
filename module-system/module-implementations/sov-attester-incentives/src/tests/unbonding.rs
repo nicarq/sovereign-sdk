@@ -2,18 +2,20 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, WorkingSet};
 use sov_modules_core::TxGasMeter;
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    setup, ExecutionSimulationVars, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
+    commit_get_new_storage, setup, ExecutionSimulationVars, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY,
+    INIT_HEIGHT,
 };
 type S = sov_test_utils::TestSpec;
 
 #[test]
 fn test_two_phase_unbonding() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let working_set = WorkingSet::new(storage.clone());
     let (module, attester_address, _, sequencer, mut working_set) = setup(working_set);
 
@@ -31,7 +33,7 @@ fn test_two_phase_unbonding() {
 
     let context = Context::<S>::new(attester_address, sequencer, INIT_HEIGHT + 2);
 
-    // Try to skip the first phase of the two phase unbonding. Should fail
+    // Try to skip the first phase of the two-phase unbonding. Should fail.
     {
         // Should fail
         let err = module
@@ -41,15 +43,15 @@ fn test_two_phase_unbonding() {
     }
 
     let state_checkpoint = working_set.checkpoint().0;
+    commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
     let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         3,
         &module,
-        &storage,
+        &mut storage_manager,
         &sequencer,
         &attester_address,
-        state_checkpoint,
     );
 
     let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
@@ -119,7 +121,8 @@ fn test_two_phase_unbonding() {
         );
     }
 
-    // Now try to complete the two phase unbonding immediately: the second phase should fail because the
+    // Now try to complete the two-phase unbonding immediately:
+    // the second phase should fail because the
     // first phase cannot get finalized
     {
         // Should fail

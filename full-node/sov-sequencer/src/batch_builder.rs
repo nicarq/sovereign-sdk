@@ -101,7 +101,7 @@ where
             &mempool_tx.tx_bytes,
             &mut sequencer_stake_meter,
         ) {
-            // The [`AutenticationResult::FatalError`] variant should return an error - adding it to the batch would get
+            // The [`AuthenticationResult::FatalError`] variant should return an error - adding it to the batch would get
             // the sequencer slashed. We may want to discard the transaction in that case,
             // because it may not be properly signed or formatted.
             Err(AuthenticationError::FatalError(err)) => return Err(err.into()),
@@ -209,8 +209,8 @@ where
         Ok(self.mempool.contains(hash))
     }
 
-    /// Builds a new batch of valid transactions in order they were added to mempool
-    /// Only transactions, which are dispatched successfully are included in the batch
+    /// Builds a new batch of valid transactions in order they were added to mempool.
+    /// Only transactions which are dispatched successfully are included in the batch.
     async fn get_next_blob(&mut self, _height: u64) -> anyhow::Result<Vec<TxWithHash>> {
         tracing::debug!("get_next_blob has been called");
 
@@ -326,11 +326,11 @@ mod tests {
     use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCondChecker};
     use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, WorkingSet};
-    use sov_prover_storage_manager::new_orphan_storage;
-    use sov_state::Storage;
+    use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
+    use sov_state::{ProverStorage, Storage};
     use sov_test_utils::runtime::{create_genesis_config, TestRuntime};
     use sov_test_utils::sequencer::TestAuth;
-    use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSpec};
+    use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSpec, TestStorageSpec as StorageSpec};
     use sov_value_setter::{CallMessage, ValueSetter};
     use tempfile::TempDir;
 
@@ -411,11 +411,15 @@ mod tests {
     fn create_batch_builder(
         batch_size_bytes: usize,
         tmpdir: &TempDir,
+        initial_storage: Option<ProverStorage<StorageSpec>>,
         sequencer_address: MockAddress,
     ) -> BatchBuilder {
-        let state_path = tmpdir.path().join("state");
         let sequencer_db_path = tmpdir.path().join("mempool");
-        let storage = watch::Sender::new(new_orphan_storage(state_path).unwrap()).subscribe();
+        let storage = initial_storage.unwrap_or_else(|| {
+            let state_path = tmpdir.path().join("state");
+            new_orphan_storage(state_path).unwrap()
+        });
+        let storage = watch::Sender::new(storage).subscribe();
         let sequencer_db = SequencerDb::new(sequencer_db_path).unwrap();
 
         let config = FairBatchBuilderConfig {
@@ -426,7 +430,7 @@ mod tests {
         BatchBuilder::new(
             TestRuntime::<S, MockDaSpec>::default(),
             BasicKernel::default(),
-            storage.clone(),
+            storage,
             sequencer_db,
             config,
         )
@@ -434,14 +438,14 @@ mod tests {
     }
 
     fn setup_runtime(
-        batch_builder: &mut BatchBuilder,
+        storage_manager: &mut SimpleStorageManager<StorageSpec>,
         admin: Option<TestPublicKey>,
         additional_accounts: Vec<(TestPublicKey, u64)>,
         seq_da_address: MockAddress,
         seq_rollup_address: <S as Spec>::Address,
-    ) {
+    ) -> ProverStorage<StorageSpec> {
         let runtime = TestRuntime::<S, MockDaSpec>::default();
-        let storage = batch_builder.current_storage.borrow().clone();
+        let storage = storage_manager.create_storage();
         let mut working_set = WorkingSet::new(storage.clone());
 
         let admin = admin.unwrap_or_else(|| {
@@ -469,7 +473,9 @@ mod tests {
         );
         runtime.genesis(&config, &mut working_set).unwrap();
         let (log, _, witness) = working_set.checkpoint().0.freeze();
-        storage.validate_and_commit(log, &witness).unwrap();
+        let (_root_hash, change_set) = storage.validate_and_materialize(log, &witness).unwrap();
+        storage_manager.commit(change_set);
+        storage_manager.create_storage()
     }
 
     mod accept_tx {
@@ -483,7 +489,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
+                create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             batch_builder.accept_tx(tx).await.unwrap();
         }
@@ -496,7 +502,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
+                create_batch_builder(batch_size, &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -510,7 +516,7 @@ mod tests {
         async fn new_tx_on_full_mempool_causes_evictions() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(usize::MAX, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
+                create_batch_builder(usize::MAX, &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             for _ in 0..MAX_TX_POOL_SIZE {
                 let tx = generate_random_valid_tx();
@@ -531,7 +537,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
+                create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -544,7 +550,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
+                create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -561,7 +567,7 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
+                create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
             batch_builder.mempool.mempool_max_txs_count = 0;
 
             batch_builder.accept_tx(tx).await.unwrap();
@@ -574,6 +580,7 @@ mod tests {
     }
 
     mod build_batch {
+        use sov_prover_storage_manager::SimpleStorageManager;
         use sov_rollup_interface::services::batch_builder::BatchBuilder;
 
         use super::*;
@@ -581,14 +588,16 @@ mod tests {
         #[tokio::test]
         async fn error_on_empty_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder = create_batch_builder(10, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
-            setup_runtime(
-                &mut batch_builder,
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let storage = setup_runtime(
+                &mut storage_manager,
                 None,
                 vec![],
                 DEFAULT_SEQUENCER_DA_ADDRESS,
                 DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
             );
+            let mut batch_builder =
+                create_batch_builder(10, &tmpdir, Some(storage), DEFAULT_SEQUENCER_DA_ADDRESS);
 
             let build_result = batch_builder.get_next_blob(1).await;
             assert!(build_result.is_err());
@@ -608,14 +617,19 @@ mod tests {
             ];
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder =
-                create_batch_builder(usize::MAX, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
-            setup_runtime(
-                &mut batch_builder,
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let storage = setup_runtime(
+                &mut storage_manager,
                 Some(value_setter_admin.pub_key()),
                 vec![],
                 DEFAULT_SEQUENCER_DA_ADDRESS,
                 DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
+            let mut batch_builder = create_batch_builder(
+                usize::MAX,
+                &tmpdir,
+                Some(storage),
+                DEFAULT_SEQUENCER_DA_ADDRESS,
             );
 
             for tx in &txs {
@@ -639,8 +653,7 @@ mod tests {
             let tmpdir = tempfile::tempdir().unwrap();
             let batch_size = txs[0].len() * 3 + 1;
             let mut batch_builder =
-                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
-            // Skipping runtime setup
+                create_batch_builder(batch_size, &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             for tx in &txs {
                 batch_builder.accept_tx(tx.clone()).await.unwrap();
@@ -659,7 +672,7 @@ mod tests {
                     .to_string()
                     .to_lowercase()
                     .contains("the sequencer is not registered"),
-                "The batch builder should have failed because the sequencer is not registered. 
+                "The batch builder should have failed because the sequencer is not registered.
             This is because genesis has been skipped"
             );
         }
@@ -685,15 +698,21 @@ mod tests {
             );
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let batch_size = txs[0].len() + txs[2].len() + 1;
-            let mut batch_builder =
-                create_batch_builder(batch_size, &tmpdir, DEFAULT_SEQUENCER_DA_ADDRESS);
-            setup_runtime(
-                &mut batch_builder,
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let storage = setup_runtime(
+                &mut storage_manager,
                 Some(value_setter_admin.pub_key()),
                 vec![(additional_account.pub_key(), 100_000)],
                 DEFAULT_SEQUENCER_DA_ADDRESS,
                 DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
+
+            let batch_size = txs[0].len() + txs[2].len() + 1;
+            let mut batch_builder = create_batch_builder(
+                batch_size,
+                &tmpdir,
+                Some(storage),
+                DEFAULT_SEQUENCER_DA_ADDRESS,
             );
 
             for tx in &txs {

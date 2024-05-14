@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use jmt::storage::{NodeBatch, TreeWriter};
+use jmt::storage::NodeBatch;
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::namespaces;
@@ -8,7 +8,6 @@ use sov_db::namespaces::{
     KernelNamespace as DBKernelNamespace, KernelNamespace, UserNamespace as DBUserNamespace,
     UserNamespace,
 };
-use sov_db::schema::ChangeSet;
 use sov_db::state_db::{JmtHandler, StateDb};
 use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, ProvableCompileTimeNamespace};
 use sov_modules_core::{
@@ -36,12 +35,6 @@ pub struct ProverStorage<S: MerkleProofSpec> {
 impl<S: MerkleProofSpec> ProverStorage<S> {
     /// Creates a new [`ProverStorage`] instance from specified db handles
     pub fn with_db_handles(db: StateDb, accessory_db: AccessoryDb) -> Self {
-        let user_written = Self::init_empty_root_hash_if_needed::<UserNamespace>(&db);
-        let kernel_written = Self::init_empty_root_hash_if_needed::<KernelNamespace>(&db);
-        assert_eq!(
-            user_written, kernel_written,
-            "Discrepancy between kernel and user JMTs, probably a bug"
-        );
         Self {
             db,
             accessory_db,
@@ -49,8 +42,25 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
-    // return true if empty root hash has been written
-    fn init_empty_root_hash_if_needed<N: namespaces::Namespace>(db: &StateDb) -> bool {
+    /// Indicates if caller should initialize underlying database with some data.
+    pub fn should_init_db(db: &StateDb) -> Option<ProverChangeSet> {
+        let user_init = Self::should_init::<UserNamespace>(db);
+        let kernel_init = Self::should_init::<KernelNamespace>(db);
+        match (user_init, kernel_init) {
+            (Some(mut user_init), Some(kernel_init)) => {
+                user_init.merge(kernel_init);
+                Some(ProverChangeSet {
+                    state_change_set: user_init,
+                    accessory_change_set: Default::default(),
+                })
+            }
+            (None, None) => None,
+            _ => panic!("Discrepancy between kernel and user JMTs, probably a bug"),
+        }
+    }
+
+    // Empty JMT for this namespace.
+    fn should_init<N: namespaces::Namespace>(db: &StateDb) -> Option<sov_db::schema::SchemaBatch> {
         let jmt_handler: JmtHandler<N> = db.get_jmt_handler();
         let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
         let latest_version = db.get_next_version() - 1;
@@ -62,13 +72,12 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             let (_, tree_update) = jmt
                 .put_value_set(empty_batch, latest_version)
                 .expect("JMT update must succeed");
-
-            jmt_handler
-                .write_node_batch(&tree_update.node_batch)
-                .expect("db write must succeed");
-            return true;
+            return Some(
+                db.materialize_node_batch::<N>(&tree_update.node_batch, None)
+                    .expect("building node batch must succeed"),
+            );
         }
-        false
+        None
     }
 
     fn read_value_namespace<N: namespaces::Namespace>(
@@ -156,7 +165,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 
         let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
 
-        // Compute the jmt update from the write batch
+        // Compute the JMT update from the batch of write operations.
         let batch = state_accesses
             .ordered_writes
             .into_iter()
@@ -183,35 +192,42 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         Ok((new_root, new_state_update))
     }
 
-    fn commit_namespace<N: namespaces::Namespace>(&self, state_update: &ProverStateUpdate) {
-        self.db
-            .put_preimages::<N>(
-                state_update
-                    .key_preimages
-                    .iter()
-                    .map(|(key_hash, key)| (*key_hash, key.key_ref())),
-            )
-            .expect("Preimage put must succeed");
+    fn materialize_namespace<N: namespaces::Namespace>(
+        &self,
+        state_update: &ProverStateUpdate,
+    ) -> sov_db::schema::SchemaBatch {
+        let mut preimage_batch = StateDb::materialize_preimages::<N>(
+            state_update
+                .key_preimages
+                .iter()
+                .map(|(key_hash, key)| (*key_hash, key.key_ref())),
+        )
+        .expect("Preimage collection must succeed");
 
         // Write the state values last, since we base our view of what has been touched
         // on state. If the node crashes between the `accessory_db` update and this update,
         // then the whole `commit` will be re-run later so no data can be lost.
-        self.db
-            .get_jmt_handler::<N>()
-            .write_node_batch(&state_update.node_batch)
-            .expect("db write must succeed");
+        let node_batch = self
+            .db
+            .materialize_node_batch::<N>(&state_update.node_batch, Some(&preimage_batch))
+            .expect("collecting node batch must succeed");
+        preimage_batch.merge(node_batch);
+        preimage_batch
     }
 
-    fn commit_accessory(&self, accessory_writes: &OrderedReadsAndWrites) {
+    fn materialize_accessory(
+        &self,
+        accessory_writes: &OrderedReadsAndWrites,
+    ) -> sov_db::schema::SchemaBatch {
         let latest_version = self.db.get_next_version() - 1;
         self.accessory_db
-            .set_values(
+            .materialize_values(
                 accessory_writes.ordered_writes.iter().map(|(k, v_opt)| {
                     (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))
                 }),
                 latest_version,
             )
-            .expect("accessory db write must succeed");
+            .expect("accessory db write must succeed")
     }
 
     fn get_with_proof_namespace<N: namespaces::Namespace>(
@@ -235,31 +251,20 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             namespace,
         }
     }
+
+    /// Utility method for checking if storage is empty.
+    /// Does not guarantees 100% that it actually is.
+    pub fn is_empty(&self) -> bool {
+        self.db.get_next_version() <= 1
+    }
 }
 
 /// Changeset extracted from [`ProverStorage`]
 pub struct ProverChangeSet {
-    /// [`ChangeSet`] associated with provable state updates.
-    pub state_change_set: ChangeSet,
-    /// [`ChangeSet`] associated with non-provable accessory updates.
-    pub accessory_change_set: ChangeSet,
-}
-
-impl<S: MerkleProofSpec> TryFrom<ProverStorage<S>> for ProverChangeSet {
-    type Error = anyhow::Error;
-
-    fn try_from(prover_storage: ProverStorage<S>) -> Result<Self, Self::Error> {
-        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/122
-        let ProverStorage {
-            db, accessory_db, ..
-        } = prover_storage;
-        let state_change_set = db.freeze()?;
-        let accessory_change_set = accessory_db.freeze()?;
-        Ok(ProverChangeSet {
-            state_change_set,
-            accessory_change_set,
-        })
-    }
+    /// [`sov_db::schema::SchemaBatch`] associated with provable state updates.
+    pub state_change_set: sov_db::schema::SchemaBatch,
+    /// [`sov_db::schema::SchemaBatch`] associated with non-provable accessory updates.
+    pub accessory_change_set: sov_db::schema::SchemaBatch,
 }
 
 #[derive(Default)]
@@ -334,13 +339,17 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         ))
     }
 
-    fn commit(&self, state_update: &Self::StateUpdate) {
-        self.commit_namespace::<DBUserNamespace>(&state_update.user);
-        self.commit_namespace::<DBKernelNamespace>(&state_update.kernel);
-        self.commit_accessory(&state_update.accessory);
+    fn materialize_changes(&self, state_update: &Self::StateUpdate) -> Self::ChangeSet {
+        let mut user_ns_batch = self.materialize_namespace::<DBUserNamespace>(&state_update.user);
+        let kernel_ns_batch = self.materialize_namespace::<DBKernelNamespace>(&state_update.kernel);
+        user_ns_batch.merge(kernel_ns_batch);
 
-        // Finally, update our in-memory view of the current item numbers
-        self.db.inc_next_version();
+        let accessory_batch = self.materialize_accessory(&state_update.accessory);
+
+        ProverChangeSet {
+            state_change_set: user_ns_batch,
+            accessory_change_set: accessory_batch,
+        }
     }
 
     fn open_proof(
@@ -355,7 +364,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         } = state_proof;
         let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
 
-        // We need to verify the proof against the correct root hash
+        // We need to verify the proof against the correct root hash.
         // Hence we match the key against its namespace
         match namespace {
             ProvableNamespace::User => proof.inner().verify(
@@ -371,17 +380,6 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         }
 
         Ok((key, value))
-    }
-
-    // Based on assumption `validate_and_commit` increments version.
-    fn is_empty(&self) -> bool {
-        self.db.get_next_version() <= 1
-    }
-
-    fn to_change_set(self) -> Self::ChangeSet {
-        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/122
-        ProverChangeSet::try_from(self)
-            .expect("Failed to convert, another RC must exists somewhere")
     }
 }
 

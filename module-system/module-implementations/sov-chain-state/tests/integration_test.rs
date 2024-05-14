@@ -7,13 +7,12 @@ use sov_modules_api::da::Time;
 use sov_modules_api::{Gas, GasArray, KernelModule, KernelWorkingSet, Spec};
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::StateCheckpoint;
-use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage, StorageRoot};
-use sov_test_utils::{TestHasher, TestSpec};
+use sov_prover_storage_manager::SimpleStorageManager;
+use sov_state::{Storage, StorageRoot};
+use sov_test_utils::{TestSpec, TestStorageSpec as StorageSpec};
 
 const INITIAL_BASE_FEE_PER_GAS: [u64; 2] = [100, 100];
 const NUM_ROUNDS: u8 = 4;
-type StorageSpec = DefaultStorageSpec<TestHasher>;
 
 #[derive(Clone, Debug)]
 struct TestBatchInfo {
@@ -40,13 +39,14 @@ struct ChainStateExecutionValues {
 fn init_test() -> (
     ChainState<TestSpec, MockDaSpec>,
     StorageRoot<StorageSpec>,
-    ProverStorage<StorageSpec>,
+    SimpleStorageManager<StorageSpec>,
 ) {
     // The initial height can be any value.
     // Initialize the module.
     let tmpdir = tempfile::tempdir().unwrap();
 
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let mut state_checkpoint = StateCheckpoint::new(storage.clone());
 
     let chain_state = ChainState::<TestSpec, MockDaSpec>::default();
@@ -65,7 +65,11 @@ fn init_test() -> (
         )
         .unwrap();
     let (reads_writes, _, witness) = state_checkpoint.freeze();
-    let genesis_root = storage.validate_and_commit(reads_writes, &witness).unwrap();
+    let (genesis_root, change_set) = storage
+        .validate_and_materialize(reads_writes, &witness)
+        .unwrap();
+    storage_manager.commit(change_set);
+    let storage = storage_manager.create_storage();
 
     // Computes the initial, post genesis, working set
     let mut base_checkpoint = StateCheckpoint::new(storage.clone());
@@ -76,6 +80,7 @@ fn init_test() -> (
         &mock_kernel,
         &mut base_checkpoint,
     ));
+
     let mut working_set = KernelWorkingSet::from_kernel(&mock_kernel, &mut base_checkpoint);
 
     // Check that the genesis state variables are correctly initialized.
@@ -86,7 +91,7 @@ fn init_test() -> (
         "The time was not initialized to default value"
     );
 
-    (chain_state, genesis_root, storage)
+    (chain_state, genesis_root, storage_manager)
 }
 
 // Check that the state transition in progress has been stored
@@ -230,7 +235,7 @@ fn check_transitions_stored(
     }
 }
 
-/// Checks that the [`ChainState`] has correclty been updated after each round of execution.
+/// Checks that the [`ChainState`] has correctly been updated after each round of execution.
 fn post_simulation_state_checks(
     round_num: u8,
     exec_values: &ChainStateExecutionValues,
@@ -297,7 +302,7 @@ fn simulate_chain_state_execution_n_rounds(
     genesis_root: StorageRoot<StorageSpec>,
     test_batch_infos: Vec<TestBatchInfo>,
     chain_state: &ChainState<TestSpec, MockDaSpec>,
-    storage: ProverStorage<StorageSpec>,
+    mut storage_manager: SimpleStorageManager<StorageSpec>,
 ) {
     assert!(!test_batch_infos.is_empty());
 
@@ -310,6 +315,7 @@ fn simulate_chain_state_execution_n_rounds(
         // We need to increment the round number by one because the counter starts at zero.
         round_num += 1;
 
+        let storage = storage_manager.create_storage();
         let mut state_checkpoint = StateCheckpoint::new(storage.clone());
         let mut kernel_working_set =
             build_kernel_working_set(round_num as u8, &mut state_checkpoint);
@@ -336,12 +342,16 @@ fn simulate_chain_state_execution_n_rounds(
             &mut kernel_working_set,
         );
 
-        // We now commit the new state (which updates the root hash)
+        // Materialize the new state (which produces a new root hash)
         let (reads_writes, _, witness) = state_checkpoint.freeze();
+        let (post_state_root, change_set) = storage
+            .validate_and_materialize(reads_writes, &witness)
+            .unwrap();
 
-        pre_state_root = storage.validate_and_commit(reads_writes, &witness).unwrap();
+        storage_manager.commit(change_set);
         prev_gas_used = Some(test_batch_info.gas_to_use);
         prev_base_fee_per_gas = computed_base_fee_per_gas;
+        pre_state_root = post_state_root;
     }
 }
 
@@ -354,8 +364,8 @@ fn simulate_chain_state_execution_n_rounds(
 #[test]
 fn test_simple_chain_state_one_round_at_gas_target() {
     // Initialize the test: create and configure a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
-    // Then run and commit the genesis state and returns the `storage` and `genesis_root`.
-    let (chain_state, genesis_root, storage) = init_test();
+    // Then run and commit the genesis state and return the `storage_manager` and `genesis_root`.
+    let (chain_state, genesis_root, storage_manager) = init_test();
 
     // Then simulate a transaction execution: call the begin_slot hook on a mock slot_data.
     simulate_chain_state_execution_n_rounds(
@@ -365,7 +375,7 @@ fn test_simple_chain_state_one_round_at_gas_target() {
             validity_cond: MockValidityCond { is_valid: true },
         }],
         &chain_state,
-        storage,
+        storage_manager,
     );
 }
 
@@ -381,7 +391,7 @@ fn test_simple_chain_state_one_round() {
 
     // Initialize the test: create and configure a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
     // Then run and commit the genesis state and returns the `storage` and `genesis_root`.
-    let (chain_state, genesis_root, storage) = init_test();
+    let (chain_state, genesis_root, storage_manager) = init_test();
 
     // Then simulate a transaction execution: call the begin_slot hook on a mock slot_data.
     simulate_chain_state_execution_n_rounds(
@@ -393,7 +403,7 @@ fn test_simple_chain_state_one_round() {
             validity_cond: MockValidityCond { is_valid: true },
         }],
         &chain_state,
-        storage,
+        storage_manager,
     );
 }
 
@@ -407,7 +417,7 @@ fn test_simple_chain_state_one_round() {
 fn test_simple_chain_state_at_gas_target() {
     // Initialize the test: create and configure a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
     // Then run and commit the genesis state and returns the `storage` and `genesis_root`.
-    let (chain_state, genesis_root, storage) = init_test();
+    let (chain_state, genesis_root, storage_manager) = init_test();
 
     let test_batch_info = vec![
         TestBatchInfo {
@@ -418,7 +428,12 @@ fn test_simple_chain_state_at_gas_target() {
     ];
 
     // Then simulate a transaction execution: call the begin_slot hook on a mock slot_data.
-    simulate_chain_state_execution_n_rounds(genesis_root, test_batch_info, &chain_state, storage);
+    simulate_chain_state_execution_n_rounds(
+        genesis_root,
+        test_batch_info,
+        &chain_state,
+        storage_manager,
+    );
 }
 
 /// This test simulates the execution of the chain state for genesis and [`NUM_ROUNDS`] slots after. It checks that the
@@ -431,7 +446,7 @@ fn test_simple_chain_state_at_gas_target() {
 fn test_simple_chain_state() {
     // Initialize the test: create and configure a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
     // Then run and commit the genesis state and returns the `storage` and `genesis_root`.
-    let (chain_state, genesis_root, storage) = init_test();
+    let (chain_state, genesis_root, storage_manager) = init_test();
 
     let mut test_batch_info = vec![
         TestBatchInfo {
@@ -454,5 +469,10 @@ fn test_simple_chain_state() {
         .collect();
 
     // Then simulate a transaction execution: call the begin_slot hook on a mock slot_data.
-    simulate_chain_state_execution_n_rounds(genesis_root, test_batch_info, &chain_state, storage);
+    simulate_chain_state_execution_n_rounds(
+        genesis_root,
+        test_batch_info,
+        &chain_state,
+        storage_manager,
+    );
 }

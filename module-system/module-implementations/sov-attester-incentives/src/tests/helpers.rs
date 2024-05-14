@@ -11,14 +11,15 @@ use sov_modules_api::{
 };
 use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_modules_core::{StateCheckpoint, TxGasMeter};
+use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
-use sov_state::{DefaultStorageSpec, ProverStorage, SparseMerkleProof, StorageRoot};
+use sov_state::{ProverStorage, SparseMerkleProof, StorageRoot};
+use sov_test_utils::TestStorageSpec as StorageSpec;
 
 use crate::AttesterIncentives;
 
 type S = sov_test_utils::TestSpec;
-type StorageSpec = DefaultStorageSpec<sov_test_utils::TestHasher>;
 
 pub const TOKEN_NAME: &str = "TEST_TOKEN";
 pub const BOND_AMOUNT: u64 = 1_000_000;
@@ -33,17 +34,20 @@ pub const NUM_BANK_ACCOUNTS: usize = 3;
 
 /// Consumes and commit the existing working set on the underlying storage
 /// `storage` must be the underlying storage defined on the working set for this method to work.
-pub(crate) fn commit_get_new_state_checkpoint(
-    storage: &ProverStorage<StorageSpec>,
+pub(crate) fn commit_get_new_storage(
+    storage: ProverStorage<StorageSpec>,
     checkpoint: StateCheckpoint<S>,
-) -> (StorageRoot<StorageSpec>, StateCheckpoint<S>) {
+    storage_manager: &mut SimpleStorageManager<StorageSpec>,
+) -> (StorageRoot<StorageSpec>, ProverStorage<StorageSpec>) {
     let (reads_writes, _, witness) = checkpoint.freeze();
 
-    let new_root = storage
-        .validate_and_commit(reads_writes, &witness)
-        .expect("Should be able to commit");
+    let (new_root, change_set) = storage
+        .validate_and_materialize(reads_writes, &witness)
+        .expect("Should be able to materialize changes");
 
-    (new_root, StateCheckpoint::new(storage.clone()))
+    storage_manager.commit(change_set);
+
+    (new_root, storage_manager.create_storage())
 }
 
 pub(crate) fn create_bank_config_with_token(
@@ -166,10 +170,9 @@ impl ExecutionSimulationVars {
     pub(crate) fn execute(
         rounds: u8,
         module: &AttesterIncentives<S, MockDaSpec>,
-        storage: &ProverStorage<StorageSpec>,
+        storage_manager: &mut SimpleStorageManager<StorageSpec>,
         sequencer: &<S as Spec>::Address,
         attester_address: &<S as Spec>::Address,
-        mut state_checkpoint: StateCheckpoint<S>,
     ) -> (
         // Vector of the successive state roots with associated bonding proofs
         Vec<Self>,
@@ -177,10 +180,15 @@ impl ExecutionSimulationVars {
     ) {
         let mut ret_exec_vars = Vec::<ExecutionSimulationVars>::new();
 
+        let mut storage = storage_manager.create_storage();
+        let mut state_checkpoint = StateCheckpoint::new(storage.clone());
+
         for i in 0..rounds {
             // Commit the working set
-            let (root_hash, w_set) = commit_get_new_state_checkpoint(storage, state_checkpoint);
-            state_checkpoint = w_set;
+            let (root_hash, new_storage) =
+                commit_get_new_storage(storage, state_checkpoint, storage_manager);
+            storage = new_storage;
+            state_checkpoint = StateCheckpoint::new(storage.clone());
 
             let bond_proof = storage
                 .get_with_proof::<User>(module.get_attester_storage_key(*attester_address), None);

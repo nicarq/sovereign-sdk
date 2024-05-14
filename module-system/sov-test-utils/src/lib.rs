@@ -35,6 +35,7 @@ pub type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Privat
 pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
 pub type TestHasher = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;
+pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
 
 /// Test helper: Generates an empty transaction with the given gas parameters.
 pub fn generate_empty_tx(

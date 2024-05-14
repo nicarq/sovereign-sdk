@@ -6,10 +6,10 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
 use sov_modules_stf_blueprint::TxEffect;
-use sov_state::{DefaultStorageSpec, StorageRoot};
+use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestStorageSpec};
 
 use super::{AttesterIncentivesTestHandler, USER_BALANCE};
 use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
@@ -59,7 +59,7 @@ impl AttesterIncentivesTestHandler {
     // Attest only the first transition and check that the attestation was processed correctly
     fn try_attest_first_transition(
         &self,
-        genesis_root: StorageRoot<DefaultStorageSpec<TestHasher>>,
+        genesis_root: StorageRoot<TestStorageSpec>,
         execution_vars: Vec<ExecutionSimulationVars>,
         honest_attester_balance: u64,
         rollup: &mut TestRollup,

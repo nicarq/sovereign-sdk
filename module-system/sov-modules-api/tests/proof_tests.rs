@@ -1,6 +1,6 @@
 use sov_modules_api::*;
 use sov_modules_core::StorageProof;
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::{Prefix, Storage};
 
 type S = sov_test_utils::TestSpec;
@@ -15,18 +15,21 @@ fn make_user_map_proof(
     StateMap<u32, u32>,
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let mut working_set = WorkingSet::<S>::new(storage.clone());
     let map = StateMap::new(Prefix::new(vec![0]));
     map.set(&key, &value, &mut working_set);
 
     let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
-    let root = storage
-        .validate_and_commit(cache_log, &witness)
+    let (root, change_set) = storage
+        .validate_and_materialize(cache_log, &witness)
         .expect("Native jmt validation should succeed");
+    storage_manager.commit(change_set);
+    let storage = storage_manager.create_storage();
 
-    let mut working_set = WorkingSet::<S>::new(storage.clone());
+    let mut working_set = WorkingSet::<S>::new(storage);
 
     let proof = map.get_with_proof(&1, &mut working_set);
     (root, proof, map)
@@ -41,18 +44,21 @@ fn make_user_value_proof(
     StateValue<u32>,
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
     let mut working_set = WorkingSet::<S>::new(storage.clone());
     let state_val = StateValue::new(Prefix::new(vec![0]));
     state_val.set(&value, &mut working_set);
 
     let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
-    let root = storage
-        .validate_and_commit(cache_log, &witness)
+    let (root, change_set) = storage
+        .validate_and_materialize(cache_log, &witness)
         .expect("Native jmt validation should succeed");
+    storage_manager.commit(change_set);
+    let storage = storage_manager.create_storage();
 
-    let mut working_set = WorkingSet::<S>::new(storage.clone());
+    let mut working_set = WorkingSet::<S>::new(storage);
 
     let proof = state_val.get_with_proof(&mut working_set);
     (root, proof, state_val)
@@ -144,12 +150,13 @@ mod value {
 #[test]
 fn test_archival_proof_gen() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let state_val = StateValue::new(Prefix::new(vec![0]));
 
-    // Update the state value and calulate a new root for each iteration
+    // Update the state value and calculate a new root for each iteration
     let mut roots = vec![];
     for iter in 0..10 {
+        let storage = storage_manager.create_storage();
         let mut working_set = WorkingSet::<S>::new(storage.clone());
         if iter % 2 == 0 {
             state_val.set(&iter, &mut working_set);
@@ -159,13 +166,16 @@ fn test_archival_proof_gen() {
 
         let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
 
-        let root = storage
-            .validate_and_commit(cache_log, &witness)
+        let (root, change_set) = storage
+            .validate_and_materialize(cache_log, &witness)
             .expect("Native jmt validation should succeed");
+
+        storage_manager.commit(change_set);
 
         roots.push(root);
     }
 
+    let storage = storage_manager.create_storage();
     // Generate a proof at each archival state and validate it against the root
     let mut base_working_set = WorkingSet::<S>::new(storage.clone());
     for iter in 0..10 {

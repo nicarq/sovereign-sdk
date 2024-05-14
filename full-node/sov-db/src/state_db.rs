@@ -1,11 +1,10 @@
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::ensure;
-use jmt::storage::{HasPreimage, TreeReader, TreeWriter};
+use jmt::storage::{HasPreimage, TreeReader};
 use jmt::{KeyHash, Version};
 use rockbound::cache::cache_db::CacheDb;
-use rockbound::cache::change_set::ChangeSet;
 use rockbound::{SchemaBatch, SchemaKey};
 
 use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
@@ -20,8 +19,8 @@ pub struct StateDb {
     db: Arc<CacheDb>,
     /// The [`Version`] that will be used for the next batch of writes to the DB
     /// This [`Version`] is also used for querying data,
-    /// so if this instance of StateDb is used as read only, it won't see newer data.
-    next_version: Arc<Mutex<Version>>,
+    /// so if this instance of StateDb is used as read-only, it won't see newer data.
+    next_version: Version,
 }
 
 impl StateDb {
@@ -33,7 +32,7 @@ impl StateDb {
         let next_version = Self::next_version_from(&db)?;
         Ok(Self {
             db: Arc::new(db),
-            next_version: Arc::new(Mutex::new(next_version)),
+            next_version,
         })
     }
 
@@ -55,7 +54,9 @@ impl StateDb {
 
         ensure!(
             kernel_largest_version == user_largest_version,
-            "Kernel and User namespaces have different largest versions"
+            "Kernel and User namespaces have different largest versions: kernel={:?}, user={:?}",
+            kernel_largest_version,
+            user_largest_version
         );
 
         let next_version = user_largest_version
@@ -78,38 +79,22 @@ impl StateDb {
         }
     }
 
-    /// Convert it to [`ChangeSet`] which cannot be edited anymore
-    pub fn freeze(self) -> anyhow::Result<ChangeSet> {
-        let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
-            "StateDb underlying CacheDb has more than 1 strong references"
-        ))?;
-        Ok(ChangeSet::from(inner))
-    }
-
-    /// Put the preimage of a hashed key into the database. Note that the preimage is not checked for correctness,
-    /// since the DB is unaware of the hash function used by the JMT.
-    pub fn put_preimages<'a, N: Namespace>(
-        &self,
+    /// Materializes the preimage of a hashed key into the returned [`SchemaBatch`].
+    /// Note that the preimage is not checked for correctness,
+    /// since the [`StateDb`] is unaware of the hash function used by the JMT.
+    pub fn materialize_preimages<'a, N: Namespace>(
         items: impl IntoIterator<Item = (KeyHash, &'a SchemaKey)>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<SchemaBatch, anyhow::Error> {
         let mut batch = SchemaBatch::new();
         for (key_hash, key) in items.into_iter() {
             batch.put::<KeyHashToKey<N>>(&key_hash.0, key)?;
         }
-        self.db.write_many(batch)?;
-        Ok(())
-    }
-
-    /// Increment the `next_version` counter by 1.
-    pub fn inc_next_version(&self) {
-        let mut version = self.next_version.lock().unwrap();
-        *version += 1;
+        Ok(batch)
     }
 
     /// Get the current value of the `next_version` counter
     pub fn get_next_version(&self) -> Version {
-        let version = self.next_version.lock().unwrap();
-        *version
+        self.next_version
     }
 
     /// Get an optional value from the database, given a version and a key hash.
@@ -132,9 +117,43 @@ impl StateDb {
             None => Ok(None),
         }
     }
+
+    /// Converts [`jmt::storage::NodeBatch`] into serialized [`SchemaBatch`].
+    /// Optional `latest_preimages` is for preimages from the current slot,
+    /// which might not be available in the [`StateDb`] yet.
+    pub fn materialize_node_batch<N: Namespace>(
+        &self,
+        node_batch: &jmt::storage::NodeBatch,
+        latest_preimages: Option<&SchemaBatch>,
+    ) -> anyhow::Result<SchemaBatch> {
+        let mut batch = SchemaBatch::new();
+        for (node_key, node) in node_batch.nodes() {
+            batch.put::<JmtNodes<N>>(node_key, node)?;
+        }
+
+        for ((version, key_hash), value) in node_batch.values() {
+            let key_preimage = if let Some(latest_preimages) = latest_preimages {
+                latest_preimages.get_value::<KeyHashToKey<N>>(&key_hash.0)?
+            } else {
+                None
+            };
+            let key_preimage = match key_preimage {
+                Some(v) => v,
+                None => self
+                    .db
+                    .read::<KeyHashToKey<N>>(&key_hash.0)?
+                    .ok_or(anyhow::format_err!(
+                        "Could not find preimage for key hash {key_hash:?}. Has `StateDb::put_preimage` been called for this key?"
+                    ))?
+            };
+            batch.put::<JmtValues<N>>(&(key_preimage, *version), value)?;
+        }
+
+        Ok(batch)
+    }
 }
 
-/// A simple wrapper around [`StateDb`] that implements [`TreeReader`] and [`TreeWriter`] for a given namespace.
+/// A simple wrapper around [`StateDb`] that implements [`TreeReader`] for a given namespace.
 #[derive(Debug)]
 pub struct JmtHandler<'a, N: Namespace> {
     state_db: &'a StateDb,
@@ -171,30 +190,6 @@ impl<'a, N: Namespace> TreeReader for JmtHandler<'a, N> {
     }
 }
 
-/// Default implementation of [`TreeWriter`] for [`StateDb`]
-impl<'a, N: Namespace> TreeWriter for JmtHandler<'a, N> {
-    fn write_node_batch(&self, node_batch: &jmt::storage::NodeBatch) -> anyhow::Result<()> {
-        let mut batch = SchemaBatch::new();
-        for (node_key, node) in node_batch.nodes() {
-            batch.put::<JmtNodes<N>>(node_key, node)?;
-        }
-
-        for ((version, key_hash), value) in node_batch.values() {
-            let key_preimage =
-                self
-                    .state_db
-                    .db
-                    .read::<KeyHashToKey<N>>(&key_hash.0)?
-                    .ok_or(anyhow::format_err!(
-                                    "Could not find preimage for key hash {key_hash:?}. Has `StateDb::put_preimage` been called for this key?"
-                                ))?;
-            batch.put::<JmtValues<N>>(&(key_preimage, *version), value)?;
-        }
-        self.state_db.db.write_many(batch)?;
-        Ok(())
-    }
-}
-
 impl<'a, N: Namespace> HasPreimage for JmtHandler<'a, N> {
     fn preimage(&self, key_hash: KeyHash) -> anyhow::Result<Option<Vec<u8>>> {
         self.state_db.db.read::<KeyHashToKey<N>>(&key_hash.0)
@@ -203,45 +198,39 @@ impl<'a, N: Namespace> HasPreimage for JmtHandler<'a, N> {
 
 #[cfg(test)]
 mod state_db_tests {
-    use std::path;
-    use std::sync::{Arc, RwLock};
-
-    use jmt::storage::{NodeBatch, TreeReader, TreeWriter};
-    use jmt::KeyHash;
-    use rockbound::cache::cache_container::CacheContainer;
-    use rockbound::cache::cache_db::CacheDb;
+    use jmt::storage::{NodeBatch, TreeReader};
+    use jmt::{JellyfishMerkleTree, KeyHash};
     use sha2::Sha256;
 
     use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
     use crate::state_db::{JmtHandler, StateDb};
-
-    fn init_cache_db(path: &path::Path) -> CacheDb {
-        let db = StateDb::get_rockbound_options()
-            .default_setup_db_in_path(path)
-            .unwrap();
-        let cache_container =
-            CacheContainer::new(db, Arc::new(RwLock::new(Default::default())).into());
-
-        CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into())
-    }
+    use crate::test_utils::{commit_changes_through, setup_cache_db_with_container};
 
     #[test]
     fn test_simple() {
         let tempdir = tempfile::tempdir().unwrap();
-        let db_snapshot = init_cache_db(tempdir.path());
+        let (db_snapshot, cache_container) =
+            setup_cache_db_with_container(tempdir.path(), StateDb::get_rockbound_options());
         let state_db = &StateDb::with_cache_db(db_snapshot).unwrap();
-        let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
+
         let key_hash = KeyHash([1u8; 32]);
         let key = vec![2u8; 100];
         let value = [8u8; 150];
 
-        state_db
-            .put_preimages::<UserNamespace>(vec![(key_hash, &key)])
-            .unwrap();
+        // Writing
+        let mut preimages_schematized =
+            StateDb::materialize_preimages::<UserNamespace>(vec![(key_hash, &key)]).unwrap();
         let mut batch = NodeBatch::default();
         batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
-        state_db_handler.write_node_batch(&batch).unwrap();
+        let node_batch_schematized = state_db
+            .materialize_node_batch::<UserNamespace>(&batch, Some(&preimages_schematized))
+            .unwrap();
 
+        preimages_schematized.merge(node_batch_schematized);
+        commit_changes_through(&cache_container, preimages_schematized);
+
+        // Reading back
+        let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
         let found = state_db_handler.get_value(0, key_hash).unwrap();
         assert_eq!(found, value);
 
@@ -255,71 +244,156 @@ mod state_db_tests {
     #[test]
     fn test_namespace() {
         let tempdir = tempfile::tempdir().unwrap();
-        let db_snapshot = init_cache_db(tempdir.path());
+        let (db_snapshot, cache_container) =
+            setup_cache_db_with_container(tempdir.path(), StateDb::get_rockbound_options());
         let state_db = StateDb::with_cache_db(db_snapshot).unwrap();
         let user_state_db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
         let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = state_db.get_jmt_handler();
 
+        let key_hash = KeyHash([1u8; 32]);
+        let key = vec![2u8; 100];
+        let value_1 = [8u8; 150];
+        let value_2 = [100u8; 150];
+
         // Populate the user space of the state db with some values
         {
-            let key_hash = KeyHash([1u8; 32]);
-            let key = vec![2u8; 100];
-            let value = [8u8; 150];
-
-            state_db
-                .put_preimages::<UserNamespace>(vec![(key_hash, &key)])
-                .unwrap();
+            let mut preimages_schematized =
+                StateDb::materialize_preimages::<UserNamespace>(vec![(key_hash, &key)]).unwrap();
             let mut batch = NodeBatch::default();
-            batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
-            user_state_db_handler.write_node_batch(&batch).unwrap();
+            batch.extend(vec![], vec![((0, key_hash), Some(value_1.to_vec()))]);
+            let node_batch_schematized = state_db
+                .materialize_node_batch::<UserNamespace>(&batch, Some(&preimages_schematized))
+                .unwrap();
+            preimages_schematized.merge(node_batch_schematized);
 
+            commit_changes_through(&cache_container, preimages_schematized);
+        }
+
+        // Check that user space values are read correctly from the database.
+        {
             let found = user_state_db_handler.get_value(0, key_hash).unwrap();
-            assert_eq!(found, value);
+            assert_eq!(found, value_1);
         }
 
         // Try to retrieve these values from the kernel space
         {
-            let key_hash = KeyHash([1u8; 32]);
-
             assert!(kernel_state_db_handler.get_value(0, key_hash).is_err());
         }
 
         // Populate the kernel space of the state db with some values but for different version
         {
-            let key_hash = KeyHash([1u8; 32]);
-            let key = vec![2u8; 100];
-            let value = [8u8; 150];
-
-            state_db
-                .put_preimages::<KernelNamespace>(vec![(key_hash, &key)])
-                .unwrap();
+            let mut preimages_schematized =
+                StateDb::materialize_preimages::<KernelNamespace>(vec![(key_hash, &key)]).unwrap();
             let mut batch = NodeBatch::default();
-            batch.extend(vec![], vec![((1, key_hash), Some(value.to_vec()))]);
-            kernel_state_db_handler.write_node_batch(&batch).unwrap();
-
+            batch.extend(vec![], vec![((1, key_hash), Some(value_2.to_vec()))]);
+            let node_batch_schematized = state_db
+                .materialize_node_batch::<KernelNamespace>(&batch, Some(&preimages_schematized))
+                .unwrap();
+            preimages_schematized.merge(node_batch_schematized);
+            commit_changes_through(&cache_container, preimages_schematized);
+        }
+        // Check that the correct value is returned.
+        {
+            assert!(kernel_state_db_handler.get_value(0, key_hash).is_err());
             let found = kernel_state_db_handler.get_value(1, key_hash).unwrap();
-            assert_eq!(found, value);
-
-            assert_eq!(
-                kernel_state_db_handler.get_value(1, key_hash).unwrap(),
-                value
-            );
+            assert_eq!(found, value_2);
         }
     }
 
     #[test]
     fn test_root_hash_at_init() {
         let tempdir = tempfile::tempdir().unwrap();
-        let db_snapshot = init_cache_db(tempdir.path());
-        let db = StateDb::with_cache_db(db_snapshot).unwrap();
-        let latest_version = db.get_next_version() - 1;
+        let (cache_db, _cache_container) =
+            setup_cache_db_with_container(tempdir.path(), StateDb::get_rockbound_options());
+        let state_db = StateDb::with_cache_db(cache_db).unwrap();
+        let latest_version = state_db.get_next_version() - 1;
         assert_eq!(0, latest_version);
 
-        let user_state_db_handler: JmtHandler<'_, UserNamespace> = db.get_jmt_handler();
+        let user_state_db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
         check_root_hash_at_init_handler(&user_state_db_handler);
-        let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = db.get_jmt_handler();
+        let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = state_db.get_jmt_handler();
 
         check_root_hash_at_init_handler(&kernel_state_db_handler);
+    }
+
+    #[test]
+    #[ignore = "https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/648"]
+    fn test_only_single_namespace_via_jmt() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let (cache_db, cache_container) =
+            setup_cache_db_with_container(tempdir.path(), StateDb::get_rockbound_options());
+        let state_db = StateDb::with_cache_db(cache_db).unwrap();
+
+        let key_hash = KeyHash([1u8; 32]);
+        let key = vec![2u8; 100];
+        let value = [8u8; 150];
+
+        // Writing
+        let version = state_db.get_next_version();
+        let mut preimages_batch =
+            StateDb::materialize_preimages::<UserNamespace>(vec![(key_hash, &key)]).unwrap();
+        let db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
+        let jmt = JellyfishMerkleTree::<JmtHandler<UserNamespace>, sha2::Sha256>::new(&db_handler);
+        let (_new_root, _update_proof, tree_update) = jmt
+            .put_value_set_with_proof(vec![(key_hash, Some(value.to_vec()))], version)
+            .expect("JMT update must succeed");
+        let node_batch = state_db
+            .materialize_node_batch::<UserNamespace>(
+                &tree_update.node_batch,
+                Some(&preimages_batch),
+            )
+            .unwrap();
+        preimages_batch.merge(node_batch);
+
+        commit_changes_through(&cache_container, preimages_batch);
+
+        drop(state_db);
+        drop(cache_container);
+
+        // Re-opening DB
+        let (cache_db, _cache_container) =
+            setup_cache_db_with_container(tempdir.path(), StateDb::get_rockbound_options());
+        let state_db = StateDb::with_cache_db(cache_db).unwrap();
+
+        let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
+        let found = state_db_handler.get_value(0, key_hash).unwrap();
+        assert_eq!(found, value);
+    }
+
+    #[test]
+    fn test_only_single_namespace() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let (cache_db, cache_container) =
+            setup_cache_db_with_container(tempdir.path(), StateDb::get_rockbound_options());
+        let state_db = StateDb::with_cache_db(cache_db).unwrap();
+
+        let key_hash = KeyHash([1u8; 32]);
+        let key = vec![2u8; 100];
+        let value = [8u8; 150];
+
+        // Writing
+        let mut preimages_schematized =
+            StateDb::materialize_preimages::<UserNamespace>(vec![(key_hash, &key)]).unwrap();
+        let mut batch = NodeBatch::default();
+        batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
+        let node_batch_schematized = state_db
+            .materialize_node_batch::<UserNamespace>(&batch, Some(&preimages_schematized))
+            .unwrap();
+
+        preimages_schematized.merge(node_batch_schematized);
+        commit_changes_through(&cache_container, preimages_schematized);
+
+        drop(state_db);
+        drop(cache_container);
+
+        // Re-opening DB
+        let (cache_db, _cache_container) =
+            setup_cache_db_with_container(tempdir.path(), StateDb::get_rockbound_options());
+        let state_db = StateDb::with_cache_db(cache_db).unwrap();
+
+        let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
+        let found = state_db_handler.get_value(0, key_hash).unwrap();
+        assert_eq!(found, value);
     }
 
     fn check_root_hash_at_init_handler<N: Namespace>(handler: &JmtHandler<N>) {

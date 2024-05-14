@@ -4,9 +4,10 @@ use helpers::*;
 use sov_bank::{Amount, Bank, CallMessage, Coins, TokenId};
 use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::{Context, Module, Spec, WorkingSet};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::storage::{SlotKey, SlotValue, StateReader, StateUpdate, StateWriter};
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+use sov_state::{ProverStorage, Storage};
+use sov_test_utils::TestStorageSpec as StorageSpec;
 
 type S = sov_test_utils::TestSpec;
 
@@ -15,7 +16,8 @@ fn transfer_initial_token() {
     let initial_balance = 100;
     let bank_config = create_bank_config_with_token(4, initial_balance);
     let tmpdir = tempfile::tempdir().unwrap();
-    let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let prover_storage = storage_manager.create_storage();
     let mut working_set = WorkingSet::new(prover_storage.clone());
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
@@ -34,8 +36,7 @@ fn transfer_initial_token() {
         &mut working_set,
     );
     assert_eq!((sender_balance, receiver_balance), (100, 100));
-    commit(working_set, prover_storage.clone());
-
+    let prover_storage = commit(working_set, prover_storage, &mut storage_manager);
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
 
     transfer(
@@ -56,7 +57,7 @@ fn transfer_initial_token() {
     );
     assert_eq!((sender_balance, receiver_balance), (90, 110));
 
-    commit(working_set, prover_storage.clone());
+    let prover_storage = commit(working_set, prover_storage, &mut storage_manager);
 
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
 
@@ -77,7 +78,7 @@ fn transfer_initial_token() {
         &mut working_set,
     );
     assert_eq!((sender_balance, receiver_balance), (80, 120));
-    commit(working_set, prover_storage.clone());
+    let prover_storage = commit(working_set, prover_storage, &mut storage_manager);
 
     // Archival tests
 
@@ -182,7 +183,7 @@ fn transfer_initial_token() {
     let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
-    commit(working_set, prover_storage.clone());
+    let prover_storage = commit(working_set, prover_storage, &mut storage_manager);
 
     // next block
 
@@ -212,7 +213,7 @@ fn transfer_initial_token() {
     let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k")).unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
-    commit(working_set, prover_storage.clone());
+    let prover_storage = commit(working_set, prover_storage, &mut storage_manager);
 
     // archival versioned state query
 
@@ -277,8 +278,9 @@ fn transfer(
 
 fn commit(
     working_set: WorkingSet<S>,
-    storage: ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>,
-) {
+    storage: ProverStorage<StorageSpec>,
+    storage_manager: &mut SimpleStorageManager<StorageSpec>,
+) -> ProverStorage<StorageSpec> {
     // Save checkpoint
     let checkpoint = working_set.checkpoint();
 
@@ -286,9 +288,11 @@ fn commit(
 
     let (_, mut state_update) = storage
         .compute_state_update(cache_log, &witness)
-        .expect("jellyfish merkle tree update must succeed");
+        .expect("JMT update must succeed");
 
     state_update.add_accessory_items(accessory_delta.freeze());
 
-    storage.commit(&state_update);
+    let change_set = storage.materialize_changes(&state_update);
+    storage_manager.commit(change_set);
+    storage_manager.create_storage()
 }
