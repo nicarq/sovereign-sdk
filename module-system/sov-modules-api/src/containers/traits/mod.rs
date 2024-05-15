@@ -1,4 +1,4 @@
-use sov_modules_core::namespaces::{Accessory, User};
+use sov_modules_core::namespaces::User;
 use sov_modules_core::StateReaderAndWriter;
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
@@ -16,5 +16,3 @@ use sov_modules_core::StateReaderAndWriter;
 pub trait StateAccessor: StateReaderAndWriter<User> {}
 
 impl<T> StateAccessor for T where T: StateReaderAndWriter<User> {}
-
-pub trait AccessoryStateAccessor: StateReaderAndWriter<Accessory> {}

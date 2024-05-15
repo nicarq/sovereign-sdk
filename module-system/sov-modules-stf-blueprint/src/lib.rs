@@ -11,8 +11,6 @@ use risc0_cycle_macros::cycle_tracker;
 pub use sov_modules_api::batch::Batch;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-#[cfg(feature = "mocks")]
-use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks, RuntimeAuthorization};
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,

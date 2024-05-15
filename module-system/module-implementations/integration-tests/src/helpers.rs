@@ -36,7 +36,6 @@ pub struct SequencerParams<S: Spec, Da: DaSpec> {
     pub rollup_address: S::Address,
     pub da_address: Da::Address,
     pub stake_amount: u64,
-    pub is_preferred_sequencer: bool,
 }
 
 impl Default for SequencerParams<S, MockDaSpec> {
@@ -45,7 +44,6 @@ impl Default for SequencerParams<S, MockDaSpec> {
             rollup_address: [1_u8; 32].into(),
             da_address: [1_u8; 32].into(),
             stake_amount: DEFAULT_STAKE_AMOUNT,
-            is_preferred_sequencer: true,
         }
     }
 }
@@ -78,7 +76,6 @@ impl Default for AttesterIncentivesParams<S, MockDaSpec> {
 
 pub struct BankParams {
     pub token_name: String,
-    pub init_balance: u64,
     pub addresses_and_balances: Vec<(<S as Spec>::Address, u64)>,
 }
 
@@ -90,7 +87,6 @@ impl BankParams {
     ) -> Self {
         Self {
             token_name: String::from("TEST_TOKEN"),
-            init_balance: 100000000,
             addresses_and_balances,
         }
     }
@@ -100,7 +96,6 @@ impl Default for BankParams {
     fn default() -> Self {
         BankParams {
             token_name: "TEST_TOKEN".to_string(),
-            init_balance: 100000000,
             addresses_and_balances: Vec::new(),
         }
     }

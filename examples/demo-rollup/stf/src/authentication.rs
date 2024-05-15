@@ -21,7 +21,6 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for Runtime<S, Da> {
 
     type Gas = S::Gas;
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn authenticate(
         &self,
         raw_tx: &RawTx,

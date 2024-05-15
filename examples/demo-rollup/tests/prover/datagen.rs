@@ -1,11 +1,9 @@
 use std::env;
 
 use demo_stf::authentication::ModAuth;
-use serde::Serialize;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
-use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::services::da::DaService;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::MessageGenerator;
@@ -16,12 +14,6 @@ type S = sov_modules_api::default_spec::DefaultSpec<
     sov_risc0_adapter::Risc0Verifier,
     sov_mock_zkvm::MockZkVerifier,
 >;
-type DefaultPublicKey = <<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
-
-#[derive(Serialize)]
-struct AccountsData {
-    pub_keys: Vec<DefaultPublicKey>,
-}
 
 const DEFAULT_BLOCKS: u64 = 10;
 const DEFAULT_TXNS_PER_BLOCK: u64 = 100;

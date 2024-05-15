@@ -13,7 +13,9 @@ use sov_modules_api::transaction::{
 use sov_modules_api::{
     Context, DaSpec, DispatchCall, Gas, GasArray, GasMeter, Spec, StateCheckpoint, TxGasMeter,
 };
-use sov_modules_core::capabilities::{AuthenticationError, FatalError, SequencerAuthorization};
+use sov_modules_core::capabilities::{
+    AuthenticationError, FatalError, RawTx, RuntimeAuthenticator, SequencerAuthorization,
+};
 use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error, info};
@@ -192,10 +194,7 @@ where
                 }
             };
 
-            match self
-                .runtime
-                .authenticate(raw_tx, &mut sequencer_stake_meter)
-            {
+            match authenticate_with_cycle_count(&self.runtime, raw_tx, &mut sequencer_stake_meter) {
                 Err(AuthenticationError::FatalError(err)) => {
                     error!(err=%err, "Tx authentication failed");
 
@@ -273,6 +272,21 @@ where
             gas_used,
         )
     }
+}
+
+#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+fn authenticate_with_cycle_count<S: Spec, D: DaSpec, R: Runtime<S, D> + RuntimeAuthenticator>(
+    runtime: &R,
+    raw_tx: &RawTx,
+    sequencer_stake_meter: &mut <R as RuntimeAuthenticator>::SequencerStakeMeter,
+) -> Result<
+    (
+        <R as RuntimeAuthenticator>::Tx,
+        <R as RuntimeAuthenticator>::Decodable,
+    ),
+    AuthenticationError,
+> {
+    runtime.authenticate(raw_tx, sequencer_stake_meter)
 }
 
 fn compute_sequencer_tx_reward<S: Spec>(

@@ -1,6 +1,4 @@
 use anyhow::Context as _;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use risc0_cycle_macros::cycle_tracker;
 use sov_bank::IntoPayable;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
