@@ -40,7 +40,6 @@ sov-state = { path = "../../module-system/sov-state", version = "0.3" }
 sov-db = { path = "../sov-db", version = "0.3" }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync", "rt"]}
-utoipa = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 
 [dev-dependencies]
