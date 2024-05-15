@@ -1,14 +1,13 @@
-use revm::primitives::{CfgEnv, HandlerCfg, SpecId};
+use revm::primitives::{BlockEnv, CfgEnv, HandlerCfg, SpecId, U256};
 
 use crate::call::get_cfg_env_with_handler;
 use crate::evm::EvmChainConfig;
 use crate::get_spec_id;
-use crate::primitive_types::BlockEnv;
 
 #[test]
 fn cfg_test() {
     let block_env = BlockEnv {
-        number: 10,
+        number: U256::from(10),
         ..Default::default()
     };
 

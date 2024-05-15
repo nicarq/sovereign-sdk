@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use reth_primitives::{Bytes, TransactionKind};
 use revm::primitives::{
-    Address, CfgEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, KECCAK_EMPTY, U256,
+    Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, KECCAK_EMPTY, U256,
 };
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
@@ -11,7 +11,6 @@ use sov_test_utils::SimpleStorageContract;
 
 use super::db_init::InitEvmDb;
 use super::executor;
-use crate::evm::primitive_types::BlockEnv;
 use crate::tests::test_signer::TestSigner;
 use crate::{Evm, SpecId};
 
@@ -62,7 +61,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let tx = &tx.try_into().unwrap();
         let block_env = BlockEnv {
-            gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+            gas_limit: U256::from(reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT),
             ..Default::default()
         };
 

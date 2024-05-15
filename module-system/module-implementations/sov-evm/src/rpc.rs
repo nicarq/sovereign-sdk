@@ -1,11 +1,10 @@
-use std::array::TryFromSliceError;
-
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{TransactionKind, TransactionSignedEcRecovered, U128, U64};
 use revm::primitives::{
     Address, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, B256,
     KECCAK_EMPTY, U256,
 };
+use revm_primitives::BlockEnv;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{StateAccessor, WorkingSet};
 use tracing::debug;
@@ -14,7 +13,7 @@ use crate::call::get_cfg_env_with_handler;
 use crate::error::rpc::{ensure_success, RevertError, RpcInvalidTransactionError};
 use crate::evm::db::EvmDb;
 use crate::evm::executor;
-use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::helpers::{
     from_primitive_with_hash, from_recovered_with_block_context, prepare_call_env,
 };
@@ -344,7 +343,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             }
             _ => {
                 let block = self.get_sealed_block_by_number(block_number, working_set);
-                BlockEnv::from(&block)
+                BlockEnv::from(block)
             }
         };
 
@@ -388,7 +387,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             }
             _ => {
                 let block = self.get_sealed_block_by_number(block_number, working_set);
-                BlockEnv::from(&block)
+                BlockEnv::from(block)
             }
         };
 
@@ -444,8 +443,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         }
 
         // if the provided gas limit is less than computed cap, use that
-        let gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
-        block_env.gas_limit = convert_u256_to_u64(gas_limit).unwrap();
+        block_env.gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
 
         let evm_db = self.get_db(working_set);
 
@@ -698,7 +696,7 @@ fn map_out_of_gas_err<Ws: StateAccessor>(
     db: EvmDb<'_, Ws>,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
-    tx_env.gas_limit = block_env.gas_limit;
+    tx_env.gas_limit = block_env.gas_limit.to();
     let res = executor::inspect(db, &block_env, tx_env, cfg_env_with_handler).unwrap();
     match res.result {
         ExecutionResult::Success { .. } => {
@@ -712,10 +710,4 @@ fn map_out_of_gas_err<Ws: StateAccessor>(
         }
         ExecutionResult::Halt { reason, .. } => RpcInvalidTransactionError::EvmHalt(reason).into(),
     }
-}
-
-fn convert_u256_to_u64(u256: U256) -> Result<u64, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 8] = bytes[24..].try_into()?;
-    Ok(u64::from_be_bytes(bytes))
 }
