@@ -4,15 +4,11 @@ use core::fmt::Debug;
 
 use borsh::maybestd::io::Cursor;
 use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(feature = "sync")]
-use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
 use rockbound::schema::{ColumnFamilyName, KeyDecoder, KeyEncoder, ValueCodec};
 use rockbound::{CodecError, Schema, SchemaKey, SchemaValue, SeekKeyEncoder};
-#[cfg(feature = "sync")]
-use serde::Serialize;
 
 /// Mapping table from key Hash to jmt key
 #[derive(Debug)]

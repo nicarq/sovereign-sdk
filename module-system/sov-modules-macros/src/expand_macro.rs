@@ -22,6 +22,7 @@ pub fn expand_to_file(input: TokenStream, filename: &str) -> Result<TokenStream,
 
     let dest = {
         let bytes = input_str.as_bytes();
+
         let hash = <blake2::Blake2s256 as blake2::Digest>::digest(bytes);
         // 12 bytes are more than enough to uniquely identify a proc-macro
         // expansion with enough confidence without making filenames

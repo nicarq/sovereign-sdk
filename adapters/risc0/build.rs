@@ -2,7 +2,7 @@ use std::process::Command;
 
 // Checks that the risc0 toolchain and native toolchain use the same rustc version
 fn main() -> Result<(), anyhow::Error> {
-    println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
+    println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");
 
     // Skip the check if we aren't building any guest code
     if std::env::var("SKIP_GUEST_BUILD").is_ok() {

@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use anyhow::Result;
 use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
-use thiserror::Error;
 
 use crate::event::Event;
 use crate::ExampleModule;
@@ -20,10 +19,6 @@ use crate::ExampleModule;
 pub enum CallMessage {
     SetValue(u32),
 }
-
-/// Example of a custom error.
-#[derive(Debug, Error)]
-enum SetValueError {}
 
 impl<S: sov_modules_api::Spec> ExampleModule<S> {
     /// Sets `value` field to the `new_value`

@@ -153,14 +153,12 @@ impl AttesterIncentivesTestHandler {
             rollup_address: self.seq_rollup_addr,
             da_address: self.seq_da_addr,
             stake_amount: USER_STAKE,
-            is_preferred_sequencer: true,
         }
     }
 
     pub fn bank_params(&self) -> BankParams {
         BankParams {
             token_name: "TOKEN_TEST".to_string(),
-            init_balance: 10_000_000,
             addresses_and_balances: vec![
                 (self.admin_public_key, USER_BALANCE),
                 (

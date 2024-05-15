@@ -83,10 +83,6 @@ pub struct CompactHeader {
     pub proposer_address: Vec<u8>,
 }
 
-trait EncodeTm34 {
-    fn encode_to_tm34_protobuf(&self) -> Result<Vec<u8>, BoxError>;
-}
-
 impl From<TendermintHeader> for CompactHeader {
     fn from(value: TendermintHeader) -> Self {
         let data_hash = match value.data_hash {
