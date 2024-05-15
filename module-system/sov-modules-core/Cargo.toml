@@ -39,7 +39,6 @@ sov-db = { path = "../../full-node/sov-db", optional = true }
 proptest = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
-rockbound = { workspace = true }
 sov-state = { path = "../sov-state", features = ["native"] }
 sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
@@ -54,7 +53,6 @@ arbitrary = [
 	"dep:proptest",
 	"dep:proptest-derive",
 	"proptest/default",
-	"rockbound/arbitrary",
 	"sov-db?/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-modules-core/arbitrary",
