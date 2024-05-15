@@ -2806,7 +2806,6 @@ name = "sov-blob-storage"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bincode",
  "borsh 0.10.3",
  "hex",
  "serde",
@@ -3011,7 +3010,6 @@ name = "sov-prover-incentives"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bincode",
  "borsh 0.10.3",
  "serde",
  "sov-bank",
@@ -3083,18 +3081,15 @@ dependencies = [
  "bcs",
  "borsh 0.10.3",
  "derivative",
- "hex",
  "jmt",
  "risc0-cycle-macros",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
  "serde-big-array",
- "serde_json",
  "sha2",
  "sov-modules-core",
  "sov-rollup-interface",
- "thiserror",
 ]
 
 [[package]]

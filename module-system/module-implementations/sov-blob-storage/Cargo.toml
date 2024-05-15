@@ -14,21 +14,18 @@ resolver = "2"
 [lints]
 workspace = true
 
+
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true }
-bincode = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true }
+serde = { workspace = true }
 
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 sov-sequencer-registry = { path = "../sov-sequencer-registry", version = "0.3" }
 sov-chain-state = { path = "../sov-chain-state", version = "0.3" }
-
-schemars = { workspace = true, optional = true }
-serde = { workspace = true }
-jsonrpsee = { workspace = true, optional = true }
 
 
 [dev-dependencies]
@@ -38,21 +35,17 @@ sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-bank = { path = "../sov-bank" }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
 sov-kernels = { path = "../../sov-kernels", features = ["native", "test-utils"] }
 
 [features]
 default = []
 native = [
-	"jsonrpsee",
-	"schemars",
 	"sov-bank/native",
 	"sov-blob-storage/native",
 	"sov-chain-state/native",
 	"sov-kernels/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
 	"sov-sequencer-registry/native",
 	"sov-state/native",
 ]

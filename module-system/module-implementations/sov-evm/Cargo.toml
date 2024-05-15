@@ -22,7 +22,6 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 bytes = { workspace = true }
-schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true }
@@ -74,7 +73,6 @@ native = [
 	"revm-inspectors",
 	# Optional for speed up in native mode
 	# "revm/asm-keccak"
-	"schemars",
 	"sov-evm/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",
