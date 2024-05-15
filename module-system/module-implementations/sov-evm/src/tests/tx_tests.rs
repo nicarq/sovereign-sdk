@@ -7,11 +7,11 @@ use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U64, U8};
 use reth_rpc_types::request::TransactionInput;
 use reth_rpc_types::TransactionRequest;
-use revm::primitives::{TransactTo, TxEnv};
+use revm::primitives::{BlockEnv, TransactTo, TxEnv};
 
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
 use crate::helpers::prepare_call_env;
-use crate::primitive_types::{Block, BlockEnv};
+use crate::primitive_types::Block;
 
 #[tokio::test]
 async fn tx_rlp_encoding_test() -> Result<(), Box<dyn std::error::Error>> {
@@ -127,17 +127,17 @@ fn prepare_call_block_env() {
         transactions: Default::default(),
     };
 
-    let sealed_block = &block.clone().seal();
+    let sealed_block = block.clone().seal();
 
     let block_env = BlockEnv::from(sealed_block);
 
-    assert_eq!(block_env.number, block.header.number);
+    assert_eq!(block_env.number.to::<u64>(), block.header.number);
     assert_eq!(block_env.coinbase, block.header.beneficiary);
-    assert_eq!(block_env.timestamp, block.header.timestamp);
+    assert_eq!(block_env.timestamp.to::<u64>(), block.header.timestamp);
     assert_eq!(
-        block_env.basefee,
+        block_env.basefee.to::<u64>(),
         block.header.base_fee_per_gas.unwrap_or_default()
     );
-    assert_eq!(block_env.gas_limit, block.header.gas_limit);
-    assert_eq!(block_env.prevrandao, block.header.mix_hash);
+    assert_eq!(block_env.gas_limit.to::<u64>(), block.header.gas_limit);
+    assert_eq!(block_env.prevrandao, Some(block.header.mix_hash));
 }

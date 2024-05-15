@@ -5,9 +5,9 @@ use reth_primitives::{
 };
 use reth_rpc_types::{Header, Parity, Signature, TransactionRequest};
 use revm::primitives::{TransactTo, TxEnv, B256, U256};
+use revm_primitives::BlockEnv;
 
 use crate::evm::error::rpc::{EthApiError, EthResult, RpcInvalidTransactionError};
-use crate::evm::primitive_types::BlockEnv;
 
 /// Helper type for representing the fees of a [CallRequest]
 struct CallFees {
@@ -112,7 +112,7 @@ pub(crate) fn prepare_call_env(
         U256::from(block_env.basefee),
     )?;
 
-    let gas_limit = gas.unwrap_or(U256::from(block_env.gas_limit.min(u64::MAX)));
+    let gas_limit = gas.unwrap_or(U256::from(block_env.gas_limit.min(U256::MAX)));
 
     let env = TxEnv {
         gas_limit: gas_limit

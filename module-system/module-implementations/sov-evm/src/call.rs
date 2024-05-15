@@ -1,11 +1,12 @@
 use anyhow::Result;
 use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered};
 use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
+use revm_primitives::BlockEnv;
 use sov_modules_api::{CallResponse, Context, TxState};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
-use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::{Evm, PendingTransaction, SpecId};
 
@@ -99,7 +100,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             transaction: TransactionSignedAndRecovered {
                 signer: evm_tx_recovered.signer(),
                 signed_transaction: evm_tx_recovered.into(),
-                block_number: block_env.number,
+                block_number: block_env.number.to(),
             },
             receipt,
         };
@@ -122,7 +123,7 @@ pub(crate) fn get_cfg_env_with_handler(
     let mut cfg_env = template_cfg.unwrap_or_default();
     cfg_env.chain_id = cfg.chain_id;
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
-    let spec_id = get_spec_id(cfg.spec, block_env.number);
+    let spec_id = get_spec_id(cfg.spec, block_env.number.to());
     CfgEnvWithHandlerCfg::new(cfg_env, revm_primitives::HandlerCfg { spec_id })
 }
 

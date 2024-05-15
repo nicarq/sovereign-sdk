@@ -27,14 +27,13 @@ mod event;
 mod helpers;
 
 use revm::primitives::Address;
+use revm_primitives::BlockEnv;
 use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, TxState, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
 use crate::evm::db::EvmDb;
-use crate::evm::primitive_types::{
-    Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
-};
+use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSignedAndRecovered};
 
 // Gas per transaction not creating a contract.
 #[cfg(feature = "native")]

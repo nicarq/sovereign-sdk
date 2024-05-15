@@ -1,23 +1,25 @@
 use reth_primitives::{
     Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
 };
-use revm::primitives::{BlockEnv as ReVmBlockEnv, CreateScheme, TransactTo, TxEnv, U256};
+use revm::primitives::{CreateScheme, TransactTo, TxEnv, U256};
+use revm_primitives::BlockEnv;
 
-use super::primitive_types::{BlockEnv, RlpEvmTransaction};
+use super::primitive_types::{RlpEvmTransaction, SealedBlock};
 use crate::error::rpc::EthApiError;
 
-impl From<&BlockEnv> for ReVmBlockEnv {
-    fn from(block_env: &BlockEnv) -> Self {
+// BlockEnv from SealedBlock
+impl From<SealedBlock> for BlockEnv {
+    fn from(block: SealedBlock) -> Self {
         Self {
-            number: U256::from(block_env.number),
-            coinbase: block_env.coinbase,
-            timestamp: U256::from(block_env.timestamp),
-            difficulty: U256::ZERO,
-            prevrandao: Some(block_env.prevrandao),
-            basefee: U256::from(block_env.basefee),
-            gas_limit: U256::from(block_env.gas_limit),
-            // EIP-4844 related field
+            number: U256::from(block.header.number),
+            coinbase: block.header.beneficiary,
+            timestamp: U256::from(block.header.timestamp),
+            prevrandao: Some(block.header.mix_hash),
+            basefee: block.header.base_fee_per_gas.map_or(U256::ZERO, U256::from),
+            gas_limit: U256::from(block.header.gas_limit),
+            // Not used fields:
             blob_excess_gas_and_price: None,
+            difficulty: Default::default(),
         }
     }
 }

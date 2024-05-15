@@ -1,10 +1,11 @@
 use reth_primitives::{Bloom, Bytes};
 use revm::primitives::{B256, U256};
+use revm_primitives::BlockEnv;
 use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::{StateCheckpoint, StateReaderAndWriter};
 use sov_state::Storage;
 
-use crate::evm::primitive_types::{Block, BlockEnv};
+use crate::evm::primitive_types::Block;
 use crate::{Evm, PendingTransaction};
 
 impl<S: sov_modules_api::Spec> Evm<S>
@@ -36,21 +37,27 @@ where
             .unwrap_or_default();
 
         let new_pending_env = BlockEnv {
-            number: parent_block.header.number.wrapping_add(1),
+            number: U256::from(parent_block.header.number.wrapping_add(1)),
             coinbase: cfg.coinbase,
-            timestamp: parent_block
-                .header
-                .timestamp
-                .saturating_add(cfg.block_timestamp_delta),
+            timestamp: U256::from(
+                parent_block
+                    .header
+                    .timestamp
+                    .saturating_add(cfg.block_timestamp_delta),
+            ),
             // WARNING: `prevrandao`` value is predictable up to [`DEFERRED_SLOTS_COUNT`] in advance,
             // Users should follow the same best practice that they would on Ethereum and use future randomness.
             // See: https://eips.ethereum.org/EIPS/eip-4399#tips-for-application-developers
-            prevrandao: B256::from(pre_state_user_root),
-            basefee: parent_block
-                .header
-                .next_block_base_fee(cfg.base_fee_params)
-                .unwrap(),
-            gas_limit: cfg.block_gas_limit,
+            prevrandao: Some(B256::from(pre_state_user_root)),
+            basefee: U256::from(
+                parent_block
+                    .header
+                    .next_block_base_fee(cfg.base_fee_params)
+                    .unwrap(),
+            ),
+            gas_limit: U256::from(cfg.block_gas_limit),
+            difficulty: Default::default(),
+            blob_excess_gas_and_price: None,
         };
         self.block_env
             .set(&new_pending_env, versioned_working_set.get_ws_mut());
@@ -74,9 +81,11 @@ where
 
         let expected_block_number = parent_block.header.number.wrapping_add(1);
         assert_eq!(
-            block_env.number, expected_block_number,
+            block_env.number.to::<u64>(),
+            expected_block_number,
             "Pending head must be set to block {}, but found block {}",
-            expected_block_number, block_env.number
+            expected_block_number,
+            block_env.number
         );
 
         let pending_transactions: Vec<PendingTransaction> =
@@ -102,8 +111,8 @@ where
 
         let header = reth_primitives::Header {
             parent_hash: parent_block.header.hash(),
-            timestamp: block_env.timestamp,
-            number: block_env.number,
+            timestamp: block_env.timestamp.to(),
+            number: block_env.number.to(),
             ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_slot_hook
@@ -117,9 +126,9 @@ where
                 .iter()
                 .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom),
             difficulty: U256::ZERO,
-            gas_limit: block_env.gas_limit,
+            gas_limit: block_env.gas_limit.to(),
             gas_used,
-            mix_hash: block_env.prevrandao,
+            mix_hash: block_env.prevrandao.map_or(B256::ZERO, B256::from),
             nonce: 0,
             base_fee_per_gas: parent_block.header.next_block_base_fee(cfg.base_fee_params),
             extra_data: Bytes::default(),

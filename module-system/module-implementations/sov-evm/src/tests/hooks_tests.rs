@@ -3,14 +3,13 @@ use reth_primitives::{
     Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
     EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
+use revm::primitives::BlockEnv;
 use sov_modules_api::{KernelWorkingSet, StateCheckpoint, VersionedStateReadWriter};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
 
 use super::genesis_tests::{setup, TEST_CONFIG};
-use crate::evm::primitive_types::{
-    Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
-};
+use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH};
 use crate::PendingTransaction;
 
@@ -29,12 +28,16 @@ fn begin_slot_hook_creates_pending_block() {
     assert_eq!(
         pending_block,
         BlockEnv {
-            number: 1,
+            number: U256::from(1),
             coinbase: BENEFICIARY,
-            timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta,
-            prevrandao: DA_ROOT_HASH,
-            basefee: 62u64,
-            gas_limit: TEST_CONFIG.block_gas_limit,
+            timestamp: U256::from(
+                TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta
+            ),
+            prevrandao: Some(DA_ROOT_HASH),
+            basefee: U256::from(62),
+            gas_limit: U256::from(TEST_CONFIG.block_gas_limit),
+            difficulty: Default::default(),
+            blob_excess_gas_and_price: None,
         }
     );
 }

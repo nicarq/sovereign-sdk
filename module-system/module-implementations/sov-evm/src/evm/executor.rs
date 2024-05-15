@@ -3,8 +3,8 @@ use std::convert::Infallible;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, Env, EnvWithHandlerCfg, ExecutionResult};
 use revm::{self, Database, DatabaseCommit, EvmBuilder};
+use revm_primitives::BlockEnv;
 
-use super::primitive_types::BlockEnv;
 use crate::evm::conversions::create_tx_env;
 
 pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
@@ -21,7 +21,7 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     let env_with_handler_cfg = EnvWithHandlerCfg {
         env: Box::new(Env {
             cfg: cfg_env,
-            block: block_env.into(),
+            block: block_env.clone(),
             tx: create_tx_env(tx),
         }),
         handler_cfg,
@@ -50,7 +50,7 @@ pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
     let env_with_handler_cfg = EnvWithHandlerCfg {
         env: Box::new(Env {
             cfg: cfg_env,
-            block: block_env.into(),
+            block: block_env.clone(),
             tx,
         }),
         handler_cfg,
