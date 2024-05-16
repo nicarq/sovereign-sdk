@@ -19,13 +19,14 @@ pub use rpc::*;
 #[cfg(test)]
 mod tests;
 
-pub use revm::primitives::SpecId;
-
+mod authenticate;
 mod event;
 #[cfg(feature = "native")]
 mod helpers;
 
+pub use authenticate::authenticate;
 use revm::primitives::Address;
+pub use revm::primitives::SpecId;
 use revm_primitives::BlockEnv;
 use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, TxState, WorkingSet};
 use sov_state::codec::BcsCodec;

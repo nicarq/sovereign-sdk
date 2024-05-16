@@ -10,7 +10,7 @@ use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
 use sov_modules_api::{Authenticator, DaSpec, DispatchCall, GasMeter, Spec};
 use sov_sequencer_registry::SequencerStakeMeter;
 
-use crate::runtime::Runtime;
+use crate::runtime::{Runtime, RuntimeCall};
 
 impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
     type Decodable = <Self as DispatchCall>::Decodable;
@@ -84,7 +84,9 @@ impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
         ),
         AuthenticationError,
     > {
-        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx, stake_meter)
+        let (tx_and_raw_hash, runtime_call) = sov_evm::authenticate::<Self::Spec>(tx, stake_meter)?;
+        let call = RuntimeCall::evm(runtime_call);
+        Ok((tx_and_raw_hash, call))
     }
 
     fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {

@@ -11,13 +11,12 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
 use borsh::ser::BorshSerialize;
-use demo_stf::runtime::Runtime;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
 use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{Authenticator, CryptoSpec, EncodeCall, PrivateKey, PublicKey, WorkingSet};
+use sov_modules_api::{Authenticator, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::watch;
 
@@ -27,9 +26,8 @@ use crate::gas_price::gas_oracle::GasPriceOracle;
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
 #[derive(Clone)]
-pub struct EthRpcConfig<S: sov_modules_api::Spec> {
+pub struct EthRpcConfig {
     pub min_blob_size: Option<usize>,
-    pub sov_tx_signer_priv_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     pub gas_price_oracle_config: GasPriceOracleConfig,
     #[cfg(feature = "local")]
     pub eth_signer: DevSigner,
@@ -37,40 +35,22 @@ pub struct EthRpcConfig<S: sov_modules_api::Spec> {
 
 pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator>(
     da_service: Da,
-    eth_rpc_config: EthRpcConfig<S>,
+    eth_rpc_config: EthRpcConfig,
     storage: watch::Receiver<S::Storage>,
 ) -> RpcModule<Ethereum<S, Da, Auth>> {
     // Unpack config
     let EthRpcConfig {
         min_blob_size,
-        sov_tx_signer_priv_key,
         #[cfg(feature = "local")]
         eth_signer,
         gas_price_oracle_config,
     } = eth_rpc_config;
 
     // Fetch nonce from storage
-    let accounts = sov_accounts::Accounts::<S>::default();
-    let sov_tx_signer_account = accounts
-        .get_account(
-            sov_tx_signer_priv_key
-                .pub_key()
-                .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>(),
-            &mut WorkingSet::<S>::new(storage.borrow().clone()),
-        )
-        .unwrap();
-    let sov_tx_signer_nonce: u64 = match sov_tx_signer_account {
-        sov_accounts::Response::AccountExists { nonce, .. } => nonce,
-        sov_accounts::Response::AccountEmpty { .. } => 0,
-    };
 
     let mut rpc = RpcModule::new(Ethereum::new(
         da_service,
-        Arc::new(Mutex::new(EthBatchBuilder::new(
-            sov_tx_signer_priv_key,
-            sov_tx_signer_nonce,
-            min_blob_size,
-        ))),
+        Arc::new(Mutex::new(EthBatchBuilder::new(min_blob_size))),
         gas_price_oracle_config,
         #[cfg(feature = "local")]
         eth_signer,
@@ -83,7 +63,7 @@ pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
 
 pub struct Ethereum<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> {
     da_service: Da,
-    batch_builder: Arc<Mutex<EthBatchBuilder<S>>>,
+    batch_builder: Arc<Mutex<EthBatchBuilder>>,
     gas_price_oracle: GasPriceOracle<S>,
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
@@ -94,7 +74,7 @@ pub struct Ethereum<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator
 impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, Da, Auth> {
     fn new(
         da_service: Da,
-        batch_builder: Arc<Mutex<EthBatchBuilder<S>>>,
+        batch_builder: Arc<Mutex<EthBatchBuilder>>,
         gas_price_oracle_config: GasPriceOracleConfig,
         #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: watch::Receiver<S::Storage>,
@@ -121,7 +101,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
         let tx_hash = signed_transaction.hash();
 
         let tx = CallMessage { tx: raw_tx };
-        let message = <Runtime<S, Da::Spec> as EncodeCall<Evm<S>>>::encode_call(tx);
+        let message = tx.try_to_vec().unwrap();
 
         Ok((tx_hash, message))
     }

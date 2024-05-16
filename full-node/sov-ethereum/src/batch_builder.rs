@@ -1,28 +1,15 @@
-use std::borrow::BorrowMut;
 use std::collections::VecDeque;
 
-use borsh::BorshSerialize;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-use sov_modules_api::CryptoSpec;
-
-pub struct EthBatchBuilder<S: sov_modules_api::Spec> {
+pub struct EthBatchBuilder {
     mempool: VecDeque<Vec<u8>>,
-    sov_tx_signer_private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-    nonce: u64,
     min_blob_size: Option<usize>,
 }
 
-impl<S: sov_modules_api::Spec> EthBatchBuilder<S> {
+impl EthBatchBuilder {
     /// Creates a new `EthBatchBuilder`.
-    pub fn new(
-        sov_tx_signer_private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-        nonce: u64,
-        min_blob_size: Option<usize>,
-    ) -> Self {
+    pub fn new(min_blob_size: Option<usize>) -> Self {
         EthBatchBuilder {
             mempool: VecDeque::new(),
-            sov_tx_signer_private_key,
-            nonce,
             min_blob_size,
         }
     }
@@ -32,32 +19,8 @@ impl<S: sov_modules_api::Spec> EthBatchBuilder<S> {
     fn make_blob(&mut self) -> Vec<Vec<u8>> {
         let mut txs = Vec::new();
 
-        let nonce = self.nonce.borrow_mut();
-
         while let Some(raw_message) = self.mempool.pop_front() {
-            // TODO define a strategy to expose chain id and gas tip for ethereum frontend
-            let chain_id = 0;
-            let max_priority_fee_bips = PriorityFeeBips::ZERO;
-
-            // TODO `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/521>`: These values should be correctly set from the raw message
-            let max_fee = 10_000;
-            let gas_limit = None;
-
-            let raw_tx = Transaction::<S>::new_signed_tx(
-                &self.sov_tx_signer_private_key,
-                raw_message,
-                chain_id,
-                max_priority_fee_bips,
-                max_fee,
-                gas_limit,
-                *nonce,
-            )
-            .try_to_vec()
-            .unwrap();
-
-            *nonce += 1;
-
-            txs.push(raw_tx);
+            txs.push(raw_message);
         }
         txs
     }
