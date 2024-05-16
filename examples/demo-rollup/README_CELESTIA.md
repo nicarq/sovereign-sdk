@@ -100,7 +100,7 @@ $ make start
 
 Now run the demo-rollup full node, as shown below. You will see it consuming blocks from the Celestia node running inside Docker:
 
-```sh,test-ci,bashtestmd:long-running
+```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=bound_address
 # Make sure you're still in the examples/demo-rollup directory.
 $ cargo run -- --da-layer celestia --rollup-config-path demo_rollup_config.toml --genesis-config-dir ../test-data/genesis/demo/celestia
 2024-03-05T14:42:21.332792Z  INFO sov_demo_rollup: Running demo rollup with prover config prover_config=Skip
@@ -153,7 +153,8 @@ You'll need the `sov-cli` binary in order to create transactions. Build it with 
 
 ```bash,test-ci,bashtestmd:compare-output
 # Make sure you're still in `examples/demo-rollup`
-$ cargo run --bin sov-cli -- --help
+$ cargo build --bin sov-cli
+$ ./../../target/debug/sov-cli --help
 Usage: sov-cli <COMMAND>
 
 Commands:
@@ -258,7 +259,7 @@ Note: we're able to make a `Transfer` call here because we already created the t
 To generate transactions, you can use the `transactions import from-file` subcommand, as shown below:
 
 ```bash,test-ci,bashtestmd:compare-output
-$ cargo run --bin sov-cli -- transactions import from-file -h
+$ ./../../target/debug/sov-cli transactions import from-file -h
 Import a transaction from a JSON file at the provided path
 
 Usage: sov-cli transactions import from-file <COMMAND>
@@ -279,7 +280,7 @@ Options:
 Let's go ahead and import the transaction into the wallet
 
 ```bash,test-ci,bashtestmd:compare-output
-$ cargo run --bin sov-cli -- transactions import from-file bank --chain-id 0 --max-fee 10000 --path ../test-data/requests/transfer.json
+$ ./../../target/debug/sov-cli transactions import from-file bank --chain-id 0 --max-fee 10000 --path ../test-data/requests/transfer.json
 Adding the following transaction to batch:
 {
   "tx": {
@@ -308,7 +309,8 @@ You now have a batch with a single transaction in your wallet. If you want to su
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ cargo run --bin sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
+$ sleep 60  # Wait a bit for the `make test-create-token` transaction to be processed.
+$ ./../../target/debug/sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
 ```
 
 This command will use your default private key.
@@ -316,7 +318,8 @@ This command will use your default private key.
 #### 4. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
+$ sleep 60  # Wait a bit for the batch to be processed.
+$ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":{"amount":1000000},"id":1}
 ```
 
