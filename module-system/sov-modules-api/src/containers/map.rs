@@ -12,8 +12,6 @@ use sov_state::{
 use sov_state::{ProvenStateAccessor, StateItemDecoder, Storage};
 use thiserror::Error;
 
-#[cfg(feature = "native")]
-use crate::Spec;
 #[cfg(feature = "arbitrary")]
 use crate::WorkingSet;
 
@@ -270,10 +268,10 @@ where
         working_set.get_with_proof(self.slot_key(key))
     }
 
-    pub fn verify_proof<S: Spec>(
+    pub fn verify_proof<S: crate::Spec>(
         &self,
         state_root: <S::Storage as Storage>::Root,
-        proof: sov_state::StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+        proof: sov_state::StorageProof<<<S as crate::Spec>::Storage as Storage>::Proof>,
     ) -> Result<(K, Option<V>), anyhow::Error>
 where {
         ensure!(
@@ -283,7 +281,7 @@ where {
             proof.namespace
         );
 
-        let (complete_key, value) = <<S as Spec>::Storage>::open_proof(state_root, proof)?;
+        let (complete_key, value) = <<S as crate::Spec>::Storage>::open_proof(state_root, proof)?;
         let complete_key_bytes = complete_key.key();
         let item_key = complete_key_bytes
             .strip_prefix(self.prefix().as_ref())

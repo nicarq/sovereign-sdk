@@ -15,9 +15,7 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks, RuntimeAuthorization};
-use sov_modules_api::transaction::{
-    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
-};
+use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
@@ -38,11 +36,10 @@ use tracing::{debug, info};
 pub trait Runtime<S: Spec, Da: DaSpec>:
     DispatchCall<Spec = S>
     + SequencerAuthorization<S, Da>
-    + RuntimeAuthorization<S, Da, Tx = AuthenticatedTransactionData<S>>
+    + RuntimeAuthorization<S, Da>
     + RuntimeAuthenticator<
-        Tx = AuthenticatedTransactionAndRawHash<S>,
+        S,
         Decodable = <Self as DispatchCall>::Decodable,
-        Gas = S::Gas,
         SequencerStakeMeter = <Self as SequencerAuthorization<S, Da>>::SequencerStakeMeter,
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>

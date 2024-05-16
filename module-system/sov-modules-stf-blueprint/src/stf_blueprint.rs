@@ -275,14 +275,14 @@ where
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn authenticate_with_cycle_count<S: Spec, D: DaSpec, R: Runtime<S, D> + RuntimeAuthenticator>(
+fn authenticate_with_cycle_count<S: Spec, D: DaSpec, R: Runtime<S, D> + RuntimeAuthenticator<S>>(
     runtime: &R,
     raw_tx: &RawTx,
-    sequencer_stake_meter: &mut <R as RuntimeAuthenticator>::SequencerStakeMeter,
+    sequencer_stake_meter: &mut <R as RuntimeAuthenticator<S>>::SequencerStakeMeter,
 ) -> Result<
     (
-        <R as RuntimeAuthenticator>::Tx,
-        <R as RuntimeAuthenticator>::Decodable,
+        AuthenticatedTransactionAndRawHash<S>,
+        <R as RuntimeAuthenticator<S>>::Decodable,
     ),
     AuthenticationError,
 > {

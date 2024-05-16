@@ -1,4 +1,4 @@
-//! TODO
+//! Defines namespaces that are used to partition the state of the rollup.
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 

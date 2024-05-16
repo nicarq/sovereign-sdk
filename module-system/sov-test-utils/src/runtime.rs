@@ -95,19 +95,16 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
     type Spec = S;
 }
 
-impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for TestRuntime<S, Da> {
+impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for TestRuntime<S, Da> {
     type Decodable = <Self as DispatchCall>::Decodable;
 
-    type Tx = AuthenticatedTransactionAndRawHash<S>;
-
-    type Gas = S::Gas;
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
 
     fn authenticate(
         &self,
         raw_tx: &RawTx,
         sequencer_stake_meter: &mut Self::SequencerStakeMeter,
-    ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
+    ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError> {
         sov_modules_api::authenticate::<S, Self>(&raw_tx.data, sequencer_stake_meter)
     }
 }
@@ -210,12 +207,11 @@ impl<S: Spec, Da: DaSpec> SequencerAuthorization<S, Da> for TestRuntime<S, Da> {
 }
 
 impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for TestRuntime<S, Da> {
-    type Tx = AuthenticatedTransactionData<S>;
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
         &self,
-        _tx: &Self::Tx,
+        _tx: &AuthenticatedTransactionData<S>,
         _context: &Context<S>,
         _state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<(), anyhow::Error> {
@@ -225,7 +221,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for TestRuntime<S, Da> {
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
         &self,
-        _tx: &Self::Tx,
+        _tx: &AuthenticatedTransactionData<S>,
         _sequencer: &Da::Address,
         _state_checkpoint: &mut StateCheckpoint<S>,
     ) {
@@ -234,7 +230,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for TestRuntime<S, Da> {
     /// Resolves the context for a transaction.
     fn resolve_context(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         sequencer: &Da::Address,
         height: u64,
         working_set: &mut StateCheckpoint<S>,

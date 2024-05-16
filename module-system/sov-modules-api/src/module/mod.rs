@@ -79,6 +79,7 @@ pub trait ModuleCallJsonSchema: Module {
     fn json_schema() -> String;
 }
 
+#[cfg(feature = "native")]
 impl<T> ModuleCallJsonSchema for T
 where
     T: Module,
