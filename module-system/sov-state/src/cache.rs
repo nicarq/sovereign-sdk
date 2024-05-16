@@ -1,14 +1,83 @@
 //! Cache key/value definitions
 
-use alloc::vec::Vec;
-
 use sov_rollup_interface::maybestd::collections::hash_map::Entry;
 use sov_rollup_interface::maybestd::collections::HashMap;
 
-use crate::common::{MergeError, ReadError};
 use crate::namespaces::ProvableCompileTimeNamespace;
-use crate::storage::Storage;
-use crate::{SlotKey, SlotValue};
+use crate::storage::{SlotKey, SlotValue, Storage};
+
+/// An error when merging two cache values.
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+pub enum MergeError {
+    /// Consecutive reads error.
+    #[cfg_attr(
+        feature = "std",
+        error("consecutive reads are inconsistent: left read: {left:?}, right read: {right:?}")
+    )]
+    ReadThenRead {
+        /// Left-read associated cache value.
+        left: Option<SlotValue>,
+        /// Right-read associated cache value.
+        right: Option<SlotValue>,
+    },
+    /// A read operation is inconsistent with the previous write operation.
+    #[cfg_attr(
+        feature = "std",
+        error("the read: {read:?} is in inconsistent with the previous write: {write:?}")
+    )]
+    WriteThenRead {
+        /// The associated write operation.
+        write: Option<SlotValue>,
+        /// The associated read operation.
+        read: Option<SlotValue>,
+    },
+}
+
+#[cfg(not(feature = "std"))]
+impl core::fmt::Display for MergeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        <MergeError as core::fmt::Debug>::fmt(self, f)
+    }
+}
+
+#[cfg(all(not(feature = "std"), feature = "sync"))]
+impl From<MergeError> for anyhow::Error {
+    fn from(err: MergeError) -> anyhow::Error {
+        anyhow::Error::msg(err)
+    }
+}
+
+/// An error when reading from the cache.
+#[derive(Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+pub enum ReadError {
+    /// The value returned from the cache is not expected.
+    #[cfg_attr(
+        feature = "std",
+        error("inconsistent read, expected: {expected:?}, found: {found:?}")
+    )]
+    InconsistentRead {
+        /// Expected value.
+        expected: Option<SlotValue>,
+        /// Found value.
+        found: Option<SlotValue>,
+    },
+}
+
+#[cfg(not(feature = "std"))]
+impl core::fmt::Display for ReadError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        <ReadError as core::fmt::Debug>::fmt(self, f)
+    }
+}
+
+#[cfg(all(not(feature = "std"), feature = "sync"))]
+impl From<ReadError> for anyhow::Error {
+    fn from(err: ReadError) -> anyhow::Error {
+        anyhow::Error::msg(err)
+    }
+}
 
 /// `Access` represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
@@ -346,7 +415,6 @@ impl<N> From<ProvableStorageCache<N>> for OrderedReadsAndWrites {
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
-    use sov_rollup_interface::maybestd::RefCount;
 
     use super::*;
 
@@ -361,15 +429,11 @@ mod tests {
     }
 
     pub fn create_key(key: u8) -> SlotKey {
-        SlotKey {
-            key: RefCount::new(alloc::vec![key]),
-        }
+        SlotKey::from(vec![key])
     }
 
     pub fn create_value(v: u8) -> Option<SlotValue> {
-        Some(SlotValue {
-            value: RefCount::new(alloc::vec![v]),
-        })
+        Some(SlotValue::from(vec![v]))
     }
 
     impl ValueExists {
@@ -504,7 +568,7 @@ mod tests {
 
     #[test]
     fn test_merge_ok() {
-        let test_cases = alloc::vec![
+        let test_cases = vec![
             TestCase {
                 left: Some(ReadWrite::Read(new_cache_entry(1, 11))),
                 right: Some(ReadWrite::Read(new_cache_entry(1, 11))),
@@ -540,7 +604,7 @@ mod tests {
 
     #[test]
     fn test_merge_fail() {
-        let test_cases = alloc::vec![
+        let test_cases = vec![
             TestCase {
                 left: Some(ReadWrite::Read(new_cache_entry(1, 11))),
                 // The read is inconsistent with the previous read.
@@ -567,7 +631,7 @@ mod tests {
                 testvec.push( s.wrapping_add(i as u8));
             }
 
-            let test_cases = alloc::vec![
+            let test_cases = vec![
                 TestCase {
                     left: Some(ReadWrite::Read(new_cache_entry(testvec[0], testvec[1]))),
                     right: Some(ReadWrite::Read(new_cache_entry(testvec[0], testvec[1]))),

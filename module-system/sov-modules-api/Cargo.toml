@@ -18,10 +18,11 @@ workspace = true
 jsonrpsee = { workspace = true, optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
 sov-state = { path = "../sov-state", version = "0.3" }
-sov-modules-core = { path = "../sov-modules-core", version = "0.3", features = ["std"] }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-macros = { path = "../sov-modules-macros", version = "0.3", optional = true }
+sov-db = { path = "../../full-node/sov-db", optional = true }
 risc0-cycle-macros = { workspace = true, optional = true }
 serde = { workspace = true }
 borsh = { workspace = true }
@@ -31,10 +32,11 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 sha2 = { workspace = true }
 bech32 = { workspace = true }
-serde_json = { workspace = true, optional = true }
+serde_json = { workspace = true  }
 hex = { workspace = true }
 clap = { workspace = true, optional = true }
-schemars = { workspace = true, optional = true, features = [] }
+schemars = { workspace = true, features = [] }
+derivative = { workspace = true }
 
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
@@ -42,13 +44,11 @@ risc0-zkvm-platform = { workspace = true, optional = true }
 [dev-dependencies]
 bincode = { workspace = true }
 tempfile = { workspace = true }
-sov-modules-api = { path = ".", features = ["native"] }
-sov-modules-core = { path = "../sov-modules-core", features = ["mocks"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-test-utils = { path = "../sov-test-utils" }
+sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
-sov-db = { path = "../../full-node/sov-db" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-modules-api = { path = ".", features = ["mocks"] }
 
 [features]
 arbitrary = [
@@ -57,11 +57,10 @@ arbitrary = [
 	"dep:proptest-derive",
 	"proptest/default",
 	"sov-db/arbitrary",
+	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
-	"sov-modules-core/arbitrary",
 	"sov-rollup-interface/arbitrary",
 	"sov-state/arbitrary",
-	"sov-test-utils/arbitrary",
 ]
 bench = [
 	"risc0-cycle-macros",
@@ -73,17 +72,18 @@ bench = [
 ]
 default = [ "macros" ]
 native = [
+	"async-trait",
 	"clap",
 	"jsonrpsee",
 	"macros",
-	"schemars",
-	"serde_json",
 	"sov-bank/native",
+	"sov-db",
 	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
-	"sov-modules-core/native",
 	"sov-modules-macros/native",
 	"sov-rollup-interface/native",
 	"sov-state/native",
 ]
 macros = [ "sov-modules-macros" ]
+mocks = []

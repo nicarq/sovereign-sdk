@@ -1,8 +1,7 @@
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{Context, Spec, WorkingSet};
-use sov_modules_core::TxGasMeter;
+use sov_modules_api::{Context, Spec, TxGasMeter, WorkingSet};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::zk::StateTransitionPublicData;
 

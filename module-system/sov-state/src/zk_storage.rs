@@ -1,18 +1,16 @@
 use std::marker::PhantomData;
 
-use jmt::KeyHash;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use sov_modules_core::namespaces::CompileTimeNamespace;
-#[cfg(feature = "native")]
-use sov_modules_core::namespaces::ProvableCompileTimeNamespace;
-use sov_modules_core::{
-    OrderedReadsAndWrites, ProvableNamespace, SlotKey, SlotValue, StateAccesses, Storage,
-    StorageProof, Witness,
-};
 
+use crate::cache::{OrderedReadsAndWrites, StateAccesses};
+use crate::jmt::KeyHash;
+#[cfg(feature = "native")]
+use crate::namespaces::ProvableCompileTimeNamespace;
+use crate::namespaces::{CompileTimeNamespace, ProvableNamespace};
+use crate::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use crate::storage_internals::SparseMerkleProof;
-use crate::{MerkleProofSpec, StorageRoot};
+use crate::{MerkleProofSpec, StorageRoot, Witness};
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default, derivative::Derivative)]

@@ -8,13 +8,12 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
+use sov_state::Storage;
 use thiserror::Error;
 
 use crate::kernel_state::BootstrapWorkingSet;
 use crate::module::Context;
-use crate::{
-    Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, Storage, TxGasMeter, WorkingSet,
-};
+use crate::{Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, TxGasMeter, WorkingSet};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
@@ -71,7 +70,7 @@ pub trait BatchSelector<Da: DaSpec> {
         &self,
         current_blobs: I,
         working_set: &mut KernelWorkingSet<'k, Self::Spec>,
-    ) -> anyhow::Result<alloc::vec::Vec<(Self::Batch, Da::Address)>>
+    ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
 }
@@ -309,7 +308,7 @@ pub mod mocks {
             &self,
             _current_blobs: I,
             _working_set: &mut crate::KernelWorkingSet<'k, Self::Spec>,
-        ) -> anyhow::Result<alloc::vec::Vec<(Self::Batch, Da::Address)>>
+        ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
         where
             I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
         {

@@ -2,17 +2,16 @@ use sov_bank::{BankConfig, GasTokenConfig, IntoPayable};
 use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
 };
-use sov_modules_api::namespaces::User;
+use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     CryptoSpec, Gas, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
-    PrivateKey, Spec, WorkingSet,
+    PrivateKey, Spec, StateCheckpoint, TxGasMeter, WorkingSet,
 };
-use sov_modules_core::runtime::capabilities::mocks::MockKernel;
-use sov_modules_core::{StateCheckpoint, TxGasMeter};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::Time;
+use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
 use sov_state::{ProverStorage, SparseMerkleProof, StorageRoot};
 use sov_test_utils::TestStorageSpec as StorageSpec;

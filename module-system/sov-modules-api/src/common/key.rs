@@ -2,71 +2,71 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-/// A digital signature.
-#[cfg(not(all(feature = "native", feature = "std")))]
+#[cfg(not(feature = "native"))]
 pub trait SignatureExt:
     sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize
 {
 }
 
-#[cfg(not(all(feature = "native", feature = "std")))]
+#[cfg(not(feature = "native"))]
 impl<S: sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize> SignatureExt
     for S
 {
 }
 
 /// A digital signature.
-#[cfg(all(feature = "native", feature = "std"))]
+#[cfg(feature = "native")]
 pub trait SignatureExt:
     sov_rollup_interface::crypto::Signature
     + BorshDeserialize
     + BorshSerialize
     + schemars::JsonSchema
-    + alloc::str::FromStr<Err = anyhow::Error>
+    + std::str::FromStr<Err = anyhow::Error>
 {
 }
 
 /// A digital signature.
-#[cfg(all(feature = "native", feature = "std"))]
+#[cfg(feature = "native")]
 impl<
         S: sov_rollup_interface::crypto::Signature
             + BorshDeserialize
             + BorshSerialize
-            + alloc::str::FromStr<Err = anyhow::Error>
+            + std::str::FromStr<Err = anyhow::Error>
             + schemars::JsonSchema,
     > SignatureExt for S
 {
 }
 
 /// PublicKey used in the Module System.
-#[cfg(all(feature = "native", feature = "std"))]
+#[cfg(feature = "native")]
 pub trait PublicKeyExt:
     sov_rollup_interface::crypto::PublicKey
     + BorshDeserialize
     + BorshSerialize
     + ::schemars::JsonSchema
-    + alloc::str::FromStr<Err = anyhow::Error>
+    + std::str::FromStr<Err = anyhow::Error>
 {
 }
 
-#[cfg(all(feature = "native", feature = "std"))]
+#[cfg(feature = "native")]
 impl<
         P: sov_rollup_interface::crypto::PublicKey
             + BorshDeserialize
             + BorshSerialize
             + ::schemars::JsonSchema
-            + alloc::str::FromStr<Err = anyhow::Error>,
+            + std::str::FromStr<Err = anyhow::Error>,
     > PublicKeyExt for P
 {
 }
 
 /// PublicKey used in the Module System.
-#[cfg(not(all(feature = "native", feature = "std")))]
+#[cfg(not(feature = "native"))]
 pub trait PublicKeyExt:
     sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize
 {
 }
-#[cfg(not(all(feature = "native", feature = "std")))]
+
+#[cfg(not(feature = "native"))]
 impl<P: sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize> PublicKeyExt
     for P
 {

@@ -3,15 +3,15 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkVerifier;
-use sov_modules_api::namespaces::User;
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
-use sov_state::storage::{NativeStorage, SlotKey, SlotValue, StateAccesses};
+use sov_state::namespaces::User;
+use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
 use sov_state::{
     ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverChangeSet,
-    ProverStorage, Storage,
+    ProverStorage, StateAccesses, Storage,
 };
 
 pub type S = DefaultStorageSpec<sha2::Sha256>;

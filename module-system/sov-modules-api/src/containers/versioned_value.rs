@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::kernel_state::VersionReader;
-use sov_modules_core::namespaces::Kernel;
-use sov_modules_core::{
-    KernelWorkingSet, Namespace, Prefix, SlotKey, SlotValue, Spec, StateCodec, StateItemCodec,
+use sov_state::{
+    BorshCodec, Kernel, Namespace, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec,
     StateReader, StateWriter,
 };
-use sov_state::codec::BorshCodec;
+
+use crate::kernel_state::VersionReader;
+use crate::{KernelWorkingSet, Spec};
 
 /// A `versioned` value stored in kernel state. The semantics of this type are different
 /// depending on the priveleges of the accessor. For a standard ("user space") interaction
@@ -120,12 +120,15 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
 #[cfg(test)]
 mod tests {
     use sov_mock_da::MockDaSpec;
-    use sov_modules_core::capabilities::mocks::MockKernel;
-    use sov_modules_core::{Address, Context, KernelWorkingSet, Prefix, StateCheckpoint};
+    use sov_mock_zkvm::MockZkVerifier;
     use sov_prover_storage_manager::new_orphan_storage;
-    use sov_test_utils::TestSpec;
+    use sov_state::Prefix;
 
-    use crate::VersionedStateValue;
+    use crate::capabilities::mocks::MockKernel;
+    use crate::{Address, Context, KernelWorkingSet, StateCheckpoint, VersionedStateValue};
+
+    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+
     #[test]
     fn test_kernel_state_value_as_value() {
         let tmpdir = tempfile::tempdir().unwrap();

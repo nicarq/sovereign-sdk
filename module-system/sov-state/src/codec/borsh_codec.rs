@@ -1,7 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::{EncodeKeyLike, StateItemDecoder, StateItemEncoder};
 
-use super::StateCodec;
+use super::{EncodeKeyLike, StateCodec, StateItemDecoder, StateItemEncoder};
 
 /// A [`StateCodec`] that uses [`borsh`] for all keys and values.
 #[derive(Debug, Default, PartialEq, Eq, Clone, BorshDeserialize, borsh::BorshSerialize)]

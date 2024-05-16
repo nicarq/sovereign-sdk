@@ -16,8 +16,9 @@ pub mod utils;
 pub use call::*;
 pub use genesis::*;
 use sov_modules_api::macros::config_bech32;
-use sov_modules_api::{CallResponse, Context, Error, Gas, ModuleId, ModuleInfo, WorkingSet};
-use sov_state::storage::TxState;
+use sov_modules_api::{
+    CallResponse, Context, Error, Gas, ModuleId, ModuleInfo, TxState, WorkingSet,
+};
 use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, BurnRate, Coins, TokenId, TokenIdBech32};

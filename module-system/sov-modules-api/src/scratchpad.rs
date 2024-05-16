@@ -1,25 +1,29 @@
 //! Runtime state machine definitions.
 
-use alloc::boxed::Box;
-use alloc::vec::Vec;
 use core::any::Any;
 use core::fmt;
+use std::boxed::Box;
 
 pub use kernel_state::{KernelWorkingSet, VersionedStateReadWriter};
 use sov_rollup_interface::maybestd::collections::HashMap;
+use sov_state::namespaces::User;
+use sov_state::{
+    namespaces, Accessory, CompileTimeNamespace, EventContainer, Namespace, ProvableStorageCache,
+    SlotKey, SlotValue, StateAccesses, StateReader, StateReaderAndWriter, StateWriter, Storage,
+};
+#[cfg(feature = "native")]
+use sov_state::{NativeStorage, ProvableCompileTimeNamespace, ProvenStateAccessor, StorageProof};
 
 use crate::common::{GasMeter, TxGasMeter};
 use crate::module::{Context, Spec};
-use crate::namespaces::{self, Accessory, CompileTimeNamespace, User};
-#[cfg(feature = "native")]
-use crate::storage::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
-use crate::storage::{
-    ProvableStorageCache, SlotKey, SlotValue, StateReader, StateReaderAndWriter, StateWriter,
-    Storage, UniversalStateAccessor,
-};
-#[cfg(feature = "native")]
-use crate::ProvenStateAccessor;
-use crate::{EventContainer, Gas, GasTracker, Namespace, StateAccesses, TxState};
+use crate::{Gas, GasTracker, TxState};
+
+/// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
+pub(crate) trait UniversalStateAccessor {
+    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue>;
+    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue);
+    fn delete(&mut self, namespace: Namespace, key: &SlotKey);
+}
 
 /// A [`Delta`] is a diff over an underlying `Storage` instance. When queried, it first checks
 /// whether the value is in its local cache and, if so, returns it. Otherwise, it queries the
@@ -32,7 +36,7 @@ pub struct Delta<S: Storage> {
     inner: S,
     witness: S::Witness,
     kernel_cache: ProvableStorageCache<namespaces::Kernel>,
-    user_cache: ProvableStorageCache<User>,
+    user_cache: ProvableStorageCache<namespaces::User>,
     accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
     version: Option<u64>,
 }
@@ -265,7 +269,7 @@ where
 pub struct TypedEvent {
     event_key: Vec<u8>,
     type_id: core::any::TypeId,
-    boxed_event: alloc::boxed::Box<dyn core::any::Any + core::marker::Send>,
+    boxed_event: Box<dyn core::any::Any + core::marker::Send>,
 }
 
 impl TypedEvent {
@@ -525,10 +529,10 @@ impl<'a, S: Spec> StateWriter<Accessory> for AccessoryStateCheckpoint<'a, S> {
 /// Provides specialized working set wrappers for dealing with protected state.
 pub mod kernel_state {
     use sov_rollup_interface::da::DaSpec;
+    use sov_state::namespaces;
 
     use super::*;
     use crate::capabilities::Kernel;
-    use crate::namespaces;
 
     /// A trait indicating that this working set is version aware
     pub trait VersionReader: StateReaderAndWriter<namespaces::Kernel> {

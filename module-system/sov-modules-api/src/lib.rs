@@ -3,9 +3,24 @@
 pub mod batch;
 #[cfg(feature = "native")]
 pub mod cli;
+pub mod common;
 mod containers;
 pub mod default_spec;
 pub mod hooks;
+pub mod module;
+#[cfg(feature = "native")]
+pub mod rpc;
+pub mod runtime;
+pub mod scratchpad;
+pub mod state;
+
+pub use common::*;
+pub use module::*;
+#[cfg(feature = "native")]
+pub use rpc::*;
+pub use runtime::*;
+pub use scratchpad::*;
+pub use state::*;
 
 #[cfg(feature = "macros")]
 mod reexport_macros;
@@ -27,18 +42,6 @@ use std::collections::{HashMap, HashSet};
 pub use clap;
 #[cfg(feature = "native")]
 pub use schemars;
-pub use sov_modules_core::{
-    impl_bech32_conversion, impl_hash32_type, namespaces, runtime, AccessoryStateCheckpoint,
-    Address, AddressBech32, CallResponse, Context, CryptoSpecExt, DispatchCall, EncodeCall,
-    EventEmitter, EventModuleName, Gas, GasArray, GasMeter, GasPrice, GasUnit, Genesis,
-    KernelModule, KernelWorkingSet, Module, ModuleCallJsonSchema, ModuleError,
-    ModuleError as Error, ModuleId, ModuleIdBech32, ModuleInfo, ModulePrefix, PublicKeyExt,
-    RuntimeEventProcessor, RuntimeEventResponse, SignatureExt, Spec, StateCheckpoint,
-    StateReaderAndWriter, TxGasMeter, TxState, TypedEvent, UnlimitedGasMeter,
-    VersionedStateReadWriter, WorkingSet,
-};
-#[cfg(feature = "native")]
-pub use sov_modules_core::{LedgerStateProviderExt, ProvenStateAccessor};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 pub use sov_rollup_interface::crypto::{Hash, PublicKey, Signature};
@@ -51,6 +54,9 @@ pub use sov_rollup_interface::zk::{
     CryptoSpec, StateTransitionPublicData, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
+pub use sov_state::StateReaderAndWriter;
+
+pub use crate::common::ModuleError as Error;
 pub mod optimistic {
     pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};
 }
@@ -241,7 +247,7 @@ pub trait CliWalletArg: From<Self::CliStringRepr> {
 
 /// A trait that needs to be implemented for a *runtime* to be used with the CLI wallet
 #[cfg(feature = "native")]
-pub trait CliWallet: sov_modules_core::DispatchCall {
+pub trait CliWallet: DispatchCall {
     /// The type that is used to represent this type in the CLI. Typically,
     /// this type implements the clap::Subcommand trait. This type is generic to
     /// allow for different representations of the same type in the interface; a

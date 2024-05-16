@@ -2877,7 +2877,6 @@ dependencies = [
  "sov-blob-storage",
  "sov-chain-state",
  "sov-modules-api",
- "sov-modules-core",
  "sov-state",
 ]
 
@@ -2923,38 +2922,20 @@ dependencies = [
  "anyhow",
  "bech32",
  "borsh 0.10.3",
+ "derivative",
  "hex",
  "risc0-cycle-macros",
  "risc0-zkvm",
  "risc0-zkvm-platform",
+ "schemars",
  "serde",
+ "serde_json",
  "sha2",
- "sov-modules-core",
  "sov-modules-macros",
  "sov-rollup-interface",
  "sov-state",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "sov-modules-core"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bech32",
- "borsh 0.10.3",
- "derivative",
- "digest 0.10.7",
- "hex",
- "jmt",
- "proptest",
- "schemars",
- "serde",
- "serde_json",
- "sha2",
- "sov-rollup-interface",
- "thiserror",
 ]
 
 [[package]]
@@ -2986,7 +2967,6 @@ dependencies = [
  "risc0-zkvm-platform",
  "serde",
  "sov-modules-api",
- "sov-modules-core",
  "sov-rollup-interface",
  "sov-state",
  "thiserror",
@@ -3081,6 +3061,7 @@ dependencies = [
  "bcs",
  "borsh 0.10.3",
  "derivative",
+ "hex",
  "jmt",
  "risc0-cycle-macros",
  "risc0-zkvm",
@@ -3088,7 +3069,6 @@ dependencies = [
  "serde",
  "serde-big-array",
  "sha2",
- "sov-modules-core",
  "sov-rollup-interface",
 ]
 

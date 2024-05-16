@@ -6,17 +6,17 @@ use borsh::BorshSerialize;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::capabilities::{
+    AuthenticationError, FatalError, RawTx, RuntimeAuthenticator, SequencerAuthorization,
+};
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
 };
 use sov_modules_api::{
     Context, DaSpec, DispatchCall, Gas, GasArray, GasMeter, Spec, StateCheckpoint, TxGasMeter,
+    WorkingSet,
 };
-use sov_modules_core::capabilities::{
-    AuthenticationError, FatalError, RawTx, RuntimeAuthenticator, SequencerAuthorization,
-};
-use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error, info};
 
@@ -581,7 +581,7 @@ where
 
 #[cfg(feature = "native")]
 pub(crate) fn convert_to_runtime_events<S, RT, Da>(
-    events: Vec<sov_modules_core::TypedEvent>,
+    events: Vec<sov_modules_api::TypedEvent>,
 ) -> Vec<StoredEvent>
 where
     S: Spec,
@@ -612,7 +612,7 @@ where
 
 #[cfg(not(feature = "native"))]
 fn convert_to_runtime_events<S, RT, Da>(
-    _events: Vec<sov_modules_core::TypedEvent>,
+    _events: Vec<sov_modules_api::TypedEvent>,
 ) -> Vec<StoredEvent>
 where
     S: Spec,

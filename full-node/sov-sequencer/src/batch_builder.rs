@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::runtime::capabilities::{AuthenticationError, Kernel};
 use sov_modules_api::{
-    Authenticator, CryptoSpec, Gas, GasArray, GasMeter, Spec, StateCheckpoint, UnlimitedGasMeter,
+    Authenticator, CryptoSpec, Gas, GasArray, GasMeter, KernelWorkingSet, Spec, StateCheckpoint,
+    UnlimitedGasMeter,
 };
 use sov_modules_stf_blueprint::{
     apply_tx, ApplyTxResult, ExecutionMode, Runtime, TxEffect, TxSequencerOutcome,
@@ -15,7 +16,6 @@ use sov_modules_stf_blueprint::{
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
 use sov_rollup_interface::stf::TransactionReceipt;
-use sov_state::storage::KernelWorkingSet;
 use tokio::sync::watch;
 
 use crate::db::{MempoolTx, SequencerDb};

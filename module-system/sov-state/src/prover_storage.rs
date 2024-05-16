@@ -9,15 +9,15 @@ use sov_db::namespaces::{
     UserNamespace,
 };
 use sov_db::state_db::{JmtHandler, StateDb};
-use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, ProvableCompileTimeNamespace};
-use sov_modules_core::{
-    Namespace, NativeStorage, OrderedReadsAndWrites, ProvableNamespace, SlotKey, SlotValue,
-    StateAccesses, StateUpdate, Storage, StorageProof, Witness,
-};
 
+use crate::cache::{OrderedReadsAndWrites, StateAccesses};
 use crate::config::Config;
+use crate::namespaces::{
+    Accessory, CompileTimeNamespace, Namespace, ProvableCompileTimeNamespace, ProvableNamespace,
+};
+use crate::storage::{NativeStorage, SlotKey, SlotValue, StateUpdate, Storage, StorageProof};
 use crate::storage_internals::{SparseMerkleProof, StorageRoot};
-use crate::MerkleProofSpec;
+use crate::{MerkleProofSpec, Witness};
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).

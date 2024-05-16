@@ -10,6 +10,9 @@ mod utils;
 use risc0_cycle_macros::cycle_tracker;
 pub use sov_modules_api::batch::Batch;
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::capabilities::{
+    FatalError, GasEnforcer, RuntimeAuthenticator, SequencerAuthorization,
+};
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks, RuntimeAuthorization};
 use sov_modules_api::transaction::{
@@ -17,12 +20,8 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
-    RuntimeEventProcessor, Spec, StateCheckpoint,
+    RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
 };
-use sov_modules_core::capabilities::{
-    FatalError, GasEnforcer, RuntimeAuthenticator, SequencerAuthorization,
-};
-use sov_modules_core::VersionedStateReadWriter;
 use sov_rollup_interface::da::RelevantBlobIters;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{

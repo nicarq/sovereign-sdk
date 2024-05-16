@@ -1,7 +1,6 @@
 use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{Context, WorkingSet};
-use sov_modules_core::TxGasMeter;
+use sov_modules_api::{Context, TxGasMeter, WorkingSet};
 use sov_prover_storage_manager::SimpleStorageManager;
 
 use crate::call::AttesterIncentiveErrors;

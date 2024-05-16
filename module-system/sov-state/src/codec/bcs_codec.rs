@@ -1,6 +1,4 @@
-use sov_modules_core::{StateItemDecoder, StateItemEncoder};
-
-use super::StateCodec;
+use super::{StateCodec, StateItemDecoder, StateItemEncoder};
 
 /// A [`StateCodec`] that uses [`bcs`] for all keys and values.
 #[derive(Debug, Default, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]

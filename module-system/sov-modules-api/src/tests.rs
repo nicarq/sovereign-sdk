@@ -1,9 +1,15 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sha2::Sha256;
+use sov_mock_zkvm::MockZkVerifier;
 use sov_rollup_interface::crypto::{PrivateKey, Signature};
-use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSignature, TestSpec};
+use sov_rollup_interface::zk::CryptoSpec;
 
-use crate::{ModuleId, ModuleInfo};
+use crate::{ModuleId, ModuleInfo, Spec};
+
+type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
+type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
 
 #[test]
 fn test_account_bech32m_display() {

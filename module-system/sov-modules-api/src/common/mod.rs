@@ -5,20 +5,16 @@ mod address;
 mod module_id;
 pub use module_id::{ModuleId, ModuleIdBech32};
 
-mod bytes;
 mod error;
 mod gas;
 mod key;
-mod witness;
 
 pub use address::*;
-pub use bytes::*;
 pub use error::*;
 pub use gas::*;
 #[cfg(feature = "std")]
 pub use jmt::Version;
 pub use key::*;
-pub use witness::*;
 
 /// The version of the JellyfishMerkleTree state.
 #[cfg(not(feature = "std"))]

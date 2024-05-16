@@ -1,5 +1,4 @@
-use sov_modules_api::{DaSpec, Spec};
-use sov_state::storage::KernelWorkingSet;
+use sov_modules_api::{DaSpec, KernelWorkingSet, Spec};
 
 use crate::ChainState;
 

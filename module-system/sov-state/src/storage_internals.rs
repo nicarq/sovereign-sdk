@@ -8,8 +8,8 @@ use jmt::{RootHash, SimpleHasher};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use sha2::Digest;
-use sov_modules_core::Namespaced;
 
+use crate::namespaces::Namespaced;
 use crate::MerkleProofSpec;
 /// Combined root hash of the user and kernel namespaces. The user root hash is the first 32 bytes, whereas the
 /// kernel root hash is the last 32 bytes.

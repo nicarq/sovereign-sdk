@@ -6,13 +6,13 @@ use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidity
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::namespaces::User;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{DaSpec, Gas, Spec, StateCheckpoint, Zkvm};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, Runtime, StfBlueprint};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
+use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::Storage;
 use sov_test_utils::runtime::{GenesisConfig, TestRuntime};
