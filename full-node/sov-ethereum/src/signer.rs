@@ -16,7 +16,7 @@ pub(crate) fn register_signer_rpc_methods<
     Auth: Authenticator,
 >(
     rpc: &mut RpcModule<Ethereum<S, Da, Auth>>,
-) -> Result<(), jsonrpsee::core::Error> {
+) -> Result<(), jsonrpsee::core::client::Error> {
     rpc.register_async_method("eth_accounts", |_parameters, ethereum| async move {
         Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
     })?;

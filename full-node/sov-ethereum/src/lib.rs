@@ -114,10 +114,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
 }
 
 impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, Da, Auth> {
-    fn make_raw_tx(
-        &self,
-        raw_tx: RlpEvmTransaction,
-    ) -> Result<(B256, Vec<u8>), jsonrpsee::core::Error> {
+    fn make_raw_tx(&self, raw_tx: RlpEvmTransaction) -> Result<(B256, Vec<u8>), ErrorObjectOwned> {
         let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
 
         let tx_hash = signed_transaction.hash();
@@ -131,7 +128,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
     async fn build_and_submit_batch(
         &self,
         min_blob_size: Option<usize>,
-    ) -> Result<(), jsonrpsee::core::Error> {
+    ) -> Result<(), jsonrpsee::core::client::Error> {
         tracing::info!(
             min_blob_size = min_blob_size,
             "Build and submit ETH batch request has been received",
@@ -146,10 +143,13 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
         Ok(())
     }
 
-    async fn submit_tx_batch(&self, tx_batch: Vec<Vec<u8>>) -> Result<(), jsonrpsee::core::Error> {
+    async fn submit_tx_batch(
+        &self,
+        tx_batch: Vec<Vec<u8>>,
+    ) -> Result<(), jsonrpsee::core::client::Error> {
         if tx_batch.is_empty() {
             tracing::error!("Attempt to submit empty batch");
-            return Err(jsonrpsee::core::Error::Custom(
+            return Err(jsonrpsee::core::client::Error::Custom(
                 "Attempt to submit empty batch".to_string(),
             ));
         }
@@ -180,7 +180,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
     fn build_tx_batch(
         &self,
         min_blob_size: Option<usize>,
-    ) -> Result<Vec<Vec<u8>>, jsonrpsee::core::Error> {
+    ) -> Result<Vec<Vec<u8>>, jsonrpsee::core::client::Error> {
         let batch = self
             .batch_builder
             .lock()
@@ -197,7 +197,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
 
 fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator>(
     rpc: &mut RpcModule<Ethereum<S, Da, Auth>>,
-) -> Result<(), jsonrpsee::core::Error> {
+) -> Result<(), jsonrpsee::core::client::Error> {
     rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
         let price = {
             let mut working_set = WorkingSet::<S>::new(ethereum.storage.borrow().clone());

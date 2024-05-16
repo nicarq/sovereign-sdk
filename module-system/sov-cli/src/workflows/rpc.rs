@@ -5,8 +5,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use borsh::{BorshDeserialize, BorshSerialize};
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::core::Error;
+use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::tokio::time::sleep;
 use serde::de::DeserializeOwned;

@@ -142,13 +142,6 @@ impl From<EthApiError> for jsonrpsee::types::ErrorObject<'static> {
     }
 }
 
-#[cfg(feature = "native")]
-impl From<EthApiError> for jsonrpsee::core::Error {
-    fn from(error: EthApiError) -> Self {
-        jsonrpsee::core::Error::Call(error.into())
-    }
-}
-
 impl From<EVMError<Infallible>> for EthApiError {
     fn from(err: EVMError<Infallible>) -> Self {
         match err {

@@ -13,7 +13,6 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::Mutex;
-use tracing::info;
 
 use super::tx_status::{TxStatus, TxStatusNotifier};
 use super::{AcceptTxResponse, HexHash, SubmittedBatchInfo};
@@ -141,7 +140,7 @@ where
     async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
         let mut batch_builder = self.0.batch_builder.lock().await;
 
-        info!(tx = hex::encode(&tx), "Accepting transaction");
+        tracing::info!(tx = hex::encode(&tx), "Accepting transaction");
         let tx_hash = batch_builder.accept_tx(tx).await?;
         self.0
             .tx_status_notifier
@@ -188,9 +187,7 @@ mod jsonrpc {
             rpc
         }
 
-        fn register_txs_rpc_methods(
-            rpc: &mut RpcModule<Self>,
-        ) -> Result<(), jsonrpsee::core::Error> {
+        fn register_txs_rpc_methods(rpc: &mut RpcModule<Self>) -> anyhow::Result<()> {
             rpc.register_async_method(
                 "sequencer_publishBatch",
                 |params, batch_builder| async move {
@@ -462,6 +459,7 @@ mod axum_router {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
+    use jsonrpsee::MethodsError;
     use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
     use sov_rollup_interface::da::BlobReaderTrait;
     use sov_rollup_interface::services::batch_builder::TxWithHash;
@@ -485,7 +483,7 @@ mod tests {
     }
 
     // It only takes the first byte of the tx, when submits it.
-    // This allows to show effect of batch builder
+    // This allows to show an effect of batch builder
     #[async_trait]
     impl BatchBuilder for MockBatchBuilder {
         async fn accept_tx(&mut self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
@@ -527,8 +525,7 @@ mod tests {
         let rpc = sequencer_rpc(batch_builder, da_service);
 
         let arg: &[u8] = &[];
-        let result: Result<String, jsonrpsee::core::Error> =
-            rpc.call("sequencer_publishBatch", arg).await;
+        let result: Result<String, MethodsError> = rpc.call("sequencer_publishBatch", arg).await;
 
         assert!(result.is_err());
         let error = result.err().unwrap();
