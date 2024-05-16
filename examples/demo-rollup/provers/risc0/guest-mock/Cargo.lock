@@ -162,7 +162,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-macro",
  "const-hex",
- "serde",
 ]
 
 [[package]]
@@ -2784,7 +2783,6 @@ dependencies = [
  "serde_with",
  "sov-modules-api",
  "sov-state",
- "thiserror",
 ]
 
 [[package]]
@@ -2856,7 +2854,6 @@ dependencies = [
  "borsh 0.10.3",
  "bytes",
  "hex",
- "lazy_static",
  "reth-primitives",
  "reth-rpc-types",
  "revm",
@@ -3032,7 +3029,6 @@ dependencies = [
  "hex",
  "proptest",
  "serde",
- "serde_json",
  "sha2",
  "thiserror",
 ]

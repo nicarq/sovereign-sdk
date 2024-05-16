@@ -4840,7 +4840,6 @@ dependencies = [
  "serde_with",
  "sov-modules-api",
  "sov-state",
- "thiserror",
 ]
 
 [[package]]
@@ -5110,7 +5109,6 @@ dependencies = [
  "proptest-derive",
  "schemars",
  "serde",
- "serde_json",
  "sha2 0.10.8",
  "thiserror",
  "tokio",

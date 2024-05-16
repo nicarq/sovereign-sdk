@@ -31,11 +31,9 @@ jsonrpsee = { workspace = true, features = [
     "server",
 ], optional = true }
 tracing = { workspace = true }
-lazy_static = "1.4.0"
-
 secp256k1 = { workspace = true }
 
-alloy-sol-types = { version = "0.6" }
+alloy-sol-types = { version = "0.6", default-features = false }
 alloy-rpc-types = { workspace = true, optional = true }
 revm = { workspace = true, features = [
     "optional_block_gas_limit",
@@ -58,6 +56,7 @@ bytes = { workspace = true }
 ethers-signers = { workspace = true }
 ethers-core = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand-std"] }
+lazy_static = "1.4.0"
 
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
