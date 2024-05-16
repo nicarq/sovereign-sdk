@@ -181,5 +181,3 @@ fix-readme-toc:
 	doctoc README.md --github --notitle
 	doctoc README_CELESTIA.md --github --notitle
 
-wait_20:
-	sleep 20

@@ -92,7 +92,7 @@ $ make clean
 $ export SOV_PROVER_MODE=execute
 ```
 
-```sh,test-ci,bashtestmd:long-running
+```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=bound_address
 $ cargo run
 ```
 
@@ -117,7 +117,7 @@ The transaction hash can be used to query the RPC endpoint to fetch events belon
 this case have the TokenCreated Event
 
 ```sh,test-ci
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
+$ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_id":"module_1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sh0zjpk"}],"id":1}%
 ```
 
@@ -135,7 +135,8 @@ You'll need the `sov-cli` binary in order to create transactions. Build it with 
 
 ```bash,test-ci,bashtestmd:compare-output
 # Make sure you're still in `examples/demo-rollup`
-$ cargo run --bin sov-cli -- --help
+$ SKIP_GUEST_BUILD=1 cargo build --bin sov-cli
+$ ./../../target/debug/sov-cli --help
 Usage: sov-cli <COMMAND>
 
 Commands:
@@ -250,7 +251,7 @@ using `make test-create-token`.
 To generate transactions you can use the `transactions import from-file` subcommand, as shown below:
 
 ```bash,test-ci,bashtestmd:compare-output
-$ cargo run --bin sov-cli -- transactions import from-file -h
+$ ./../../target/debug/sov-cli transactions import from-file -h
 Import a transaction from a JSON file at the provided path
 
 Usage: sov-cli transactions import from-file <COMMAND>
@@ -271,7 +272,7 @@ Options:
 Let's go ahead and import the transaction into the wallet
 
 ```bash,test-ci,bashtestmd:compare-output
-$ cargo run --bin sov-cli -- transactions import from-file bank --chain-id 0 --max-fee 10000 --path ../test-data/requests/transfer.json
+$ ./../../target/debug/sov-cli transactions import from-file bank --chain-id 0 --max-fee 10000 --path ../test-data/requests/transfer.json
 Adding the following transaction to batch:
 {
   "tx": {
@@ -299,18 +300,16 @@ this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ cargo run --bin sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
+$ sleep 20  # Wait a bit for the `make test-create-token` transaction to be processed.
+$ ./../../target/debug/sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
 ```
 
 #### Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
+$ sleep 20  # Wait a bit for the block to be processed by the node
+$ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":{"amount":1000000},"id":1}
-```
-
-```sh,test-ci
-$ make wait_20
 ```
 
 ```bash,test-ci,bashtestmd:compare-output
