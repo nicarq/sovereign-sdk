@@ -15,9 +15,9 @@ use crate::runtime::{GenesisConfig, Runtime};
 mod da_simulation;
 mod stf_tests;
 mod tx_revert_tests;
+
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
-
 pub(crate) type RuntimeTest = Runtime<S, Da>;
 pub(crate) type StfBlueprintTest = StfBlueprint<S, Da, RuntimeTest, BasicKernel<S, Da>>;
 

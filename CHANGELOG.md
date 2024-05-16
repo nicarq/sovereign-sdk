@@ -1,5 +1,6 @@
 - #663 Modifies the interface of traits `RuntimeAuthenticator` and `RuntimeAuthorization`. Associated types `Tx` and `Gas` have been removed. `RuntimeAuthenticator` is now generic over `S: Spec`. Methods' type signatures have been slightly modified; please see `examples/demo-rollup/stf/src/authentication.rs` for an example on the new usage.
 - #633 Deprecate `sov-modules-core`, move definitions into `sov-modules-api` & `sov-state`
+- #664 removes the `Transaction` wrapping in `sov-ethereum` for EVM transactions. This is a breaking change for consumers of the SDK. See `RuntimeAuthenticator::authenticate`.
 - #646 adds authenticator dispatch logic in`RuntimeAuthenticator::authenticate`. 
 - #613 Makes `sov_state::Storage` trait to be immutable and explicitly produce changes. SimpleStorageManager should be used when data needs to be persisted between batches.
 - #631 removes the need for modules to `#[derive(ModuleCallJsonSchema)]`; the trait is automatically blanket-implemented for all modules as long as `CallMessage` implements `schemars::JsonSchema`.
