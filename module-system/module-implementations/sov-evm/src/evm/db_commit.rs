@@ -6,8 +6,16 @@ use super::db::EvmDb;
 use super::DbAccount;
 
 impl<'a, Ws: StateAccessor> DatabaseCommit for EvmDb<'a, Ws> {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
-        for (address, account) in changes {
+    fn commit(&mut self, mut changes: HashMap<Address, Account>) {
+        // Cloned to release borrow
+        let mut addresses: Vec<_> = changes.keys().cloned().collect();
+        // Sort addresses to avoid non-determinism in ZK
+        addresses.sort();
+
+        for address in addresses {
+            // Unwrap because we took key from map itself, so key exists by definition.
+            let account = changes.remove(&address).unwrap();
+
             // TODO figure out what to do when account is destroyed.
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {
@@ -33,9 +41,15 @@ impl<'a, Ws: StateAccessor> DatabaseCommit for EvmDb<'a, Ws> {
 
             db_account.info = account_info;
 
-            for (key, value) in account.storage.into_iter() {
+            // Sort keys explicitly to avoid non-determinism.
+            let mut account_storage_keys: Vec<_> = account.storage.keys().collect();
+            account_storage_keys.sort();
+
+            for key in account_storage_keys {
+                // Unwrap because we took key from map itself, so key exists by definition.
+                let value = account.storage.get(key).unwrap();
                 let value = value.present_value();
-                db_account.storage.set(&key, &value, self.working_set);
+                db_account.storage.set(key, &value, self.working_set);
             }
 
             self.accounts.set(&address, &db_account, self.working_set);
