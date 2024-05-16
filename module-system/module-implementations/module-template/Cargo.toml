@@ -22,7 +22,6 @@ proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
-thiserror = { workspace = true }
 
 sov-bank = { path = "../sov-bank" }
 sov-modules-api = { path = "../../sov-modules-api" }

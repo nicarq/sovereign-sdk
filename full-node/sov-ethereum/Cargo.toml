@@ -15,7 +15,6 @@ publish = false
 workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
 tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }

@@ -4292,7 +4292,6 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "tempfile",
- "thiserror",
 ]
 
 [[package]]
@@ -7115,7 +7114,6 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "tempfile",
- "thiserror",
 ]
 
 [[package]]
@@ -7373,7 +7371,6 @@ dependencies = [
 name = "sov-ethereum"
 version = "0.3.0"
 dependencies = [
- "anyhow",
  "borsh 0.10.3",
  "demo-stf",
  "jsonrpsee 0.22.5",

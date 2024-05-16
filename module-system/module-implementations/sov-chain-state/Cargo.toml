@@ -19,8 +19,8 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 serde = { workspace = true }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
-tracing = { workspace = true }	
+jsonrpsee = { workspace = true, features = ["client-core"], optional = true }
+tracing = { workspace = true }
 derivative = { workspace = true }
 
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }

@@ -20,7 +20,6 @@ borsh = { workspace = true, features = ["rc"] }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_with = { workspace = true }
-thiserror = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
