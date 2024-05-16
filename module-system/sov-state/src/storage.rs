@@ -1,182 +1,43 @@
 //! Module storage definitions.
 
-use alloc::vec::Vec;
 use core::fmt;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sov_rollup_interface::maybestd::{vec, RefCount};
 
-use crate::common::{Prefix, Version, Witness};
-
-mod cache;
-mod codec;
-mod scratchpad;
-mod traits;
-pub use cache::*;
-pub use codec::*;
-pub use scratchpad::*;
-pub use traits::*;
-
-use self::namespaces::ProvableCompileTimeNamespace;
-
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    BorshSerialize,
-    BorshDeserialize,
-    Serialize,
-    Deserialize,
-)]
-/// The namespaces used in the rollup. Related to the db's namespaces.
-pub enum Namespace {
-    /// The user namespace. Used by the User modules and is synchronised with the visible height.
-    User,
-    /// The kernel namespace. Used by the Kernel modules and is synchronised with the true height.
-    Kernel,
-    /// The accessory namespace. Values in this namespace are writeable but not readable inside the state transition
-    /// function. They are used to provide auxiliary data via RPC.
-    Accessory,
-}
-
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    BorshSerialize,
-    BorshDeserialize,
-    Serialize,
-    Deserialize,
-)]
-/// Namespaces which can be merkle proven.
-pub enum ProvableNamespace {
-    /// The user namespace.
-    User,
-    /// The kernel namespace.
-    Kernel,
-}
-
-/// Defines a type-level representations of  namespaces.
-pub mod namespaces {
-    use crate::Namespace;
-
-    /// Converts a type into a runtime namespace.
-    pub trait CompileTimeNamespace: core::fmt::Debug {
-        /// The runtime namespace variant associated with the type.
-        const NAMESPACE: Namespace;
-    }
-
-    /// Converts a type into a Provable Namespace at compile time.
-    pub trait ProvableCompileTimeNamespace: CompileTimeNamespace {
-        /// The runtime namespace variant associated with the type.
-        const PROVABLE_NAMESPACE: crate::ProvableNamespace;
-    }
-
-    /// A type-level representation of the user namespace
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-    pub struct User;
-
-    impl CompileTimeNamespace for User {
-        const NAMESPACE: Namespace = Namespace::User;
-    }
-
-    impl ProvableCompileTimeNamespace for User {
-        const PROVABLE_NAMESPACE: crate::ProvableNamespace = crate::ProvableNamespace::User;
-    }
-    /// A type-level representation of the kernel namespace
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-    pub struct Kernel;
-
-    impl CompileTimeNamespace for Kernel {
-        const NAMESPACE: Namespace = Namespace::Kernel;
-    }
-
-    impl ProvableCompileTimeNamespace for Kernel {
-        const PROVABLE_NAMESPACE: crate::ProvableNamespace = crate::ProvableNamespace::Kernel;
-    }
-
-    /// A type-level representation of the accessory namespace
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-    pub struct Accessory;
-
-    impl CompileTimeNamespace for Accessory {
-        const NAMESPACE: Namespace = Namespace::Accessory;
-    }
-}
-
-#[derive(Default)]
-/// A generic structure that divides a given type among the namespaces.
-pub struct Namespaced<T> {
-    user: T,
-    kernel: T,
-    accessory: T,
-}
-
-impl<T> Namespaced<T> {
-    /// Gets the inner object for a given namespace.
-    pub fn get(&self, namespace: Namespace) -> &T {
-        match namespace {
-            Namespace::User => &self.user,
-            Namespace::Kernel => &self.kernel,
-            Namespace::Accessory => &self.accessory,
-        }
-    }
-
-    /// Gets the inner object for a given namespace.
-    pub fn get_mut(&mut self, namespace: Namespace) -> &mut T {
-        match namespace {
-            Namespace::User => &mut self.user,
-            Namespace::Kernel => &mut self.kernel,
-            Namespace::Accessory => &mut self.accessory,
-        }
-    }
-
-    /// Sets the inner object for a given namespace.
-    pub fn set(&mut self, namespace: Namespace, state_update: T) {
-        match namespace {
-            Namespace::User => self.user = state_update,
-            Namespace::Kernel => self.kernel = state_update,
-            Namespace::Accessory => self.accessory = state_update,
-        }
-    }
-
-    /// Creates a new struct instance from specified values.
-    pub fn new(user: T, kernel: T, accessory: T) -> Self {
-        Self {
-            user,
-            kernel,
-            accessory,
-        }
-    }
-}
-
-impl<T> From<Namespaced<T>> for (T, T, T) {
-    fn from(val: Namespaced<T>) -> Self {
-        (val.user, val.kernel, val.accessory)
-    }
-}
+use crate::bytes::Prefix;
+use crate::codec::{EncodeKeyLike, StateItemCodec};
+use crate::jmt::Version;
+use crate::namespaces::{ProvableCompileTimeNamespace, ProvableNamespace};
+use crate::{StateAccesses, Witness};
 
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.
-#[derive(Clone, PartialEq, Eq, Debug, Hash, Ord, PartialOrd)]
-#[cfg_attr(
-    feature = "sync",
-    derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
+#[derive(
+    Clone,
+    PartialEq,
+    Eq,
+    Debug,
+    Hash,
+    Ord,
+    PartialOrd,
+    Serialize,
+    serde::Deserialize,
+    BorshDeserialize,
+    BorshSerialize,
 )]
 pub struct SlotKey {
     key: RefCount<Vec<u8>>,
+}
+
+impl From<Vec<u8>> for SlotKey {
+    fn from(key: Vec<u8>) -> Self {
+        Self {
+            key: RefCount::new(key),
+        }
+    }
 }
 
 impl SlotKey {
@@ -246,10 +107,16 @@ impl SlotKey {
 
 /// A serialized value suitable for storing. Internally uses an [`RefCount<Vec<u8>>`]
 /// for cheap cloning.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-#[cfg_attr(
-    feature = "sync",
-    derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Default,
+    Serialize,
+    serde::Deserialize,
+    BorshDeserialize,
+    BorshSerialize,
 )]
 pub struct SlotValue {
     value: RefCount<Vec<u8>>,
@@ -287,10 +154,8 @@ impl SlotValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "sync",
-    derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize,
 )]
 /// A proof that a particular storage key has a particular value, or is absent.
 pub struct StorageProof<P> {

@@ -1,12 +1,11 @@
 use reth_primitives::{Bloom, Bytes};
 use revm::primitives::{B256, U256};
-use revm_primitives::BlockEnv;
-use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::{StateCheckpoint, StateReaderAndWriter};
+use sov_state::namespaces::Accessory;
 use sov_state::Storage;
 
 use crate::evm::primitive_types::Block;
-use crate::{Evm, PendingTransaction};
+use crate::{BlockEnv, Evm, PendingTransaction};
 
 impl<S: sov_modules_api::Spec> Evm<S>
 where

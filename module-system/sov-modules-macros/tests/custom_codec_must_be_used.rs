@@ -1,8 +1,7 @@
-use sov_modules_api::{CryptoSpec, ModuleId, ModuleInfo, Spec, StateValue, WorkingSet};
-use sov_modules_core::{StateCodec, StateItemDecoder, StateItemEncoder};
-use sov_state::{DefaultStorageSpec, ZkStorage};
 use std::panic::catch_unwind;
 
+use sov_modules_api::{CryptoSpec, ModuleId, ModuleInfo, Spec, StateValue, WorkingSet};
+use sov_state::{DefaultStorageSpec, StateCodec, StateItemDecoder, StateItemEncoder, ZkStorage};
 use sov_test_utils::ZkTestSpec;
 
 type Hasher = <<ZkTestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;

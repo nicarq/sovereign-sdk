@@ -1,7 +1,7 @@
 use anyhow::{ensure, Result};
-use sov_modules_api::namespaces::User;
-use sov_modules_api::{CallResponse, Context, Hash, Spec};
-use sov_state::storage::{StateReader, TxState};
+use sov_modules_api::{CallResponse, Context, Hash, Spec, TxState};
+use sov_state::namespaces::User;
+use sov_state::StateReader;
 
 use crate::Accounts;
 

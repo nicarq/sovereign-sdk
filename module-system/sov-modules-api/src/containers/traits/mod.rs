@@ -1,5 +1,5 @@
-use sov_modules_core::namespaces::User;
-use sov_modules_core::StateReaderAndWriter;
+use sov_state::namespaces::User;
+use sov_state::StateReaderAndWriter;
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///

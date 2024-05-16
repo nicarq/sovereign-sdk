@@ -2,17 +2,20 @@ use std::marker::PhantomData;
 
 #[cfg(feature = "native")]
 use anyhow::ensure;
-use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-#[cfg(feature = "arbitrary")]
-use sov_modules_core::WorkingSet;
-use sov_modules_core::{
+use sov_state::codec::BorshCodec;
+use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
+use sov_state::{
     EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReader,
     StateReaderAndWriter, StateWriter,
 };
 #[cfg(feature = "native")]
-use sov_modules_core::{ProvenStateAccessor, Spec, StateItemDecoder, Storage};
-use sov_state::codec::BorshCodec;
+use sov_state::{ProvenStateAccessor, StateItemDecoder, Storage};
 use thiserror::Error;
+
+#[cfg(feature = "native")]
+use crate::Spec;
+#[cfg(feature = "arbitrary")]
+use crate::WorkingSet;
 
 /// A container that maps keys to values.
 ///
@@ -20,7 +23,7 @@ use thiserror::Error;
 /// [`StateMap`] is generic over:
 /// - a key type `K`;
 /// - a value type `V`;
-/// - a [`sov_modules_core::StateItemCodec`] `Codec`.
+/// - a [`sov_state::StateItemCodec`] `Codec`.
 #[derive(
     Debug,
     Clone,
@@ -50,7 +53,7 @@ pub enum StateMapError<N> {
 /// [`StateMap`] is generic over:
 /// - a key type `K`;
 /// - a value type `V`;
-/// - a  [`Codec`](`sov_modules_core::StateItemCodec`).
+/// - a  [`Codec`](`sov_state::StateItemCodec`).
 pub type StateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<User, K, V, Codec>;
 
 /// A container that maps keys to values stored as "accessory" state, outside of
@@ -60,7 +63,7 @@ pub type StateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<User, K, V, Cod
 /// [`AccessoryStateMap`] is generic over:
 /// - a key type `K`;
 /// - a value type `V`;
-/// - a  [`Codec`](`sov_modules_core::StateItemCodec`).
+/// - a  [`Codec`](`sov_state::StateItemCodec`).
 pub type AccessoryStateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<Accessory, K, V, Codec>;
 
 /// A container that maps keys to values which are only accessible the kernel.
@@ -69,12 +72,12 @@ pub type AccessoryStateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<Access
 /// [`KernelStateMap`] is generic over:
 /// - a key type `K`;
 /// - a value type `V`;
-/// - a  [`Codec`](`sov_modules_core::StateItemCodec`).
+/// - a  [`Codec`](`sov_state::StateItemCodec`).
 pub type KernelStateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<Kernel, K, V, Codec>;
 
 impl<N: CompileTimeNamespace, K, V> NamespacedStateMap<N, K, V> {
     /// Creates a new [`StateMap`] with the given prefix and the default
-    /// [`sov_modules_core::StateItemCodec`] (i.e. [`BorshCodec`]).
+    /// [`sov_state::StateItemCodec`] (i.e. [`BorshCodec`]).
     pub fn new(prefix: Prefix) -> Self {
         Self::with_codec(prefix, BorshCodec)
     }
@@ -247,7 +250,7 @@ where
 }
 
 #[cfg(feature = "native")]
-impl<N: sov_modules_core::namespaces::ProvableCompileTimeNamespace, K, V, Codec>
+impl<N: sov_state::namespaces::ProvableCompileTimeNamespace, K, V, Codec>
     NamespacedStateMap<N, K, V, Codec>
 where
     Codec: StateCodec,
@@ -258,7 +261,7 @@ where
         &self,
         key: &Q,
         working_set: &mut W,
-    ) -> sov_modules_core::StorageProof<W::Proof>
+    ) -> sov_state::StorageProof<W::Proof>
     where
         Q: ?Sized,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
@@ -270,7 +273,7 @@ where
     pub fn verify_proof<S: Spec>(
         &self,
         state_root: <S::Storage as Storage>::Root,
-        proof: sov_modules_core::StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+        proof: sov_state::StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
     ) -> Result<(K, Option<V>), anyhow::Error>
 where {
         ensure!(
@@ -311,9 +314,9 @@ impl<'a, N, K, V, Codec> NamespacedStateMap<N, K, V, Codec>
 where
     K: arbitrary::Arbitrary<'a>,
     V: arbitrary::Arbitrary<'a>,
-    Codec: sov_modules_core::StateCodec + Default,
-    Codec::KeyCodec: sov_modules_core::StateItemCodec<K>,
-    Codec::ValueCodec: sov_modules_core::StateItemCodec<V>,
+    Codec: sov_state::StateCodec + Default,
+    Codec::KeyCodec: sov_state::StateItemCodec<K>,
+    Codec::ValueCodec: sov_state::StateItemCodec<V>,
     N: CompileTimeNamespace,
 {
     /// Returns an arbitrary [`StateMap`] instance.
@@ -321,10 +324,10 @@ where
     /// See the [`arbitrary`] crate for more information.
     pub fn arbitrary_working_set<S>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut sov_modules_core::WorkingSet<S>,
+        working_set: &mut crate::WorkingSet<S>,
     ) -> arbitrary::Result<Self>
     where
-        S: sov_modules_core::Spec,
+        S: crate::Spec,
         WorkingSet<S>: StateReaderAndWriter<N>,
     {
         use arbitrary::Arbitrary;

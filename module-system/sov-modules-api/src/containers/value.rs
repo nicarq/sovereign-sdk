@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-use sov_modules_core::{
+use sov_state::codec::BorshCodec;
+use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
+use sov_state::{
     Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReader, StateReaderAndWriter,
     StateWriter,
 };
-use sov_state::codec::BorshCodec;
 use thiserror::Error;
 
 /// Container for a single value.
@@ -45,7 +45,7 @@ where
     <BorshCodec as StateCodec>::ValueCodec: StateItemCodec<V>,
 {
     /// Crates a new [`StateValue`] with the given prefix and the default
-    /// [`sov_modules_core::StateItemCodec`] (i.e. [`BorshCodec`]).
+    /// [`crate::StateItemCodec`] (i.e. [`BorshCodec`]).
     pub fn new(prefix: Prefix) -> Self {
         Self::with_codec(prefix, BorshCodec)
     }
@@ -131,10 +131,11 @@ where
 
 #[cfg(feature = "native")]
 mod proofs {
-    use sov_modules_core::namespaces::ProvableCompileTimeNamespace;
-    use sov_modules_core::{Spec, StateCodec, StateItemCodec, StateItemDecoder, Storage};
+    use sov_state::namespaces::ProvableCompileTimeNamespace;
+    use sov_state::{StateCodec, StateItemCodec, StateItemDecoder, Storage};
 
     use super::NamespacedStateValue;
+    use crate::Spec;
 
     impl<N, V, Codec> NamespacedStateValue<N, V, Codec>
     where
@@ -143,12 +144,9 @@ mod proofs {
         N: ProvableCompileTimeNamespace,
     {
         /// Gets the value with a proof of correctness.
-        pub fn get_with_proof<W>(
-            &self,
-            working_set: &mut W,
-        ) -> sov_modules_core::StorageProof<W::Proof>
+        pub fn get_with_proof<W>(&self, working_set: &mut W) -> sov_state::StorageProof<W::Proof>
         where
-            W: sov_modules_core::ProvenStateAccessor<N>,
+            W: sov_state::ProvenStateAccessor<N>,
         {
             working_set.get_with_proof(self.slot_key())
         }
@@ -156,7 +154,7 @@ mod proofs {
         pub fn verify_proof<S: Spec>(
             &self,
             state_root: <S::Storage as Storage>::Root,
-            proof: sov_modules_core::StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+            proof: sov_state::StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
         ) -> Result<Option<V>, anyhow::Error>
 where {
             anyhow::ensure!(

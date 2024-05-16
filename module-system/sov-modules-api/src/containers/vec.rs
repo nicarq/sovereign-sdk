@@ -1,9 +1,9 @@
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 
-use sov_modules_core::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-use sov_modules_core::{Prefix, StateCodec, StateItemCodec, StateReaderAndWriter};
 use sov_state::codec::BorshCodec;
+use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
+use sov_state::{Prefix, StateCodec, StateItemCodec, StateReaderAndWriter};
 use thiserror::Error;
 
 use super::map::NamespacedStateMap;
@@ -298,12 +298,15 @@ where
 mod test {
     use std::fmt::Debug;
 
-    use sov_modules_core::{Prefix, WorkingSet};
+    use sov_mock_zkvm::MockZkVerifier;
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_state::codec::BorshCodec;
-    use sov_test_utils::TestSpec;
+    use sov_state::Prefix;
 
     use super::*;
+    use crate::WorkingSet;
+
+    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
 
     #[test]
     fn test_state_vec() {

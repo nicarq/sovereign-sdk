@@ -1,9 +1,9 @@
+use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::*;
-use sov_modules_core::StorageProof;
 use sov_prover_storage_manager::SimpleStorageManager;
-use sov_state::{Prefix, Storage};
+use sov_state::{Prefix, Storage, StorageProof};
 
-type S = sov_test_utils::TestSpec;
+type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
 
 #[allow(clippy::type_complexity)]
 fn make_user_map_proof(
@@ -65,7 +65,7 @@ fn make_user_value_proof(
 }
 
 mod map {
-    use sov_modules_core::{Prefix, ProvableNamespace, SlotKey, SlotValue};
+    use sov_state::{Prefix, ProvableNamespace, SlotKey, SlotValue};
 
     use crate::{make_user_map_proof, S};
 
@@ -107,7 +107,7 @@ mod map {
 }
 
 mod value {
-    use sov_modules_core::{Prefix, ProvableNamespace, SlotKey, SlotValue};
+    use sov_state::{Prefix, ProvableNamespace, SlotKey, SlotValue};
 
     use crate::{make_user_value_proof, S};
 

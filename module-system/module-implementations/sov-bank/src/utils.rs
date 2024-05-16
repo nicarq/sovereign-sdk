@@ -3,8 +3,7 @@ use std::hash::Hash;
 use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{CryptoSpec, ModuleId, Spec};
-use sov_state::codec::{BcsCodec, BorshCodec};
-use sov_state::storage::EncodeKeyLike;
+use sov_state::codec::{BcsCodec, BorshCodec, EncodeKeyLike};
 
 use crate::TokenId;
 
@@ -212,7 +211,7 @@ impl<'a, S: Spec> From<&'a ModuleId> for TokenHolderRef<'a, S> {
 // Implement the `encode_key_like` trait, marking for Rustc that TokenHolderRef and TokenHolder can be serialized
 // identically for all of our supported codecs
 mod encode_key_like {
-    use sov_state::storage::StateItemEncoder;
+    use sov_state::StateItemEncoder;
 
     use super::*;
 

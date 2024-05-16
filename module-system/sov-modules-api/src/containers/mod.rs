@@ -13,10 +13,16 @@ pub use versioned_value::VersionedStateValue;
 
 #[cfg(test)]
 mod test {
-    use sov_modules_core::namespaces::User;
-    use sov_modules_core::{SlotKey, SlotValue, StateWriter, Storage, Version, WorkingSet};
+    use sov_mock_zkvm::MockZkVerifier;
     use sov_prover_storage_manager::SimpleStorageManager;
-    use sov_test_utils::{TestSpec, TestStorageSpec as StorageSpec};
+    use sov_state::namespaces::User;
+    use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, StateWriter, Storage};
+
+    use crate::{CryptoSpec, Version, WorkingSet};
+
+    type StorageSpec = DefaultStorageSpec<TestHasher>;
+    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+    type TestHasher = <<TestSpec as crate::Spec>::CryptoSpec as CryptoSpec>::Hasher;
 
     #[derive(Clone)]
     struct TestCase {

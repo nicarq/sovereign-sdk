@@ -1,11 +1,12 @@
+use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::*;
-use sov_modules_core::ProvableNamespace;
 use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
-use sov_state::{ArrayWitness, Prefix, ProverStorage, Storage, ZkStorage};
-use sov_test_utils::TestStorageSpec as StorageSpec;
+use sov_state::{ArrayWitness, Prefix, ProvableNamespace, ProverStorage, Storage, ZkStorage};
 
-type S = sov_test_utils::TestSpec;
-type Zk = sov_test_utils::ZkTestSpec;
+type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+type Zk = sov_modules_api::default_spec::ZkDefaultSpec<MockZkVerifier, MockZkVerifier>;
+pub type TestHasher = <<S as Spec>::CryptoSpec as CryptoSpec>::Hasher;
+pub type StorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
 
 trait StateThing {
     type Value: core::fmt::Debug + Eq + PartialEq;

@@ -1,21 +1,21 @@
 //! Runtime module definitions.
 
-use alloc::string::String;
-use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_state::EventContainer;
 
-use crate::common::{ModuleError, ModulePrefix};
-use crate::storage::WorkingSet;
-use crate::{EventContainer, ModuleId, TxState};
+use crate::common::ModuleError;
+use crate::{ModuleId, TxState, WorkingSet};
 
 mod dispatch;
 mod event;
+mod prefix;
 mod spec;
 
 pub use dispatch::*;
 pub use event::*;
+pub use prefix::*;
 pub use spec::*;
 
 /// Response type for the `Module::call` method.

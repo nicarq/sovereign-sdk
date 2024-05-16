@@ -13,7 +13,7 @@ pub trait RuntimeEventProcessor {
         + EventModuleName;
 
     /// Function that converts module specific events to a wrapped event for storage
-    fn convert_to_runtime_event(event: crate::storage::TypedEvent) -> Option<Self::RuntimeEvent>;
+    fn convert_to_runtime_event(event: crate::TypedEvent) -> Option<Self::RuntimeEvent>;
 }
 
 /// Trait to get the module name from a specific runtime event.

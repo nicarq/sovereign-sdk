@@ -2,7 +2,6 @@ use anyhow::Context as _;
 use sov_bank::IntoPayable;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::runtime::capabilities::{
     GasEnforcer, RuntimeAuthorization, SequencerAuthorization,
 };
@@ -13,6 +12,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
+use sov_state::namespaces::Accessory;
 use tracing::info;
 
 use crate::runtime::Runtime;

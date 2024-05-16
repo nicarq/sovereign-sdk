@@ -3,12 +3,13 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_cycle_macros::cycle_tracker;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_modules_core::{GasArray, Spec};
 use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::{Hash, PublicKey, Signature as _};
 use sov_rollup_interface::zk::CryptoSpec;
+
+use crate::{GasArray, Spec};
 
 const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
 

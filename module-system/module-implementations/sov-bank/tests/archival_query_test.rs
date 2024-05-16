@@ -2,11 +2,11 @@ mod helpers;
 
 use helpers::*;
 use sov_bank::{Amount, Bank, CallMessage, Coins, TokenId};
-use sov_modules_api::namespaces::Accessory;
 use sov_modules_api::{Context, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::SimpleStorageManager;
-use sov_state::storage::{SlotKey, SlotValue, StateReader, StateUpdate, StateWriter};
-use sov_state::{ProverStorage, Storage};
+use sov_state::namespaces::Accessory;
+use sov_state::storage::{SlotKey, SlotValue, StateUpdate};
+use sov_state::{ProverStorage, StateReader, StateWriter, Storage};
 use sov_test_utils::TestStorageSpec as StorageSpec;
 
 type S = sov_test_utils::TestSpec;

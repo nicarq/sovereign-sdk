@@ -1,13 +1,13 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::namespaces::{Kernel, User};
-use sov_modules_core::capabilities::mocks::MockKernel;
-use sov_modules_core::{
-    Address, Context, KernelWorkingSet, SlotKey, SlotValue, StateCheckpoint, StateReader,
-    StateWriter, WorkingSet,
-};
+use sov_mock_zkvm::MockZkVerifier;
+use sov_modules_api::capabilities::mocks::MockKernel;
+use sov_modules_api::{Address, Context, KernelWorkingSet, StateCheckpoint, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::codec::BcsCodec;
-use sov_test_utils::TestSpec;
+use sov_state::namespaces::{Kernel, User};
+use sov_state::{SlotKey, SlotValue, StateReader, StateWriter};
+
+type TestSpec = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
 
 #[test]
 fn test_workingset_get() {
@@ -15,7 +15,7 @@ fn test_workingset_get() {
     let codec = BcsCodec {};
     let storage = new_orphan_storage(tempdir.path()).unwrap();
 
-    let prefix = sov_modules_core::Prefix::new(vec![1, 2, 3]);
+    let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
     let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
@@ -32,7 +32,7 @@ fn test_versioned_workingset_get() {
     let codec = BcsCodec {};
     let storage = new_orphan_storage(tempdir.path()).unwrap();
 
-    let prefix = sov_modules_core::Prefix::new(vec![1, 2, 3]);
+    let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
     let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
@@ -52,7 +52,7 @@ fn test_kernel_workingset_get() {
     let codec = BcsCodec {};
     let storage = new_orphan_storage(tempdir.path()).unwrap();
 
-    let prefix = sov_modules_core::Prefix::new(vec![1, 2, 3]);
+    let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
     let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
     let kernel: MockKernel<TestSpec, MockDaSpec> = MockKernel::new(4, 1);

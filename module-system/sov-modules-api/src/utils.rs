@@ -1,7 +1,8 @@
 use jsonrpsee::types::ErrorObjectOwned;
-use sov_modules_core::Spec;
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::zk::CryptoSpec;
+
+use crate::Spec;
 
 pub fn generate_address<S: Spec>(key: &str) -> S::Address
 where

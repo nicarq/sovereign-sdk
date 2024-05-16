@@ -26,7 +26,6 @@ hex = { workspace = true }
 # WARNING: The `stf-blueprint` crate should NOT depend on any Sovereign module.
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-state = { path = "../sov-state", version = "0.3" }
-sov-modules-core = { path = "../sov-modules-core", version = "0.3" }
 sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
 risc0-cycle-macros = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
@@ -46,7 +45,6 @@ default = []
 native = [
 	"jsonrpsee",
 	"sov-modules-api/native",
-	"sov-modules-core/native",
 	"sov-rollup-interface/native",
 	"sov-state/native",
 	"tokio",

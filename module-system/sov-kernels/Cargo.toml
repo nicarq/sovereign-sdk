@@ -16,7 +16,6 @@ anyhow = { workspace = true }
 
 sov-state = { path = "../sov-state", version = "0.3" }
 sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
-sov-modules-core = { path = "../sov-modules-core" }
 sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 sov-chain-state = { path = "../module-implementations/sov-chain-state" }
 
@@ -26,7 +25,6 @@ native = [
 	"sov-blob-storage/native",
 	"sov-chain-state/native",
 	"sov-modules-api/native",
-	"sov-modules-core/native",
 	"sov-state/native",
 ]
 test-utils = []

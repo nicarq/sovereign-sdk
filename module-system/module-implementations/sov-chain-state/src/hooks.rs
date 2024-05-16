@@ -1,6 +1,5 @@
 use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::{Gas, Spec};
-use sov_state::storage::KernelWorkingSet;
+use sov_modules_api::{Gas, KernelWorkingSet, Spec};
 use sov_state::Storage;
 
 use crate::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};

@@ -4,8 +4,7 @@ use sov_rollup_interface::maybestd::io;
 
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
-use crate::storage::WorkingSet;
-use crate::ModuleId;
+use crate::{ModuleId, WorkingSet};
 
 /// A trait that needs to be implemented for any call message.
 pub trait DispatchCall: Send + Sync {

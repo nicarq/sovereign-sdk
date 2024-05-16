@@ -471,7 +471,8 @@ mod tests {
     use sov_rollup_interface::zk::aggregated_proof::{
         AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
     };
-    use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
+    use sov_state::namespaces::User;
+    use sov_state::{ArrayWitness, OrderedReadsAndWrites, StateAccesses, StateUpdate, Storage};
 
     use super::*;
 
@@ -976,8 +977,7 @@ mod tests {
 
     // ------------
     // More sophisticated tests
-    use sov_state::storage::namespaces::User;
-    use sov_state::storage::{SlotKey, SlotValue, StateAccesses, StateUpdate};
+    use sov_state::storage::{SlotKey, SlotValue};
 
     #[test]
     fn linear_progression() {

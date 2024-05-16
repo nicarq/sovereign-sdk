@@ -14,8 +14,7 @@ mod event;
 #[cfg(test)]
 mod tests;
 pub use call::CallMessage;
-use sov_modules_api::{Context, Error, Hash, ModuleId, ModuleInfo, Spec, WorkingSet};
-use sov_state::storage::TxState;
+use sov_modules_api::{Context, Error, Hash, ModuleId, ModuleInfo, Spec, TxState, WorkingSet};
 
 use crate::event::Event;
 

@@ -29,7 +29,6 @@ tempfile = { workspace = true }
 trybuild = "1.0"
 
 sov-modules-api = { path = "../sov-modules-api" }
-sov-modules-core = { path = "../sov-modules-core" }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-state = { path = "../sov-state" }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
@@ -60,7 +59,6 @@ native = [
 	"jsonrpsee",
 	"sov-bank/native",
 	"sov-modules-api/native",
-	"sov-modules-core/native",
 	"sov-modules-macros/native",
 	"sov-rollup-interface/native",
 	"sov-state/native",

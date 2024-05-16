@@ -4,9 +4,9 @@ use std::path::PathBuf;
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::kernel_state::BootstrapWorkingSet;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{DaSpec, Gas, KernelModule, KernelWorkingSet, Spec};
-use sov_state::storage::kernel_state::BootstrapWorkingSet;
 use sov_state::Storage;
 
 /// A kernel supporting based sequencing with soft confirmations

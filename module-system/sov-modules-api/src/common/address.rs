@@ -4,7 +4,7 @@
 use arbitrary::{Arbitrary, Unstructured};
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
-use digest::consts::U32;
+use sha2::digest::typenum::U32;
 use sha2::Digest;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_rollup_interface::{BasicAddress, RollupAddress};
@@ -265,7 +265,7 @@ impl<H> Clone for Address<H> {
     }
 }
 
-#[cfg(all(feature = "native", feature = "std"))]
+#[cfg(feature = "native")]
 impl<H> schemars::JsonSchema for Address<H> {
     fn schema_name() -> String {
         "Address".to_string()

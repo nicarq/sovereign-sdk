@@ -4,9 +4,8 @@ use sov_chain_state::{
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::da::Time;
-use sov_modules_api::{Gas, GasArray, KernelModule, KernelWorkingSet, Spec};
-use sov_modules_core::runtime::capabilities::mocks::MockKernel;
-use sov_modules_core::StateCheckpoint;
+use sov_modules_api::runtime::capabilities::mocks::MockKernel;
+use sov_modules_api::{Gas, GasArray, KernelModule, KernelWorkingSet, Spec, StateCheckpoint};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::{Storage, StorageRoot};
 use sov_test_utils::{TestSpec, TestStorageSpec as StorageSpec};

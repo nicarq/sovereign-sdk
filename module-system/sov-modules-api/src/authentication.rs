@@ -1,10 +1,10 @@
 use borsh::BorshDeserialize;
-use sov_modules_core::capabilities::{AuthenticationError, FatalError, RawTx};
-use sov_modules_core::{DispatchCall, GasMeter, Spec};
 use sov_rollup_interface::zk::CryptoSpec;
 
+use crate::capabilities::{AuthenticationError, FatalError, RawTx};
 use crate::digest::Digest;
 use crate::transaction::{AuthenticatedTransactionAndRawHash, Transaction};
+use crate::{DispatchCall, GasMeter, Spec};
 
 /// A single rollup can support several authentication mechanisms.
 /// For example, within the same rollup, some transactions can be signed with the SignatureA scheme and others with the SignatureB scheme.

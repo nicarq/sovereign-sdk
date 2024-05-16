@@ -6,9 +6,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::crypto::Signature;
 use sov_rollup_interface::zk::{CryptoSpec, Zkvm};
 use sov_rollup_interface::RollupAddress;
+use sov_state::{Storage, Witness};
 
-use crate::common::{Gas, Witness};
-use crate::storage::Storage;
+use crate::common::Gas;
 use crate::{PublicKeyExt, SignatureExt};
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
@@ -25,23 +25,14 @@ pub trait Spec: Default + Debug + Clone + Send + Sync + PartialEq + 'static {
     type Gas: Gas;
 
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
-    #[cfg(all(feature = "native", feature = "std"))]
+    #[cfg(feature = "native")]
     type Address: RollupAddress
         + BorshSerialize
         + BorshDeserialize
         + Sync
         + ::schemars::JsonSchema
         + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>
-        + alloc::str::FromStr<Err = anyhow::Error>;
-
-    /// The Address type used on the rollup. Typically calculated as the hash of a public key.
-    #[cfg(all(feature = "native", not(feature = "std")))]
-    type Address: RollupAddress
-        + BorshSerialize
-        + BorshDeserialize
-        + Sync
-        + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>
-        + alloc::str::FromStr<Err = anyhow::Error>;
+        + std::str::FromStr<Err = anyhow::Error>;
 
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(not(feature = "native"))]
@@ -56,7 +47,7 @@ pub trait Spec: Default + Debug + Clone + Send + Sync + PartialEq + 'static {
 
     /// Authenticated state storage used by the rollup. Typically some variant of a merkle-patricia trie.
     #[cfg(feature = "native")]
-    type Storage: Storage + crate::NativeStorage + Send + Sync;
+    type Storage: Storage + sov_state::NativeStorage + Send + Sync;
 
     /// The Zkvm which verifies the inner circuit, where
     /// the `inner` circuit proves the correctness of the state transition for individual DA blocks.

@@ -10,9 +10,10 @@ use rand::{Rng, SeedableRng};
 use sov_mock_da::MockBlockHeader;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_state::storage::namespaces::User;
-use sov_state::storage::{SlotKey, SlotValue, StateAccesses};
-use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
+use sov_state::namespaces::User;
+use sov_state::storage::{SlotKey, SlotValue};
+use sov_state::{ArrayWitness, OrderedReadsAndWrites, StateAccesses, Storage};
+
 type Da = sov_mock_da::MockDaSpec;
 type S = sov_state::DefaultStorageSpec<sha2::Sha256>;
 
