@@ -15,7 +15,7 @@ use demo_stf::runtime::Runtime;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
-use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{Authenticator, CryptoSpec, EncodeCall, PrivateKey, PublicKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
@@ -115,7 +115,8 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
 
 impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, Da, Auth> {
     fn make_raw_tx(&self, raw_tx: RlpEvmTransaction) -> Result<(B256, Vec<u8>), ErrorObjectOwned> {
-        let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
+        let signed_transaction: RethTransactionSignedNoHash =
+            raw_tx.clone().try_into().map_err(EthApiError::from)?;
 
         let tx_hash = signed_transaction.hash();
 

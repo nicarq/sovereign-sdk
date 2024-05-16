@@ -7,7 +7,6 @@ mod genesis;
 mod hooks;
 
 pub use call::*;
-pub use error::rpc::*;
 pub use evm::*;
 pub use genesis::*;
 

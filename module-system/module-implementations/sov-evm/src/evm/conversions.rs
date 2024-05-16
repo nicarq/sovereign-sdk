@@ -3,9 +3,10 @@ use reth_primitives::{
 };
 use revm::primitives::{CreateScheme, TransactTo, TxEnv, U256};
 use revm_primitives::BlockEnv;
+use thiserror::Error;
 
-use super::primitive_types::{RlpEvmTransaction, SealedBlock};
-use crate::error::rpc::EthApiError;
+use super::primitive_types::SealedBlock;
+use crate::RlpEvmTransaction;
 
 // BlockEnv from SealedBlock
 impl From<SealedBlock> for BlockEnv {
@@ -48,31 +49,51 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
     }
 }
 
+/// Error that happened during conversion between types
+#[derive(Debug, Error)]
+pub enum RlpConversionError {
+    /// Raw transaction is empty.
+    EmptyRawTx,
+    /// Deserialization has failed.
+    DeserializationFailed,
+}
+
+impl core::fmt::Display for RlpConversionError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            RlpConversionError::EmptyRawTx => write!(f, "Empty raw transaction"),
+            RlpConversionError::DeserializationFailed => write!(f, "Deserialization failed"),
+        }
+    }
+}
+// And convert it to original EthApiError ourselves or directly to RPC
+
 impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
-    type Error = EthApiError;
+    type Error = RlpConversionError;
 
     fn try_from(data: RlpEvmTransaction) -> Result<Self, Self::Error> {
         let data = RethBytes::from(data.rlp);
+        // We can skip that, it is done inside `decode_enveloped` method
         if data.is_empty() {
-            return Err(EthApiError::EmptyRawTransactionData);
+            return Err(RlpConversionError::EmptyRawTx);
         }
 
         let transaction = TransactionSigned::decode_enveloped(&mut data.as_ref())
-            .map_err(|_| EthApiError::FailedToDecodeSignedTransaction)?;
+            .map_err(|_| RlpConversionError::DeserializationFailed)?;
 
         Ok(transaction.into())
     }
 }
 
 impl TryFrom<RlpEvmTransaction> for TransactionSignedEcRecovered {
-    type Error = EthApiError;
+    type Error = RlpConversionError;
 
     fn try_from(evm_tx: RlpEvmTransaction) -> Result<Self, Self::Error> {
         let tx = TransactionSignedNoHash::try_from(evm_tx)?;
         let tx: TransactionSigned = tx.into();
         let tx = tx
             .into_ecrecovered()
-            .ok_or(EthApiError::FailedToDecodeSignedTransaction)?;
+            .ok_or(RlpConversionError::DeserializationFailed)?;
 
         Ok(tx)
     }

@@ -1,3 +1,5 @@
+use error::{ensure_success, RevertError};
+pub use error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{TransactionKind, TransactionSignedEcRecovered, U128, U64};
 use revm::primitives::{
@@ -10,14 +12,15 @@ use sov_modules_api::{StateAccessor, WorkingSet};
 use tracing::debug;
 
 use crate::call::get_cfg_env_with_handler;
-use crate::error::rpc::{ensure_success, RevertError, RpcInvalidTransactionError};
 use crate::evm::db::EvmDb;
 use crate::evm::executor;
 use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::helpers::{
     from_primitive_with_hash, from_recovered_with_block_context, prepare_call_env,
 };
-use crate::{EthApiError, Evm, MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
+use crate::{Evm, MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
+
+pub(crate) mod error;
 
 #[rpc_gen(client, server)]
 impl<S: sov_modules_api::Spec> Evm<S> {

@@ -7,7 +7,7 @@ use reth_rpc_types::{Header, Parity, Signature, TransactionRequest};
 use revm::primitives::{TransactTo, TxEnv, B256, U256};
 use revm_primitives::BlockEnv;
 
-use crate::evm::error::rpc::{EthApiError, EthResult, RpcInvalidTransactionError};
+use crate::rpc::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 
 /// Helper type for representing the fees of a [CallRequest]
 struct CallFees {
