@@ -12,20 +12,16 @@ use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::Runtime;
 
-impl<S: Spec, Da: DaSpec> RuntimeAuthenticator for Runtime<S, Da> {
+impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
     type Decodable = <Self as DispatchCall>::Decodable;
 
-    type Tx = AuthenticatedTransactionAndRawHash<S>;
-
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
-
-    type Gas = S::Gas;
 
     fn authenticate(
         &self,
         raw_tx: &RawTx,
         sequencer_stake_meter: &mut Self::SequencerStakeMeter,
-    ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError> {
+    ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError> {
         let auth = Auth::try_from_slice(raw_tx.data.as_slice()).map_err(|e| {
             AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
         })?;

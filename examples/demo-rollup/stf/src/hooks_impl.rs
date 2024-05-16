@@ -182,13 +182,11 @@ impl<S: Spec, Da: DaSpec> SequencerAuthorization<S, Da> for Runtime<S, Da> {
 }
 
 impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for Runtime<S, Da> {
-    type Tx = AuthenticatedTransactionData<S>;
-
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         _context: &Context<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<(), anyhow::Error> {
@@ -198,7 +196,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for Runtime<S, Da> {
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         _sequencer: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
@@ -208,7 +206,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for Runtime<S, Da> {
     /// Resolves the context for a transaction.
     fn resolve_context(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         sequencer: &Da::Address,
         height: u64,
         working_set: &mut StateCheckpoint<S>,

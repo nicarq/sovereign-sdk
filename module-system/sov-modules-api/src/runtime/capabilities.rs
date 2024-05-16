@@ -13,6 +13,7 @@ use thiserror::Error;
 
 use crate::kernel_state::BootstrapWorkingSet;
 use crate::module::Context;
+use crate::transaction::{AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData};
 use crate::{Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, TxGasMeter, WorkingSet};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
@@ -152,14 +153,11 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
 
 /// Authorizes transactions to be executed.
 pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
-    /// The transaction that is being authorized.
-    type Tx;
-
     /// Resolves the context for a transaction.
     /// TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
     fn resolve_context(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         sequencer: &Da::Address,
         height: u64,
         state_checkpoint: &mut StateCheckpoint<S>,
@@ -168,7 +166,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
     /// Prevents duplicate transactions from running.
     fn check_uniqueness(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<(), anyhow::Error>;
@@ -176,7 +174,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         sequencer: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     );
@@ -222,21 +220,17 @@ pub enum AuthenticationError {
 
 /// Authenticates raw transactions. Implementations of this trait should provide a way to interpret the raw bytes of the transaction and authenticate it.
 /// Typically, the authentication will require checking the signature of the transaction.
-pub trait RuntimeAuthenticator {
+pub trait RuntimeAuthenticator<S: Spec> {
     /// Decoded message.
     type Decodable;
-    /// Authenticated transaction.
-    type Tx;
-    /// The gas representation used.
-    type Gas: Gas;
     /// A struct that tracks the staked amount of the sequencer and the eventual execution penalities.
-    type SequencerStakeMeter: GasMeter<Self::Gas>;
+    type SequencerStakeMeter: GasMeter<S::Gas>;
     /// Authenticates raw transaction.
     fn authenticate(
         &self,
         tx: &RawTx,
         sequencer_stake_meter: &mut Self::SequencerStakeMeter,
-    ) -> Result<(Self::Tx, Self::Decodable), AuthenticationError>;
+    ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError>;
 }
 
 #[cfg(feature = "mocks")]
