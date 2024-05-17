@@ -2,7 +2,8 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
-use sov_modules_api::{Context, Module, TxGasMeter};
+use sov_modules_api::transaction::TxGasMeter;
+use sov_modules_api::{Context, Module};
 
 use crate::tests::helpers::{
     generate_address, Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY,

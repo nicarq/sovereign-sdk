@@ -3,11 +3,11 @@ use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
 };
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxGasMeter};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     CryptoSpec, Gas, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
-    PrivateKey, Spec, StateCheckpoint, TxGasMeter, UnlimitedGasMeter, WorkingSet,
+    PrivateKey, Spec, StateCheckpoint, UnlimitedGasMeter, WorkingSet,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::Time;

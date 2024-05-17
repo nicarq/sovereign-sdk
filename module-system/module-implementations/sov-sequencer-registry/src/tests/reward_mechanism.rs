@@ -3,10 +3,8 @@ use sov_bank::{IntoPayable, Payable};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{
-    Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, TxGasMeter, UnlimitedGasMeter,
-};
+use sov_modules_api::transaction::{PriorityFeeBips, TxGasMeter};
+use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, UnlimitedGasMeter};
 use sov_test_utils::generate_empty_tx;
 
 use super::helpers::{TestSequencer, S};

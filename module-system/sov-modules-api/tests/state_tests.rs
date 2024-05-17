@@ -224,11 +224,12 @@ fn test_witness_round_trip() {
 
     {
         let storage = ZkStorage::<StorageSpec>::new();
-        let mut working_set: WorkingSet<Zk> = WorkingSet::with_witness(storage.clone(), witness);
-        state_value.set(&11, &mut working_set);
-        let _ = state_value.get(&mut working_set);
-        state_value.set(&22, &mut working_set);
-        let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
+        let mut state_checkpoint: StateCheckpoint<Zk> =
+            StateCheckpoint::with_witness(storage.clone(), witness);
+        state_value.set(&11, &mut state_checkpoint);
+        let _ = state_value.get(&mut state_checkpoint);
+        state_value.set(&22, &mut state_checkpoint);
+        let (cache_log, _, witness) = state_checkpoint.freeze();
 
         let _ = storage
             .validate_and_materialize(cache_log, &witness)

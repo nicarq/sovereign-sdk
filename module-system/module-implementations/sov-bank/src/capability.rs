@@ -1,5 +1,7 @@
-use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
-use sov_modules_api::{Gas, GasMeter, Spec, StateCheckpoint, TxGasMeter};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionData, TransactionConsumption, TxGasMeter,
+};
+use sov_modules_api::{Gas, GasMeter, Spec, StateCheckpoint};
 use thiserror::Error;
 
 use crate::utils::IntoPayable;
@@ -66,22 +68,14 @@ impl<S: Spec> Bank<S> {
         )
         .expect("Since the balance is checked above, this should be infallible. This is a bug");
 
-        // We compute the gas amount that the transaction should consume.
-        let amount_to_consume = match &tx.gas_limit {
-            // If the user has provided a gas limit, we use the `gas_limit * gas_price` as the amount to consume (EIP-1559).
-            Some(gas_limit) => {
-                // We need to check the gas price in case the user has provided a gas limit.
-                if tx.max_fee < gas_limit.value(gas_price) {
-                    return Err(ReserveGasError::CurrentGasPriceTooHigh);
-                }
-
-                gas_limit.value(gas_price)
+        if let Some(gas_limit) = &tx.gas_limit {
+            // We need to check the gas price in case the user has provided a gas limit.
+            if tx.max_fee < gas_limit.value(gas_price) {
+                return Err(ReserveGasError::CurrentGasPriceTooHigh);
             }
-            // If the user has not provided a gas limit, we use the `max_fee` as the amount to consume.
-            None => tx.max_fee,
-        };
+        }
 
-        let mut gas_meter = TxGasMeter::new(amount_to_consume, gas_price.clone());
+        let mut gas_meter = tx.gas_meter(gas_price);
 
         gas_meter
             .charge_gas(pre_execution_checks_meter.gas_used())
@@ -99,7 +93,7 @@ impl<S: Spec> Bank<S> {
     pub fn consume_gas_and_allocate_rewards(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        gas_meter: sov_modules_api::TxGasMeter<S::Gas>,
+        gas_meter: TxGasMeter<S::Gas>,
         // The address that receives the base fee. Typically, this is the module id of either the `ProverIncentives` or the `AttesterIncentives` module.
         base_fee_recipient: &impl Payable<S>,
         // The address that receives the transaction tip. Typically, the module id of the `SequencerRegistry` module.

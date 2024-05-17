@@ -1,6 +1,7 @@
 use sov_bank::{Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, GAS_TOKEN_ID};
+use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Gas, GasArray, Module, Spec, WorkingSet};
+use sov_modules_api::{Context, Gas, GasArray, GasPrice, Hash, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use tempfile::TempDir;
 
@@ -13,7 +14,9 @@ type S = sov_test_utils::TestSpec;
 #[test]
 fn zeroed_price_wont_deduct_working_set() {
     let sender_balance = 100;
-    let remaining_funds = BankGasTestCase::init(sender_balance).execute().unwrap();
+    let remaining_funds = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[0, 0]))
+        .execute()
+        .unwrap();
 
     assert_eq!(
         remaining_funds, sender_balance,
@@ -27,12 +30,13 @@ fn normal_price_will_deduct_working_set() {
 
     let native_price = 2;
     let zk_price = 3;
-    let remaining_funds = BankGasTestCase::init(sender_balance)
-        .with_native_price(native_price)
-        .with_zk_price(zk_price)
-        .override_gas_config()
-        .execute()
-        .unwrap();
+    let remaining_funds = BankGasTestCase::init(
+        sender_balance,
+        GasPrice::from_slice(&[native_price, zk_price]),
+    )
+    .override_gas_config()
+    .execute()
+    .unwrap();
 
     // compute the expected gas cost, based on the test constants
     let gas_used = native_price * CREATE_TOKEN_NATIVE_COST + zk_price * CREATE_TOKEN_ZK_COST;
@@ -48,18 +52,14 @@ fn normal_price_will_deduct_working_set() {
 fn constants_price_is_charged_correctly() {
     let sender_balance = 100;
 
-    let native_price = 2;
-    let zk_price = 3;
-    let remaining_funds = BankGasTestCase::init(sender_balance)
-        .with_native_price(native_price)
-        .with_zk_price(zk_price)
+    let remaining_funds = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[2, 3]))
         .execute()
         .unwrap();
 
     // compute the expected gas cost, based on the json constants
     let bank = Bank::<S>::default();
     let config = bank.gas_config();
-    let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[native_price, zk_price]);
+    let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[2, 3]);
     let gas_used = config.create_token.value(&gas_price);
 
     assert_eq!(
@@ -73,9 +73,7 @@ fn constants_price_is_charged_correctly() {
 fn not_enough_gas_wont_panic() {
     let sender_balance = 100;
 
-    let result = BankGasTestCase::init(sender_balance)
-        .with_native_price(2000)
-        .with_zk_price(3000)
+    let result = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[2000, 3000]))
         .override_gas_config()
         .execute();
 
@@ -89,9 +87,7 @@ fn not_enough_gas_wont_panic() {
 fn very_high_gas_price_wont_panic_or_overflow() {
     let sender_balance = 100;
 
-    let result = BankGasTestCase::init(sender_balance)
-        .with_native_price(u64::MAX)
-        .with_zk_price(3)
+    let result = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[u64::MAX; 2]))
         .override_gas_config()
         .execute();
 
@@ -105,13 +101,10 @@ pub struct BankGasTestCase {
     ctx: Context<S>,
     message: CallMessage<S>,
     tmpdir: TempDir,
-    max_fee: u64,
-    native_price: u64,
-    zk_price: u64,
 }
 
 impl BankGasTestCase {
-    pub fn init(sender_balance: u64) -> Self {
+    pub fn init(sender_balance: u64, gas_price: <<S as Spec>::Gas as Gas>::Price) -> Self {
         let tmpdir = tempfile::tempdir().unwrap();
 
         // create a base token with an initial balance to pay for the gas
@@ -149,9 +142,12 @@ impl BankGasTestCase {
         let balance = bank.get_balance_of(&sender_address, base_token_id, &mut ws);
         assert_eq!(balance, Some(sender_balance));
 
+        let checkpoint = ws.checkpoint().0;
+
         // generate a create dummy token message
         let token_name = "dummy".to_string();
         let initial_balance = 500;
+
         let message = CallMessage::CreateToken::<S> {
             salt,
             token_name,
@@ -160,15 +156,25 @@ impl BankGasTestCase {
             authorized_minters: vec![minter_address],
         };
 
+        let tx: AuthenticatedTransactionData<S> = AuthenticatedTransactionData {
+            max_fee: sender_balance,
+            pub_key_hash: Hash([0; 32]),
+            default_address: Some(sender_address),
+            chain_id: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+            gas_limit: None,
+            nonce: 0,
+        };
+
+        let gas_meter = tx.gas_meter(&gas_price);
+        let ws = checkpoint.to_revertable(gas_meter);
+
         Self {
             ws,
             bank,
             ctx,
             message,
             tmpdir,
-            max_fee: sender_balance,
-            native_price: 0,
-            zk_price: 0,
         }
     }
 
@@ -183,16 +189,6 @@ impl BankGasTestCase {
         self
     }
 
-    pub fn with_native_price(mut self, price: u64) -> Self {
-        self.native_price = price;
-        self
-    }
-
-    pub fn with_zk_price(mut self, price: u64) -> Self {
-        self.zk_price = price;
-        self
-    }
-
     pub fn execute(self) -> anyhow::Result<u64> {
         let Self {
             mut ws,
@@ -200,13 +196,8 @@ impl BankGasTestCase {
             ctx,
             message,
             tmpdir,
-            max_fee,
-            native_price,
-            zk_price,
         } = self;
 
-        ws.set_gas_funds(max_fee);
-        ws.set_gas_price([native_price, zk_price].into());
         bank.call(message, &ctx, &mut ws)?;
 
         // can unlock storage dir

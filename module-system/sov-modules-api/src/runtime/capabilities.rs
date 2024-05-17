@@ -13,8 +13,11 @@ use thiserror::Error;
 
 use crate::kernel_state::BootstrapWorkingSet;
 use crate::module::Context;
-use crate::transaction::{AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData};
-use crate::{Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, TxGasMeter, WorkingSet};
+use crate::transaction::{
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, TransactionConsumption,
+    TxGasMeter,
+};
+use crate::{Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, WorkingSet};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
@@ -78,14 +81,6 @@ pub trait BatchSelector<Da: DaSpec> {
 
 /// Enforces gas limits and penalties for transactions.
 pub trait GasEnforcer<S: Spec, Da: DaSpec> {
-    /// TODO(@theochap) after `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/501>` is solved:
-    /// this associated type should be removed.
-    /// The transaction type that the gas enforcer knows how to parse
-    type Tx;
-    /// TODO(@theochap) after `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/501>` is solved:
-    /// this associated type should be removed.
-    /// The type of the transaction consumption.
-    type TxConsumption;
     /// A gas meter that is used to measure and track the gas used by the pre-execution checks (such as signature checks,
     /// deserialization, and decoding of the transaction).
     type PreExecChecksMeter: GasMeter<S::Gas>;
@@ -103,7 +98,7 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     #[allow(clippy::result_large_err)]
     fn try_reserve_gas(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
         gas_price: &<S::Gas as Gas>::Price,
         pre_exec_checks_meter: &Self::PreExecChecksMeter,
@@ -112,22 +107,22 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
 
     /// Computes and allocates the transaction reward to the base fee and the tip recipients.
     /// The transaction reward is computed following the EIP-1559 specification.
-    /// Returns the transaction reward amount in the format specified by the [`GasEnforcer::TxConsumption`] type.
+    /// Returns the transaction reward amount in the format specified by the [`TransactionConsumption`] type.
     /// The [`TxGasMeter`] is consumed to ensure that the transaction reward is only computed once at the end of the transaction execution.
     fn consume_gas_and_allocate_rewards(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         gas_meter: TxGasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Self::TxConsumption;
+    ) -> TransactionConsumption;
 
     /// Refunds any remaining gas to the payer after the transaction is processed.
     /// The consumption is obtained from the output of the [`GasEnforcer::consume_gas_and_allocate_rewards`] capability.
     fn refund_remaining_gas(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        consumption: &Self::TxConsumption,
+        consumption: &TransactionConsumption,
         state_checkpoint: &mut StateCheckpoint<S>,
     );
 }

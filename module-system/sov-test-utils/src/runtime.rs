@@ -12,6 +12,7 @@ use sov_modules_api::runtime::capabilities::{
 };
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, TransactionConsumption,
+    TxGasMeter,
 };
 use sov_modules_api::{
     Context, DaSpec, DispatchCall, Event, Gas, Genesis, MessageCodec, ModuleInfo, Spec,
@@ -126,17 +127,13 @@ impl<S: Spec, Da: DaSpec> Runtime<S, Da> for TestRuntime<S, Da> {
 }
 
 impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
-    /// The transaction type that the gas enforcer knows how to parse
-    type Tx = AuthenticatedTransactionData<S>;
-    /// A type that tracks the transaction consumption
-    type TxConsumption = TransactionConsumption;
     /// A type that tracks the gas consumed by pre-execution checks
     type PreExecChecksMeter = SequencerStakeMeter<S::Gas>;
 
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
         gas_price: &<S::Gas as Gas>::Price,
         pre_exec_checks_meter: &Self::PreExecChecksMeter,
@@ -159,10 +156,10 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
 
     fn consume_gas_and_allocate_rewards(
         &self,
-        tx: &Self::Tx,
-        gas_meter: sov_modules_api::TxGasMeter<<S as Spec>::Gas>,
+        tx: &AuthenticatedTransactionData<S>,
+        gas_meter: TxGasMeter<<S as Spec>::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Self::TxConsumption {
+    ) -> TransactionConsumption {
         self.bank.consume_gas_and_allocate_rewards(
             tx,
             gas_meter,
@@ -174,9 +171,9 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for TestRuntime<S, Da> {
 
     fn refund_remaining_gas(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        consumption: &Self::TxConsumption,
+        consumption: &TransactionConsumption,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         self.bank

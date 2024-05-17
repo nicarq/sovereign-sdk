@@ -1,8 +1,9 @@
 use sov_bank::{Bank, IntoPayable, ReserveGasError, GAS_TOKEN_ID};
-use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionData, PriorityFeeBips, Transaction, TxGasMeter,
+};
 use sov_modules_api::{
-    Address, Gas, GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint, TxGasMeter,
-    UnlimitedGasMeter,
+    Address, Gas, GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint, UnlimitedGasMeter,
 };
 use sov_test_utils::{generate_empty_tx, simple_bank_setup};
 mod helpers;
@@ -50,12 +51,8 @@ fn reserve_gas_helper(
         )
         .expect("The reserve gas operation should not fail");
 
-    let expected_initial_balance_reserved = match gas_limit {
-        Some(gas_limit) => gas_limit.value(gas_price),
-        None => initial_balance,
-    };
-
-    let mut expected_meter = TxGasMeter::new(expected_initial_balance_reserved, gas_price.clone());
+    let mut expected_meter =
+        AuthenticatedTransactionData::from(transaction.clone()).gas_meter(gas_price);
 
     expected_meter
         .charge_gas(gas_for_pre_execution_checks)
