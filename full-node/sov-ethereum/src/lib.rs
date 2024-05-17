@@ -14,7 +14,7 @@ use borsh::ser::BorshSerialize;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
-use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction};
+use sov_evm::{EthApiError, Evm, RlpEvmTransaction};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{Authenticator, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
@@ -47,7 +47,6 @@ pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
     } = eth_rpc_config;
 
     // Fetch nonce from storage
-
     let mut rpc = RpcModule::new(Ethereum::new(
         da_service,
         Arc::new(Mutex::new(EthBatchBuilder::new(min_blob_size))),
@@ -99,9 +98,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
             raw_tx.clone().try_into().map_err(EthApiError::from)?;
 
         let tx_hash = signed_transaction.hash();
-
-        let tx = CallMessage { tx: raw_tx };
-        let message = tx.try_to_vec().unwrap();
+        let message = raw_tx.try_to_vec().expect("Failed to serialize raw tx");
 
         Ok((tx_hash, message))
     }

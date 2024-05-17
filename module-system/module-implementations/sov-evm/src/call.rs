@@ -1,5 +1,5 @@
 use anyhow::Result;
-use reth_primitives::{Log as RethLog, TransactionSignedEcRecovered};
+use reth_primitives::{Log as RethLog, TransactionSignedNoHash};
 use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
 use revm_primitives::BlockEnv;
 use sov_modules_api::{CallResponse, Context, TxState};
@@ -22,17 +22,22 @@ use crate::{Evm, PendingTransaction, SpecId};
 )]
 pub struct CallMessage {
     /// RLP encoded transaction.
-    pub tx: RlpEvmTransaction,
+    pub rlp: RlpEvmTransaction,
+    /// Signer recovered from the rlp transaction.
+    pub signer: [u8; 20],
 }
 
 impl<S: sov_modules_api::Spec> Evm<S> {
     pub(crate) fn execute_call(
         &self,
-        tx: RlpEvmTransaction,
+        message: CallMessage,
         _context: &Context<S>,
         working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let evm_tx_recovered: TransactionSignedEcRecovered = tx.try_into()?;
+        // We don't check the signature here, because it was done by the authenticator.
+        let signer = Address::new(message.signer);
+        let evm_tx: TransactionSignedNoHash = message.rlp.try_into()?;
+
         let block_env = self
             .block_env
             .get(working_set)
@@ -42,7 +47,8 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
         let evm_db: EvmDb<'_, _> = self.get_db(working_set);
-        let result = executor::execute_tx(evm_db, &block_env, &evm_tx_recovered, cfg_env);
+        let result = executor::execute_tx(evm_db, &block_env, &evm_tx, signer, cfg_env);
+
         let previous_transaction = self.pending_transactions.last(working_set);
         let previous_transaction_cumulative_gas_used = previous_transaction
             .as_ref()
@@ -59,13 +65,13 @@ impl<S: sov_modules_api::Spec> Evm<S> {
                 let gas_used = result.gas_used();
                 let logs: Vec<_> = result.into_logs().into_iter().map(into_reth_log).collect();
                 tracing::debug!(
-                    hash = hex::encode(evm_tx_recovered.hash()),
+                    hash = hex::encode(evm_tx.hash()),
                     gas_used,
                     "EVM transaction has been successfully executed"
                 );
                 Receipt {
                     receipt: reth_primitives::Receipt {
-                        tx_type: evm_tx_recovered.tx_type(),
+                        tx_type: evm_tx.tx_type(),
                         success: is_success,
                         cumulative_gas_used: previous_transaction_cumulative_gas_used
                             .saturating_add(gas_used),
@@ -79,7 +85,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
             Err(err) => {
                 tracing::debug!(
-                    tx_hash = hex::encode(evm_tx_recovered.hash()),
+                    tx_hash = hex::encode(evm_tx.hash()),
                     error = ?err,
                     "EVM transaction has been reverted"
                 );
@@ -98,8 +104,8 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let pending_transaction = PendingTransaction {
             transaction: TransactionSignedAndRecovered {
-                signer: evm_tx_recovered.signer(),
-                signed_transaction: evm_tx_recovered.into(),
+                signer,
+                signed_transaction: evm_tx.into(),
                 block_number: block_env.number.to(),
             },
             receipt,

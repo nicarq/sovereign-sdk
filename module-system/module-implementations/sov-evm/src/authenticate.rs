@@ -7,7 +7,7 @@ use sov_modules_api::transaction::{
 use sov_modules_api::{GasMeter, Hash, Spec};
 
 use crate::conversions::RlpConversionError;
-use crate::CallMessage;
+use crate::{CallMessage, RlpEvmTransaction};
 
 /// Authenticate raw evm transaction.
 pub fn authenticate<S: Spec>(
@@ -16,19 +16,19 @@ pub fn authenticate<S: Spec>(
 ) -> Result<(AuthenticatedTransactionAndRawHash<S>, CallMessage), AuthenticationError> {
     // TODO: Charge gas for deserialization & signature check.
 
-    let tx = CallMessage::try_from_slice(raw_tx).map_err(|e| {
+    let tx = RlpEvmTransaction::try_from_slice(raw_tx).map_err(|e| {
         AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
     })?;
 
     let tx_clone = tx.clone();
 
     let evm_tx_recovered: TransactionSignedEcRecovered =
-        tx.tx.try_into().map_err(|e: RlpConversionError| {
+        tx.try_into().map_err(|e: RlpConversionError| {
             AuthenticationError::FatalError(FatalError::SigVerificationFailed(e.to_string()))
         })?;
 
     let tx_hash = evm_tx_recovered.hash();
-    let (signed_tx, address) = evm_tx_recovered.to_components();
+    let (signed_tx, signer) = evm_tx_recovered.to_components();
 
     // TODO `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/521>`: These values should be correctly set from the raw message
     let chain_id = 0;
@@ -37,7 +37,9 @@ pub fn authenticate<S: Spec>(
     let gas_limit = None;
 
     let nonce = signed_tx.nonce();
-    let addr_hash = Hash(address.into_word().into());
+
+    // This will be renamed to `CredentialId`.
+    let addr_hash = Hash(signer.into_word().into());
 
     let authenticated_tx = AuthenticatedTransactionData::<S> {
         pub_key_hash: addr_hash,
@@ -53,5 +55,9 @@ pub fn authenticate<S: Spec>(
         raw_tx_hash: tx_hash.into(),
         authenticated_tx,
     };
-    Ok((tx_and_raw_hash, tx_clone))
+    let call = CallMessage {
+        rlp: tx_clone,
+        signer: signer.into(),
+    };
+    Ok((tx_and_raw_hash, call))
 }

@@ -147,14 +147,17 @@ fn failed_transaction_test() {
 
 fn create_contract_message(dev_signer: &TestSigner, nonce: u64) -> CallMessage {
     let contract = SimpleStorageContract::default();
-    let signed_tx = dev_signer
+    let (signed_tx, signer) = dev_signer
         .sign_default_transaction(
             TransactionKind::Create,
             contract.byte_code().to_vec(),
             nonce,
         )
         .unwrap();
-    CallMessage { tx: signed_tx }
+    CallMessage {
+        rlp: signed_tx,
+        signer: signer.into(),
+    }
 }
 
 fn set_arg_message(
@@ -164,7 +167,7 @@ fn set_arg_message(
     set_arg: u32,
 ) -> CallMessage {
     let contract = SimpleStorageContract::default();
-    let signed_tx = dev_signer
+    let (signed_tx, signer) = dev_signer
         .sign_default_transaction(
             TransactionKind::Call(contract_addr),
             hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
@@ -172,5 +175,8 @@ fn set_arg_message(
         )
         .unwrap();
 
-    CallMessage { tx: signed_tx }
+    CallMessage {
+        rlp: signed_tx,
+        signer: signer.into(),
+    }
 }

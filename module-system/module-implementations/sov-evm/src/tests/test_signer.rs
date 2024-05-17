@@ -43,7 +43,7 @@ impl TestSigner {
         kind: TransactionKind,
         data: Vec<u8>,
         nonce: u64,
-    ) -> Result<RlpEvmTransaction, SignError> {
+    ) -> Result<(RlpEvmTransaction, Address), SignError> {
         let reth_tx = EIP1559TransactionRequest {
             chain_id: 1,
             nonce: U64::from(nonce),
@@ -62,8 +62,11 @@ impl TestSigner {
         let reth_tx = TypedTransactionRequest::EIP1559(reth_tx);
         let signed = self.signer.sign_transaction(reth_tx, self.address)?;
 
-        Ok(RlpEvmTransaction {
-            rlp: signed.envelope_encoded().to_vec(),
-        })
+        Ok((
+            RlpEvmTransaction {
+                rlp: signed.envelope_encoded().to_vec(),
+            },
+            self.address,
+        ))
     }
 }

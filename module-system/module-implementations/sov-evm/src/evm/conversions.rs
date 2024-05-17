@@ -2,7 +2,7 @@ use reth_primitives::{
     Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
 };
 use revm::primitives::{CreateScheme, TransactTo, TxEnv, U256};
-use revm_primitives::BlockEnv;
+use revm_primitives::{Address, BlockEnv};
 use thiserror::Error;
 
 use super::primitive_types::SealedBlock;
@@ -25,14 +25,14 @@ impl From<SealedBlock> for BlockEnv {
     }
 }
 
-pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
+pub(crate) fn create_tx_env(tx: &TransactionSignedNoHash, signer: Address) -> TxEnv {
     let to = match tx.to() {
         Some(addr) => TransactTo::Call(addr),
         None => TransactTo::Create(CreateScheme::Create),
     };
 
     TxEnv {
-        caller: tx.signer(),
+        caller: signer,
         gas_limit: tx.gas_limit(),
         gas_price: U256::from(tx.effective_gas_price(None)),
         gas_priority_fee: tx.max_priority_fee_per_gas().map(U256::from),
