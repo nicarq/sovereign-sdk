@@ -3,6 +3,7 @@ use std::sync::Arc;
 use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_stf_runner::InitVariant;
+use tokio::task::JoinHandle;
 mod helpers;
 use helpers::runner_init::{initialize_runner, TestNode};
 
@@ -19,15 +20,16 @@ async fn fetch_aggregated_proof_test() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-// In this test proofs are created just after batch is submitted to the DA.
+// In this test, proofs are created just after batch is submitted to the DA.
 async fn run_make_proof_sync(
     test_case: TestCase,
     nb_of_threads: usize,
 ) -> Result<(), anyhow::Error> {
+    let tmpdir = tempfile::tempdir().unwrap();
     let jump = test_case.jump();
 
     let nb_of_batches = test_case.input.nb_of_batches;
-    let mut test_node = spawn(jump, nb_of_threads);
+    let (mut test_node, runner_task) = spawn(jump, nb_of_threads, tmpdir.path());
 
     for batch_number in 0..nb_of_batches {
         test_node.send_transaction().await.unwrap();
@@ -49,17 +51,19 @@ async fn run_make_proof_sync(
 
     let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
+    runner_task.abort();
     Ok(())
 }
 
-// In this test proofs are created after multiple batches are submitted to the DA.
+// In this test, proofs are created after multiple batches are submitted to the DA.
 async fn run_make_proof_async(
     test_case: TestCase,
     nb_of_threads: usize,
 ) -> Result<(), anyhow::Error> {
+    let tmpdir = tempfile::tempdir().unwrap();
     let jump = test_case.jump();
     let nb_of_batches = test_case.input.nb_of_batches;
-    let mut test_node = spawn(test_case.jump(), nb_of_threads);
+    let (mut test_node, runner_task) = spawn(test_case.jump(), nb_of_threads, tmpdir.path());
 
     for _ in 0..nb_of_batches {
         test_node.send_transaction().await?;
@@ -84,6 +88,7 @@ async fn run_make_proof_async(
 
     let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
+    runner_task.abort();
     Ok(())
 }
 
@@ -100,7 +105,11 @@ fn calculate_and_check_slot_number(
     final_slot + 1
 }
 
-fn spawn(jump: usize, nb_of_threads: usize) -> TestNode {
+fn spawn(
+    jump: usize,
+    nb_of_threads: usize,
+    path: impl AsRef<std::path::Path>,
+) -> (TestNode, JoinHandle<()>) {
     let genesis_block = MockBlock {
         header: MockBlockHeader::from_height(0),
         validity_cond: Default::default(),
@@ -112,19 +121,21 @@ fn spawn(jump: usize, nb_of_threads: usize) -> TestNode {
         genesis_params: vec![1],
     };
 
-    let tmpdir = tempfile::tempdir().unwrap();
-    let path = tmpdir.path();
-
     let da_service = Arc::new(MockDaService::new(MockAddress::new([11u8; 32])));
 
-    let (mut runner, test_node) =
-        initialize_runner(da_service, path, init_variant, jump, Some(nb_of_threads));
+    let (mut runner, test_node) = initialize_runner(
+        da_service,
+        path.as_ref(),
+        init_variant,
+        jump,
+        Some(nb_of_threads),
+    );
 
-    tokio::spawn(async move {
+    let join_handle = tokio::spawn(async move {
         runner.run_in_process().await.unwrap();
     });
 
-    test_node
+    (test_node, join_handle)
 }
 
 #[derive(Clone, Copy)]
@@ -148,7 +159,7 @@ impl TestCase {
     fn new(jump: usize) -> Self {
         // Generate 7 aggregate-proofs worth of blocks
         let nb_of_batches = 7 * jump;
-        // The initial slot number of the final proof
+        // The initial slot number of the final proof.
         // The first proof covers blocks 1..=jump, the second jump+1..=(2*jump), etc.
         let initial_slot_number = (6 * jump + 1) as u64;
         Self {
