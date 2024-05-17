@@ -55,7 +55,7 @@ pub mod my_module {
         fn genesis(
             &self,
             config: &Self::Config,
-            working_set: &mut WorkingSet<S>,
+            working_set: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
             self.data.set(config, working_set);
             Ok(())

@@ -17,7 +17,7 @@ pub use genesis::*;
 pub use rpc::*;
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{Context, DaSpec, Error, ModuleId, ModuleInfo, Spec, TxState, WorkingSet};
+use sov_modules_api::{Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState};
 
 use crate::event::Event;
 
@@ -67,7 +67,11 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
 
     type Event = Event<S>;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)
     }

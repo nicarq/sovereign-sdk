@@ -48,7 +48,7 @@ pub mod first_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            working_set: &mut WorkingSet<S>,
+            working_set: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
             self.state_in_first_struct.set(&1, working_set);
             Ok(())
@@ -110,7 +110,7 @@ pub mod second_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            working_set: &mut WorkingSet<S>,
+            working_set: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
             self.state_in_second_struct.set(&2, working_set);
             Ok(())
@@ -179,7 +179,7 @@ pub mod third_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            working_set: &mut WorkingSet<S>,
+            working_set: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
             self.state_in_third_struct
                 .set(&Default::default(), working_set);

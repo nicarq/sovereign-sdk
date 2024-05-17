@@ -13,7 +13,7 @@ pub use call::*;
 pub use genesis::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
-use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, TxState, WorkingSet};
+use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
 
 use crate::event::Event;
 
@@ -49,7 +49,11 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for ValueSetter<S> {
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)
     }

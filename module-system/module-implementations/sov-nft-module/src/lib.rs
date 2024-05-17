@@ -16,7 +16,8 @@ mod rpc;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateMap, TxState, WorkingSet,
+    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, Spec, StateMap,
+    TxState,
 };
 mod event;
 mod offchain;
@@ -55,7 +56,7 @@ impl<S: Spec> Module for NonFungibleToken<S> {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<S>,
+        _working_set: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
         Ok(())
     }

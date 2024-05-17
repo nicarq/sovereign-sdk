@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::GenesisState;
 
 use super::ValueSetter;
 
@@ -20,7 +20,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
     pub(crate) fn init_module(
         &self,
         admin_config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl GenesisState<S>,
     ) -> Result<()> {
         self.admin.set(&admin_config.admin, working_set);
         Ok(())

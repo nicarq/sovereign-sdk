@@ -14,3 +14,21 @@ pub trait TxState<S: Spec>:
     + GasMeter<S::Gas>
 {
 }
+
+impl<S: Spec, T> TxState<S> for T where
+    T: StateReaderAndWriter<User> + StateWriter<Accessory> + EventContainer + GasMeter<S::Gas>
+{
+}
+/// The state accessor used during genesis. It provides unrestricted
+/// access to [`User`] and `Kernel` state, as well as limited visibility into [`Accessory`] state.  
+pub trait GenesisState<S: Spec>: TxState<S> {}
+
+impl<S: Spec, T> GenesisState<S> for T where
+    T: TxState<S>
+        + StateReaderAndWriter<User>
+        // + StateReaderAndWriter<sov_state::Kernel>
+        + StateWriter<Accessory>
+        + EventContainer
+        + GasMeter<S::Gas>
+{
+}

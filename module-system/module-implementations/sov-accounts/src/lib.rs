@@ -14,7 +14,7 @@ mod event;
 #[cfg(test)]
 mod tests;
 pub use call::CallMessage;
-use sov_modules_api::{Context, Error, Hash, ModuleId, ModuleInfo, Spec, TxState, WorkingSet};
+use sov_modules_api::{Context, Error, GenesisState, Hash, ModuleId, ModuleInfo, Spec, TxState};
 
 use crate::event::Event;
 
@@ -53,7 +53,11 @@ impl<S: Spec> sov_modules_api::Module for Accounts<S> {
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
     }
 

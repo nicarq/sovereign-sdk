@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{DaSpec, WorkingSet};
+use sov_modules_api::{DaSpec, GenesisState};
 
 use crate::{Amount, ProverIncentives};
 
@@ -34,7 +34,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl GenesisState<S>,
     ) -> Result<()> {
         anyhow::ensure!(
             !config.initial_provers.is_empty(),

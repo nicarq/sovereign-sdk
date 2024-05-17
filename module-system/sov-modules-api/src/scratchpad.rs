@@ -16,7 +16,7 @@ use sov_state::{NativeStorage, ProvableCompileTimeNamespace, ProvenStateAccessor
 
 use crate::module::{Context, Spec};
 use crate::transaction::TxGasMeter;
-use crate::{Gas, GasMeter, TxState};
+use crate::{Gas, GasMeter};
 
 /// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
 pub(crate) trait UniversalStateAccessor {
@@ -427,7 +427,6 @@ impl<S: Spec> EventContainer for WorkingSet<S> {
     }
 }
 
-impl<S: Spec> TxState<S> for WorkingSet<S> {}
 impl<S: Spec> GasMeter<S::Gas> for WorkingSet<S> {
     fn charge_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
         self.gas_meter.charge_gas(gas)

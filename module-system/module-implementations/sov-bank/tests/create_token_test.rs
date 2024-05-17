@@ -59,7 +59,7 @@ fn initial_and_deployed_token() {
 fn overflow_max_supply() {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let bank_config = create_bank_config_with_token(2, u64::MAX - 2);
 

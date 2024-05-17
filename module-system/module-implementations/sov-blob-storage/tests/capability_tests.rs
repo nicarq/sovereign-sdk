@@ -781,7 +781,7 @@ impl TestRuntime<S, MockDaSpec> {
         let genesis_config = Self::build_genesis_config(with_preferred_sequencer);
         let runtime: Self = Default::default();
 
-        let mut working_set = WorkingSet::new(storage.clone());
+        let mut working_set = WorkingSet::<S>::new(storage.clone());
         runtime.genesis(&genesis_config, &mut working_set).unwrap();
 
         // In addition to "genesis", register one non-preferred sequencer

@@ -8,7 +8,7 @@ pub use event::Event;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, TxState, WorkingSet};
+use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExampleModuleConfig {}
@@ -45,7 +45,11 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for ExampleModule<S> {
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, working_set)?)
     }

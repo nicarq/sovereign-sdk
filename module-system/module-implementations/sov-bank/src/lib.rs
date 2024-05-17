@@ -17,7 +17,7 @@ pub use call::*;
 pub use genesis::*;
 use sov_modules_api::macros::config_bech32;
 use sov_modules_api::{
-    CallResponse, Context, Error, Gas, ModuleId, ModuleInfo, TxState, WorkingSet,
+    CallResponse, Context, Error, Gas, GenesisState, ModuleId, ModuleInfo, TxState,
 };
 use token::Token;
 /// Specifies an interface to interact with tokens.
@@ -81,7 +81,11 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 
     type Event = Event<S>;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
     }
 

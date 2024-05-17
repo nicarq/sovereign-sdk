@@ -11,7 +11,7 @@ mod rpc;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, TxState, WorkingSet,
+    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, Spec, TxState,
 };
 mod event;
 pub use crate::event::Event;
@@ -42,7 +42,11 @@ impl<S: Spec> Module for NonFungibleToken<S> {
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
     }
 

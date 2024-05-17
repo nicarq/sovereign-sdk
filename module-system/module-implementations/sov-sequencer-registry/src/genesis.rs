@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::GenesisState;
 
 use crate::SequencerRegistry;
 
@@ -40,7 +40,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl GenesisState<S>,
     ) -> Result<()> {
         tracing::info!(
             sequencer_rollup_address = %config.seq_rollup_address,
