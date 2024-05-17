@@ -6,7 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_state::EventContainer;
 
 use crate::common::ModuleError;
-use crate::{ModuleId, TxState, WorkingSet};
+use crate::{GenesisState, ModuleId, TxState};
 
 mod dispatch;
 mod event;
@@ -41,7 +41,7 @@ pub trait Module {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<Self::Spec>,
+        _working_set: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
         Ok(())
     }
@@ -162,7 +162,7 @@ pub trait Genesis {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut WorkingSet<Self::Spec>,
+        working_set: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError>;
 }
 
@@ -177,7 +177,7 @@ where
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut WorkingSet<Self::Spec>,
+        working_set: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
         <Self as Module>::genesis(self, config, working_set)
     }

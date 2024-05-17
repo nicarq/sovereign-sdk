@@ -1,7 +1,8 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
+    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateValue, TxState,
+    WorkingSet,
 };
 
 #[derive(ModuleInfo)]
@@ -22,7 +23,11 @@ impl<S: Spec> Module for QueryModule<S> {
     type CallMessage = u8;
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl sov_modules_api::GenesisState<S>,
+    ) -> Result<(), Error> {
         self.data.set(config, working_set);
         Ok(())
     }

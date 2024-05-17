@@ -1,3 +1,4 @@
+- #686 Changes the API of `Module::genesis` to accept an `&mut impl sov_modules_api::GenesisState<S>` instead of a concrete type.
 - #679 remove the transaction signature check from the `EVM` module.
 - #681 contains some interface improvements for the gas which become possible after `sov-core` and `sov-api` got merged. In particular:
     - Move `TxGasMeter` from `common/gas` to `transaction` which allows more type-safety by removing methods to create and modify arbitrary gas meters, tying it to the `AuthenticatedTransactionData` type.

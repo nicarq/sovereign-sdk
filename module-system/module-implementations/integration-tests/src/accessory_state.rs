@@ -1,6 +1,6 @@
 use sov_modules_api::{
-    AccessoryStateValue, CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, Spec,
-    TxState, WorkingSet,
+    AccessoryStateValue, CallResponse, Context, GenesisState, Module, ModuleError, ModuleId,
+    ModuleInfo, Spec, TxState, WorkingSet,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::Storage;
@@ -27,7 +27,7 @@ impl<S: Spec> Module for TestModule<S> {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<S>,
+        _working_set: &mut impl GenesisState<S>,
     ) -> Result<(), ModuleError> {
         Ok(())
     }

@@ -234,7 +234,7 @@ fn make_init_module(
     let ty = &field.ty;
     let trait_assertion = match variant {
         ModuleType::Standard => {
-            quote::quote! { let _ = <#ty as ::sov_modules_api::Module>::genesis; }
+            quote::quote! { let _: <#ty as ::sov_modules_api::Module>::Spec; }
         }
         ModuleType::Kernel => {
             quote::quote! { let _ = <#ty as ::sov_modules_api::KernelModule>::genesis_unchecked; }

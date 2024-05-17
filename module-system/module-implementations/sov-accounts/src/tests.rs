@@ -116,7 +116,7 @@ fn test_update_account() {
 #[test]
 fn test_update_account_fails() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let working_set = &mut WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
     let sender_1 = TestPrivateKey::generate().pub_key();
@@ -158,7 +158,7 @@ fn test_update_account_fails() {
 #[test]
 fn test_get_account_after_pub_key_update() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let working_set = &mut WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
     let sender = TestPrivateKey::generate().pub_key();

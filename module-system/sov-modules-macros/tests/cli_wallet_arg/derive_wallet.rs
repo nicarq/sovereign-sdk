@@ -2,7 +2,7 @@ use sov_modules_api::cli::JsonStringArg;
 use sov_modules_api::macros::{CliWallet, CliWalletArg};
 use sov_modules_api::{
     CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleId,
-    ModuleInfo, Spec, StateValue, TxState, WorkingSet,
+    ModuleInfo, Spec, StateValue, TxState,
 };
 use sov_test_utils::TestSpec;
 
@@ -44,7 +44,7 @@ pub mod first_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            _working_set: &mut WorkingSet<S>,
+            _working_set: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
             Ok(())
         }
@@ -98,7 +98,7 @@ pub mod second_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            _working_set: &mut WorkingSet<S>,
+            _working_set: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
             Ok(())
         }

@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::prelude::*;
+use sov_modules_api::GenesisState;
 
 use crate::token::Token;
 use crate::utils::TokenHolderRef;
@@ -121,7 +121,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl GenesisState<S>,
     ) -> Result<()> {
         let parent_prefix = self.tokens.prefix();
         let gas_token_config: TokenConfig<S> = config.gas_token_config.clone().into();
@@ -172,6 +172,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
 mod tests {
     use std::str::FromStr;
 
+    use sov_modules_api::prelude::serde_json;
     use sov_modules_api::{AddressBech32, Spec};
     use sov_test_utils::TestSpec;
 

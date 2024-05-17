@@ -40,7 +40,7 @@ fuzz_target!(
         let mut seed = [0u8; 32];
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let working_set = &mut WorkingSet::new(storage);
+        let working_set = &mut WorkingSet::<S>::new(storage);
 
         let sequencer = <S as Spec>::Address::from(sequencer);
         let accounts: Vec<_> = keys

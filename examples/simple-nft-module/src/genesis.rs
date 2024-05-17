@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::{GenesisState, Spec};
 
 use crate::NonFungibleToken;
 
@@ -18,7 +18,7 @@ impl<S: Spec> NonFungibleToken<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl GenesisState<S>,
     ) -> Result<()> {
         self.admin.set(&config.admin, working_set);
         for (id, owner) in config.owners.iter() {

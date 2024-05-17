@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use serde_with::{serde_as, DisplayFromStr};
 use sov_modules_api::prelude::*;
-use sov_modules_api::Hash;
+use sov_modules_api::{GenesisState, Hash};
 
 use crate::{Account, Accounts};
 
@@ -33,7 +33,7 @@ impl<S: Spec> Accounts<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl GenesisState<S>,
     ) -> Result<()> {
         for acc in config.accounts.iter() {
             if self.accounts.get(&acc.pub_key_hash, working_set).is_some() {

@@ -26,8 +26,8 @@ pub use rpc::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
-    CallResponse, Context, Error, EventEmitter, ModuleId, ModuleInfo, Spec, StateAccessor,
-    StateCheckpoint, StateMap, StateValue, TxState, WorkingSet,
+    CallResponse, Context, Error, EventEmitter, GenesisState, ModuleId, ModuleInfo, Spec,
+    StateAccessor, StateCheckpoint, StateMap, StateValue, TxState, WorkingSet,
 };
 use sov_state::codec::BcsCodec;
 use thiserror::Error;
@@ -122,7 +122,11 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
 
     type Event = Event<S>;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
     }
 

@@ -28,7 +28,7 @@ pub use authenticate::authenticate;
 use revm::primitives::Address;
 pub use revm::primitives::SpecId;
 use revm_primitives::BlockEnv;
-use sov_modules_api::{Context, Error, ModuleId, ModuleInfo, TxState, WorkingSet};
+use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
 use sov_state::codec::BcsCodec;
 
 use crate::event::Event;
@@ -126,7 +126,11 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
 
     type Event = Event;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<S>) -> Result<(), Error> {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
         Ok(self.init_module(config, working_set)?)
     }
 
