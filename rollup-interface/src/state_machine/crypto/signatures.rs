@@ -9,30 +9,14 @@ use digest::Digest;
 use serde::{Deserialize, Serialize};
 
 use super::Hash;
-#[cfg(not(feature = "std"))]
 use crate::alloc::borrow::ToOwned;
 
 /// Representation of a signature verification error.
-#[derive(Debug)]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug, thiserror::Error)]
 pub enum SigVerificationError {
     /// The signature is invalid for the provided public key.
-    #[cfg_attr(feature = "std", error("Bad signature {0}"))]
+    #[error("Bad signature {0}")]
     BadSignature(String),
-}
-
-#[cfg(not(feature = "std"))]
-impl core::fmt::Display for SigVerificationError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        <SigVerificationError as core::fmt::Debug>::fmt(self, f)
-    }
-}
-
-#[cfg(not(feature = "std"))]
-impl From<SigVerificationError> for anyhow::Error {
-    fn from(err: SigVerificationError) -> anyhow::Error {
-        anyhow::Error::msg(err)
-    }
 }
 
 /// A digital signature.

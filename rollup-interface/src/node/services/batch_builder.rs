@@ -2,8 +2,6 @@
 
 use async_trait::async_trait;
 
-use crate::maybestd::vec::Vec;
-
 /// A rollup transaction hash. Used by [`BatchBuilder`].
 pub type TxHash = [u8; 32];
 

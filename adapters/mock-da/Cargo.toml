@@ -21,9 +21,9 @@ bytes = { workspace = true, features = ["serde"] }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
-hex = { workspace = true }
+hex = { workspace = true, features = ["serde"] }
 sha2 = { workspace = true }
-tokio = { workspace = true, optional = true, features = ["test-util"]}
+tokio = { workspace = true, optional = true, features = ["test-util"] }
 futures = { workspace = true, optional = true, features = ["std"] }
 tracing = { workspace = true }
 
@@ -34,7 +34,7 @@ bincode = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
 sov-mock-da = { path = ".", features = ["native"] }
-tokio = { workspace = true, features = ["test-util", "macros"]}
+tokio = { workspace = true, features = ["test-util", "macros"] }
 
 [features]
 default = []

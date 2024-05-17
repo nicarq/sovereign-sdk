@@ -1,7 +1,6 @@
 //! Cache key/value definitions
 
-use sov_rollup_interface::maybestd::collections::hash_map::Entry;
-use sov_rollup_interface::maybestd::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage};
@@ -205,7 +204,7 @@ enum ValueExists {
 /// changed temporarily and then reset to its original value
 #[derive(Default)]
 struct CacheLog {
-    log: HashMap<SlotKey, Access>,
+    log: std::collections::HashMap<SlotKey, Access>,
 }
 
 impl CacheLog {

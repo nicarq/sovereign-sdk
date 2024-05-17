@@ -74,12 +74,11 @@ pub trait DaVerifier: Send + Sync {
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
 }
 
-#[cfg(feature = "std")]
 #[derive(Debug, Clone, Serialize, Deserialize, BorshDeserialize, BorshSerialize, PartialEq)]
 /// Simple structure that implements the Read trait for a buffer and  counts the number of bytes read from the beginning.
 /// Useful for the partial blob reading optimization: we know for each blob how many bytes have been read from the beginning.
 ///
-/// Because of soundness issues we cannot implement the Buf trait because the prover could get unproved blob data using the chunk method.
+/// Because of soundness issues, we cannot implement the Buf trait because the prover could get unproved blob data using the chunk method.
 pub struct CountedBufReader<B: bytes::Buf> {
     /// The original blob data.
     inner: B,
@@ -89,7 +88,6 @@ pub struct CountedBufReader<B: bytes::Buf> {
     accumulator: Vec<u8>,
 }
 
-#[cfg(feature = "std")]
 impl<B: bytes::Buf> CountedBufReader<B> {
     /// Creates a new buffer reader with counter from an objet that implements the buffer trait
     pub fn new(inner: B) -> Self {
@@ -249,12 +247,8 @@ pub struct Time {
     nanos: u32,
 }
 
-#[derive(Debug)]
-#[cfg_attr(
-    feature = "std",
-    derive(thiserror::Error),
-    error("Only intervals less than one second may be represented as nanoseconds")
-)]
+#[derive(Debug, thiserror::Error)]
+#[error("Only intervals less than one second may be represented as nanoseconds")]
 /// An error that occurs when trying to create a `NanoSeconds` representing more than one second
 pub struct ErrTooManyNanos;
 
@@ -283,7 +277,6 @@ impl Time {
         }
     }
 
-    #[cfg(feature = "std")]
     /// Get the current time
     pub fn now() -> Self {
         let current_time = std::time::SystemTime::now()

@@ -126,8 +126,8 @@ pub struct Risc0PublicKey {
 }
 
 impl Risc0PublicKey {
-    /// Converts the public key to an address
-    pub fn to_addres<'a, A: From<&'a Self>>(&'a self) -> A {
+    /// Converts the public key to an address.
+    pub fn to_address<'a, A: From<&'a Self>>(&'a self) -> A {
         self.into()
     }
 }

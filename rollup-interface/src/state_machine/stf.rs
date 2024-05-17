@@ -8,7 +8,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::{DaSpec, RelevantBlobIters};
-use crate::maybestd::vec::Vec;
 use crate::zk::aggregated_proof::AggregatedProofPublicData;
 use crate::zk::{StateTransitionPublicData, ValidityCondition, Zkvm};
 
