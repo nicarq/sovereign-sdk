@@ -6,8 +6,8 @@ use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Address, CryptoSpec, Gas, GasMeter, KernelModule, KernelWorkingSet, Module, ModuleInfo,
-    PrivateKey, Spec, StateCheckpoint, WorkingSet,
+    Address, CryptoSpec, GasMeter, KernelModule, KernelWorkingSet, Module, ModuleInfo, PrivateKey,
+    Spec, StateCheckpoint, UnlimitedGasMeter, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
@@ -101,7 +101,14 @@ pub(crate) fn simulate_chain_state_execution(
         // We first need to reserve gas for the transaction
         let mut gas_meter = module
             .bank
-            .reserve_gas(&tx, &gas_price, &sequencer, kernel_working_set.inner)
+            .reserve_gas(
+                &tx,
+                &gas_price,
+                &sequencer,
+                // Using a new [`UnlimitedGasMeter`] here means that we are not charging for pre-execution checks
+                &UnlimitedGasMeter::new(),
+                kernel_working_set.inner,
+            )
             .expect("Gas reserve failed");
 
         // We charge some gas to the sequencer to make sure the gas meter is updated
@@ -109,19 +116,23 @@ pub(crate) fn simulate_chain_state_execution(
             .charge_gas(gas_used_per_step)
             .expect("Gas charge failed");
 
-        total_gas_used.push(gas_used_per_step.value(&gas_price));
-
         module
             .chain_state
             .end_slot_hook(gas_used_per_step, &mut kernel_working_set);
-        module.bank.refund_remaining_gas(
+
+        let consumption = module.bank.consume_gas_and_allocate_rewards(
             &tx,
-            &gas_meter,
-            &sequencer,
+            gas_meter,
             &module.id().to_payable(),
             &module.id().to_payable(),
             kernel_working_set.inner,
         );
+
+        module
+            .bank
+            .refund_remaining_gas(&tx, &sequencer, &consumption, kernel_working_set.inner);
+
+        total_gas_used.push(consumption.total_consumption());
     }
 
     total_gas_used

@@ -5,9 +5,9 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{
     GasEnforcer, RuntimeAuthorization, SequencerAuthorization,
 };
-use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
+    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, TxGasMeter, WorkingSet,
 };
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
@@ -49,7 +49,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                 info!(%sender, ?amount, "Rewarding sequencer");
                 <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
                     &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Rewarded(amount),
+                    sov_sequencer_registry::SequencerOutcome::Rewarded(amount.into()),
                     sender,
                     state_checkpoint,
                 );
@@ -101,18 +101,27 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
 impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
     /// The transaction type that the gas enforcer knows how to parse
     type Tx = AuthenticatedTransactionData<S>;
+    /// The type of the transaction reward.
+    type TxConsumption = TransactionConsumption;
+    /// A gas meter that tracks pre-execution costs.
+    type PreExecChecksMeter = SequencerStakeMeter<S::Gas>;
+
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas(
         &self,
         tx: &Self::Tx,
         context: &Context<S>,
         gas_price: &<S::Gas as Gas>::Price,
+        pre_exec_checks_meter: &SequencerStakeMeter<S::Gas>,
         mut state_checkpoint: StateCheckpoint<S>,
     ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        match self
-            .bank
-            .reserve_gas(tx, gas_price, context.sender(), &mut state_checkpoint)
-        {
+        match self.bank.reserve_gas(
+            tx,
+            gas_price,
+            context.sender(),
+            pre_exec_checks_meter,
+            &mut state_checkpoint,
+        ) {
             Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
             Err(e) => {
                 tracing::debug!(
@@ -125,22 +134,30 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
         }
     }
 
-    /// Refunds any remaining gas to the payer after the transaction is processed.
+    fn consume_gas_and_allocate_rewards(
+        &self,
+        tx: &Self::Tx,
+        gas_meter: TxGasMeter<S::Gas>,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) -> Self::TxConsumption {
+        self.bank.consume_gas_and_allocate_rewards(
+            tx,
+            gas_meter,
+            &self.prover_incentives.id().to_payable(),
+            &self.sequencer_registry.id().to_payable(),
+            state_checkpoint,
+        )
+    }
+
     fn refund_remaining_gas(
         &self,
         tx: &Self::Tx,
         context: &Context<S>,
-        gas_meter: &sov_modules_api::TxGasMeter<S::Gas>,
+        consumption: &Self::TxConsumption,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        self.bank.refund_remaining_gas(
-            tx,
-            gas_meter,
-            context.sender(),
-            &self.prover_incentives.id().to_payable(),
-            &self.sequencer_registry.id().to_payable(),
-            state_checkpoint,
-        );
+        self.bank
+            .refund_remaining_gas(tx, context.sender(), consumption, state_checkpoint);
     }
 }
 

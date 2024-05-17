@@ -64,7 +64,10 @@ pub fn authenticate<S: Spec, D: DispatchCall>(
         ))
     })?;
 
-    let tx_and_raw_hash = AuthenticatedTransactionAndRawHash::new(raw_tx_hash, tx.into());
+    let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
+        raw_tx_hash,
+        authenticated_tx: tx.into(),
+    };
 
     Ok((tx_and_raw_hash, runtime_call))
 }

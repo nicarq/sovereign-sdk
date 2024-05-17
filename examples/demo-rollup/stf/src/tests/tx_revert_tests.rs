@@ -2,6 +2,7 @@ use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::FatalError;
+use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -81,7 +82,7 @@ fn test_tx_revert() {
         let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
         assert_eq!(
-            BatchSequencerOutcome::Rewarded(0),
+            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
             apply_blob_outcome.inner,
             "Unexpected outcome: Batch execution should have succeeded",
         );
@@ -320,10 +321,11 @@ fn test_tx_bad_nonce() {
 
         // Since the sequencer is penalized, he is rewarded with 0 tokens.
         let sequencer_outcome = apply_block_result.batch_receipts[0].inner.clone();
-        match sequencer_outcome {
-            BatchSequencerOutcome::Rewarded(amount) => assert!(amount == 0),
-            _ => panic!("Sequencer should have been penalized"),
-        }
+        assert_eq!(
+            sequencer_outcome,
+            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
+            "Unexpected outcome: Batch execution should have succeeded"
+        );
 
         // We can check that the sequencer staked amount went down.
         storage_manager

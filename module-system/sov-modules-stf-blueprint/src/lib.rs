@@ -14,8 +14,12 @@ use sov_modules_api::capabilities::{
     FatalError, GasEnforcer, RuntimeAuthenticator, SequencerAuthorization,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
+#[cfg(feature = "mocks")]
+use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks, RuntimeAuthorization};
-use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
+};
 use sov_modules_api::{
     BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
@@ -48,7 +52,13 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + ApplyBatchHooks<Da, Spec = S, BatchResult = BatchSequencerOutcome>
     + Default
     + RuntimeEventProcessor
-    + GasEnforcer<S, Da, Tx = AuthenticatedTransactionData<S>>
+    + GasEnforcer<
+        S,
+        Da,
+        Tx = AuthenticatedTransactionData<S>,
+        TxConsumption = TransactionConsumption,
+        PreExecChecksMeter = <Self as SequencerAuthorization<S, Da>>::SequencerStakeMeter,
+    >
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
@@ -93,16 +103,21 @@ pub enum TxEffect {
 /// Possible outcomes of a transaction execution for the sequencer.
 pub enum TxSequencerOutcome {
     /// The transaction was successfully executed.
-    Rewarded(u64),
+    Rewarded(SequencerReward),
     /// The sequencer was penalized during the execution of the transaction.
     Penalized,
+    /// The transaction was ignored.
+    ///
+    /// ## Note
+    /// This can only happen in [`ExecutionMode::Speculative`].
+    Ignored,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 /// Represents the different outcomes that can occur for a sequencer after batch processing.
 pub enum BatchSequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
-    Rewarded(u64),
+    Rewarded(SequencerReward),
     /// Sequencer loses its deposit and receives no reward
     Slashed(
         /// Reason why sequencer was slashed.

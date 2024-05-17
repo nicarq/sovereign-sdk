@@ -102,11 +102,17 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_
     );
 
     let batch_receipt = &exec_simulation[0].batch_receipts[0];
-    assert_eq!(
-        batch_receipt.inner,
-        BatchSequencerOutcome::Rewarded(expected_reward),
-        "The sequencer should get rewarded"
-    );
+
+    match batch_receipt.inner.clone() {
+        BatchSequencerOutcome::Rewarded(amount) => {
+            assert_eq!(
+                Into::<u64>::into(amount),
+                expected_reward,
+                "The sequencer was not rewarded the correct amount"
+            );
+        }
+        receipt => panic!("The batch execution failed, the sequencer was slashed for {receipt:?}"),
+    }
 
     // The sequencer registry balance should still be equal to the stake amount of the sequencer.
     // The sequencer balance should increase by the expected reward.

@@ -1,3 +1,8 @@
+- #647 completes the gas workflow for the StfBlueprint by enhancing the interface by adding some type-safety guarantees to the StfBlueprint and simplifying the penalization workflow. Follow-up of #619. 
+    - Added a new `consume_gas_and_allocate_rewards` capability to the GasEnforcer to allocate transaction rewards at the end of the transaction execution. This was previously done in `refund_remaining_gas`
+    - Added a new type `TransactionConsumption` that tracks the amount of gas consumed and can only be built using the `AuthenticatedTransactionData` and by consuming the associated `TxGasMeter`.
+    - `refund_remaining_gas` can only be called either after `consume_gas_and_allocate_rewards` or with a zero `TransactionConsumption` (speculative case for reverted transactions)
+    - after `consume_gas_and_allocate_rewards` the `GasMeter` is consumed and cannot be used anymore
 - #663 Modifies the interface of traits `RuntimeAuthenticator` and `RuntimeAuthorization`. Associated types `Tx` and `Gas` have been removed. `RuntimeAuthenticator` is now generic over `S: Spec`. Methods' type signatures have been slightly modified; please see `examples/demo-rollup/stf/src/authentication.rs` for an example on the new usage.
 - #633 Deprecate `sov-modules-core`, move definitions into `sov-modules-api` & `sov-state`
 - #664 removes the `Transaction` wrapping in `sov-ethereum` for EVM transactions. This is a breaking change for consumers of the SDK. See `RuntimeAuthenticator::authenticate`.
