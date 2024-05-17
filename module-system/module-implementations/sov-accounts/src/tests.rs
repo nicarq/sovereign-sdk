@@ -1,6 +1,6 @@
 use sov_modules_api::prelude::*;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips, TxGasMeter};
-use sov_modules_api::{Address, Context, Gas, Hash, Module, PrivateKey, PublicKey};
+use sov_modules_api::{Address, Context, CredentialId, Gas, Module, PrivateKey, PublicKey};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
@@ -13,12 +13,12 @@ type S = sov_test_utils::TestSpec;
 fn test_config_account() {
     let priv_key = TestPrivateKey::generate();
     let init_pub_key = &priv_key.pub_key();
-    let init_pub_key_addr = init_pub_key.to_address::<<S as Spec>::Address>();
-    let init_pub_key_hash = init_pub_key.secure_hash::<TestHasher>();
+    let init_addr = init_pub_key.to_address::<<S as Spec>::Address>();
+    let init_credential_id: CredentialId = init_pub_key.credential_id::<TestHasher>();
 
     let account_config = AccountConfig {
         accounts: vec![AccountData {
-            pub_key_hash: init_pub_key.secure_hash::<TestHasher>(),
+            credential_id: init_credential_id.clone(),
             address: init_pub_key.into(),
         }],
     };
@@ -30,13 +30,13 @@ fn test_config_account() {
     accounts.init_module(&account_config, working_set).unwrap();
 
     let query_response = accounts
-        .get_account(init_pub_key_hash, working_set)
+        .get_account(init_credential_id, working_set)
         .unwrap();
 
     assert_eq!(
         query_response,
         rpc::Response::AccountExists {
-            addr: init_pub_key_addr,
+            addr: init_addr,
             nonce: 0
         }
     );
@@ -54,14 +54,14 @@ fn test_update_account() {
     let sender = priv_key.pub_key();
     let sequencer = sequencer_priv_key.pub_key();
     let sender_addr = sender.to_address::<<S as Spec>::Address>();
-    let sender_hash = sender.secure_hash::<TestHasher>();
+    let sender_credential_id: CredentialId = sender.credential_id::<TestHasher>();
 
     let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
     let sender_context = Context::<S>::new(sender_addr, sequencer_addr, 1);
 
     let config = AccountConfig {
         accounts: vec![AccountData {
-            pub_key_hash: sender_hash.clone(),
+            credential_id: sender_credential_id.clone(),
             address: sender_addr,
         }],
     };
@@ -70,7 +70,7 @@ fn test_update_account() {
     // Test new account creation
     {
         let query_response = accounts
-            .get_account(sender_hash.clone(), working_set)
+            .get_account(sender_credential_id.clone(), working_set)
             .unwrap();
 
         assert_eq!(
@@ -82,26 +82,30 @@ fn test_update_account() {
         );
     }
 
-    // Test public key update
+    // Test credentials id update
     {
         let priv_key = TestPrivateKey::generate();
         let new_pub_key = priv_key.pub_key();
-        let new_pub_key_hash = new_pub_key.secure_hash::<TestHasher>();
+        let new_credential_id: CredentialId = new_pub_key.credential_id::<TestHasher>();
         accounts
             .call(
-                call::CallMessage::UpdatePublicKey(new_pub_key_hash.clone()),
+                call::CallMessage::UpdatePublicKey(new_credential_id.clone()),
                 &sender_context,
                 working_set,
             )
             .unwrap();
 
-        // Account corresponding to the old public key does not exist
-        let query_response = accounts.get_account(sender_hash, working_set).unwrap();
+        // Account corresponding to the old credential id does not exist
+        let query_response = accounts
+            .get_account(sender_credential_id, working_set)
+            .unwrap();
 
         assert_eq!(query_response, rpc::Response::AccountEmpty);
 
         // New account with the new public key and an old address is created.
-        let query_response = accounts.get_account(new_pub_key_hash, working_set).unwrap();
+        let query_response = accounts
+            .get_account(new_credential_id, working_set)
+            .unwrap();
 
         assert_eq!(
             query_response,
@@ -121,23 +125,23 @@ fn test_update_account_fails() {
 
     let sender_1 = TestPrivateKey::generate().pub_key();
     let sender_1_addr = sender_1.to_address::<<S as Spec>::Address>();
-    let sender_1_hash = sender_1.secure_hash::<TestHasher>();
+    let sender_1_credential_id: CredentialId = sender_1.credential_id::<TestHasher>();
 
     let sequencer = TestPrivateKey::generate().pub_key();
     let sender_context_1 = Context::<S>::new(sender_1.to_address(), sequencer.to_address(), 1);
 
     let sender_2 = TestPrivateKey::generate().pub_key();
     let sender_2_addr = sender_2.to_address::<<S as Spec>::Address>();
-    let sender_2_hash = sender_2.secure_hash::<TestHasher>();
+    let sender_2_credential_id: CredentialId = sender_2.credential_id::<TestHasher>();
 
     let config = AccountConfig {
         accounts: vec![
             AccountData {
-                pub_key_hash: sender_1_hash.clone(),
+                credential_id: sender_1_credential_id.clone(),
                 address: sender_1_addr,
             },
             AccountData {
-                pub_key_hash: sender_2_hash.clone(),
+                credential_id: sender_2_credential_id.clone(),
                 address: sender_2_addr,
             },
         ],
@@ -145,10 +149,10 @@ fn test_update_account_fails() {
 
     accounts.init_module(&config, working_set).unwrap();
 
-    // The new public key hash already exists and the call fails.
+    // The new credential already exists and the call fails.
     assert!(accounts
         .call(
-            call::CallMessage::UpdatePublicKey(sender_2_hash),
+            call::CallMessage::UpdatePublicKey(sender_2_credential_id),
             &sender_context_1,
             working_set
         )
@@ -163,7 +167,7 @@ fn test_get_account_after_pub_key_update() {
 
     let sender = TestPrivateKey::generate().pub_key();
     let sender_addr = sender.to_address::<<S as Spec>::Address>();
-    let sender_hash = sender.secure_hash::<TestHasher>();
+    let sender_credential_id: CredentialId = sender.credential_id::<TestHasher>();
 
     let sequencer = TestPrivateKey::generate().pub_key();
     let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
@@ -171,7 +175,7 @@ fn test_get_account_after_pub_key_update() {
 
     let config = AccountConfig {
         accounts: vec![AccountData {
-            pub_key_hash: sender_hash,
+            credential_id: sender_credential_id,
             address: sender_addr,
         }],
     };
@@ -180,10 +184,10 @@ fn test_get_account_after_pub_key_update() {
 
     let priv_key = TestPrivateKey::generate();
     let new_pub_key = priv_key.pub_key();
-    let new_pub_key_hash = new_pub_key.secure_hash::<TestHasher>();
+    let new_credential_id: CredentialId = new_pub_key.credential_id::<TestHasher>();
     accounts
         .call(
-            call::CallMessage::UpdatePublicKey(new_pub_key_hash.clone()),
+            call::CallMessage::UpdatePublicKey(new_credential_id.clone()),
             &sender_context,
             working_set,
         )
@@ -191,7 +195,7 @@ fn test_get_account_after_pub_key_update() {
 
     let acc = accounts
         .accounts
-        .get(&new_pub_key_hash, working_set)
+        .get(&new_credential_id, working_set)
         .unwrap();
 
     assert_eq!(acc.addr, sender_addr);
@@ -207,17 +211,17 @@ fn test_resolve_sender_address() {
     let priv_key = TestPrivateKey::generate();
     let sender = priv_key.pub_key();
     let sender_addr = sender.to_address::<<S as Spec>::Address>();
-    let sender_hash = sender.secure_hash::<TestHasher>();
+    let sender_credential_id: CredentialId = sender.credential_id::<TestHasher>();
 
-    let tx = create_test_tx::<S>(None, sender_hash.clone());
+    let tx = create_test_tx::<S>(None, sender_credential_id.clone());
 
     let maybe_address = accounts.resolve_sender_address(&tx, &mut checkpoint);
     assert_eq!(
         maybe_address.unwrap_err().to_string(),
-        format!("No default address found for {}", sender_hash)
+        format!("No default address found for {}", sender_credential_id)
     );
 
-    let tx = create_test_tx::<S>(Some(sender_addr), sender_hash.clone());
+    let tx = create_test_tx::<S>(Some(sender_addr), sender_credential_id.clone());
     accounts
         .resolve_sender_address(&tx, &mut checkpoint)
         .unwrap();
@@ -225,7 +229,7 @@ fn test_resolve_sender_address() {
     let mut working_set = checkpoint.to_revertable(TxGasMeter::unmetered());
     let acc = accounts
         .accounts
-        .get(&sender_hash, &mut working_set)
+        .get(&sender_credential_id, &mut working_set)
         .unwrap();
 
     assert_eq!(acc.addr, sender_addr);
@@ -233,10 +237,10 @@ fn test_resolve_sender_address() {
 
 fn create_test_tx<S: Spec>(
     sender_addr: Option<S::Address>,
-    sender_hash: Hash,
+    sender_credential_id: CredentialId,
 ) -> AuthenticatedTransactionData<S> {
     AuthenticatedTransactionData::<S> {
-        pub_key_hash: sender_hash,
+        credential_id: sender_credential_id,
         default_address: sender_addr,
         chain_id: 0,
         max_priority_fee_bips: PriorityFeeBips::ZERO,

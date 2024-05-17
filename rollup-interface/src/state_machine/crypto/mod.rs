@@ -5,7 +5,7 @@ pub use simple_hasher::NoOpHasher;
 mod signatures;
 pub use signatures::*;
 
-/// Wrapper around hash value.
+/// Type that represents an identifier for an authorizer of the transaction.
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
 #[derive(
     borsh::BorshDeserialize,
@@ -17,9 +17,9 @@ pub use signatures::*;
     Eq,
     Clone,
 )]
-pub struct Hash(pub [u8; 32]);
+pub struct CredentialId(pub [u8; 32]);
 
-impl core::str::FromStr for Hash {
+impl core::str::FromStr for CredentialId {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -29,7 +29,7 @@ impl core::str::FromStr for Hash {
     }
 }
 
-impl core::fmt::Display for Hash {
+impl core::fmt::Display for CredentialId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x{}", hex::encode(self.0))
     }
@@ -43,28 +43,28 @@ mod tests {
 
     use super::*;
 
-    fn check_str_and_back(hash: Hash) {
-        let s1 = hash.to_string();
+    fn check_str_and_back(credential_id: CredentialId) {
+        let s1 = credential_id.to_string();
         let s2 = s1.replace("0x", "");
-        let hash2 = Hash::from_str(&s1).unwrap();
-        let hash3 = Hash::from_str(&s2).unwrap();
-        assert_eq!(hash, hash2);
-        assert_eq!(hash, hash3);
+        let credential_id_2 = CredentialId::from_str(&s1).unwrap();
+        let credential_id_3 = CredentialId::from_str(&s2).unwrap();
+        assert_eq!(credential_id, credential_id_2);
+        assert_eq!(credential_id, credential_id_3);
     }
 
     #[test]
     fn test_hash_str_and_back_simple() {
         for i in 0..1 {
-            let hash = Hash([i as u8; 32]);
-            check_str_and_back(hash);
+            let credential_id = CredentialId([i as u8; 32]);
+            check_str_and_back(credential_id);
         }
     }
 
     proptest! {
         #[test]
         fn test_arbitrary_hash_str_and_back(input in prop::array::uniform32(any::<u8>())) {
-            let hash = Hash(input);
-            check_str_and_back(hash);
+            let credential_id = CredentialId(input);
+            check_str_and_back(credential_id);
         }
     }
 }

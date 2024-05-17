@@ -8,7 +8,7 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
-use sov_modules_api::{Context, Module, PrivateKey, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{Context, CredentialId, Module, PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
@@ -46,7 +46,7 @@ fuzz_target!(
         let accounts: Vec<_> = keys
             .iter()
             .map(|k| AccountData {
-                pub_key_hash: k.pub_key().secure_hash::<TestHasher>(),
+                credential_id: k.pub_key().credential_id::<TestHasher>(),
                 address: k.to_address(),
             })
             .collect();
@@ -87,9 +87,9 @@ fuzz_target!(
             let public = secret.pub_key();
             state.insert(*sender, secret);
 
-            let pub_key_hash = public.secure_hash::<TestHasher>();
+            let credential_id: CredentialId = public.credential_id::<TestHasher>();
 
-            let msg = CallMessage::UpdatePublicKey(pub_key_hash);
+            let msg = CallMessage::UpdatePublicKey(credential_id);
             accounts.call(msg, &context, working_set).unwrap();
         }
 

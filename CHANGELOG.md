@@ -1,3 +1,4 @@
+- #683 replace `Public Key Hash` with more general concept of `CredentialId`. This is a breaking change for the consumers of the SDK.
 - #686 Changes the API of `Module::genesis` to accept an `&mut impl sov_modules_api::GenesisState<S>` instead of a concrete type.
 - #679 remove the transaction signature check from the `EVM` module.
 - #681 contains some interface improvements for the gas which become possible after `sov-core` and `sov-api` got merged. In particular:

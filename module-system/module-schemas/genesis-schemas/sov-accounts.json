@@ -21,7 +21,7 @@
       "type": "object",
       "required": [
         "address",
-        "pub_key_hash"
+        "credential_id"
       ],
       "properties": {
         "address": {
@@ -32,8 +32,8 @@
             }
           ]
         },
-        "pub_key_hash": {
-          "description": "Hash of the public key.",
+        "credential_id": {
+          "description": "Credential ID of the account.",
           "type": "string"
         }
       }

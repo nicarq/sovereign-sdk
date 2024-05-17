@@ -286,7 +286,7 @@ impl<H> schemars::JsonSchema for Address<H> {
 
 impl<H: Digest<OutputSize = U32>, T: PublicKey> From<&T> for Address<H> {
     fn from(value: &T) -> Self {
-        value.secure_hash::<H>().0.into()
+        value.credential_id::<H>().0.into()
     }
 }
 

@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use serde_with::{serde_as, DisplayFromStr};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{GenesisState, Hash};
+use sov_modules_api::{CredentialId, GenesisState};
 
 use crate::{Account, Accounts};
 
@@ -10,9 +10,9 @@ use crate::{Account, Accounts};
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
 pub struct AccountData<Address> {
-    /// Hash of the public key.
+    /// Credential ID of the account.
     #[serde_as(as = "DisplayFromStr")]
-    pub pub_key_hash: Hash,
+    pub credential_id: CredentialId,
     /// Address of the account.
     pub address: Address,
 }
@@ -36,7 +36,7 @@ impl<S: Spec> Accounts<S> {
         working_set: &mut impl GenesisState<S>,
     ) -> Result<()> {
         for acc in config.accounts.iter() {
-            if self.accounts.get(&acc.pub_key_hash, working_set).is_some() {
+            if self.accounts.get(&acc.credential_id, working_set).is_some() {
                 bail!("Account already exists")
             }
 
@@ -46,10 +46,10 @@ impl<S: Spec> Accounts<S> {
             };
 
             self.accounts
-                .set(&acc.pub_key_hash, &new_account, working_set);
+                .set(&acc.credential_id, &new_account, working_set);
 
-            self.public_keys
-                .set(&acc.address, &acc.pub_key_hash, working_set);
+            self.credential_ids
+                .set(&acc.address, &acc.credential_id, working_set);
         }
 
         Ok(())
@@ -74,14 +74,14 @@ mod tests {
 
         let config = AccountConfig::<TestSpec> {
             accounts: vec![AccountData {
-                pub_key_hash: pub_key.secure_hash::<TestHasher>(),
+                credential_id: pub_key.credential_id::<TestHasher>(),
                 address: pub_key.into(),
             }],
         };
 
         let data = r#"
         {
-            "accounts":[{"pub_key_hash":"0xa7f38e6a301da8763eb3ba323e761c76e5122f443604c40cd0c3b74ce5a8495a","address":"sov15lecu63srk58v04nhgeruasuwmj3yt6yxczvgrxscwm5eedgf9dq5w2een"}]
+            "accounts":[{"credential_id":"0xa7f38e6a301da8763eb3ba323e761c76e5122f443604c40cd0c3b74ce5a8495a","address":"sov15lecu63srk58v04nhgeruasuwmj3yt6yxczvgrxscwm5eedgf9dq5w2een"}]
         }"#;
 
         let parsed_config: AccountConfig<TestSpec> = serde_json::from_str(data).unwrap();

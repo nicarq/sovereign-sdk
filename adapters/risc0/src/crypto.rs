@@ -133,14 +133,16 @@ impl Risc0PublicKey {
 }
 
 impl sov_rollup_interface::crypto::PublicKey for Risc0PublicKey {
-    fn secure_hash<Hasher: Digest<OutputSize = U32>>(&self) -> sov_rollup_interface::crypto::Hash {
+    fn credential_id<Hasher: Digest<OutputSize = U32>>(
+        &self,
+    ) -> sov_rollup_interface::crypto::CredentialId {
         let hash = {
             let mut hasher = Hasher::new();
             hasher.update(self.pub_key);
             hasher.finalize().into()
         };
 
-        sov_rollup_interface::crypto::Hash(hash)
+        sov_rollup_interface::crypto::CredentialId(hash)
     }
 }
 

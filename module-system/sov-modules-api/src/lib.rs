@@ -44,7 +44,7 @@ pub use clap;
 pub use schemars;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
-pub use sov_rollup_interface::crypto::{Hash, PublicKey, Signature};
+pub use sov_rollup_interface::crypto::{CredentialId, PublicKey, Signature};
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::services::da::SlotData;

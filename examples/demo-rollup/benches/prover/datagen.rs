@@ -8,7 +8,7 @@ use demo_stf::genesis_config::{AccountConfig, AccountData};
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
-use sov_modules_api::{PrivateKey, PublicKey, Spec};
+use sov_modules_api::{CredentialId, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::services::da::DaService;
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::{MessageGenerator, TestHasher, TestPrivateKey, TestSpec};
@@ -33,9 +33,9 @@ pub fn generate_genesis_config(config_dir: &str) -> anyhow::Result<()> {
     let priv_keys = (0..num_pub_keys).map(|_| TestPrivateKey::generate());
 
     for priv_key in priv_keys {
-        let pub_key_hash = priv_key.pub_key().secure_hash::<TestHasher>();
+        let credential_id: CredentialId = priv_key.pub_key().credential_id::<TestHasher>();
         let account = AccountData::<<TestSpec as Spec>::Address> {
-            pub_key_hash,
+            credential_id,
             address: priv_key.to_address(),
         };
         accs.push(account);
