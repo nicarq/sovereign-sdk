@@ -2,6 +2,7 @@ use std::vec;
 
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{Spec, WorkingSet};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, StfBlueprint};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -71,7 +72,7 @@ fn test_demo_values_in_db() {
 
         let apply_blob_outcome = result.batch_receipts[0].clone();
         assert_eq!(
-            BatchSequencerOutcome::Rewarded(0),
+            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
             apply_blob_outcome.inner,
             "Sequencer execution should have succeeded but failed "
         );
@@ -159,7 +160,7 @@ fn test_demo_values_in_cache() {
     let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
     assert_eq!(
-        BatchSequencerOutcome::Rewarded(0),
+        BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
         apply_blob_outcome.inner,
         "Sequencer execution should have succeeded but failed"
     );

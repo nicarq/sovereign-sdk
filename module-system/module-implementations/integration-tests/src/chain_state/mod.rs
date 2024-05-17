@@ -1,6 +1,7 @@
 use sov_chain_state::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
 use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, TxEffect};
 use sov_test_utils::auth::TestAuth;
@@ -93,7 +94,7 @@ fn test_simple_value_setter_with_chain_state() {
         }
 
         assert_eq!(
-            BatchSequencerOutcome::Rewarded(0),
+            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
             apply_blob_outcome.inner,
             "Sequencer execution should have succeeded but failed "
         );
@@ -157,7 +158,7 @@ fn test_simple_value_setter_with_chain_state() {
         assert_eq!(1, batch_receipts.len());
         let apply_blob_outcome = batch_receipts[0].clone();
         assert_eq!(
-            BatchSequencerOutcome::Rewarded(0),
+            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
             apply_blob_outcome.inner,
             "Sequencer execution should have succeeded but failed "
         );

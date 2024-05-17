@@ -4,7 +4,9 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, TxGasMeter};
+use sov_modules_api::{
+    Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, TxGasMeter, UnlimitedGasMeter,
+};
 use sov_test_utils::generate_empty_tx;
 
 use super::helpers::{TestSequencer, S};
@@ -58,7 +60,13 @@ fn test_reward_sequencer() {
     // Reserves some gas for the bank
     let mut gas_meter = sequencer_test
         .bank
-        .reserve_gas(&tx, &gas_price, seq_address, &mut checkpoint)
+        .reserve_gas(
+            &tx,
+            &gas_price,
+            seq_address,
+            &UnlimitedGasMeter::new(),
+            &mut checkpoint,
+        )
         .expect(
             "
         The gas reserve should not fail",
@@ -70,14 +78,17 @@ fn test_reward_sequencer() {
         .expect("The charge gas operation should not fail");
 
     // We refund the base tip to the sequencer account and send the tip to the registry
-    sequencer_test.bank.refund_remaining_gas(
+    let consumption = sequencer_test.bank.consume_gas_and_allocate_rewards(
         &tx,
-        &gas_meter,
-        seq_address,
+        gas_meter,
         &seq_address_as_token_holder,
         &sequencer_test.registry.id().to_payable(),
         &mut checkpoint,
     );
+
+    sequencer_test
+        .bank
+        .refund_remaining_gas(&tx, seq_address, &consumption, &mut checkpoint);
 
     let registry_balance_after_refund = sequencer_test
         .query_balance(sequencer_test.registry.id().to_payable(), &mut checkpoint)

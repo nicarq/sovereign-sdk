@@ -138,7 +138,11 @@ where
         ctx.state_checkpoint = Some(new_checkpoint);
 
         if let TxSequencerOutcome::Rewarded(reward) = sequencer_reward {
-            ctx.reward += reward;
+            let current_reward = ctx.reward;
+            let reward = Into::<u64>::into(reward);
+            ctx.reward = current_reward
+                .checked_add(reward)
+                .ok_or_else(|| anyhow::anyhow!("Rewarding the sequencer would cause overflow"))?;
         }
 
         Ok(Some(tx_receipt))

@@ -49,6 +49,9 @@ pub fn authenticate<S: Spec>(
         nonce,
     };
 
-    let tx_and_raw_hash = AuthenticatedTransactionAndRawHash::new(tx_hash.into(), authenticated_tx);
+    let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
+        raw_tx_hash: tx_hash.into(),
+        authenticated_tx,
+    };
     Ok((tx_and_raw_hash, tx_clone))
 }

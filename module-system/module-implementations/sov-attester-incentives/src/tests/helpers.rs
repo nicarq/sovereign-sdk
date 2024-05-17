@@ -7,7 +7,7 @@ use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     CryptoSpec, Gas, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
-    PrivateKey, Spec, StateCheckpoint, TxGasMeter, WorkingSet,
+    PrivateKey, Spec, StateCheckpoint, TxGasMeter, UnlimitedGasMeter, WorkingSet,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::Time;
@@ -239,6 +239,7 @@ impl ExecutionSimulationVars {
                     &tx,
                     &current_base_fee_per_gas,
                     sequencer,
+                    &UnlimitedGasMeter::new(),
                     kernel_working_set.inner,
                 )
                 .expect("Gas reserve failed");
@@ -252,15 +253,18 @@ impl ExecutionSimulationVars {
                 .chain_state
                 .end_slot_hook(gas_meter.gas_used(), &mut kernel_working_set);
 
-            // Then we can refund some gas to the sequencer
-            module.bank.refund_remaining_gas(
+            let reward = module.bank.consume_gas_and_allocate_rewards(
                 &tx,
-                &gas_meter,
-                sequencer,
+                gas_meter,
                 &module.id().to_payable(),
                 &module.id().to_payable(),
                 &mut state_checkpoint,
             );
+
+            // Then we can refund some gas to the sequencer
+            module
+                .bank
+                .refund_remaining_gas(&tx, sequencer, &reward, &mut state_checkpoint);
 
             ret_exec_vars.push(ExecutionSimulationVars {
                 state_root: root_hash,
