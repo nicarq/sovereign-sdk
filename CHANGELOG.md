@@ -1,3 +1,6 @@
+- #681 contains some interface improvements for the gas which become possible after `sov-core` and `sov-api` got merged. In particular:
+    - Move `TxGasMeter` from `common/gas` to `transaction` which allows more type-safety by removing methods to create and modify arbitrary gas meters, tying it to the `AuthenticatedTransactionData` type.
+    - Remove `Tx` and `TxGasMeter` associated types from the `GasEnforcer` trait.
 - #647 completes the gas workflow for the StfBlueprint by enhancing the interface by adding some type-safety guarantees to the StfBlueprint and simplifying the penalization workflow. Follow-up of #619. 
     - Added a new `consume_gas_and_allocate_rewards` capability to the GasEnforcer to allocate transaction rewards at the end of the transaction execution. This was previously done in `refund_remaining_gas`
     - Added a new type `TransactionConsumption` that tracks the amount of gas consumed and can only be built using the `AuthenticatedTransactionData` and by consuming the associated `TxGasMeter`.

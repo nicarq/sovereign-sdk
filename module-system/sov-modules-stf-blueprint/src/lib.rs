@@ -17,9 +17,7 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 #[cfg(feature = "mocks")]
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks, RuntimeAuthorization};
-use sov_modules_api::transaction::{
-    AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
-};
+use sov_modules_api::transaction::{SequencerReward, TxGasMeter};
 use sov_modules_api::{
     BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
@@ -55,8 +53,6 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + GasEnforcer<
         S,
         Da,
-        Tx = AuthenticatedTransactionData<S>,
-        TxConsumption = TransactionConsumption,
         PreExecChecksMeter = <Self as SequencerAuthorization<S, Da>>::SequencerStakeMeter,
     >
 {
@@ -245,7 +241,9 @@ where
         self.kernel
             .genesis(&params.kernel, &mut startup_ws)
             .expect("Kernel initialization must succeed");
-        let mut working_set = state_checkpoint.to_revertable(Default::default());
+
+        // TODO(@theochap): for now we are using the unmetered gas meter here, but we should add type safety to be able to remove that method.
+        let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
         self.runtime
             .genesis(&params.runtime, &mut working_set)
             .expect("Runtime initialization must succeed");

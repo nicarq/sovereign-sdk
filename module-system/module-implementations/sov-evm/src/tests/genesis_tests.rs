@@ -5,7 +5,8 @@ use reth_primitives::{
     Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH,
 };
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
-use sov_modules_api::{KernelWorkingSet, Module, StateCheckpoint, TxGasMeter};
+use sov_modules_api::transaction::TxGasMeter;
+use sov_modules_api::{KernelWorkingSet, Module, StateCheckpoint};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
 

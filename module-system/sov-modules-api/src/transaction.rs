@@ -13,7 +13,7 @@ pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::{Hash, PublicKey, Signature as _};
 use sov_rollup_interface::zk::CryptoSpec;
 
-use crate::{Gas, GasArray, GasMeter, Spec, TxGasMeter};
+use crate::{Gas, GasArray, GasMeter, Spec};
 
 const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
 
@@ -367,6 +367,26 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
             priority_fee: tip,
         }
     }
+
+    /// Creates a new [`TxGasMeter`] from the transaction data.
+    pub fn gas_meter(&self, gas_price: &<S::Gas as Gas>::Price) -> TxGasMeter<S::Gas> {
+        // We compute the gas amount that the transaction should consume.
+        let gas_to_consume = match &self.gas_limit {
+            // If the user has provided a gas limit, we use the `gas_limit * gas_price` as the amount to consume (EIP-1559).
+            Some(gas_limit) => {
+                // We need to check the gas price in case the user has provided a gas limit.
+                gas_limit.value(gas_price)
+            }
+            // If the user has not provided a gas limit, we use the `max_fee` as the amount to consume.
+            None => self.max_fee,
+        };
+
+        TxGasMeter {
+            remaining_funds: gas_to_consume,
+            gas_price: gas_price.clone(),
+            gas_used: S::Gas::zero(),
+        }
+    }
 }
 
 pub struct AuthenticatedTransactionAndRawHash<S: Spec> {
@@ -459,6 +479,76 @@ impl Display for SequencerReward {
     }
 }
 
+/// A gas meter for transaction execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TxGasMeter<GU>
+where
+    GU: Gas,
+{
+    remaining_funds: u64,
+    gas_price: GU::Price,
+    gas_used: GU,
+}
+
+impl<GU> GasMeter<GU> for TxGasMeter<GU>
+where
+    GU: Gas,
+{
+    /// Returns the total gas incurred.
+    fn gas_used(&self) -> &GU {
+        &self.gas_used
+    }
+
+    /// Deducts the provided gas unit from the remaining funds, computing the scalar value of the
+    /// funds from the price of the instance.
+    fn charge_gas(&mut self, gas: &GU) -> Result<(), anyhow::Error> {
+        // Check that there's enough gas to cover the cost before mutating the gas_used counter.
+        // This ensures that in the corner case where...
+        //  - User wants to do expensive operation
+        //  - User does not have enough gas left
+        // ... the check fails and the user does not lose any gas - which is what we want
+        // since the operation won't be performed.
+        //
+        // This also ensures that the `gas_used` stays in sync with the `remaining_funds` counter.
+        let funds_to_charge = gas.value(&self.gas_price);
+        let remaining_funds = self.remaining_funds;
+        self.remaining_funds = remaining_funds
+            .checked_sub(funds_to_charge)
+            .ok_or_else(|| anyhow::anyhow!(
+                "Insufficient funds to charge gas. Required {funds_to_charge}, remaining {remaining_funds}"
+            ))?;
+
+        self.gas_used.combine(gas);
+
+        Ok(())
+    }
+
+    /// Returns the gas price.
+    fn gas_price(&self) -> &GU::Price {
+        &self.gas_price
+    }
+}
+
+impl<GU> TxGasMeter<GU>
+where
+    GU: Gas,
+{
+    /// Returns the remaining gas funds.
+    pub const fn remaining_funds(&self) -> u64 {
+        self.remaining_funds
+    }
+
+    /// Returns a gas meter which does not charge for gas.
+    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/678>`: remove this once we have a way to call rpc methods using the `StateCheckpoint`.
+    pub fn unmetered() -> Self {
+        Self {
+            remaining_funds: u64::MAX,
+            gas_price: GU::Price::ZEROED,
+            gas_used: GU::ZEROED,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use sov_mock_zkvm::MockZkVerifier;
@@ -466,29 +556,30 @@ mod tests {
 
     use super::{AuthenticatedTransactionData, PriorityFeeBips};
     use crate::default_spec::DefaultSpec;
-    use crate::transaction::{SequencerReward, TransactionConsumption};
-    use crate::{GasArray, GasMeter, GasPrice, GasUnit, TxGasMeter};
+    use crate::transaction::{SequencerReward, TransactionConsumption, TxGasMeter};
+    use crate::{GasArray, GasMeter, GasPrice, GasUnit};
 
     /// Consume all the gas in the gas meter, so the transaction reward is the same as the base fee and there is no priority fee.
     #[test]
     fn test_compute_transaction_reward_consume_all_gas() {
         const REMAINING_FUNDS: u64 = 100;
-        let mut gas_meter: TxGasMeter<GasUnit<2>> =
-            TxGasMeter::new(REMAINING_FUNDS, GasPrice::from_slice(&[1; 2]));
-
-        gas_meter
-            .charge_gas(&GasArray::from_slice(&[REMAINING_FUNDS / 2; 2]))
-            .expect("There should be enough gas to charge locked in the meter.");
 
         let tx_data = AuthenticatedTransactionData::<DefaultSpec<MockZkVerifier, MockZkVerifier>> {
             pub_key_hash: Hash([1; 32]),
             default_address: None,
             chain_id: 0,
             max_priority_fee_bips: PriorityFeeBips::from_percentage(10),
-            max_fee: 100,
+            max_fee: REMAINING_FUNDS,
             gas_limit: None,
             nonce: 0,
         };
+
+        let mut gas_meter: TxGasMeter<GasUnit<2>> =
+            tx_data.gas_meter(&GasPrice::from_slice(&[1; 2]));
+
+        gas_meter
+            .charge_gas(&GasArray::from_slice(&[REMAINING_FUNDS / 2; 2]))
+            .expect("There should be enough gas to charge locked in the meter.");
 
         let tx_reward = tx_data.transaction_reward(gas_meter);
 
@@ -505,22 +596,23 @@ mod tests {
     #[test]
     fn test_compute_transaction_reward_consume_not_all_gas() {
         const REMAINING_FUNDS: u64 = 100;
-        let mut gas_meter: TxGasMeter<GasUnit<2>> =
-            TxGasMeter::new(REMAINING_FUNDS, GasPrice::from_slice(&[1; 2]));
-
-        gas_meter
-            .charge_gas(&GasArray::from_slice(&[REMAINING_FUNDS / 4; 2]))
-            .expect("There should be enough gas to charge locked in the meter.");
 
         let tx_data = AuthenticatedTransactionData::<DefaultSpec<MockZkVerifier, MockZkVerifier>> {
             pub_key_hash: Hash([1; 32]),
             default_address: None,
             chain_id: 0,
             max_priority_fee_bips: PriorityFeeBips::from_percentage(100),
-            max_fee: 100,
+            max_fee: REMAINING_FUNDS,
             gas_limit: None,
             nonce: 0,
         };
+
+        let mut gas_meter: TxGasMeter<GasUnit<2>> =
+            tx_data.gas_meter(&GasPrice::from_slice(&[1; 2]));
+
+        gas_meter
+            .charge_gas(&GasArray::from_slice(&[REMAINING_FUNDS / 4; 2]))
+            .expect("There should be enough gas to charge locked in the meter.");
 
         let tx_reward = tx_data.transaction_reward(gas_meter);
 

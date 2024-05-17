@@ -1,6 +1,6 @@
 use sov_modules_api::prelude::*;
-use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
-use sov_modules_api::{Address, Context, Gas, Hash, Module, PrivateKey, PublicKey, TxGasMeter};
+use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips, TxGasMeter};
+use sov_modules_api::{Address, Context, Gas, Hash, Module, PrivateKey, PublicKey};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 

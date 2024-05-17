@@ -5,9 +5,11 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{
     GasEnforcer, RuntimeAuthorization, SequencerAuthorization,
 };
-use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionData, TransactionConsumption, TxGasMeter,
+};
 use sov_modules_api::{
-    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, TxGasMeter, WorkingSet,
+    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
@@ -99,17 +101,13 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
 }
 
 impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
-    /// The transaction type that the gas enforcer knows how to parse
-    type Tx = AuthenticatedTransactionData<S>;
-    /// The type of the transaction reward.
-    type TxConsumption = TransactionConsumption;
     /// A gas meter that tracks pre-execution costs.
     type PreExecChecksMeter = SequencerStakeMeter<S::Gas>;
 
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
         gas_price: &<S::Gas as Gas>::Price,
         pre_exec_checks_meter: &SequencerStakeMeter<S::Gas>,
@@ -136,10 +134,10 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
 
     fn consume_gas_and_allocate_rewards(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         gas_meter: TxGasMeter<S::Gas>,
         state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Self::TxConsumption {
+    ) -> TransactionConsumption {
         self.bank.consume_gas_and_allocate_rewards(
             tx,
             gas_meter,
@@ -151,9 +149,9 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
 
     fn refund_remaining_gas(
         &self,
-        tx: &Self::Tx,
+        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        consumption: &Self::TxConsumption,
+        consumption: &TransactionConsumption,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         self.bank

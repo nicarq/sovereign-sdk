@@ -14,9 +14,9 @@ use sov_state::{
 #[cfg(feature = "native")]
 use sov_state::{NativeStorage, ProvableCompileTimeNamespace, ProvenStateAccessor, StorageProof};
 
-use crate::common::{GasMeter, TxGasMeter};
 use crate::module::{Context, Spec};
-use crate::{Gas, GasTracker, TxState};
+use crate::transaction::TxGasMeter;
+use crate::{Gas, GasMeter, TxState};
 
 /// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
 pub(crate) trait UniversalStateAccessor {
@@ -318,18 +318,25 @@ impl<S: Spec> WorkingSet<S> {
     ///
     /// The witness value is set to [`Default::default`]. Use
     /// [`WorkingSet::with_witness`] to set a custom witness value.
+    ///
+    /// ## TODO(@theochap)
+    /// `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/678>`: This method is *deprecated* and should be removed once we have a way to call rpc methods using the [`StateCheckpoint`].
     pub fn new(inner: S::Storage) -> Self {
-        StateCheckpoint::new(inner).to_revertable(Default::default())
+        StateCheckpoint::new(inner).to_revertable(TxGasMeter::unmetered())
     }
 
     /// Creates a new archival working set with the same underlying `Storage` but an empty Delta, without
     /// modifying the original [`WorkingSet`].
+    /// Propagates the gas meter to the new working set.
+    ///
+    /// ## TODO(@theochap)
+    /// `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/678>`: This method is *deprecated* should be removed once we have a way to call rpc methods using the [`StateCheckpoint`].
     pub fn get_archival_at(&self, version: u64) -> Self {
         let storage = self.delta.inner.inner.clone();
         Self {
             delta: RevertableWriter::new(Delta::new(storage.clone(), Some(version))),
             events: Default::default(),
-            gas_meter: Default::default(),
+            gas_meter: TxGasMeter::unmetered(),
         }
     }
 
@@ -357,8 +364,11 @@ impl<S: Spec> WorkingSet<S> {
 
     /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
     /// and a custom witness value.
+    ///
+    /// ## TODO(@theochap)
+    /// This method is *deprecated* and should be removed once we have completed the gas integration for state accesses.
     pub fn with_witness(inner: S::Storage, witness: <S::Storage as Storage>::Witness) -> Self {
-        StateCheckpoint::with_witness(inner, witness).to_revertable(Default::default())
+        StateCheckpoint::with_witness(inner, witness).to_revertable(TxGasMeter::unmetered())
     }
 
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
@@ -409,32 +419,6 @@ impl<S: Spec> WorkingSet<S> {
     pub const fn gas_remaining_funds(&self) -> u64 {
         self.gas_meter.remaining_funds()
     }
-
-    /// Overrides the current gas funds available for transaction execution.
-    pub fn set_gas_funds(&mut self, funds: u64) {
-        self.gas_meter.set_gas_funds(funds);
-    }
-
-    /// Overrides the current gas price for transaction execution.
-    pub fn set_gas_price(&mut self, gas_price: <S::Gas as Gas>::Price) {
-        self.gas_meter.set_gas_price(gas_price);
-    }
-
-    /// Attempts to charge the provided gas unit from the gas meter, using the internal price to
-    /// compute the scalar value.
-    pub fn charge_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
-        self.gas_meter.charge_gas(gas)
-    }
-
-    /// Returns the gas price.
-    pub fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        self.gas_meter.gas_price()
-    }
-
-    /// Returns the total gas incurred.
-    pub fn gas_used(&self) -> &S::Gas {
-        self.gas_meter.gas_used()
-    }
 }
 
 impl<S: Spec> EventContainer for WorkingSet<S> {
@@ -443,12 +427,20 @@ impl<S: Spec> EventContainer for WorkingSet<S> {
     }
 }
 
-impl<S: Spec> GasTracker<S> for WorkingSet<S> {
+impl<S: Spec> TxState<S> for WorkingSet<S> {}
+impl<S: Spec> GasMeter<S::Gas> for WorkingSet<S> {
     fn charge_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
         self.gas_meter.charge_gas(gas)
     }
+
+    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
+        self.gas_meter.gas_price()
+    }
+
+    fn gas_used(&self) -> &S::Gas {
+        self.gas_meter.gas_used()
+    }
 }
-impl<S: Spec> TxState<S> for WorkingSet<S> {}
 
 #[cfg(feature = "native")]
 impl<N: ProvableCompileTimeNamespace, S: Spec> ProvenStateAccessor<N> for WorkingSet<S>

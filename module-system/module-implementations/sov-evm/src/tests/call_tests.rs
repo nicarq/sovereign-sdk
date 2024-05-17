@@ -1,8 +1,9 @@
 use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
+use sov_modules_api::transaction::TxGasMeter;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Context, KernelWorkingSet, Module, StateCheckpoint, TxGasMeter, VersionedStateReadWriter,
+    Context, KernelWorkingSet, Module, StateCheckpoint, VersionedStateReadWriter,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
