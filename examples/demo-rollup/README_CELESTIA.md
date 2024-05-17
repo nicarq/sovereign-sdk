@@ -309,7 +309,7 @@ You now have a batch with a single transaction in your wallet. If you want to su
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ sleep 60  # Wait a bit for the `make test-create-token` transaction to be processed.
+$ sleep 120  # Wait a bit for the `make test-create-token` transaction to be processed.
 $ ./../../target/debug/sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
 ```
 
@@ -318,7 +318,7 @@ This command will use your default private key.
 #### 4. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ sleep 60  # Wait a bit for the batch to be processed.
+$ sleep 120  # Wait a bit for the batch to be processed.
 $ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":{"amount":1000000},"id":1}
 ```
