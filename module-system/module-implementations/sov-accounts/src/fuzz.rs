@@ -1,12 +1,12 @@
 use arbitrary::{Arbitrary, Unstructured};
-use sov_modules_api::{CryptoSpec, Hash, Module, Spec, WorkingSet};
+use sov_modules_api::{CredentialId, CryptoSpec, Module, Spec, WorkingSet};
 
 use crate::{Account, AccountConfig, AccountData, Accounts, CallMessage};
 
 impl<'a> Arbitrary<'a> for CallMessage {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        let hash = <[u8; 32]>::arbitrary(u)?;
-        Ok(Self::UpdatePublicKey(Hash(hash)))
+        let credential_id = <[u8; 32]>::arbitrary(u)?;
+        Ok(Self::UpdatePublicKey(CredentialId(credential_id)))
     }
 }
 
@@ -25,7 +25,7 @@ where
 impl<'a, Addr: arbitrary::Arbitrary<'a>> Arbitrary<'a> for AccountData<Addr> {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         Ok(Self {
-            pub_key_hash: Hash(u.arbitrary()?),
+            credential_id: CredentialId(u.arbitrary()?),
             address: u.arbitrary()?,
         })
     }

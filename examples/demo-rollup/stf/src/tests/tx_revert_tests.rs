@@ -138,7 +138,7 @@ fn test_tx_revert() {
         let nonce = match runtime
             .accounts
             .get_account(
-                admin_key.pub_key().secure_hash::<TestHasher>(),
+                admin_key.pub_key().credential_id::<TestHasher>(),
                 &mut working_set,
             )
             .unwrap()
@@ -234,7 +234,7 @@ fn test_tx_bad_signature() {
         let nonce = match runtime
             .accounts
             .get_account(
-                admin_key.pub_key().secure_hash::<TestHasher>(),
+                admin_key.pub_key().credential_id::<TestHasher>(),
                 &mut working_set,
             )
             .unwrap()

@@ -236,12 +236,13 @@ async fn get_nonce_for_account<S: sov_modules_api::Spec + Send + Sync + Serializ
     client: &(impl ClientT + Send + Sync),
     account: &AddressEntry<S>,
 ) -> Result<u64, anyhow::Error> {
-    let pub_key_hash = account
+    let credential_id = account
         .pub_key
-        .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+
     Ok(match AccountsRpcClient::<S>::get_account(
         client,
-        pub_key_hash,
+        credential_id,
     )
     .await
     .context(

@@ -8,7 +8,7 @@ use digest::typenum::U32;
 use digest::Digest;
 use serde::{Deserialize, Serialize};
 
-use super::Hash;
+use super::CredentialId;
 use crate::alloc::borrow::ToOwned;
 
 /// Representation of a signature verification error.
@@ -42,7 +42,7 @@ pub trait PublicKey:
     Eq + hash::Hash + Clone + Debug + Send + Sync + Serialize + for<'a> Deserialize<'a>
 {
     /// Returns hashed public key.
-    fn secure_hash<Hasher: Digest<OutputSize = U32>>(&self) -> Hash;
+    fn credential_id<Hasher: Digest<OutputSize = U32>>(&self) -> CredentialId;
 }
 
 /// A private key for generating digital signatures.

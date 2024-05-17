@@ -4,7 +4,7 @@ use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, PriorityFeeBips,
 };
-use sov_modules_api::{GasMeter, Hash, Spec};
+use sov_modules_api::{CredentialId, GasMeter, Spec};
 
 use crate::conversions::RlpConversionError;
 use crate::{CallMessage, RlpEvmTransaction};
@@ -38,11 +38,10 @@ pub fn authenticate<S: Spec>(
 
     let nonce = signed_tx.nonce();
 
-    // This will be renamed to `CredentialId`.
-    let addr_hash = Hash(signer.into_word().into());
+    let credential_id = CredentialId(signer.into_word().into());
 
     let authenticated_tx = AuthenticatedTransactionData::<S> {
-        pub_key_hash: addr_hash,
+        credential_id,
         default_address: None,
         chain_id,
         max_priority_fee_bips,

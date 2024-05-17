@@ -4,22 +4,22 @@
   "description": "Represents the available call messages for interacting with the sov-accounts module.",
   "oneOf": [
     {
-      "description": "Updates a public key for the corresponding Account.",
+      "description": "Updates credential id for the corresponding Account.",
       "type": "object",
       "required": [
         "UpdatePublicKey"
       ],
       "properties": {
         "UpdatePublicKey": {
-          "$ref": "#/definitions/Hash"
+          "$ref": "#/definitions/CredentialId"
         }
       },
       "additionalProperties": false
     }
   ],
   "definitions": {
-    "Hash": {
-      "description": "Wrapper around hash value.",
+    "CredentialId": {
+      "description": "Type that represents an identifier for an authorizer of the transaction.",
       "type": "array",
       "items": {
         "type": "integer",

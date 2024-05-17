@@ -1,7 +1,7 @@
 use sov_bank::{Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, GAS_TOKEN_ID};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Gas, GasArray, GasPrice, Hash, Module, Spec, WorkingSet};
+use sov_modules_api::{Context, CredentialId, Gas, GasArray, GasPrice, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use tempfile::TempDir;
 
@@ -158,7 +158,7 @@ impl BankGasTestCase {
 
         let tx: AuthenticatedTransactionData<S> = AuthenticatedTransactionData {
             max_fee: sender_balance,
-            pub_key_hash: Hash([0; 32]),
+            credential_id: CredentialId([0; 32]),
             default_address: Some(sender_address),
             chain_id: 0,
             max_priority_fee_bips: PriorityFeeBips::ZERO,

@@ -10,10 +10,10 @@ impl<S: Spec> Accounts<S> {
         tx: &AuthenticatedTransactionData<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> Result<S::Address, anyhow::Error> {
-        let pub_key_hash = &tx.pub_key_hash;
+        let credential_id = &tx.credential_id;
         let maybe_address = self
             .accounts
-            .get(pub_key_hash, state_checkpoint)
+            .get(credential_id, state_checkpoint)
             .map(|a| a.addr);
 
         match maybe_address {
@@ -26,14 +26,14 @@ impl<S: Spec> Accounts<S> {
                     };
 
                     self.accounts
-                        .set(pub_key_hash, &new_account, state_checkpoint);
+                        .set(credential_id, &new_account, state_checkpoint);
 
-                    self.public_keys
-                        .set(default_address, pub_key_hash, state_checkpoint);
+                    self.credential_ids
+                        .set(default_address, credential_id, state_checkpoint);
 
                     Ok(default_address.clone())
                 }
-                None => anyhow::bail!("No default address found for {}", pub_key_hash),
+                None => anyhow::bail!("No default address found for {}", credential_id),
             },
         }
     }
@@ -46,13 +46,13 @@ impl<S: Spec> Accounts<S> {
     ) -> Result<(), anyhow::Error> {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
         // This will require a change to the account state layout
-        let pub_key_hash = &tx.pub_key_hash;
+        let credential_id = &tx.credential_id;
         let sender_nonce = self
             .accounts
-            .get(pub_key_hash, state_checkpoint)
+            .get(credential_id, state_checkpoint)
             .map(|a| a.nonce)
             .unwrap_or_else(|| panic!("The existence of the sender account for {} is ensured during the resolution of the sender's address.",
-              &pub_key_hash));
+              &credential_id));
 
         let tx_nonce = tx.nonce;
 
@@ -71,16 +71,16 @@ impl<S: Spec> Accounts<S> {
         tx: &AuthenticatedTransactionData<S>,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        let pub_key_hash = &tx.pub_key_hash;
+        let credential_id = &tx.credential_id;
         let mut account = self
             .accounts
-            .get(pub_key_hash, state_checkpoint)
+            .get(credential_id, state_checkpoint)
             .unwrap_or_else(|| panic!("The existence of the sender account for {} is ensured during the resolution of the sender's address.",
-                &pub_key_hash));
+                &credential_id));
 
         account.nonce += 1;
 
         self.accounts
-            .set(&tx.pub_key_hash, &account, state_checkpoint);
+            .set(&tx.credential_id, &account, state_checkpoint);
     }
 }

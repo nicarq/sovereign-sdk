@@ -29,9 +29,10 @@ where
     let pk = TestPrivateKey::generate();
     let addr = pk
         .pub_key()
-        .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>()
+        .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>()
         .0
         .into();
+
     (addr, pk)
 }
 

@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
-use sov_rollup_interface::crypto::{Hash, PublicKey, Signature as _};
+use sov_rollup_interface::crypto::{PublicKey, Signature as _};
 use sov_rollup_interface::zk::CryptoSpec;
 
-use crate::{Gas, GasArray, GasMeter, Spec};
+use crate::{CredentialId, Gas, GasArray, GasMeter, Spec};
 
 const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
 
@@ -307,15 +307,15 @@ type RawTxHash = [u8; 32];
 
 impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
     fn from(tx: Transaction<S>) -> Self {
-        let pub_key_hash = tx
+        let credential_id = tx
             .pub_key()
-            .secure_hash::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+            .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
 
         let default_address = Some(tx.pub_key().into());
 
         Self {
             default_address,
-            pub_key_hash,
+            credential_id,
             chain_id: tx.chain_id,
             max_priority_fee_bips: tx.max_priority_fee_bips,
             max_fee: tx.max_fee,
@@ -328,7 +328,7 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
 /// Transaction data that has been authenticated.
 /// This is the output of the `RuntimeAuthenticator`.
 pub struct AuthenticatedTransactionData<S: Spec> {
-    pub pub_key_hash: Hash,
+    pub credential_id: CredentialId,
     /// The default address of the signer.
     pub default_address: Option<S::Address>,
     /// The chain ID.
@@ -552,12 +552,11 @@ where
 #[cfg(test)]
 mod tests {
     use sov_mock_zkvm::MockZkVerifier;
-    use sov_rollup_interface::crypto::Hash;
 
     use super::{AuthenticatedTransactionData, PriorityFeeBips};
     use crate::default_spec::DefaultSpec;
     use crate::transaction::{SequencerReward, TransactionConsumption, TxGasMeter};
-    use crate::{GasArray, GasMeter, GasPrice, GasUnit};
+    use crate::{CredentialId, GasArray, GasMeter, GasPrice, GasUnit};
 
     /// Consume all the gas in the gas meter, so the transaction reward is the same as the base fee and there is no priority fee.
     #[test]
@@ -565,7 +564,7 @@ mod tests {
         const REMAINING_FUNDS: u64 = 100;
 
         let tx_data = AuthenticatedTransactionData::<DefaultSpec<MockZkVerifier, MockZkVerifier>> {
-            pub_key_hash: Hash([1; 32]),
+            credential_id: CredentialId([1; 32]),
             default_address: None,
             chain_id: 0,
             max_priority_fee_bips: PriorityFeeBips::from_percentage(10),
@@ -598,7 +597,7 @@ mod tests {
         const REMAINING_FUNDS: u64 = 100;
 
         let tx_data = AuthenticatedTransactionData::<DefaultSpec<MockZkVerifier, MockZkVerifier>> {
-            pub_key_hash: Hash([1; 32]),
+            credential_id: CredentialId([1; 32]),
             default_address: None,
             chain_id: 0,
             max_priority_fee_bips: PriorityFeeBips::from_percentage(100),

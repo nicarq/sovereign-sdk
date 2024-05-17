@@ -14,7 +14,9 @@ mod event;
 #[cfg(test)]
 mod tests;
 pub use call::CallMessage;
-use sov_modules_api::{Context, Error, GenesisState, Hash, ModuleId, ModuleInfo, Spec, TxState};
+use sov_modules_api::{
+    Context, CredentialId, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState,
+};
 
 use crate::event::Event;
 
@@ -35,13 +37,13 @@ pub struct Accounts<S: Spec> {
     #[id]
     pub id: ModuleId,
 
-    /// Mapping from an account address to a corresponding public key hash.
+    /// Mapping from an account address to a corresponding credential ids.
     #[state]
-    pub(crate) public_keys: sov_modules_api::StateMap<S::Address, Hash>,
+    pub(crate) credential_ids: sov_modules_api::StateMap<S::Address, CredentialId>,
 
     /// Mapping from a public key hash to a corresponding account.
     #[state]
-    pub(crate) accounts: sov_modules_api::StateMap<Hash, Account<S>>,
+    pub(crate) accounts: sov_modules_api::StateMap<CredentialId, Account<S>>,
 }
 
 impl<S: Spec> sov_modules_api::Module for Accounts<S> {
@@ -68,8 +70,8 @@ impl<S: Spec> sov_modules_api::Module for Accounts<S> {
         working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
-            call::CallMessage::UpdatePublicKey(new_pub_key_hash) => {
-                Ok(self.update_public_key(new_pub_key_hash, context, working_set)?)
+            call::CallMessage::UpdatePublicKey(new_credential_id) => {
+                Ok(self.update_public_key(new_credential_id, context, working_set)?)
             }
         }
     }
