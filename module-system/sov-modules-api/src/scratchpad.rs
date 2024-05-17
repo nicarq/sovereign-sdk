@@ -3,9 +3,9 @@
 use core::any::Any;
 use core::fmt;
 use std::boxed::Box;
+use std::collections::HashMap;
 
 pub use kernel_state::{KernelWorkingSet, VersionedStateReadWriter};
-use sov_rollup_interface::maybestd::collections::HashMap;
 use sov_state::namespaces::User;
 use sov_state::{
     namespaces, Accessory, CompileTimeNamespace, EventContainer, Namespace, ProvableStorageCache,

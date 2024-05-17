@@ -108,17 +108,14 @@ macro_rules! define_table_without_codec {
     };
 }
 
-/// Implements [`rockbound::schema::KeyEncoder`] for a given type using Borsh.
+/// Implements [`::rockbound::schema::KeyEncoder`] for a given type using Borsh.
 #[macro_export]
 macro_rules! impl_borsh_value_codec {
     ($table_name:ident, $value:ty) => {
         impl ::rockbound::schema::ValueCodec<$table_name> for $value {
             fn encode_value(
                 &self,
-            ) -> ::std::result::Result<
-                ::sov_rollup_interface::maybestd::vec::Vec<u8>,
-                ::rockbound::CodecError,
-            > {
+            ) -> ::std::result::Result<::std::vec::Vec<u8>, ::rockbound::CodecError> {
                 ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
             }
 
@@ -145,7 +142,7 @@ macro_rules! define_table_with_default_codec {
         define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
 
         impl ::rockbound::schema::KeyEncoder<$table_name> for $key {
-            fn encode_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::rockbound::CodecError> {
+            fn encode_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::rockbound::CodecError> {
                 ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
             }
         }
@@ -171,7 +168,7 @@ macro_rules! define_table_with_seek_key_codec {
         define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
 
         impl ::rockbound::schema::KeyEncoder<$table_name> for $key {
-            fn encode_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::rockbound::CodecError> {
+            fn encode_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::rockbound::CodecError> {
                 use ::anyhow::Context as _;
                 use ::bincode::Options as _;
 
@@ -197,7 +194,7 @@ macro_rules! define_table_with_seek_key_codec {
         }
 
         impl ::rockbound::SeekKeyEncoder<$table_name> for $key {
-            fn encode_seek_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::rockbound::CodecError> {
+            fn encode_seek_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::rockbound::CodecError> {
                 <Self as ::rockbound::schema::KeyEncoder<$table_name>>::encode_key(self)
             }
         }
@@ -233,7 +230,8 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// A "secondary index" for transaction data by hash
-    /// Since the same tx hash might appear in multiple blocks, we store the txnumber as part of the key.
+    /// Since the same tx hash might appear in multiple blocks,
+    /// we store the tx number as part of the key.
     (TxByHash) (DbHash, TxNumber) => ()
 );
 

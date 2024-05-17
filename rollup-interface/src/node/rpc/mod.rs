@@ -472,9 +472,6 @@ pub mod utils {
         use serde::de::{Error, Visitor};
         use serde::{Deserializer, Serializer};
 
-        use crate::maybestd::format;
-        use crate::maybestd::string::String;
-
         /// Serializes `data` as hex string using lowercase characters and prefixing with '0x'.
         ///
         /// Lowercase characters are used (e.g. `f9b4ca`). The resulting string's length
@@ -538,8 +535,6 @@ pub mod utils {
 #[cfg(test)]
 mod rpc_hex_tests {
     use serde::{Deserialize, Serialize};
-
-    use crate::maybestd::vec;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {

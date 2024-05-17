@@ -1,11 +1,11 @@
 //! Module storage definitions.
 
 use core::fmt;
+use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_rollup_interface::maybestd::{vec, RefCount};
 
 use crate::bytes::Prefix;
 use crate::codec::{EncodeKeyLike, StateItemCodec};
@@ -29,24 +29,22 @@ use crate::{StateAccesses, Witness};
     BorshSerialize,
 )]
 pub struct SlotKey {
-    key: RefCount<Vec<u8>>,
+    key: Arc<Vec<u8>>,
 }
 
 impl From<Vec<u8>> for SlotKey {
     fn from(key: Vec<u8>) -> Self {
-        Self {
-            key: RefCount::new(key),
-        }
+        Self { key: Arc::new(key) }
     }
 }
 
 impl SlotKey {
-    /// Returns a new [`RefCount`] reference to the bytes of this key.
-    pub fn key(&self) -> RefCount<Vec<u8>> {
+    /// Returns a new [`Arc`] reference to the bytes of this key.
+    pub fn key(&self) -> Arc<Vec<u8>> {
         self.key.clone()
     }
 
-    /// Returns a new [`RefCount`] reference to the bytes of this key.
+    /// Returns a new [`Arc`] reference to the bytes of this key.
     pub fn key_ref(&self) -> &Vec<u8> {
         self.key.as_ref()
     }
@@ -78,14 +76,14 @@ impl SlotKey {
         full_key.extend(&encoded_key);
 
         Self {
-            key: RefCount::new(full_key),
+            key: Arc::new(full_key),
         }
     }
 
     /// Build a storage key from raw bytes
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
         Self {
-            key: RefCount::new(bytes),
+            key: Arc::new(bytes),
         }
     }
 
@@ -93,19 +91,19 @@ impl SlotKey {
     /// Builds a storage key from a byte slice
     pub fn from_slice(key: &[u8]) -> Self {
         Self {
-            key: RefCount::new(key.to_vec()),
+            key: Arc::new(key.to_vec()),
         }
     }
 
     /// Creates a new [`SlotKey`] that combines a prefix and a key.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
-            key: RefCount::new(prefix.as_ref().to_vec()),
+            key: Arc::new(prefix.as_ref().to_vec()),
         }
     }
 }
 
-/// A serialized value suitable for storing. Internally uses an [`RefCount<Vec<u8>>`]
+/// A serialized value suitable for storing. Internally uses an [`Arc<Vec<u8>>`]
 /// for cheap cloning.
 #[derive(
     Clone,
@@ -119,13 +117,13 @@ impl SlotKey {
     BorshSerialize,
 )]
 pub struct SlotValue {
-    value: RefCount<Vec<u8>>,
+    value: Arc<Vec<u8>>,
 }
 
 impl From<Vec<u8>> for SlotValue {
     fn from(value: Vec<u8>) -> Self {
         Self {
-            value: RefCount::new(value),
+            value: Arc::new(value),
         }
     }
 }
@@ -138,19 +136,13 @@ impl SlotValue {
     {
         let encoded_value = codec.encode(value);
         Self {
-            value: RefCount::new(encoded_value),
+            value: Arc::new(encoded_value),
         }
     }
 
     /// Get the bytes of this value.
     pub fn value(&self) -> &[u8] {
         &self.value
-    }
-
-    /// Returns the value as a vector of bytes.
-    pub fn value_as_vec(self) -> Vec<u8> {
-        RefCount::<vec::Vec<u8>>::try_unwrap(self.value)
-            .expect("Impossible to unwrap the storage value")
     }
 }
 
@@ -307,7 +299,7 @@ pub trait Storage: Clone {
 impl From<&str> for SlotValue {
     fn from(value: &str) -> Self {
         Self {
-            value: RefCount::new(value.as_bytes().to_vec()),
+            value: Arc::new(value.as_bytes().to_vec()),
         }
     }
 }

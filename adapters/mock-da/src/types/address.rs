@@ -107,7 +107,7 @@ impl RollupAddress for MockAddress {}
 
 #[cfg(test)]
 mod tests {
-    use sov_rollup_interface::maybestd::string::ToString;
+    use std::string::ToString;
 
     use super::*;
 

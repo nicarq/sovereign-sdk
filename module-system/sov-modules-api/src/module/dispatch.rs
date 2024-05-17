@@ -1,7 +1,5 @@
 //! Runtime call message definitions.
 
-use sov_rollup_interface::maybestd::io;
-
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
 use crate::{ModuleId, WorkingSet};
@@ -15,7 +13,7 @@ pub trait DispatchCall: Send + Sync {
     type Decodable: Send + Sync;
 
     /// Decodes serialized call message
-    fn decode_call(serialized_message: &[u8]) -> Result<Self::Decodable, io::Error>;
+    fn decode_call(serialized_message: &[u8]) -> Result<Self::Decodable, std::io::Error>;
 
     /// Dispatches a call message to the appropriate module.
     fn dispatch_call(

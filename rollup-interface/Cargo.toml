@@ -19,20 +19,20 @@ workspace = true
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true }
-bytes = { workspace = true, optional = true, default-features = true }
+bytes = { workspace = true, default-features = true }
 digest = { workspace = true }
-hex = { workspace = true }
-serde = { workspace = true }
-schemars = { workspace = true, optional = true }
-sha2 = { workspace = true, optional = true }
-thiserror = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
-# TODO: Remove tokio when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161 is resolved
-tokio = { workspace = true, optional = true, features = ["sync"] }
-
+hex = { workspace = true }
 # Proptest should be a dev-dependency, but those can't be optional
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+thiserror = { workspace = true }
+# TODO: Remove tokio when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161 is resolved
+tokio = { workspace = true, optional = true, features = ["sync"] }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -42,39 +42,10 @@ serde_json = { workspace = true }
 sov-rollup-interface = { path = ".", features = ["native"] }
 
 [features]
-default = [ "std" ]
-# Re-export schemars for the native feature. Consumers should only enable the schmars feature when native is active.
-native = [
-	"futures",
-	"schemars",
-	"sov-rollup-interface/native",
-	"std",
-	"tokio",
-]
+native = [ "futures", "schemars", "sov-rollup-interface/native", "tokio" ]
 arbitrary = [
 	"proptest",
 	"proptest-derive",
 	"sha2",
 	"sov-rollup-interface/arbitrary",
-	"std",
-]
-std = [
-	"anyhow/default",
-	"anyhow/std",
-	"borsh/bytes",
-	"borsh/default",
-	"borsh/std",
-	"bytes",
-	"digest/default",
-	"digest/std",
-	"futures?/std",
-	"hex/default",
-	"hex/std",
-	"proptest?/std",
-	"serde/default",
-	"serde/std",
-	"serde_json/std",
-	"sha2?/default",
-	"sha2?/std",
-	"thiserror",
 ]
