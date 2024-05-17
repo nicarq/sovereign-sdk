@@ -8,6 +8,7 @@ use ethers_core::types::{
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
 use ethers_signers::Wallet;
+use futures::future::join_all;
 use jsonrpsee::core::client::{ClientT, Subscription, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -132,7 +133,7 @@ impl TestClient {
         max_priority_fee_per_gas: Option<u64>,
         max_fee_per_gas: Option<u64>,
     ) -> Vec<PendingTransaction<'_, Http>> {
-        let mut requests = vec![];
+        let mut requests: Vec<_> = Vec::with_capacity(set_args.len());
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
         for (i, set_arg) in set_args.into_iter().enumerate() {
@@ -148,15 +149,14 @@ impl TestClient {
 
             let typed_transaction = TypedTransaction::Eip1559(req);
 
-            requests.push(
-                self.client
-                    .send_transaction(typed_transaction, None)
-                    .await
-                    .unwrap(),
-            );
+            requests.push(self.client.send_transaction(typed_transaction, None));
         }
 
-        requests
+        join_all(requests)
+            .await
+            .into_iter()
+            .map(|r| r.unwrap())
+            .collect()
     }
 
     pub(crate) async fn set_value(

@@ -7307,6 +7307,7 @@ dependencies = [
  "ethers-middleware",
  "ethers-providers",
  "ethers-signers",
+ "futures",
  "hex",
  "humantime",
  "jsonrpsee 0.22.5",

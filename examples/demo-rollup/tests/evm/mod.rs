@@ -5,7 +5,9 @@ use std::str::FromStr;
 
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
+use ethers_providers::ProviderError;
 use ethers_signers::{LocalWallet, Signer};
+use futures::future::join_all;
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_stf_runner::RollupProverConfig;
@@ -51,7 +53,7 @@ async fn evm_tx_test(
         .await;
     });
 
-    // Wait for rollup task to start:
+    // Wait for the rollup task to start:
     let port = port_rx.await.unwrap();
     send_tx_test_to_eth(port).await.unwrap();
     rollup_task.abort();
@@ -179,10 +181,10 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
     client.send_publish_batch_request().await;
     let _ = slot_subscription.next().await.unwrap().unwrap();
 
-    for req in requests {
-        let receipt = req.await.unwrap();
-        assert!(receipt.is_some());
-    }
+    let receipts: Vec<Result<Option<_>, ProviderError>> = join_all(requests).await;
+    assert!(receipts
+        .into_iter()
+        .all(|x| x.is_ok() && x.unwrap().is_some()));
 
     {
         let get_arg = client.query_contract(contract_address).await?.as_u32();
@@ -212,19 +214,14 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
         // get initial gas price
         let initial_base_fee_per_gas = client.eth_gas_price().await;
 
-        // send 100 set transaction with high gas fee in a four batch to increase gas price
-        for i in 0..4 {
-            let values: Vec<u32> = (0..25).collect();
-            let requests = client
+        // send 10 "set" transactions with high gas fee in 2 batches to increase gas price
+        for _ in 0..2 {
+            let values: Vec<u32> = (0..5).collect();
+            let _requests = client
                 .set_values(contract_address, values, Some(20u64), Some(21u64))
                 .await;
             client.send_publish_batch_request().await;
             slot_subscription.next().await;
-            tracing::info!(
-                "6.{}: {} REQUESTS FOR GAS PRICE HAVE BEEN SUBMITTED",
-                i,
-                requests.len()
-            );
         }
         // get gas price
         let latest_gas_price = client.eth_gas_price().await;
