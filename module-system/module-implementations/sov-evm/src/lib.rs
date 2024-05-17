@@ -136,7 +136,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
         context: &Context<Self::Spec>,
         working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
-        Ok(self.execute_call(msg.tx, context, working_set)?)
+        Ok(self.execute_call(msg, context, working_set)?)
     }
 }
 

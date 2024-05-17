@@ -55,7 +55,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     );
 
     let contract_address: Address = {
-        let tx = dev_signer
+        let (tx, signer) = dev_signer
             .sign_default_transaction(TransactionKind::Create, contract.byte_code().to_vec(), 1)
             .unwrap();
 
@@ -65,9 +65,14 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             ..Default::default()
         };
 
-        let result =
-            executor::execute_tx(&mut evm_db, &block_env, tx, cfg_env_with_handler.clone())
-                .unwrap();
+        let result = executor::execute_tx(
+            &mut evm_db,
+            &block_env,
+            tx,
+            signer,
+            cfg_env_with_handler.clone(),
+        )
+        .unwrap();
         contract_address(&result).expect("Expected successful contract creation")
     };
 
@@ -76,7 +81,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     {
         let call_data = contract.set_call_data(set_arg);
 
-        let tx = dev_signer
+        let (tx, signer) = dev_signer
             .sign_default_transaction(
                 TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
@@ -89,6 +94,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             &mut evm_db,
             &BlockEnv::default(),
             tx,
+            signer,
             cfg_env_with_handler.clone(),
         )
         .unwrap();
@@ -97,7 +103,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     let get_res = {
         let call_data = contract.get_call_data();
 
-        let tx = dev_signer
+        let (tx, signer) = dev_signer
             .sign_default_transaction(
                 TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
@@ -110,6 +116,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             &mut evm_db,
             &BlockEnv::default(),
             tx,
+            signer,
             cfg_env_with_handler.clone(),
         )
         .unwrap();
@@ -123,7 +130,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     {
         let failing_call_data = contract.failing_function_call_data();
 
-        let tx = dev_signer
+        let (tx, signer) = dev_signer
             .sign_default_transaction(
                 TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&failing_call_data)).unwrap(),
@@ -136,6 +143,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             &mut evm_db,
             &BlockEnv::default(),
             tx,
+            signer,
             cfg_env_with_handler.clone(),
         )
         .unwrap();
