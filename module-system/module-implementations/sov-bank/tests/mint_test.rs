@@ -18,7 +18,8 @@ fn mint_token() {
 
     let minter_address = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");
-    let minter_context = Context::<S>::new(minter_address, sequencer_address, 1);
+    let minter_context =
+        Context::<S>::new(minter_address, Default::default(), sequencer_address, 1);
 
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
@@ -80,7 +81,12 @@ fn mint_token() {
     // Mint with an un-authorized user
     let unauthorized_address = generate_address::<S>("unauthorized_address");
     let sequencer_address = generate_address::<S>("sequencer");
-    let unauthorized_context = Context::<S>::new(unauthorized_address, sequencer_address, 1);
+    let unauthorized_context = Context::<S>::new(
+        unauthorized_address,
+        Default::default(),
+        sequencer_address,
+        1,
+    );
     let unauthorized_mint = bank.call(mint_message, &unauthorized_context, &mut working_set);
     assert_eq!(working_set.events().len(), 1);
 
@@ -164,8 +170,12 @@ fn mint_token() {
         message_2
     );
     // Try to mint new token with authorized sender 2
-    let authorized_minter_2_context =
-        Context::<S>::new(authorized_minter_address_2, sequencer_address, 1);
+    let authorized_minter_2_context = Context::<S>::new(
+        authorized_minter_address_2,
+        Default::default(),
+        sequencer_address,
+        1,
+    );
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,
@@ -182,8 +192,12 @@ fn mint_token() {
     assert_eq!(Some(110), supply);
 
     // Try to mint new token with authorized sender 1
-    let authorized_minter_1_context =
-        Context::<S>::new(authorized_minter_address_1, sequencer_address, 1);
+    let authorized_minter_1_context = Context::<S>::new(
+        authorized_minter_address_1,
+        Default::default(),
+        sequencer_address,
+        1,
+    );
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,
@@ -288,7 +302,7 @@ fn mint_token_from_module_and_address() {
     let sender_context = {
         let sender_address = generate_address::<S>("sender");
         let sequencer_address = generate_address::<S>("sequencer");
-        Context::<S>::new(sender_address, sequencer_address, 1)
+        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1)
     };
 
     let module_id = ModuleId::from([0; 32]);

@@ -793,7 +793,12 @@ impl TestRuntime<S, MockDaSpec> {
             .sequencer_registry
             .call(
                 register_message,
-                &Context::<S>::new(REGULAR_SEQUENCER_ROLLUP, REGULAR_REWARD_ROLLUP, 1),
+                &Context::<S>::new(
+                    REGULAR_SEQUENCER_ROLLUP,
+                    Default::default(),
+                    REGULAR_REWARD_ROLLUP,
+                    1,
+                ),
                 &mut working_set,
             )
             .unwrap();

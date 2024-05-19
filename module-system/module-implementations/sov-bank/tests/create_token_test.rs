@@ -17,7 +17,8 @@ fn initial_and_deployed_token() {
 
     let sender_address = generate_address::<S>("sender");
     let sequencer_address = generate_address::<S>("sequencer");
-    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
+    let sender_context =
+        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
     let minter_address = generate_address::<S>("minter");
     let initial_balance = 500;
     let token_name = "Token1".to_owned();

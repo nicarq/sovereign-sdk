@@ -30,7 +30,12 @@ fn test_two_phase_unbonding() {
         BOND_AMOUNT
     );
 
-    let context = Context::<S>::new(attester_address, sequencer, INIT_HEIGHT + 2);
+    let context = Context::<S>::new(
+        attester_address,
+        Default::default(),
+        sequencer,
+        INIT_HEIGHT + 2,
+    );
 
     // Try to skip the first phase of the two-phase unbonding. Should fail.
     {

@@ -270,7 +270,8 @@ fn transfer(
         },
     };
 
-    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
+    let sender_context =
+        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
 
     bank.call(transfer_message, &sender_context, working_set)
         .expect("Transfer call failed");

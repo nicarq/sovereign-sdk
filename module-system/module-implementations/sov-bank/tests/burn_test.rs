@@ -19,9 +19,11 @@ fn burn_deployed_tokens() {
 
     let sender_address = generate_address("just_sender");
     let sequencer_address = generate_address("sequencer");
-    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
+    let sender_context =
+        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
     let minter_address = generate_address("minter");
-    let minter_context = Context::<S>::new(minter_address, sequencer_address, 1);
+    let minter_context =
+        Context::<S>::new(minter_address, Default::default(), sequencer_address, 1);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
@@ -203,7 +205,7 @@ fn burn_initial_tokens() {
         },
     };
 
-    let context = Context::<S>::new(sender_address, sequencer_address, 1);
+    let context = Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
     bank.call(burn_message, &context, &mut working_set)
         .expect("Failed to burn token");
     assert_eq!(working_set.events().len(), 1);

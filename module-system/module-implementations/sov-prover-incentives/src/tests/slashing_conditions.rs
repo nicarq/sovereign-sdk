@@ -52,7 +52,7 @@ fn prove_transition_log(
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: &mut WorkingSet<S>,
 ) {
-    let context = Context::<S>::new(prover_address, sequencer, 1);
+    let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
     let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
 
     module
@@ -97,7 +97,7 @@ fn test_slash_on_invalid_proof() {
 
     // Process an invalid proof
     {
-        let context = Context::<S>::new(prover_address, sequencer, 1);
+        let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
         let proof = &MockZkvm::create_serialized_proof(false, ());
         module
             .process_proof(proof, &context, &mut working_set)
@@ -451,7 +451,7 @@ fn test_slash_on_invalid_output_format() {
 
     // Process an invalid proof
     {
-        let context = Context::<S>::new(prover_address, sequencer, 1);
+        let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
         let proof = MockZkvm::create_serialized_proof(true, ());
 
         module

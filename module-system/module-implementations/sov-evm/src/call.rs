@@ -23,19 +23,22 @@ use crate::{Evm, PendingTransaction, SpecId};
 pub struct CallMessage {
     /// RLP encoded transaction.
     pub rlp: RlpEvmTransaction,
-    /// Signer recovered from the rlp transaction.
-    pub signer: [u8; 20],
 }
 
 impl<S: sov_modules_api::Spec> Evm<S> {
     pub(crate) fn execute_call(
         &self,
         message: CallMessage,
-        _context: &Context<S>,
+        context: &Context<S>,
         working_set: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        // We don't check the signature here, because it was done by the authenticator.
-        let signer = Address::new(message.signer);
+        // Check if the tx went through the EVM authenticator.
+        let signer = *context
+            .get_sender_credential::<Address>()
+            .ok_or(anyhow::anyhow!(
+                "EVM transaction must be authenticated by the EVM authenticator"
+            ))?;
+
         let evm_tx: TransactionSignedNoHash = message.rlp.try_into()?;
 
         let block_env = self

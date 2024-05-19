@@ -151,13 +151,21 @@ mod tests {
 
         {
             {
-                let mut versioned_state =
-                    working_set.versioned_state(&Context::<TestSpec>::new(signer, sequencer, 1));
+                let mut versioned_state = working_set.versioned_state(&Context::<TestSpec>::new(
+                    signer,
+                    Default::default(),
+                    sequencer,
+                    1,
+                ));
                 // Try to read the value from user space with the slot number set to 1. Should fail.
                 assert_eq!(value.get_current(&mut versioned_state), None);
             }
-            let mut versioned_state =
-                working_set.versioned_state(&Context::<TestSpec>::new(signer, sequencer, 4));
+            let mut versioned_state = working_set.versioned_state(&Context::<TestSpec>::new(
+                signer,
+                Default::default(),
+                sequencer,
+                4,
+            ));
             // Try to read the value from user space with the slot number set to 4. Should succeed.
             assert_eq!(value.get_current(&mut versioned_state), Some(100));
         }
@@ -186,22 +194,34 @@ mod tests {
 
         {
             {
-                let mut versioned_state =
-                    working_set.versioned_state(&Context::<TestSpec>::new(signer, sequencer, 1));
+                let mut versioned_state = working_set.versioned_state(&Context::<TestSpec>::new(
+                    signer,
+                    Default::default(),
+                    sequencer,
+                    1,
+                ));
                 // Try to read the value from user space with the slot number set to 1. Should fail.
                 assert_eq!(value.get_current(&mut versioned_state), None);
             }
             {
                 // Try to read the value from user space with the slot number set to 2. Should succeed.
-                let mut versioned_state =
-                    working_set.versioned_state(&Context::<TestSpec>::new(signer, sequencer, 2));
+                let mut versioned_state = working_set.versioned_state(&Context::<TestSpec>::new(
+                    signer,
+                    Default::default(),
+                    sequencer,
+                    2,
+                ));
 
                 assert_eq!(value.get_current(&mut versioned_state), Some(100));
             }
 
             // Try to read the value from user space with the slot number set to 4. Should succeed.
-            let mut versioned_state =
-                working_set.versioned_state(&Context::<TestSpec>::new(signer, sequencer, 4));
+            let mut versioned_state = working_set.versioned_state(&Context::<TestSpec>::new(
+                signer,
+                Default::default(),
+                sequencer,
+                4,
+            ));
             assert_eq!(value.get_current(&mut versioned_state), Some(17));
         }
     }

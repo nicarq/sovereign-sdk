@@ -1,3 +1,4 @@
+- #694 adds `Credentials` to the `Context` structure. This is a breaking change for the consumers of the SDK. See implementation of the `RuntimeAuthorization::resolve_context` method.
 - #688 follow-up of https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/681 that modifies the gas interface to prevent access to `TxGasMeter` outside of `sov-modules-api`. 
 The spirit of this change is to increase the coupling between the `WorkingSet` and `Transaction` types. Meaningful changes:
   - Change the visibility of `TxGasMeter` to `pub(crate)`.

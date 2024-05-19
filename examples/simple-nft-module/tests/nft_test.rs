@@ -41,7 +41,7 @@ fn genesis_and_mint() {
 
     // Mint, anybody can mint
     let mint_message = CallMessage::Mint { id: 1 };
-    let owner2_context = Context::<S>::new(owner2, sequencer, 1);
+    let owner2_context = Context::<S>::new(owner2, Default::default(), sequencer, 1);
     nft.call(mint_message.clone(), &owner2_context, &mut working_set)
         .expect("Minting failed");
 
@@ -67,9 +67,9 @@ fn transfer() {
     // Preparation
     let admin = generate_address("admin");
     let sequencer = generate_address("sequencer");
-    let admin_context = Context::<S>::new(admin, sequencer, 1);
+    let admin_context = Context::<S>::new(admin, Default::default(), sequencer, 1);
     let owner1 = generate_address("owner2");
-    let owner1_context = Context::<S>::new(owner1, sequencer, 1);
+    let owner1_context = Context::<S>::new(owner1, Default::default(), sequencer, 1);
     let owner2 = generate_address("owner2");
     let config: NonFungibleTokenConfig<S> = NonFungibleTokenConfig {
         admin,
@@ -126,9 +126,9 @@ fn burn() {
     // Preparation
     let admin = generate_address("admin");
     let sequencer = generate_address("sequencer");
-    let admin_context = Context::<S>::new(admin, sequencer, 1);
+    let admin_context = Context::<S>::new(admin, Default::default(), sequencer, 1);
     let owner1 = generate_address("owner2");
-    let owner1_context = Context::<S>::new(owner1, sequencer, 1);
+    let owner1_context = Context::<S>::new(owner1, Default::default(), sequencer, 1);
     let config: NonFungibleTokenConfig<S> = NonFungibleTokenConfig {
         admin,
         owners: vec![(0, owner1)],

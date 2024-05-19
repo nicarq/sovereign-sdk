@@ -9,6 +9,7 @@ use sov_rollup_interface::RollupAddress;
 use sov_state::{Storage, Witness};
 
 use crate::common::Gas;
+use crate::transaction::Credentials;
 use crate::{PublicKeyExt, SignatureExt};
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
@@ -138,8 +139,11 @@ where
 impl<C: CryptoHelper> CryptoSpecExt for C {}
 
 /// The context in which a transaction executes
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+
+#[derive(Clone, Debug)]
 pub struct Context<S: Spec> {
+    /// The original credentials of the sender.
+    sender_credentials: Credentials,
     /// The sender address of the transaction.
     sender: S::Address,
     /// The rollup address of the sequencer who included the transaction.
@@ -161,13 +165,24 @@ impl<S: Spec> Context<S> {
     }
 
     /// Constructs a new Context.
-    pub fn new(sender: S::Address, sequencer: S::Address, height: u64) -> Self {
+    pub fn new(
+        sender: S::Address,
+        sender_credentials: Credentials,
+        sequencer: S::Address,
+        height: u64,
+    ) -> Self {
         Self {
+            sender_credentials,
             sender,
             sequencer,
             visible_height: height,
             phantom: core::marker::PhantomData,
         }
+    }
+
+    /// Returns the sender's credentials.
+    pub fn get_sender_credential<T: core::any::Any>(&self) -> Option<&T> {
+        self.sender_credentials.get::<T>()
     }
 
     /// Returns the current slot number.
@@ -190,7 +205,7 @@ mod arbitrary {
             let sender = u.arbitrary()?;
             let sequencer = u.arbitrary()?;
             let height = u.arbitrary()?;
-            Ok(Self::new(sender, sequencer, height))
+            Ok(Self::new(sender, Default::default(), sequencer, height))
         }
     }
 }

@@ -1,5 +1,6 @@
 use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
+use sov_modules_api::transaction::Credentials;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Context, KernelWorkingSet, Module, StateCheckpoint, VersionedStateReadWriter,
@@ -53,13 +54,18 @@ fn call_test() {
     {
         let sender_address = generate_address::<S>("sender");
         let sequencer_address = generate_address::<S>("sequencer");
-        let context = Context::<S>::new(sender_address, sequencer_address, 1);
 
         let messages = vec![
             create_contract_message(&dev_signer, 0),
             set_arg_message(contract_addr, &dev_signer, 1, set_arg),
         ];
-        for tx in messages {
+        for (tx, signer) in messages {
+            let context = Context::<S>::new(
+                sender_address,
+                Credentials::new(signer),
+                sequencer_address,
+                1,
+            );
             evm.call(tx, &context, &mut working_set).unwrap();
         }
     }
@@ -123,8 +129,14 @@ fn failed_transaction_test() {
     {
         let sender_address = generate_address::<S>("sender");
         let sequencer_address = generate_address::<S>("sequencer");
-        let context = Context::<S>::new(sender_address, sequencer_address, 1);
-        let message = create_contract_message(&dev_signer, 0);
+        let (message, signer) = create_contract_message(&dev_signer, 0);
+        let context = Context::<S>::new(
+            sender_address,
+            Credentials::new(signer),
+            sequencer_address,
+            1,
+        );
+
         evm.call(message, &context, &mut working_set).unwrap();
     }
 
@@ -144,7 +156,7 @@ fn failed_transaction_test() {
     assert_eq!(block.transactions.end, 0);
 }
 
-fn create_contract_message(dev_signer: &TestSigner, nonce: u64) -> CallMessage {
+fn create_contract_message(dev_signer: &TestSigner, nonce: u64) -> (CallMessage, Address) {
     let contract = SimpleStorageContract::default();
     let (signed_tx, signer) = dev_signer
         .sign_default_transaction(
@@ -153,10 +165,7 @@ fn create_contract_message(dev_signer: &TestSigner, nonce: u64) -> CallMessage {
             nonce,
         )
         .unwrap();
-    CallMessage {
-        rlp: signed_tx,
-        signer: signer.into(),
-    }
+    (CallMessage { rlp: signed_tx }, signer)
 }
 
 fn set_arg_message(
@@ -164,7 +173,7 @@ fn set_arg_message(
     dev_signer: &TestSigner,
     nonce: u64,
     set_arg: u32,
-) -> CallMessage {
+) -> (CallMessage, Address) {
     let contract = SimpleStorageContract::default();
     let (signed_tx, signer) = dev_signer
         .sign_default_transaction(
@@ -174,8 +183,5 @@ fn set_arg_message(
         )
         .unwrap();
 
-    CallMessage {
-        rlp: signed_tx,
-        signer: signer.into(),
-    }
+    (CallMessage { rlp: signed_tx }, signer)
 }
