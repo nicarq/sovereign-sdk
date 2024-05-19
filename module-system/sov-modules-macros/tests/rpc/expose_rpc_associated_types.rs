@@ -16,6 +16,7 @@ pub trait Data:
     + Eq
     + PartialEq
     + std::fmt::Debug
+    + std::default::Default
     + serde::Serialize
     + serde::de::DeserializeOwned
     + borsh::BorshSerialize
@@ -94,8 +95,6 @@ pub mod my_module {
         }
     }
 }
-
-use my_module::rpc::{QueryModuleRpcImpl, QueryModuleRpcServer};
 
 #[expose_rpc]
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]

@@ -7584,6 +7584,7 @@ dependencies = [
  "borsh 0.10.3",
  "clap",
  "derivative",
+ "derive_more",
  "hex",
  "jsonrpsee 0.22.5",
  "proptest",
@@ -7606,6 +7607,7 @@ dependencies = [
  "sov-state",
  "tempfile",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 

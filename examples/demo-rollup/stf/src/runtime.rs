@@ -31,24 +31,11 @@
 //!  The `DispatchCall` implementation (derived by a macro) forwards the message to the appropriate module and executes its `call` method.
 
 #![allow(unused_doc_comments)]
-#[cfg(feature = "native")]
-use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
-#[cfg(feature = "native")]
-use sov_bank::{BankRpcImpl, BankRpcServer};
-#[cfg(feature = "native")]
-use sov_evm::{EvmRpcImpl, EvmRpcServer};
+
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
-#[cfg(feature = "native")]
-use sov_nft_module::{NonFungibleTokenRpcImpl, NonFungibleTokenRpcServer};
-#[cfg(feature = "native")]
-use sov_prover_incentives::{ProverIncentivesRpcImpl, ProverIncentivesRpcServer};
 use sov_rollup_interface::da::DaSpec;
-#[cfg(feature = "native")]
-use sov_sequencer_registry::{SequencerRegistryRpcImpl, SequencerRegistryRpcServer};
-#[cfg(feature = "native")]
-use sov_value_setter::{ValueSetterRpcImpl, ValueSetterRpcServer};
 
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;

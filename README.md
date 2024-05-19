@@ -53,7 +53,7 @@ called the Module System.
 
 At the heart of the Module System is the package [`sov-modules-api`](./module-system/sov-modules-api/). This package defines
 a group of core traits which express how functionality implemented in separate modules can be combined into a `Runtime`
-capable of processing transactions and serving RPC requests. It also defines macros for implementing most of these traits.
+capable of processing transactions and serving JSON-RPC and web server requests. It also defines macros for implementing most of these traits.
 For many applications, defining your state transition function using the Module System should be as simple as picking
 some modules off the shelf and defining a struct which glues them together.
 To deliver this experience, the Module System relies on a set of common types and traits that are used in every module. The

@@ -7,12 +7,8 @@ mod genesis;
 mod tests;
 
 mod event;
-#[cfg(feature = "native")]
-mod rpc;
 pub use call::*;
 pub use genesis::*;
-#[cfg(feature = "native")]
-pub use rpc::*;
 use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
 
 use crate::event::Event;

@@ -32,8 +32,6 @@ use module_info::ModuleType;
 use new_types::address_type_helper;
 use offchain::offchain_generator;
 use proc_macro::TokenStream;
-#[cfg(feature = "native")]
-use rpc::ExposeRpcMacro;
 use syn::{parse_macro_input, DeriveInput, ItemFn};
 
 /// Returns the name of the function that invoked the proc-macro.
@@ -137,17 +135,43 @@ pub fn config_value(item: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), make_const_value(&constant_name).map(Into::into))
 }
 
-/// Derives a [`jsonrpsee`] implementation for the underlying type. Any code relying on this macro
-/// must take jsonrpsee as a dependency with at least the following features enabled: `["macros", "client-core", "server"]`.
+/// A wrapper around [`jsonrpsee::proc_macros::rpc`] for modules.
 ///
-/// Syntax is identical to `jsonrpsee`'s `#[rpc]` execept that:
-/// 1. `#[rpc]` is renamed to `#[rpc_gen]` to avoid confusion with `jsonrpsee`'s `#[rpc]`
-/// 2. `#[rpc_gen]` is applied to an `impl` block instead of a trait
-/// 3. `#[method]` is renamed to with `#[rpc_method]` to avoid import confusion and clarify the purpose of the annotation
+/// This proc-macro generates a [`jsonrpsee`] implementation for the underlying
+/// module type. It behaves very similar to the original [`jsonrpsee`]
+/// proc-macro, but with some important distinctions:
+///
+/// 1. It's called `#[rpc_gen]` instead of `#[rpc]`, to avoid confusion with the
+///    original proc-macro.
+/// 2. `#[method]` is renamed to with `#[rpc_method]` to avoid confusion with
+///    [`jsonrpsee`]'s own attribute.
+/// 3. **It's applied on an `impl` block instead of a trait.** [`macro@rpc_gen`] will
+///    copy all method definitions from your `impl` block into a new trait with
+///    the same generics and method signatures. Unlike [`jsonrpsee`] traits
+///    which can simply be signatures, these methods must all have function
+///    bodies as they provide the trait definition and its implementation at the
+///    same time.
+/// 4. Working set arguments with signature `working_set: &mut WorkingSet<S>`
+///    are automatically removed from the method signatures (as they are not
+///    [`serde`]-compatible) and injected directly within the method bodies.
+///
+///    It sounds more complicated than it is. Generally, you can just assume
+///    that the proc-macro will provide you with a working set argument that you
+///    can request by adding it as a method argument.
+///
+/// Any code relying on this macro must take [`jsonrpsee`] as a dependency with
+/// at least the following features enabled:
+///
+/// ```toml
+/// jsonrpsee = { version = "...", features = ["macros", "client-core", "server"] }
+/// ```
+///
+/// This proc-macro is only intended for modules. Refer to [`macro@expose_rpc`] for
+/// the runtime proc-macro.
 ///
 /// ## Example
 /// ```
-/// use sov_modules_api::{Spec, ModuleId, ModuleInfo};
+/// use sov_modules_api::{Spec, StateValue, ModuleId, ModuleInfo, WorkingSet};
 /// use sov_modules_api::macros::rpc_gen;
 /// use jsonrpsee::core::RpcResult;
 ///
@@ -155,79 +179,28 @@ pub fn config_value(item: TokenStream) -> TokenStream {
 /// struct MyModule<S: Spec> {
 ///     #[id]
 ///     id: ModuleId,
-///     #[phantom]
-///     phantom: std::marker::PhantomData<S>,
+///     #[state]
+///     values: StateValue<S::Address>,
 ///     // ...
 /// }
 ///
 /// #[rpc_gen(client, server, namespace = "myNamespace")]
 /// impl<S: Spec> MyModule<S> {
 ///     #[rpc_method(name = "myMethod")]
-///     fn my_method(&self, param: u32) -> RpcResult<u32> {
-///         Ok(1)
-///     }
-/// }
-/// ```
-///
-/// This is exactly equivalent to hand-writing
-///
-/// ```
-/// use sov_modules_api::{Spec, ModuleId, ModuleInfo, WorkingSet};
-/// use sov_modules_api::macros::rpc_gen;
-/// use jsonrpsee::core::RpcResult;
-///
-/// #[derive(ModuleInfo)]
-/// struct MyModule<S: Spec> {
-///     #[id]
-///     id: ModuleId,
-///     #[phantom]
-///     phantom: std::marker::PhantomData<S>,
-///     // ...
-/// };
-///
-/// impl<S: Spec> MyModule<S> {
-///     fn my_method(&self, working_set: &mut WorkingSet<S>, param: u32) -> RpcResult<u32> {
-///         Ok(1)
-///     }  
-/// }
-///
-/// #[jsonrpsee::proc_macros::rpc(client, server, namespace ="myNamespace")]
-/// pub trait MyModuleRpc<S: Spec> {
-///     #[method(name = "myMethod")]
-///     fn my_method(&self, param: u32) ->RpcResult<u32>;
-///
-///     #[method(name = "health")]
-///     fn health(&self) -> RpcResult<()> {
-///         Ok(())
-///     }
-///
-///     #[method(name = "moduleId")]
-///     fn module_id(&self) -> ::jsonrpsee::core::RpcResult<String> {
-///        Ok(<MyModule<S> as ModuleInfo>::id(&<MyModule<S> as ::core::default::Default>::default()).to_string())
-///     }
-///         
-/// }
-/// ```
-///
-/// This proc macro also generates an implementation trait intended to be used by a Runtime struct. This trait
-/// is named `MyModuleRpcImpl`, and allows a Runtime to be converted into a functional RPC server
-/// by simply implementing the two required methods - `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<S>`
-///
-/// ```rust,ignore
-/// pub trait MyModuleRpcImpl<S: sov_modules_api::Spec> {
-///     fn get_backing_impl(&self) -> &TestStruct<S>;
-///     fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<S>;
-///     fn my_method(&self, param: u32) -> u32 {
-///         Self::get_backing_impl(self).my_method(self, &mut Self::get_working_set(self), param)
+///     fn my_method(&self, working_set: &mut WorkingSet<S>, param: u32) -> RpcResult<S::Address> {
+///         Ok(self.values.get(working_set).unwrap())
 ///     }
 /// }
 /// ```
 #[proc_macro_attribute]
 #[cfg(feature = "native")]
 pub fn rpc_gen(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let attr: Vec<syn::NestedMeta> = parse_macro_input!(attr);
+    let attr_contents: Vec<syn::NestedMeta> = parse_macro_input!(attr);
     let input = parse_macro_input!(item as syn::ItemImpl);
-    handle_macro_error_and_expand(fn_name!(), rpc::rpc_gen(attr, input).map(|ok| ok.into()))
+    handle_macro_error_and_expand(
+        fn_name!(),
+        rpc::rpc_gen(attr_contents, input).map(|ok| ok.into()),
+    )
 }
 
 #[cfg(feature = "native")]
@@ -235,8 +208,7 @@ pub fn rpc_gen(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn expose_rpc(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let original = input.clone();
     let input = parse_macro_input!(input);
-    let expose_macro = ExposeRpcMacro::new("Expose");
-    handle_macro_error_and_expand(fn_name!(), expose_macro.generate_rpc(original, input))
+    handle_macro_error_and_expand(fn_name!(), rpc::expose_rpc("Expose", original, input))
 }
 
 #[cfg(feature = "native")]

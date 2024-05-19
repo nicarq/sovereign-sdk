@@ -60,12 +60,7 @@ to enable RPC servers of the modules.
 ```rust
 // This code goes in your state transition function crate. For example demo-stf/runtime.rs
 
-use sov_bank::{BankRpcImpl, BankRpcServer};
-
-#[cfg_attr(
-    feature = "native",
-    expose_rpc(DefaultContext)
-)]
+#[cfg_attr(feature = "native", expose_rpc)]
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct Runtime<S: Spec> {

@@ -42,7 +42,6 @@ fn rpc_tests() {
     set_constants_manifest();
     let t = trybuild::TestCases::new();
     t.pass("tests/rpc/derive_rpc.rs");
-    t.pass("tests/rpc/derive_rpc_with_where.rs");
     t.pass("tests/rpc/expose_rpc.rs");
     t.pass("tests/rpc/expose_rpc_associated_types.rs");
     t.pass("tests/rpc/expose_rpc_associated_types_nested.rs");

@@ -1,148 +1,65 @@
+use proc_macro::TokenStream;
 use quote::quote;
 use syn::DeriveInput;
 
 use crate::common::StructFieldExtractor;
 
-pub struct ExposeRpcMacro {
-    field_extractor: StructFieldExtractor,
-}
+pub fn expose_rpc(
+    proc_macro_name: &'static str,
+    original: TokenStream,
+    input: DeriveInput,
+) -> syn::Result<TokenStream> {
+    let field_extractor = StructFieldExtractor::new(proc_macro_name);
 
-impl ExposeRpcMacro {
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            field_extractor: StructFieldExtractor::new(name),
-        }
-    }
+    let DeriveInput {
+        data,
+        generics,
+        ident: input_ident,
+        ..
+    } = input;
 
-    pub fn generate_rpc(
-        &self,
-        original: proc_macro::TokenStream,
-        input: DeriveInput,
-    ) -> Result<proc_macro::TokenStream, syn::Error> {
-        let DeriveInput {
-            data,
-            generics,
-            ident: input_ident,
-            ..
-        } = input;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let merge_operations = field_extractor
+        .get_fields_from_struct(&data)?
+        .iter()
+        .map(|field| {
+            let attrs = &field.attrs;
+            let module_ident = &field.ident;
 
-        let spec_type = generics
-            .params
-            .iter()
-            .find_map(|item| {
-                if let syn::GenericParam::Type(type_param) = item {
-                    Some(type_param.ident.clone())
-                } else {
-                    None
-                }
-            })
-            .ok_or(syn::Error::new_spanned(
-                &generics,
-                "a runtime must be generic over a sov_modules_api::Spec to generate rpc methods",
-            ))?;
-
-        let fields = self.field_extractor.get_fields_from_struct(&data)?;
-
-        let rpc_storage_struct = quote! {
-            struct RpcStorage #impl_generics #where_clause {
-                storage: ::jsonrpsee::tokio::sync::watch::Receiver<#spec_type::Storage>,
-                // Function pointers are always Send + Sync, regardless of
-                // whether the return type is. The alternative would be to
-                // `unsafe impl Send/Sync` for `RpcStorage`, but this seems
-                // better (and safer).
-                _phantom: ::std::marker::PhantomData<fn() -> #input_ident #ty_generics >,
-            }
-
-            // Manually implementing clone, as in reality only cloning storage
-            impl #impl_generics ::std::clone::Clone for RpcStorage #ty_generics #where_clause {
-                fn clone(&self) -> Self {
-                    Self {
-                        storage: self.storage.clone(),
-                        _phantom: ::std::marker::PhantomData,
-                    }
-                 }
-            }
-        };
-
-        let mut merge_operations = proc_macro2::TokenStream::new();
-        let mut rpc_trait_impls = proc_macro2::TokenStream::new();
-
-        for field in fields {
-            let attrs = field.attrs;
-            let ty = match field.ty {
-                syn::Type::Path(type_path) => type_path.clone(),
-                _ => panic!("Expected a path type"),
-            };
-
-            let field_path_args = &ty
-                .path
-                .segments
-                .last()
-                .expect("A type path must have at least one segment")
-                .arguments;
-
-            let module_ident = ty.path.segments.last().unwrap().clone().ident;
-
-            let rpc_trait_ident =
-                syn::Ident::new(&format!("{}RpcImpl", &module_ident), module_ident.span());
-
-            let rpc_server_ident =
-                syn::Ident::new(&format!("{}RpcServer", &module_ident), module_ident.span());
-
-            let merge_operation = quote! {
+            quote! {
                 #(#attrs)*
-                module
-                    .merge(#rpc_server_ident:: #field_path_args ::into_rpc(r.clone()))
+                rpc_module
+                    .merge((&runtime.#module_ident).rpc_methods(storage.clone()))
                     .unwrap();
-            };
-
-            merge_operations.extend(merge_operation);
-
-            let rpc_trait_impl = quote! {
-                #(#attrs)*
-                impl #impl_generics #rpc_trait_ident #field_path_args for RpcStorage #ty_generics #where_clause {
-                    /// Get a working set on top of the current storage
-                    fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<#spec_type>
-                    {
-                        let storage = self.storage.borrow().clone();
-                        ::sov_modules_api::WorkingSet::new(storage)
-                    }
-                }
-            };
-
-            rpc_trait_impls.extend(rpc_trait_impl);
-        }
-
-        let get_rpc_methods: proc_macro2::TokenStream = quote! {
-            /// Returns a [`jsonrpsee::RpcModule`] with all the RPC methods exposed by the module
-            pub fn get_rpc_methods #impl_generics (storage: ::jsonrpsee::tokio::sync::watch::Receiver<<#spec_type as ::sov_modules_api::Spec>::Storage>) -> ::jsonrpsee::RpcModule<()> #where_clause {
-                let mut module = ::jsonrpsee::RpcModule::new(());
-                let r = RpcStorage:: #ty_generics  {
-                    storage: storage.clone(),
-                    _phantom: ::std::marker::PhantomData
-                };
-
-                #merge_operations
-                module
             }
-        };
+        })
+        .collect::<Vec<_>>();
 
-        let mut tokens = proc_macro::TokenStream::new();
-        tokens.extend(original);
+    let runtime_type = quote! {
+        #input_ident #ty_generics
+    };
 
-        let generated_from_runtime: proc_macro::TokenStream = quote! {
-            #get_rpc_methods
+    let fn_get_rpc_methods: proc_macro2::TokenStream = quote! {
+        /// Returns a [`jsonrpsee::RpcModule`] with all the RPC methods
+        /// exposed by the runtime.
+        pub fn get_rpc_methods #impl_generics (storage: ::jsonrpsee::tokio::sync::watch::Receiver<
+            S::Storage
+        >) -> ::jsonrpsee::RpcModule<()> #where_clause {
+            use sov_modules_api::__rpc_macros_private::ModuleWithRpcServer;
 
-            #rpc_storage_struct
+            let runtime = <#runtime_type as ::core::default::Default>::default();
+            let mut rpc_module = ::jsonrpsee::RpcModule::new(());
 
-            #rpc_trait_impls
+            #(#merge_operations)*
+            rpc_module
         }
-        .into();
+    };
 
-        tokens.extend(generated_from_runtime);
+    let mut tokens = TokenStream::new();
 
-        Ok(tokens)
-    }
+    tokens.extend(original);
+    tokens.extend(TokenStream::from(fn_get_rpc_methods));
+
+    Ok(tokens)
 }

@@ -2840,6 +2840,7 @@ dependencies = [
  "bech32",
  "borsh 0.10.3",
  "derivative",
+ "derive_more",
  "hex",
  "risc0-cycle-macros",
  "risc0-zkvm",
@@ -2866,6 +2867,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "schemars",
+ "serde",
  "serde_json",
  "syn 1.0.109",
 ]
