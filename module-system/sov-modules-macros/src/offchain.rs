@@ -2,30 +2,24 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::ItemFn;
 
-pub fn offchain_generator(function: ItemFn) -> Result<TokenStream, syn::Error> {
-    let visibility = &function.vis;
-    let name = &function.sig.ident;
-    let inputs = &function.sig.inputs;
-    let output = &function.sig.output;
-    let block = &function.block;
-    let generics = &function.sig.generics;
-    let where_clause = &function.sig.generics.where_clause;
-    let asyncness = &function.sig.asyncness;
+pub fn offchain_generator(function: ItemFn) -> syn::Result<TokenStream> {
+    let ItemFn {
+        vis, sig, block, ..
+    } = function;
 
-    let output = quote! {
+    Ok(quote! {
         // The "real" function
         #[cfg(feature = "offchain")]
-        #visibility #asyncness fn #name #generics(#inputs) #output #where_clause {
+        #vis #sig {
             #block
         }
 
         // The no-op function
         #[cfg(not(feature = "offchain"))]
         #[allow(unused_variables)]
-        #visibility #asyncness fn #name #generics(#inputs) #output #where_clause {
-            // Do nothing. Should be optimized away
+        #vis #sig {
+            // Do nothing. Will be optimized away.
         }
-    };
-
-    Ok(output.into())
+    }
+    .into())
 }
