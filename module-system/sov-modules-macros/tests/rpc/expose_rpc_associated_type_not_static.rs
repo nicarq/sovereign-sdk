@@ -124,7 +124,7 @@ fn main() {
     let module = RT::decode_call(&serialized_message).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([11; 32].as_ref()).unwrap();
-    let context = Context::<S>::new(sender, sequencer, 1);
+    let context = Context::<S>::new(sender, Default::default(), sequencer, 1);
 
     let _ = runtime
         .dispatch_call(module, working_set, &context)

@@ -43,7 +43,12 @@ fn test_transition_invariant() {
     );
     let mut working_set = state_checkpoint.to_revertable_unmetered();
 
-    let context = Context::<S>::new(attester_address, sequencer, INIT_HEIGHT + 2);
+    let context = Context::<S>::new(
+        attester_address,
+        Default::default(),
+        sequencer,
+        INIT_HEIGHT + 2,
+    );
 
     const NEW_LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = DEFAULT_ROLLUP_FINALITY + INIT_HEIGHT + 1;
 

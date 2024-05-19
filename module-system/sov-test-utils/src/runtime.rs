@@ -259,7 +259,13 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da> for TestRuntime<S, Da> {
             .sequencer_registry
             .resolve_da_address(sequencer, working_set)
             .expect("Sequencer is no longer registered by the time of context resolution. This is a bug");
-        Ok(Context::new(sender, sequencer, height))
+
+        Ok(Context::new(
+            sender,
+            tx.credentials.clone(),
+            sequencer,
+            height,
+        ))
     }
 }
 

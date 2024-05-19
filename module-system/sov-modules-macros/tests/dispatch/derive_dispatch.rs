@@ -29,7 +29,7 @@ fn main() {
     runtime.genesis(&config, working_set).unwrap();
     let sender = Address::try_from([0; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
-    let context: Context<ZkTestSpec> = Context::new(sender, sequencer, 1);
+    let context: Context<ZkTestSpec> = Context::new(sender, Default::default(), sequencer, 1);
 
     let value = 11;
     {

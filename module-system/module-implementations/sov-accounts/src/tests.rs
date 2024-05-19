@@ -57,7 +57,7 @@ fn test_update_account() {
     let sender_credential_id: CredentialId = sender.credential_id::<TestHasher>();
 
     let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
-    let sender_context = Context::<S>::new(sender_addr, sequencer_addr, 1);
+    let sender_context = Context::<S>::new(sender_addr, Default::default(), sequencer_addr, 1);
 
     let config = AccountConfig {
         accounts: vec![AccountData {
@@ -128,7 +128,12 @@ fn test_update_account_fails() {
     let sender_1_credential_id: CredentialId = sender_1.credential_id::<TestHasher>();
 
     let sequencer = TestPrivateKey::generate().pub_key();
-    let sender_context_1 = Context::<S>::new(sender_1.to_address(), sequencer.to_address(), 1);
+    let sender_context_1 = Context::<S>::new(
+        sender_1.to_address(),
+        Default::default(),
+        sequencer.to_address(),
+        1,
+    );
 
     let sender_2 = TestPrivateKey::generate().pub_key();
     let sender_2_addr = sender_2.to_address::<<S as Spec>::Address>();
@@ -171,7 +176,7 @@ fn test_get_account_after_pub_key_update() {
 
     let sequencer = TestPrivateKey::generate().pub_key();
     let sequencer_addr = sequencer.to_address::<<S as Spec>::Address>();
-    let sender_context = Context::<S>::new(sender_addr, sequencer_addr, 1);
+    let sender_context = Context::<S>::new(sender_addr, Default::default(), sequencer_addr, 1);
 
     let config = AccountConfig {
         accounts: vec![AccountData {
@@ -240,6 +245,7 @@ fn create_test_tx<S: Spec>(
     sender_credential_id: CredentialId,
 ) -> AuthenticatedTransactionData<S> {
     AuthenticatedTransactionData::<S> {
+        credentials: Default::default(),
         credential_id: sender_credential_id,
         default_address: sender_addr,
         chain_id: 0,

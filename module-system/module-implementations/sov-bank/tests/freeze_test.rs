@@ -17,7 +17,8 @@ fn freeze_token() {
 
     let minter_address = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");
-    let minter_context = Context::<S>::new(minter_address, sequencer_address, 1);
+    let minter_context =
+        Context::<S>::new(minter_address, Default::default(), sequencer_address, 1);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
@@ -86,7 +87,12 @@ fn freeze_token() {
     // Try to freeze with a non authorized minter
     let unauthorized_address = generate_address::<S>("unauthorized_address");
     let sequencer_address = generate_address::<S>("sequencer");
-    let unauthorized_context = Context::<S>::new(unauthorized_address, sequencer_address, 1);
+    let unauthorized_context = Context::<S>::new(
+        unauthorized_address,
+        Default::default(),
+        sequencer_address,
+        1,
+    );
     let freeze_message = CallMessage::Freeze {
         token_id: token_id_2,
     };

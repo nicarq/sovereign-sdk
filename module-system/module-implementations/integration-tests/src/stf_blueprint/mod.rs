@@ -2,7 +2,9 @@ use anyhow::bail;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
-use sov_modules_api::{Context, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
+use sov_modules_api::{
+    Context, CryptoSpec, DaSpec, KernelWorkingSet, PrivateKey, Spec, StateCheckpoint,
+};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -31,9 +33,9 @@ impl TestRollup {
             bail!("The kernel height is not equal to the expected height.");
         }
 
-        let admin_pub_key = value_setter_messages.messages[0]
-            .admin
-            .to_address::<<S as Spec>::Address>();
+        let admin_priv_key = &value_setter_messages.messages[0].admin;
+        let admin_pub_key = value_setter_messages.messages[0].admin.pub_key();
+        let admin_addr = admin_priv_key.to_address::<<S as Spec>::Address>();
 
         let contexts: Vec<Context<S>> = value_setter_messages
             .create_default_messages()
@@ -52,9 +54,14 @@ impl TestRollup {
             .collect();
 
         for context in contexts {
-            if context != Context::new(admin_pub_key, seq_rollup_addr, height) {
-                bail!("The context was not correctly built.");
-            }
+            assert_eq!(context.sender(), &admin_addr);
+            assert_eq!(context.sequencer(), &seq_rollup_addr);
+            assert_eq!(context.visible_slot_number(), height);
+            assert_eq!(
+                context
+                    .get_sender_credential::<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey>(),
+                Some(&admin_pub_key)
+            );
         }
 
         Ok(())

@@ -67,7 +67,12 @@ fn test_valid_challenge() {
         .bad_transition_pool
         .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut working_set);
 
-    let context = Context::<S>::new(challenger_address, sequencer, INIT_HEIGHT + 2);
+    let context = Context::<S>::new(
+        challenger_address,
+        Default::default(),
+        sequencer,
+        INIT_HEIGHT + 2,
+    );
 
     {
         let transition = StateTransitionPublicData::<MockDaSpec, _> {
@@ -194,7 +199,12 @@ fn test_invalid_challenge() {
         .bad_transition_pool
         .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut working_set);
 
-    let context = Context::<S>::new(challenger_address, sequencer, INIT_HEIGHT + 2);
+    let context = Context::<S>::new(
+        challenger_address,
+        Default::default(),
+        sequencer,
+        INIT_HEIGHT + 2,
+    );
     let transition: StateTransitionPublicData<MockDaSpec, _> = StateTransitionPublicData {
         initial_state_root: initial_transition.state_root,
         slot_hash: [1; 32].into(),

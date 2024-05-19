@@ -2,7 +2,7 @@ use borsh::BorshDeserialize;
 use reth_primitives::TransactionSignedEcRecovered;
 use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
 use sov_modules_api::transaction::{
-    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, PriorityFeeBips,
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
 };
 use sov_modules_api::{CredentialId, GasMeter, Spec};
 
@@ -42,6 +42,7 @@ pub fn authenticate<S: Spec>(
 
     let authenticated_tx = AuthenticatedTransactionData::<S> {
         credential_id,
+        credentials: Credentials::new(signer),
         default_address: None,
         chain_id,
         max_priority_fee_bips,
@@ -54,9 +55,6 @@ pub fn authenticate<S: Spec>(
         raw_tx_hash: tx_hash.into(),
         authenticated_tx,
     };
-    let call = CallMessage {
-        rlp: tx_clone,
-        signer: signer.into(),
-    };
+    let call = CallMessage { rlp: tx_clone };
     Ok((tx_and_raw_hash, call))
 }

@@ -26,7 +26,8 @@ fn test_registration_lifecycle() {
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
 
     let balance_before = test_sequencer
         .query_balance((&sequencer_address).as_token_holder(), &mut working_set)
@@ -89,7 +90,8 @@ fn test_registration_not_enough_funds() {
 
     let sequencer_address = generate_address(LOW_FUND_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
 
     let response = test_sequencer.registry.register(
         &da_address,
@@ -118,7 +120,8 @@ fn test_registration_second_time() {
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
 
     let response = test_sequencer.registry.register(
         &da_address,
@@ -142,9 +145,11 @@ fn test_exit_different_sender() {
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
     let attacker_address = generate_address("some_random_key");
-    let attacker_context = Context::<S>::new(attacker_address, reward_address, 1);
+    let attacker_context =
+        Context::<S>::new(attacker_address, Default::default(), reward_address, 1);
 
     test_sequencer
         .registry
@@ -183,7 +188,8 @@ fn test_allow_exit_last_sequencer() {
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let rewards_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, rewards_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), rewards_address, 1);
     let exit_message = CallMessage::Exit {
         da_address: GENESIS_SEQUENCER_DA_ADDRESS.to_vec(),
     };
@@ -200,7 +206,8 @@ fn test_prevent_exit_during_own_batch() {
     let (test_sequencer, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, sequencer_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), sequencer_address, 1);
     let exit_message = CallMessage::Exit {
         da_address: GENESIS_SEQUENCER_DA_ADDRESS.to_vec(),
     };
@@ -223,7 +230,8 @@ fn test_preferred_sequencer_returned_and_removed() {
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
     let exit_message = CallMessage::Exit {
         da_address: GENESIS_SEQUENCER_DA_ADDRESS.to_vec(),
     };
@@ -260,7 +268,8 @@ fn test_registration_balance_increase() {
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
@@ -344,7 +353,8 @@ fn test_balance_increase_fails_if_insufficient_funds() {
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
@@ -407,7 +417,8 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(sequencer_address, reward_address, 1);
+    let sender_context =
+        Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),

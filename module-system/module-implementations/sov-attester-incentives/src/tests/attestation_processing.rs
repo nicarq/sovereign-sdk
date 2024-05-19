@@ -40,7 +40,7 @@ fn test_process_valid_attestation() {
         &attester_address,
     );
 
-    let context = Context::<S>::new(attester_address, sequencer, 1);
+    let context = Context::<S>::new(attester_address, Default::default(), sequencer, 1);
 
     let transition_2 = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();
@@ -150,7 +150,7 @@ fn test_burn_on_invalid_attestation() {
     let transition_1 = exec_vars.pop().unwrap();
     let initial_transition = exec_vars.pop().unwrap();
 
-    let context = Context::<S>::new(attester_address, sequencer, 1);
+    let context = Context::<S>::new(attester_address, Default::default(), sequencer, 1);
 
     let mut working_set = state_checkpoint.to_revertable_unmetered();
     // Process an invalid proof for genesis: everything is correct except the storage proof.

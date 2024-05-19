@@ -130,7 +130,12 @@ impl BankGasTestCase {
         let height = 1;
         let minter_address = generate_address::<S>("minter");
         let sequencer_address = generate_address::<S>("sequencer");
-        let ctx = Context::<S>::new(sender_address, sequencer_address, height);
+        let ctx = Context::<S>::new(
+            sender_address,
+            Default::default(),
+            sequencer_address,
+            height,
+        );
 
         // create a bank instance
         let bank = Bank::default();
@@ -157,6 +162,7 @@ impl BankGasTestCase {
         };
 
         let tx: AuthenticatedTransactionData<S> = AuthenticatedTransactionData {
+            credentials: Default::default(),
             max_fee: sender_balance,
             credential_id: CredentialId([0; 32]),
             default_address: Some(sender_address),

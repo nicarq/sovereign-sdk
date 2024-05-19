@@ -1,3 +1,6 @@
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
@@ -303,13 +306,13 @@ type RawTxHash = [u8; 32];
 
 impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
     fn from(tx: Transaction<S>) -> Self {
-        let credential_id = tx
-            .pub_key()
-            .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        let pub_key = tx.pub_key().clone();
 
-        let default_address = Some(tx.pub_key().into());
+        let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        let default_address = Some((&pub_key).into());
 
         Self {
+            credentials: Credentials::new(pub_key),
             default_address,
             credential_id,
             chain_id: tx.chain_id,
@@ -321,10 +324,43 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
     }
 }
 
+/// Holds the original credentials to authenticate the transaction.
+/// For example, this could be a public key of the sender of the transaction.
+#[derive(Clone, Debug, Default)]
+pub struct Credentials {
+    credentials: BTreeMap<core::any::TypeId, Arc<dyn core::any::Any>>,
+}
+
+impl Credentials {
+    /// Creates a new [`Credentials`] from the provided credential.
+    pub fn new<T>(credential: T) -> Self
+    where
+        T: core::any::Any,
+    {
+        let mut map: BTreeMap<std::any::TypeId, Arc<dyn core::any::Any>> = BTreeMap::new();
+        map.insert(core::any::TypeId::of::<T>(), Arc::new(credential));
+        Self { credentials: map }
+    }
+
+    /// Returns the relevant credential.
+    pub fn get<T>(&self) -> Option<&T>
+    where
+        T: core::any::Any,
+    {
+        self.credentials
+            .get(&core::any::TypeId::of::<T>())
+            .and_then(|v| v.downcast_ref())
+    }
+}
+
 /// Transaction data that has been authenticated.
 /// This is the output of the `RuntimeAuthenticator`.
 pub struct AuthenticatedTransactionData<S: Spec> {
+    /// Credential identifier used to retrieve relevant rollup address.
     pub credential_id: CredentialId,
+    /// Holds the original credentials to authenticate the transaction and
+    /// provides information about which `Authenticator` was used to authenticate the transaction.
+    pub credentials: Credentials,
     /// The default address of the signer.
     pub default_address: Option<S::Address>,
     /// The chain ID.

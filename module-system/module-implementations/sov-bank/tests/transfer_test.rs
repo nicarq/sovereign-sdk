@@ -46,7 +46,8 @@ fn transfer_initial_token() {
 
     assert_eq!(Some(initial_balance), sender_balance_before);
     assert_eq!(sender_balance_before, receiver_balance_before);
-    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
+    let sender_context =
+        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
     // Transfer happy test
     {
         let transfer_message = CallMessage::Transfer {
@@ -153,7 +154,8 @@ fn transfer_initial_token() {
     {
         let unknown_sender = generate_address::<S>("non_existing_sender");
         let sequencer = generate_address::<S>("sequencer");
-        let unknown_sender_context = Context::<S>::new(unknown_sender, sequencer, 1);
+        let unknown_sender_context =
+            Context::<S>::new(unknown_sender, Default::default(), sequencer, 1);
 
         let sender_balance = query_user_balance(unknown_sender, &mut working_set);
         assert!(sender_balance.is_none());
@@ -307,7 +309,8 @@ fn transfer_deployed_token() {
         },
     };
 
-    let sender_context = Context::<S>::new(sender_address, sequencer_address, 1);
+    let sender_context =
+        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
     bank.call(transfer_message, &sender_context, &mut working_set)
         .expect("Transfer call failed");
     // Transfer token event should be present

@@ -9,7 +9,7 @@ use crate::ProverIncentiveError;
 /// Tests that the prover can unbond correctly
 fn test_unbonding() {
     let (module, prover_address, sequencer, mut working_set) = setup();
-    let context = Context::<S>::new(prover_address, sequencer, 1);
+    let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
     let token_id = GAS_TOKEN_ID;
 
     // Get their *unlocked* balance before undbonding
@@ -48,7 +48,7 @@ fn test_unbonding() {
 /// Tests that the prover cannot submit proofs if unbonded
 fn test_prover_not_bonded() {
     let (module, prover_address, sequencer, mut working_set) = setup();
-    let context = Context::<S>::new(prover_address, sequencer, 1);
+    let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
 
     // Unbond the prover
     module

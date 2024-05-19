@@ -215,7 +215,12 @@ fn slashed_sequencer_should_not_preserve_balance() {
 
     let da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = Context::<S>::new(genesis_sequencer_address, reward_address, 1);
+    let sender_context = Context::<S>::new(
+        genesis_sequencer_address,
+        Default::default(),
+        reward_address,
+        1,
+    );
     let deposit_message = CallMessage::Deposit {
         da_address: da_address.as_ref().to_vec(),
         amount: deposit_amount,

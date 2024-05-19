@@ -71,7 +71,12 @@ fn execute_txs_and_process_valid_proof(
     let aggregated_proof = &build_proof_log(module, &mut working_set);
 
     let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
-    let context = Context::<S>::new(prover_address, sequencer, LAST_SLOT_NUM + 1);
+    let context = Context::<S>::new(
+        prover_address,
+        Default::default(),
+        sequencer,
+        LAST_SLOT_NUM + 1,
+    );
 
     module
         .process_proof(&proof, &context, &mut working_set)
@@ -148,7 +153,12 @@ fn check_penalization_if_proven_again(
     let proof_log = build_proof_log(module, working_set);
     let proof = MockZkvm::create_serialized_proof(true, proof_log);
 
-    let context = Context::<S>::new(prover_address, sequencer, LAST_SLOT_NUM + 2);
+    let context = Context::<S>::new(
+        prover_address,
+        Default::default(),
+        sequencer,
+        LAST_SLOT_NUM + 2,
+    );
     module
         .process_proof(&proof, &context, working_set)
         .expect("The proof should not be rejected");
@@ -183,7 +193,12 @@ fn check_unbonding(
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: &mut WorkingSet<S>,
 ) {
-    let context = Context::<S>::new(prover_address, sequencer, LAST_SLOT_NUM + 2);
+    let context = Context::<S>::new(
+        prover_address,
+        Default::default(),
+        sequencer,
+        LAST_SLOT_NUM + 2,
+    );
     module
         .unbond_prover(&context, working_set)
         .expect("The proof should not be rejected");

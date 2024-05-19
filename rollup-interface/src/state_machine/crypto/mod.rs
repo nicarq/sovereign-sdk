@@ -6,6 +6,8 @@ mod signatures;
 pub use signatures::*;
 
 /// Type that represents an identifier for an authorizer of the transaction.
+/// The credential is a [u8; 32] array.
+/// For example, this can be a padded EVM address or a hash of a rollup public key.
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
 #[derive(
     borsh::BorshDeserialize,

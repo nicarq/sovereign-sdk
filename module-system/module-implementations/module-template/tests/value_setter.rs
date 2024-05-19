@@ -17,7 +17,7 @@ fn test_value_setter() {
     // Test Native-Context
     {
         let config = ExampleModuleConfig {};
-        let context = Context::<TestSpec>::new(admin, sequencer, 1);
+        let context = Context::<TestSpec>::new(admin, Default::default(), sequencer, 1);
         test_value_setter_helper(context, &config, &mut working_set);
     }
 
@@ -26,7 +26,7 @@ fn test_value_setter() {
     // Test Zk-Context
     {
         let config = ExampleModuleConfig {};
-        let zk_context = Context::<ZkTestSpec>::new(admin, sequencer, 1);
+        let zk_context = Context::<ZkTestSpec>::new(admin, Default::default(), sequencer, 1);
         let mut zk_working_set = WorkingSet::with_witness(ZkStorage::new(), witness);
         test_value_setter_helper(zk_context, &config, &mut zk_working_set);
     }

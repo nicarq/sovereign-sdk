@@ -19,7 +19,7 @@
   ],
   "definitions": {
     "CredentialId": {
-      "description": "Type that represents an identifier for an authorizer of the transaction.",
+      "description": "Type that represents an identifier for an authorizer of the transaction. The credential is a [u8; 32] array. For example, this can be a padded EVM address or a hash of a rollup public key.",
       "type": "array",
       "items": {
         "type": "integer",
