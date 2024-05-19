@@ -10,11 +10,11 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{
-    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, SequencerReward,
-    TransactionConsumption,
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
 };
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Gas, GasArray, GasMeter, Spec, StateCheckpoint, WorkingSet,
+    Context, DaSpec, DispatchCall, Gas, GasArray, GasMeter, SequencerReward, Spec, StateCheckpoint,
+    TransactionConsumption, WorkingSet,
 };
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error, info};
@@ -420,9 +420,9 @@ where
     };
 
     let tx_result = attempt_tx(runtime, tx, message, &mut working_set, &ctx);
-    let (mut checkpoint, receipt, gas_meter) = match tx_result {
+    let (mut checkpoint, receipt, transaction_consumption) = match tx_result {
         Ok(_) => {
-            let (checkpoint, gas_meter, events) = working_set.checkpoint();
+            let (checkpoint, transaction_consumption, events) = working_set.checkpoint();
 
             (
                 checkpoint,
@@ -431,9 +431,9 @@ where
                     body_to_save: None,
                     events: convert_to_runtime_events::<S, RT, Da>(events),
                     receipt: TxEffect::Successful,
-                    gas_used: gas_meter.gas_used().to_vec(),
+                    gas_used: transaction_consumption.base_fee().to_vec(),
                 },
-                gas_meter,
+                transaction_consumption,
             )
         }
         Err(e) => {
@@ -445,54 +445,57 @@ where
             // the transaction causing invalid state transition is reverted,
             // but we don't slash and continue processing remaining transactions.
             // working_set.revert_in_place();
-            let (checkpoint, gas_meter) = working_set.revert();
+            let (mut checkpoint, transaction_consumption) = working_set.revert();
 
-            (
-                checkpoint,
-                TransactionReceipt {
-                    tx_hash: *raw_tx_hash,
-                    body_to_save: None,
-                    events: vec![], // As in Ethereum, reverted transactions don't emit events
-                    receipt: TxEffect::Reverted,
-                    gas_used: gas_meter.gas_used().to_vec(),
-                },
-                gas_meter,
-            )
+            let receipt = TransactionReceipt {
+                tx_hash: *raw_tx_hash,
+                body_to_save: None,
+                events: vec![], // As in Ethereum, reverted transactions don't emit events
+                receipt: TxEffect::Reverted,
+                gas_used: transaction_consumption.base_fee().to_vec(),
+            };
+
+            // If the transaction failed in speculative mode, we act as though it never happened.
+            if execution_mode == ExecutionMode::Speculative {
+                tracing::info!(
+                    raw_tx_hash = hex::encode(raw_tx_hash),
+                    "Tx was unsuccessful: {:?}. Undoing all effects.",
+                    receipt.receipt
+                );
+                runtime.refund_remaining_gas(
+                    tx,
+                    &ctx,
+                    &TransactionConsumption::ZERO,
+                    &mut checkpoint,
+                );
+                return ApplyTxResult {
+                    new_checkpoint: checkpoint,
+                    receipt,
+                    tx_sequencer_outcome: TxSequencerOutcome::Ignored,
+                };
+            }
+
+            (checkpoint, receipt, transaction_consumption)
         }
     };
 
-    // If the transaction failed in speculative mode, we act as though it never happened.
-    if execution_mode == ExecutionMode::Speculative && receipt.receipt != TxEffect::Successful {
-        tracing::info!(
-            raw_tx_hash = hex::encode(raw_tx_hash),
-            "Tx was unsuccessful: {:?}. Undoing all effects.",
-            receipt.receipt
-        );
-        runtime.refund_remaining_gas(tx, &ctx, &TransactionConsumption::ZERO, &mut checkpoint);
-        return ApplyTxResult {
-            new_checkpoint: checkpoint,
-            receipt,
-            tx_sequencer_outcome: TxSequencerOutcome::Ignored,
-        };
-    }
-
     runtime.mark_tx_attempted(tx, sequencer, &mut checkpoint);
 
-    let consumption = runtime.consume_gas_and_allocate_rewards(tx, gas_meter, &mut checkpoint);
-    runtime.refund_remaining_gas(tx, &ctx, &consumption, &mut checkpoint);
+    runtime.allocate_consumed_gas(&transaction_consumption, &mut checkpoint);
+    runtime.refund_remaining_gas(tx, &ctx, &transaction_consumption, &mut checkpoint);
 
     debug!(
         tx_hash =
         hex::encode(raw_tx_hash),
         receipt= ?receipt.receipt,
-        consumption= %consumption,
+        consumption= %transaction_consumption,
     "Transaction has been successfully executed",
         );
 
     ApplyTxResult {
         new_checkpoint: checkpoint,
         receipt,
-        tx_sequencer_outcome: TxSequencerOutcome::Rewarded(consumption.into()),
+        tx_sequencer_outcome: TxSequencerOutcome::Rewarded(transaction_consumption.into()),
     }
 }
 

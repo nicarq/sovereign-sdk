@@ -62,6 +62,7 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-eth-dev-signer = { path = "../../../full-node/sov-eth-dev-signer" }
+sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["test-utils"] }
 
 
 [features]

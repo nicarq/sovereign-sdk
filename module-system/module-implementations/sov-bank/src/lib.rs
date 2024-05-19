@@ -4,7 +4,7 @@ mod call;
 mod capability;
 #[cfg(feature = "test-utils")]
 mod test_utils;
-pub use capability::ReserveGasError;
+pub use capability::{ReserveGasError, ReserveGasErrorReason};
 mod genesis;
 #[cfg(feature = "native")]
 mod rpc;

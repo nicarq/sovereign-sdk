@@ -40,6 +40,7 @@ sov-sequencer-registry = { path = ".", features = ["native"] }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-modules-api = { path = "../../sov-modules-api", features = ["test-utils"] }
 
 [features]
 bench = [

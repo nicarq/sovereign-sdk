@@ -32,12 +32,12 @@ impl Condition {
     fn replace_working_set<S: Spec>(&self, working_set: WorkingSet<S>) -> WorkingSet<S> {
         match self {
             Condition::Checkpoint => {
-                let (checkpoint, gas_meter, _events) = working_set.checkpoint();
-                checkpoint.to_revertable(gas_meter)
+                let (checkpoint, _tx_consumption, _events) = working_set.checkpoint();
+                checkpoint.to_revertable_unmetered()
             }
             Condition::Revert => {
-                let (checkpoint, gas_meter) = working_set.revert();
-                checkpoint.to_revertable(gas_meter)
+                let (checkpoint, _tx_consumption) = working_set.revert();
+                checkpoint.to_revertable_unmetered()
             }
         }
     }

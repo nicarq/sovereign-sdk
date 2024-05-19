@@ -1,9 +1,7 @@
-use sov_bank::{Bank, IntoPayable, ReserveGasError, GAS_TOKEN_ID};
-use sov_modules_api::transaction::{
-    AuthenticatedTransactionData, PriorityFeeBips, Transaction, TxGasMeter,
-};
+use sov_bank::{Bank, IntoPayable, ReserveGasError, ReserveGasErrorReason, GAS_TOKEN_ID};
+use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips, Transaction};
 use sov_modules_api::{
-    Address, Gas, GasMeter, GasUnit, ModuleInfo, Spec, StateCheckpoint, UnlimitedGasMeter,
+    Address, Gas, GasMeter, GasUnit, ModuleInfo, Spec, UnlimitedGasMeter, WorkingSet,
 };
 use sov_test_utils::{generate_empty_tx, simple_bank_setup};
 mod helpers;
@@ -15,9 +13,8 @@ type S = sov_test_utils::TestSpec;
 struct CapabilityTestParams {
     pub bank: Bank<S>,
     pub transaction: Transaction<S>,
-    pub gas_meter: TxGasMeter<<S as Spec>::Gas>,
+    pub working_set: WorkingSet<S>,
     pub sender_address: <S as Spec>::Address,
-    pub state_checkpoint: StateCheckpoint<S>,
 }
 
 /// Helper function that creates a simple bank setup (one account with `initial_balance`), generates a transaction
@@ -30,7 +27,7 @@ fn reserve_gas_helper(
     // The gas consumed by pre-execution checks
     gas_for_pre_execution_checks: &<S as Spec>::Gas,
 ) -> CapabilityTestParams {
-    let (sender_address, bank, mut checkpoint) = simple_bank_setup(initial_balance);
+    let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
 
     let transaction: Transaction<S> =
         generate_empty_tx(max_priority_fee_bips, initial_balance, gas_limit.clone());
@@ -41,31 +38,35 @@ fn reserve_gas_helper(
         .unwrap();
 
     // We try to reserve gas, this should succeed because we have enough balance.
-    let gas_meter = bank
-        .reserve_gas(
-            &transaction.clone().into(),
-            gas_price,
-            &sender_address,
-            &pre_execution_checks_meter,
-            &mut checkpoint,
-        )
-        .expect("The reserve gas operation should not fail");
+    let working_set = match bank.reserve_gas(
+        &transaction.clone().into(),
+        gas_price,
+        &sender_address,
+        &pre_execution_checks_meter,
+        checkpoint,
+    ) {
+        Ok(ws) => ws,
+        Err(ReserveGasError::<S> {
+            state_checkpoint: _,
+            reason,
+        }) => {
+            panic!("Unable to reserve gas for the transaction: {:?}", reason);
+        }
+    };
 
-    let mut expected_meter =
-        AuthenticatedTransactionData::from(transaction.clone()).gas_meter(gas_price);
+    let gas_used = working_set.gas_used();
 
-    expected_meter
-        .charge_gas(gas_for_pre_execution_checks)
-        .expect("The reserve gas operation should take into account the pre-execution checks");
-
-    assert_eq!(gas_meter, expected_meter);
+    assert_eq!(
+        gas_used,
+        gas_for_pre_execution_checks,
+        "The gas used {gas_used} should be equal to the gas for pre-execution checks {gas_for_pre_execution_checks}"
+    );
 
     CapabilityTestParams {
         bank,
         transaction,
-        gas_meter,
+        working_set,
         sender_address,
-        state_checkpoint: checkpoint,
     }
 }
 
@@ -85,36 +86,33 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
 
     // Let's consume all the gas, this should succeed because there is enough gas left in the meter.
     params
-        .gas_meter
+        .working_set
         .charge_gas(&GasUnit::from_slice(&[initial_balance / 4; 2]))
         .expect("The charge gas operation should not fail");
+
+    let (mut checkpoint, tx_consumption, _) = params.working_set.checkpoint();
 
     let auth_tx: AuthenticatedTransactionData<S> = params.transaction.into();
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
-    let consumption = params.bank.consume_gas_and_allocate_rewards(
-        &auth_tx,
-        params.gas_meter,
+    params.bank.allocate_consumed_gas(
         &params.bank.id().to_payable(),
         &params.bank.id().to_payable(),
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     params.bank.refund_remaining_gas(
         &auth_tx,
         &params.sender_address,
-        &consumption,
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     assert_eq!(
         params
             .bank
-            .get_balance_of(
-                &params.sender_address,
-                GAS_TOKEN_ID,
-                &mut params.state_checkpoint
-            )
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
             .expect("The sender balance should exist"),
         0
     );
@@ -137,36 +135,33 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
 
     // Let's consume all the gas, this should succeed because there is enough gas left in the meter.
     params
-        .gas_meter
+        .working_set
         .charge_gas(&GasUnit::from_slice(&[initial_balance / 4; 2]))
         .expect("The charge gas operation should not fail");
+
+    let (mut checkpoint, tx_consumption, _) = params.working_set.checkpoint();
 
     let auth_tx: AuthenticatedTransactionData<S> = params.transaction.into();
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
-    let consumption = params.bank.consume_gas_and_allocate_rewards(
-        &auth_tx,
-        params.gas_meter,
+    params.bank.allocate_consumed_gas(
         &params.bank.id().to_payable(),
         &params.bank.id().to_payable(),
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     params.bank.refund_remaining_gas(
         &auth_tx,
         &params.sender_address,
-        &consumption,
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     assert_eq!(
         params
             .bank
-            .get_balance_of(
-                &params.sender_address,
-                GAS_TOKEN_ID,
-                &mut params.state_checkpoint
-            )
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
             .expect("The sender balance should exist"),
         0
     );
@@ -192,26 +187,27 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
 
     // We try to charge for some of the gas
     params
-        .gas_meter
+        .working_set
         .charge_gas(&gas_to_charge)
         .expect("The charge gas operation should not fail");
+
+    let (mut checkpoint, tx_consumption, _) = params.working_set.checkpoint();
 
     let auth_tx: AuthenticatedTransactionData<S> = params.transaction.into();
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
-    let consumption = params.bank.consume_gas_and_allocate_rewards(
-        &auth_tx,
-        params.gas_meter,
+    params.bank.allocate_consumed_gas(
         &params.bank.id().to_payable(),
         &params.bank.id().to_payable(),
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     params.bank.refund_remaining_gas(
         &auth_tx,
         &params.sender_address,
-        &consumption,
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     // The sender should have been refunded:
@@ -227,11 +223,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
     assert_eq!(
         params
             .bank
-            .get_balance_of(
-                &params.sender_address,
-                GAS_TOKEN_ID,
-                &mut params.state_checkpoint
-            )
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
             .expect("The sender balance should exist"),
         refund_amount
     );
@@ -240,11 +232,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
     assert_eq!(
         params
             .bank
-            .get_balance_of(
-                params.bank.id().to_payable(),
-                GAS_TOKEN_ID,
-                &mut params.state_checkpoint
-            )
+            .get_balance_of(params.bank.id().to_payable(), GAS_TOKEN_ID, &mut checkpoint)
             .expect("The bank balance should exist"),
         initial_balance - refund_amount
     );
@@ -253,30 +241,37 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
 /// Tests that the `reserve_gas` method fails if the sender does not have a bank account for the gas token
 #[test]
 fn test_reserve_gas_no_account() {
-    let (_, bank, mut checkpoint) = simple_bank_setup(0);
+    let (_, bank, checkpoint) = simple_bank_setup(0);
 
     // This transaction has a maximum fee of twice the initial balance.
     let transaction: Transaction<S> = generate_empty_tx(PriorityFeeBips::ZERO, 0, None);
 
     // We try to reserve gas, this should fail because we have not enough balance.
-    let reserve_gas_result = bank
-        .reserve_gas(
-            &transaction.into(),
-            &<<S as Spec>::Gas as Gas>::Price::ZEROED,
-            &Address::new([0u8; 32]),
-            &UnlimitedGasMeter::new(),
-            &mut checkpoint,
-        )
-        .expect_err("The reserve gas operation should fail");
+    let reserve_gas_result = match bank.reserve_gas(
+        &transaction.into(),
+        &<<S as Spec>::Gas as Gas>::Price::ZEROED,
+        &Address::new([0u8; 32]),
+        &UnlimitedGasMeter::new(),
+        checkpoint,
+    ) {
+        Ok(_) => panic!("The reserve gas operation should fail"),
+        Err(ReserveGasError::<S> {
+            state_checkpoint: _,
+            reason,
+        }) => reason,
+    };
 
-    assert_eq!(reserve_gas_result, ReserveGasError::AccountDoesNotExist);
+    assert_eq!(
+        reserve_gas_result,
+        ReserveGasErrorReason::AccountDoesNotExist
+    );
 }
 
 /// Tests that the `reserve_gas` method fails if the sender balance is not high enough to pay for the gas.
 #[test]
 fn test_reserve_gas_not_enough_balance() {
     let initial_balance = 100;
-    let (sender_address, bank, mut checkpoint) = simple_bank_setup(initial_balance);
+    let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
 
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
 
@@ -285,19 +280,23 @@ fn test_reserve_gas_not_enough_balance() {
         generate_empty_tx(PriorityFeeBips::ZERO, 2 * initial_balance, None);
 
     // We try to reserve gas, this should fail because we have not enough balance.
-    let reserve_gas_result = bank
-        .reserve_gas(
-            &transaction.into(),
-            &gas_price,
-            &sender_address,
-            &UnlimitedGasMeter::new(),
-            &mut checkpoint,
-        )
-        .expect_err("The reserve gas operation should fail");
+    let reserve_gas_result = match bank.reserve_gas(
+        &transaction.into(),
+        &gas_price,
+        &sender_address,
+        &UnlimitedGasMeter::new(),
+        checkpoint,
+    ) {
+        Ok(_) => panic!("The reserve gas operation should fail"),
+        Err(ReserveGasError {
+            state_checkpoint: _,
+            reason,
+        }) => reason,
+    };
 
     assert_eq!(
         reserve_gas_result,
-        ReserveGasError::InsufficientBalanceToReserveGas
+        ReserveGasErrorReason::InsufficientBalanceToReserveGas
     );
 }
 
@@ -306,7 +305,7 @@ fn test_reserve_gas_not_enough_balance() {
 #[test]
 fn test_reserve_gas_price_too_high() {
     let initial_balance = 100;
-    let (sender_address, bank, mut checkpoint) = simple_bank_setup(initial_balance);
+    let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
 
     // This transaction has gas limit set to [50; 2], which means the associated gas price is [1; 2].
     let transaction: Transaction<S> = generate_empty_tx(
@@ -319,24 +318,31 @@ fn test_reserve_gas_price_too_high() {
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[2; 2]);
 
     // We try to reserve gas, this should fail because the gas price is too high.
-    let reserve_gas_result = bank
-        .reserve_gas(
-            &transaction.into(),
-            &gas_price,
-            &sender_address,
-            &UnlimitedGasMeter::new(),
-            &mut checkpoint,
-        )
-        .expect_err("The reserve gas operation should fail");
+    let reserve_gas_result = match bank.reserve_gas(
+        &transaction.into(),
+        &gas_price,
+        &sender_address,
+        &UnlimitedGasMeter::new(),
+        checkpoint,
+    ) {
+        Ok(_) => panic!("The reserve gas operation should fail"),
+        Err(ReserveGasError {
+            state_checkpoint: _,
+            reason,
+        }) => reason,
+    };
 
-    assert_eq!(reserve_gas_result, ReserveGasError::CurrentGasPriceTooHigh);
+    assert_eq!(
+        reserve_gas_result,
+        ReserveGasErrorReason::CurrentGasPriceTooHigh
+    );
 }
 
 /// Tests that the `reserve_gas` method does not overflow or panic if the total gas amount to reserve is `u64::MAX`.
 #[test]
 fn test_reserve_gas_should_not_overflow_or_panic_zero_priority() {
     let initial_balance = u64::MAX;
-    let mut params = reserve_gas_helper(
+    let params = reserve_gas_helper(
         initial_balance,
         PriorityFeeBips::from_percentage(0),
         None,
@@ -344,32 +350,29 @@ fn test_reserve_gas_should_not_overflow_or_panic_zero_priority() {
         &<S as Spec>::Gas::zero(),
     );
 
+    let (mut checkpoint, tx_consumption, _) = params.working_set.checkpoint();
+
     let auth_tx: AuthenticatedTransactionData<S> = params.transaction.into();
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
-    let consumption = params.bank.consume_gas_and_allocate_rewards(
-        &auth_tx,
-        params.gas_meter,
+    params.bank.allocate_consumed_gas(
         &params.bank.id().to_payable(),
         &params.bank.id().to_payable(),
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     params.bank.refund_remaining_gas(
         &auth_tx,
         &params.sender_address,
-        &consumption,
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     assert_eq!(
         params
             .bank
-            .get_balance_of(
-                &params.sender_address,
-                GAS_TOKEN_ID,
-                &mut params.state_checkpoint
-            )
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
             .expect("The sender balance should exist"),
         initial_balance
     );
@@ -379,7 +382,7 @@ fn test_reserve_gas_should_not_overflow_or_panic_zero_priority() {
 #[test]
 fn test_reserve_gas_should_not_overflow_or_panic_non_zero_priority() {
     let initial_balance = u64::MAX;
-    let mut params = reserve_gas_helper(
+    let params = reserve_gas_helper(
         initial_balance,
         PriorityFeeBips::from_percentage(10),
         None,
@@ -387,31 +390,28 @@ fn test_reserve_gas_should_not_overflow_or_panic_non_zero_priority() {
         &<S as Spec>::Gas::zero(),
     );
 
+    let (mut checkpoint, tx_consumption, _) = params.working_set.checkpoint();
+
     let auth_tx: AuthenticatedTransactionData<S> = params.transaction.into();
 
     // We try to refund the gas, this should never fail. The gas is already consumed so the sender balance should be zero.
-    let consumption = params.bank.consume_gas_and_allocate_rewards(
-        &auth_tx,
-        params.gas_meter,
+    params.bank.allocate_consumed_gas(
         &params.bank.id().to_payable(),
         &params.bank.id().to_payable(),
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
 
     params.bank.refund_remaining_gas(
         &auth_tx,
         &params.sender_address,
-        &consumption,
-        &mut params.state_checkpoint,
+        &tx_consumption,
+        &mut checkpoint,
     );
     assert_eq!(
         params
             .bank
-            .get_balance_of(
-                &params.sender_address,
-                GAS_TOKEN_ID,
-                &mut params.state_checkpoint
-            )
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
             .expect("The sender balance should exist"),
         initial_balance
     );

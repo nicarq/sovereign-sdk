@@ -1,9 +1,9 @@
-use sov_bank::{BankConfig, GasTokenConfig, IntoPayable};
+use sov_bank::{BankConfig, GasTokenConfig, IntoPayable, ReserveGasError};
 use sov_mock_da::{
     MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
 };
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxGasMeter};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     CryptoSpec, Gas, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
@@ -123,7 +123,7 @@ pub(crate) fn setup(
         )
         .expect("Chain state genesis must succeed");
 
-    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
     // initialize prover incentives
     let module = AttesterIncentives::<S, MockDaSpec>::default();
     let config = crate::AttesterIncentivesConfig {
@@ -233,44 +233,55 @@ impl ExecutionSimulationVars {
             );
 
             // We first need to reserve gas for the transaction
-            let mut gas_meter = module
-                .bank
-                .reserve_gas(
-                    &tx,
-                    &current_base_fee_per_gas,
-                    sequencer,
-                    &UnlimitedGasMeter::new(),
-                    kernel_working_set.inner,
-                )
-                .expect("Gas reserve failed");
+            let mut working_set = match module.bank.reserve_gas(
+                &tx,
+                &current_base_fee_per_gas,
+                sequencer,
+                &UnlimitedGasMeter::new(),
+                state_checkpoint,
+            ) {
+                Ok(ws) => ws,
+                Err(ReserveGasError::<S> {
+                    state_checkpoint: _,
+                    reason,
+                }) => {
+                    panic!("Unable to reserve gas for the transaction in the execution simulation: {:?}", reason);
+                }
+            };
 
             // We charge some gas to the sequencer to make sure the gas meter is updated
-            gas_meter
+            working_set
                 .charge_gas(&<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED))
                 .expect("Gas charge failed");
 
-            module
-                .chain_state
-                .end_slot_hook(gas_meter.gas_used(), &mut kernel_working_set);
+            let (mut checkpoint, tx_consumption, _) = working_set.checkpoint();
 
-            let reward = module.bank.consume_gas_and_allocate_rewards(
-                &tx,
-                gas_meter,
+            module.bank.allocate_consumed_gas(
                 &module.id().to_payable(),
                 &module.id().to_payable(),
-                &mut state_checkpoint,
+                &tx_consumption,
+                &mut checkpoint,
             );
 
             // Then we can refund some gas to the sequencer
             module
                 .bank
-                .refund_remaining_gas(&tx, sequencer, &reward, &mut state_checkpoint);
+                .refund_remaining_gas(&tx, sequencer, &tx_consumption, &mut checkpoint);
 
             ret_exec_vars.push(ExecutionSimulationVars {
                 state_root: root_hash,
                 state_proof: bond_proof,
                 base_fee_per_gas: current_base_fee_per_gas,
             });
+
+            let kernel = MockKernel::<S, MockDaSpec>::new((i + 1) as u64, (i + 1) as u64);
+            let mut kernel_working_set = KernelWorkingSet::from_kernel(&kernel, &mut checkpoint);
+
+            module
+                .chain_state
+                .end_slot_hook(tx_consumption.base_fee(), &mut kernel_working_set);
+
+            state_checkpoint = checkpoint;
         }
 
         (ret_exec_vars, state_checkpoint)

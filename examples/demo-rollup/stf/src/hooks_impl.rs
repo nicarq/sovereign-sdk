@@ -1,15 +1,14 @@
 use anyhow::Context as _;
-use sov_bank::IntoPayable;
+use sov_bank::{IntoPayable, ReserveGasError};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{
     GasEnforcer, RuntimeAuthorization, SequencerAuthorization,
 };
-use sov_modules_api::transaction::{
-    AuthenticatedTransactionData, TransactionConsumption, TxGasMeter,
-};
+use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
+    Context, Gas, ModuleInfo, Spec, StateCheckpoint, StateReaderAndWriter, TransactionConsumption,
+    WorkingSet,
 };
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
@@ -111,51 +110,53 @@ impl<S: Spec, Da: DaSpec> GasEnforcer<S, Da> for Runtime<S, Da> {
         context: &Context<S>,
         gas_price: &<S::Gas as Gas>::Price,
         pre_exec_checks_meter: &SequencerStakeMeter<S::Gas>,
-        mut state_checkpoint: StateCheckpoint<S>,
+        state_checkpoint: StateCheckpoint<S>,
     ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        match self.bank.reserve_gas(
-            tx,
-            gas_price,
-            context.sender(),
-            pre_exec_checks_meter,
-            &mut state_checkpoint,
-        ) {
-            Ok(gas_meter) => Ok(state_checkpoint.to_revertable(gas_meter)),
-            Err(e) => {
-                tracing::debug!(
-                    sender = %context.sender(),
-                    error = ?e,
-                    "Unable to reserve gas from sender"
-                );
-                Err(state_checkpoint)
-            }
-        }
+        self.bank
+            .reserve_gas(
+                tx,
+                gas_price,
+                context.sender(),
+                pre_exec_checks_meter,
+                state_checkpoint,
+            )
+            .map_err(
+                |ReserveGasError::<S> {
+                     state_checkpoint,
+                     reason,
+                 }| {
+                    tracing::debug!(
+                        sender = %context.sender(),
+                        error = ?reason,
+                        "Unable to reserve gas from sender"
+                    );
+                    state_checkpoint
+                },
+            )
     }
 
-    fn consume_gas_and_allocate_rewards(
+    fn allocate_consumed_gas(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
-        gas_meter: TxGasMeter<S::Gas>,
-        state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> TransactionConsumption {
-        self.bank.consume_gas_and_allocate_rewards(
-            tx,
-            gas_meter,
+        tx_consumption: &TransactionConsumption<S::Gas>,
+        checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        self.bank.allocate_consumed_gas(
             &self.prover_incentives.id().to_payable(),
             &self.sequencer_registry.id().to_payable(),
-            state_checkpoint,
-        )
+            tx_consumption,
+            checkpoint,
+        );
     }
 
     fn refund_remaining_gas(
         &self,
         tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        consumption: &TransactionConsumption,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        consumption: &TransactionConsumption<S::Gas>,
+        checkpoint: &mut StateCheckpoint<S>,
     ) {
         self.bank
-            .refund_remaining_gas(tx, context.sender(), consumption, state_checkpoint);
+            .refund_remaining_gas(tx, context.sender(), consumption, checkpoint);
     }
 }
 

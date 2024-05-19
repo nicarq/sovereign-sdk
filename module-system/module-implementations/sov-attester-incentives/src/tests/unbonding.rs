@@ -1,6 +1,5 @@
 use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::transaction::TxGasMeter;
 use sov_modules_api::{Context, WorkingSet};
 use sov_prover_storage_manager::SimpleStorageManager;
 
@@ -54,7 +53,7 @@ fn test_two_phase_unbonding() {
         &attester_address,
     );
 
-    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
     // Start unbonding and then try to prove a transition. User slashed
     module
         .begin_unbond_attester(&context, &mut working_set)

@@ -1,3 +1,11 @@
+- #688 follow-up of https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/681 that modifies the gas interface to prevent access to `TxGasMeter` outside of `sov-modules-api`. 
+The spirit of this change is to increase the coupling between the `WorkingSet` and `Transaction` types. Meaningful changes:
+  - Change the visibility of `TxGasMeter` to `pub(crate)`.
+  - Change the `WorkingSet` interface to return `TransactionConsumption` instead of `GasMeter` when consumed with `revert` or `checkpoint`.
+  - Move the `TransactionConsumption` and `SequencerReward` types to `scratchpad`
+  - Change the `GasEnforcer` capability to handle the gas workflow without having access to `TxGasMeter`. In particular change the `consume_gas_and_allocate_rewards` capability to the simpler `allocate_consumed_gas` which distributes the transaction reward returned when calling `checkpoint` on the `working_set` to the base fee and tip recipient. 
+  - Remove access to methods that can artificially modify the gas meter outside of testing (like methods to build `unmetered` gas meters).
+
 - #683 replace `Public Key Hash` with more general concept of `CredentialId`. This is a breaking change for the consumers of the SDK.
 - #686 Changes the API of `Module::genesis` to accept an `&mut impl sov_modules_api::GenesisState<S>` instead of a concrete type.
 - #679 remove the transaction signature check from the `EVM` module.

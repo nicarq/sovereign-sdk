@@ -1,7 +1,8 @@
-use sov_bank::IntoPayable;
+use sov_bank::{IntoPayable, ReserveGasError};
 use sov_chain_state::StateTransition;
 use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
@@ -65,10 +66,9 @@ pub(crate) fn simulate_chain_state_execution(
     sequencer: <S as Spec>::Address,
     steps: u8,
     gas_used_per_step: &<S as Spec>::Gas,
-    state_checkpoint: &mut StateCheckpoint<S>,
-) -> Vec<u64> {
+    mut state_checkpoint: StateCheckpoint<S>,
+) -> (StateCheckpoint<S>, Vec<u64>) {
     let mut total_gas_used = vec![];
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(state_checkpoint);
     for i in 0..steps {
         let slot_header = MockBlockHeader {
             prev_hash: MockHash([i * 10; 32]),
@@ -91,6 +91,8 @@ pub(crate) fn simulate_chain_state_execution(
         )
         .into();
 
+        let kernel: MockKernel<S, _> = MockKernel::<S, MockDaSpec>::new(i.into(), i.into());
+        let mut kernel_working_set = KernelWorkingSet::from_kernel(&kernel, &mut state_checkpoint);
         let gas_price = module.chain_state.begin_slot_hook(
             &slot_header,
             &MockValidityCond { is_valid: true },
@@ -99,43 +101,55 @@ pub(crate) fn simulate_chain_state_execution(
         );
 
         // We first need to reserve gas for the transaction
-        let mut gas_meter = module
-            .bank
-            .reserve_gas(
-                &tx,
-                &gas_price,
-                &sequencer,
-                // Using a new [`UnlimitedGasMeter`] here means that we are not charging for pre-execution checks
-                &UnlimitedGasMeter::new(),
-                kernel_working_set.inner,
-            )
-            .expect("Gas reserve failed");
+        // `state_checkpoint` does not implement `Debug` so we cannot just call `expect` here.
+        let mut working_set = match module.bank.reserve_gas(
+            &tx,
+            &gas_price,
+            &sequencer,
+            // Using a new [`UnlimitedGasMeter`] here means that we are not charging for pre-execution checks
+            &UnlimitedGasMeter::new(),
+            state_checkpoint,
+        ) {
+            Ok(ws) => ws,
+            Err(ReserveGasError {
+                state_checkpoint: _,
+                reason,
+            }) => {
+                panic!("Unable to reserve gas for the transaction: {:?}", reason);
+            }
+        };
 
         // We charge some gas to the sequencer to make sure the gas meter is updated
-        gas_meter
+        working_set
             .charge_gas(gas_used_per_step)
             .expect("Gas charge failed");
 
-        module
-            .chain_state
-            .end_slot_hook(gas_used_per_step, &mut kernel_working_set);
+        let (mut checkpoint, tx_consumption, _) = working_set.checkpoint();
 
-        let consumption = module.bank.consume_gas_and_allocate_rewards(
-            &tx,
-            gas_meter,
+        module.bank.allocate_consumed_gas(
             &module.id().to_payable(),
             &module.id().to_payable(),
-            kernel_working_set.inner,
+            &tx_consumption,
+            &mut checkpoint,
         );
 
         module
             .bank
-            .refund_remaining_gas(&tx, &sequencer, &consumption, kernel_working_set.inner);
+            .refund_remaining_gas(&tx, &sequencer, &tx_consumption, &mut checkpoint);
 
-        total_gas_used.push(consumption.total_consumption());
+        total_gas_used.push(tx_consumption.total_consumption());
+
+        let kernel: MockKernel<S, _> =
+            MockKernel::<S, MockDaSpec>::new((i + 1).into(), (i + 1).into());
+        let mut kernel_working_set = KernelWorkingSet::from_kernel(&kernel, &mut checkpoint);
+        module
+            .chain_state
+            .end_slot_hook(gas_used_per_step, &mut kernel_working_set);
+
+        state_checkpoint = checkpoint;
     }
 
-    total_gas_used
+    (state_checkpoint, total_gas_used)
 }
 
 fn setup_helper(
@@ -162,7 +176,7 @@ fn setup_helper(
 
     let chain_state = sov_chain_state::ChainState::<S, Da>::default();
 
-    let (mut checkpoint, meter, _) = working_set.checkpoint();
+    let (mut checkpoint, _meter, _) = working_set.checkpoint();
 
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut checkpoint);
     chain_state
@@ -177,7 +191,7 @@ fn setup_helper(
         initial_provers: vec![(prover_address, BOND_AMOUNT)],
     };
 
-    let mut working_set = checkpoint.to_revertable(meter);
+    let mut working_set = checkpoint.to_revertable_unmetered();
 
     module
         .genesis(&config, &mut working_set)

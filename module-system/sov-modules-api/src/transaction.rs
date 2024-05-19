@@ -1,7 +1,3 @@
-use core::fmt::Formatter;
-use std::cmp::min;
-use std::fmt::Display;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
@@ -345,31 +341,8 @@ pub struct AuthenticatedTransactionData<S: Spec> {
 }
 
 impl<S: Spec> AuthenticatedTransactionData<S> {
-    /// Builds a [`TransactionConsumption`] from the [`AuthenticatedTransactionData`] and the associated [`GasMeter`].
-    /// This method consumes the [`GasMeter`] to ensure that the transaction reward is only computed once at the end of the transaction execution.
-    pub fn transaction_reward(&self, gas_meter: TxGasMeter<S::Gas>) -> TransactionConsumption {
-        // The base fee is the amount of gas consumed by the transaction execution.
-        let base_fee = gas_meter.gas_used().value(gas_meter.gas_price());
-
-        // We compute the `max_priority_fee_bips` by applying the `priority_fee_per_gas` to the consumed gas.
-        let max_priority_fee_bips = self
-            .max_priority_fee_bips
-            .apply(base_fee)
-            // if the computation overflows, we return the max fee - we always have `priority_fee <= tx.max_priority_fee_bips() <= tx.max_fee()`
-            .unwrap_or(self.max_fee);
-
-        // The tip is the minimum of the remaining gas allocated to the transaction and the maximum priority fee per gas.
-        // We transfer the tip to the tip recipient address.
-        let tip = min(max_priority_fee_bips, self.max_fee - base_fee);
-
-        TransactionConsumption {
-            base_fee,
-            priority_fee: tip,
-        }
-    }
-
     /// Creates a new [`TxGasMeter`] from the transaction data.
-    pub fn gas_meter(&self, gas_price: &<S::Gas as Gas>::Price) -> TxGasMeter<S::Gas> {
+    pub(crate) fn gas_meter(&self, gas_price: &<S::Gas as Gas>::Price) -> TxGasMeter<S::Gas> {
         // We compute the gas amount that the transaction should consume.
         let gas_to_consume = match &self.gas_limit {
             // If the user has provided a gas limit, we use the `gas_limit * gas_price` as the amount to consume (EIP-1559).
@@ -395,93 +368,9 @@ pub struct AuthenticatedTransactionAndRawHash<S: Spec> {
     pub authenticated_tx: AuthenticatedTransactionData<S>,
 }
 
-/// The format of the resources consumed by the transaction. The base fee and the priority fee are expressed as gas token amounts.
-/// The [`TransactionConsumption`] data structure can only be built from the [`AuthenticatedTransactionData`] data structure and consumes the associated gas meter.
-#[derive(PartialEq, Eq, Debug)]
-pub struct TransactionConsumption {
-    /// The base fee reward of the transaction expressed as a gas token amount.
-    base_fee: u64,
-    /// The priority fee reward of the transaction expressed as a gas token amount.
-    priority_fee: u64,
-}
-
-impl TransactionConsumption {
-    /// A zero consumption. Happens when the transaction is ignored (like in the case of a revert for the speculative execution mode).
-    pub const ZERO: Self = Self {
-        base_fee: 0,
-        priority_fee: 0,
-    };
-
-    /// The base fee reward of the transaction expressed as a gas token amount.
-    pub const fn base_fee(&self) -> u64 {
-        self.base_fee
-    }
-
-    /// The priority fee reward of the transaction expressed as a gas token amount.
-    pub const fn priority_fee(&self) -> u64 {
-        self.priority_fee
-    }
-
-    pub const fn total_consumption(&self) -> u64 {
-        self.base_fee + self.priority_fee
-    }
-}
-
-impl Display for TransactionConsumption {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "TransactionConsumption {{ base_fee: {}, priority_fee: {} }}",
-            self.base_fee, self.priority_fee
-        )
-    }
-}
-
-/// The type used to represent the sequencer reward. This type should be obtained from the [`TransactionConsumption`] type.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    BorshSerialize,
-    BorshDeserialize,
-)]
-pub struct SequencerReward(u64);
-
-impl SequencerReward {
-    /// Returns a zero sequencer reward. This can be used to initialize an accumulator to build a sequencer reward.
-    pub const ZERO: Self = Self(0);
-
-    /// Adds another reward to this reward. Consumes the other reward.
-    /// If the result overflows, we saturate.
-    pub fn accumulate(&mut self, other: Self) {
-        self.0 = self.0.saturating_add(other.0);
-    }
-}
-
-impl From<TransactionConsumption> for SequencerReward {
-    fn from(value: TransactionConsumption) -> Self {
-        Self(value.priority_fee())
-    }
-}
-
-impl From<SequencerReward> for u64 {
-    fn from(val: SequencerReward) -> Self {
-        val.0
-    }
-}
-
-impl Display for SequencerReward {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "SequencerReward({})", self.0)
-    }
-}
-
 /// A gas meter for transaction execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TxGasMeter<GU>
+pub(crate) struct TxGasMeter<GU>
 where
     GU: Gas,
 {
@@ -539,108 +428,11 @@ where
     }
 
     /// Returns a gas meter which does not charge for gas.
-    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/678>`: remove this once we have a way to call rpc methods using the `StateCheckpoint`.
-    pub fn unmetered() -> Self {
+    pub(crate) fn unmetered() -> Self {
         Self {
             remaining_funds: u64::MAX,
             gas_price: GU::Price::ZEROED,
             gas_used: GU::ZEROED,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use sov_mock_zkvm::MockZkVerifier;
-
-    use super::{AuthenticatedTransactionData, PriorityFeeBips};
-    use crate::default_spec::DefaultSpec;
-    use crate::transaction::{SequencerReward, TransactionConsumption, TxGasMeter};
-    use crate::{CredentialId, GasArray, GasMeter, GasPrice, GasUnit};
-
-    /// Consume all the gas in the gas meter, so the transaction reward is the same as the base fee and there is no priority fee.
-    #[test]
-    fn test_compute_transaction_reward_consume_all_gas() {
-        const REMAINING_FUNDS: u64 = 100;
-
-        let tx_data = AuthenticatedTransactionData::<DefaultSpec<MockZkVerifier, MockZkVerifier>> {
-            credential_id: CredentialId([1; 32]),
-            default_address: None,
-            chain_id: 0,
-            max_priority_fee_bips: PriorityFeeBips::from_percentage(10),
-            max_fee: REMAINING_FUNDS,
-            gas_limit: None,
-            nonce: 0,
-        };
-
-        let mut gas_meter: TxGasMeter<GasUnit<2>> =
-            tx_data.gas_meter(&GasPrice::from_slice(&[1; 2]));
-
-        gas_meter
-            .charge_gas(&GasArray::from_slice(&[REMAINING_FUNDS / 2; 2]))
-            .expect("There should be enough gas to charge locked in the meter.");
-
-        let tx_reward = tx_data.transaction_reward(gas_meter);
-
-        assert_eq!(
-            tx_reward,
-            TransactionConsumption {
-                base_fee: 100,
-                priority_fee: 0
-            }
-        );
-    }
-
-    /// Consume half of the gas in the gas meter, so the transaction reward is half of the initial funds and there is a maximum priority fee (100%).
-    #[test]
-    fn test_compute_transaction_reward_consume_not_all_gas() {
-        const REMAINING_FUNDS: u64 = 100;
-
-        let tx_data = AuthenticatedTransactionData::<DefaultSpec<MockZkVerifier, MockZkVerifier>> {
-            credential_id: CredentialId([1; 32]),
-            default_address: None,
-            chain_id: 0,
-            max_priority_fee_bips: PriorityFeeBips::from_percentage(100),
-            max_fee: REMAINING_FUNDS,
-            gas_limit: None,
-            nonce: 0,
-        };
-
-        let mut gas_meter: TxGasMeter<GasUnit<2>> =
-            tx_data.gas_meter(&GasPrice::from_slice(&[1; 2]));
-
-        gas_meter
-            .charge_gas(&GasArray::from_slice(&[REMAINING_FUNDS / 4; 2]))
-            .expect("There should be enough gas to charge locked in the meter.");
-
-        let tx_reward = tx_data.transaction_reward(gas_meter);
-
-        assert_eq!(
-            tx_reward,
-            TransactionConsumption {
-                base_fee: 50,
-                priority_fee: 50
-            }
-        );
-    }
-
-    #[test]
-    fn test_display_transaction_reward() {
-        let tx_reward = TransactionConsumption {
-            base_fee: 100,
-            priority_fee: 50,
-        };
-
-        assert_eq!(
-            format!("{}", tx_reward),
-            "TransactionConsumption { base_fee: 100, priority_fee: 50 }"
-        );
-    }
-
-    #[test]
-    fn test_display_sequencer_reward() {
-        let seq_reward = SequencerReward(100);
-
-        assert_eq!(format!("{}", seq_reward), "SequencerReward(100)");
     }
 }

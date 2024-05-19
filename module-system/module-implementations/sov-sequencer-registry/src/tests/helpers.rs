@@ -97,7 +97,7 @@ impl TestSequencer {
     pub fn query_sender_balance(
         &self,
         user_address: &<Da as DaSpec>::Address,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> Option<sov_bank::Amount> {
         self.registry.get_sender_balance(user_address, working_set)
     }

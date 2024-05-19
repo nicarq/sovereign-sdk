@@ -34,6 +34,7 @@ proptest-derive = { workspace = true, optional = true }
 sov-accounts = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-modules-api = { path = "../../sov-modules-api", features = ["test-utils"]}
 sov-test-utils = { path = "../../sov-test-utils" }
 
 [features]
@@ -54,3 +55,4 @@ native = [
 	"sov-modules-api/native",
 	"sov-state/native",
 ]
+test-utils = []

@@ -1,5 +1,4 @@
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::transaction::TxGasMeter;
 use sov_modules_api::{Context, WorkingSet};
 use sov_prover_storage_manager::SimpleStorageManager;
 
@@ -42,7 +41,7 @@ fn test_transition_invariant() {
         &sequencer,
         &attester_address,
     );
-    let mut working_set = state_checkpoint.to_revertable(TxGasMeter::unmetered());
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     let context = Context::<S>::new(attester_address, sequencer, INIT_HEIGHT + 2);
 

@@ -1,7 +1,12 @@
+//! Tests for slashing conditions
+//! We are using the unmetered working set to test the slashing conditions so that we can keep these tests simple.
+
 use borsh::BorshSerialize;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, Context, Spec, WorkingSet};
+use sov_modules_api::{
+    AggregatedProofPublicData, CodeCommitment, Context, Spec, StateCheckpoint, WorkingSet,
+};
 
 use super::helpers::{get_transition_unwrap, simulate_chain_state_execution};
 use crate::event::SlashingReason;
@@ -16,28 +21,27 @@ fn slashing_setup() -> (
     crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     <S as Spec>::Address,
     <S as Spec>::Address,
-    WorkingSet<S>,
+    StateCheckpoint<S>,
 ) {
     let (module, prover_address, sequencer, working_set) = setup();
 
     // Simulate execution of the chain-state
 
-    let (mut state_checkpoint, meter, _) = working_set.checkpoint();
+    let (state_checkpoint, _meter, _) = working_set.checkpoint();
     let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
     // The first transition is the genesis transition
     // Then we have two more transitions
-    simulate_chain_state_execution(
+    let (state_checkpoint, _) = simulate_chain_state_execution(
         &module,
         sequencer,
         ((LAST_SLOT_NUM - FIRST_SLOT_NUM + 1) + 1)
             .try_into()
             .unwrap(),
         &gas_used_per_step,
-        &mut state_checkpoint,
+        state_checkpoint,
     );
-    let working_set = state_checkpoint.to_revertable(meter);
 
-    (module, prover_address, sequencer, working_set)
+    (module, prover_address, sequencer, state_checkpoint)
 }
 
 /// Proves a transition log
@@ -87,7 +91,9 @@ fn check_prover_slashed(
 #[test]
 /// The prover gets slashed if they submit an invalid zk-proof
 fn test_slash_on_invalid_proof() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     // Process an invalid proof
     {
@@ -110,7 +116,9 @@ fn test_slash_on_invalid_proof() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid genesis_hash
 fn test_slash_on_invalid_genesis_hash() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     let genesis_hash = module
         .chain_state
@@ -154,7 +162,9 @@ fn test_slash_on_invalid_genesis_hash() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid final slot hash
 fn test_slash_on_invalid_initial_state_root() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     // Process an invalid proof
     {
@@ -200,7 +210,9 @@ fn test_slash_on_invalid_initial_state_root() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid final slot hash
 fn test_slash_on_invalid_final_slot_hash() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     // Process an invalid proof
     {
@@ -246,7 +258,9 @@ fn test_slash_on_invalid_final_slot_hash() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid final state root
 fn test_slash_on_invalid_final_state_root() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     // Process an invalid proof
 
@@ -291,7 +305,9 @@ fn test_slash_on_invalid_final_state_root() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid initial slot hash
 fn test_slash_on_invalid_initial_slot_hash() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     let genesis_hash = module
         .chain_state
@@ -333,7 +349,9 @@ fn test_slash_on_invalid_initial_slot_hash() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid initial transition
 fn test_slash_on_invalid_initial_transition() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     // Process an invalid proof
     {
@@ -379,7 +397,9 @@ fn test_slash_on_invalid_initial_transition() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid final transition
 fn test_slash_on_invalid_final_transition() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     // Process an invalid proof
     {
@@ -425,7 +445,9 @@ fn test_slash_on_invalid_final_transition() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for which the output cannot be deserialized properly
 fn test_slash_on_invalid_output_format() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     // Process an invalid proof
     {
@@ -449,7 +471,9 @@ fn test_slash_on_invalid_output_format() {
 #[test]
 /// The prover gets slashed if they submit a valid proof for which the validity conditions are not correctly stored in the chain-state
 fn test_slash_on_invalid_validity_cond() {
-    let (module, prover_address, sequencer, mut working_set) = slashing_setup();
+    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     // Process an invalid proof
     {
