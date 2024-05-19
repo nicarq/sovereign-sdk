@@ -1,10 +1,12 @@
 //! Runtime state machine definitions.
-
 use core::any::Any;
 use core::fmt;
 use std::boxed::Box;
+use std::cmp::min;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use kernel_state::{KernelWorkingSet, VersionedStateReadWriter};
 use sov_state::namespaces::User;
 use sov_state::{
@@ -15,8 +17,8 @@ use sov_state::{
 use sov_state::{NativeStorage, ProvableCompileTimeNamespace, ProvenStateAccessor, StorageProof};
 
 use crate::module::{Context, Spec};
-use crate::transaction::TxGasMeter;
-use crate::{Gas, GasMeter};
+use crate::transaction::{AuthenticatedTransactionData, PriorityFeeBips, TxGasMeter};
+use crate::{Gas, GasArray, GasMeter, Genesis};
 
 /// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
 pub(crate) trait UniversalStateAccessor {
@@ -209,12 +211,46 @@ impl<S: Spec> StateCheckpoint<S> {
         }
     }
 
-    /// Transforms this [`StateCheckpoint`] back into a [`WorkingSet`].
-    pub fn to_revertable(self, gas_meter: TxGasMeter<S::Gas>) -> WorkingSet<S> {
+    /// Transforms this [`StateCheckpoint`] into a [`WorkingSet`] which will be executed for the transaction passed as argument.
+    pub fn to_revertable(
+        self,
+        tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
+    ) -> WorkingSet<S> {
         WorkingSet {
             delta: RevertableWriter::new(self.delta),
             events: Default::default(),
-            gas_meter,
+            gas_meter: tx.gas_meter(gas_price),
+            max_fee: tx.max_fee,
+            max_priority_fee_bips: tx.max_priority_fee_bips,
+        }
+    }
+
+    /// Produces an unmetered [`WorkingSet`] from this [`StateCheckpoint`].
+    /// This is useful for tests that don't need to track gas consumption.
+    #[cfg(feature = "test-utils")]
+    pub fn to_revertable_unmetered(self) -> WorkingSet<S> {
+        WorkingSet {
+            delta: RevertableWriter::new(self.delta),
+            events: Default::default(),
+            gas_meter: TxGasMeter::unmetered(),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+        }
+    }
+
+    /// Produces an unmetered [`WorkingSet`] from a [`StateCheckpoint`] for genesis.
+    pub fn to_revertable_genesis<G: Genesis>(
+        self,
+        // This argument prevents this method from being called outside of genesis.
+        _config: &G::Config,
+    ) -> WorkingSet<S> {
+        WorkingSet {
+            delta: RevertableWriter::new(self.delta),
+            events: Default::default(),
+            gas_meter: TxGasMeter::unmetered(),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
     }
 
@@ -303,6 +339,100 @@ impl TypedEvent {
     }
 }
 
+/// The format of the resources consumed by the transaction. The base fee and the priority fee are expressed as gas token amounts.
+/// The [`TransactionConsumption`] data structure can only be built from the [`AuthenticatedTransactionData`] data structure and consumes the associated gas meter.
+#[derive(PartialEq, Eq, Debug)]
+pub struct TransactionConsumption<GU: Gas> {
+    /// The base fee reward of the transaction expressed as a gas token amount.
+    pub(crate) base_fee: GU,
+    /// The priority fee reward of the transaction expressed as a gas token amount.
+    pub(crate) priority_fee: u64,
+    /// The gas price of the transaction.
+    pub(crate) gas_price: GU::Price,
+}
+
+impl<GU: Gas> TransactionConsumption<GU> {
+    /// A zero consumption. Happens when the transaction is ignored (like in the case of a revert for the speculative execution mode).
+    pub const ZERO: Self = Self {
+        base_fee: GU::ZEROED,
+        priority_fee: 0,
+        gas_price: GU::Price::ZEROED,
+    };
+
+    /// The base fee reward of the transaction expressed as a gas token amount.
+    pub const fn base_fee(&self) -> &GU {
+        &self.base_fee
+    }
+
+    pub fn base_fee_value(&self) -> u64 {
+        self.base_fee.value(&self.gas_price)
+    }
+
+    /// The priority fee reward of the transaction expressed as a gas token amount.
+    pub const fn priority_fee(&self) -> u64 {
+        self.priority_fee
+    }
+
+    /// If the total consumption overflows, we saturate, because we know that this amount will always be lower than the max fee.
+    pub fn total_consumption(&self) -> u64 {
+        self.base_fee
+            .value(&self.gas_price)
+            .saturating_add(self.priority_fee)
+    }
+}
+
+impl<GU: Gas> Display for TransactionConsumption<GU> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "TransactionConsumption {{ base_fee: {}, priority_fee: {}, gas_price: {} }}",
+            self.base_fee, self.priority_fee, self.gas_price
+        )
+    }
+}
+
+/// The type used to represent the sequencer reward. This type should be obtained from the [`TransactionConsumption`] type.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct SequencerReward(u64);
+
+impl SequencerReward {
+    /// Returns a zero sequencer reward. This can be used to initialize an accumulator to build a sequencer reward.
+    pub const ZERO: Self = Self(0);
+
+    /// Adds another reward to this reward. Consumes the other reward.
+    /// If the result overflows, we saturate.
+    pub fn accumulate(&mut self, other: Self) {
+        self.0 = self.0.saturating_add(other.0);
+    }
+}
+
+impl<GU: Gas> From<TransactionConsumption<GU>> for SequencerReward {
+    fn from(value: TransactionConsumption<GU>) -> Self {
+        Self(value.priority_fee())
+    }
+}
+
+impl From<SequencerReward> for u64 {
+    fn from(val: SequencerReward) -> Self {
+        val.0
+    }
+}
+
+impl Display for SequencerReward {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "SequencerReward({})", self.0)
+    }
+}
+
 /// This structure contains the read-write set and the events collected during the execution of a transaction.
 /// There are two ways to convert it into a StateCheckpoint:
 /// 1. By using the checkpoint() method, where all the changes are added to the underlying StateCheckpoint.
@@ -311,9 +441,53 @@ pub struct WorkingSet<S: Spec> {
     delta: RevertableWriter<Delta<S::Storage>>,
     events: Vec<TypedEvent>,
     gas_meter: TxGasMeter<S::Gas>,
+
+    // Gas parameters of the transaction associated with the working set
+    max_fee: u64,
+    max_priority_fee_bips: PriorityFeeBips,
+}
+
+fn transaction_consumption_helper<S: Spec>(
+    base_fee: &S::Gas,
+    gas_price: &<S::Gas as Gas>::Price,
+    max_fee: u64,
+    max_priority_fee_bips: PriorityFeeBips,
+) -> TransactionConsumption<S::Gas> {
+    let base_fee_value = base_fee.value(gas_price);
+
+    // We compute the `max_priority_fee_bips` by applying the `priority_fee_per_gas` to the consumed gas.
+    let max_priority_fee_bips = max_priority_fee_bips
+        .apply(base_fee_value)
+        // if the computation overflows, we return the max fee - we always have `priority_fee <= tx.max_priority_fee_bips() <= tx.max_fee()`
+        .unwrap_or(max_fee);
+
+    // The tip is the minimum of the remaining gas allocated to the transaction and the maximum priority fee per gas.
+    // We transfer the tip to the tip recipient address.
+    let tip = min(max_priority_fee_bips, max_fee - base_fee_value);
+
+    TransactionConsumption {
+        base_fee: base_fee.clone(),
+        priority_fee: tip,
+        gas_price: gas_price.clone(),
+    }
 }
 
 impl<S: Spec> WorkingSet<S> {
+    /// Builds a [`TransactionConsumption`] from the [`AuthenticatedTransactionData`] and the associated [`GasMeter`].
+    /// This method consumes the [`GasMeter`] to ensure that the transaction reward is only computed once at the end of the transaction execution.
+    fn transaction_consumption(&self) -> TransactionConsumption<S::Gas> {
+        // The base fee is the amount of gas consumed by the transaction execution.
+        let base_fee = self.gas_meter.gas_used();
+        let gas_price = self.gas_meter.gas_price();
+
+        transaction_consumption_helper::<S>(
+            base_fee,
+            gas_price,
+            self.max_fee,
+            self.max_priority_fee_bips,
+        )
+    }
+
     /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`].
     ///
     /// The witness value is set to [`Default::default`]. Use
@@ -322,7 +496,15 @@ impl<S: Spec> WorkingSet<S> {
     /// ## TODO(@theochap)
     /// `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/678>`: This method is *deprecated* and should be removed once we have a way to call rpc methods using the [`StateCheckpoint`].
     pub fn new(inner: S::Storage) -> Self {
-        StateCheckpoint::new(inner).to_revertable(TxGasMeter::unmetered())
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
+
+        WorkingSet {
+            delta: RevertableWriter::new(state_checkpoint.delta),
+            events: Default::default(),
+            gas_meter: TxGasMeter::unmetered(),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+        }
     }
 
     /// Creates a new archival working set with the same underlying `Storage` but an empty Delta, without
@@ -337,6 +519,8 @@ impl<S: Spec> WorkingSet<S> {
             delta: RevertableWriter::new(Delta::new(storage.clone(), Some(version))),
             events: Default::default(),
             gas_meter: TxGasMeter::unmetered(),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
     }
 
@@ -368,30 +552,46 @@ impl<S: Spec> WorkingSet<S> {
     /// ## TODO(@theochap)
     /// This method is *deprecated* and should be removed once we have completed the gas integration for state accesses.
     pub fn with_witness(inner: S::Storage, witness: <S::Storage as Storage>::Witness) -> Self {
-        StateCheckpoint::with_witness(inner, witness).to_revertable(TxGasMeter::unmetered())
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::with_witness(inner, witness);
+
+        WorkingSet {
+            delta: RevertableWriter::new(state_checkpoint.delta),
+            events: Default::default(),
+            gas_meter: TxGasMeter::unmetered(),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+        }
     }
 
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
     /// committing the changes to the underlying [`Storage`] via
     /// [`StateCheckpoint::freeze`].
-    pub fn checkpoint(self) -> (StateCheckpoint<S>, TxGasMeter<S::Gas>, Vec<TypedEvent>) {
+    pub fn checkpoint(
+        self,
+    ) -> (
+        StateCheckpoint<S>,
+        TransactionConsumption<S::Gas>,
+        Vec<TypedEvent>,
+    ) {
+        let tx_reward = self.transaction_consumption();
         (
             StateCheckpoint {
                 delta: self.delta.commit(),
             },
-            self.gas_meter,
+            tx_reward,
             self.events,
         )
     }
 
     /// Reverts the most recent changes to this [`WorkingSet`], returning a pristine
     /// [`StateCheckpoint`] instance.
-    pub fn revert(self) -> (StateCheckpoint<S>, TxGasMeter<S::Gas>) {
+    pub fn revert(self) -> (StateCheckpoint<S>, TransactionConsumption<S::Gas>) {
+        let tx_consumption = self.transaction_consumption();
         (
             StateCheckpoint {
                 delta: self.delta.revert(),
             },
-            self.gas_meter,
+            tx_consumption,
         )
     }
 
@@ -817,5 +1017,80 @@ where
 
     fn delete(&mut self, namespace: Namespace, key: &SlotKey) {
         self.writes.insert((key.clone(), namespace), None);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sov_mock_zkvm::MockZkVerifier;
+
+    use super::{PriorityFeeBips, SequencerReward, TransactionConsumption};
+    use crate::default_spec::DefaultSpec;
+    use crate::scratchpad::transaction_consumption_helper;
+    use crate::{GasArray, GasPrice, GasUnit};
+
+    /// Consume all the remaining gas, so the transaction reward is the same as the base fee and there is no priority fee.
+    #[test]
+    fn test_compute_transaction_reward_consume_all_gas() {
+        const REMAINING_FUNDS: u64 = 100;
+
+        let tx_reward = transaction_consumption_helper::<DefaultSpec<MockZkVerifier, MockZkVerifier>>(
+            &GasArray::from_slice(&[REMAINING_FUNDS / 2; 2]),
+            &GasPrice::from_slice(&[1; 2]),
+            REMAINING_FUNDS,
+            PriorityFeeBips::from_percentage(10),
+        );
+
+        assert_eq!(
+            tx_reward,
+            TransactionConsumption {
+                base_fee: GasArray::from_slice(&[REMAINING_FUNDS / 2; 2]),
+                priority_fee: 0,
+                gas_price: GasPrice::from_slice(&[1; 2])
+            }
+        );
+    }
+
+    /// Consume half of the remaining gas, so the transaction reward is half of the initial funds and there is a maximum priority fee (100%).
+    #[test]
+    fn test_compute_transaction_reward_consume_not_all_gas() {
+        const REMAINING_FUNDS: u64 = 100;
+
+        let tx_reward = transaction_consumption_helper::<DefaultSpec<MockZkVerifier, MockZkVerifier>>(
+            &GasArray::from_slice(&[REMAINING_FUNDS / 4; 2]),
+            &GasPrice::from_slice(&[1; 2]),
+            REMAINING_FUNDS,
+            PriorityFeeBips::from_percentage(100),
+        );
+
+        assert_eq!(
+            tx_reward,
+            TransactionConsumption {
+                base_fee: GasArray::from_slice(&[REMAINING_FUNDS / 4; 2]),
+                priority_fee: 50,
+                gas_price: GasPrice::from_slice(&[1; 2])
+            }
+        );
+    }
+
+    #[test]
+    fn test_display_transaction_reward() {
+        let tx_reward = TransactionConsumption::<GasUnit<2>> {
+            base_fee: GasUnit::from_slice(&[100; 2]),
+            priority_fee: 50,
+            gas_price: GasPrice::from_slice(&[1; 2]),
+        };
+
+        assert_eq!(
+            format!("{}", tx_reward),
+            "TransactionConsumption { base_fee: GasUnit[100, 100], priority_fee: 50, gas_price: GasPrice[1, 1] }"
+        );
+    }
+
+    #[test]
+    fn test_display_sequencer_reward() {
+        let seq_reward = SequencerReward(100);
+
+        assert_eq!(format!("{}", seq_reward), "SequencerReward(100)");
     }
 }

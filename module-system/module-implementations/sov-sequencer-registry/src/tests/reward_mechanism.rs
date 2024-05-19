@@ -1,9 +1,9 @@
 use borsh::BorshSerialize;
-use sov_bank::{IntoPayable, Payable};
+use sov_bank::{IntoPayable, Payable, ReserveGasError};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::transaction::{PriorityFeeBips, TxGasMeter};
+use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, UnlimitedGasMeter};
 use sov_test_utils::generate_empty_tx;
 
@@ -56,37 +56,40 @@ fn test_reward_sequencer() {
 
     let tx = tx.into();
     // Reserves some gas for the bank
-    let mut gas_meter = sequencer_test
-        .bank
-        .reserve_gas(
-            &tx,
-            &gas_price,
-            seq_address,
-            &UnlimitedGasMeter::new(),
-            &mut checkpoint,
-        )
-        .expect(
-            "
-        The gas reserve should not fail",
-        );
+    let mut working_set = match sequencer_test.bank.reserve_gas(
+        &tx,
+        &gas_price,
+        seq_address,
+        &UnlimitedGasMeter::new(),
+        checkpoint,
+    ) {
+        Ok(ws) => ws,
+        Err(ReserveGasError {
+            state_checkpoint: _,
+            reason,
+        }) => {
+            panic!("Unable to reserve gas for the transaction: {:?}", reason);
+        }
+    };
 
     // Charges the gas
-    gas_meter
+    working_set
         .charge_gas(&GasUnit::from_slice(&[balance_after_genesis / 4; 2]))
         .expect("The charge gas operation should not fail");
 
+    let (mut checkpoint, tx_consumption, _) = working_set.checkpoint();
+
     // We refund the base tip to the sequencer account and send the tip to the registry
-    let consumption = sequencer_test.bank.consume_gas_and_allocate_rewards(
-        &tx,
-        gas_meter,
+    sequencer_test.bank.allocate_consumed_gas(
         &seq_address_as_token_holder,
         &sequencer_test.registry.id().to_payable(),
+        &tx_consumption,
         &mut checkpoint,
     );
 
     sequencer_test
         .bank
-        .refund_remaining_gas(&tx, seq_address, &consumption, &mut checkpoint);
+        .refund_remaining_gas(&tx, seq_address, &tx_consumption, &mut checkpoint);
 
     let registry_balance_after_refund = sequencer_test
         .query_balance(sequencer_test.registry.id().to_payable(), &mut checkpoint)
@@ -145,10 +148,7 @@ fn test_penalize_sequencer() {
     // The sequencer stake should be zero
     assert_eq!(
         sequencer_test
-            .query_sender_balance(
-                &seq_da_address,
-                &mut state_checkpoint.to_revertable(TxGasMeter::unmetered())
-            )
+            .query_sender_balance(&seq_da_address, &mut state_checkpoint)
             .unwrap(),
         0
     );

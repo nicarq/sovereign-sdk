@@ -1,5 +1,5 @@
 use sov_modules_api::prelude::*;
-use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips, TxGasMeter};
+use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
 use sov_modules_api::{Address, Context, CredentialId, Gas, Module, PrivateKey, PublicKey};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
@@ -226,7 +226,7 @@ fn test_resolve_sender_address() {
         .resolve_sender_address(&tx, &mut checkpoint)
         .unwrap();
 
-    let mut working_set = checkpoint.to_revertable(TxGasMeter::unmetered());
+    let mut working_set = checkpoint.to_revertable_unmetered();
     let acc = accounts
         .accounts
         .get(&sender_credential_id, &mut working_set)

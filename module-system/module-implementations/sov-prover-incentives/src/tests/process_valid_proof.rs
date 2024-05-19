@@ -49,23 +49,24 @@ fn execute_txs_and_process_valid_proof(
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     working_set: WorkingSet<S>,
 ) -> (u64, WorkingSet<S>) {
-    let (mut state_checkpoint, meter, _) = working_set.checkpoint();
+    let (state_checkpoint, _, _) = working_set.checkpoint();
     // The first transition is the genesis transition
     // Then we have two more transitions
-    let total_gas_used = simulate_chain_state_execution(
+    let (state_checkpoint, total_gas_used) = simulate_chain_state_execution(
         module,
         sequencer,
         ((LAST_SLOT_NUM - FIRST_SLOT_NUM + 1) + 1)
             .try_into()
             .unwrap(),
         gas_used_per_step,
-        &mut state_checkpoint,
+        state_checkpoint,
     );
 
     // We remove the last element because we don't want to include the gas used for the last transition
     let total_gas_used: u64 = total_gas_used[..total_gas_used.len() - 1].iter().sum();
 
-    let mut working_set = state_checkpoint.to_revertable(meter);
+    // We use the unmetered working set, because we don't want to charge for the gas used in the last transition (this makes the test simpler)
+    let mut working_set = state_checkpoint.to_revertable_unmetered();
 
     let aggregated_proof = &build_proof_log(module, &mut working_set);
 

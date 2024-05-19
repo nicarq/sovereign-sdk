@@ -1,8 +1,9 @@
 use sov_chain_state::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
 use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint, WorkingSet};
+use sov_modules_api::{
+    Gas, GasArray, KernelWorkingSet, SequencerReward, Spec, StateCheckpoint, WorkingSet,
+};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, TxEffect};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
