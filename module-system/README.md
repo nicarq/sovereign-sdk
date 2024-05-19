@@ -215,7 +215,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
 }
 ```
 
-This will generate a public trait in the bank crate called `BankRpcImpl`, which understands how to serve requests with the following form:
+This will generate a public trait in the bank crate called `BankRpcServer`, which understands how to serve requests with the following form:
 
 ```json
 {

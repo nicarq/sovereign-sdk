@@ -95,8 +95,6 @@ pub mod my_module {
     }
 }
 
-use my_module::rpc::{QueryModuleRpcImpl, QueryModuleRpcServer};
-
 #[expose_rpc]
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]

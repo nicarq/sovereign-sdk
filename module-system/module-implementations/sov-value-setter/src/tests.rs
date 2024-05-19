@@ -4,7 +4,7 @@ use sov_state::ZkStorage;
 use sov_test_utils::{TestSpec, ZkTestSpec};
 
 use super::{Event, ValueSetter};
-use crate::{call, rpc, ValueSetterConfig};
+use crate::{call, ValueSetterConfig};
 
 #[test]
 fn test_value_setter() {
@@ -53,16 +53,7 @@ fn test_value_setter_helper<S: Spec>(
     }
 
     // Test query
-    {
-        let query_response = module.query_value(working_set).unwrap();
-
-        assert_eq!(
-            rpc::Response {
-                value: Some(new_value)
-            },
-            query_response
-        );
-    }
+    assert_eq!(module.value.get(working_set), Some(new_value));
 }
 
 #[test]

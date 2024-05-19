@@ -101,9 +101,7 @@ fn test_demo_values_in_db() {
             .unwrap();
         assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
-        let resp = runtime.value_setter.query_value(&mut working_set).unwrap();
-
-        assert_eq!(resp, sov_value_setter::Response { value: Some(33) });
+        assert_eq!(runtime.value_setter.value.get(&mut working_set), Some(33));
     }
 }
 
@@ -192,9 +190,7 @@ fn test_demo_values_in_cache() {
         .unwrap();
     assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
-    let resp = runtime.value_setter.query_value(&mut working_set).unwrap();
-
-    assert_eq!(resp, sov_value_setter::Response { value: Some(33) });
+    assert_eq!(runtime.value_setter.value.get(&mut working_set), Some(33));
 }
 
 #[test]

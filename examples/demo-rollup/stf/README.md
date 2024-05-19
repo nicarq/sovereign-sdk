@@ -58,19 +58,13 @@ module to your app, just add an additional field to the runtime.
 use sov_modules_api::{Genesis, DispatchCall, MessageCodec, Spec};
 use sov_modules_api::macros::expose_rpc;
 use sov_rollup_interface::da::DaSpec;
-#[cfg(feature = "native")]
-use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
-#[cfg(feature = "native")]
-use sov_bank::{BankRpcImpl, BankRpcServer};
-#[cfg(feature = "native")]
-use sov_sequencer_registry::{SequencerRegistryRpcImpl, SequencerRegistryRpcServer};
 
 
 #[cfg_attr(
     feature = "native",
     expose_rpc(DefaultContext)
 )]
-#[derive(Genesis, DispatchCall, MessageCodec)]
+#[derive(Default, Genesis, DispatchCall, MessageCodec)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct MyRuntime<S: Spec, Da: DaSpec> {
     #[allow(unused)]
@@ -163,7 +157,7 @@ complete State Transition Function!
 
 ### Exposing RPC
 
-Your modules implement rpc methods via the `rpc_gen` macro, in order to enable the full-node to expose them, annotate the `Runtime` with `expose_rpc`.
+Your modules optionally implement RPC methods via the `rpc_gen` macro, in order to enable the full-node to expose them, annotate the `Runtime` with `expose_rpc`.
 In the example above, you can see how to use the `expose_rpc` macro on the `native` `Runtime`.
 
 ## Make Full Node Integrations Simpler with the State Transition Runner:

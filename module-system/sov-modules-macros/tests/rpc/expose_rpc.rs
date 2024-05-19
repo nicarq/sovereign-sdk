@@ -59,6 +59,7 @@ impl<S: Spec> QueryModule<S> {
 }
 
 #[expose_rpc]
+#[derive(Default)]
 struct Runtime<S: Spec> {
     pub first: QueryModule<S>,
 }

@@ -581,7 +581,9 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         );
         Ok(U64::from(highest_gas_limit))
     }
+}
 
+impl<S: sov_modules_api::Spec> Evm<S> {
     fn get_sealed_block_by_number(
         &self,
         block_number: Option<String>,

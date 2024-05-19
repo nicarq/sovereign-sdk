@@ -254,3 +254,49 @@ pub trait CliWallet: DispatchCall {
     /// typical end-usage will impl traits only in the case where `CliStringRepr<T>: Into::RuntimeCall`
     type CliStringRepr<T>;
 }
+
+#[doc(hidden)]
+#[cfg(feature = "native")]
+pub mod __rpc_macros_private {
+    use super::*;
+
+    #[derive(Clone, derive_more::Deref, derive_more::DerefMut)]
+    pub struct RpcStorage<M: ModuleInfo> {
+        #[deref]
+        #[deref_mut]
+        pub module: M,
+        pub storage: tokio::sync::watch::Receiver<<M::Spec as Spec>::Storage>,
+    }
+
+    impl<M: ModuleInfo> RpcStorage<M> {
+        pub fn working_set(&self) -> WorkingSet<M::Spec> {
+            WorkingSet::new(self.storage.borrow().clone())
+        }
+    }
+
+    /// A [`Module`] that also exposes a JSON-RPC server.
+    pub trait ModuleWithRpcServer {
+        type Spec: Spec;
+
+        fn rpc_methods(
+            &self,
+            storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
+        ) -> jsonrpsee::RpcModule<()>;
+    }
+
+    // Auto-ref trick so that implementing JSON-RPC for modules is effectively
+    // optional.
+    impl<M> ModuleWithRpcServer for &M
+    where
+        M: ModuleInfo,
+    {
+        type Spec = M::Spec;
+
+        fn rpc_methods(
+            &self,
+            _storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
+        ) -> jsonrpsee::RpcModule<()> {
+            jsonrpsee::RpcModule::new(())
+        }
+    }
+}
