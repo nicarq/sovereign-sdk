@@ -129,15 +129,15 @@ impl TestRollup {
     }
 
     pub(crate) fn attester_incentives(&self) -> &AttesterIncentives<S, Da> {
-        &self.stf().runtime().attester_incentives
+        self.stf().runtime().attester_incentives()
     }
 
     pub(crate) fn bank(&self) -> &Bank<S> {
-        &self.stf().runtime().bank
+        self.stf().runtime().bank()
     }
 
     pub(crate) fn sequencer_registry(&self) -> &SequencerRegistry<S, Da> {
-        &self.stf().runtime().sequencer_registry
+        self.stf().runtime().sequencer_registry()
     }
 
     pub(crate) fn storage(&mut self) -> <S as Spec>::Storage {
@@ -251,7 +251,7 @@ impl TestRollup {
                 self.storage().get_with_proof::<User>(
                     self.stf()
                         .runtime()
-                        .attester_incentives
+                        .attester_incentives()
                         .get_attester_storage_key(attester_address),
                     None,
                 )

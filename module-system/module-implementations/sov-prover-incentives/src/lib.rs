@@ -25,7 +25,7 @@ use crate::event::Event;
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-#[derive(ModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     /// Id of the module.
     #[id]
