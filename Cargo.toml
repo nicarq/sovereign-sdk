@@ -48,7 +48,7 @@ members = [
     "module-system/module-implementations/sov-sequencer-registry",
     "module-system/module-implementations/sov-value-setter",
     "module-system/module-implementations/module-template",
-    "module-system/module-implementations/integration-tests",
+    "module-system/module-implementations/integration-tests", "module-system/sov-capabilities",
 ]
 
 [workspace.package]

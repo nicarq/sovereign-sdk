@@ -6,7 +6,8 @@ use borsh::BorshSerialize;
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
-    AuthenticationError, FatalError, RawTx, RuntimeAuthenticator, SequencerAuthorization,
+    AuthenticationError, FatalError, GasEnforcer, HasCapabilities, RawTx, RuntimeAuthenticator,
+    RuntimeAuthorization, SequencerAuthorization,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{
@@ -184,7 +185,7 @@ where
             let sequencer_da_address = sender;
             // Checks the sequencer balance before the transaction is executed.
             // If the sequencer balance is not high enough, the transaction is rejected.
-            let mut sequencer_stake_meter = match self.runtime.authorize_sequencer(
+            let mut sequencer_stake_meter = match self.runtime.capabilities().authorize_sequencer(
                 sequencer_da_address,
                 gas_price,
                 &mut checkpoint,
@@ -232,7 +233,7 @@ where
                     );
 
                     // Applies the outcome of the transaction execution to update the sequencer's state.
-                    self.runtime.penalize_sequencer(
+                    self.runtime.capabilities().penalize_sequencer(
                         sequencer_da_address,
                         sequencer_stake_meter,
                         &mut checkpoint,
@@ -283,10 +284,10 @@ where
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn authenticate_with_cycle_count<S: Spec, D: DaSpec, R: Runtime<S, D> + RuntimeAuthenticator<S>>(
+fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     runtime: &R,
     raw_tx: &RawTx,
-    sequencer_stake_meter: &mut <R as RuntimeAuthenticator<S>>::SequencerStakeMeter,
+    sequencer_stake_meter: &mut <R as HasCapabilities<S, Da>>::SequencerStakeMeter,
 ) -> Result<
     (
         AuthenticatedTransactionAndRawHash<S>,
@@ -323,7 +324,8 @@ pub fn apply_tx<S, RT, Da>(
     message: <RT as DispatchCall>::Decodable,
     mut state_checkpoint: StateCheckpoint<S>,
     sequencer: &Da::Address,
-    sequencer_stake_meter: <RT as SequencerAuthorization<S, Da>>::SequencerStakeMeter,
+    sequencer_stake_meter: <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
+
     execution_mode: ExecutionMode,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
@@ -336,7 +338,10 @@ where
     let raw_tx_hash = &tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
-    let maybe_ctx = runtime.resolve_context(tx, sequencer, height, &mut state_checkpoint);
+    let maybe_ctx =
+        runtime
+            .capabilities()
+            .resolve_context(tx, sequencer, height, &mut state_checkpoint);
     let ctx = match maybe_ctx {
         Ok(ctx) => ctx,
         Err(e) => {
@@ -349,7 +354,11 @@ where
 
             if execution_mode != ExecutionMode::Speculative {
                 // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-                runtime.penalize_sequencer(sequencer, sequencer_stake_meter, &mut state_checkpoint);
+                runtime.capabilities().penalize_sequencer(
+                    sequencer,
+                    sequencer_stake_meter,
+                    &mut state_checkpoint,
+                );
             }
 
             return ApplyTxResult {
@@ -367,7 +376,10 @@ where
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(e) = runtime.check_uniqueness(tx, &ctx, &mut state_checkpoint) {
+    if let Err(e) = runtime
+        .capabilities()
+        .check_uniqueness(tx, &ctx, &mut state_checkpoint)
+    {
         error!(
             error = %e,
             raw_tx_hash = hex::encode(raw_tx_hash),
@@ -377,7 +389,11 @@ where
 
         if execution_mode != ExecutionMode::Speculative {
             // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-            runtime.penalize_sequencer(sequencer, sequencer_stake_meter, &mut state_checkpoint);
+            runtime.capabilities().penalize_sequencer(
+                sequencer,
+                sequencer_stake_meter,
+                &mut state_checkpoint,
+            );
         }
 
         return ApplyTxResult {
@@ -394,7 +410,7 @@ where
         };
     }
 
-    let mut working_set = match runtime.try_reserve_gas(
+    let mut working_set = match runtime.capabilities().try_reserve_gas(
         tx,
         &ctx,
         gas_price,
@@ -411,7 +427,11 @@ where
 
             if execution_mode != ExecutionMode::Speculative {
                 // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-                runtime.penalize_sequencer(sequencer, sequencer_stake_meter, &mut checkpoint);
+                runtime.capabilities().penalize_sequencer(
+                    sequencer,
+                    sequencer_stake_meter,
+                    &mut checkpoint,
+                );
             }
 
             return ApplyTxResult {
@@ -471,7 +491,7 @@ where
                     "Tx was unsuccessful: {:?}. Undoing all effects.",
                     receipt.receipt
                 );
-                runtime.refund_remaining_gas(
+                runtime.capabilities().refund_remaining_gas(
                     tx,
                     &ctx,
                     &TransactionConsumption::ZERO,
@@ -488,10 +508,19 @@ where
         }
     };
 
-    runtime.mark_tx_attempted(tx, sequencer, &mut checkpoint);
+    runtime
+        .capabilities()
+        .mark_tx_attempted(tx, sequencer, &mut checkpoint);
 
-    runtime.allocate_consumed_gas(&transaction_consumption, &mut checkpoint);
-    runtime.refund_remaining_gas(tx, &ctx, &transaction_consumption, &mut checkpoint);
+    runtime
+        .capabilities()
+        .allocate_consumed_gas(&transaction_consumption, &mut checkpoint);
+    runtime.capabilities().refund_remaining_gas(
+        tx,
+        &ctx,
+        &transaction_consumption,
+        &mut checkpoint,
+    );
 
     debug!(
         tx_hash =

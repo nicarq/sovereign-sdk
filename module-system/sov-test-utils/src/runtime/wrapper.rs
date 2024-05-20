@@ -6,8 +6,8 @@ use sov_attester_incentives::AttesterIncentives;
 use sov_bank::{Bank, IntoPayable, ReserveGasError};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
-    AuthenticationError, GasEnforcer, RawTx, RuntimeAuthenticator, RuntimeAuthorization,
-    SequencerAuthorization,
+    AuthenticationError, GasEnforcer, HasCapabilities, RawTx, RuntimeAuthenticator,
+    RuntimeAuthorization, SequencerAuthorization,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
@@ -245,6 +245,20 @@ where
         _genesis_paths: &Self::GenesisPaths,
     ) -> Result<Self::GenesisConfig, anyhow::Error> {
         todo!()
+    }
+}
+
+// This test runtime has custom implementations of the capabilities
+impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> HasCapabilities<S, Da>
+    for TestRuntimeWrapper<S, Da, T>
+{
+    type Capabilities<'a> = Self
+    where
+    T: 'a,;
+    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+
+    fn capabilities(&self) -> Self::Capabilities<'_> {
+        Self::default()
     }
 }
 

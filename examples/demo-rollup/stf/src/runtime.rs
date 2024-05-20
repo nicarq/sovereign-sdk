@@ -32,10 +32,13 @@
 
 #![allow(unused_doc_comments)]
 
+use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
+use sov_modules_api::capabilities::HasCapabilities;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
 use sov_rollup_interface::da::DaSpec;
+use sov_sequencer_registry::SequencerStakeMeter;
 
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
@@ -87,5 +90,18 @@ where
         genesis_paths: &Self::GenesisPaths,
     ) -> Result<Self::GenesisConfig, anyhow::Error> {
         crate::genesis_config::create_genesis_config(genesis_paths)
+    }
+}
+
+impl<S: Spec, Da: DaSpec> HasCapabilities<S, Da> for Runtime<S, Da> {
+    type Capabilities<'a> = StandardCapabilities<'a, S, Da>;
+    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+    fn capabilities(&self) -> Self::Capabilities<'_> {
+        StandardCapabilities {
+            bank: &self.bank,
+            sequencer_registry: &self.sequencer_registry,
+            accounts: &self.accounts,
+            prover_incentives: &self.prover_incentives,
+        }
     }
 }

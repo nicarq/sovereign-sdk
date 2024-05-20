@@ -18,6 +18,26 @@ use crate::{
     Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, TransactionConsumption, WorkingSet,
 };
 
+/// Indicates that a type provides the necessary capabilities for a runtime.
+pub trait HasCapabilities<S: Spec, Da: DaSpec> {
+    /// The concrete implementation of the capabilities.
+    type Capabilities<'a>: GasEnforcer<S, Da, PreExecChecksMeter = Self::SequencerStakeMeter>
+        + SequencerAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter>
+        + RuntimeAuthorization<S, Da>
+    where
+        Self: 'a;
+
+    /// The type used to meter gas for operations invoked by the sequencer
+    /// (e.g. transaction deserialization, failing nonce checks)
+    // Note: We require an extra associated type here because `Capabilities` has
+    // a lifetime and rustc isn't smart enough to know that he lifetime of `SequencerAuthorization::SequencerStakeMeter`
+    // doesn't depend on the lifetime of capabilities.
+    type SequencerStakeMeter: GasMeter<S::Gas>;
+
+    /// Fetches the capabilities from the runtime.
+    fn capabilities(&self) -> Self::Capabilities<'_>;
+}
+
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
 /// while a second will support a "preferred sequencer" with some limited power to reorder blobs
