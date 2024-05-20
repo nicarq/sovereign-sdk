@@ -103,7 +103,7 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
         kernel: kernel_genesis,
     };
 
-    let blueprint = Blueprint::new();
+    let blueprint = Blueprint::with_runtime(runtime.clone());
     let (_root_hash, change_set) = blueprint.init_chain(stf_state, params);
 
     storage_manager.save_change_set(

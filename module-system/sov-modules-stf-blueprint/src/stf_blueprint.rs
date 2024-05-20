@@ -92,7 +92,12 @@ where
     K: KernelSlotHooks<S, Da>,
 {
     fn default() -> Self {
-        Self::new()
+        Self {
+            runtime: RT::default(),
+            kernel: K::default(),
+            phantom_context: PhantomData,
+            phantom_da: PhantomData,
+        }
     }
 }
 
@@ -103,13 +108,17 @@ where
     RT: Runtime<S, Da>,
     K: KernelSlotHooks<S, Da>,
 {
-    /// [`StfBlueprint`] constructor.
+    /// [`StfBlueprint`] constructor with the default [`Runtime`] value. Same as
+    /// [`Default::default`].
     pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// [`StfBlueprint`] constructor with a custom [`Runtime`] value.
+    pub fn with_runtime(runtime: RT) -> Self {
         Self {
-            runtime: RT::default(),
-            kernel: K::default(),
-            phantom_context: PhantomData,
-            phantom_da: PhantomData,
+            runtime,
+            ..Default::default()
         }
     }
 

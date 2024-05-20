@@ -3533,6 +3533,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh 0.10.3",
+ "derive_more",
  "hex",
  "integration-tests",
  "jsonrpsee 0.22.5",

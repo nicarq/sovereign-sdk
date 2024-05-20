@@ -363,7 +363,7 @@ mod tests {
 
     fn generate_valid_tx(private_key: &TestPrivateKey, value: u32) -> Vec<u8> {
         let msg = CallMessage::SetValue(value);
-        let msg = <TestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
+        let msg = <TestRuntime<_, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
         let chain_id = 0;
         let max_priority_fee_bips = PriorityFeeBips::ZERO;
         let max_fee = 10_000;
