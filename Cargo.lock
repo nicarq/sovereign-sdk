@@ -7660,6 +7660,7 @@ dependencies = [
  "sov-state",
  "sov-stf-runner",
  "tokio",
+ "tower-http",
 ]
 
 [[package]]
