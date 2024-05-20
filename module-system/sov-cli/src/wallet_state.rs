@@ -6,8 +6,10 @@ use semver::Version;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{clap, CryptoSpec, PrivateKey};
+
+use crate::UnsignedTransactionWithoutNonce;
 
 /// A struct representing the current state of the CLI wallet
 #[derive(Debug, Serialize, Deserialize)]
@@ -17,7 +19,7 @@ where
     Tx: BorshSerialize + BorshDeserialize,
 {
     /// The accumulated transactions to be submitted to the DA layer.
-    pub unsent_transactions: Vec<UnsignedTransaction<S, Tx>>,
+    pub unsent_transactions: Vec<UnsignedTransactionWithoutNonce<S, Tx>>,
     /// The addresses in the wallet
     pub addresses: AddressList<S>,
     /// The addresses in the wallet
@@ -130,14 +132,14 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
 /// Returns borsh serialized [`Transaction`].
 pub(crate) fn sign_tx<S, Tx>(
     signing_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
-    tx: &UnsignedTransaction<S, Tx>,
+    tx: &UnsignedTransactionWithoutNonce<S, Tx>,
     nonce: u64,
 ) -> anyhow::Result<Vec<u8>>
 where
     S: sov_modules_api::Spec,
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
 {
-    let UnsignedTransaction {
+    let UnsignedTransactionWithoutNonce {
         tx,
         chain_id,
         max_priority_fee_bips,

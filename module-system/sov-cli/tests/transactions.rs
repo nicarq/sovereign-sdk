@@ -5,9 +5,10 @@ use demo_stf::runtime::{Runtime, RuntimeCall, RuntimeSubcommand};
 use sov_cli::wallet_state::{KeyIdentifier, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
+use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_test_utils::TestSpec;
 type Da = MockDaSpec;
@@ -64,7 +65,7 @@ fn transaction_is_serialized_correctly() {
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 0;
     let gas_limit = None;
-    let unsigned_tx = UnsignedTransaction::new(
+    let unsigned_tx = UnsignedTransactionWithoutNonce::new(
         runtime_call,
         chain_id,
         max_priority_fee_bips,
