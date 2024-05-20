@@ -15,12 +15,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sov_db::schema::types::{BatchNumber, EventNumber, SlotNumber, TxNumber};
-use sov_jsonapi_utils::types::{
-    ApiResponse, ApiResponseResult, ErrorObject, ResponseObject, ResponseObjectData,
-};
+use sov_jsonapi_utils::types::{ApiResponse, ApiResponseResult, ErrorObject, ResponseObject};
 use sov_jsonapi_utils::utils::{
     database_error_response_500, internal_server_error_response_500, not_found_404,
-    preconfigured_router_layers,
+    preconfigured_router_layers, serde_obj_to_response_result,
 };
 use sov_jsonapi_utils::{json_obj, PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
 use sov_modules_api::{EventModuleName, RuntimeEventResponse};
@@ -90,18 +88,11 @@ async fn getter_helper<T: serde::Serialize, E: ToString>(
     entity_name: &str,
     resource_id: impl ToString,
 ) -> ApiResponseResult {
-    let data = response_data
-        .map_err(database_error_response_500)?
-        .ok_or_else(|| not_found_404(entity_name, resource_id))?;
-    let response_data = serde_obj_to_data(data).map_err(internal_server_error_response_500)?;
-
-    Ok((
-        StatusCode::OK,
-        Json(ResponseObject {
-            data: Some(response_data),
-            ..Default::default()
-        }),
-    ))
+    serde_obj_to_response_result(
+        response_data
+            .map_err(database_error_response_500)?
+            .ok_or_else(|| not_found_404(entity_name, resource_id))?,
+    )
 }
 
 /// Use [`LedgerRoutes::axum_router`] to instantiate an [`axum::Router`] for
@@ -834,27 +825,6 @@ struct AggregatedProofPublicData {
     pub final_slot_hash: Vec<u8>,
     #[serde_as(as = "serde_with::base64::Base64")]
     pub code_commitment: Vec<u8>,
-}
-
-fn serde_obj_to_data<T: Serialize>(item: T) -> anyhow::Result<ResponseObjectData> {
-    let json_obj = serde_json::to_value(item)?;
-
-    match json_obj {
-        serde_json::Value::Object(obj) => Ok(ResponseObjectData::Single(obj)),
-        serde_json::Value::Array(obj) => {
-            let objs = obj
-                .into_iter()
-                .map(|value| match value {
-                    serde_json::Value::Object(obj) => Ok(obj),
-                    _ => Err(anyhow::anyhow!("Invalid response object; expected object")),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            Ok(ResponseObjectData::Many(objs))
-        }
-        _ => Err(anyhow::anyhow!(
-            "Invalid response object; expected object or array",
-        )),
-    }
 }
 
 #[cfg(test)]

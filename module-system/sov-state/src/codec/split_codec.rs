@@ -11,7 +11,11 @@ pub struct SplitCodec<KC, VC> {
     pub value_codec: VC,
 }
 
-impl<KC, VC> StateCodec for SplitCodec<KC, VC> {
+impl<KC, VC> StateCodec for SplitCodec<KC, VC>
+where
+    KC: Default + Clone + Send + Sync + 'static,
+    VC: Default + Clone + Send + Sync + 'static,
+{
     type KeyCodec = KC;
     type ValueCodec = VC;
 

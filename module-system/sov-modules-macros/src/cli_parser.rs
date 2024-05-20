@@ -1,7 +1,7 @@
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields};
 
-use crate::common::StructFieldExtractor;
+use crate::common::{doc_attributes, StructFieldExtractor};
 
 type CliWalletArgSpec = (
     proc_macro2::TokenStream,
@@ -343,11 +343,7 @@ fn derive_cli_wallet_arg_enum(ast: &DeriveInput, data_enum: &syn::DataEnum) -> C
 
     for variant in &data_enum.variants {
         let variant_name = &variant.ident;
-        let variant_docs = variant
-            .attrs
-            .iter()
-            .filter(|attr| attr.path.is_ident("doc"))
-            .collect::<Vec<_>>();
+        let variant_docs = doc_attributes(&variant.attrs);
 
         let mut named_variant_fields =
             StructFieldExtractor::get_or_generate_named_fields(&variant.fields, false);
@@ -455,7 +451,7 @@ fn derive_cli_wallet_arg_struct(
 
     let inner_module_ident =
         format_ident!("__{}_cli_parser_inner_module", item_with_named_fields_ident);
-    let struct_docs = ast.attrs.iter().filter(|attr| attr.path.is_ident("doc"));
+    let struct_docs = doc_attributes(&ast.attrs);
 
     let struct_defn = quote! {
         #[doc(inline)]

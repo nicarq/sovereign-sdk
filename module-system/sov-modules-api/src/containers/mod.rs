@@ -1,8 +1,8 @@
 mod versioned_value;
 
-mod map;
-mod value;
-mod vec;
+pub(crate) mod map;
+pub(crate) mod value;
+pub(crate) mod vec;
 
 mod traits;
 pub use map::{AccessoryStateMap, KernelStateMap, StateMap, StateMapError};

@@ -22,8 +22,24 @@ proc-macro = true
 name = "tests"
 path = "tests/all_tests.rs"
 
+[dependencies]
+anyhow = { workspace = true }
+bech32 = { workspace = true }
+blake2 = "0.10"
+convert_case = "0.6"
+darling = "0.14"
+derive_more = "0.99"
+hex = { workspace = true }
+prettier-please = { version = "0.1", default-features = false }
+proc-macro2 = "1.0"
+quote = "1.0"
+serde_json = { workspace = true }
+syn = { version = "1.0", features = ["full"] }
+
 [dev-dependencies]
-jsonrpsee = { workspace = true, features = ["macros", "http-client", "server"] }
+borsh = { workspace = true }
+jsonrpsee = { workspace = true, features = ["http-client", "macros", "server"] }
+schemars = { workspace = true }
 serde = { workspace = true }
 tempfile = { workspace = true }
 trybuild = "1.0"
@@ -35,29 +51,9 @@ sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] 
 sov-modules-macros = { path = ".", features = ["native"] }
 sov-test-utils = { path = "../sov-test-utils" }
 
-[dependencies]
-anyhow = { workspace = true }
-blake2 = "0.10"
-borsh = { workspace = true }
-hex = { workspace = true }
-jsonrpsee = { workspace = true, features = ["http-client", "macros", "server"], optional = true }
-prettier-please = { version = "0.1", default-features = false }
-proc-macro2 = "1.0"
-quote = "1.0"
-schemars = { workspace = true }
-serde = { workspace = true, default-features = false }
-serde_json = { workspace = true }
-syn = { version = "1.0", features = ["full"] }
-bech32 = { workspace = true }
-
-
-[build-dependencies]
-anyhow = { workspace = true }
-
 [features]
 default = []
 native = [
-	"jsonrpsee",
 	"sov-bank/native",
 	"sov-modules-api/native",
 	"sov-modules-macros/native",

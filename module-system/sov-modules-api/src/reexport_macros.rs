@@ -58,6 +58,65 @@ pub use sov_modules_macros::ModuleInfo;
 /// Procedural macros to assist with creating new modules.
 #[cfg(feature = "macros")]
 pub mod macros {
+    /// Simple convenience macro for adding some common derive macros and
+    /// impls specifically for a NewType wrapping an Address.
+    /// The reason for having this is that we assumes NewTypes for address as a common use case
+    ///
+    /// ## Example
+    /// ```
+    /// use sov_modules_macros::address_type;
+    /// use std::fmt;
+    /// use sov_modules_api::Spec;
+    /// #[address_type]
+    /// pub struct UserAddress;
+    /// ```
+    ///
+    /// This is exactly equivalent to hand-writing
+    ///
+    /// ```
+    /// use std::fmt;
+    /// use sov_modules_api::Spec;
+    /// #[cfg(feature = "native")]
+    /// #[derive(schemars::JsonSchema)]
+    /// #[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "UserAddress")]
+    /// #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+    /// pub struct UserAddress<S: Spec>(S::Address);
+    ///
+    /// #[cfg(not(feature = "native"))]
+    /// #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+    /// pub struct UserAddress<S: Spec>(S::Address);
+    ///
+    /// impl<S: Spec> UserAddress<S> {
+    ///     /// Public constructor
+    ///     pub fn new(address: &S::Address) -> Self {
+    ///         UserAddress(address.clone())
+    ///     }
+    ///
+    ///     /// Public getter
+    ///     pub fn get_address(&self) -> &S::Address {
+    ///         &self.0
+    ///     }
+    /// }
+    ///
+    /// impl<S: Spec> fmt::Display for UserAddress<S>
+    /// where
+    ///     S::Address: fmt::Display,
+    /// {
+    ///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    ///         write!(f, "{}", self.0)
+    ///     }
+    /// }
+    ///
+    /// impl<S: Spec> AsRef<[u8]> for UserAddress<S>
+    /// where
+    ///     S::Address: AsRef<[u8]>,
+    /// {
+    ///     fn as_ref(&self) -> &[u8] {
+    ///         self.0.as_ref()
+    ///     }
+    /// }
+    /// ```
+    pub use sov_modules_macros::address_type;
     /// Reads a string value from the rollup configuration manifest file and
     /// decodes it as a Bech32 value.
     ///
@@ -79,6 +138,93 @@ pub mod macros {
     ///   - All generic attributes must own the data, thus have bound `'static`
     #[cfg(feature = "native")]
     pub use sov_modules_macros::expose_rpc;
+    /// The offchain macro is used to annotate functions that should only be executed by the rollup
+    /// when the "offchain" feature flag is passed. The macro produces one of two functions depending on
+    /// the presence flag.
+    /// "offchain" feature enabled: function is present as defined
+    /// "offchain" feature absent: function body is replaced with an empty definition
+    ///
+    /// The idea here is that offchain computation is optionally enabled for a full node and is not
+    /// part of chain state and does not impact consensus, prover or anything else.
+    ///
+    /// ## Example
+    /// ```
+    /// use sov_modules_macros::offchain;
+    /// #[offchain]
+    /// fn redis_insert(count: u64){
+    ///     println!("Inserting {} to redis", count);
+    /// }
+    /// ```
+    ///
+    /// This is exactly equivalent to hand-writing
+    /// ```
+    /// #[cfg(feature = "offchain")]
+    /// fn redis_insert(count: u64){
+    ///     println!("Inserting {} to redis", count);
+    /// }
+    ///
+    /// #[cfg(not(feature = "offchain"))]
+    /// fn redis_insert(count: u64){
+    /// }
+    /// ```
+    pub use sov_modules_macros::offchain;
+    /// A wrapper around [`jsonrpsee::proc_macros::rpc`] for modules.
+    ///
+    /// This proc-macro generates a [`jsonrpsee`] implementation for the underlying
+    /// module type. It behaves very similar to the original [`jsonrpsee`]
+    /// proc-macro, but with some important distinctions:
+    ///
+    /// 1. It's called `#[rpc_gen]` instead of `#[rpc]`, to avoid confusion with the
+    ///    original proc-macro.
+    /// 2. `#[method]` is renamed to with `#[rpc_method]` to avoid confusion with
+    ///    [`jsonrpsee`]'s own attribute.
+    /// 3. **It's applied on an `impl` block instead of a trait.** [`macro@rpc_gen`] will
+    ///    copy all method definitions from your `impl` block into a new trait with
+    ///    the same generics and method signatures. Unlike [`jsonrpsee`] traits
+    ///    which can simply be signatures, these methods must all have function
+    ///    bodies as they provide the trait definition and its implementation at the
+    ///    same time.
+    /// 4. Working set arguments with signature `working_set: &mut WorkingSet<S>`
+    ///    are automatically removed from the method signatures (as they are not
+    ///    [`serde`]-compatible) and injected directly within the method bodies.
+    ///
+    ///    It sounds more complicated than it is. Generally, you can just assume
+    ///    that the proc-macro will provide you with a working set argument that you
+    ///    can request by adding it as a method argument.
+    ///
+    /// Any code relying on this macro must take [`jsonrpsee`] as a dependency with
+    /// at least the following features enabled:
+    ///
+    /// ```toml
+    /// jsonrpsee = { version = "...", features = ["macros", "client-core", "server"] }
+    /// ```
+    ///
+    /// This proc-macro is only intended for modules. Refer to [`macro@expose_rpc`] for
+    /// the runtime proc-macro.
+    ///
+    /// ## Example
+    /// ```
+    /// use sov_modules_api::{Spec, StateValue, ModuleId, ModuleInfo, WorkingSet};
+    /// use sov_modules_api::macros::rpc_gen;
+    /// use jsonrpsee::core::RpcResult;
+    ///
+    /// #[derive(ModuleInfo)]
+    /// struct MyModule<S: Spec> {
+    ///     #[id]
+    ///     id: ModuleId,
+    ///     #[state]
+    ///     values: StateValue<S::Address>,
+    ///     // ...
+    /// }
+    ///
+    /// #[rpc_gen(client, server, namespace = "myNamespace")]
+    /// impl<S: Spec> MyModule<S> {
+    ///     #[rpc_method(name = "myMethod")]
+    ///     fn my_method(&self, working_set: &mut WorkingSet<S>, param: u32) -> RpcResult<S::Address> {
+    ///         Ok(self.values.get(working_set).unwrap())
+    ///     }
+    /// }
+    /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::rpc_gen;
     /// Implements the `sov_modules_api::CliWallet` trait for the annotated runtime.
@@ -121,6 +267,7 @@ pub mod macros {
     /// This code..
     /// ```rust
     /// use sov_modules_api::macros::CliWalletArg;
+    ///
     /// #[derive(CliWalletArg, Clone)]
     /// pub enum MyEnum {
     ///    /// A number
@@ -167,5 +314,180 @@ pub mod macros {
     /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::CliWalletArg;
-    pub use sov_modules_macros::{address_type, offchain};
+    /// Derives [`HasRestApi`](crate::rest::HasRestApi) for modules.
+    ///
+    /// REST APIs generated with this proc-macro will serve static metadata
+    /// about the module itself, such as:
+    /// - its name;
+    /// - its description;
+    /// - its [`ModuleId`](crate::ModuleId).
+    ///
+    /// In addition to static metadata, the API also provides access to
+    /// the module's state items (e.g. [`StateMap`](crate::containers::StateMap))'s
+    /// values, both at the latest block and at specific block heights.
+    /// The root path contains a listing of all state items that can be queried
+    /// through the API.
+    ///
+    /// ## Attributes: `#[rest_api(skip)]`
+    ///
+    /// Tells the proc-macro to **NOT** provide access to a specific state item
+    /// within the module.
+    ///
+    /// ```
+    /// use sov_modules_api::prelude::*;
+    /// use sov_modules_api::{ModuleId, ModuleInfo, StateValue};
+    ///
+    /// #[derive(Clone, ModuleInfo, ModuleRestApi)]
+    /// struct MyModule<S: Spec> {
+    ///     #[id]
+    ///     id: ModuleId,
+    ///     /// This state item can't be queried through the API.
+    ///     #[state]
+    ///     #[rest_api(skip)]
+    ///     state_item: StateValue<S::Address>,
+    /// }
+    /// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
+    /// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
+    /// #    type Spec = S;
+    /// #    type Config = ();
+    /// #    type CallMessage = ();
+    /// #    type Event = ();
+    /// #
+    /// #    fn genesis(
+    /// #        &self,
+    /// #        _config: &Self::Config,
+    /// #        _working_set: &mut impl sov_modules_api::state::GenesisState<S>,
+    /// #    ) -> Result<(), sov_modules_api::Error> {
+    /// #        Ok(())
+    /// #    }
+    /// #
+    /// #    fn call(
+    /// #        &self,
+    /// #        _msg: Self::CallMessage,
+    /// #        _context: &Context<Self::Spec>,
+    /// #        _working_set: &mut impl sov_modules_api::state::TxState<S>,
+    /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+    /// #        unimplemented!()
+    /// #    }
+    /// # }
+    /// # // END MODULE IMPL
+    /// ```
+    ///
+    /// ## Attributes: `#[rest_api(include)]`
+    ///
+    /// Tells the proc-macro that compilation **MUST** fail if the marked state
+    /// item can't be exposed through the API, e.g. for unsatisfied trait
+    /// bounds, instead of silently ignoring the item.
+    ///
+    /// ```
+    /// use sov_modules_api::prelude::*;
+    /// use sov_modules_api::{ModuleId, ModuleInfo, StateValue};
+    ///
+    /// #[derive(Clone, ModuleInfo, ModuleRestApi)]
+    /// struct MyModule<S: Spec> {
+    ///     #[id]
+    ///     id: ModuleId,
+    ///     /// If someone were to replace `S::Address` with a type that doesn't
+    ///     /// satisfy the necessary trait bounds, the compiler will complain.
+    ///     #[state]
+    ///     #[rest_api(include)]
+    ///     state_item: StateValue<S::Address>,
+    /// }
+    /// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
+    /// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
+    /// #    type Spec = S;
+    /// #    type Config = ();
+    /// #    type CallMessage = ();
+    /// #    type Event = ();
+    /// #
+    /// #    fn genesis(
+    /// #        &self,
+    /// #        _config: &Self::Config,
+    /// #        _working_set: &mut impl sov_modules_api::state::GenesisState<S>,
+    /// #    ) -> Result<(), sov_modules_api::Error> {
+    /// #        Ok(())
+    /// #    }
+    /// #
+    /// #    fn call(
+    /// #        &self,
+    /// #        _msg: Self::CallMessage,
+    /// #        _context: &Context<Self::Spec>,
+    /// #        _working_set: &mut impl sov_modules_api::state::TxState<S>,
+    /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+    /// #        unimplemented!()
+    /// #    }
+    /// # }
+    /// # // END MODULE IMPL
+    /// ```
+    ///
+    /// ## Attributes: `#[rest_api(doc = "...")]`
+    ///
+    /// Overrides the description of the marked item used in the generated
+    /// metadata. By default, descriptions are fetched from docstrings.
+    ///
+    /// You can use this attribute at the top of the module as well as state items.
+    ///
+    /// ```
+    /// use sov_modules_api::prelude::*;
+    /// use sov_modules_api::{ModuleId, ModuleInfo, StateMap};
+    ///
+    /// /// This docstring will not be used.
+    /// #[derive(Clone, ModuleInfo, ModuleRestApi)]
+    /// #[rest_api(doc = "This is a description of the module.")]
+    /// #[rest_api(doc = "")]
+    /// #[rest_api(doc = "This is a second paragraph in the description.")]
+    /// struct MyModule<S: Spec> {
+    ///     #[id]
+    ///     id: ModuleId,
+    ///     /// This description will not be used.
+    ///     #[state]
+    ///     #[rest_api(doc = "My favorite state item!")]
+    ///     state_item: StateMap<S::Address, u64>,
+    /// }
+    /// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
+    /// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
+    /// #    type Spec = S;
+    /// #    type Config = ();
+    /// #    type CallMessage = ();
+    /// #    type Event = ();
+    /// #
+    /// #    fn genesis(
+    /// #        &self,
+    /// #        _config: &Self::Config,
+    /// #        _working_set: &mut impl sov_modules_api::state::GenesisState<S>,
+    /// #    ) -> Result<(), sov_modules_api::Error> {
+    /// #        Ok(())
+    /// #    }
+    /// #
+    /// #    fn call(
+    /// #        &self,
+    /// #        _msg: Self::CallMessage,
+    /// #        _context: &Context<Self::Spec>,
+    /// #        _working_set: &mut impl sov_modules_api::state::TxState<S>,
+    /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+    /// #        unimplemented!()
+    /// #    }
+    /// # }
+    /// # // END MODULE IMPL
+    /// ```
+    pub use sov_modules_macros::ModuleRestApi;
+    /// Derives [`HasRestApi`](crate::rest::HasRestApi) for runtimes.
+    ///
+    /// For each module listed in this runtime, the proc-macro will mount its
+    /// own REST API at
+    /// `/modules/<hyphenated-module-name>`. Consult the documentation of
+    /// [`crate::rest`] for more information about these traits.
+    ///
+    /// Modules listed in the runtime for which no
+    /// [`ModuleRestApi`] is derived will simply be ignored.
+    ///
+    /// ## Attributes: `#[rest_api(skip)]`
+    ///
+    /// Tells the proc-macro to **NOT** generate a REST API for the marked module.
+    ///
+    /// ## Attributes: `#[rest_api(doc)]`
+    ///
+    /// This attribute behaves exactly the same as it does for
+    /// [`ModuleRestApi`].
+    pub use sov_modules_macros::RuntimeRestApi;
 }

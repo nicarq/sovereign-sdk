@@ -38,6 +38,11 @@ impl ModulePrefix {
         }
     }
 
+    /// Returns the parent module name.
+    pub fn module_name(&self) -> &'static str {
+        self.module_name
+    }
+
     fn combine_prefix(&self) -> Vec<u8> {
         let storage_name_len = self
             .storage_name

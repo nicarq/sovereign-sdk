@@ -9,6 +9,8 @@ pub mod default_spec;
 pub mod hooks;
 pub mod module;
 #[cfg(feature = "native")]
+pub mod rest;
+#[cfg(feature = "native")]
 pub mod rpc;
 pub mod runtime;
 pub mod scratchpad;
@@ -108,14 +110,24 @@ pub mod prelude {
     // This means that, in practice, re-exporting proc-macros is often difficult
     // or can't always be done.
 
+    pub use crate::macros::*;
+    #[cfg(feature = "native")]
+    pub use crate::rest::ModuleRestApi;
     pub use crate::{
-        DaSpec, ModuleCallJsonSchema, Spec, StateAccessor, StateReaderAndWriter, WorkingSet,
+        Context, DaSpec, ModuleCallJsonSchema, Spec, StateAccessor, StateReaderAndWriter,
+        WorkingSet,
     };
 
+    #[cfg(feature = "native")]
+    pub extern crate axum;
     #[cfg(feature = "native")]
     pub extern crate clap;
     #[cfg(feature = "native")]
     pub extern crate serde_json;
+    #[cfg(feature = "native")]
+    pub extern crate sov_jsonapi_utils;
+    #[cfg(feature = "native")]
+    pub extern crate tokio;
 }
 
 struct ModuleVisitor<'a, S: Spec> {

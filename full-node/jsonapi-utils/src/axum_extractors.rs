@@ -27,7 +27,7 @@ pub type ValidatedQueryRejection = ApiResponse;
 /// - <https://github.com/tokio-rs/axum/issues/1116>
 /// - <https://github.com/tokio-rs/axum/blob/main/examples/customize-extractor-error/src/derive_from_request.rs>
 /// - <https://docs.rs/axum/latest/axum/extract/index.html#customizing-extractor-responses>
-#[derive(Debug, derive_more::Deref)]
+#[derive(Debug, Copy, Clone, derive_more::Deref)]
 pub struct ValidatedQuery<T>(pub T);
 
 impl<T> ValidatedQuery<T>

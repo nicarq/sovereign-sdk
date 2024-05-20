@@ -62,7 +62,7 @@ impl<C, V> StateItemCodec<V> for C where C: StateItemEncoder<V> + StateItemDecod
 /// [`StateCodec::ValueCodec`], so they can be any type at well. That said,
 /// you'll find many APIs require these two to implement [`StateItemCodec`] and
 /// [`StateItemCodec`] respectively.
-pub trait StateCodec {
+pub trait StateCodec: Default + Clone + Send + Sync + 'static {
     /// The codec used to serialize keys. See [`StateItemCodec`].
     type KeyCodec;
     /// The codec used to serialize and deserialize values. See

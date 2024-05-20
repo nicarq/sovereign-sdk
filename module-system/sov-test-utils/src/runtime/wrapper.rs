@@ -237,7 +237,9 @@ where
 
     type GenesisPaths = ();
 
-    fn rpc_methods(_storage: tokio::sync::watch::Receiver<S::Storage>) -> jsonrpsee::RpcModule<()> {
+    fn endpoints(
+        _storage: tokio::sync::watch::Receiver<S::Storage>,
+    ) -> sov_modules_stf_blueprint::RuntimeEndpoints {
         todo!()
     }
 

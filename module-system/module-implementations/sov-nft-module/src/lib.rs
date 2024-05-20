@@ -27,9 +27,9 @@ mod sql;
 pub mod utils;
 use crate::event::Event;
 
-#[derive(ModuleInfo, Clone)]
 /// Module for non-fungible tokens (NFT).
 /// Each token is represented by a unique ID.
+#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
 pub struct NonFungibleToken<S: Spec> {
     #[id]
     /// The ID of the NonFungibleToken module.

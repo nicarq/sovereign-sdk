@@ -2,7 +2,9 @@ use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::jsonapi::LedgerRoutes;
 use sov_modules_api::{Authenticator, RuntimeEventProcessor, RuntimeEventResponse, Spec};
-use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime as RuntimeTrait, TxEffect};
+use sov_modules_stf_blueprint::{
+    BatchSequencerOutcome, Runtime as RuntimeTrait, RuntimeEndpoints, TxEffect,
+};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
@@ -18,26 +20,25 @@ pub fn register_endpoints<B, Auth>(
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
     sequencer: <B::DaSpec as DaSpec>::Address,
-) -> anyhow::Result<(jsonrpsee::RpcModule<()>, axum::Router<()>)>
+) -> anyhow::Result<RuntimeEndpoints>
 where
     B: RollupBlueprint + 'static,
     B::NativeRuntime: RuntimeEventProcessor,
     <B::DaService as DaService>::TransactionId: Clone + Send + Sync + serde::Serialize,
     Auth: Authenticator<Spec = B::NativeSpec, DispatchCall = B::NativeRuntime>,
 {
-    let mut axum_router = axum::Router::<()>::new();
-
-    // Runtime endpoints.
-    let mut rpc_methods = B::NativeRuntime::rpc_methods(storage.clone());
+    let mut endpoints = B::NativeRuntime::endpoints(storage.clone());
 
     // Ledger endpoint.
     {
-        rpc_methods.merge(sov_ledger_apis::rpc::server::rpc_module::<
-            LedgerDb,
-            BatchSequencerOutcome,
-            TxEffect,
-            RuntimeEventResponse<<B::NativeRuntime as RuntimeEventProcessor>::RuntimeEvent>,
-        >(ledger_db.clone())?)?;
+        endpoints
+            .jsonrpsee_module
+            .merge(sov_ledger_apis::rpc::server::rpc_module::<
+                LedgerDb,
+                BatchSequencerOutcome,
+                TxEffect,
+                RuntimeEventResponse<<B::NativeRuntime as RuntimeEventProcessor>::RuntimeEvent>,
+            >(ledger_db.clone())?)?;
 
         let ledger_axum_router = LedgerRoutes::<
             LedgerDb,
@@ -45,7 +46,9 @@ where
             TxEffect,
             <B::NativeRuntime as RuntimeEventProcessor>::RuntimeEvent,
         >::axum_router(ledger_db.clone(), "/ledger");
-        axum_router = axum_router.nest("/ledger", ledger_axum_router.with_state(ledger_db.clone()));
+        endpoints.axum_router = endpoints
+            .axum_router
+            .nest("/ledger", ledger_axum_router.with_state(ledger_db.clone()));
     }
 
     // Sequencer endpoints.
@@ -71,11 +74,12 @@ where
 
         let sequencer = Sequencer::<_, _, Auth>::new(batch_builder, da_service.clone());
 
-        rpc_methods
+        endpoints
+            .jsonrpsee_module
             .merge(sequencer.rpc())
             .context("Failed to merge Transactions RPC modules")?;
 
-        axum_router = axum_router.nest(
+        endpoints.axum_router = endpoints.axum_router.nest(
             "/sequencer",
             sequencer
                 .axum_router("/sequencer")
@@ -89,5 +93,5 @@ where
         );
     }
 
-    Ok((rpc_methods, axum_router))
+    Ok(endpoints)
 }

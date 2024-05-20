@@ -3,6 +3,7 @@ use quote::{format_ident, quote};
 use syn::{parse_quote, Attribute, FnArg, ImplItem, PatType, Signature};
 
 use self::utils::*;
+use crate::common::doc_attributes;
 
 struct RpcMethod {
     method: syn::ImplItemMethod,
@@ -16,12 +17,7 @@ impl RpcMethod {
         let rpc_attribute = RpcMethodAttribute::parse(method)?;
         let working_set_arg = WorkingSetArg::parse(&method.sig)?;
 
-        let docs = method
-            .attrs
-            .iter()
-            .filter(|attr| attr.path.is_ident("doc"))
-            .cloned()
-            .collect::<Vec<_>>();
+        let docs = doc_attributes(&method.attrs);
 
         Ok(Self {
             method: method.clone(),

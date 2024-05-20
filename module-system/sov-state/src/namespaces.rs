@@ -50,7 +50,7 @@ pub enum ProvableNamespace {
 }
 
 /// Converts a type into a runtime namespace.
-pub trait CompileTimeNamespace: core::fmt::Debug {
+pub trait CompileTimeNamespace: core::fmt::Debug + Send + Sync + 'static {
     /// The runtime namespace variant associated with the type.
     const NAMESPACE: Namespace;
 }

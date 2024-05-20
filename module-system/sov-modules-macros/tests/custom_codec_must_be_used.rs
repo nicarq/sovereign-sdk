@@ -21,7 +21,7 @@ where
     phantom: std::marker::PhantomData<S>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct CustomCodec;
 
 impl CustomCodec {

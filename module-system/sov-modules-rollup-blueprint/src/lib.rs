@@ -1,19 +1,21 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-mod runtime_rpc;
+mod endpoints;
 mod wallet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-pub use runtime_rpc::*;
+pub use endpoints::*;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::{CacheDb, ChangeSet};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{DaSpec, Spec, Zkvm};
-use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
+use sov_modules_stf_blueprint::{
+    GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint,
+};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
@@ -98,7 +100,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<Self::DaConfig>,
-    ) -> Result<(jsonrpsee::RpcModule<()>, axum::Router<()>), anyhow::Error>;
+    ) -> anyhow::Result<RuntimeEndpoints>;
 
     /// Creates GenesisConfig from genesis files.
     #[allow(clippy::type_complexity)]
@@ -211,7 +213,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let rpc_storage = tokio::sync::watch::channel(prover_storage);
         // We pass "bootstrap" storage here,
         // as it will be replaced with the latest on after first processed block.
-        let (rpc_methods, axum_router) = self.create_endpoints(
+        let endpoints = self.create_endpoints(
             rpc_storage.1,
             &ledger_db,
             &sequencer_db,
@@ -240,11 +242,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             proof_manager,
         )?;
 
-        Ok(Rollup {
-            runner,
-            rpc_methods,
-            axum_router,
-        })
+        Ok(Rollup { runner, endpoints })
     }
 }
 
@@ -260,10 +258,8 @@ pub struct Rollup<S: RollupBlueprint> {
         S::OuterZkvmHost,
         S::ProverService,
     >,
-    /// RPC methods for the rollup.
-    pub rpc_methods: jsonrpsee::RpcModule<()>,
-    /// Axum router for the rollup.
-    pub axum_router: axum::Router<()>,
+    /// Server endpoints for the rollup.
+    pub endpoints: RuntimeEndpoints,
 }
 
 impl<S: RollupBlueprint> Rollup<S> {
@@ -280,14 +276,16 @@ impl<S: RollupBlueprint> Rollup<S> {
     ) -> anyhow::Result<()> {
         let mut runner = self.runner;
 
-        let rpc_addr = runner.start_rpc_server(self.rpc_methods).await?;
+        let rpc_addr = runner
+            .start_rpc_server(self.endpoints.jsonrpsee_module)
+            .await?;
         if let Some(sender) = rpc_addr_channel {
             sender
                 .send(rpc_addr)
                 .map_err(|_| anyhow::anyhow!("Failed to send RPC address"))?;
         }
 
-        let axum_addr = runner.start_axum_server(self.axum_router).await?;
+        let axum_addr = runner.start_axum_server(self.endpoints.axum_router).await?;
         if let Some(sender) = axum_addr_channel {
             sender
                 .send(axum_addr)

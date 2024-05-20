@@ -13,7 +13,9 @@ use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
 use tracing::{error, error_span};
 
-use crate::types::{ApiResponse, ErrorObject, ResponseObject};
+use crate::types::{
+    ApiResponse, ApiResponseResult, ErrorObject, ResponseObject, ResponseObjectData,
+};
 
 /// A newtype wrapper around [`Vec<u8>`] which is serialized as a
 /// 0x-prefixed hex string.
@@ -231,6 +233,46 @@ pub fn internal_server_error_response_500(err: impl ToString) -> ApiResponse {
             ..Default::default()
         }),
     )
+}
+
+/// Converts a [`serde`]-serializable object into a [`ResponseObjectData`] result.
+pub fn serde_obj_to_data<T: serde::Serialize>(item: T) -> anyhow::Result<ResponseObjectData> {
+    let json_obj = serde_json::to_value(item)?;
+
+    match json_obj {
+        serde_json::Value::Object(obj) => Ok(ResponseObjectData::Single(obj)),
+        serde_json::Value::Array(obj) => {
+            let objs = obj
+                .into_iter()
+                .map(|value| match value {
+                    serde_json::Value::Object(obj) => Ok(obj),
+                    // We only allow objects or arrays of objects in the
+                    // response "main" data field. This is intentional, as we
+                    // don't intend on serializing other kinds of responses.
+                    _ => Err(anyhow::anyhow!("Invalid response object; expected object")),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(ResponseObjectData::Many(objs))
+        }
+        _ => Err(anyhow::anyhow!(
+            "Invalid response object; expected object or array",
+        )),
+    }
+}
+
+/// Creates a new response with *just* the data obtained from
+/// [`serde_obj_to_data`]. This is often what you want unless you need a "custom"
+/// response object.
+pub fn serde_obj_to_response_result<T: serde::Serialize>(item: T) -> ApiResponseResult {
+    let response_obj = serde_obj_to_data(item).map_err(internal_server_error_response_500)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(ResponseObject {
+            data: Some(response_obj),
+            ..Default::default()
+        }),
+    ))
 }
 
 #[cfg(test)]

@@ -57,7 +57,7 @@ pub struct BankGasConfig<GU: Gas> {
 /// - Token creation.
 /// - Token transfers.
 /// - Token burn.
-#[derive(ModuleInfo, Clone)]
+#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
 pub struct Bank<S: sov_modules_api::Spec> {
     /// The id of the sov-bank module.
     #[id]
