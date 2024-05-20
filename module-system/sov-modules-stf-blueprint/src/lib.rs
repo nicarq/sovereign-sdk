@@ -50,16 +50,16 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
 
-    #[cfg(feature = "native")]
     /// GenesisPaths type.
+    #[cfg(feature = "native")]
     type GenesisPaths: Send + Sync;
 
+    /// Default RPC methods and Axum router.
     #[cfg(feature = "native")]
-    /// Default RPC methods.
-    fn rpc_methods(storage: tokio::sync::watch::Receiver<S::Storage>) -> jsonrpsee::RpcModule<()>;
+    fn endpoints(storage: tokio::sync::watch::Receiver<S::Storage>) -> RuntimeEndpoints;
 
-    #[cfg(feature = "native")]
     /// Reads genesis configs.
+    #[cfg(feature = "native")]
     fn genesis_config(
         genesis_paths: &Self::GenesisPaths,
     ) -> Result<Self::GenesisConfig, anyhow::Error>;
@@ -100,8 +100,8 @@ pub enum TxSequencerOutcome {
     Ignored,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 /// Represents the different outcomes that can occur for a sequencer after batch processing.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BatchSequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
     Rewarded(SequencerReward),
@@ -343,6 +343,25 @@ where
             proof_receipts,
             batch_receipts,
             witness,
+        }
+    }
+}
+
+/// The return type of [`Runtime::endpoints`].
+#[cfg(feature = "native")]
+pub struct RuntimeEndpoints {
+    /// The [`axum::Router`] for the runtime's HTTP server.
+    pub axum_router: axum::Router<()>,
+    /// A [`jsonrpsee::RpcModule`] for the runtime's JSON-RPC server.
+    pub jsonrpsee_module: jsonrpsee::RpcModule<()>,
+}
+
+#[cfg(feature = "native")]
+impl Default for RuntimeEndpoints {
+    fn default() -> Self {
+        Self {
+            axum_router: Default::default(),
+            jsonrpsee_module: jsonrpsee::RpcModule::new(()),
         }
     }
 }

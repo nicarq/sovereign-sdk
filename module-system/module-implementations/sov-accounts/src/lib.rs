@@ -21,7 +21,16 @@ use sov_modules_api::{
 use crate::event::Event;
 
 /// An account on the rollup.
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Copy, Clone)]
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Copy,
+    Clone,
+)]
 pub struct Account<S: Spec> {
     /// The address of the account.
     pub addr: S::Address,
@@ -30,7 +39,7 @@ pub struct Account<S: Spec> {
 }
 
 /// A module responsible for managing accounts on the rollup.
-#[derive(ModuleInfo, Clone)]
+#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
 #[cfg_attr(feature = "arbitrary", derive(Debug))]
 pub struct Accounts<S: Spec> {
     /// The ID of the sov-accounts module.

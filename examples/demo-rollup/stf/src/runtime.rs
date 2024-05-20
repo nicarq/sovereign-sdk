@@ -36,6 +36,7 @@ use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
 use sov_modules_api::capabilities::HasCapabilities;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
+use sov_modules_api::prelude::*;
 use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerStakeMeter;
@@ -45,7 +46,7 @@ use crate::genesis_config::GenesisPaths;
 
 /// The `demo-stf runtime`.
 #[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
-#[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
+#[derive(Default, Genesis, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
 #[serialization(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -81,8 +82,15 @@ where
     type GenesisPaths = GenesisPaths;
 
     #[cfg(feature = "native")]
-    fn rpc_methods(storage: tokio::sync::watch::Receiver<S::Storage>) -> jsonrpsee::RpcModule<()> {
-        get_rpc_methods::<S, Da>(storage)
+    fn endpoints(
+        storage: tokio::sync::watch::Receiver<S::Storage>,
+    ) -> sov_modules_stf_blueprint::RuntimeEndpoints {
+        use ::sov_modules_api::rest::HasRestApi;
+
+        sov_modules_stf_blueprint::RuntimeEndpoints {
+            jsonrpsee_module: get_rpc_methods::<S, Da>(storage.clone()),
+            axum_router: Self::default().rest_api(storage),
+        }
     }
 
     #[cfg(feature = "native")]

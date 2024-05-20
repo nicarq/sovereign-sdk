@@ -1,8 +1,123 @@
-//! Procedural macros to assist in the creation of Sovereign modules.
+//! Procedural macros to assist in the creation of Sovereign SDK modules and rollups.
 //!
-//! This crate is not intended to be used directly, please refer to the
-//! documentation of [`sov_modules_api`](https://docs.rs/sov-modules-api) for
-//! more information with the `macros` feature flag.
+//! # Are you lost?
+//!
+//! This crate is **not** intended to be used directly!
+//!
+//! **Please refer to the documentation of `sov-modules-api` for
+//! more information about its `macros` feature flag.**
+//!
+//! # Notes about authoring proc-macros
+//!
+//! This section serves as a collection of resources and useful tips for
+//! authoring new proc-macros and maintaining the proc-macros present in this
+//! crate.
+//!
+//! <div class="warning">
+//! This place is a message...and part of a
+//! system of messages...pay attention to it!
+//!
+//! Sending this message was important to us.
+//! We considered ourselves to be a powerful culture.
+//!
+//! This place is not a place of honor... no
+//! highly esteemed deed is commemorated here.
+//!
+//! What is here was dangerous and repulsive to us.
+//! This message is a warning about danger.[^nuclear-warning]
+//! </div>
+//!
+//! [^nuclear-warning]: <https://en.wikipedia.org/wiki/Long-term_nuclear_waste_warning_messages#Message>
+//!
+//! ## The `#[automatically_derived]` attribute
+//!
+//! Whenever your proc-macro generates a trait implementation, you should mark
+//! it as `#[automatically_derived]`. It's good practice, to help the compiler
+//! silence some warnings originating from generated code.
+//!
+//! See <https://stackoverflow.com/questions/51481551/what-does-automatically-derived-mean>.
+//!
+//! ## Separate parsing and generation
+//!
+//! It's almost always a good idea to cleanly separate your proc-macro parsing
+//! logic from the code generation logic. Your proc-macro should ideally be composed of:
+//!
+//! 1. A parsing function, which consumes tokens and returns an instante of some
+//!    custom type which provides well-typed informations about the input.
+//!    [`darling`] is excellent for this.
+//! 2. A code generator, which consumes the well-typed, parsed input and
+//!    produces tokens.
+//!
+//! Besides readability, an extra benefit of this approach is that different
+//! proc-macros can invoke each other's parsing logic if needed, and compose
+//! nicely.
+//!
+//! ## Inner vs outer feature gating
+//!
+//! Sometimes your proc-macro is only intended to be used when a specific Cargo
+//! feature is enabled, e.g. `native`. You usually have two choices:
+//!
+//! 1. Have the use feature-gate the proc-macro use itself, like this:
+//!
+//!    ```
+//!    #[cfg_attr(feature = "native", derive(Clone))]
+//!    struct MyStruct;
+//!    ```
+//!
+//! 2. Modify the proc-macro to generate feature-gated code, resulting in more
+//!    typical derive's, like this:
+//!
+//!    ```
+//!    #[derive(Clone)]
+//!    struct MyStruct;
+//!    ```
+//!
+//! Option (1) is more verbose, whereas option (2) is more concise but requires
+//! hard-coding the feature name.
+//!
+//! ## The `const _: () = {};` trick
+//!
+//! The `const _: () = {};` trick is a simple, yet effective way of creating a
+//! new scope for you to generate code into, without worrying about
+//! polluting the parent module.
+//!
+//! The key factor to consider here is that you won't be able to re-export
+//! anything defined inside the scope that you define this way, so this trick is
+//! appropriate when your proc-macro is e.g. implementing a trait, and not when
+//! it's defining e.g. a new `struct` definition.
+//!
+//! Here's an example:
+//!
+//! ```
+//! pub struct Foo(u32);
+//!
+//! const _: () = {
+//!     use std::marker::PhantomData;
+//!     use std::string::ToString;
+//!
+//!     #[automatically_derived]
+//!     impl ToString for Foo {
+//!         fn to_string(&self) -> String {
+//!             format!("{}", self.0)
+//!         }
+//!     }
+//! };
+//! ```
+//!
+//! This trick is used by `serde` and other popular crates:
+//! <https://github.com/serde-rs/serde/blob/3202a6858a2802b5aba2fa5cf3ec8f203408db74/serde_derive/src/dummy.rs#L15-L22>.
+//!
+//! ## Helper crates
+//!
+//! There's some incredible crates out there that can help tons when writing
+//! even moderately complex proc-macros. If you're not familiar with the
+//! proc-macro ecosystem, take some time to go through these lists and read the
+//! descriptions of major crates to see if any of them can make your life
+//! easier:
+//!
+//! - <https://lib.rs/development-tools/procedural-macro-helpers?sort=popular>
+//! - <https://github.com/dtolnay/proc-macro-workshop>
+//! - <https://old.reddit.com/r/rust/comments/16kdb3a/best_ways_to_learn_how_to_build_procedural_macros/>
 
 // This crate is `missing_docs` because it is not intended to be used directly,
 // but only through the re-exports in `sov_modules_api`. All re-exports are
@@ -20,6 +135,7 @@ mod manifest;
 mod module_info;
 mod new_types;
 mod offchain;
+mod rest;
 #[cfg(feature = "native")]
 mod rpc;
 
@@ -135,63 +251,6 @@ pub fn config_value(item: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), make_const_value(&constant_name).map(Into::into))
 }
 
-/// A wrapper around [`jsonrpsee::proc_macros::rpc`] for modules.
-///
-/// This proc-macro generates a [`jsonrpsee`] implementation for the underlying
-/// module type. It behaves very similar to the original [`jsonrpsee`]
-/// proc-macro, but with some important distinctions:
-///
-/// 1. It's called `#[rpc_gen]` instead of `#[rpc]`, to avoid confusion with the
-///    original proc-macro.
-/// 2. `#[method]` is renamed to with `#[rpc_method]` to avoid confusion with
-///    [`jsonrpsee`]'s own attribute.
-/// 3. **It's applied on an `impl` block instead of a trait.** [`macro@rpc_gen`] will
-///    copy all method definitions from your `impl` block into a new trait with
-///    the same generics and method signatures. Unlike [`jsonrpsee`] traits
-///    which can simply be signatures, these methods must all have function
-///    bodies as they provide the trait definition and its implementation at the
-///    same time.
-/// 4. Working set arguments with signature `working_set: &mut WorkingSet<S>`
-///    are automatically removed from the method signatures (as they are not
-///    [`serde`]-compatible) and injected directly within the method bodies.
-///
-///    It sounds more complicated than it is. Generally, you can just assume
-///    that the proc-macro will provide you with a working set argument that you
-///    can request by adding it as a method argument.
-///
-/// Any code relying on this macro must take [`jsonrpsee`] as a dependency with
-/// at least the following features enabled:
-///
-/// ```toml
-/// jsonrpsee = { version = "...", features = ["macros", "client-core", "server"] }
-/// ```
-///
-/// This proc-macro is only intended for modules. Refer to [`macro@expose_rpc`] for
-/// the runtime proc-macro.
-///
-/// ## Example
-/// ```
-/// use sov_modules_api::{Spec, StateValue, ModuleId, ModuleInfo, WorkingSet};
-/// use sov_modules_api::macros::rpc_gen;
-/// use jsonrpsee::core::RpcResult;
-///
-/// #[derive(ModuleInfo)]
-/// struct MyModule<S: Spec> {
-///     #[id]
-///     id: ModuleId,
-///     #[state]
-///     values: StateValue<S::Address>,
-///     // ...
-/// }
-///
-/// #[rpc_gen(client, server, namespace = "myNamespace")]
-/// impl<S: Spec> MyModule<S> {
-///     #[rpc_method(name = "myMethod")]
-///     fn my_method(&self, working_set: &mut WorkingSet<S>, param: u32) -> RpcResult<S::Address> {
-///         Ok(self.values.get(working_set).unwrap())
-///     }
-/// }
-/// ```
 #[proc_macro_attribute]
 #[cfg(feature = "native")]
 pub fn rpc_gen(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -199,7 +258,7 @@ pub fn rpc_gen(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemImpl);
     handle_macro_error_and_expand(
         fn_name!(),
-        rpc::rpc_gen(attr_contents, input).map(|ok| ok.into()),
+        rpc::rpc_gen(attr_contents, input).map(Into::into),
     )
 }
 
@@ -209,6 +268,18 @@ pub fn expose_rpc(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let original = input.clone();
     let input = parse_macro_input!(input);
     handle_macro_error_and_expand(fn_name!(), rpc::expose_rpc("Expose", original, input))
+}
+
+#[proc_macro_derive(RuntimeRestApi, attributes(rest_api))]
+pub fn runtime_metadata_rest_api(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input);
+    handle_macro_error_and_expand(fn_name!(), rest::runtime::derive(input).map(Into::into))
+}
+
+#[proc_macro_derive(ModuleRestApi, attributes(rest_api))]
+pub fn module_metadata_rest_api(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input);
+    handle_macro_error_and_expand(fn_name!(), rest::module::derive(input).map(Into::into))
 }
 
 #[cfg(feature = "native")]
@@ -225,99 +296,12 @@ pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), cli_parser::derive_cli_wallet_arg(input))
 }
 
-/// Simple convenience macro for adding some common derive macros and
-/// impls specifically for a NewType wrapping an Address.
-/// The reason for having this is that we assumes NewTypes for address as a common use case
-///
-/// ## Example
-/// ```
-///use sov_modules_macros::address_type;
-///use std::fmt;
-///use sov_modules_api::Spec;
-///#[address_type]
-///pub struct UserAddress;
-/// ```
-///
-/// This is exactly equivalent to hand-writing
-///
-/// ```
-/// use std::fmt;
-/// use sov_modules_api::Spec;
-///#[cfg(feature = "native")]
-///#[derive(schemars::JsonSchema)]
-///#[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "UserAddress")]
-///#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-///pub struct UserAddress<S: Spec>(S::Address);
-///
-///#[cfg(not(feature = "native"))]
-///#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-///pub struct UserAddress<S: Spec>(S::Address);
-///
-///impl<S: Spec> UserAddress<S> {
-///    /// Public constructor
-///    pub fn new(address: &S::Address) -> Self {
-///        UserAddress(address.clone())
-///    }
-///
-///    /// Public getter
-///    pub fn get_address(&self) -> &S::Address {
-///        &self.0
-///    }
-///}
-///
-///impl<S: Spec> fmt::Display for UserAddress<S>
-///where
-///    S::Address: fmt::Display,
-///{
-///    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-///        write!(f, "{}", self.0)
-///    }
-///}
-///
-///impl<S: Spec> AsRef<[u8]> for UserAddress<S>
-///where
-///    S::Address: AsRef<[u8]>,
-///{
-///    fn as_ref(&self) -> &[u8] {
-///        self.0.as_ref()
-///    }
-///}
-/// ```
 #[proc_macro_attribute]
 pub fn address_type(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     handle_macro_error_and_expand(fn_name!(), address_type_helper(input))
 }
 
-/// The offchain macro is used to annotate functions that should only be executed by the rollup
-/// when the "offchain" feature flag is passed. The macro produces one of two functions depending on
-/// the presence flag.
-/// "offchain" feature enabled: function is present as defined
-/// "offchain" feature absent: function body is replaced with an empty definition
-///
-/// The idea here is that offchain computation is optionally enabled for a full node and is not
-/// part of chain state and does not impact consensus, prover or anything else.
-///
-/// ## Example
-/// ```
-/// use sov_modules_macros::offchain;
-/// #[offchain]
-/// fn redis_insert(count: u64){
-///     println!("Inserting {} to redis", count);
-/// }
-/// ```
-///
-/// This is exactly equivalent to hand-writing
-///```
-/// #[cfg(feature = "offchain")]
-/// fn redis_insert(count: u64){
-///     println!("Inserting {} to redis", count);
-/// }
-///
-/// #[cfg(not(feature = "offchain"))]
-/// fn redis_insert(count: u64){
-/// }
-///```
 #[proc_macro_attribute]
 pub fn offchain(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);

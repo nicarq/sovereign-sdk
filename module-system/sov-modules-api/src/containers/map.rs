@@ -312,7 +312,7 @@ impl<'a, N, K, V, Codec> NamespacedStateMap<N, K, V, Codec>
 where
     K: arbitrary::Arbitrary<'a>,
     V: arbitrary::Arbitrary<'a>,
-    Codec: sov_state::StateCodec + Default,
+    Codec: sov_state::StateCodec,
     Codec::KeyCodec: sov_state::StateItemCodec<K>,
     Codec::ValueCodec: sov_state::StateItemCodec<V>,
     N: CompileTimeNamespace,

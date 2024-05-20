@@ -25,7 +25,7 @@ use crate::event::Event;
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-#[derive(Clone, ModuleInfo)]
+#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
 pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     /// Id of the module.
     #[id]
@@ -38,6 +38,7 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     /// The minimum bond for a prover to be eligible for onchain verification
     /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
     #[state]
+    #[rest_api(include)]
     pub minimum_bond: sov_modules_api::StateValue<Amount>,
 
     /// The highest slot height for which the reward has been claimed. The next proofs should claim the next slot height.

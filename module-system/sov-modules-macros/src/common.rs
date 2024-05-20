@@ -265,30 +265,33 @@ pub(crate) fn get_attribute_values(
     values
 }
 
-fn lit_to_expr(lit: syn::Lit) -> syn::Expr {
-    syn::Expr::Lit(syn::ExprLit {
-        attrs: Vec::new(),
-        lit,
-    })
+fn syn_lit_to_expr(lit: syn::Lit) -> syn::Expr {
+    syn::Expr::Lit(syn::ExprLit { attrs: vec![], lit })
 }
 
+/// Converts a JSON value into a Rust expression of the most appropriate type.
+///
+/// Nulls and objects are not supported because they don't map naturally to any
+/// [`std`] Rust type.
 pub fn json_value_to_expr(value: &serde_json::Value, span: Span) -> syn::Result<syn::Expr> {
+    use serde_json::Value;
+
     let error = |json_type: &str| {
         syn::Error::new(span, format!("failed to convert JSON value into Rust expression; its JSON value type ({}) is not supported: `{:?}`", json_type, value))
     };
 
     match value {
-        serde_json::Value::Null => Err(error("null")),
-        serde_json::Value::Object(_) => Err(error("object")),
-        serde_json::Value::Bool(b) => Ok(lit_to_expr(syn::Lit::Bool(syn::LitBool::new(*b, span)))),
-        serde_json::Value::Number(num) => {
+        Value::Null => Err(error("null")),
+        Value::Object(_) => Err(error("object")),
+        Value::Bool(b) => Ok(syn_lit_to_expr(syn::Lit::Bool(syn::LitBool::new(*b, span)))),
+        Value::Number(num) => {
             if num.is_f64() {
-                Ok(lit_to_expr(syn::Lit::Float(syn::LitFloat::new(
+                Ok(syn_lit_to_expr(syn::Lit::Float(syn::LitFloat::new(
                     &num.to_string(),
                     span,
                 ))))
             } else if num.is_i64() {
-                Ok(lit_to_expr(syn::Lit::Int(syn::LitInt::new(
+                Ok(syn_lit_to_expr(syn::Lit::Int(syn::LitInt::new(
                     &num.to_string(),
                     span,
                 ))))
@@ -296,8 +299,8 @@ pub fn json_value_to_expr(value: &serde_json::Value, span: Span) -> syn::Result<
                 Err(error("number not within supported range"))
             }
         }
-        serde_json::Value::String(s) => Ok(lit_to_expr(syn::Lit::Str(syn::LitStr::new(s, span)))),
-        serde_json::Value::Array(arr) => {
+        Value::String(s) => Ok(syn_lit_to_expr(syn::Lit::Str(syn::LitStr::new(s, span)))),
+        Value::Array(arr) => {
             let values: Vec<syn::Expr> = arr
                 .iter()
                 .map(|v| json_value_to_expr(v, span))
@@ -355,9 +358,89 @@ pub(crate) fn get_serialization_attrs(
     Ok(serialization_attrs)
 }
 
+// Converts a Rust identifier into a human-readable URL path segment on a
+// "best-effort" basis (i.e. some identifiers may result in invalid or unreadable
+// URLs).
+pub fn str_to_url_segment(ident: &Ident) -> String {
+    use convert_case::{Case, Casing};
+
+    ident.to_string().to_case(Case::Kebab)
+}
+
+/// Wraps the code in a new scope using the `const _: () = {};` trick.
+///
+/// Adapted from MIT-licensed code here:
+/// <https://github.com/serde-rs/serde/blob/3202a6858a2802b5aba2fa5cf3ec8f203408db74/serde_derive/src/dummy.rs#L15-L22>.
+///
+/// Copyright (c) David Tolnay and Serde contributors.
+pub fn wrap_in_new_scope(code: TokenStream) -> TokenStream {
+    quote::quote! {
+        #[doc(hidden)]
+        #[allow(all, clippy::all)] // <-- just to make sure rustc doesn't complain about generated code.
+        const _: () = {
+            #code
+        };
+    }
+}
+
+/// Returns a list of all `#[doc = "..."`] attributes found in the original list
+/// of attributes.
+#[cfg(feature = "native")]
+pub fn doc_attributes(attrs: &[syn::Attribute]) -> Vec<syn::Attribute> {
+    attrs
+        .iter()
+        .filter(|attr| attr.path.is_ident("doc"))
+        .cloned()
+        .collect::<Vec<_>>()
+}
+
+/// Iterates over all `#[doc = "..."`] attributes and concatenates their inner
+/// string values, separated by newlines.
+pub fn join_doc_comments(attrs: &[syn::Attribute]) -> syn::Result<Option<String>> {
+    use syn::Lit;
+
+    let string_literals = attrs
+        .iter()
+        .filter_map(|attr| attr.parse_meta().ok())
+        .filter_map(|meta| match meta {
+            Meta::NameValue(ref name_value) if name_value.path.is_ident("doc") => {
+                Some(name_value.lit.clone())
+            }
+            _ => None,
+        })
+        .map(|lit| match lit {
+            Lit::Str(s) => Ok(s.value()),
+            other => Err(syn::Error::new(
+                other.span(),
+                "Doc comment is not a string literal",
+            )),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if string_literals.is_empty() {
+        return Ok(None);
+    }
+
+    let trimmed: Vec<_> = string_literals
+        .iter()
+        .flat_map(|lit| lit.split('\n').collect::<Vec<_>>())
+        .map(|line| line.trim().to_string())
+        .collect();
+
+    Ok(Some(trimmed.join("\n")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn identifier_to_url_segment() {
+        assert_eq!(str_to_url_segment(&format_ident!("foo")), "foo");
+        assert_eq!(str_to_url_segment(&format_ident!("FOO")), "foo");
+        assert_eq!(str_to_url_segment(&format_ident!("fooBar2")), "foo-bar-2");
+        assert_eq!(str_to_url_segment(&format_ident!("FooBar")), "foo-bar");
+    }
 
     #[test]
     fn get_generic_type_param_success() {

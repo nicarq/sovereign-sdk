@@ -55,7 +55,7 @@ where
 
 impl<N: CompileTimeNamespace, V, Codec: Clone> NamespacedStateVec<N, V, Codec>
 where
-    Codec: StateCodec + Clone,
+    Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
 {
@@ -75,6 +75,11 @@ where
         }
     }
 
+    /// Returns the prefix used when this [`StateVec`] was created.
+    pub fn prefix(&self) -> &Prefix {
+        &self.prefix
+    }
+
     fn set_len(&self, length: usize, working_set: &mut impl StateReaderAndWriter<N>) {
         self.len_value.set(&length, working_set);
     }
@@ -85,11 +90,6 @@ where
 
     fn len_value(&self) -> &NamespacedStateValue<N, usize, Codec> {
         &self.len_value
-    }
-
-    /// Returns the prefix used when this [`StateVec`] was created.
-    fn prefix(&self) -> &Prefix {
-        &self.prefix
     }
 
     /// Sets a value in the vector.
@@ -220,7 +220,7 @@ where
 /// See [`NamespacedStateVec::iter`] for more details.
 pub struct StateVecIter<'a, 'ws, N, V, Codec, W>
 where
-    Codec: StateCodec + Clone,
+    Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
@@ -235,7 +235,7 @@ where
 
 impl<'a, 'ws, N, V, Codec, W> Iterator for StateVecIter<'a, 'ws, N, V, Codec, W>
 where
-    Codec: StateCodec + Clone,
+    Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
@@ -255,7 +255,7 @@ where
 
 impl<'a, 'ws, N, V, Codec, W> ExactSizeIterator for StateVecIter<'a, 'ws, N, V, Codec, W>
 where
-    Codec: StateCodec + Clone,
+    Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
@@ -268,7 +268,7 @@ where
 
 impl<'a, 'ws, N, V, Codec, W> FusedIterator for StateVecIter<'a, 'ws, N, V, Codec, W>
 where
-    Codec: StateCodec + Clone,
+    Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
@@ -278,7 +278,7 @@ where
 
 impl<'a, 'ws, N, V, Codec, W> DoubleEndedIterator for StateVecIter<'a, 'ws, N, V, Codec, W>
 where
-    Codec: StateCodec + Clone,
+    Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,

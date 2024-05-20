@@ -1,3 +1,4 @@
+- #563 introduces a REST API for modules and runtimes. The `RollupBlueprint::create_endpoints` method in `demo-rollup` has been updated accordingly, so it exposes both JSON-RPC and the REST API by default. You can find the documentation for generating a REST API in `sov_modules_api::rest`.
 - #696 requires `Runtime` implementers to implement the `HasCapabilities` trait, which allows the `Runtime` to delegate to another struct for much of its required functionality. If a `Runtime` does not wish to delegate, it can simply implement the trait with `Self` as the associated `Capabilities` type. Implementations can be found in the sov-capabailities crate.
 - #701 adds support for multiple credentials in `sov-accounts`. This is a breaking change for the consumers of the SDK.
 - #694 adds `Credentials` to the `Context` structure. This is a breaking change for the consumers of the SDK. See implementation of the `RuntimeAuthorization::resolve_context` method.

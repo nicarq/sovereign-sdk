@@ -303,6 +303,8 @@ fn make_init_id(
 pub mod parsing {
     use super::*;
 
+    /// A fully parsed and validated `struct` marked with
+    /// `#[derive(ModuleInfo)]`.
     pub struct StructDef<'a> {
         pub ident: &'a proc_macro2::Ident,
         pub impl_generics: ImplGenerics<'a>,
@@ -342,6 +344,7 @@ pub mod parsing {
 
     #[derive(Clone)]
     pub struct ModuleField {
+        pub syn_field: syn::Field,
         pub ident: syn::Ident,
         pub ty: syn::Type,
         pub attr: ModuleFieldAttribute,
@@ -460,6 +463,7 @@ pub mod parsing {
             let attr = get_field_attribute(field)?;
 
             parsed_fields.push(ModuleField {
+                syn_field: field.clone(),
                 ident: ident.clone(),
                 ty,
                 attr: ModuleFieldAttribute::parse(attr)?,

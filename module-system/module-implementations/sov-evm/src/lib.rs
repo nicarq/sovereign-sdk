@@ -49,8 +49,7 @@ pub(crate) struct PendingTransaction {
 
 /// The sov-evm module provides compatibility with the EVM.
 #[allow(dead_code)]
-// #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
-#[derive(ModuleInfo, Clone)]
+#[derive(Clone, ModuleInfo)]
 pub struct Evm<S: sov_modules_api::Spec> {
     /// The ID of the evm module.
     #[id]

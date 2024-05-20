@@ -18,8 +18,10 @@ workspace = true
 jsonrpsee = { workspace = true, optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 derive_more = { workspace = true, default-features = true }
+sov-jsonapi-utils = { path = "../../full-node/jsonapi-utils", version = "0.3", optional = true }
 sov-state = { path = "../sov-state", version = "0.3" }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-macros = { path = "../sov-modules-macros", version = "0.3", optional = true }
@@ -59,6 +61,7 @@ arbitrary = [
 	"dep:proptest-derive",
 	"proptest/default",
 	"sov-db/arbitrary",
+	"sov-jsonapi-utils/arbitrary",
 	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-rollup-interface/arbitrary",
@@ -75,6 +78,7 @@ bench = [
 default = [ "macros" ]
 native = [
 	"async-trait",
+	"axum",
 	"clap",
 	"jsonrpsee",
 	"macros",
@@ -82,6 +86,7 @@ native = [
 	"serde_json",
 	"sov-bank/native",
 	"sov-db",
+	"sov-jsonapi-utils",
 	"sov-mock-da/native",
 	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
