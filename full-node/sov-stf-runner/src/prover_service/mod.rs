@@ -16,7 +16,11 @@ pub use stf_info::StateTransitionInfo;
 use thiserror::Error;
 
 /// The possible configurations of the prover.
-#[derive(Debug)]
+#[derive(PartialEq, Eq, strum::EnumString, strum::Display)]
+// Note: it's best if all string conversions to and from this type (even
+// `Debug`) use the same casing, to avoid bad UX or confusion around env. vars
+// expected behavior.
+#[strum(serialize_all = "snake_case")]
 pub enum RollupProverConfig {
     /// Skip proving.
     Skip,
@@ -26,6 +30,12 @@ pub enum RollupProverConfig {
     Execute,
     /// Run the rollup verifier and create a SNARK of execution.
     Prove,
+}
+
+impl std::fmt::Debug for RollupProverConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
 }
 
 /// Represents the status of a witness submission.
@@ -47,23 +57,14 @@ pub enum ProofAggregationStatus {
 }
 
 /// Represents the current status of proof generation.
+#[derive(derivative::Derivative)]
+#[derivative(Debug(bound = ""))]
 pub enum ProofProcessingStatus<StateRoot, Witness, Da: DaSpec> {
     /// Indicates that proof generation is currently in progress.
     ProvingInProgress,
     /// Indicates that the prover is busy and will not initiate a new proving process.
     /// Returns the witness data that was provided by the caller.
-    Busy(StateTransitionInfo<StateRoot, Witness, Da>),
-}
-
-impl<StateRoot, Witness, Da: DaSpec> std::fmt::Debug
-    for ProofProcessingStatus<StateRoot, Witness, Da>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ProvingInProgress => write!(f, "ProvingInProgress"),
-            Self::Busy(_) => write!(f, "Busy"),
-        }
-    }
+    Busy(#[derivative(Debug = "ignore")] StateTransitionInfo<StateRoot, Witness, Da>),
 }
 
 /// An error that occurred during ZKP proving.
@@ -115,4 +116,26 @@ pub trait ProverService {
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
     ) -> Result<ProofAggregationStatus, anyhow::Error>;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn prover_config_debug_and_display_are_the_same() {
+        let config = RollupProverConfig::Skip;
+        assert_eq!(format!("{:?}", config), format!("{}", config));
+    }
+
+    #[test]
+    fn prover_config_display_from_str() {
+        let config = RollupProverConfig::Skip;
+        assert_eq!(
+            RollupProverConfig::from_str(&config.to_string()).unwrap(),
+            config
+        );
+    }
 }

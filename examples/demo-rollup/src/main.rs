@@ -43,7 +43,7 @@ enum SupportedDaLayer {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn main() -> anyhow::Result<()> {
     initialize_logging();
     let args = Args::parse();
 
@@ -52,24 +52,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let rollup_config_path = args.rollup_config_path.as_str();
 
-    let prover_config = if option_env!("CI").is_some() {
-        Some(RollupProverConfig::Execute)
-    } else {
-        option_env!("SOV_PROVER_MODE").map(|prover| match prover {
-            "simulate" => RollupProverConfig::Simulate,
-            "execute" => RollupProverConfig::Execute,
-            "prove" => RollupProverConfig::Prove,
-            "skip" => RollupProverConfig::Skip,
-            _ => {
-                tracing::warn!(
-                    prover_mode = prover,
-                    "Unknown sov prover mode, using 'Skip' default"
-                );
-                RollupProverConfig::Skip
-            }
-        })
-    };
-
+    let prover_config = parse_prover_config()?;
     tracing::info!(?prover_config, "Running demo rollup with prover config");
 
     match args.da_layer {
@@ -99,6 +82,18 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
             rollup.run().await
         }
+    }
+}
+
+fn parse_prover_config() -> anyhow::Result<Option<RollupProverConfig>> {
+    if let Some(value) = option_env!("SOV_PROVER_MODE") {
+        let config = std::str::FromStr::from_str(value).map_err(|error| {
+            tracing::error!(value, ?error, "Unknown `SOV_PROVER_MODE` value; aborting");
+            error
+        })?;
+        Ok(Some(config))
+    } else {
+        Ok(None)
     }
 }
 
