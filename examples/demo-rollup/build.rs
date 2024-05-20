@@ -2,6 +2,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, ExitStatus};
 fn main() {
     println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");
+    println!("cargo::rerun-if-env-changed=SOV_PROVER_MODE");
     println!("cargo::rustc-check-cfg=cfg(skip_guest_build)");
 
     let is_risczero_installed = Command::new("cargo")

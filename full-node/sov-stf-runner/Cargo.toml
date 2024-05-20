@@ -16,11 +16,13 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 axum = { workspace = true, features = ["tokio", "http1", "http2"], optional = true }
+derivative = { workspace = true, optional = true }
 num_cpus = { workspace = true }
 thiserror = { workspace = true, optional = true }
 borsh = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
+strum = { version = "0.26", features = ["derive"], optional = true }
 toml = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
 tokio = { workspace = true, optional = true , features = ["net", "sync", "rt-multi-thread", "time"]}
@@ -63,6 +65,7 @@ mock = [ "native" ]
 native = [
 	"async-trait",
 	"axum",
+	"derivative",
 	"futures",
 	"jsonrpsee",
 	"rayon",
@@ -79,6 +82,7 @@ native = [
 	"sov-sequencer-registry/native",
 	"sov-state/native",
 	"sov-stf-runner/native",
+	"strum",
 	"thiserror",
 	"tokio",
 	"toml",
