@@ -89,7 +89,7 @@ fuzz_target!(
 
             let credential_id: CredentialId = public.credential_id::<TestHasher>();
 
-            let msg = CallMessage::UpdatePublicKey(credential_id);
+            let msg = CallMessage::InsertCredentialId(credential_id);
             accounts.call(msg, &context, working_set).unwrap();
         }
 

@@ -18,7 +18,7 @@ fn test_config_account() {
 
     let account_config = AccountConfig {
         accounts: vec![AccountData {
-            credential_id: init_credential_id.clone(),
+            credential_id: init_credential_id,
             address: init_pub_key.into(),
         }],
     };
@@ -61,7 +61,7 @@ fn test_update_account() {
 
     let config = AccountConfig {
         accounts: vec![AccountData {
-            credential_id: sender_credential_id.clone(),
+            credential_id: sender_credential_id,
             address: sender_addr,
         }],
     };
@@ -70,7 +70,7 @@ fn test_update_account() {
     // Test new account creation
     {
         let query_response = accounts
-            .get_account(sender_credential_id.clone(), working_set)
+            .get_account(sender_credential_id, working_set)
             .unwrap();
 
         assert_eq!(
@@ -89,18 +89,24 @@ fn test_update_account() {
         let new_credential_id: CredentialId = new_pub_key.credential_id::<TestHasher>();
         accounts
             .call(
-                call::CallMessage::UpdatePublicKey(new_credential_id.clone()),
+                call::CallMessage::InsertCredentialId(new_credential_id),
                 &sender_context,
                 working_set,
             )
             .unwrap();
 
-        // Account corresponding to the old credential id does not exist
+        // Account corresponding to the old credential still exists.
         let query_response = accounts
             .get_account(sender_credential_id, working_set)
             .unwrap();
 
-        assert_eq!(query_response, rpc::Response::AccountEmpty);
+        assert_eq!(
+            query_response,
+            rpc::Response::AccountExists {
+                addr: sender_addr,
+                nonce: 0
+            }
+        );
 
         // New account with the new public key and an old address is created.
         let query_response = accounts
@@ -142,11 +148,11 @@ fn test_update_account_fails() {
     let config = AccountConfig {
         accounts: vec![
             AccountData {
-                credential_id: sender_1_credential_id.clone(),
+                credential_id: sender_1_credential_id,
                 address: sender_1_addr,
             },
             AccountData {
-                credential_id: sender_2_credential_id.clone(),
+                credential_id: sender_2_credential_id,
                 address: sender_2_addr,
             },
         ],
@@ -157,7 +163,7 @@ fn test_update_account_fails() {
     // The new credential already exists and the call fails.
     assert!(accounts
         .call(
-            call::CallMessage::UpdatePublicKey(sender_2_credential_id),
+            call::CallMessage::InsertCredentialId(sender_2_credential_id),
             &sender_context_1,
             working_set
         )
@@ -192,7 +198,7 @@ fn test_get_account_after_pub_key_update() {
     let new_credential_id: CredentialId = new_pub_key.credential_id::<TestHasher>();
     accounts
         .call(
-            call::CallMessage::UpdatePublicKey(new_credential_id.clone()),
+            call::CallMessage::InsertCredentialId(new_credential_id),
             &sender_context,
             working_set,
         )
@@ -218,7 +224,7 @@ fn test_resolve_sender_address() {
     let sender_addr = sender.to_address::<<S as Spec>::Address>();
     let sender_credential_id: CredentialId = sender.credential_id::<TestHasher>();
 
-    let tx = create_test_tx::<S>(None, sender_credential_id.clone());
+    let tx = create_test_tx::<S>(None, sender_credential_id);
 
     let maybe_address = accounts.resolve_sender_address(&tx, &mut checkpoint);
     assert_eq!(
@@ -226,7 +232,7 @@ fn test_resolve_sender_address() {
         format!("No default address found for {}", sender_credential_id)
     );
 
-    let tx = create_test_tx::<S>(Some(sender_addr), sender_credential_id.clone());
+    let tx = create_test_tx::<S>(Some(sender_addr), sender_credential_id);
     accounts
         .resolve_sender_address(&tx, &mut checkpoint)
         .unwrap();

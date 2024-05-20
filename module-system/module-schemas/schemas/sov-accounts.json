@@ -4,13 +4,13 @@
   "description": "Represents the available call messages for interacting with the sov-accounts module.",
   "oneOf": [
     {
-      "description": "Updates credential id for the corresponding Account.",
+      "description": "Inserts a new credential id for the corresponding Account.",
       "type": "object",
       "required": [
-        "UpdatePublicKey"
+        "InsertCredentialId"
       ],
       "properties": {
-        "UpdatePublicKey": {
+        "InsertCredentialId": {
           "$ref": "#/definitions/CredentialId"
         }
       },

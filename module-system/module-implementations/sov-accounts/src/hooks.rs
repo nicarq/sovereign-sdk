@@ -28,8 +28,11 @@ impl<S: Spec> Accounts<S> {
                     self.accounts
                         .set(credential_id, &new_account, state_checkpoint);
 
-                    self.credential_ids
-                        .set(default_address, credential_id, state_checkpoint);
+                    self.credential_ids.set(
+                        default_address,
+                        &vec![*credential_id],
+                        state_checkpoint,
+                    );
 
                     Ok(default_address.clone())
                 }

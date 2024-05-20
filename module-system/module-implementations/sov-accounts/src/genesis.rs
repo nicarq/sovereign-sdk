@@ -49,7 +49,7 @@ impl<S: Spec> Accounts<S> {
                 .set(&acc.credential_id, &new_account, working_set);
 
             self.credential_ids
-                .set(&acc.address, &acc.credential_id, working_set);
+                .set(&acc.address, &vec![acc.credential_id], working_set);
         }
 
         Ok(())

@@ -6,7 +6,7 @@ use crate::{Account, AccountConfig, AccountData, Accounts, CallMessage};
 impl<'a> Arbitrary<'a> for CallMessage {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let credential_id = <[u8; 32]>::arbitrary(u)?;
-        Ok(Self::UpdatePublicKey(CredentialId(credential_id)))
+        Ok(Self::InsertCredentialId(CredentialId(credential_id)))
     }
 }
 

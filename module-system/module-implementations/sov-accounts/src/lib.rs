@@ -39,9 +39,9 @@ pub struct Accounts<S: Spec> {
 
     /// Mapping from an account address to a corresponding credential ids.
     #[state]
-    pub(crate) credential_ids: sov_modules_api::StateMap<S::Address, CredentialId>,
+    pub(crate) credential_ids: sov_modules_api::StateMap<S::Address, Vec<CredentialId>>,
 
-    /// Mapping from a public key hash to a corresponding account.
+    /// Mapping from a credential to a corresponding account.
     #[state]
     pub(crate) accounts: sov_modules_api::StateMap<CredentialId, Account<S>>,
 }
@@ -70,8 +70,8 @@ impl<S: Spec> sov_modules_api::Module for Accounts<S> {
         working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
-            call::CallMessage::UpdatePublicKey(new_credential_id) => {
-                Ok(self.update_public_key(new_credential_id, context, working_set)?)
+            call::CallMessage::InsertCredentialId(new_credential_id) => {
+                Ok(self.insert_credential_id(new_credential_id, context, working_set)?)
             }
         }
     }

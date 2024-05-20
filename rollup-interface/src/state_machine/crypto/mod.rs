@@ -18,6 +18,7 @@ pub use signatures::*;
     PartialEq,
     Eq,
     Clone,
+    Copy,
 )]
 pub struct CredentialId(pub [u8; 32]);
 
