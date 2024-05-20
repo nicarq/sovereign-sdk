@@ -3,8 +3,13 @@
 use std::env;
 use std::path::Path;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use directories::BaseDirs;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 pub use sov_modules_api::clap;
+use sov_modules_api::transaction::PriorityFeeBips;
+use sov_modules_api::Spec;
 
 /// Types and functionality storing and loading the persistent state of the wallet
 pub mod wallet_state;
@@ -26,4 +31,49 @@ pub fn wallet_dir() -> Result<impl AsRef<Path>, anyhow::Error> {
         .join(".sov_cli_wallet");
 
     Ok(dir)
+}
+
+/// An unsent transaction with the required data to be submitted to the DA layer
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
+pub struct UnsignedTransactionWithoutNonce<S: Spec, Tx>
+where
+    Tx: BorshSerialize + BorshDeserialize,
+{
+    /// The underlying transaction
+    pub tx: Tx,
+    /// The ID of the target chain
+    pub chain_id: u64,
+    /// The maximum priority fee that can be paid for this transaction expressed in bips.
+    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
+    pub max_priority_fee_bips: PriorityFeeBips,
+    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
+    pub max_fee: u64,
+    /// The estimated gas usage of the transaction
+    /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
+    /// across the different gas dimensions. If provided, this quantity will be used along
+    /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
+    pub gas_limit: Option<S::Gas>,
+}
+
+impl<S: Spec, Tx> UnsignedTransactionWithoutNonce<S, Tx>
+where
+    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+{
+    /// Creates a new [`UnsignedTransactionWithoutNonce`] with the given arguments.
+    pub const fn new(
+        tx: Tx,
+        chain_id: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        max_fee: u64,
+        gas_limit: Option<S::Gas>,
+    ) -> Self {
+        Self {
+            tx,
+            chain_id,
+            max_priority_fee_bips,
+            max_fee,
+            gas_limit,
+        }
+    }
 }

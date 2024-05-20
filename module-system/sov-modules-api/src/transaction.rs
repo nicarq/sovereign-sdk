@@ -4,7 +4,6 @@ use std::sync::Arc;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
@@ -254,50 +253,6 @@ impl<S: Spec> Transaction<S> {
             max_fee,
             gas_limit,
             nonce,
-        }
-    }
-}
-
-/// An unsent transaction with the required data to be submitted to the DA layer
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-#[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct UnsignedTransaction<S: Spec, Tx>
-where
-    Tx: BorshSerialize + BorshDeserialize,
-{
-    /// The underlying transaction
-    pub tx: Tx,
-    /// The ID of the target chain
-    pub chain_id: u64,
-    /// The maximum priority fee that can be paid for this transaction expressed in bips.
-    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
-    pub max_priority_fee_bips: PriorityFeeBips,
-    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub max_fee: u64,
-    /// The estimated gas usage of the transaction
-    /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
-    /// across the different gas dimensions. If provided, this quantity will be used along
-    /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
-    pub gas_limit: Option<S::Gas>,
-}
-
-impl<S: Spec, Tx> UnsignedTransaction<S, Tx>
-where
-    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
-{
-    pub const fn new(
-        tx: Tx,
-        chain_id: u64,
-        max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
-        gas_limit: Option<S::Gas>,
-    ) -> Self {
-        Self {
-            tx,
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            gas_limit,
         }
     }
 }

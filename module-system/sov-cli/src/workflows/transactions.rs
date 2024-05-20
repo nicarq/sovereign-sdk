@@ -8,12 +8,12 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_api::clap::{self, Subcommand};
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg};
-use sov_modules_api::transaction::UnsignedTransaction;
 use sov_modules_api::{CliWallet, DispatchCall, GasArray};
 
 use crate::wallet_state::{sign_tx, KeyIdentifier, WalletState};
 use crate::workflows::keys::load_key;
 use crate::workflows::NO_ACCOUNTS_FOUND;
+use crate::UnsignedTransactionWithoutNonce;
 
 #[derive(clap::Parser, Clone)]
 /// Generate, sign, list and remove transactions.
@@ -101,7 +101,7 @@ where
                 nonce,
                 json_output,
             } => {
-                let tx: UnsignedTransaction<S, <RT as DispatchCall>::Decodable> =
+                let tx: UnsignedTransactionWithoutNonce<S, <RT as DispatchCall>::Decodable> =
                     transaction.load()?;
                 let account = if let Some(nickname) = key_nickname {
                     let id = KeyIdentifier::<S>::ByNickname { nickname };
@@ -171,7 +171,7 @@ where
     /// Parse from a file or a json string
     pub fn load<RT: CliWallet, S: sov_modules_api::Spec, U, E1, E2, E3>(
         self,
-    ) -> Result<UnsignedTransaction<S, RT::Decodable>, anyhow::Error>
+    ) -> Result<UnsignedTransactionWithoutNonce<S, RT::Decodable>, anyhow::Error>
     where
         Json: CliFrontEnd<RT> + CliTxImportArg,
         File: CliFrontEnd<RT> + CliTxImportArg,
@@ -211,7 +211,7 @@ where
 
         let gas_limit = gas_limit.map(|m| GasArray::from_slice(&m));
 
-        Ok(UnsignedTransaction::new(
+        Ok(UnsignedTransactionWithoutNonce::new(
             tx,
             chain_id,
             max_priority_fee_bips.into(),
@@ -225,6 +225,6 @@ where
 #[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
 struct SignTransactionOutput<S: sov_modules_api::Spec, Tx: BorshSerialize + BorshDeserialize> {
     nonce: u64,
-    input_tx: UnsignedTransaction<S, Tx>,
+    input_tx: UnsignedTransactionWithoutNonce<S, Tx>,
     signed_tx: String,
 }
