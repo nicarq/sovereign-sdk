@@ -166,7 +166,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
             return Ok(());
         }
         let from_balance = self
-            .check_balance(from, amount, working_set)
+            .decrease_balance_checked(from, amount, working_set)
             .with_context(|| format!("Incorrect balance on={} for token={}", from, self.name))?;
 
         let to_balance = self
@@ -190,7 +190,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         amount: Amount,
         working_set: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
-        let new_balance = self.check_balance(from, amount, working_set)?;
+        let new_balance = self.decrease_balance_checked(from, amount, working_set)?;
         self.balances.set(&from, &new_balance, working_set);
 
         Ok(())
@@ -262,7 +262,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
     // Check that amount can be deducted from address
     // Returns new balance after subtraction.
-    fn check_balance(
+    fn decrease_balance_checked(
         &self,
         from: TokenHolderRef<'_, S>,
         amount: Amount,
