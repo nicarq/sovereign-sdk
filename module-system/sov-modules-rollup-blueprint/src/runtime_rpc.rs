@@ -7,6 +7,7 @@ use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
 use tokio::sync::watch;
+use tower_http::cors::CorsLayer;
 
 use crate::RollupBlueprint;
 
@@ -76,7 +77,15 @@ where
 
         axum_router = axum_router.nest(
             "/sequencer",
-            sequencer.axum_router("/sequencer").with_state(sequencer),
+            sequencer
+                .axum_router("/sequencer")
+                .layer(
+                    CorsLayer::new() // Allowing CORS is necessary for Metamask Snap
+                        .allow_origin(tower_http::cors::Any) // Allow all origins
+                        .allow_methods(tower_http::cors::Any) // Allow all methods
+                        .allow_headers(tower_http::cors::Any), // Allow all headers
+                )
+                .with_state(sequencer),
         );
     }
 

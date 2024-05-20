@@ -44,7 +44,7 @@ impl SimpleClient {
         let args = vec![tx.try_to_vec()?];
 
         let submit_response: serde_json::Value =
-            self.http_client.request("sequence_acceptTx", args).await?;
+            self.http_client.request("sequencer_acceptTx", args).await?;
         info!(submit_response = ?submit_response, "Got response from `sequencer_acceptTx");
 
         let arg: &[u8] = &[];
