@@ -22,16 +22,16 @@ use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 use super::traits::{MinimalRuntime, StandardRuntime, TestRuntimeHookOverrides};
 use crate::runtime::AuthenticatedTransactionAndRawHash;
 
-pub(super) type WorkingSetClosure<S> = Box<dyn FnOnce(&mut WorkingSet<S>) + Send>;
+pub(super) type WorkingSetClosure<T> = Box<dyn FnOnce(&mut <T as TxHooks>::TxState) + Send + Sync>;
 
 /// A queue of closures which can be executed in a `Runtime`'s post transaction hook.
 #[derive(Default)]
-pub(crate) struct ClosureQueue<S: Spec> {
-    closures: Mutex<VecDeque<WorkingSetClosure<S>>>,
+pub(crate) struct ClosureQueue<T: TxHooks> {
+    closures: Mutex<VecDeque<WorkingSetClosure<T>>>,
 }
 
-impl<S: Spec> ClosureQueue<S> {
-    pub fn insert_all(&self, closures: Vec<WorkingSetClosure<S>>) {
+impl<RT: TxHooks> ClosureQueue<RT> {
+    pub fn insert_all(&self, closures: Vec<WorkingSetClosure<RT>>) {
         // Sleep until the the queue is empty. This ensures that two different tests using the same runtime
         // cannot pollute each other's closure queues. Note that this requires a catch_unwind handler when a test panics
         // to empty the queue so that other tests can run.
@@ -39,7 +39,7 @@ impl<S: Spec> ClosureQueue<S> {
         contents.extend(closures);
     }
 
-    pub fn try_get_next(&self) -> Option<WorkingSetClosure<S>> {
+    pub fn try_get_next(&self) -> Option<WorkingSetClosure<RT>> {
         self.closures.lock().unwrap().pop_front()
     }
 }
@@ -47,8 +47,8 @@ impl<S: Spec> ClosureQueue<S> {
 #[derive(Default, Clone)]
 pub struct TestRuntimeWrapper<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> {
     pub inner: T,
-    pub(super) hook_action_queue: Arc<ClosureQueue<S>>,
-    phantom: PhantomData<Da>,
+    pub(super) hook_action_queue: Arc<ClosureQueue<T>>,
+    phantom: PhantomData<(S, Da)>,
 }
 
 impl<S, Da, T> TxHooks for TestRuntimeWrapper<S, Da, T>
@@ -59,11 +59,12 @@ where
     Da: DaSpec,
 {
     type Spec = S;
+    type TxState = WorkingSet<S>;
 
     fn pre_dispatch_tx_hook(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut Self::TxState,
     ) -> anyhow::Result<()> {
         self.pre_dispatch_tx_hook_override(tx, working_set)
     }
@@ -72,7 +73,7 @@ where
         &self,
         tx: &AuthenticatedTransactionData<S>,
         ctx: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut Self::TxState,
     ) -> anyhow::Result<()> {
         self.post_dispatch_tx_hook_override(tx, ctx, working_set)
     }

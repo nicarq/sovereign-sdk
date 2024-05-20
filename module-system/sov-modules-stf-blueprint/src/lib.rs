@@ -18,6 +18,7 @@ use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
     BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, SequencerReward, Spec, StateCheckpoint, VersionedStateReadWriter,
+    WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 pub use sov_rollup_interface::stf::BatchReceipt;
@@ -40,7 +41,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
         Decodable = <Self as DispatchCall>::Decodable,
         SequencerStakeMeter = <Self as HasCapabilities<S, Da>>::SequencerStakeMeter,
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
-    + TxHooks<Spec = S>
+    + TxHooks<Spec = S, TxState = WorkingSet<S>>
     + SlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
     + ApplyBatchHooks<Da, Spec = S, BatchResult = BatchSequencerOutcome>
