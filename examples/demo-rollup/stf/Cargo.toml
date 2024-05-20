@@ -28,6 +28,7 @@ sov-prover-incentives = { path = "../../../module-system/module-implementations/
 sov-bank = { path = "../../../module-system/module-implementations/sov-bank" }
 sov-nft-module = { path = "../../../module-system/module-implementations/sov-nft-module" }
 sov-kernels = { path = "../../../module-system/sov-kernels" }
+sov-capabilities = { path = "../../../module-system/sov-capabilities" }
 
 sov-mock-da = { path = "../../../adapters/mock-da" }
 sov-chain-state = { path = "../../../module-system/module-implementations/sov-chain-state" }
@@ -58,6 +59,7 @@ native = [
 	"serde_json",
 	"sov-accounts/native",
 	"sov-bank/native",
+	"sov-capabilities/native",
 	"sov-chain-state/native",
 	"sov-cli",
 	"sov-evm/native",

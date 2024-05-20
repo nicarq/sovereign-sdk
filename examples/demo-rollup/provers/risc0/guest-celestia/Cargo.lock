@@ -1120,6 +1120,7 @@ dependencies = [
  "serde",
  "sov-accounts",
  "sov-bank",
+ "sov-capabilities",
  "sov-chain-state",
  "sov-evm",
  "sov-kernels",
@@ -3221,6 +3222,20 @@ dependencies = [
  "sov-modules-api",
  "sov-sequencer-registry",
  "sov-state",
+ "tracing",
+]
+
+[[package]]
+name = "sov-capabilities"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "sov-accounts",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-prover-incentives",
+ "sov-rollup-interface",
+ "sov-sequencer-registry",
  "tracing",
 ]
 

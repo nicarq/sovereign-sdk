@@ -1938,6 +1938,7 @@ dependencies = [
  "serde_json",
  "sov-accounts",
  "sov-bank",
+ "sov-capabilities",
  "sov-chain-state",
  "sov-cli",
  "sov-evm",
@@ -7184,6 +7185,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-capabilities"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "sov-accounts",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-prover-incentives",
+ "sov-rollup-interface",
+ "sov-sequencer-registry",
+ "tracing",
+]
+
+[[package]]
 name = "sov-celestia-adapter"
 version = "0.3.0"
 dependencies = [
@@ -7981,6 +7996,7 @@ dependencies = [
  "serde_json",
  "sov-attester-incentives",
  "sov-bank",
+ "sov-capabilities",
  "sov-chain-state",
  "sov-db",
  "sov-kernels",

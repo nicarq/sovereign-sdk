@@ -4891,6 +4891,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-capabilities"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "sov-accounts",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-prover-incentives",
+ "sov-rollup-interface",
+ "sov-sequencer-registry",
+ "tracing",
+]
+
+[[package]]
 name = "sov-celestia-adapter"
 version = "0.3.0"
 dependencies = [
@@ -5086,6 +5100,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-prover-incentives"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "jsonrpsee 0.22.5",
+ "schemars",
+ "serde",
+ "sov-bank",
+ "sov-chain-state",
+ "sov-modules-api",
+ "sov-state",
+ "thiserror",
+]
+
+[[package]]
 name = "sov-prover-storage-manager"
 version = "0.3.0"
 dependencies = [
@@ -5204,6 +5234,7 @@ dependencies = [
  "serde_json",
  "sov-attester-incentives",
  "sov-bank",
+ "sov-capabilities",
  "sov-chain-state",
  "sov-db",
  "sov-kernels",

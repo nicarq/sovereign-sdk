@@ -10,13 +10,11 @@ mod utils;
 use risc0_cycle_macros::cycle_tracker;
 pub use sov_modules_api::batch::Batch;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::capabilities::{
-    FatalError, GasEnforcer, RuntimeAuthenticator, SequencerAuthorization,
-};
+use sov_modules_api::capabilities::{FatalError, HasCapabilities, RuntimeAuthenticator};
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 #[cfg(feature = "mocks")]
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
-use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks, RuntimeAuthorization};
+use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
     BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, SequencerReward, Spec, StateCheckpoint, VersionedStateReadWriter,
@@ -36,12 +34,11 @@ use tracing::{debug, info};
 /// to be executed.
 pub trait Runtime<S: Spec, Da: DaSpec>:
     DispatchCall<Spec = S>
-    + SequencerAuthorization<S, Da>
-    + RuntimeAuthorization<S, Da>
+    + HasCapabilities<S, Da>
     + RuntimeAuthenticator<
         S,
         Decodable = <Self as DispatchCall>::Decodable,
-        SequencerStakeMeter = <Self as SequencerAuthorization<S, Da>>::SequencerStakeMeter,
+        SequencerStakeMeter = <Self as HasCapabilities<S, Da>>::SequencerStakeMeter,
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>
     + SlotHooks<Spec = S>
@@ -49,11 +46,6 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + ApplyBatchHooks<Da, Spec = S, BatchResult = BatchSequencerOutcome>
     + Default
     + RuntimeEventProcessor
-    + GasEnforcer<
-        S,
-        Da,
-        PreExecChecksMeter = <Self as SequencerAuthorization<S, Da>>::SequencerStakeMeter,
-    >
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
@@ -81,7 +73,7 @@ pub enum TxEffect {
     /// Batch was processed successfully.
     Successful,
     /// The transaction was not applied because it didn't pass the pre-execution gas checks
-    /// (from the [`GasEnforcer::try_reserve_gas`] capability).
+    /// (from the `GasEnforcer::try_reserve_gas` capability).
     /// In this case, the sequencer should be charged the amount of gas used for the pre-execution checks.
     CannotReserveGas,
     /// The transaction was not applied because it didn't have enough gas to pay the pre-execution checks

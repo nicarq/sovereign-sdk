@@ -1,0 +1,168 @@
+use anyhow::Context as _;
+use sov_bank::{IntoPayable, ReserveGasError};
+use sov_modules_api::runtime::capabilities::{
+    GasEnforcer, RuntimeAuthorization, SequencerAuthorization,
+};
+use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::{
+    Context, Gas, ModuleInfo, Spec, StateCheckpoint, TransactionConsumption, WorkingSet,
+};
+use sov_rollup_interface::da::DaSpec;
+use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
+
+/// Implements the basic capabilities required for a zk-rollup runtime.
+pub struct StandardProvenRollupCapabilities<'a, S: Spec, Da: DaSpec> {
+    pub bank: &'a sov_bank::Bank<S>,
+    pub sequencer_registry: &'a SequencerRegistry<S, Da>,
+    pub accounts: &'a sov_accounts::Accounts<S>,
+    pub prover_incentives: &'a sov_prover_incentives::ProverIncentives<S, Da>,
+}
+
+impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabilities<'a, S, Da> {
+    /// A gas meter that tracks pre-execution costs.
+    type PreExecChecksMeter = SequencerStakeMeter<S::Gas>;
+
+    /// Reserves enough gas for the transaction to be processed, if possible.
+    fn try_reserve_gas(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        context: &Context<S>,
+        gas_price: &<S::Gas as Gas>::Price,
+        pre_exec_checks_meter: &SequencerStakeMeter<S::Gas>,
+        state_checkpoint: StateCheckpoint<S>,
+    ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
+        self.bank
+            .reserve_gas(
+                tx,
+                gas_price,
+                context.sender(),
+                pre_exec_checks_meter,
+                state_checkpoint,
+            )
+            .map_err(
+                |ReserveGasError::<S> {
+                     state_checkpoint,
+                     reason,
+                 }| {
+                    tracing::debug!(
+                        sender = %context.sender(),
+                        error = ?reason,
+                        "Unable to reserve gas from sender"
+                    );
+                    state_checkpoint
+                },
+            )
+    }
+
+    fn allocate_consumed_gas(
+        &self,
+        tx_consumption: &TransactionConsumption<S::Gas>,
+        checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        self.bank.allocate_consumed_gas(
+            &self.prover_incentives.id().to_payable(),
+            &self.sequencer_registry.id().to_payable(),
+            tx_consumption,
+            checkpoint,
+        );
+    }
+
+    fn refund_remaining_gas(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        context: &Context<S>,
+        consumption: &TransactionConsumption<S::Gas>,
+        checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        self.bank
+            .refund_remaining_gas(tx, context.sender(), consumption, checkpoint);
+    }
+}
+
+impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
+    for StandardProvenRollupCapabilities<'a, S, Da>
+{
+    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+
+    fn authorize_sequencer(
+        &self,
+        sequencer: &<Da as DaSpec>::Address,
+        base_fee_per_gas: &<S::Gas as Gas>::Price,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) -> Result<SequencerStakeMeter<S::Gas>, anyhow::Error> {
+        self.sequencer_registry
+            .authorize_sequencer(sequencer, base_fee_per_gas, state_checkpoint)
+            .context("An error occurred while checking the sequencer bond")
+    }
+
+    fn refund_sequencer(
+        &self,
+        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
+        refund_amount: u64,
+    ) {
+        self.sequencer_registry
+            .refund_sequencer(sequencer_stake_meter, refund_amount);
+    }
+
+    fn penalize_sequencer(
+        &self,
+        sequencer: &Da::Address,
+        sequencer_stake_meter: SequencerStakeMeter<S::Gas>,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        self.sequencer_registry.penalize_sequencer(
+            sequencer,
+            sequencer_stake_meter,
+            state_checkpoint,
+        );
+    }
+}
+
+impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
+    for StandardProvenRollupCapabilities<'a, S, Da>
+{
+    /// Prevents duplicate transactions from running.
+    // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
+    fn check_uniqueness(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        _context: &Context<S>,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) -> Result<(), anyhow::Error> {
+        self.accounts.check_uniqueness(tx, state_checkpoint)
+    }
+
+    /// Marks a transaction as having been executed, preventing it from executing again.
+    fn mark_tx_attempted(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        _sequencer: &Da::Address,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        self.accounts.mark_tx_attempted(tx, state_checkpoint);
+    }
+
+    /// Resolves the context for a transaction.
+    fn resolve_context(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        sequencer: &Da::Address,
+        height: u64,
+        working_set: &mut StateCheckpoint<S>,
+    ) -> Result<Context<S>, anyhow::Error> {
+        // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
+        // This should be resolved by the sequencer registry during blob selection
+        let sequencer = self
+            .sequencer_registry
+            .resolve_da_address(sequencer, working_set)
+            .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
+        let sender = self.accounts.resolve_sender_address(tx, working_set)?;
+
+        Ok(Context::new(
+            sender,
+            tx.credentials.clone(),
+            sequencer,
+            height,
+        ))
+    }
+}

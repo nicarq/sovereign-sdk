@@ -4,6 +4,7 @@ use core::marker::PhantomData;
 use anyhow::bail;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use sov_modules_api::capabilities::SequencerAuthorization;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::runtime::capabilities::{AuthenticationError, Kernel};
 use sov_modules_api::{
@@ -92,7 +93,7 @@ where
 
         // TODO(`<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/625>`). Hack: we need to temporarily take ownership of the `StateCheckpoint` to be able to call [`sov_modules_api::runtime::capabilities::SequencerAuthorization::authorize_sequencer`].
         let mut state_checkpoint = ctx.state_checkpoint.take().unwrap();
-        let mut sequencer_stake_meter = self.runtime.authorize_sequencer(&self.sequencer, &ctx.gas_price, &mut state_checkpoint).map_err(|e| {
+        let mut sequencer_stake_meter = self.runtime.capabilities().authorize_sequencer(&self.sequencer, &ctx.gas_price, &mut state_checkpoint).map_err(|e| {
             anyhow::anyhow!("An error occurred while trying to reserve gas for the pre-execution checks: {e}")
         })?;
         ctx.state_checkpoint = Some(state_checkpoint);
