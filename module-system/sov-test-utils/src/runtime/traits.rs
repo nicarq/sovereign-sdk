@@ -4,7 +4,7 @@
 use sov_attester_incentives::AttesterIncentives;
 use sov_bank::Bank;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::hooks::ApplyBatchHooks;
+use sov_modules_api::hooks::{ApplyBatchHooks, TxHooks};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     Context, DaSpec, DispatchCall, Genesis, RuntimeEventProcessor, Spec, StateCheckpoint,
@@ -39,6 +39,7 @@ pub trait StandardRuntime<S: Spec, Da: DaSpec>:
     + Genesis<Spec = S>
     + RuntimeEventProcessor
     + MinimalGenesis<S>
+    + TxHooks<Spec = S, TxState = WorkingSet<S>>
 {
 }
 
@@ -49,6 +50,7 @@ impl<S: Spec, Da: DaSpec, T> StandardRuntime<S, Da> for T where
         + Genesis<Spec = S>
         + RuntimeEventProcessor
         + MinimalGenesis<S>
+        + TxHooks<Spec = S, TxState = WorkingSet<S>>
 {
 }
 
@@ -56,8 +58,8 @@ impl<S: Spec, Da: DaSpec, T> StandardRuntime<S, Da> for T where
 ///
 /// Implementers must also implement [`TestRuntimeHookOverrides`] to invoke the closures in their post tx hook.
 pub trait PostTxHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, Da> {
-    fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<WorkingSetClosure<S>>);
-    fn try_get_next(&self) -> Option<WorkingSetClosure<S>>;
+    fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<WorkingSetClosure<Self>>);
+    fn try_get_next(&self) -> Option<WorkingSetClosure<Self>>;
 }
 
 /// Allows the implementer to override the hooks in a wrapped runtime.
@@ -65,7 +67,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>: StandardRuntime<S, Da> 
     fn pre_dispatch_tx_hook_override(
         &self,
         _tx: &AuthenticatedTransactionData<S>,
-        _working_set: &mut WorkingSet<S>,
+        _working_set: &mut <Self as TxHooks>::TxState,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -73,7 +75,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>: StandardRuntime<S, Da> 
         &self,
         _tx: &AuthenticatedTransactionData<S>,
         _ctx: &Context<S>,
-        _working_set: &mut WorkingSet<S>,
+        _working_set: &mut <Self as TxHooks>::TxState,
     ) -> anyhow::Result<()> {
         Ok(())
     }

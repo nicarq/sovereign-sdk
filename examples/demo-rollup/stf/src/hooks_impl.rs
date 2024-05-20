@@ -1,6 +1,6 @@
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::{Spec, StateCheckpoint, StateReaderAndWriter};
+use sov_modules_api::{Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet};
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerRegistry;
@@ -11,6 +11,7 @@ use crate::runtime::Runtime;
 
 impl<S: Spec, Da: DaSpec> TxHooks for Runtime<S, Da> {
     type Spec = S;
+    type TxState = WorkingSet<S>;
 }
 
 impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {

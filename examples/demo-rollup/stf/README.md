@@ -112,10 +112,12 @@ The implementation for `MyRuntime` is straightforward because we can leverage th
 impl<S: Spec> TxHooks for Runtime<S> {
     type Spec = S;
 
+    type TxState = WorkingSet<S>
+
     fn pre_dispatch_tx_hook(
         &self,
         tx: Transaction<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut Self::TxState<S>,
     ) -> anyhow::Result<<Self::Spec as Spec>::Address> {
         self.accounts.pre_dispatch_tx_hook(tx, working_set)
     }
@@ -123,7 +125,7 @@ impl<S: Spec> TxHooks for Runtime<S> {
     fn post_dispatch_tx_hook(
         &self,
         tx: &Transaction<Self::Spec>,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut Self::TxState,
     ) -> anyhow::Result<()> {
         self.accounts.post_dispatch_tx_hook(tx, working_set)
     }

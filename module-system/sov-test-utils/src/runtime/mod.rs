@@ -73,6 +73,28 @@ macro_rules! generate_optimistic_runtime {
             }
         }
 
+        impl <S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::hooks::TxHooks for __GeneratedRuntimeInternals<S, Da> {
+            type Spec = S;
+            type TxState = ::sov_modules_api::WorkingSet<S>;
+
+            fn pre_dispatch_tx_hook(
+                &self,
+                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
+                _working_set: &mut Self::TxState,
+            ) -> ::anyhow::Result<()> {
+                Ok(())
+            }
+
+            fn post_dispatch_tx_hook(
+                &self,
+                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
+                _ctx: &::sov_modules_api::Context<S>,
+                _working_set: &mut Self::TxState,
+            ) -> ::anyhow::Result<()> {
+                Ok(())
+            }
+        }
+
         impl <S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> TestRuntimeWrapper<S, Da, __GeneratedRuntimeInternals<S, Da>> {
             /// Get a reference to the bank module.
             pub fn bank(&self) -> &::sov_bank::Bank<S> {
@@ -123,13 +145,13 @@ macro_rules! generate_optimistic_runtime_with_test_hooks {
         generate_optimistic_runtime!( $id <= $($module_name : $module_ty),*);
 
         impl <S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::PostTxHookRegistry<S, Da> for $id <S, Da> {
-            fn try_get_next(&self) ->  ::std::option::Option<$crate::runtime::wrapper::WorkingSetClosure<S>>
+            fn try_get_next(&self) ->  ::std::option::Option<$crate::runtime::wrapper::WorkingSetClosure<Self>>
             {
                 self.hook_action_queue.try_get_next()
             }
 
             // Add assertions to the post dispatch hook. Callers should provide exactly one assertion per transaction.
-            fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<$crate::runtime::wrapper::WorkingSetClosure<S>>) {
+            fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<$crate::runtime::wrapper::WorkingSetClosure<Self>>) {
                 self.hook_action_queue.insert_all(closures);
             }
         }
@@ -141,7 +163,7 @@ macro_rules! generate_optimistic_runtime_with_test_hooks {
                 &self,
                 _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
                 _ctx: &::sov_modules_api::Context<S>,
-                working_set: &mut ::sov_modules_api::WorkingSet<S>,
+                working_set: &mut <Self as ::sov_modules_api::hooks::TxHooks>::TxState,
             ) -> ::anyhow::Result<()> {
                 let closure = self.try_get_next().expect("Must provide one closure per transaction");
                 closure(working_set);
@@ -156,7 +178,7 @@ type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as C
 /// Run a test on the given runtime
 pub fn run_test<RT, S>(
     genesis_config: GenesisParams<<RT as Genesis>::Config, BasicKernelGenesisConfig<S, MockDaSpec>>,
-    txs_and_post_checks: Vec<(RawTx, WorkingSetClosure<S>)>,
+    txs_and_post_checks: Vec<(RawTx, WorkingSetClosure<RT>)>,
     runtime: RT,
 ) where
     RT: Runtime<S, MockDaSpec>
@@ -330,7 +352,7 @@ mod test_rt {
 
     // Sets a value and then runs the provided assertion
     fn run_value_setter_txs_with_assertions(
-        values_and_assertions: Vec<(u32, WorkingSetClosure<TestSpec>)>,
+        values_and_assertions: Vec<(u32, WorkingSetClosure<TestRuntime<TestSpec, MockDaSpec>>)>,
     ) {
         let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
         let admin_pkey = TestPrivateKey::generate();
