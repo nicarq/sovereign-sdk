@@ -8,7 +8,6 @@ use ethers_core::types::{
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
 use ethers_signers::Wallet;
-use futures::future::join_all;
 use jsonrpsee::core::client::{ClientT, Subscription, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -149,14 +148,14 @@ impl TestClient {
 
             let typed_transaction = TypedTransaction::Eip1559(req);
 
-            requests.push(self.client.send_transaction(typed_transaction, None));
+            requests.push(
+                self.client
+                    .send_transaction(typed_transaction, None)
+                    .await
+                    .unwrap(),
+            );
         }
-
-        join_all(requests)
-            .await
-            .into_iter()
-            .map(|r| r.unwrap())
-            .collect()
+        requests
     }
 
     pub(crate) async fn set_value(
