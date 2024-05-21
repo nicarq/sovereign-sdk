@@ -308,7 +308,7 @@ mod test_rt {
     use sov_kernels::basic::BasicKernelGenesisConfig;
     use sov_mock_da::{MockDaSpec, MockValidityCondChecker};
     use sov_mock_zkvm::MockCodeCommitment;
-    use sov_modules_api::transaction::Transaction;
+    use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
     use sov_modules_api::{Address, EncodeCall, PrivateKey, WorkingSet};
     use sov_modules_stf_blueprint::GenesisParams;
 
@@ -389,12 +389,7 @@ mod test_rt {
 
                 let tx = Transaction::<TestSpec>::new_signed_tx(
                     &admin_pkey,
-                    msg,
-                    0,
-                    1.into(),
-                    100_000,
-                    None,
-                    0,
+                    UnsignedTransaction::new(msg, 0, 1.into(), 100_000, 0, None),
                 );
                 let tx = RawTx {
                     data: tx.try_to_vec().unwrap(),

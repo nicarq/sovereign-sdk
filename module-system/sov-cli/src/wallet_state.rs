@@ -139,23 +139,7 @@ where
     S: sov_modules_api::Spec,
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
 {
-    let UnsignedTransactionWithoutNonce {
-        tx,
-        chain_id,
-        max_priority_fee_bips,
-        max_fee,
-        gas_limit,
-    } = tx;
-    let runtime_msg = tx.try_to_vec()?;
-    let tx = Transaction::<S>::new_signed_tx(
-        signing_key,
-        runtime_msg,
-        *chain_id,
-        *max_priority_fee_bips,
-        *max_fee,
-        gas_limit.clone(),
-        nonce,
-    );
+    let tx = Transaction::<S>::new_signed_tx(signing_key, tx.with_nonce(nonce));
     let tx = tx.try_to_vec()?;
     Ok(tx)
 }

@@ -13,8 +13,6 @@ use sov_rollup_interface::zk::CryptoSpec;
 
 use crate::{CredentialId, Gas, GasArray, GasMeter, Spec};
 
-const EXTEND_MESSAGE_LEN: usize = 4 * core::mem::size_of::<u64>();
-
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
 /// improved type safety.
@@ -117,34 +115,7 @@ impl<S: Spec> Transaction<S> {
     /// Check whether the transaction has been signed correctly.
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub fn verify(&self) -> anyhow::Result<()> {
-        let gas_limit_len = self
-            .gas_limit
-            .as_ref()
-            .map(|m| 1 + 8 * m.as_slice().len())
-            .unwrap_or(1);
-
-        let mut serialized_tx =
-            Vec::with_capacity(self.runtime_msg().len() + EXTEND_MESSAGE_LEN + gas_limit_len);
-
-        serialized_tx.extend_from_slice(self.runtime_msg());
-        serialized_tx.extend_from_slice(&self.chain_id.to_le_bytes());
-        serialized_tx
-            .extend_from_slice(&Into::<u64>::into(self.max_priority_fee_bips).to_le_bytes());
-        serialized_tx.extend_from_slice(&self.max_fee.to_le_bytes());
-        serialized_tx.extend_from_slice(&self.nonce.to_le_bytes());
-
-        match &self.gas_limit {
-            Some(m) => {
-                serialized_tx.push(1);
-                m.as_slice()
-                    .iter()
-                    .for_each(|m| serialized_tx.extend_from_slice(&m.to_le_bytes()));
-            }
-            None => {
-                serialized_tx.push(0);
-            }
-        }
-
+        let serialized_tx = self.to_unsigned_transaction().try_to_vec()?;
         self.signature().verify(&self.pub_key, &serialized_tx)?;
 
         Ok(())
@@ -174,6 +145,17 @@ impl<S: Spec> Transaction<S> {
         }
     }
 
+    fn to_unsigned_transaction(&self) -> UnsignedTransaction<S> {
+        UnsignedTransaction::new(
+            self.runtime_msg.clone(),
+            self.chain_id,
+            self.max_priority_fee_bips,
+            self.max_fee,
+            self.nonce,
+            self.gas_limit.clone(),
+        )
+    }
+
     /// The gas cost to pay to perform pre-execution checks for a given transaction.
     /// Contains a fixed amount which corresponds to the cost of signature verification
     /// and a variable amount which corresponds to the cost of transaction deserialization/message decoding.
@@ -200,60 +182,76 @@ impl<S: Spec> Transaction<S> {
     /// New signed transaction.
     pub fn new_signed_tx(
         priv_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
-        mut message: Vec<u8>,
+        unsigned_tx: UnsignedTransaction<S>,
+    ) -> Self {
+        let mut utx_bytes: Vec<u8> = Vec::new();
+        BorshSerialize::serialize(&unsigned_tx, &mut utx_bytes).unwrap();
+
+        let pub_key = priv_key.pub_key();
+        let signature = priv_key.sign(&utx_bytes);
+
+        unsigned_tx.to_signed_tx(pub_key, signature)
+    }
+}
+
+/// An unsent transaction with the required data to be submitted to the DA layer
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct UnsignedTransaction<S: Spec> {
+    /// The runtime message
+    pub runtime_msg: Vec<u8>,
+    /// The ID of the target chain
+    pub chain_id: u64,
+    /// The maximum priority fee that can be paid for this transaction expressed in bips.
+    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
+    pub max_priority_fee_bips: PriorityFeeBips,
+    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
+    pub max_fee: u64,
+    /// The nonce
+    pub nonce: u64,
+    /// The estimated gas usage of the transaction
+    /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
+    /// across the different gas dimensions. If provided, this quantity will be used along
+    /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
+    pub gas_limit: Option<S::Gas>,
+}
+
+impl<S: Spec> UnsignedTransaction<S> {
+    /// Creates a new [`UnsignedTransaction`] with the given arguments.
+    pub const fn new(
+        runtime_msg: Vec<u8>,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
-        gas_limit: Option<S::Gas>,
         nonce: u64,
+        gas_limit: Option<S::Gas>,
     ) -> Self {
-        // Since we own the message already, try to add the serialized nonce in-place.
-        // This lets us avoid a copy if the message vec has at least 8 bytes of extra capacity.
-        let len = message.len();
-        let gas_limit_len = gas_limit
-            .as_ref()
-            .map(|m| 1 + 8 * m.as_slice().len())
-            .unwrap_or(1);
-
-        // resizes once to avoid potential multiple realloc
-        message.resize(len + EXTEND_MESSAGE_LEN + gas_limit_len, 0);
-
-        message[len..len + 8].copy_from_slice(&chain_id.to_le_bytes());
-        message[len + 8..len + 16]
-            .copy_from_slice(&Into::<u64>::into(max_priority_fee_bips).to_le_bytes());
-        message[len + 16..len + 24].copy_from_slice(&max_fee.to_le_bytes());
-        message[len + 24..len + 32].copy_from_slice(&nonce.to_le_bytes());
-
-        match gas_limit.as_ref() {
-            Some(m) => {
-                message[len + 32] = 1;
-                m.as_slice().iter().enumerate().for_each(|(i, m)| {
-                    let from = len + 33 + i * 8;
-                    let to = len + 33 + (i + 1) * 8;
-                    message[from..to].copy_from_slice(&m.to_le_bytes());
-                });
-            }
-            None => {
-                message[len + 32] = 0;
-            }
-        }
-
-        let pub_key = priv_key.pub_key();
-        let signature = priv_key.sign(&message);
-
-        // Don't forget to truncate the message back to its original length!
-        message.truncate(len);
-
         Self {
-            signature,
-            runtime_msg: message,
-            pub_key,
+            runtime_msg,
             chain_id,
             max_priority_fee_bips,
             max_fee,
-            gas_limit,
             nonce,
+            gas_limit,
         }
+    }
+
+    /// Creates a new [`Transaction`] from this [`UnsignedTransaction`] when given a signature
+    /// and a public key.
+    pub fn to_signed_tx(
+        self,
+        pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+        signature: <S::CryptoSpec as CryptoSpec>::Signature,
+    ) -> Transaction<S> {
+        Transaction::new(
+            pub_key,
+            self.runtime_msg,
+            signature,
+            self.chain_id,
+            self.max_priority_fee_bips,
+            self.max_fee,
+            self.gas_limit.clone(),
+            self.nonce,
+        )
     }
 }
 

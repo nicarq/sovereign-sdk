@@ -10,7 +10,7 @@ use rand::Rng;
 use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_modules_api::default_spec::DefaultSpec;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::Spec;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::DaSpec;
@@ -93,14 +93,17 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
 
     for (idx, message) in messages.into_iter().enumerate() {
         println!("Nonce {} . Going to submit message: {:?}", idx, message);
+
         let tx = Transaction::<DefaultSpec<Risc0Verifier, Risc0Verifier>>::new_signed_tx(
             &token_deployer.private_key,
-            message.try_to_vec().unwrap(),
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            None,
-            idx as u64,
+            UnsignedTransaction::new(
+                message.try_to_vec().unwrap(),
+                chain_id,
+                max_priority_fee_bips,
+                max_fee,
+                idx as u64,
+                None,
+            ),
         );
         client.send_transactions(&[tx]).await.unwrap();
         let slot = slot_subscription.next().await.unwrap().unwrap();

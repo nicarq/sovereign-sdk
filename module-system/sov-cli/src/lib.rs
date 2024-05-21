@@ -8,7 +8,7 @@ use directories::BaseDirs;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub use sov_modules_api::clap;
-use sov_modules_api::transaction::PriorityFeeBips;
+use sov_modules_api::transaction::{PriorityFeeBips, UnsignedTransaction};
 use sov_modules_api::Spec;
 
 /// Types and functionality storing and loading the persistent state of the wallet
@@ -75,5 +75,18 @@ where
             max_fee,
             gas_limit,
         }
+    }
+
+    /// Creates a new [`UnsignedTransaction`] from this [`UnsignedTransactionWithoutNonce`] when
+    /// given a nonce.
+    pub fn with_nonce(&self, nonce: u64) -> UnsignedTransaction<S> {
+        UnsignedTransaction::new(
+            self.tx.try_to_vec().unwrap(),
+            self.chain_id,
+            self.max_priority_fee_bips,
+            self.max_fee,
+            nonce,
+            self.gas_limit.clone(),
+        )
     }
 }

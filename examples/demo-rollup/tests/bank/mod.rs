@@ -12,7 +12,7 @@ use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_ledger_apis::rpc::client::RpcClient;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_rollup_interface::rpc::{AggregatedProofResponse, BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::zk::aggregated_proof::{
@@ -103,12 +103,14 @@ fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSp
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,
-        msg.try_to_vec().unwrap(),
-        chain_id,
-        max_priority_fee_bips,
-        max_fee,
-        gas_limit,
-        nonce,
+        UnsignedTransaction::new(
+            msg.try_to_vec().unwrap(),
+            chain_id,
+            max_priority_fee_bips,
+            max_fee,
+            nonce,
+            gas_limit,
+        ),
     )
 }
 
@@ -130,12 +132,14 @@ fn build_transfer_token_tx(
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,
-        msg.try_to_vec().unwrap(),
-        chain_id,
-        max_priority_fee_bips,
-        max_fee,
-        gas_limit,
-        nonce,
+        UnsignedTransaction::new(
+            msg.try_to_vec().unwrap(),
+            chain_id,
+            max_priority_fee_bips,
+            max_fee,
+            nonce,
+            gas_limit,
+        ),
     )
 }
 

@@ -8,7 +8,7 @@ use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkf
 use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_test_utils::TestSpec;
 type Da = MockDaSpec;
@@ -65,6 +65,7 @@ fn transaction_is_serialized_correctly() {
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 0;
     let gas_limit = None;
+
     let unsigned_tx = UnsignedTransactionWithoutNonce::new(
         runtime_call,
         chain_id,
@@ -83,12 +84,14 @@ fn transaction_is_serialized_correctly() {
         let tx = Transaction::<TestSpec>::try_from_slice(&tx).unwrap();
         let tx_p = Transaction::<TestSpec>::new_signed_tx(
             &key,
-            runtime_call_bytes.clone(),
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            gas_limit.clone(),
-            initial_nonce + i as u64,
+            UnsignedTransaction::new(
+                runtime_call_bytes.clone(),
+                chain_id,
+                max_priority_fee_bips,
+                max_fee,
+                initial_nonce + i as u64,
+                gas_limit.clone(),
+            ),
         );
 
         tx.verify().expect("the computed signature is incorrect");

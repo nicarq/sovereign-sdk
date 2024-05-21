@@ -7,7 +7,7 @@ use sov_mock_da::{MockAddress, MockBlob};
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
@@ -46,12 +46,7 @@ pub fn generate_empty_tx(
 ) -> Transaction<TestSpec> {
     Transaction::new_signed_tx(
         &TestPrivateKey::generate(),
-        vec![],
-        0,
-        max_priority_fee_bips,
-        max_fee,
-        gas_limit,
-        0,
+        UnsignedTransaction::new(vec![], 0, max_priority_fee_bips, max_fee, 0, gas_limit),
     )
 }
 
@@ -158,12 +153,14 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
         let message = Encoder::encode_call(self.content);
         Transaction::<S>::new_signed_tx(
             &self.sender_key,
-            message,
-            self.chain_id,
-            self.max_priority_fee_bips,
-            self.max_fee,
-            self.gas_limit,
-            self.nonce,
+            UnsignedTransaction::new(
+                message,
+                self.chain_id,
+                self.max_priority_fee_bips,
+                self.max_fee,
+                self.nonce,
+                self.gas_limit,
+            ),
         )
     }
 }
