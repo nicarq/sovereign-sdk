@@ -100,7 +100,7 @@ $ make start
 
 Now run the demo-rollup full node, as shown below. You will see it consuming blocks from the Celestia node running inside Docker:
 
-```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=bound_address
+```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=rpc_address
 # Make sure you're still in the examples/demo-rollup directory.
 $ cargo run -- --da-layer celestia --rollup-config-path demo_rollup_config.toml --genesis-config-dir ../test-data/genesis/demo/celestia
 2024-03-05T14:42:21.332792Z  INFO sov_demo_rollup: Running demo rollup with prover config prover_config=Skip
@@ -113,7 +113,7 @@ $ cargo run -- --da-layer celestia --rollup-config-path demo_rollup_config.toml 
 2024-03-05T14:42:29.090544Z DEBUG sov_bank::genesis: Bank genesis token config: TokenConfig { token_name: sov-demo-token, address_and_balances: [(sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94, 100000000)], authorized_minters: [sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94], salt: 0 }
 2024-03-05T14:42:29.119153Z  INFO sov_stf_runner::runner: Chain initialization is done genesis_root="34b162718eaf1878f6dc0306a9cc9d17fb0c0337343f6e21c0babb44480adb5d2674feeb85ae0e109d4f8e2714a55fd287d7e447997fbc42a43d1c634a74bce3"
 2024-03-05T14:42:29.119211Z DEBUG sov_stf_runner::runner: Initializing StfRunner last_slot_processed_before_shutdown=0 runner_config.genesis_height=3 first_unprocessed_height_at_startup=4
-2024-03-05T14:42:29.119759Z  INFO sov_stf_runner::runner: Starting RPC server bound_address=127.0.0.1:12345
+2024-03-05T14:42:29.119759Z  INFO sov_stf_runner::runner: Starting RPC server rpc_address=127.0.0.1:12345
 2024-03-05T14:42:29.122392Z DEBUG sov_stf_runner::runner: Requesting DA block for next_da_height=4
 2024-03-05T14:42:39.608515Z  INFO sov_stf_runner::runner: Extracted relevant blobs blobs_count=0 next_da_height=4 blobs=[]
 2024-03-05T14:42:39.610889Z  INFO sov_stf_runner::runner: Sync in progress synced_da_height=3 target_da_height=4

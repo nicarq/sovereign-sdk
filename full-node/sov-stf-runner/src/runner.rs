@@ -261,28 +261,29 @@ where
         let server = jsonrpsee::server::ServerBuilder::default()
             .build([self.listen_address_rpc].as_ref())
             .await?;
-        let bound_address = server.local_addr()?;
+        let rpc_address = server.local_addr()?;
 
         let _handle = tokio::spawn(async move {
-            info!(%bound_address, "Starting RPC server");
+            info!(%rpc_address, "Starting RPC server");
             let _server_handle = server.start(methods);
 
             futures::future::pending::<()>().await;
         });
 
-        Ok(bound_address)
+        Ok(rpc_address)
     }
 
     /// Starts an Axum server with provided router.
     pub async fn start_axum_server(&self, router: axum::Router<()>) -> anyhow::Result<SocketAddr> {
         let listener = tokio::net::TcpListener::bind(self.listen_address_axum).await?;
-        let addr = listener.local_addr()?;
+        let rest_address = listener.local_addr()?;
 
         tokio::spawn(async move {
+            info!(%rest_address, "Starting REST API server");
             axum::serve(listener, router).await.unwrap();
         });
 
-        Ok(addr)
+        Ok(rest_address)
     }
 
     /// Spawn a [`tokio::task`] that updates the sync status every 10 seconds.
