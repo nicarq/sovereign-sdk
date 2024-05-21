@@ -75,7 +75,14 @@ impl PriorityFeeBips {
 
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
 #[derive(
-    Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
 )]
 pub struct Transaction<S: Spec> {
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
