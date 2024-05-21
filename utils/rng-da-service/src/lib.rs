@@ -9,7 +9,7 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash, MockValidityCond,
     MockValidityCondChecker, MOCK_SEQUENCER_DA_ADDRESS,
 };
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
@@ -238,12 +238,14 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
             <Runtime<TestSpec, RngDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
         let tx = Transaction::<TestSpec>::new_signed_tx(
             &pk,
-            enc_msg,
-            DEFAULT_CHAIN_ID,
-            DEFAULT_MAX_PRIORITY_FEE,
-            DEFAULT_MAX_FEE,
-            DEFAULT_ESTIMATED_GAS_USAGE,
-            start_nonce.wrapping_add(i as u64),
+            UnsignedTransaction::new(
+                enc_msg,
+                DEFAULT_CHAIN_ID,
+                DEFAULT_MAX_PRIORITY_FEE,
+                DEFAULT_MAX_FEE,
+                start_nonce.wrapping_add(i as u64),
+                DEFAULT_ESTIMATED_GAS_USAGE,
+            ),
         );
         let ser_tx = tx.try_to_vec().unwrap();
         message_vec.push(ser_tx);
@@ -265,12 +267,14 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
     let enc_msg = <Runtime<TestSpec, RngDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
     let tx = Transaction::<TestSpec>::new_signed_tx(
         &pk,
-        enc_msg,
-        DEFAULT_CHAIN_ID,
-        DEFAULT_MAX_PRIORITY_FEE,
-        DEFAULT_MAX_FEE,
-        DEFAULT_ESTIMATED_GAS_USAGE,
-        start_nonce,
+        UnsignedTransaction::new(
+            enc_msg,
+            DEFAULT_CHAIN_ID,
+            DEFAULT_MAX_PRIORITY_FEE,
+            DEFAULT_MAX_FEE,
+            start_nonce,
+            DEFAULT_ESTIMATED_GAS_USAGE,
+        ),
     );
     let ser_tx = tx.try_to_vec().unwrap();
     message_vec.push(ser_tx);

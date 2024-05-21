@@ -3,7 +3,7 @@ use std::time::Duration;
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_nft_module::utils::{
     get_collection_id, get_create_collection_message, get_mint_nft_message,
@@ -29,14 +29,17 @@ pub fn build_transaction(
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 0;
     let gas_limit = None;
+
     Transaction::<TestSpec>::new_signed_tx(
         signer,
-        runtime_encoded_message.try_to_vec().unwrap(),
-        chain_id,
-        max_priority_fee_bips,
-        max_fee,
-        gas_limit,
-        nonce,
+        UnsignedTransaction::new(
+            runtime_encoded_message.try_to_vec().unwrap(),
+            chain_id,
+            max_priority_fee_bips,
+            max_fee,
+            nonce,
+            gas_limit,
+        ),
     )
 }
 

@@ -4,7 +4,7 @@ use borsh::BorshSerialize;
 use sov_bank::Bank;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{Authenticator, EncodeCall, PrivateKey};
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::value_setter_data::{ValueSetterMessage, ValueSetterMessages};
@@ -80,12 +80,14 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<RawTx> {
     let create_token_message = b.create_default_messages().remove(0);
     let tx = Transaction::<S>::new_signed_tx(
         &create_token_message.sender_key,
-        b"not a real call message".to_vec(),
-        create_token_message.chain_id,
-        create_token_message.max_priority_fee_bips,
-        create_token_message.max_fee,
-        create_token_message.gas_limit,
-        create_token_message.nonce,
+        UnsignedTransaction::<S>::new(
+            b"not a real call message".to_vec(),
+            create_token_message.chain_id,
+            create_token_message.max_priority_fee_bips,
+            create_token_message.max_fee,
+            create_token_message.nonce,
+            create_token_message.gas_limit,
+        ),
     );
 
     vec![encode_with_auth(tx)]

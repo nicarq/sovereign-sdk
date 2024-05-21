@@ -329,7 +329,7 @@ mod tests {
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCondChecker};
-    use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+    use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, WorkingSet};
     use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
     use sov_state::{ProverStorage, Storage};
@@ -373,12 +373,14 @@ mod tests {
 
         Transaction::<S>::new_signed_tx(
             private_key,
-            msg,
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            gas_limit,
-            nonce,
+            UnsignedTransaction::new(
+                msg,
+                chain_id,
+                max_priority_fee_bips,
+                max_fee,
+                nonce,
+                gas_limit,
+            ),
         )
         .try_to_vec()
         .unwrap()
@@ -402,12 +404,14 @@ mod tests {
 
         Transaction::<S>::new_signed_tx(
             private_key,
-            msg,
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            gas_limit,
-            nonce,
+            UnsignedTransaction::new(
+                msg,
+                chain_id,
+                max_priority_fee_bips,
+                max_fee,
+                nonce,
+                gas_limit,
+            ),
         )
         .try_to_vec()
         .unwrap()
