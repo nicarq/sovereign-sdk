@@ -1,4 +1,4 @@
-# `sov-jsonapi-utils`
+# `sov-rest-utils`
 
 A helper crate for building opinionated JSON APIs according to the Sovereign SDK API guidelines.
 

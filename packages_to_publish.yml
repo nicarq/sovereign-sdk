@@ -1,7 +1,7 @@
 - sov-rollup-interface
 - sov-mock-da
 - sov-mock-zkvm
-- sov-jsonapi-utils
+- sov-rest-utils
 - sov-db
 - sov-modules-core
 - sov-state

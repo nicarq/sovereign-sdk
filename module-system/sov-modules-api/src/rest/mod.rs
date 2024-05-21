@@ -31,9 +31,9 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
-use sov_jsonapi_utils::types::ApiResponseResult;
-use sov_jsonapi_utils::utils::serde_obj_to_response_result;
-use sov_jsonapi_utils::{PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
+use sov_rest_utils::types::ApiResponseResult;
+use sov_rest_utils::utils::serde_obj_to_response_result;
+use sov_rest_utils::{PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
 use sov_state::namespaces::CompileTimeNamespace;
 use sov_state::{StateCodec, StateItemCodec, StateReader};
 
@@ -386,7 +386,7 @@ pub mod __macros_private {
 
         use std::marker::PhantomData;
 
-        use sov_jsonapi_utils::utils::not_found_404;
+        use sov_rest_utils::utils::not_found_404;
 
         use super::*;
 
@@ -683,7 +683,7 @@ pub mod __macros_private {
                 axum::Router::new()
                     .route("/", get(Self::root_handler))
                     .with_state(self.clone())
-                    .fallback(sov_jsonapi_utils::utils::global_404)
+                    .fallback(sov_rest_utils::utils::global_404)
             }
         }
 

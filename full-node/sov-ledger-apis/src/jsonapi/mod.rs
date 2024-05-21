@@ -15,13 +15,13 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sov_db::schema::types::{BatchNumber, EventNumber, SlotNumber, TxNumber};
-use sov_jsonapi_utils::types::{ApiResponse, ApiResponseResult, ErrorObject, ResponseObject};
-use sov_jsonapi_utils::utils::{
+use sov_modules_api::{EventModuleName, RuntimeEventResponse};
+use sov_rest_utils::types::{ApiResponse, ApiResponseResult, ErrorObject, ResponseObject};
+use sov_rest_utils::utils::{
     database_error_response_500, internal_server_error_response_500, not_found_404,
     preconfigured_router_layers, serde_obj_to_response_result,
 };
-use sov_jsonapi_utils::{json_obj, PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
-use sov_modules_api::{EventModuleName, RuntimeEventResponse};
+use sov_rest_utils::{json_obj, PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
     ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,

@@ -5013,26 +5013,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-jsonapi-utils"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "axum",
- "derive_more",
- "hex",
- "proptest",
- "proptest-derive",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "serde_with",
- "tower",
- "tower-http",
- "tower-request-id",
- "tracing",
-]
-
-[[package]]
 name = "sov-kernels"
 version = "0.3.0"
 dependencies = [
@@ -5102,8 +5082,8 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-db",
- "sov-jsonapi-utils",
  "sov-modules-macros",
+ "sov-rest-utils",
  "sov-rollup-interface",
  "sov-state",
  "thiserror",
@@ -5176,6 +5156,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-rest-utils"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "derive_more",
+ "hex",
+ "proptest",
+ "proptest-derive",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "serde_with",
+ "tower",
+ "tower-http",
+ "tower-request-id",
+ "tracing",
+]
+
+[[package]]
 name = "sov-rollup-interface"
 version = "0.3.0"
 dependencies = [
@@ -5216,9 +5216,9 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "sov-db",
- "sov-jsonapi-utils",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-rest-utils",
  "sov-rollup-interface",
  "sov-state",
  "tokio",

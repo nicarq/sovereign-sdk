@@ -125,7 +125,7 @@ pub mod prelude {
     #[cfg(feature = "native")]
     pub extern crate serde_json;
     #[cfg(feature = "native")]
-    pub extern crate sov_jsonapi_utils;
+    pub extern crate sov_rest_utils;
     #[cfg(feature = "native")]
     pub extern crate tokio;
 }
