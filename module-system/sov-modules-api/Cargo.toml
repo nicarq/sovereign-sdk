@@ -21,7 +21,7 @@ arbitrary = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 derive_more = { workspace = true, default-features = true }
-sov-jsonapi-utils = { path = "../../full-node/jsonapi-utils", version = "0.3", optional = true }
+sov-rest-utils = { path = "../../full-node/sov-rest-utils", version = "0.3", optional = true }
 sov-state = { path = "../sov-state", version = "0.3" }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-macros = { path = "../sov-modules-macros", version = "0.3", optional = true }
@@ -61,9 +61,9 @@ arbitrary = [
 	"dep:proptest-derive",
 	"proptest/default",
 	"sov-db/arbitrary",
-	"sov-jsonapi-utils/arbitrary",
 	"sov-mock-zkvm/arbitrary",
 	"sov-modules-api/arbitrary",
+	"sov-rest-utils/arbitrary",
 	"sov-rollup-interface/arbitrary",
 	"sov-state/arbitrary",
 ]
@@ -86,11 +86,11 @@ native = [
 	"serde_json",
 	"sov-bank/native",
 	"sov-db",
-	"sov-jsonapi-utils",
 	"sov-mock-da/native",
 	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-macros/native",
+	"sov-rest-utils",
 	"sov-rollup-interface/native",
 	"sov-state/native",
 	"tokio",

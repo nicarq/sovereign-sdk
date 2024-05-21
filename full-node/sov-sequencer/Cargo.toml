@@ -31,14 +31,14 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 serde_with = { workspace = true, features = ["base64"] }
-sov-jsonapi-utils = { path = "../jsonapi-utils" }
+sov-rest-utils = { path = "../sov-rest-utils" }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", features = ["native"] }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", version = "0.3", features = ["native"] }
 sov-state = { path = "../../module-system/sov-state", version = "0.3" }
 sov-db = { path = "../sov-db", version = "0.3" }
 tracing = { workspace = true }
-tokio = { workspace = true, features = ["sync", "rt"]}
+tokio = { workspace = true, features = ["sync", "rt"] }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 
 [dev-dependencies]
@@ -58,4 +58,4 @@ sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-db = { path = "../sov-db" }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["test-util", "macros"]}
+tokio = { workspace = true, features = ["test-util", "macros"] }

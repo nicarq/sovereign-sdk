@@ -275,9 +275,9 @@ mod axum_router {
     use axum::Json;
     use serde_with::base64::Base64;
     use serde_with::serde_as;
-    use sov_jsonapi_utils::types::{ErrorObject, JsonObject, ResponseObject};
-    use sov_jsonapi_utils::utils::{not_found_404, preconfigured_router_layers};
-    use sov_jsonapi_utils::{json_obj, PathWithErrorHandling};
+    use sov_rest_utils::types::{ErrorObject, JsonObject, ResponseObject};
+    use sov_rest_utils::utils::{not_found_404, preconfigured_router_layers};
+    use sov_rest_utils::{json_obj, PathWithErrorHandling};
     use tracing::debug;
     use utoipa_swagger_ui::{Config, SwaggerUi};
 

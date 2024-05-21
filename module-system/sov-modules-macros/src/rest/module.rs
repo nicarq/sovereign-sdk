@@ -89,8 +89,8 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
         use ::sov_modules_api::{Module, ModuleInfo};
         use ::sov_state::CompileTimeNamespace;
 
-        use sov_jsonapi_utils::utils::*;
-        use sov_jsonapi_utils::types::*;
+        use sov_rest_utils::utils::*;
+        use sov_rest_utils::types::*;
 
         use axum::http::StatusCode;
         use axum::Json;
