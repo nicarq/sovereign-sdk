@@ -59,6 +59,7 @@ sov-rollup-interface = { path = "../../rollup-interface", features = ["arbitrary
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-mock-da = { path = "../../adapters/mock-da" }
 sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = ["native"] }
+sov-accounts = { path = "../../module-system/module-implementations/sov-accounts", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module", features = ["native"] }
 sov-modules-macros = { path = "../../module-system/sov-modules-macros" }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }

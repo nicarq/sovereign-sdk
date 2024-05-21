@@ -13,13 +13,13 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::Bytes;
 use sov_sequencer::utils::SimpleClient;
-use sov_test_utils::SimpleStorageContract;
+use sov_test_utils::{SimpleStorageContract, TestSpec};
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
 const GAS: u64 = 900000u64;
 
 pub(crate) struct TestClient {
-    chain_id: u64,
+    pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     contract: SimpleStorageContract,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
@@ -390,5 +390,26 @@ impl TestClient {
             )
             .await
             .unwrap()
+    }
+
+    pub(crate) async fn send_transactions_and_wait_slot(
+        &self,
+        transactions: &[sov_modules_api::transaction::Transaction<TestSpec>],
+    ) -> Result<(), anyhow::Error> {
+        let mut slot_subscription: Subscription<u64> = self
+            .simple_client
+            .ws()
+            .subscribe(
+                "ledger_subscribeSlots",
+                rpc_params![],
+                "ledger_unsubscribeSlots",
+            )
+            .await?;
+
+        self.simple_client.send_transactions(transactions).await?;
+
+        let _ = slot_subscription.next().await;
+
+        Ok(())
     }
 }
