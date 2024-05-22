@@ -70,6 +70,7 @@ pub enum PageSelection {
 
 /// Default and max. page sizes; public for testing. They are functions and not
 /// constants because of <https://github.com/serde-rs/serde/issues/368>.
+#[doc(hidden)]
 pub mod pagination_sizes {
     /// The default page size. Less items may be returned if there's not enough
     /// remaining items in the collection.

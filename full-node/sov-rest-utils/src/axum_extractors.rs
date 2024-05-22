@@ -10,13 +10,8 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::http::{StatusCode, Uri};
 use serde::de::DeserializeOwned;
-use serde_json::Value;
 
-use super::types::{ApiResponse, ErrorObject, ResponseObject};
-use crate::json_obj;
-
-/// The "error" ("rejection" in [`axum`] terminology) type for [`ValidatedQuery`].
-pub type ValidatedQueryRejection = ApiResponse;
+use crate::{json_obj, ErrorObject};
 
 /// An alternative to the built-in Axum extractor [`axum::extract::Query`],
 /// which handles properly formatted JSON errors upon deserialization failure
@@ -36,41 +31,30 @@ where
 {
     /// Attempts to deserialize and then validate the query string from the
     /// given [`Uri`].
-    pub fn try_from_uri(uri: &Uri) -> Result<Self, ValidatedQueryRejection> {
+    pub fn try_from_uri(uri: &Uri) -> Result<Self, ErrorObject> {
         let query_string = uri.query().unwrap_or_default();
 
         match serde_urlencoded::from_str::<T>(query_string) {
             Ok(query) => {
                 if let Err(err) = query.validate() {
-                    let response_obj = ResponseObject {
-                        errors: vec![ErrorObject {
-                            status: StatusCode::BAD_REQUEST.as_u16() as _,
-                            title: "Invalid query string".to_string(),
-                            details: json_obj!({
-                                "message": err.to_string(),
-                            }),
-                        }],
-                        ..Default::default()
-                    };
-                    Err((StatusCode::BAD_REQUEST, axum::Json(response_obj)))
-                } else {
-                    Ok(ValidatedQuery(query))
-                }
-            }
-            Err(err) => {
-                let response_obj = ResponseObject {
-                    errors: vec![ErrorObject {
-                        status: StatusCode::BAD_REQUEST.as_u16() as _,
+                    Err(ErrorObject {
+                        status: StatusCode::BAD_REQUEST,
                         title: "Invalid query string".to_string(),
                         details: json_obj!({
                             "message": err.to_string(),
                         }),
-                    }],
-                    ..Default::default()
-                };
-
-                Err((StatusCode::BAD_REQUEST, axum::Json(response_obj)))
+                    })
+                } else {
+                    Ok(ValidatedQuery(query))
+                }
             }
+            Err(err) => Err(ErrorObject {
+                status: StatusCode::BAD_REQUEST,
+                title: "Invalid query string".to_string(),
+                details: json_obj!({
+                    "message": err.to_string(),
+                }),
+            }),
         }
     }
 }
@@ -80,7 +64,7 @@ impl<S, T> FromRequestParts<S> for ValidatedQuery<T>
 where
     T: DeserializeOwned + QueryStringValidation,
 {
-    type Rejection = ValidatedQueryRejection;
+    type Rejection = ErrorObject;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         Self::try_from_uri(&parts.uri)
@@ -114,28 +98,18 @@ where
     <axum::extract::Path<T> as FromRequestParts<S>>::Rejection: ToString + Debug,
     S: Send + Sync,
 {
-    type Rejection = (StatusCode, axum::Json<Value>);
+    type Rejection = ErrorObject;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         match axum::extract::Path::from_request_parts(parts, state).await {
             Ok(query) => Ok(PathWithErrorHandling(query.0)),
-            Err(err) => {
-                let response_obj = ResponseObject {
-                    errors: vec![ErrorObject {
-                        status: StatusCode::BAD_REQUEST.as_u16() as _,
-                        title: "Failed to deserialize path string parameter(s)".to_string(),
-                        details: json_obj!({
-                            "message": err.to_string(),
-                        }),
-                    }],
-                    ..Default::default()
-                };
-
-                Err((
-                    StatusCode::BAD_REQUEST,
-                    axum::Json(serde_json::to_value(response_obj).unwrap()),
-                ))
-            }
+            Err(err) => Err(ErrorObject {
+                status: StatusCode::BAD_REQUEST,
+                title: "Failed to deserialize path string parameter(s)".to_string(),
+                details: json_obj!({
+                    "message": err.to_string(),
+                }),
+            }),
         }
     }
 }
@@ -171,18 +145,14 @@ mod tests {
             let result = ValidatedQuery::<TestQuery>::try_from_uri(&uri);
             let err = result.unwrap_err();
 
-            assert_eq!(err.0, StatusCode::BAD_REQUEST);
             assert_eq!(
-                err.1 .0,
-                ResponseObject {
-                    errors: vec![ErrorObject {
-                        status: StatusCode::BAD_REQUEST.as_u16() as _,
-                        title: "Invalid query string".to_string(),
-                        details: json_obj!({
-                            "message": "invalid digit found in string"
-                        }),
-                    }],
-                    ..Default::default()
+                err,
+                ErrorObject {
+                    status: StatusCode::BAD_REQUEST,
+                    title: "Invalid query string".to_string(),
+                    details: json_obj!({
+                        "message": "invalid digit found in string"
+                    }),
                 }
             );
         }
@@ -193,18 +163,14 @@ mod tests {
             let result = ValidatedQuery::<TestQuery>::try_from_uri(&uri);
             let err = result.unwrap_err();
 
-            assert_eq!(err.0, StatusCode::BAD_REQUEST);
             assert_eq!(
-                err.1 .0,
-                ResponseObject {
-                    errors: vec![ErrorObject {
-                        status: StatusCode::BAD_REQUEST.as_u16() as _,
-                        title: "Invalid query string".to_string(),
-                        details: json_obj!({
-                            "message": "Integer must be > 0"
-                        }),
-                    }],
-                    ..Default::default()
+                err,
+                ErrorObject {
+                    status: StatusCode::BAD_REQUEST,
+                    title: "Invalid query string".to_string(),
+                    details: json_obj!({
+                        "message": "Integer must be > 0"
+                    }),
                 }
             );
         }

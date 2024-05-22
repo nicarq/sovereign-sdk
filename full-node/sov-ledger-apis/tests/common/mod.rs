@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock};
 use jsonrpsee::core::client::SubscriptionClientT;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::{CacheContainer, CacheDb};
-use sov_ledger_apis::jsonapi::LedgerRoutes;
+use sov_ledger_apis::rest::LedgerRoutes;
 use sov_ledger_apis::rpc::client::RpcClient;
 use sov_ledger_apis::rpc::server::rpc_module;
 use sov_mock_da::MockDaSpec;

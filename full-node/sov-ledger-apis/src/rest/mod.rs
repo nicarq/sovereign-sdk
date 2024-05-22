@@ -9,19 +9,20 @@ use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::{middleware, Extension, Json};
+use axum::{middleware, Extension};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sov_db::schema::types::{BatchNumber, EventNumber, SlotNumber, TxNumber};
 use sov_modules_api::{EventModuleName, RuntimeEventResponse};
-use sov_rest_utils::types::{ApiResponse, ApiResponseResult, ErrorObject, ResponseObject};
-use sov_rest_utils::utils::{
-    database_error_response_500, internal_server_error_response_500, not_found_404,
-    preconfigured_router_layers, serde_obj_to_response_result,
+use sov_rest_utils::errors::{
+    self, database_error_response_500, internal_server_error_response_500, not_found_404,
 };
-use sov_rest_utils::{json_obj, PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
+use sov_rest_utils::{
+    json_obj, preconfigured_router_layers, ApiResult, ErrorObject, PathWithErrorHandling,
+    QueryStringValidation, ValidatedQuery,
+};
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
     ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,
@@ -48,24 +49,19 @@ pub(crate) fn openapi_spec() -> serde_json::Value {
 }
 
 /// Error to be returned when our bespoke path captures parser fails.
-fn bad_path_error(key: &str) -> ApiResponse {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ResponseObject {
-            errors: vec![ErrorObject {
-                status: StatusCode::BAD_REQUEST.as_u16() as _,
-                title: "Bad request".to_string(),
-                details: json_obj!({
-                    "message": format!("{} is missing or invalid", key),
-                }),
-            }],
-            ..Default::default()
+fn bad_path_error(key: &str) -> Response {
+    ErrorObject {
+        status: StatusCode::BAD_REQUEST,
+        title: "Bad request".to_string(),
+        details: json_obj!({
+            "message": format!("{} is missing or invalid", key),
         }),
-    )
+    }
+    .into_response()
 }
 
 /// Finds a specific path component in a [`PathMap`] of type [`NumberOrHash`].
-fn get_path_item(path_map: &PathMap, key: &str) -> Result<NumberOrHash, ApiResponse> {
+fn get_path_item(path_map: &PathMap, key: &str) -> Result<NumberOrHash, Response> {
     if let Some(value) = path_map.get(key) {
         Ok(*value)
     } else {
@@ -75,24 +71,12 @@ fn get_path_item(path_map: &PathMap, key: &str) -> Result<NumberOrHash, ApiRespo
 
 /// Finds a specific path component in a [`PathMap`] of type [`u64`]. Used for
 /// parsing offsets.
-fn get_path_number(path_map: &PathMap, key: &str) -> Result<u64, ApiResponse> {
+fn get_path_number(path_map: &PathMap, key: &str) -> Result<u64, Response> {
     if let Some(value) = path_map.get(key).and_then(|value| value.as_u64()) {
         Ok(value)
     } else {
         Err(bad_path_error(key))
     }
-}
-
-async fn getter_helper<T: serde::Serialize, E: ToString>(
-    response_data: Result<Option<T>, E>,
-    entity_name: &str,
-    resource_id: impl ToString,
-) -> ApiResponseResult {
-    serde_obj_to_response_result(
-        response_data
-            .map_err(database_error_response_500)?
-            .ok_or_else(|| not_found_404(entity_name, resource_id))?,
-    )
 }
 
 /// Use [`LedgerRoutes::axum_router`] to instantiate an [`axum::Router`] for
@@ -233,89 +217,76 @@ where
         State(ledger): State<T>,
         include_children_opt: Option<ValidatedQuery<IncludeChildren>>,
         Extension(SlotNumber(slot_number)): Extension<SlotNumber>,
-    ) -> ApiResponseResult {
-        let slot_response = match ledger
+    ) -> ApiResult<Slot<B, TxReceipt, E>> {
+        match ledger
             .get_slot_by_number::<B, TxReceipt>(
                 slot_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
             .await
         {
-            Ok(Some(slot_response)) => Ok(Some(Slot::<B, TxReceipt, E>::new(slot_response))),
-            Ok(None) => Ok(None),
-            Err(err) => Err(err),
-        };
-
-        getter_helper(slot_response, "Slot", slot_number).await
+            Ok(Some(slot_response)) => Ok(Slot::new(slot_response).into()),
+            Ok(None) => Err(errors::not_found_404("Slot", slot_number)),
+            Err(err) => Err(errors::database_error_response_500(err)),
+        }
     }
 
     async fn get_batch(
         State(ledger): State<T>,
         include_children_opt: Option<ValidatedQuery<IncludeChildren>>,
         Extension(BatchNumber(batch_number)): Extension<BatchNumber>,
-    ) -> ApiResponseResult {
-        let batch_response = match ledger
+    ) -> ApiResult<Batch<B, TxReceipt, E>> {
+        match ledger
             .get_batch_by_number::<B, TxReceipt>(
                 batch_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
             .await
         {
-            Ok(Some(batch_response)) => Ok(Some(Batch::<B, TxReceipt, E>::new(
-                batch_response,
-                batch_number,
-            ))),
-            Ok(None) => Ok(None),
-            Err(err) => Err(err),
-        };
-
-        getter_helper(batch_response, "Batch", batch_number).await
+            Ok(Some(batch_response)) => Ok(Batch::new(batch_response, batch_number).into()),
+            Ok(None) => Err(errors::not_found_404("Batch", batch_number)),
+            Err(err) => Err(errors::database_error_response_500(err)),
+        }
     }
 
     async fn get_tx(
         State(ledger): State<T>,
         include_children_opt: Option<ValidatedQuery<IncludeChildren>>,
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
-    ) -> ApiResponseResult {
-        let tx_response = match ledger
+    ) -> ApiResult<Transaction<TxReceipt, E>> {
+        match ledger
             .get_tx_by_number::<TxReceipt>(
                 tx_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
             .await
         {
-            Ok(Some(tx_response)) => Ok(Some(Transaction::<TxReceipt, E>::new(
-                tx_response,
-                tx_number,
-            ))),
-            Ok(None) => Ok(None),
-            Err(err) => Err(err),
-        };
-
-        getter_helper(tx_response, "Transaction", tx_number).await
+            Ok(Some(tx_response)) => Ok(Transaction::new(tx_response, tx_number).into()),
+            Ok(None) => Err(errors::not_found_404("Transaction", tx_number)),
+            Err(err) => Err(errors::database_error_response_500(err)),
+        }
     }
 
     async fn get_event(
         State(ledger): State<T>,
         Extension(EventNumber(event_number)): Extension<EventNumber>,
-    ) -> ApiResponseResult {
-        let event_response = match ledger
+    ) -> ApiResult<Event<E>> {
+        match ledger
             .get_event_by_number::<RuntimeEventResponse<E>>(event_number)
             .await
         {
-            Ok(Some(event_response)) => Ok(Some(Event {
+            Ok(Some(event_response)) => Ok(Event {
                 number: event_number,
                 key: event_response.event_key,
                 value: event_response.event_value,
                 module: ModuleRef {
                     name: event_response.module_name,
                 },
-            })),
-            Ok(None) => Ok(None),
-            Err(err) => Err(err),
-        };
-
-        getter_helper(event_response, "Event", event_number).await
+            }
+            .into()),
+            Ok(None) => Err(errors::not_found_404("Event", event_number)),
+            Err(err) => Err(errors::database_error_response_500(err)),
+        }
     }
 
     // ENTITY ID RESOLVERS
@@ -327,7 +298,7 @@ where
         State(ledger): State<T>,
         mut request: Request,
         next: Next,
-    ) -> Result<Response, ApiResponse> {
+    ) -> Result<Response, Response> {
         let latest_slot = ledger
             .get_head_slot_number()
             .await
@@ -343,7 +314,7 @@ where
         path_values: PathMap,
         mut request: Request,
         next: Next,
-    ) -> Result<Response, ApiResponse> {
+    ) -> Result<Response, Response> {
         let identifier = match get_path_item(&path_values, "slotId")? {
             NumberOrHash::Number(number) => SlotIdentifier::Number(number),
             NumberOrHash::Hash(hash) => SlotIdentifier::Hash(hash.0),
@@ -371,7 +342,7 @@ where
         State(ledger): State<T>,
         mut request: Request,
         next: Next,
-    ) -> Result<Response, ApiResponse> {
+    ) -> Result<Response, Response> {
         let identifier = match get_path_item(&path_values, "batchId")? {
             NumberOrHash::Number(number) => BatchIdentifier::Number(number),
             NumberOrHash::Hash(hash) => BatchIdentifier::Hash(hash.0),
@@ -391,7 +362,7 @@ where
         path_values: PathMap,
         mut request: Request,
         next: Next,
-    ) -> Result<Response, ApiResponse> {
+    ) -> Result<Response, Response> {
         let identifier = match get_path_item(&path_values, "txId")? {
             NumberOrHash::Number(number) => TxIdentifier::Number(number),
             NumberOrHash::Hash(hash) => TxIdentifier::Hash(hash.0),
@@ -411,7 +382,7 @@ where
         path_values: PathMap,
         mut request: Request,
         next: Next,
-    ) -> Result<Response, ApiResponse> {
+    ) -> Result<Response, Response> {
         // Events can't be resolved by hash, only by number.
         let identifier = EventIdentifier::Number(get_path_number(&path_values, "eventId")?);
 
@@ -439,7 +410,7 @@ where
         Extension(slot_number): Extension<SlotNumber>,
         mut request: Request,
         next: Next,
-    ) -> Result<Response, ApiResponse> {
+    ) -> Result<Response, Response> {
         let batch_offset = get_path_number(&path_values, "batchOffset")?;
 
         let identifier = BatchIdentifier::SlotIdAndOffset(SlotIdAndOffset {
@@ -462,7 +433,7 @@ where
         Extension(batch_number): Extension<BatchNumber>,
         mut request: Request,
         next: Next,
-    ) -> Result<Response, ApiResponse> {
+    ) -> Result<Response, Response> {
         let tx_offset = get_path_number(&path_values, "txOffset")?;
         let identifier = TxIdentifier::BatchIdAndOffset(BatchIdAndOffset {
             batch_id: BatchIdentifier::Number(batch_number.0),
@@ -485,7 +456,7 @@ where
         Extension(tx_number): Extension<TxNumber>,
         mut request: Request,
         next: Next,
-    ) -> Result<Response, ApiResponse> {
+    ) -> Result<Response, Response> {
         let event_offset = get_path_number(&path_values, "eventOffset")?;
         let identifier = EventIdentifier::TxIdAndOffset(TxIdAndOffset {
             tx_id: TxIdentifier::Number(tx_number.0),
@@ -501,7 +472,7 @@ where
         Ok(next.run(request).await)
     }
 
-    async fn get_latest_aggregated_proof(State(ledger): State<T>) -> ApiResponseResult {
+    async fn get_latest_aggregated_proof(State(ledger): State<T>) -> ApiResult<AggregatedProof> {
         let latest_proof: AggregatedProof = ledger
             .get_latest_aggregated_proof()
             .await
@@ -510,18 +481,7 @@ where
             .try_into()
             .map_err(internal_server_error_response_500)?;
 
-        let response_data = serde_json::to_value(latest_proof)
-            .map_err(|e| anyhow::anyhow!("Failed to serialize aggregated proof: {e}"))
-            .and_then(|value| value.try_into())
-            .map_err(internal_server_error_response_500)?;
-
-        Ok((
-            StatusCode::OK,
-            Json(ResponseObject {
-                data: Some(response_data),
-                ..Default::default()
-            }),
-        ))
+        Ok(latest_proof.into())
     }
 
     // SUBSCRIPTIONS
