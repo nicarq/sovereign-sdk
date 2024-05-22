@@ -344,7 +344,6 @@ pub mod parsing {
 
     #[derive(Clone)]
     pub struct ModuleField {
-        pub syn_field: syn::Field,
         pub ident: syn::Ident,
         pub ty: syn::Type,
         pub attr: ModuleFieldAttribute,
@@ -463,7 +462,6 @@ pub mod parsing {
             let attr = get_field_attribute(field)?;
 
             parsed_fields.push(ModuleField {
-                syn_field: field.clone(),
                 ident: ident.clone(),
                 ty,
                 attr: ModuleFieldAttribute::parse(attr)?,

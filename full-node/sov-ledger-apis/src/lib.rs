@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-pub mod jsonapi;
+pub mod rest;
 pub mod rpc;
 
 /// A 32-byte hash [`serde`]-encoded as a hex string optionally prefixed with

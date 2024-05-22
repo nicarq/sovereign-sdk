@@ -31,8 +31,6 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
-use sov_rest_utils::types::ApiResponseResult;
-use sov_rest_utils::utils::serde_obj_to_response_result;
 use sov_rest_utils::{PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
 use sov_state::namespaces::CompileTimeNamespace;
 use sov_state::{StateCodec, StateItemCodec, StateReader};
@@ -47,6 +45,10 @@ use crate::{Module, ModuleId, ModuleInfo, Spec, StateReaderAndWriter, WorkingSet
 pub type StorageReceiver<S> = tokio::sync::watch::Receiver<<S as Spec>::Storage>;
 
 pub use sov_modules_macros::{ModuleRestApi, RuntimeRestApi};
+
+/// Utilities for building opinionated REST(ful) APIs with [`axum`].
+#[doc(inline)]
+pub extern crate sov_rest_utils as utils;
 
 /// This trait is intended to be derived via
 /// [`crate::macros::ModuleRestApi`] by modules and via
@@ -386,7 +388,7 @@ pub mod __macros_private {
 
         use std::marker::PhantomData;
 
-        use sov_rest_utils::utils::not_found_404;
+        use sov_rest_utils::{errors, ApiResult};
 
         use super::*;
 
@@ -430,7 +432,7 @@ pub mod __macros_private {
             async fn get_state_value_route(
                 State(state): State<Self>,
                 height_opt: Option<ValidatedQuery<HeightQueryParam>>,
-            ) -> ApiResponseResult {
+            ) -> ApiResult<StateItemObject<T>> {
                 let mut working_set = maybe_archival_ws(
                     WorkingSet::<M::Spec>::new(state.storage.borrow().clone()),
                     height_opt,
@@ -442,16 +444,15 @@ pub mod __macros_private {
                 );
 
                 let read_value: Option<T> = state_value.get(&mut working_set);
-                let response_obj = StateItemObject {
+                Ok(StateItemObject {
                     r#type: StateItemMetadata::StateValue { value: read_value },
                     prefix: state.state_item_info.prefix,
                     name: state.state_item_info.name.clone(),
                     description: state.state_item_info.description.clone(),
                     version: StateItemVersion::from_query_param(height_opt),
                     namespace: state.state_item_info.namespace.clone(),
-                };
-
-                serde_obj_to_response_result(response_obj)
+                }
+                .into())
             }
         }
 
@@ -497,38 +498,37 @@ pub mod __macros_private {
             async fn get_state_vec_route(
                 State(state): State<Self>,
                 height_opt: Option<ValidatedQuery<HeightQueryParam>>,
-            ) -> ApiResponseResult {
+            ) -> ApiResult<StateItemObject<T>> {
                 let (mut working_set, state_vec) = Self::working_set_and_vec(&state, height_opt);
 
                 let length = state_vec.len(&mut working_set);
-                let response_obj = StateItemObject {
+                Ok(StateItemObject {
                     r#type: StateItemMetadata::<T>::StateVec { length },
                     prefix: state.state_item_info.prefix,
                     version: StateItemVersion::from_query_param(height_opt),
                     name: state.state_item_info.name.clone(),
                     description: state.state_item_info.description.clone(),
                     namespace: state.state_item_info.namespace.clone(),
-                };
-
-                serde_obj_to_response_result(response_obj)
+                }
+                .into())
             }
 
             async fn get_state_vec_item_route(
                 State(state): State<Self>,
                 PathWithErrorHandling(item_index): PathWithErrorHandling<usize>,
                 height_opt: Option<ValidatedQuery<HeightQueryParam>>,
-            ) -> ApiResponseResult {
+            ) -> ApiResult<StateVecItem<T>> {
                 let (mut working_set, state_vec) = Self::working_set_and_vec(&state, height_opt);
 
                 let read_value = state_vec
                     .get(item_index, &mut working_set)
-                    .ok_or_else(|| not_found_404("StateVecItem", item_index.to_string()))?;
+                    .ok_or_else(|| errors::not_found_404("StateVecItem", item_index.to_string()))?;
 
-                let response_obj = StateVecItem {
+                Ok(StateVecItem {
                     index: item_index,
                     value: read_value,
-                };
-                serde_obj_to_response_result(response_obj)
+                }
+                .into())
             }
         }
 
@@ -561,23 +561,22 @@ pub mod __macros_private {
             Codec::KeyCodec: StateItemCodec<K>,
             Codec::ValueCodec: StateItemCodec<V>,
         {
-            async fn get_state_map_route(State(state): State<Self>) -> ApiResponseResult {
-                let response_obj = StateItemInfo {
+            async fn get_state_map_route(State(state): State<Self>) -> ApiResult<StateItemInfo> {
+                Ok(StateItemInfo {
                     r#type: StateItemKind::StateMap,
                     prefix: state.state_item_info.prefix,
                     description: state.state_item_info.description.clone(),
                     name: state.state_item_info.name.clone(),
                     namespace: state.state_item_info.namespace.clone(),
-                };
-
-                serde_obj_to_response_result(response_obj)
+                }
+                .into())
             }
 
             async fn get_state_map_item_route(
                 State(state): State<Self>,
                 PathWithErrorHandling(key): PathWithErrorHandling<K>,
                 height_opt: Option<ValidatedQuery<HeightQueryParam>>,
-            ) -> ApiResponseResult {
+            ) -> ApiResult<StateMapItem<K, V>> {
                 let mut working_set = maybe_archival_ws(
                     WorkingSet::<M::Spec>::new(state.storage.borrow().clone()),
                     height_opt,
@@ -588,17 +587,17 @@ pub mod __macros_private {
                 );
 
                 let read_value = state_map.get(&key, &mut working_set).ok_or_else(|| {
-                    not_found_404(
+                    errors::not_found_404(
                         "StateMapItem",
                         serde_json::to_string(&key).unwrap_or_else(|_| "unknown".to_string()),
                     )
                 })?;
 
-                let response_obj = StateMapItem {
+                Ok(StateMapItem {
                     key,
                     value: read_value,
-                };
-                serde_obj_to_response_result(response_obj)
+                }
+                .into())
             }
         }
 
@@ -648,6 +647,8 @@ pub mod __macros_private {
     }
 
     pub mod base_impls {
+        use sov_rest_utils::ApiResult;
+
         use super::*;
 
         /// A basic implementor of [`HasRestApi`] for a runtime.
@@ -670,8 +671,8 @@ pub mod __macros_private {
         where
             R: TxHooks + Send + Sync + 'static,
         {
-            async fn root_handler(State(_state): State<Self>) -> ApiResponseResult {
-                serde_obj_to_response_result(RuntimeObject {})
+            async fn root_handler(State(_state): State<Self>) -> ApiResult<RuntimeObject> {
+                Ok(RuntimeObject {}.into())
             }
         }
 
@@ -683,7 +684,7 @@ pub mod __macros_private {
                 axum::Router::new()
                     .route("/", get(Self::root_handler))
                     .with_state(self.clone())
-                    .fallback(sov_rest_utils::utils::global_404)
+                    .fallback(sov_rest_utils::errors::global_404)
             }
         }
 
@@ -717,14 +718,13 @@ pub mod __macros_private {
             /// The handler function for the root path of the router, which
             /// returns some general information about the module (name, ID,
             /// etc.).
-            async fn root_route(State(state): State<Self>) -> ApiResponseResult {
-                let module_obj = ModuleObject::new(
+            async fn root_route(State(state): State<Self>) -> ApiResult<ModuleObject> {
+                Ok(ModuleObject::new(
                     &*state.module,
                     state.description.clone(),
                     state.state_items.clone(),
-                );
-
-                serde_obj_to_response_result(module_obj)
+                )
+                .into())
             }
         }
     }

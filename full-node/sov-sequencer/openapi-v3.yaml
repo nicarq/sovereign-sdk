@@ -115,7 +115,7 @@ components:
     Error:
       type: object
       properties:
-        httpstatus:
+        status:
           type: integer
           format: int32
           description: HTTP status code related to this error

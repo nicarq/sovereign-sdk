@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDb;
-use sov_ledger_apis::jsonapi::LedgerRoutes;
+use sov_ledger_apis::rest::LedgerRoutes;
 use sov_modules_api::{Authenticator, RuntimeEventProcessor, RuntimeEventResponse, Spec};
 use sov_modules_stf_blueprint::{
     BatchSequencerOutcome, Runtime as RuntimeTrait, RuntimeEndpoints, TxEffect,

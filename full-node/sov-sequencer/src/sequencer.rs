@@ -275,9 +275,10 @@ mod axum_router {
     use axum::Json;
     use serde_with::base64::Base64;
     use serde_with::serde_as;
-    use sov_rest_utils::types::{ErrorObject, JsonObject, ResponseObject};
-    use sov_rest_utils::utils::{not_found_404, preconfigured_router_layers};
-    use sov_rest_utils::{json_obj, PathWithErrorHandling};
+    use sov_rest_utils::{
+        errors, json_obj, preconfigured_router_layers, ApiResult, ErrorObject, JsonObject,
+        PathWithErrorHandling,
+    };
     use tracing::debug;
     use utoipa_swagger_ui::{Config, SwaggerUi};
 
@@ -368,90 +369,64 @@ mod axum_router {
         async fn axum_get_tx(
             sequencer: State<Self>,
             tx_hash: PathWithErrorHandling<HexHash>,
-        ) -> impl IntoResponse {
+        ) -> ApiResult<JsonObject> {
             let tx_status = sequencer.0 .0.tx_status_notifier.get_cached(&tx_hash.0 .0);
 
             if let Some(tx_status) = tx_status {
-                let resource_obj = tx_attributes(tx_hash.0, tx_status);
-
-                (
-                    StatusCode::OK,
-                    Json(ResponseObject {
-                        data: Some(resource_obj.into()),
-                        ..Default::default()
-                    }),
-                )
+                Ok(tx_attributes(tx_hash.0, tx_status).into())
             } else {
-                not_found_404("Transaction", tx_hash.0)
+                Err(errors::not_found_404("Transaction", tx_hash.0))
             }
         }
 
-        async fn axum_accept_tx(sequencer: State<Self>, tx: Json<Base64Blob>) -> impl IntoResponse {
+        async fn axum_accept_tx(
+            sequencer: State<Self>,
+            tx: Json<Base64Blob>,
+        ) -> ApiResult<JsonObject> {
             let tx = tx.0.blob;
 
             let tx_hash = match sequencer.accept_tx(tx.clone()).await {
                 Ok(tx_hash) => tx_hash,
                 Err(err) => {
-                    let response_obj = ResponseObject {
-                        errors: vec![ErrorObject {
-                            status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-                            title: "Failed to submit transaction".to_string(),
-                            details: json_obj!({
-                                "message": err.to_string(),
-                            }),
-                        }],
-                        ..Default::default()
-                    };
-
-                    return Json(response_obj);
+                    return Err(ErrorObject {
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                        title: "Failed to submit transaction".to_string(),
+                        details: json_obj!({
+                            "message": err.to_string(),
+                        }),
+                    }
+                    .into_response());
                 }
             };
 
-            let resource_obj =
-                tx_attributes(HexHash(tx_hash), TxStatus::<Da::TransactionId>::Submitted);
-            let response_obj = ResponseObject {
-                data: Some(resource_obj.into()),
-                ..Default::default()
-            };
-            Json(response_obj)
+            Ok(tx_attributes(HexHash(tx_hash), TxStatus::<Da::TransactionId>::Submitted).into())
         }
 
         async fn axum_submit_batch(
             sequencer: State<Self>,
             batch: Json<SubmitBatch>,
-        ) -> impl IntoResponse {
+        ) -> ApiResult<JsonObject> {
             let batch = batch.0.transactions.into_iter().map(|tx| tx.blob).collect();
 
             let submitted_batch_info = match sequencer.submit_batch(batch).await {
                 Ok(info) => info,
                 Err(err) => {
-                    let response_obj = ResponseObject {
-                        errors: vec![ErrorObject {
-                            status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-                            title: "Failed to submit batch".to_string(),
-                            details: json_obj!({
-                                "message": err.to_string(),
-                            }),
-                        }],
-                        ..Default::default()
-                    };
-
-                    return Json(response_obj);
+                    return Err(ErrorObject {
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                        title: "Failed to submit batch".to_string(),
+                        details: json_obj!({
+                            "message": err.to_string(),
+                        }),
+                    }
+                    .into_response());
                 }
             };
 
-            let response_obj = ResponseObject {
-                data: Some(
-                    json_obj!({
-                        "daHeight": submitted_batch_info.da_height,
-                        "numTxs": submitted_batch_info.num_txs,
-                    })
-                    .into(),
-                ),
-                ..Default::default()
-            };
-
-            Json(response_obj)
+            Ok(json_obj!({
+                "daHeight": submitted_batch_info.da_height,
+                "numTxs": submitted_batch_info.num_txs,
+            })
+            .into())
         }
     }
 }
