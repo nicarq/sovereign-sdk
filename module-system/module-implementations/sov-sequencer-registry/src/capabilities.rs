@@ -1,8 +1,9 @@
 use sov_bank::Amount;
-use sov_modules_api::{Gas, GasMeter, Spec, StateAccessor, StateCheckpoint};
+use sov_modules_api::capabilities::AuthorizeSequencerError;
+use sov_modules_api::{Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad};
 use thiserror::Error;
 
-use crate::{AllowedSequencer, AllowedSequencerError, SequencerRegistry};
+use crate::{AllowedSequencer, SequencerRegistry};
 
 /// A struct that keeps track of the staked amount of a sequencer and the accumulated penalty amount.
 /// The sequencer may get penalized for submitting invalid transactions, the penalties are accumulated
@@ -32,18 +33,6 @@ pub struct SequencerStakeError<GU: Gas> {
     gas_price: GU::Price,
 }
 
-impl<GU: Gas> SequencerStakeMeter<GU> {
-    /// Returns the current accumulated penalty amount.
-    pub fn penalty(&self) -> &GU {
-        &self.penalty_accumulator
-    }
-
-    /// Returns the remaining stake amount.
-    pub fn remaining_stake(&self) -> Amount {
-        self.remaining_stake
-    }
-}
-
 impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
     fn charge_gas(&mut self, amount: &GU) -> Result<(), anyhow::Error> {
         let amount_value = amount.value(&self.gas_price);
@@ -70,24 +59,38 @@ impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
     fn gas_price(&self) -> &GU::Price {
         &self.gas_price
     }
+
+    fn remaining_funds(&self) -> u64 {
+        self.remaining_stake
+    }
 }
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
-    /// If so, returns a [`SequencerStakeMeter`] which tracks the sequencer stake. Otherwise, returns a [`AllowedSequencerError`].
+    /// If so, returns a [`SequencerStakeMeter`] which tracks the sequencer stake. Otherwise, returns a [`AuthorizeSequencerError`].
     pub fn authorize_sequencer(
         &self,
         sender: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        working_set: &mut impl StateAccessor,
-    ) -> Result<SequencerStakeMeter<S::Gas>, AllowedSequencerError> {
-        let sequencer = self.is_sender_allowed(sender, working_set)?;
+        mut scratchpad: TxScratchpad<S>,
+    ) -> Result<PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>, AuthorizeSequencerError<S>> {
+        let sequencer = match self.is_sender_allowed(sender, &mut scratchpad) {
+            Ok(seq) => seq,
+            Err(e) => {
+                return Err(AuthorizeSequencerError {
+                    tx_scratchpad: scratchpad,
+                    reason: e.into(),
+                })
+            }
+        };
 
-        Ok(SequencerStakeMeter::<S::Gas> {
+        let seq_meter = SequencerStakeMeter::<S::Gas> {
             remaining_stake: sequencer.balance,
             penalty_accumulator: S::Gas::zero(),
             gas_price: base_fee_per_gas.clone(),
-        })
+        };
+
+        Ok(scratchpad.to_pre_exec_working_set(seq_meter))
     }
 
     /// Refunds some of the sequencer's staked amount.
@@ -110,16 +113,17 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn penalize_sequencer(
         &self,
         sender: &Da::Address,
-        stake_meter: SequencerStakeMeter<S::Gas>,
-        working_set: &mut StateCheckpoint<S>,
-    ) {
+        mut pre_exec_working_set: PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>,
+    ) -> TxScratchpad<S> {
         if let Some(AllowedSequencer {
             address,
             balance: _,
-        }) = self.allowed_sequencers.get(sender, working_set)
+        }) = self
+            .allowed_sequencers
+            .get(sender, &mut pre_exec_working_set)
         {
-            let penalty_amount = stake_meter.penalty();
-            let remaining_stake = stake_meter.remaining_stake();
+            let penalty_amount = pre_exec_working_set.gas_used_value();
+            let remaining_stake = pre_exec_working_set.remaining_funds();
 
             tracing::info!(
                 sequencer = %address,
@@ -134,9 +138,11 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
                     address,
                     balance: remaining_stake,
                 },
-                working_set,
+                &mut pre_exec_working_set,
             );
         }
+
+        pre_exec_working_set.into()
     }
 }
 

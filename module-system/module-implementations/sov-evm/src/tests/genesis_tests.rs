@@ -62,7 +62,7 @@ fn genesis_data() {
         .get(&account.address, &mut state_checkpoint)
         .unwrap();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
     let evm_db = evm.get_db(&mut working_set);
 
     assert_eq!(
@@ -236,7 +236,7 @@ pub(crate) fn setup(
     state_checkpoint: StateCheckpoint<S>,
 ) -> (Evm<S>, StateCheckpoint<S>) {
     let evm = Evm::<S>::default();
-    let mut genesis_ws = state_checkpoint.to_revertable_genesis::<Evm<S>>(evm_config);
+    let mut genesis_ws = state_checkpoint.to_working_set_genesis::<Evm<S>>(evm_config);
     evm.genesis(evm_config, &mut genesis_ws).unwrap();
     let mut state_checkpoint = genesis_ws.checkpoint().0;
     let kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);

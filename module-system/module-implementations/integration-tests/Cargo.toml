@@ -28,7 +28,7 @@ tracing = { workspace = true }
 rockbound = { workspace = true }
 hex = { workspace = true }
 
-sov-modules-api = { path = "../../sov-modules-api", features = ["native"] }
+sov-modules-api = { path = "../../sov-modules-api", features = ["native", "test-utils"] }
 sov-state = { path = "../../sov-state", features = ["native"] }
 
 sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"] }

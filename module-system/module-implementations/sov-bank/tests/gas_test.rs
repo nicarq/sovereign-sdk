@@ -172,7 +172,7 @@ impl BankGasTestCase {
             nonce: 0,
         };
 
-        let ws = checkpoint.to_revertable(&tx, &gas_price);
+        let ws = checkpoint.to_working_set(&tx, &gas_price);
 
         Self {
             ws,

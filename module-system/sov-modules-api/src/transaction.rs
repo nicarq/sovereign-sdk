@@ -412,17 +412,16 @@ where
     fn gas_price(&self) -> &GU::Price {
         &self.gas_price
     }
+
+    fn remaining_funds(&self) -> u64 {
+        self.remaining_funds
+    }
 }
 
 impl<GU> TxGasMeter<GU>
 where
     GU: Gas,
 {
-    /// Returns the remaining gas funds.
-    pub const fn remaining_funds(&self) -> u64 {
-        self.remaining_funds
-    }
-
     /// Returns a gas meter which does not charge for gas.
     pub(crate) fn unmetered() -> Self {
         Self {

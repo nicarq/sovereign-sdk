@@ -50,7 +50,7 @@ fn call_test() {
     evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
 
     let set_arg = 999;
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
     {
         let sender_address = generate_address::<S>("sender");
         let sequencer_address = generate_address::<S>("sequencer");
@@ -125,7 +125,7 @@ fn failed_transaction_test() {
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
 
     evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
     {
         let sender_address = generate_address::<S>("sender");
         let sequencer_address = generate_address::<S>("sequencer");

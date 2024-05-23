@@ -7,7 +7,7 @@ use sov_modules_api::runtime::capabilities::{
     AuthenticationError, FatalError, RawTx, RuntimeAuthenticator,
 };
 use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
-use sov_modules_api::{Authenticator, DaSpec, DispatchCall, GasMeter, Spec};
+use sov_modules_api::{Authenticator, DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, Spec};
 use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::{Runtime, RuntimeCall};
@@ -20,15 +20,15 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
     fn authenticate(
         &self,
         raw_tx: &RawTx,
-        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
+        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError> {
         let auth = Auth::try_from_slice(raw_tx.data.as_slice()).map_err(|e| {
             AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
         })?;
 
         match auth {
-            Auth::Mod(tx) => ModAuth::<S, Da>::authenticate(&tx, sequencer_stake_meter),
-            Auth::Evm(tx) => EvmAuth::<S, Da>::authenticate(&tx, sequencer_stake_meter),
+            Auth::Mod(tx) => ModAuth::<S, Da>::authenticate(&tx, pre_exec_ws),
+            Auth::Evm(tx) => EvmAuth::<S, Da>::authenticate(&tx, pre_exec_ws),
         }
     }
 }
@@ -47,9 +47,9 @@ pub struct ModAuth<S: Spec, Da: DaSpec> {
 impl<S: Spec, Da: DaSpec> Authenticator for ModAuth<S, Da> {
     type Spec = S;
     type DispatchCall = Runtime<S, Da>;
-    fn authenticate(
+    fn authenticate<Meter: GasMeter<S::Gas>>(
         tx: &[u8],
-        stake_meter: &mut impl GasMeter<S::Gas>,
+        pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
     ) -> Result<
         (
             AuthenticatedTransactionAndRawHash<Self::Spec>,
@@ -57,7 +57,10 @@ impl<S: Spec, Da: DaSpec> Authenticator for ModAuth<S, Da> {
         ),
         AuthenticationError,
     > {
-        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall>(tx, stake_meter)
+        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall, Meter>(
+            tx,
+            pre_exec_working_set,
+        )
     }
 
     fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {
@@ -74,9 +77,9 @@ pub struct EvmAuth<S: Spec, Da: DaSpec> {
 impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
     type Spec = S;
     type DispatchCall = Runtime<S, Da>;
-    fn authenticate(
+    fn authenticate<Meter: GasMeter<S::Gas>>(
         tx: &[u8],
-        stake_meter: &mut impl GasMeter<S::Gas>,
+        stake_meter: &mut PreExecWorkingSet<S, Meter>,
     ) -> Result<
         (
             AuthenticatedTransactionAndRawHash<Self::Spec>,
@@ -84,7 +87,8 @@ impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
         ),
         AuthenticationError,
     > {
-        let (tx_and_raw_hash, runtime_call) = sov_evm::authenticate::<Self::Spec>(tx, stake_meter)?;
+        let (tx_and_raw_hash, runtime_call) =
+            sov_evm::authenticate::<Self::Spec, Meter>(tx, stake_meter)?;
         let call = RuntimeCall::evm(runtime_call);
         Ok((tx_and_raw_hash, call))
     }

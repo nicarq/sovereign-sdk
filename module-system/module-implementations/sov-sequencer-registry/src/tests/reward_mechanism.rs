@@ -4,7 +4,7 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, UnlimitedGasMeter};
+use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec};
 use sov_test_utils::generate_empty_tx;
 
 use super::helpers::{TestSequencer, S};
@@ -54,18 +54,22 @@ fn test_reward_sequencer() {
         .begin_batch_hook(&mut batch_test, &seq_da_address, &mut checkpoint)
         .expect("The begin batch hook should succeed");
 
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
+
+    let pre_exec_ws = sequencer_test
+        .registry
+        .authorize_sequencer(&seq_da_address, &gas_price, transaction_scratchpad)
+        .expect("Impossible to authorize sequencer");
+
     let tx = tx.into();
     // Reserves some gas for the bank
-    let mut working_set = match sequencer_test.bank.reserve_gas(
-        &tx,
-        &gas_price,
-        seq_address,
-        &UnlimitedGasMeter::new(),
-        checkpoint,
-    ) {
+    let mut working_set = match sequencer_test
+        .bank
+        .reserve_gas(&tx, seq_address, pre_exec_ws)
+    {
         Ok(ws) => ws,
         Err(ReserveGasError {
-            state_checkpoint: _,
+            pre_exec_working_set: _,
             reason,
         }) => {
             panic!("Unable to reserve gas for the transaction: {:?}", reason);
@@ -77,19 +81,21 @@ fn test_reward_sequencer() {
         .charge_gas(&GasUnit::from_slice(&[balance_after_genesis / 4; 2]))
         .expect("The charge gas operation should not fail");
 
-    let (mut checkpoint, tx_consumption, _) = working_set.checkpoint();
+    let (mut tx_scratchpad, tx_consumption, _) = working_set.finalize();
 
     // We refund the base tip to the sequencer account and send the tip to the registry
     sequencer_test.bank.allocate_consumed_gas(
         &seq_address_as_token_holder,
         &sequencer_test.registry.id().to_payable(),
         &tx_consumption,
-        &mut checkpoint,
+        &mut tx_scratchpad,
     );
 
     sequencer_test
         .bank
-        .refund_remaining_gas(&tx, seq_address, &tx_consumption, &mut checkpoint);
+        .refund_remaining_gas(seq_address, &tx_consumption, &mut tx_scratchpad);
+
+    let mut checkpoint = tx_scratchpad.commit();
 
     let registry_balance_after_refund = sequencer_test
         .query_balance(sequencer_test.registry.id().to_payable(), &mut checkpoint)
@@ -120,30 +126,31 @@ fn test_reward_sequencer() {
 #[test]
 fn test_penalize_sequencer() {
     // Genesis initialization.
-    let (sequencer_test, mut working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
+    let (sequencer_test, working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
+    let checkpoint = working_set.checkpoint().0;
     let seq_da_address = sequencer_test.sequencer_config.seq_da_address;
 
-    let mut sequencer_stake_meter = sequencer_test
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
+
+    let mut pre_exec_ws = sequencer_test
         .registry
         .authorize_sequencer(
             &seq_da_address,
             &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]),
-            &mut working_set,
+            transaction_scratchpad,
         )
         .expect("The sequencer should be registered and have enough staked amount");
 
-    let mut state_checkpoint = working_set.checkpoint().0;
-
-    sequencer_stake_meter
+    pre_exec_ws
         .charge_gas(&<S as Spec>::Gas::from_slice(&[LOCKED_AMOUNT / 2; 2]))
         .unwrap();
 
     // We penalize the sequencer by removing all its stake
-    sequencer_test.registry.penalize_sequencer(
-        &seq_da_address,
-        sequencer_stake_meter,
-        &mut state_checkpoint,
-    );
+    let res = sequencer_test
+        .registry
+        .penalize_sequencer(&seq_da_address, pre_exec_ws);
+
+    let mut state_checkpoint = res.commit();
 
     // The sequencer stake should be zero
     assert_eq!(

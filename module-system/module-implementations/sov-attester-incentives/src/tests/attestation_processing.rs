@@ -46,7 +46,7 @@ fn test_process_valid_attestation() {
     let transition_1 = exec_vars.pop().unwrap();
     let initial_transition = exec_vars.pop().unwrap();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process a valid attestation for the first transition
     {
@@ -152,7 +152,7 @@ fn test_burn_on_invalid_attestation() {
 
     let context = Context::<S>::new(attester_address, Default::default(), sequencer, 1);
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
     // Process an invalid proof for genesis: everything is correct except the storage proof.
     // Must simply return an error. Cannot burn the token at this point because we don't know if the
     // sender is bonded or not.

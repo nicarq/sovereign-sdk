@@ -1,5 +1,5 @@
 use sov_modules_api::transaction::AuthenticatedTransactionData;
-use sov_modules_api::{Spec, StateCheckpoint};
+use sov_modules_api::{Spec, StateAccessor, TxScratchpad};
 
 use crate::{Account, Accounts};
 
@@ -8,7 +8,7 @@ impl<S: Spec> Accounts<S> {
     pub fn resolve_sender_address(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        state_checkpoint: &mut impl StateAccessor,
     ) -> Result<S::Address, anyhow::Error> {
         let credential_id = &tx.credential_id;
         let maybe_address = self
@@ -45,7 +45,8 @@ impl<S: Spec> Accounts<S> {
     pub fn check_uniqueness(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        // Will become `MeteredStateAccessor` in next PR
+        state_checkpoint: &mut impl StateAccessor,
     ) -> Result<(), anyhow::Error> {
         // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
         // This will require a change to the account state layout
@@ -72,18 +73,18 @@ impl<S: Spec> Accounts<S> {
     pub fn mark_tx_attempted(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     ) {
         let credential_id = &tx.credential_id;
         let mut account = self
             .accounts
-            .get(credential_id, state_checkpoint)
+            .get(credential_id, tx_scratchpad)
             .unwrap_or_else(|| panic!("The existence of the sender account for {} is ensured during the resolution of the sender's address.",
                 &credential_id));
 
         account.nonce += 1;
 
         self.accounts
-            .set(&tx.credential_id, &account, state_checkpoint);
+            .set(&tx.credential_id, &account, tx_scratchpad);
     }
 }

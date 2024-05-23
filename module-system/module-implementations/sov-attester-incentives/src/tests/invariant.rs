@@ -41,7 +41,7 @@ fn test_transition_invariant() {
         &sequencer,
         &attester_address,
     );
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     let context = Context::<S>::new(
         attester_address,

@@ -7,6 +7,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use serde::Serialize;
 use sov_modules_api::batch::Batch;
+use sov_modules_api::capabilities::RawTx;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::Authenticator;
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -97,10 +98,7 @@ where
         let mut tx_hashes = Vec::with_capacity(num_txs);
 
         for tx in blob_txs {
-            txs.push(
-                Auth::encode(tx.raw_tx)
-                    .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?,
-            );
+            txs.push(RawTx { data: tx.raw_tx });
 
             tx_hashes.push(tx.hash);
         }
@@ -193,8 +191,10 @@ mod jsonrpc {
                 |params, batch_builder| async move {
                     let mut params_iter = params.sequence();
                     let mut txs = vec![];
-                    while let Some(tx) = params_iter.optional_next()? {
-                        txs.push(tx);
+                    while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
+                        let authed_tx = Auth::encode(tx.clone())
+                            .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
+                        txs.push(authed_tx.data);
                     }
                     let submitted_batch_info = batch_builder
                         .submit_batch(txs)
@@ -206,9 +206,11 @@ mod jsonrpc {
             )?;
             rpc.register_async_method("sequencer_acceptTx", |params, sequencer| async move {
                 let tx = params.one::<SubmitTransaction>()?.body;
+                let authed_tx = Auth::encode(tx.clone())
+                    .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
 
                 sequencer
-                    .accept_tx(tx.clone())
+                    .accept_tx(authed_tx.data)
                     .await
                     .map(|tx_hash| AcceptTxResponse {
                         tx,

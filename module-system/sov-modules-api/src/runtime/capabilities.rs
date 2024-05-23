@@ -5,6 +5,9 @@
 //! you can bypass the Sovereign module-system completely
 //! and write a state transition function from scratch.
 //! [See here for docs](https://github.com/Sovereign-Labs/sovereign-sdk/blob/nightly/examples/demo-stf/README.md)
+use core::fmt;
+use std::fmt::Debug;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
@@ -15,7 +18,8 @@ use crate::kernel_state::BootstrapWorkingSet;
 use crate::module::Context;
 use crate::transaction::{AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData};
 use crate::{
-    Gas, GasMeter, KernelWorkingSet, Spec, StateCheckpoint, TransactionConsumption, WorkingSet,
+    Gas, GasMeter, KernelWorkingSet, PreExecWorkingSet, Spec, StateCheckpoint,
+    TransactionConsumption, TxScratchpad, WorkingSet,
 };
 
 /// Indicates that a type provides the necessary capabilities for a runtime.
@@ -23,7 +27,7 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// The concrete implementation of the capabilities.
     type Capabilities<'a>: GasEnforcer<S, Da, PreExecChecksMeter = Self::SequencerStakeMeter>
         + SequencerAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter>
-        + RuntimeAuthorization<S, Da>
+        + RuntimeAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter>
     where
         Self: 'a;
 
@@ -98,6 +102,14 @@ pub trait BatchSelector<Da: DaSpec> {
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
 }
 
+/// The error type returned by the [`GasEnforcer::try_reserve_gas`] method.
+pub struct TryReserveGasError<S: Spec, Meter: GasMeter<S::Gas>> {
+    /// The reason why it was not possible to reserve gas.
+    pub reason: anyhow::Error,
+    /// The pre-execution working set that was used at the time of the error.
+    pub pre_exec_working_set: PreExecWorkingSet<S, Meter>,
+}
+
 /// Enforces gas limits and penalties for transactions.
 pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     /// A gas meter that is used to measure and track the gas used by the pre-execution checks (such as signature checks,
@@ -118,26 +130,49 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
         &self,
         tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        gas_price: &<S::Gas as Gas>::Price,
-        pre_exec_checks_meter: &Self::PreExecChecksMeter,
-        state_checkpoint: StateCheckpoint<S>,
-    ) -> Result<WorkingSet<S>, StateCheckpoint<S>>;
+        pre_exec_working_set: PreExecWorkingSet<S, Self::PreExecChecksMeter>,
+    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Self::PreExecChecksMeter>>;
 
     /// Allocates the gas consumed by the transaction to the base fee and the tip recipients.
+    /// This method should not fail.
+    ///
+    /// ## Correctness note
+    /// TODO(@theochap): The rollup developper has to make sure to pre-allocate enough gas to prevent the
+    /// transaction sender from underpaying for this operation.
     fn allocate_consumed_gas(
         &self,
         tx_consumption: &TransactionConsumption<S::Gas>,
-        checkpoint: &mut StateCheckpoint<S>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     );
 
     /// Refunds any remaining gas to the payer after the transaction is processed.
+    /// This method should not fail.
+    ///
+    /// ## Correctness note
+    /// TODO(@theochap): The rollup developper has to make sure to pre-allocate enough gas to prevent the
+    /// transaction sender from underpaying for this operation.
     fn refund_remaining_gas(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        consumption: &TransactionConsumption<S::Gas>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        tx_consumption: &TransactionConsumption<S::Gas>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     );
+}
+
+/// An error that can be returned within the [`SequencerAuthorization::authorize_sequencer`] capability.
+pub struct AuthorizeSequencerError<S: Spec> {
+    /// The reason why the sequencer was not authorized.
+    pub reason: anyhow::Error,
+    /// A [`TxScratchpad`] that contains all the changes made during the transaction processing
+    pub tx_scratchpad: TxScratchpad<S>,
+}
+
+impl<S: Spec> Debug for AuthorizeSequencerError<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("AuthorizeSequencerError")
+            .field(&self.reason)
+            .finish()
+    }
 }
 
 /// Authorizes the sequencer to submit and process batches.
@@ -148,50 +183,34 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
     /// Checks if the sequencer has staked the minimum bond to attest transactions.
     ///
     /// ## Returns
-    /// Returns an error if the sequencer is not registered or does not have enough staked amount.
-    /// Returns a [`SequencerAuthorization::SequencerStakeMeter`] if the sequencer is registered and has enough staked amount.
+    /// Returns a [`AuthorizeSequencerError`] error if the sequencer is not registered or does not have enough staked amount.
+    /// Returns a [`PreExecWorkingSet`] if the sequencer is registered and has enough staked amount.
     fn authorize_sequencer(
         &self,
         sequencer: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Result<Self::SequencerStakeMeter, anyhow::Error>;
-
-    /// Partially refunds the sequencer's staked amount.
-    /// It should simply increase the remaining funds in the sequencer's staked meter.
-    ///
-    /// ## Use
-    /// This method should be called to diminish the penalty amount of the sequencer when
-    /// a transaction has a partial amount of the gas needed for pre-execution checks.
-    /// The gas locked in the transaction should be refunded to the sequencer.
-    ///
-    /// Another use is to refund the sequencer's batch deserialization cost when a transaction is correctly deserialized and executed.
-    ///
-    /// ## Note
-    /// This method should always succeed.
-    fn refund_sequencer(
-        &self,
-        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
-        refund_amount: u64,
-    );
+        tx_scratchpad: TxScratchpad<S>,
+    ) -> Result<PreExecWorkingSet<S, Self::SequencerStakeMeter>, AuthorizeSequencerError<S>>;
 
     /// Penalizes the sequencer without slashing his account.
     /// If the sequencer is penalized, the stake amount of the sequencer is reduced, potentially preventing future transactions from being executed.
     ///
     /// ## Note
-    /// This method consumes the [`SequencerAuthorization::SequencerStakeMeter`].
+    /// This method consumes the [`PreExecWorkingSet`].
     /// It should only be called once the sequencer cannot be penalized anymore.
     /// The penalty should be accumulated in the [`SequencerAuthorization::SequencerStakeMeter`] during the execution of the transaction.
     fn penalize_sequencer(
         &self,
         sequencer: &Da::Address,
-        stake_meter: Self::SequencerStakeMeter,
-        state_checkpoint: &mut StateCheckpoint<S>,
-    );
+        pre_exec_ws: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+    ) -> TxScratchpad<S>;
 }
 
 /// Authorizes transactions to be executed.
 pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
+    /// A type-safe struct that should be used to track the staked amount of the sequencer and the eventual execution penalities.
+    type SequencerStakeMeter: GasMeter<S::Gas>;
+
     /// Resolves the context for a transaction.
     /// TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
     fn resolve_context(
@@ -199,7 +218,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         tx: &AuthenticatedTransactionData<S>,
         sequencer: &Da::Address,
         height: u64,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<Context<S>, anyhow::Error>;
 
     /// Prevents duplicate transactions from running.
@@ -207,7 +226,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         &self,
         tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(), anyhow::Error>;
 
     /// Marks a transaction as having been executed, preventing it from executing again.
@@ -215,7 +234,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         &self,
         tx: &AuthenticatedTransactionData<S>,
         sequencer: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     );
 }
 
@@ -268,7 +287,7 @@ pub trait RuntimeAuthenticator<S: Spec> {
     fn authenticate(
         &self,
         tx: &RawTx,
-        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
+        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError>;
 }
 

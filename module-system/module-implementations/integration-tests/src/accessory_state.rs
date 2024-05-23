@@ -98,7 +98,8 @@ fn test_accessory_value_setter() {
 
     module.accessory_state.set(&1000, &mut ws);
 
-    let (checkpoint, _gas_meter) = ws.revert();
+    let (tx_scratchpad, _gas_meter) = ws.revert();
+    let checkpoint = tx_scratchpad.revert();
     let (state_writes, accessory_writes, witness) = checkpoint.freeze();
     let (state_root_hash_after, change_set_after) = storage
         .validate_and_materialize_with_accessory_update(

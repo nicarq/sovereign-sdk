@@ -1,3 +1,14 @@
+- #714 integrates a batch of changes to the `StfBlueprint` and the capabilities. Meaningful changes:
+  - Remove arguments of type `SequencerStakeMeter` from the capabilities and replace all of the `(SequencerStakeMeter, StateCheckpoint)` couple of variables by a single `PreExecWorkingSet` which is a type safe data structure that should charge for gas before transaction execution starts.
+  - Removing the `ExecutionMode` type from the `StfBlueprint`. It is now replaced by `TxScratchpad`, which is an intermediary type between `WorkingSet` and `StateCheckpoint`. This is useful for the `sov-sequencer` crate because one may want to revert all the changes that happened during transaction execution when simulating a transaction before adding it to a sequencer batch.
+  - The entire transaction processing lifecycle is now embedded in the `process_tx` method that is called by both the `apply_batch` in `StfBlueprint` and `try_add_tx_to_batch` in the `sov-sequencer` crate. Hence we now have the following state machine for transaction execution:
+        - In `to_tx_scratchpad` we convert the `StateCheckpoint` into a revertable `TxScratchpad` for transaction execution. 
+        - In `authorize_sequencer` we consume the `TxScratchpad` and build a `PreExecWorkingSet` on success, we stop processing the batch on failure
+        - In `try_reserve_gas` we consume the `PreExecWorkingSet` and we build a `WorkingSet` on success (transaction execution starts), or return a `PreExecWorkingSet` on failure (so that we can penalize the sequencer).
+        - In `attempt_tx` we consume the `WorkingSet` and output a `TxScratchpad`
+        - The `penalize_sequencer` method consumes a `PreExecWorkingSet` and outputs a `TxScratchpad`
+  - The `SequencerTxOutcome` type is removed. Now all pre-execution capabilities are processed in `process_tx`. When entering `apply_tx`, the sequencer cannot be penalized anymore.
+
 - #699 adds tests for the `EVM` credentials.
 - #717 replaces manual serialization & deserialization for the signed parts of `Transaction` struct by creating a new `UnsignedTransaction` object that implements Borsh traits. The breaking change is that the bytes over we sign now include an additional vector length for the runtime message field.
 - #700 adds an associated `TxState` type to the `TxHooks` trait and uses it as an argument in place of a concrete `WorkingSet`.
