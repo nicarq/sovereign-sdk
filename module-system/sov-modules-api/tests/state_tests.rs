@@ -33,11 +33,12 @@ impl Condition {
         match self {
             Condition::Checkpoint => {
                 let (checkpoint, _tx_consumption, _events) = working_set.checkpoint();
-                checkpoint.to_revertable_unmetered()
+                checkpoint.to_working_set_unmetered()
             }
             Condition::Revert => {
-                let (checkpoint, _tx_consumption) = working_set.revert();
-                checkpoint.to_revertable_unmetered()
+                let (tx_scratchpad, _tx_consumption) = working_set.revert();
+                let checkpoint = tx_scratchpad.revert();
+                checkpoint.to_working_set_unmetered()
             }
         }
     }

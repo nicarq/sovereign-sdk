@@ -3,17 +3,18 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
 use sov_attester_incentives::AttesterIncentives;
-use sov_bank::{Bank, IntoPayable, ReserveGasError};
+use sov_bank::{Bank, IntoPayable};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
-    AuthenticationError, GasEnforcer, HasCapabilities, RawTx, RuntimeAuthenticator,
-    RuntimeAuthorization, SequencerAuthorization,
+    AuthenticationError, AuthorizeSequencerError, GasEnforcer, HasCapabilities, RawTx,
+    RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     Context, DispatchCall, EncodeCall, Gas, Genesis, GenesisState, Module, ModuleInfo,
-    RuntimeEventProcessor, Spec, StateCheckpoint, TransactionConsumption, TypedEvent, WorkingSet,
+    PreExecWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, TransactionConsumption,
+    TxScratchpad, TypedEvent, WorkingSet,
 };
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;
@@ -187,9 +188,12 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> RuntimeAuthenticator<S>
     fn authenticate(
         &self,
         raw_tx: &RawTx,
-        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
+        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError> {
-        sov_modules_api::authenticate::<S, Self>(&raw_tx.data, sequencer_stake_meter)
+        sov_modules_api::authenticate::<S, Self, Self::SequencerStakeMeter>(
+            &raw_tx.data,
+            pre_exec_ws,
+        )
     }
 }
 
@@ -298,58 +302,34 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> GasEnforcer<S, Da>
         &self,
         tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        gas_price: &<S::Gas as Gas>::Price,
-        pre_exec_checks_meter: &Self::PreExecChecksMeter,
-        state_checkpoint: StateCheckpoint<S>,
-    ) -> Result<WorkingSet<S>, StateCheckpoint<S>> {
-        self.inner
-            .bank()
-            .reserve_gas(
-                tx,
-                gas_price,
-                context.sender(),
-                pre_exec_checks_meter,
-                state_checkpoint,
-            )
-            .map_err(
-                |ReserveGasError {
-                     state_checkpoint,
-                     reason,
-                 }| {
-                    tracing::debug!(
-                        "Unable to reserve gas from {}. {}",
-                        reason,
-                        context.sender()
-                    );
-                    state_checkpoint
-                },
-            )
+        pre_exec_working_set: PreExecWorkingSet<S, Self::PreExecChecksMeter>,
+    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Self::PreExecChecksMeter>> {
+        self.bank()
+            .reserve_gas(tx, context.sender(), pre_exec_working_set)
+            .map_err(Into::into)
     }
 
     fn allocate_consumed_gas(
         &self,
-        consumption: &TransactionConsumption<S::Gas>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        tx_consumption: &TransactionConsumption<S::Gas>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     ) {
-        self.inner.bank().allocate_consumed_gas(
+        self.bank().allocate_consumed_gas(
             &self.attester_incentives().id().to_payable(),
             &self.sequencer_registry().id().to_payable(),
-            consumption,
-            state_checkpoint,
+            tx_consumption,
+            tx_scratchpad,
         );
     }
 
-    /// Refunds any remaining gas to the payer after the transaction is processed.
     fn refund_remaining_gas(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        consumption: &TransactionConsumption<S::Gas>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        tx_consumption: &TransactionConsumption<S::Gas>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     ) {
-        self.inner
-            .bank()
-            .refund_remaining_gas(tx, context.sender(), consumption, state_checkpoint);
+        self.bank()
+            .refund_remaining_gas(context.sender(), tx_consumption, tx_scratchpad);
     }
 }
 
@@ -360,63 +340,37 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> SequencerAuthorization<S, D
 
     fn authorize_sequencer(
         &self,
-        sequencer: &Da::Address,
+        sequencer: &<Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        state_checkpoint: &mut StateCheckpoint<S>,
-    ) -> Result<Self::SequencerStakeMeter, anyhow::Error> {
-        self.inner
-            .sequencer_registry()
-            .authorize_sequencer(sequencer, base_fee_per_gas, state_checkpoint)
-            .map_err(|e| {
-                anyhow::anyhow!("An error occurred while checking the sequencer bond: {e}")
-            })
-    }
-
-    fn refund_sequencer(
-        &self,
-        sequencer_stake_meter: &mut Self::SequencerStakeMeter,
-        refund_amount: u64,
-    ) {
-        self.inner
-            .sequencer_registry()
-            .refund_sequencer(sequencer_stake_meter, refund_amount);
+        tx_scratchpad: TxScratchpad<S>,
+    ) -> Result<PreExecWorkingSet<S, Self::SequencerStakeMeter>, AuthorizeSequencerError<S>> {
+        self.sequencer_registry()
+            .authorize_sequencer(sequencer, base_fee_per_gas, tx_scratchpad)
     }
 
     fn penalize_sequencer(
         &self,
         sequencer: &Da::Address,
-        sequencer_stake_meter: Self::SequencerStakeMeter,
-        state_checkpoint: &mut StateCheckpoint<S>,
-    ) {
-        self.inner.sequencer_registry().penalize_sequencer(
-            sequencer,
-            sequencer_stake_meter,
-            state_checkpoint,
-        );
+        pre_exec_working_set: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+    ) -> TxScratchpad<S> {
+        self.sequencer_registry()
+            .penalize_sequencer(sequencer, pre_exec_working_set)
     }
 }
 
 impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
     for TestRuntimeWrapper<S, Da, T>
 {
+    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
         &self,
         _tx: &AuthenticatedTransactionData<S>,
         _context: &Context<S>,
-        _state_checkpoint: &mut StateCheckpoint<S>,
+        _working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(), anyhow::Error> {
         Ok(())
-    }
-
-    /// Marks a transaction as having been executed, preventing it from executing again.
-    fn mark_tx_attempted(
-        &self,
-        _tx: &AuthenticatedTransactionData<S>,
-        _sequencer: &Da::Address,
-        _state_checkpoint: &mut StateCheckpoint<S>,
-    ) {
     }
 
     /// Resolves the context for a transaction.
@@ -425,7 +379,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         tx: &AuthenticatedTransactionData<S>,
         sequencer: &Da::Address,
         height: u64,
-        working_set: &mut StateCheckpoint<S>,
+        working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<Context<S>, anyhow::Error> {
         let sender = tx.default_address.clone().unwrap();
         let sequencer = self
@@ -438,5 +392,14 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
             sequencer,
             height,
         ))
+    }
+
+    /// Marks a transaction as having been executed, preventing it from executing again.
+    fn mark_tx_attempted(
+        &self,
+        _tx: &AuthenticatedTransactionData<S>,
+        _sequencer: &Da::Address,
+        _tx_scratchpad: &mut TxScratchpad<S>,
+    ) {
     }
 }

@@ -35,7 +35,7 @@ fn test_valid_challenge() {
         &attester_address,
     );
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     let _ = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();
@@ -188,7 +188,7 @@ fn test_invalid_challenge() {
         &sequencer,
         &attester_address,
     );
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     let _ = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();

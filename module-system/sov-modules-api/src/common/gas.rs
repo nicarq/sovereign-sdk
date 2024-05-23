@@ -321,6 +321,9 @@ pub trait GasMeter<GU: Gas> {
     fn gas_used_value(&self) -> u64 {
         self.gas_used().value(self.gas_price())
     }
+
+    /// The remaining amount of tokens locked in the meter
+    fn remaining_funds(&self) -> u64;
 }
 
 /// An unlimited gas meter. Only tracks the amount of gas consumed.
@@ -362,6 +365,10 @@ impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
     /// Returns the gas price.
     fn gas_price(&self) -> &GU::Price {
         &self.gas_price
+    }
+
+    fn remaining_funds(&self) -> u64 {
+        u64::MAX
     }
 }
 

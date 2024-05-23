@@ -123,7 +123,7 @@ pub(crate) fn setup(
         )
         .expect("Chain state genesis must succeed");
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
     // initialize prover incentives
     let module = AttesterIncentives::<S, MockDaSpec>::default();
     let config = crate::AttesterIncentivesConfig {
@@ -232,17 +232,19 @@ impl ExecutionSimulationVars {
                 &mut kernel_working_set,
             );
 
+            let transaction_scratchpad = state_checkpoint.to_tx_scratchpad();
+
+            let pre_exec_working_set = transaction_scratchpad.pre_exec_ws_unmetered();
+
             // We first need to reserve gas for the transaction
             let mut working_set = match module.bank.reserve_gas(
                 &tx,
-                &current_base_fee_per_gas,
                 sequencer,
-                &UnlimitedGasMeter::new(),
-                state_checkpoint,
+                pre_exec_working_set,
             ) {
                 Ok(ws) => ws,
-                Err(ReserveGasError::<S> {
-                    state_checkpoint: _,
+                Err(ReserveGasError::<S, UnlimitedGasMeter<<S as Spec>::Gas>> {
+                    pre_exec_working_set: _,
                     reason,
                 }) => {
                     panic!("Unable to reserve gas for the transaction in the execution simulation: {:?}", reason);
@@ -254,19 +256,21 @@ impl ExecutionSimulationVars {
                 .charge_gas(&<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED))
                 .expect("Gas charge failed");
 
-            let (mut checkpoint, tx_consumption, _) = working_set.checkpoint();
+            let (mut tx_scratchpad, tx_consumption, _) = working_set.finalize();
 
             module.bank.allocate_consumed_gas(
                 &module.id().to_payable(),
                 &module.id().to_payable(),
                 &tx_consumption,
-                &mut checkpoint,
+                &mut tx_scratchpad,
             );
 
             // Then we can refund some gas to the sequencer
             module
                 .bank
-                .refund_remaining_gas(&tx, sequencer, &tx_consumption, &mut checkpoint);
+                .refund_remaining_gas(sequencer, &tx_consumption, &mut tx_scratchpad);
+
+            let mut checkpoint = tx_scratchpad.commit();
 
             ret_exec_vars.push(ExecutionSimulationVars {
                 state_root: root_hash,

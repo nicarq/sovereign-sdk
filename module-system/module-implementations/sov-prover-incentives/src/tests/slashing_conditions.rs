@@ -93,7 +93,7 @@ fn check_prover_slashed(
 fn test_slash_on_invalid_proof() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {
@@ -118,7 +118,7 @@ fn test_slash_on_invalid_proof() {
 fn test_slash_on_invalid_genesis_hash() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     let genesis_hash = module
         .chain_state
@@ -164,7 +164,7 @@ fn test_slash_on_invalid_genesis_hash() {
 fn test_slash_on_invalid_initial_state_root() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {
@@ -212,7 +212,7 @@ fn test_slash_on_invalid_initial_state_root() {
 fn test_slash_on_invalid_final_slot_hash() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {
@@ -260,7 +260,7 @@ fn test_slash_on_invalid_final_slot_hash() {
 fn test_slash_on_invalid_final_state_root() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
 
@@ -307,7 +307,7 @@ fn test_slash_on_invalid_final_state_root() {
 fn test_slash_on_invalid_initial_slot_hash() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     let genesis_hash = module
         .chain_state
@@ -351,7 +351,7 @@ fn test_slash_on_invalid_initial_slot_hash() {
 fn test_slash_on_invalid_initial_transition() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {
@@ -399,7 +399,7 @@ fn test_slash_on_invalid_initial_transition() {
 fn test_slash_on_invalid_final_transition() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {
@@ -447,7 +447,7 @@ fn test_slash_on_invalid_final_transition() {
 fn test_slash_on_invalid_output_format() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {
@@ -473,7 +473,7 @@ fn test_slash_on_invalid_output_format() {
 fn test_slash_on_invalid_validity_cond() {
     let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {

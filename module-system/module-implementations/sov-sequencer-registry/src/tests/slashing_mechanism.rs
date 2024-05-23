@@ -88,7 +88,7 @@ fn end_batch_hook_slash_preferred_sequencer() {
         &mut state_checkpoint,
     );
 
-    let working_set = &mut state_checkpoint.to_revertable_unmetered();
+    let working_set = &mut state_checkpoint.to_working_set_unmetered();
     let resp = test_sequencer.query_sequencer_balance(working_set).unwrap();
     assert_eq!(balance_after_genesis, resp);
     let resp = test_sequencer
@@ -122,7 +122,7 @@ fn end_batch_hook_slash_unknown_sequencer() {
         )
         .unwrap();
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     let resp = test_sequencer
         .registry
@@ -138,7 +138,7 @@ fn end_batch_hook_slash_unknown_sequencer() {
         &mut state_checkpoint,
     );
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
     let resp = test_sequencer
         .registry
         .sequencer_address(sequencer_address, &mut working_set)
@@ -284,7 +284,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
         &genesis_sequencer_da_address,
         &mut state_checkpoint,
     );
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     assert!(
         !test_sequencer

@@ -66,7 +66,7 @@ fn execute_txs_and_process_valid_proof(
     let total_gas_used: u64 = total_gas_used[..total_gas_used.len() - 1].iter().sum();
 
     // We use the unmetered working set, because we don't want to charge for the gas used in the last transition (this makes the test simpler)
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     let aggregated_proof = &build_proof_log(module, &mut working_set);
 

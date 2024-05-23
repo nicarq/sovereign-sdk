@@ -4,7 +4,7 @@ use sov_rollup_interface::zk::CryptoSpec;
 use crate::capabilities::{AuthenticationError, FatalError, RawTx};
 use crate::digest::Digest;
 use crate::transaction::{AuthenticatedTransactionAndRawHash, Transaction};
-use crate::{DispatchCall, GasMeter, Spec};
+use crate::{DispatchCall, GasMeter, PreExecWorkingSet, Spec};
 
 /// A single rollup can support several authentication mechanisms.
 /// For example, within the same rollup, some transactions can be signed with the SignatureA scheme and others with the SignatureB scheme.
@@ -18,9 +18,9 @@ pub trait Authenticator: Send + Sync + 'static {
     /// Accepts raw tx and interprets it as a transaction, performing validation relevant to a particular authentication scheme.
     /// The `stake_meter` is used to track and accumulate potential penalties for the sequencer.
     #[allow(clippy::type_complexity)]
-    fn authenticate(
+    fn authenticate<Meter: GasMeter<<Self::Spec as Spec>::Gas>>(
         raw_tx: &[u8],
-        stake_meter: &mut impl GasMeter<<Self::Spec as Spec>::Gas>,
+        stake_meter: &mut PreExecWorkingSet<Self::Spec, Meter>,
     ) -> Result<
         (
             AuthenticatedTransactionAndRawHash<Self::Spec>,
@@ -34,9 +34,9 @@ pub trait Authenticator: Send + Sync + 'static {
 }
 
 // Authenticate raw transaction.
-pub fn authenticate<S: Spec, D: DispatchCall>(
+pub fn authenticate<S: Spec, D: DispatchCall, Meter: GasMeter<S::Gas>>(
     mut raw_tx: &[u8],
-    stake_meter: &mut impl GasMeter<S::Gas>,
+    stake_meter: &mut PreExecWorkingSet<S, Meter>,
 ) -> Result<(AuthenticatedTransactionAndRawHash<S>, D::Decodable), AuthenticationError> {
     let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
 

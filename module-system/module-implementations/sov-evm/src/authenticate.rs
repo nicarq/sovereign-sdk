@@ -4,15 +4,15 @@ use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
 };
-use sov_modules_api::{CredentialId, GasMeter, Spec};
+use sov_modules_api::{CredentialId, GasMeter, PreExecWorkingSet, Spec};
 
 use crate::conversions::RlpConversionError;
 use crate::{CallMessage, RlpEvmTransaction};
 
 /// Authenticate raw evm transaction.
-pub fn authenticate<S: Spec>(
+pub fn authenticate<S: Spec, Meter: GasMeter<S::Gas>>(
     raw_tx: &[u8],
-    _stake_meter: &mut impl GasMeter<S::Gas>,
+    _pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
 ) -> Result<(AuthenticatedTransactionAndRawHash<S>, CallMessage), AuthenticationError> {
     // TODO: Charge gas for deserialization & signature check.
 

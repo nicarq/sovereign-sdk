@@ -8,7 +8,7 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     Address, CryptoSpec, GasMeter, KernelModule, KernelWorkingSet, Module, ModuleInfo, PrivateKey,
-    Spec, StateCheckpoint, UnlimitedGasMeter, WorkingSet,
+    Spec, StateCheckpoint, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
@@ -93,26 +93,25 @@ pub(crate) fn simulate_chain_state_execution(
 
         let kernel: MockKernel<S, _> = MockKernel::<S, MockDaSpec>::new(i.into(), i.into());
         let mut kernel_working_set = KernelWorkingSet::from_kernel(&kernel, &mut state_checkpoint);
-        let gas_price = module.chain_state.begin_slot_hook(
+        let price = module.chain_state.begin_slot_hook(
             &slot_header,
             &MockValidityCond { is_valid: true },
             &StorageRoot::<DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>::new(RootHash([i; 32]), RootHash([i; 32])),
             &mut kernel_working_set,
         );
 
+        let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
+        let pre_exec_working_set = tx_scratchpad.pre_exec_ws_unmetered_with_price(&price);
+
         // We first need to reserve gas for the transaction
         // `state_checkpoint` does not implement `Debug` so we cannot just call `expect` here.
-        let mut working_set = match module.bank.reserve_gas(
-            &tx,
-            &gas_price,
-            &sequencer,
-            // Using a new [`UnlimitedGasMeter`] here means that we are not charging for pre-execution checks
-            &UnlimitedGasMeter::new(),
-            state_checkpoint,
-        ) {
+        let mut working_set = match module
+            .bank
+            .reserve_gas(&tx, &sequencer, pre_exec_working_set)
+        {
             Ok(ws) => ws,
             Err(ReserveGasError {
-                state_checkpoint: _,
+                pre_exec_working_set: _,
                 reason,
             }) => {
                 panic!("Unable to reserve gas for the transaction: {:?}", reason);
@@ -124,18 +123,20 @@ pub(crate) fn simulate_chain_state_execution(
             .charge_gas(gas_used_per_step)
             .expect("Gas charge failed");
 
-        let (mut checkpoint, tx_consumption, _) = working_set.checkpoint();
+        let (mut tx_scratchpad, tx_consumption, _) = working_set.finalize();
 
         module.bank.allocate_consumed_gas(
             &module.id().to_payable(),
             &module.id().to_payable(),
             &tx_consumption,
-            &mut checkpoint,
+            &mut tx_scratchpad,
         );
 
         module
             .bank
-            .refund_remaining_gas(&tx, &sequencer, &tx_consumption, &mut checkpoint);
+            .refund_remaining_gas(&sequencer, &tx_consumption, &mut tx_scratchpad);
+
+        let mut checkpoint = tx_scratchpad.commit();
 
         total_gas_used.push(tx_consumption.total_consumption());
 
@@ -191,7 +192,7 @@ fn setup_helper(
         initial_provers: vec![(prover_address, BOND_AMOUNT)],
     };
 
-    let mut working_set = checkpoint.to_revertable_unmetered();
+    let mut working_set = checkpoint.to_working_set_unmetered();
 
     module
         .genesis(&config, &mut working_set)

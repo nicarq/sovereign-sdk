@@ -4,16 +4,13 @@ use core::marker::PhantomData;
 use anyhow::bail;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::capabilities::SequencerAuthorization;
+use sov_modules_api::capabilities::RawTx;
 use sov_modules_api::digest::Digest;
-use sov_modules_api::runtime::capabilities::{AuthenticationError, Kernel};
+use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{
-    Authenticator, CryptoSpec, Gas, GasArray, GasMeter, KernelWorkingSet, Spec, StateCheckpoint,
-    UnlimitedGasMeter,
+    Authenticator, CryptoSpec, Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint,
 };
-use sov_modules_stf_blueprint::{
-    apply_tx, ApplyTxResult, ExecutionMode, Runtime, TxEffect, TxSequencerOutcome,
-};
+use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
 use sov_rollup_interface::stf::TransactionReceipt;
@@ -42,7 +39,13 @@ pub struct FairBatchBuilderConfig<Da: DaSpec> {
 /// Transactions are included in batches by following a largest-first,
 /// least-recent-first priority. Only transactions that were successfully
 /// dispatched are included.
-pub struct FairBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>, K, Auth: Authenticator> {
+pub struct FairBatchBuilder<
+    S: Spec,
+    Da: DaSpec,
+    R: Runtime<S, Da>,
+    K,
+    Auth: Authenticator<Spec = S>,
+> {
     runtime: R,
     kernel: K,
     mempool: FairMempool,
@@ -92,61 +95,46 @@ where
         }
 
         // TODO(`<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/625>`). Hack: we need to temporarily take ownership of the `StateCheckpoint` to be able to call [`sov_modules_api::runtime::capabilities::SequencerAuthorization::authorize_sequencer`].
-        let mut state_checkpoint = ctx.state_checkpoint.take().unwrap();
-        let mut sequencer_stake_meter = self.runtime.capabilities().authorize_sequencer(&self.sequencer, &ctx.gas_price, &mut state_checkpoint).map_err(|e| {
-            anyhow::anyhow!("An error occurred while trying to reserve gas for the pre-execution checks: {e}")
-        })?;
-        ctx.state_checkpoint = Some(state_checkpoint);
-
-        let (tx_and_raw_hash, msg) = match Auth::authenticate(
-            &mempool_tx.tx_bytes,
-            &mut sequencer_stake_meter,
-        ) {
-            // The [`AuthenticationResult::FatalError`] variant should return an error - adding it to the batch would get
-            // the sequencer slashed. We may want to discard the transaction in that case,
-            // because it may not be properly signed or formatted.
-            Err(AuthenticationError::FatalError(err)) => return Err(err.into()),
-            // The [`AuthenticationResult::Invalid`] variant should simply return [`Option::None`]. Adding it to the batch would get
-            // the sequencer penalized.
-            Err(AuthenticationError::Invalid(reason)) => {
-                tracing::warn!(
-                penalization_amount = %sequencer_stake_meter.gas_used_value(),
-                reason = ?reason,
-                "This transaction is invalid and couldn't be authorized against the current rollup state. Accepting the 
-                transaction would cause the sequencer to be penalized. Skipping transaction");
-                return Ok(None);
-            }
-            Ok((tx, message)) => (tx, message),
-        };
-
-        let ApplyTxResult {
-            new_checkpoint,
-            receipt: tx_receipt,
-            tx_sequencer_outcome: sequencer_reward,
-        } = apply_tx::<S, _, _>(
+        let state_checkpoint = ctx.state_checkpoint.take().unwrap();
+        let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
+        let res = process_tx(
             &self.runtime,
-            &tx_and_raw_hash,
-            msg,
-            // Temporarily take ownership of the `StateCheckpoint`...
-            ctx.state_checkpoint.take().unwrap(),
+            &RawTx {
+                data: mempool_tx.tx_bytes.clone(),
+            },
             &self.sequencer,
-            sequencer_stake_meter,
-            ExecutionMode::Speculative,
             &ctx.gas_price,
             ctx.visible_height,
+            tx_scratchpad,
         );
-        // ...and immediately store the new `StateCheckpoint`.
-        ctx.state_checkpoint = Some(new_checkpoint);
 
-        if let TxSequencerOutcome::Rewarded(reward) = sequencer_reward {
-            let current_reward = ctx.reward;
-            let reward = Into::<u64>::into(reward);
-            ctx.reward = current_reward
-                .checked_add(reward)
-                .ok_or_else(|| anyhow::anyhow!("Rewarding the sequencer would cause overflow"))?;
+        match res {
+            Err(TxProcessingError {
+                tx_scratchpad,
+                reason,
+            }) => {
+                // ...and immediately store the new `StateCheckpoint`.
+                ctx.state_checkpoint = Some(tx_scratchpad.revert());
+
+                bail!("An error occurred when trying to add the tx to the batch: {reason}")
+            }
+            Ok(ApplyTxResult {
+                tx_scratchpad,
+                receipt,
+                sequencer_reward,
+            }) => {
+                // ...and immediately store the new `StateCheckpoint`.
+                ctx.state_checkpoint = Some(tx_scratchpad.commit());
+
+                let current_reward = ctx.reward;
+                let reward = Into::<u64>::into(sequencer_reward);
+                ctx.reward = current_reward.checked_add(reward).ok_or_else(|| {
+                    anyhow::anyhow!("Rewarding the sequencer would cause overflow")
+                })?;
+
+                Ok(Some(receipt))
+            }
         }
-
-        Ok(Some(tx_receipt))
     }
 
     fn mempool_cursor(&self, ctx: &BatchConstructionContext<S>) -> MempoolCursor {
@@ -183,17 +171,11 @@ where
             )
         }
 
-        // TODO(@theochap): Maybe we should give access to the gas price in the `accept_tx` method. So that we can use it to compute the penalization amount.
-        let mut unlimited_gas_meter = UnlimitedGasMeter::<S::Gas>::new();
-
         // Note: We cannot use context here because we test the content of the inner message.
         // Instead of returning [`anyhow::Result`], we should maybe return a custom error type.
-        Auth::authenticate(&raw, &mut unlimited_gas_meter).map_err(|e| {
-            anyhow::anyhow!(
-                "Authentication error while building a batch: {}",
-                e.to_string()
-            )
-        })?;
+        // TODO `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/723>`: We should consider adding this check back, but we would need to give access to the state in this method
+        // Auth::authenticate(&raw, &mut unlimited_gas_meter)
+        //     .map_err(|e| anyhow::anyhow!("Authentication error while building a batch: {e:?}",))?;
 
         let hash = calculate_hash::<S>(&raw);
         tracing::debug!(
@@ -386,6 +368,9 @@ mod tests {
         .unwrap()
     }
 
+    // This function is a helper for a test that was temporarily removed
+    // TODO (when https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/723 is fixed) remove the `allow(dead_code)`
+    #[allow(dead_code)]
     fn generate_random_bytes() -> Vec<u8> {
         let mut rng = rand::thread_rng();
 
@@ -394,6 +379,9 @@ mod tests {
         (0..length).map(|_| rng.gen()).collect()
     }
 
+    // This function is a helper for a test that was temporarily removed
+    // TODO (when https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/723 is fixed) remove the `allow(dead_code)`
+    #[allow(dead_code)]
     fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey) -> Vec<u8> {
         let msg = generate_random_bytes();
         let chain_id = 0;
@@ -540,35 +528,37 @@ mod tests {
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
         }
 
-        #[tokio::test]
-        async fn reject_random_bytes_tx() {
-            let tx = generate_random_bytes();
+        // TODO(@theochap, https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/723): These two tests should be fixed once we find a way to add the authentication mechanism back to
+        // the `accept_tx` method
+        // #[tokio::test]
+        // async fn reject_random_bytes_tx() {
+        //     let tx = generate_random_bytes();
 
-            let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
+        //     let tmpdir = tempfile::tempdir().unwrap();
+        //     let mut batch_builder =
+        //         create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
-            let accept_result = batch_builder.accept_tx(tx).await;
-            assert!(accept_result.is_err());
-        }
+        //     let accept_result = batch_builder.accept_tx(tx).await;
+        //     assert!(accept_result.is_err());
+        // }
 
-        #[tokio::test]
-        async fn reject_signed_tx_with_invalid_payload() {
-            let private_key = TestPrivateKey::generate();
-            let tx = generate_signed_tx_with_invalid_payload(&private_key);
+        // #[tokio::test]
+        // async fn reject_signed_tx_with_invalid_payload() {
+        //     let private_key = TestPrivateKey::generate();
+        //     let tx = generate_signed_tx_with_invalid_payload(&private_key);
 
-            let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
+        //     let tmpdir = tempfile::tempdir().unwrap();
+        //     let mut batch_builder =
+        //         create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
-            let accept_result = batch_builder.accept_tx(tx).await;
-            assert!(accept_result.is_err());
-            assert!(accept_result
-                .unwrap_err()
-                .to_string()
-                .to_lowercase()
-                .contains("transaction decoding error"));
-        }
+        //     let accept_result = batch_builder.accept_tx(tx).await;
+        //     assert!(accept_result.is_err());
+        //     assert!(accept_result
+        //         .unwrap_err()
+        //         .to_string()
+        //         .to_lowercase()
+        //         .contains("transaction decoding error"));
+        // }
 
         #[tokio::test]
         async fn zero_sized_mempool_cant_accept_tx() {

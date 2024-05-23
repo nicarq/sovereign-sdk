@@ -3,7 +3,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS}
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::{PrivateKey, PublicKey, SequencerReward, Spec, WorkingSet};
-use sov_modules_stf_blueprint::{BatchSequencerOutcome, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{BatchSequencerOutcome, SkippedReason, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
@@ -308,10 +308,16 @@ fn test_tx_bad_nonce() {
             relevant_blobs.as_iters(),
         );
 
+        // When the nonce is not correct, the transaction receipt does not appear in the block
         assert_eq!(1, apply_block_result.batch_receipts.len());
         let tx_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();
         // Bad nonce means that the transaction has to be reverted
-        assert_eq!(tx_receipts[0].receipt, TxEffect::Duplicate);
+        assert_eq!(
+            tx_receipts[0].receipt,
+            TxEffect::Skipped(SkippedReason::IncorrectNonce(
+                "Tx bad nonce, expected: 18446744073709551615, but found: 0".to_string()
+            ))
+        );
 
         // We don't slash the sequencer for a bad nonce, since the nonce change might have
         // happened while the transaction was in-flight. However, we do *penalize* the sequencer

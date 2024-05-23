@@ -30,6 +30,7 @@ use sov_modules_api::{
     StateAccessor, StateCheckpoint, StateMap, StateValue, TxState, WorkingSet,
 };
 use sov_state::codec::BcsCodec;
+use sov_state::{StateReader, User};
 use thiserror::Error;
 
 use crate::event::Event;
@@ -282,7 +283,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn is_sender_allowed(
         &self,
         sender: &Da::Address,
-        working_set: &mut impl StateAccessor,
+        working_set: &mut impl StateReader<User>,
     ) -> Result<AllowedSequencer<S>, AllowedSequencerError> {
         if let Some(sequencer) = self.allowed_sequencers.get(sender, working_set) {
             let min_bond = self

@@ -30,7 +30,7 @@ ethers-contract = { workspace = true }
 
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"], optional = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
-sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
+sov-modules-api = { path = "../sov-modules-api", features = ["native", "test-utils"] }
 sov-modules-stf-blueprint = { path = "../sov-modules-stf-blueprint", features = ["native"] }
 sov-value-setter = { path = "../module-implementations/sov-value-setter", features = ["native"] }
 sov-attester-incentives = { path = "../module-implementations/sov-attester-incentives", features = ["native"] }

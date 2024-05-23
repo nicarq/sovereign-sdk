@@ -1,10 +1,11 @@
-use anyhow::bail;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::capabilities::{AuthorizeSequencerError, SequencerAuthorization};
 use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
 use sov_modules_api::{
-    Context, CryptoSpec, DaSpec, KernelWorkingSet, PrivateKey, Spec, StateCheckpoint,
+    Context, CryptoSpec, DaSpec, Gas, GasArray, KernelWorkingSet, PrivateKey, Spec, StateCheckpoint,
 };
+use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -22,7 +23,7 @@ impl TestRollup {
         value_setter_messages: &ValueSetterMessages<S>,
         seq_da_addr: <Da as DaSpec>::Address,
         seq_rollup_addr: <S as Spec>::Address,
-    ) -> anyhow::Result<()> {
+    ) {
         let mut state_checkpoint = StateCheckpoint::new(self.storage());
         let kernel = self.kernel();
         let kernel_working_set = KernelWorkingSet::from_kernel(kernel, &mut state_checkpoint);
@@ -30,8 +31,26 @@ impl TestRollup {
         let height = kernel_working_set.current_slot();
 
         if height != expected_height {
-            bail!("The kernel height is not equal to the expected height.");
+            panic!(
+                "The kernel height {height} is not equal to the expected height {expected_height}."
+            );
         }
+
+        let transaction_scratchpad = state_checkpoint.to_tx_scratchpad();
+
+        let mut pre_exec_ws = match self.stf().runtime().authorize_sequencer(
+            &seq_da_addr,
+            &<<S as Spec>::Gas as Gas>::Price::from_slice(&[0; 2]),
+            transaction_scratchpad,
+        ) {
+            Ok(pre_exec_ws) => pre_exec_ws,
+            Err(AuthorizeSequencerError {
+                reason,
+                tx_scratchpad: _,
+            }) => {
+                panic!("Sequencer authorization failed at height {height} for reason: {reason}")
+            }
+        };
 
         let admin_priv_key = &value_setter_messages.messages[0].admin;
         let admin_pub_key = value_setter_messages.messages[0].admin.pub_key();
@@ -47,7 +66,7 @@ impl TestRollup {
                         &m.to_tx::<TestRuntime<S, Da>>().into(),
                         &seq_da_addr,
                         height,
-                        &mut state_checkpoint,
+                        &mut pre_exec_ws,
                     )
                     .unwrap()
             })
@@ -63,8 +82,6 @@ impl TestRollup {
                 Some(&admin_pub_key)
             );
         }
-
-        Ok(())
     }
 }
 
@@ -81,6 +98,7 @@ fn test_stf_internal_updates() {
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages
         .create_default_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>();
+    let num_tx_per_slot = value_setter.len();
 
     let admin_pub_key = value_setter_messages.messages[0]
         .admin
@@ -91,16 +109,19 @@ fn test_stf_internal_updates() {
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::with_addresses_and_balances(vec![
         (seq_params.rollup_address, DEFAULT_STAKE_AMOUNT),
-        (admin_pub_key, DEFAULT_STAKE_AMOUNT),
+        (admin_pub_key, 100_000),
     ]);
     let attester_params = AttesterIncentivesParams::default();
 
     // Genesis
     let init_root_hash = rollup.genesis(admin_pub_key, seq_params, bank_params, attester_params);
 
-    assert!(rollup
-        .check_kernel_and_context_updates(0, &value_setter_messages, seq_da_addr, seq_rollup_addr,)
-        .is_ok());
+    rollup.check_kernel_and_context_updates(
+        0,
+        &value_setter_messages,
+        seq_da_addr,
+        seq_rollup_addr,
+    );
 
     let blob = new_test_blob_from_batch(
         BatchWithId {
@@ -116,7 +137,31 @@ fn test_stf_internal_updates() {
 
     assert_eq!(exec_simulation.len(), 5, "The execution simulation failed");
 
-    assert!(rollup
-        .check_kernel_and_context_updates(5, &value_setter_messages, seq_da_addr, seq_rollup_addr,)
-        .is_ok());
+    for (i, exec_i) in exec_simulation.into_iter().enumerate() {
+        assert_eq!(exec_i.batch_receipts.len(), 1);
+        assert_eq!(
+            exec_i.batch_receipts[0].tx_receipts.len(),
+            num_tx_per_slot,
+            "Not all the transactions have been executed for slot {i}"
+        );
+        for (j, tx) in exec_i.batch_receipts[0]
+            .tx_receipts
+            .clone()
+            .into_iter()
+            .enumerate()
+        {
+            assert_eq!(
+                tx.receipt,
+                TxEffect::Successful,
+                "The transaction {i} failed in slot at height {j}"
+            );
+        }
+    }
+
+    rollup.check_kernel_and_context_updates(
+        5,
+        &value_setter_messages,
+        seq_da_addr,
+        seq_rollup_addr,
+    );
 }

@@ -58,7 +58,7 @@ fn test_two_phase_unbonding() {
         &attester_address,
     );
 
-    let mut working_set = state_checkpoint.to_revertable_unmetered();
+    let mut working_set = state_checkpoint.to_working_set_unmetered();
     // Start unbonding and then try to prove a transition. User slashed
     module
         .begin_unbond_attester(&context, &mut working_set)

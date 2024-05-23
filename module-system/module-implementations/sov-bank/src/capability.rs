@@ -1,5 +1,9 @@
+use sov_modules_api::capabilities::TryReserveGasError;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
-use sov_modules_api::{Gas, GasMeter, Spec, StateCheckpoint, TransactionConsumption, WorkingSet};
+use sov_modules_api::{
+    AuthorizeTransactionError, Gas, GasMeter, PreExecWorkingSet, Spec, TransactionConsumption,
+    TxScratchpad, WorkingSet,
+};
 use thiserror::Error;
 
 use crate::utils::IntoPayable;
@@ -24,11 +28,22 @@ pub enum ReserveGasErrorReason {
 }
 
 /// Error type that can be raised by the `reserve_gas` method
-pub struct ReserveGasError<S: Spec> {
+pub struct ReserveGasError<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
     /// The reason for the error.
     pub reason: ReserveGasErrorReason,
-    /// The state checkpoint at the time of the error.
-    pub state_checkpoint: StateCheckpoint<S>,
+    /// The pre execution working set at the time of the error.
+    pub pre_exec_working_set: PreExecWorkingSet<S, PreExecChecksMeter>,
+}
+
+impl<S: Spec, Meter: GasMeter<S::Gas>> From<ReserveGasError<S, Meter>>
+    for TryReserveGasError<S, Meter>
+{
+    fn from(value: ReserveGasError<S, Meter>) -> Self {
+        Self {
+            reason: value.reason.into(),
+            pre_exec_working_set: value.pre_exec_working_set,
+        }
+    }
 }
 
 /// The [`Bank::reserve_gas`] and [`Bank::refund_remaining_gas`] are used to reserve and then lock transaction base gas and tip
@@ -36,30 +51,28 @@ impl<S: Spec> Bank<S> {
     /// Reserve the gas necessary to execute a transaction. The gas is locked at the bank's address
     /// This method loosely follow the-EIP 1559 gas price calculation.
     #[allow(clippy::result_large_err)]
-    pub fn reserve_gas(
+    pub fn reserve_gas<PreExecChecksMeter: GasMeter<S::Gas>>(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
-        pre_execution_checks_meter: &impl GasMeter<S::Gas>,
-        mut state_checkpoint: StateCheckpoint<S>,
-    ) -> Result<WorkingSet<S>, ReserveGasError<S>> {
+        mut pre_exec_working_set: PreExecWorkingSet<S, PreExecChecksMeter>,
+    ) -> Result<WorkingSet<S>, ReserveGasError<S, PreExecChecksMeter>> {
         // We need to do the explicit check (outside of a closure) because otherwise `state_checkpoint` would be captured.
-        let balance = match self.get_balance_of(&payer.clone(), GAS_TOKEN_ID, &mut state_checkpoint)
-        {
-            Some(balance) => balance,
-            None => {
-                return Err(ReserveGasError::<S> {
-                    state_checkpoint,
-                    reason: ReserveGasErrorReason::AccountDoesNotExist,
-                })
-            }
-        };
+        let balance =
+            match self.get_balance_of(&payer.clone(), GAS_TOKEN_ID, &mut pre_exec_working_set) {
+                Some(balance) => balance,
+                None => {
+                    return Err(ReserveGasError::<S, PreExecChecksMeter> {
+                        pre_exec_working_set,
+                        reason: ReserveGasErrorReason::AccountDoesNotExist,
+                    })
+                }
+            };
 
         // the signer must be able to afford the transaction
         if balance < tx.max_fee {
-            return Err(ReserveGasError::<S> {
-                state_checkpoint,
+            return Err(ReserveGasError::<S, PreExecChecksMeter> {
+                pre_exec_working_set,
                 reason: ReserveGasErrorReason::InsufficientBalanceToReserveGas,
             });
         }
@@ -82,34 +95,34 @@ impl<S: Spec> Bank<S> {
                 amount: tx.max_fee,
                 token_id: GAS_TOKEN_ID,
             },
-            &mut state_checkpoint,
+            &mut pre_exec_working_set,
         )
         .expect("Since the balance is checked above, this should be infallible. This is a bug");
 
         if let Some(gas_limit) = &tx.gas_limit {
             // We need to check the gas price in case the user has provided a gas limit.
-            if tx.max_fee < gas_limit.value(gas_price) {
-                return Err(ReserveGasError::<S> {
-                    state_checkpoint,
+            if tx.max_fee < gas_limit.value(pre_exec_working_set.gas_price()) {
+                return Err(ReserveGasError::<S, PreExecChecksMeter> {
+                    pre_exec_working_set,
                     reason: ReserveGasErrorReason::CurrentGasPriceTooHigh,
                 });
             }
         }
 
-        let mut ws = state_checkpoint.to_revertable(tx, gas_price);
-
-        match ws.charge_gas(pre_execution_checks_meter.gas_used()) {
-            Ok(_) => Ok(ws),
-            Err(err) => {
-                let (checkpoint, _) = ws.revert();
-                Err(ReserveGasError::<S> {
-                    state_checkpoint: checkpoint,
+        pre_exec_working_set
+            .transfer_gas_to_working_set(tx)
+            // TODO: impl From<AuthorizeTransactionError> for ReserveGasError
+            .map_err(
+                |AuthorizeTransactionError {
+                     pre_exec_working_set,
+                     reason,
+                 }| ReserveGasError::<S, PreExecChecksMeter> {
+                    pre_exec_working_set,
                     reason: ReserveGasErrorReason::InsufficientGasForPreExecutionChecks(
-                        err.to_string(),
+                        reason.to_string(),
                     ),
-                })
-            }
-        }
+                },
+            )
     }
 
     /// Computes and allocates the gas consumed by the transaction to the base fee and the tip recipients.
@@ -119,17 +132,17 @@ impl<S: Spec> Bank<S> {
         base_fee_recipient: &impl Payable<S>,
         // The address that receives the transaction tip. Typically, the module id of the `SequencerRegistry` module.
         tip_recipient: &impl Payable<S>,
-        consumed_gas: &TransactionConsumption<S::Gas>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        tx_consumption: &TransactionConsumption<S::Gas>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     ) {
         self.transfer_from(
             self.id.to_payable(),
             base_fee_recipient.as_token_holder(),
             Coins {
-                amount: consumed_gas.base_fee_value(),
+                amount: tx_consumption.base_fee_value(),
                 token_id: GAS_TOKEN_ID,
             },
-            state_checkpoint,
+            tx_scratchpad,
         )
         .expect("Transferring the consumed base fee gas is infallible");
 
@@ -137,10 +150,10 @@ impl<S: Spec> Bank<S> {
             self.id.to_payable(),
             tip_recipient.as_token_holder(),
             Coins {
-                amount: consumed_gas.priority_fee(),
+                amount: tx_consumption.priority_fee(),
                 token_id: GAS_TOKEN_ID,
             },
-            state_checkpoint,
+            tx_scratchpad,
         )
         .expect("Transferring the consumed gas tip is infallible");
     }
@@ -148,28 +161,20 @@ impl<S: Spec> Bank<S> {
     /// Refunds any remaining gas to the payer from the bank module after the transaction is processed.
     pub fn refund_remaining_gas(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
         payer: &S::Address,
-        consumption: &TransactionConsumption<S::Gas>,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        tx_consumption: &TransactionConsumption<S::Gas>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     ) {
         // We refund the payer. We need to give back the remaining funds on the gas meter, plus the unspent tip.
         // This is also the maximum fee minus everything that was spent for the tip and base fee (ie the total reward).
-        let total_consumption = consumption.total_consumption();
-        let max_fee = tx.max_fee;
-
-        let amount = max_fee
-            .checked_sub(total_consumption)
-            .unwrap_or_else(|| panic!("The total consumption {total_consumption} should always be less than the max fee {max_fee}"));
-
         self.transfer_from(
             self.id.to_payable(),
             payer,
             Coins {
-                amount,
+                amount: tx_consumption.remaining_funds(),
                 token_id: GAS_TOKEN_ID,
             },
-            state_checkpoint,
+            tx_scratchpad,
         )
         .expect("Refunding unspent gas is infallible");
     }

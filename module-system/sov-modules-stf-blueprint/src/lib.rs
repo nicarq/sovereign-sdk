@@ -1,8 +1,8 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
-
 mod stf_blueprint;
-
+use sov_modules_api::TxScratchpad;
+use sov_rollup_interface::stf::TransactionReceipt;
 #[cfg(feature = "test-utils")]
 mod utils;
 
@@ -10,7 +10,9 @@ mod utils;
 use risc0_cycle_macros::cycle_tracker;
 pub use sov_modules_api::batch::Batch;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::capabilities::{FatalError, HasCapabilities, RuntimeAuthenticator};
+use sov_modules_api::capabilities::{
+    AuthenticationError, FatalError, HasCapabilities, RuntimeAuthenticator,
+};
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 #[cfg(feature = "mocks")]
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
@@ -27,7 +29,8 @@ use sov_rollup_interface::stf::{
 };
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
-pub use stf_blueprint::{apply_tx, ApplyTxResult, ExecutionMode, StfBlueprint};
+pub use stf_blueprint::{process_tx, StfBlueprint};
+use thiserror::Error;
 use tracing::{debug, info};
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
 ///
@@ -66,39 +69,29 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     ) -> Result<Self::GenesisConfig, anyhow::Error>;
 }
 
+/// The reasons for which a transaction can be skipped
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Error)]
+pub enum SkippedReason {
+    /// The transaction had an invalid nonce.
+    #[error("The transaction had an invalid nonce, reason: {0}.")]
+    IncorrectNonce(String),
+    /// Impossible to reserve gas for the transaction to be executed.
+    #[error("Impossible to reserve gas for the transaction to be executed, reason: {0}.")]
+    CannotReserveGas(String),
+    /// Impossible to resolve the context of the transaction.
+    #[error("Impossible to resolve the context of the transaction, reason: {0}.")]
+    CannotResolveContext(String),
+}
+
 /// The receipts of all the transactions in a batch.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TxEffect {
+    /// The transaction was skipped because of a sequencer error
+    Skipped(SkippedReason),
     /// The transaction was reverted during execution.
     Reverted,
     /// Batch was processed successfully.
     Successful,
-    /// The transaction was not applied because it didn't pass the pre-execution gas checks
-    /// (from the `GasEnforcer::try_reserve_gas` capability).
-    /// In this case, the sequencer should be charged the amount of gas used for the pre-execution checks.
-    CannotReserveGas,
-    /// The transaction was not applied because it didn't have enough gas to pay the pre-execution checks
-    /// (signature verification, transaction decoding, etc.).
-    /// In that case, the sequencer should be charged the amount of gas used for the pre-execution checks and
-    /// refunded all the gas fee locked in the transaction.
-    InsufficientGasForPreExecutionChecks,
-    /// The transaction was not applied because it was a duplicate.
-    Duplicate,
-    /// The transaction was not applied because the `Context` could not be resolved.
-    CannotResolveContext,
-}
-
-/// Possible outcomes of a transaction execution for the sequencer.
-pub enum TxSequencerOutcome {
-    /// The transaction was successfully executed.
-    Rewarded(SequencerReward),
-    /// The sequencer was penalized during the execution of the transaction.
-    Penalized,
-    /// The transaction was ignored.
-    ///
-    /// ## Note
-    /// This can only happen in [`ExecutionMode::Speculative`].
-    Ignored,
 }
 
 /// Represents the different outcomes that can occur for a sequencer after batch processing.
@@ -113,6 +106,87 @@ pub enum BatchSequencerOutcome {
     ),
     /// Batch was ignored, sequencer deposit left untouched.
     Ignored,
+}
+
+/// The result of applying a transaction to the state.
+/// This is the value returned when [`process_tx`] succeeds.
+/// It contains the new transaction checkpoint, transaction receipt and the amount of gas tokens that the sequencer should be rewarded.
+pub struct ApplyTxResult<S: Spec> {
+    /// The transaction scratchpad following the application of the transaction.
+    pub tx_scratchpad: TxScratchpad<S>,
+    /// The transaction receipt.
+    pub receipt: TransactionReceipt<TxEffect>,
+    /// The amount of gas tokens that the sequencer should be rewarded.
+    pub sequencer_reward: SequencerReward,
+}
+
+/// The different errors that can be raised after transaction processing
+#[derive(Error, Debug)]
+pub enum TxProcessingErrorReason {
+    /// The sequencer is not authorized to execute the transaction
+    #[error("The sequencer is not authorized to execute the transaction, error {0}")]
+    SequencerUnauthorized(String),
+    /// The transaction was not correctly authenticated
+    #[error("The transaction was not correctly authenticated {0}")]
+    AuthenticationError(AuthenticationError),
+    /// The transaction was not applied because it didn't pass the pre-execution gas checks
+    /// (from the `GasEnforcer::try_reserve_gas` capability).
+    /// In this case, the sequencer should be charged the amount of gas used for the pre-execution checks.
+    #[error("The transaction was not applied because it didn't pass the pre-execution gas checks, reason: {reason}, tx hash: {raw_tx_hash:?}.")]
+    CannotReserveGas {
+        /// The reason why this error was raised.
+        reason: String,
+        /// The raw hash of the transaction that was skipped.
+        raw_tx_hash: [u8; 32],
+    },
+    /// The transaction was not applied because it was a duplicate.
+    #[error("The transaction was not applied because it had an invalid nonce, reason: {reason}, tx hash: {raw_tx_hash:?}.")]
+    Nonce {
+        /// The reason why this error was raised.
+        reason: String,
+        /// The raw hash of the transaction that was skipped.
+        raw_tx_hash: [u8; 32],
+    },
+
+    /// The transaction was not applied because the `Context` could not be resolved.
+    #[error("The transaction was not applied because the `Context` could not be resolved, reason: {reason}, tx hash: {raw_tx_hash:?}.")]
+    CannotResolveContext {
+        /// The reason why this error was raised.
+        reason: String,
+        /// The raw hash of the transaction that was skipped.
+        raw_tx_hash: [u8; 32],
+    },
+}
+
+impl TryInto<(SkippedReason, [u8; 32])> for TxProcessingErrorReason {
+    type Error = anyhow::Error;
+    fn try_into(self) -> Result<(SkippedReason, [u8; 32]), Self::Error> {
+        match self {
+            TxProcessingErrorReason::Nonce {
+                reason,
+                raw_tx_hash,
+            } => Ok((SkippedReason::IncorrectNonce(reason), raw_tx_hash)),
+            TxProcessingErrorReason::CannotResolveContext {
+                reason,
+                raw_tx_hash,
+            } => Ok((SkippedReason::CannotResolveContext(reason), raw_tx_hash)),
+            TxProcessingErrorReason::CannotReserveGas {
+                reason,
+                raw_tx_hash,
+            } => Ok((SkippedReason::CannotReserveGas(reason), raw_tx_hash)),
+            err => Err(anyhow::anyhow!(
+                "The transaction processing error - {err} - cannot be mapped to a SkippedReason"
+            )),
+        }
+    }
+}
+
+/// Error type raised when processing a transaction
+pub struct TxProcessingError<S: Spec> {
+    /// The transaction scratchpad when the error was raised
+    pub tx_scratchpad: TxScratchpad<S>,
+    /// The reason of the error
+    pub reason: TxProcessingErrorReason,
 }
 
 /// Genesis parameters for a blueprint
@@ -235,12 +309,14 @@ where
             .expect("Kernel initialization must succeed");
 
         // TODO(@theochap): for now we are using the unmetered gas meter here, but we should add type safety to be able to remove that method.
-        let mut working_set = state_checkpoint.to_revertable_genesis::<RT>(&params.runtime);
+        let mut working_set = state_checkpoint.to_working_set_genesis::<RT>(&params.runtime);
         self.runtime
             .genesis(&params.runtime, &mut working_set)
             .expect("Runtime initialization must succeed");
 
-        let checkpoint = working_set.checkpoint().0;
+        let staged_state = working_set.finalize().0;
+        let checkpoint = staged_state.commit();
+
         let (log, mut accessory_delta, witness) = checkpoint.freeze();
 
         let (genesis_hash, mut state_update) = pre_state

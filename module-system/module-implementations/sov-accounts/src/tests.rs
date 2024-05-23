@@ -215,7 +215,7 @@ fn test_get_account_after_pub_key_update() {
 #[test]
 fn test_resolve_sender_address() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let working_set: WorkingSet<S> = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (mut checkpoint, _, _) = working_set.checkpoint();
     let accounts = &mut Accounts::<S>::default();
 
@@ -237,7 +237,7 @@ fn test_resolve_sender_address() {
         .resolve_sender_address(&tx, &mut checkpoint)
         .unwrap();
 
-    let mut working_set = checkpoint.to_revertable_unmetered();
+    let mut working_set = checkpoint.to_working_set_unmetered();
     let acc = accounts
         .accounts
         .get(&sender_credential_id, &mut working_set)
