@@ -55,7 +55,9 @@ impl LedgerStateProvider for LedgerDb {
             let slot_num = self.resolve_slot_identifier(slot_id).await?;
             out.push(match slot_num {
                 Some(num) => {
-                    if let Some(stored_slot) = self.db.read::<SlotByNumber>(&SlotNumber(num))? {
+                    if let Some(stored_slot) =
+                        self.db.read_async::<SlotByNumber>(&SlotNumber(num)).await?
+                    {
                         Some(self.populate_slot_response(num, stored_slot, query_mode)?)
                     } else {
                         None
@@ -89,7 +91,11 @@ impl LedgerStateProvider for LedgerDb {
             let batch_num = self.resolve_batch_identifier(batch_id).await?;
             out.push(match batch_num {
                 Some(num) => {
-                    if let Some(stored_batch) = self.db.read::<BatchByNumber>(&BatchNumber(num))? {
+                    if let Some(stored_batch) = self
+                        .db
+                        .read_async::<BatchByNumber>(&BatchNumber(num))
+                        .await?
+                    {
                         Some(self.populate_batch_response(stored_batch, query_mode)?)
                     } else {
                         None
@@ -122,7 +128,7 @@ impl LedgerStateProvider for LedgerDb {
             let num = self.resolve_tx_identifier(id).await?;
             out.push(match num {
                 Some(num) => {
-                    if let Some(tx) = self.db.read::<TxByNumber>(&TxNumber(num))? {
+                    if let Some(tx) = self.db.read_async::<TxByNumber>(&TxNumber(num)).await? {
                         Some(tx.try_into()?)
                     } else {
                         None
@@ -156,7 +162,8 @@ impl LedgerStateProvider for LedgerDb {
                 match num {
                     Some(num) => self
                         .db
-                        .read::<EventByNumber>(&EventNumber(num))?
+                        .read_async::<EventByNumber>(&EventNumber(num))
+                        .await?
                         .map(|serialized_event| serialized_event.try_into()),
                     None => None,
                 }
@@ -253,7 +260,8 @@ impl LedgerStateProvider for LedgerDb {
         let tx_range = (*txn_hash, TxNumber(0))..(*txn_hash, TxNumber(u64::MAX));
         let tx_numbers = self
             .db
-            .collect_in_range::<TxByHash, ([u8; 32], TxNumber)>(tx_range)
+            .collect_in_range_async::<TxByHash, ([u8; 32], TxNumber)>(tx_range)
+            .await
             .with_context(|| {
                 format!("Failed to query txn with hash: 0x{}", hex::encode(txn_hash))
             })?;
@@ -284,7 +292,8 @@ impl LedgerStateProvider for LedgerDb {
     {
         let stored_txn = self
             .db
-            .read::<TxByNumber>(&TxNumber(txn_num))
+            .read_async::<TxByNumber>(&TxNumber(txn_num))
+            .await
             .with_context(|| format!("Failed to query txn num: {} from storage", txn_num))?
             .with_context(|| format!("Txn num: {} does not exist in storage", txn_num))?;
         // Can't map over stored_txn.events because no Step trait, so doing this manually
@@ -374,7 +383,8 @@ impl LedgerStateProvider for LedgerDb {
         match slot_id {
             SlotIdentifier::Hash(hash) => self
                 .db
-                .read::<SlotByHash>(hash)
+                .read_async::<SlotByHash>(hash)
+                .await
                 .map(|id_opt| id_opt.map(|id| id.0)),
             SlotIdentifier::Number(num) => Ok(Some(*num)),
         }
@@ -387,14 +397,16 @@ impl LedgerStateProvider for LedgerDb {
         match batch_id {
             BatchIdentifier::Hash(hash) => self
                 .db
-                .read::<BatchByHash>(hash)
+                .read_async::<BatchByHash>(hash)
+                .await
                 .map(|id_opt| id_opt.map(|id| id.0)),
             BatchIdentifier::Number(num) => Ok(Some(*num)),
             BatchIdentifier::SlotIdAndOffset(SlotIdAndOffset { slot_id, offset }) => {
                 if let Some(slot_num) = self.resolve_slot_identifier(slot_id).await? {
                     Ok(self
                         .db
-                        .read::<SlotByNumber>(&SlotNumber(slot_num))?
+                        .read_async::<SlotByNumber>(&SlotNumber(slot_num))
+                        .await?
                         .map(|slot: StoredSlot| slot.batches.start.0 + offset))
                 } else {
                     Ok(None)
@@ -420,7 +432,8 @@ impl LedgerStateProvider for LedgerDb {
                 let tx_range = (*hash, TxNumber(0))..(*hash, TxNumber(u64::MAX));
                 let tx_numbers = self
                     .db
-                    .collect_in_range::<TxByHash, ([u8; 32], TxNumber)>(tx_range)
+                    .collect_in_range_async::<TxByHash, ([u8; 32], TxNumber)>(tx_range)
+                    .await
                     .with_context(|| {
                         format!("Failed to query txn with hash: 0x{}", hex::encode(hash))
                     })?;
@@ -431,7 +444,8 @@ impl LedgerStateProvider for LedgerDb {
                 if let Some(batch_num) = self.resolve_batch_identifier(batch_id).await? {
                     Ok(self
                         .db
-                        .read::<BatchByNumber>(&BatchNumber(batch_num))?
+                        .read_async::<BatchByNumber>(&BatchNumber(batch_num))
+                        .await?
                         .map(|batch: StoredBatch| batch.txs.start.0 + offset))
                 } else {
                     Ok(None)
@@ -449,7 +463,8 @@ impl LedgerStateProvider for LedgerDb {
                 if let Some(tx_num) = self.resolve_tx_identifier(tx_id).await? {
                     Ok(self
                         .db
-                        .read::<TxByNumber>(&TxNumber(tx_num))?
+                        .read_async::<TxByNumber>(&TxNumber(tx_num))
+                        .await?
                         .map(|tx| tx.events.start.0 + offset))
                 } else {
                     Ok(None)
@@ -460,7 +475,7 @@ impl LedgerStateProvider for LedgerDb {
     }
 
     async fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>> {
-        let agg_proof_data = self.db.get_largest::<ProofByUniqueId>();
+        let agg_proof_data = self.db.get_largest_async::<ProofByUniqueId>().await;
 
         match agg_proof_data? {
             Some((_, proof)) => Ok(Some(AggregatedProofResponse { proof })),
@@ -606,7 +621,7 @@ mod tests {
         LedgerDb::with_cache_db(cache_db).unwrap()
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_save_aggregated_proof() {
         let temp_dir = tempfile::tempdir().unwrap();
         let ledger_db = create_ledger(temp_dir.path());

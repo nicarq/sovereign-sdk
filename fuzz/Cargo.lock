@@ -4151,7 +4151,7 @@ dependencies = [
 [[package]]
 name = "rockbound"
 version = "1.0.0"
-source = "git+https://github.com/sovereign-Labs/rockbound?rev=6febf63f61bc775324b96dc1d1a0290b8a3d9e41#6febf63f61bc775324b96dc1d1a0290b8a3d9e41"
+source = "git+https://github.com/sovereign-Labs/rockbound?rev=677fa2fb325e1adbd7c72405aff9ebdaf1101add#677fa2fb325e1adbd7c72405aff9ebdaf1101add"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -4161,6 +4161,7 @@ dependencies = [
  "proptest-derive",
  "rocksdb",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 

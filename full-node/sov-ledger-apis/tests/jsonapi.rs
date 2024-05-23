@@ -12,7 +12,7 @@ mod common;
 
 /// We want 404s to return rich, JSON errors, like all the other kind of errors
 /// we generate.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn undefined_path_returns_json_error() {
     let ledger_service = LedgerTestService::new().await.unwrap();
 
@@ -28,7 +28,7 @@ async fn undefined_path_returns_json_error() {
 
 /// Asserts basic properties about the latest slot based on the data supplied by
 /// [`sov_test_utils::ledger_db::add_data_to_ledger_db`].
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_latest_slot_is_ok() {
     let ledger_service = LedgerTestService::new().await.unwrap();
     let client = ledger_service.axum_client;
@@ -55,7 +55,7 @@ async fn get_latest_slot_is_ok() {
 
 /// Getting a batch by number, hash, or slot offset should return the same
 /// batch data.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_batch() {
     fn assert_batch(batch_data: &Batch) {
         assert_eq!(batch_data.number, 0);
@@ -97,7 +97,7 @@ async fn get_batch() {
 }
 
 /// All ways of getting a transaction should return the same transaction data.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_tx() {
     fn assert_tx(tx_data: &Tx) {
         assert_eq!(tx_data.number, 0);
@@ -144,7 +144,7 @@ async fn get_tx() {
     assert_tx(&response.data);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_event() {
     let ledger_service = LedgerTestService::new().await.unwrap();
     let client = ledger_service.axum_client;
@@ -174,7 +174,7 @@ async fn get_event() {
     assert_eq!(response.data.module.name, "bank");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_latest_aggregated_proof() {
     fn assert_aggregated_proof(aggregated_proof: &AggregatedProof) {
         assert_eq!(aggregated_proof.public_data.initial_slot_number, u64::MAX);
