@@ -33,7 +33,7 @@ struct TestCase {
     finalization_blocks: u32,
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_instant_finality() -> Result<(), anyhow::Error> {
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
@@ -43,7 +43,7 @@ async fn bank_tx_tests_instant_finality() -> Result<(), anyhow::Error> {
     bank_tx_tests(test_case, rollup_prover_config).await
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_non_instant_finality() -> Result<(), anyhow::Error> {
     let test_case = TestCase {
         wait_for_aggregated_proof: false,

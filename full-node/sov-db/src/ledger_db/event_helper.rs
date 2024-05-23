@@ -6,7 +6,7 @@ use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use crate::ledger_db::rpc_constants::MAX_BATCHES_PER_REQUEST;
 use crate::ledger_db::LedgerDb;
 use crate::schema::tables::{BatchByNumber, EventByKey, SlotByNumber};
-use crate::schema::types::{EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber};
+use crate::schema::types::{BatchNumber, EventNumber, SlotNumber, TxNumber};
 
 fn event_match_helper(
     scanned_key: &EventKey,
@@ -61,7 +61,8 @@ where
 
     let paginated_query_response = ledger_db
         .db
-        .get_n_from_first_match::<EventByKey>(&scan_key_start, num_events)?;
+        .get_n_from_first_match_async::<EventByKey>(&scan_key_start, num_events)
+        .await?;
 
     let (event_keys, next_key) = (
         paginated_query_response.key_value,
@@ -126,32 +127,32 @@ where
 {
     let (txn_range, next_key) = match next {
         None => {
-            let slots_result: Vec<StoredSlot> = [slot_height_start, slot_height_end]
-                .into_iter()
-                .map(|slot_num| {
-                    ledger_db
-                        .db
-                        .read::<SlotByNumber>(&SlotNumber(slot_num))
+            let read_slot = |slot_num| {
+                let db = ledger_db.db.clone();
+                async move {
+                    db.read_async::<SlotByNumber>(&SlotNumber(slot_num))
+                        .await
                         .with_context(|| format!("Failed to query slot with number: {}", slot_num))
                         .and_then(|slot_opt| {
                             slot_opt.with_context(|| {
                                 format!("Slot with number: {} does not exist in storage", slot_num)
                             })
                         })
-                })
-                .collect::<Result<Vec<StoredSlot>, _>>()?;
+                }
+            };
+            let (slots_result_start, slots_result_end) =
+                tokio::try_join!(read_slot(slot_height_start), read_slot(slot_height_end))?;
 
-            let batch_start_num = slots_result[0].batches.start;
-            let batch_end_num = slots_result[1].batches.end;
+            let batch_start_num = slots_result_start.batches.start;
+            let batch_end_num = slots_result_end.batches.end;
 
             ensure!(batch_end_num.0 - batch_start_num.0 < MAX_BATCHES_PER_REQUEST);
 
-            let batches_result: Vec<StoredBatch> = [batch_start_num, batch_end_num]
-                .into_iter()
-                .map(|batch_num| {
-                    ledger_db
-                        .db
-                        .read::<BatchByNumber>(&batch_num)
+            let read_batch = |batch_num: BatchNumber| {
+                let db = ledger_db.db.clone();
+                async move {
+                    db.read_async::<BatchByNumber>(&batch_num)
+                        .await
                         .with_context(|| {
                             format!("Failed to query batch with number: {}", batch_num.0)
                         })
@@ -163,11 +164,13 @@ where
                                 )
                             })
                         })
-                })
-                .collect::<Result<Vec<StoredBatch>, _>>()?;
+                }
+            };
+            let (batch_result_start, batch_result_end) =
+                tokio::try_join!(read_batch(batch_start_num), read_batch(batch_end_num))?;
 
-            let txn_start_num = batches_result[0].txs.start;
-            let txn_end_num = batches_result[1].txs.end;
+            let txn_start_num = batch_result_start.txs.start;
+            let txn_end_num = batch_result_end.txs.end;
             ((txn_start_num.0, txn_end_num.0), None)
         }
         Some(wrapped_next) => {

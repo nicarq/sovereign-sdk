@@ -8,7 +8,7 @@ use sov_rollup_interface::rpc::{EventIdentifier, QueryMode, TxIdAndOffset, TxIde
 
 mod common;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn getters_succeed() {
     let ledger_service = LedgerTestService::new().await.unwrap();
     let rpc_client = ledger_service.rpc_client().await;
@@ -72,7 +72,7 @@ async fn getters_succeed() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn subscribe_slots_succeeds() {
     let ledger_service = LedgerTestService::new().await.unwrap();
     let rpc_client = ledger_service.rpc_client().await;
@@ -80,7 +80,7 @@ async fn subscribe_slots_succeeds() {
     rpc_client.subscribe_slots().await.unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_head_with_optional_query_mode() {
     let ledger_service = LedgerTestService::new().await.unwrap();
     let rpc_client = ledger_service.rpc_client().await;
@@ -112,7 +112,7 @@ async fn get_head_with_optional_query_mode() {
 /// types as parameters (e.g. `"params": [[1, 2, 3]]`), we want to test that
 /// non-nested array types are also supported (e.g. `"params": [1, 2, 3]` and
 /// `"params": [{"txId": 1, "offset": 2}]`).
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_events_patterns() {
     let ledger_service = LedgerTestService::new().await.unwrap();
     let rpc_client = ledger_service.rpc_client().await;

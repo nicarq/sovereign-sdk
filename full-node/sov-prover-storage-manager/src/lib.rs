@@ -848,7 +848,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn try_save_bootstrap_storage() {
         // This test checks the following things:
         //  - bootstrap state only has access to the finalized data.

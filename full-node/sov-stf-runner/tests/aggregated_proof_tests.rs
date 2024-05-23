@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 mod helpers;
 use helpers::runner_init::{initialize_runner, TestNode};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn fetch_aggregated_proof_test() -> Result<(), anyhow::Error> {
     for jump in [1, 7] {
         let test_case = TestCase::new(jump);
