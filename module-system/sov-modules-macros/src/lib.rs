@@ -5,7 +5,7 @@
 //! This crate is **not** intended to be used directly!
 //!
 //! **Please refer to the documentation of `sov-modules-api` for
-//! more information about its `macros` feature flag.**
+//! more information.**
 //!
 //! # Notes about authoring proc-macros
 //!

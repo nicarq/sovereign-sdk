@@ -24,9 +24,7 @@ pub use runtime::*;
 pub use scratchpad::*;
 pub use state::*;
 
-#[cfg(feature = "macros")]
 mod reexport_macros;
-#[cfg(feature = "macros")]
 pub use reexport_macros::*;
 
 mod authentication;
@@ -35,13 +33,11 @@ mod tests;
 pub mod transaction;
 #[cfg(feature = "native")]
 pub mod utils;
-pub use containers::*;
-#[cfg(feature = "macros")]
-extern crate sov_modules_macros;
 use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "native")]
 pub use clap;
+pub use containers::*;
 #[cfg(feature = "native")]
 pub use schemars;
 #[cfg(feature = "native")]
