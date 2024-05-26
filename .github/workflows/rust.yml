@@ -43,11 +43,11 @@ on:
   # - https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#how-merge-queues-work
   # - https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#merge_group
   merge_group:
-    types: [ "checks_requested" ]
+    types: ["checks_requested"]
   push:
-    branches: [ "nightly", "stable" ]
+    branches: ["nightly", "stable"]
   pull_request:
-    branches: [ "nightly", "stable" ]
+    branches: ["nightly", "stable"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -79,6 +79,7 @@ jobs:
       - rollup_bench_check
       - doctests
       - hack
+      - hack_default_targets
       - nextest
       - nextest_all_features
       - doctests
@@ -281,6 +282,39 @@ jobs:
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       - name: cargo hack
         run: make check-features
+
+  # Check that every combination of features is working properly, but without
+  # test or bench targets so dev-dependencies are not required.
+  hack_default_targets:
+    name: features_default_targets
+    # `cargo-hack` uses the same profile as `cargo check` and doesn't require
+    # building dependencies, only checking them, so we can share caches
+    # effectively.
+    needs: check
+    runs-on:
+      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-cache-tag-cache-dev
+      - nscloud-cache-size-100gb
+    timeout-minutes: 120
+    env:
+      SKIP_GUEST_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust
+        run: rustup show
+      - name: cargo install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
+      - name: cargo hack
+        run: make check-features-default-targets
 
   nextest_all_features:
     name: nextest_all_features

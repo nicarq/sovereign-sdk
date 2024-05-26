@@ -30,6 +30,7 @@ where
     /// The light client finalized height
     pub light_client_finalized_height: TransitionHeight,
     /// The validity condition checker used to check validity conditions
+    #[cfg(feature = "native")]
     pub validity_condition_checker: Da::Checker,
     /// Phantom data that contains the validity condition
     pub phantom_data: PhantomData<Da::ValidityCondition>,

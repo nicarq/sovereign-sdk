@@ -1,18 +1,13 @@
 /// Derives the [`DispatchCall`] trait for the underlying
 /// type.
-#[cfg(feature = "macros")]
 pub use sov_modules_macros::DispatchCall;
 /// Derives the <runtime_name>Event enum for a given runtime.
-#[cfg(feature = "macros")]
 pub use sov_modules_macros::Event;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime
 /// `struct`.
-#[cfg(feature = "macros")]
 pub use sov_modules_macros::Genesis;
 /// Derives the [`ModuleInfo`] trait for the underlying `struct`, giving full access to kernel functionality
-#[cfg(feature = "macros")]
 pub use sov_modules_macros::KernelModuleInfo;
-#[cfg(feature = "macros")]
 pub use sov_modules_macros::MessageCodec;
 /// Derives the [`ModuleInfo`] trait for the underlying `struct`.
 ///
@@ -52,11 +47,9 @@ pub use sov_modules_macros::MessageCodec;
 ///     let prefix1 = test_struct.state_map.prefix();
 /// }
 /// ```
-#[cfg(feature = "macros")]
 pub use sov_modules_macros::ModuleInfo;
 
 /// Procedural macros to assist with creating new modules.
-#[cfg(feature = "macros")]
 pub mod macros {
     /// Simple convenience macro for adding some common derive macros and
     /// impls specifically for a NewType wrapping an Address.
