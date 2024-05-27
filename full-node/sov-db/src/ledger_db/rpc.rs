@@ -215,6 +215,18 @@ impl LedgerStateProvider for LedgerDb {
             .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
     }
 
+    async fn get_tx_numbers_by_hash(&self, hash: &[u8; 32]) -> Result<Vec<u64>, anyhow::Error> {
+        let tx_range = (*hash, TxNumber(0))..(*hash, TxNumber(u64::MAX));
+        self.db
+            .collect_in_range_async::<TxByHash, ([u8; 32], TxNumber)>(tx_range)
+            .await
+            .map(|v| {
+                v.iter()
+                    .map(|((_, tx_num), _)| tx_num.0)
+                    .collect::<Vec<_>>()
+            })
+    }
+
     // Get X by number
     async fn get_slot_by_number<B, T>(
         &self,
@@ -426,9 +438,6 @@ impl LedgerStateProvider for LedgerDb {
                 // it's more likely that a transaction gets succeeds on its first inclusion than on a second one.
                 // (This is because transactions with *future* nonces rarely get included, but transactions with
                 // past nonces can get included easily by racing sequencers.)
-                // TODO: Add an endpoint returning all tx numbers for a given hash so that the caller
-                // can identify the instance they care about and query it by number
-                // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/518>
                 let tx_range = (*hash, TxNumber(0))..(*hash, TxNumber(u64::MAX));
                 let tx_numbers = self
                     .db

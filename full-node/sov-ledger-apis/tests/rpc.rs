@@ -57,7 +57,10 @@ async fn getters_succeed() {
         .get_tx_by_number(0, QueryMode::Compact)
         .await
         .unwrap();
-
+    rpc_client
+        .get_tx_numbers_by_hash(hash, QueryMode::Compact)
+        .await
+        .unwrap();
     rpc_client
         .get_slots_range(0, 1, QueryMode::Compact)
         .await

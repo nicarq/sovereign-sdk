@@ -109,6 +109,14 @@ where
         query_mode: QueryMode,
     ) -> RpcResult<Option<Tx>>;
 
+    /// Gets a list of unique transaction numbers for a given hash.
+    #[method(name = "getTransactionNumbersByHash")]
+    async fn get_tx_numbers_by_hash(
+        &self,
+        hex_hash: HexHash,
+        query_mode: QueryMode,
+    ) -> RpcResult<Vec<u64>>;
+
     /// Gets a single slot by number.
     #[method(name = "getSlotByNumber")]
     async fn get_slot_by_number(

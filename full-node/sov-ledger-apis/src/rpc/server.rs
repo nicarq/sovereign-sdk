@@ -130,6 +130,17 @@ where
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
 
+    rpc.register_async_method(
+        "ledger_getTransactionNumbersByHash",
+        |params, ledger| async move {
+            let args: QueryArgs<HexHash> = extract_query_args(params)?;
+            ledger
+                .get_tx_numbers_by_hash(&args.0 .0)
+                .await
+                .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+        },
+    )?;
+
     // By-number getters.
     rpc.register_async_method("ledger_getSlotByNumber", |params, ledger| async move {
         let args: QueryArgs<u64> = extract_query_args(params)?;

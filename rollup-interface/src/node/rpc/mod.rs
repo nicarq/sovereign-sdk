@@ -324,6 +324,11 @@ pub trait LedgerStateProvider {
             .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
     }
 
+    /// Get a list of transaction numbers by hash. Since a tx hash itself
+    /// may not be unique, this returns a list of unique tx numbers associated
+    /// with that hash, which numbers may then be used to query the transaction.
+    async fn get_tx_numbers_by_hash(&self, hash: &[u8; 32]) -> Result<Vec<u64>, Self::Error>;
+
     /// Get a single slot by number.
     async fn get_slot_by_number<B, T>(
         &self,
