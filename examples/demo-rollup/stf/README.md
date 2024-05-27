@@ -103,7 +103,6 @@ To use the `StfBlueprint`, the runtime needs to provide implementation of these 
 
 In this demo, we only rely on two modules which need access to the hooks - `sov-accounts` and `sequencer-registry`.
 
-The `sov-accounts` module implements `TxHooks` because it needs to check and increment the sender nonce for every transaction.
 The `sequencer-registry` implements `ApplyBatchHooks` since it is responsible for managing the sequencer bond.
 
 The implementation for `MyRuntime` is straightforward because we can leverage the existing hooks provided by `sov-accounts` and `sequencer-registry` and reuse them in our implementation.

@@ -64,6 +64,8 @@ pub struct Runtime<S: Spec, Da: DaSpec> {
     pub prover_incentives: sov_prover_incentives::ProverIncentives<S, Da>,
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<S>,
+    /// The Nonces module.
+    pub nonces: sov_nonces::Nonces<S>,
     /// The NFT module.
     pub nft: sov_nft_module::NonFungibleToken<S>,
     #[cfg_attr(feature = "native", cli_skip)]
@@ -109,6 +111,7 @@ impl<S: Spec, Da: DaSpec> HasCapabilities<S, Da> for Runtime<S, Da> {
             bank: &self.bank,
             sequencer_registry: &self.sequencer_registry,
             accounts: &self.accounts,
+            nonces: &self.nonces,
             prover_incentives: &self.prover_incentives,
         }
     }

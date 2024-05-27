@@ -262,6 +262,7 @@ Commands:
   value-setter        A subcommand for the `value_setter` module
   prover-incentives   A subcommand for the `prover_incentives` module
   accounts            A subcommand for the `accounts` module
+  nonces              A subcommand for the `nonces` module
   nft                 A subcommand for the `nft` module
   help                Print this message or the help of the given subcommand(s)
 

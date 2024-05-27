@@ -15,6 +15,7 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec, Da: DaSpec> {
     pub bank: &'a sov_bank::Bank<S>,
     pub sequencer_registry: &'a SequencerRegistry<S, Da>,
     pub accounts: &'a sov_accounts::Accounts<S>,
+    pub nonces: &'a sov_nonces::Nonces<S>,
     pub prover_incentives: &'a sov_prover_incentives::ProverIncentives<S, Da>,
 }
 
@@ -98,7 +99,8 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         pre_exec_working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(), anyhow::Error> {
         // TODO(@theochap): In the next PR this method will become failible
-        self.accounts.check_uniqueness(tx, pre_exec_working_set)
+        self.nonces
+            .check_nonce(&tx.credential_id, tx.nonce, pre_exec_working_set)
     }
 
     /// Marks a transaction as having been executed, preventing it from executing again.
@@ -109,7 +111,8 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         tx_scratchpad: &mut TxScratchpad<S>,
     ) {
         // TODO(@theochap): In the next PR this method will become failible
-        self.accounts.mark_tx_attempted(tx, tx_scratchpad);
+        self.nonces
+            .mark_tx_attempted(&tx.credential_id, tx_scratchpad);
     }
 
     /// Resolves the context for a transaction.

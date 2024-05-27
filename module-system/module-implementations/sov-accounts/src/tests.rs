@@ -35,10 +35,7 @@ fn test_config_account() {
 
     assert_eq!(
         query_response,
-        rpc::Response::AccountExists {
-            addr: init_addr,
-            nonce: 0
-        }
+        rpc::Response::AccountExists { addr: init_addr }
     );
 }
 
@@ -75,10 +72,7 @@ fn test_update_account() {
 
         assert_eq!(
             query_response,
-            rpc::Response::AccountExists {
-                addr: sender_addr,
-                nonce: 0
-            }
+            rpc::Response::AccountExists { addr: sender_addr }
         );
     }
 
@@ -102,10 +96,7 @@ fn test_update_account() {
 
         assert_eq!(
             query_response,
-            rpc::Response::AccountExists {
-                addr: sender_addr,
-                nonce: 0
-            }
+            rpc::Response::AccountExists { addr: sender_addr }
         );
 
         // New account with the new public key and an old address is created.
@@ -115,10 +106,7 @@ fn test_update_account() {
 
         assert_eq!(
             query_response,
-            rpc::Response::AccountExists {
-                addr: sender_addr,
-                nonce: 0
-            }
+            rpc::Response::AccountExists { addr: sender_addr }
         );
     }
 }
@@ -265,24 +253,22 @@ fn create_test_tx<S: Spec>(
 #[test]
 fn test_response_serialization() {
     let addr: Vec<u8> = (1..=32).collect();
-    let nonce = 123456789;
     let mut addr_array = [0u8; 32];
     addr_array.copy_from_slice(&addr);
     let response = Response::AccountExists::<<S as Spec>::Address> {
         addr: Address::from(addr_array),
-        nonce,
     };
 
     let json = serde_json::to_string(&response).unwrap();
     assert_eq!(
         json,
-        r#"{"AccountExists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm","nonce":123456789}}"#
+        r#"{"AccountExists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"}}"#
     );
 }
 
 #[test]
 fn test_response_deserialization() {
-    let json = r#"{"AccountExists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm","nonce":123456789}}"#;
+    let json = r#"{"AccountExists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"}}"#;
     let response: Response<<S as Spec>::Address> = serde_json::from_str(json).unwrap();
 
     let expected_addr: Vec<u8> = (1..=32).collect();
@@ -290,7 +276,6 @@ fn test_response_deserialization() {
     addr_array.copy_from_slice(&expected_addr);
     let expected_response = Response::AccountExists::<<S as Spec>::Address> {
         addr: Address::from(addr_array),
-        nonce: 123456789,
     };
 
     assert_eq!(response, expected_response);
@@ -298,13 +283,13 @@ fn test_response_deserialization() {
 
 #[test]
 fn test_response_deserialization_on_wrong_hrp() {
-    let json = r#"{"AccountExists":{"addr":"hax1qypqx68ju0l","nonce":123456789}}"#;
+    let json = r#"{"AccountExists":{"addr":"hax1qypqx68ju0l"}}"#;
     let response: Result<Response<<S as Spec>::Address>, serde_json::Error> =
         serde_json::from_str(json);
     match response {
         Ok(response) => panic!("Expected error, got {:?}", response),
         Err(err) => {
-            assert_eq!(err.to_string(), "Wrong HRP: hax at line 1 column 42");
+            assert_eq!(err.to_string(), "Wrong HRP: hax at line 1 column 43");
         }
     }
 }

@@ -17,8 +17,7 @@ where
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let addr = u.arbitrary()?;
-        let nonce = u.arbitrary()?;
-        Ok(Self { addr, nonce })
+        Ok(Self { addr })
     }
 }
 

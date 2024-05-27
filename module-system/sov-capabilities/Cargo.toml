@@ -18,6 +18,7 @@ sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
 sov-bank = { path = "../module-implementations/sov-bank" }
 sov-accounts = { path = "../module-implementations/sov-accounts" }
+sov-nonces = { path = "../module-implementations/sov-nonces" }
 sov-sequencer-registry = { path = "../module-implementations/sov-sequencer-registry" }
 sov-prover-incentives = { path = "../module-implementations/sov-prover-incentives" }
 
@@ -31,6 +32,7 @@ native = [
 	"sov-accounts/native",
 	"sov-bank/native",
 	"sov-modules-api/native",
+	"sov-nonces/native",
 	"sov-prover-incentives/native",
 	"sov-rollup-interface/native",
 	"sov-sequencer-registry/native",

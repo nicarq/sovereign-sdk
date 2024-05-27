@@ -1983,6 +1983,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nft-module",
+ "sov-nonces",
  "sov-prover-incentives",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
@@ -7228,6 +7229,7 @@ dependencies = [
  "sov-accounts",
  "sov-bank",
  "sov-modules-api",
+ "sov-nonces",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
@@ -7302,10 +7304,10 @@ dependencies = [
  "semver 1.0.22",
  "serde",
  "serde_json",
- "sov-accounts",
  "sov-bank",
  "sov-mock-da",
  "sov-modules-api",
+ "sov-nonces",
  "sov-rollup-interface",
  "sov-test-utils",
  "tempfile",
@@ -7739,6 +7741,27 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "sov-nonces"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "borsh 0.10.3",
+ "jsonrpsee 0.22.5",
+ "proptest",
+ "proptest-derive",
+ "schemars",
+ "serde",
+ "serde_with",
+ "sov-modules-api",
+ "sov-nonces",
+ "sov-prover-storage-manager",
+ "sov-state",
+ "sov-test-utils",
+ "tempfile",
 ]
 
 [[package]]

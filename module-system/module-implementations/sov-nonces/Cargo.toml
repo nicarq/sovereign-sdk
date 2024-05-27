@@ -1,0 +1,53 @@
+[package]
+name = "sov-nonces"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+readme = "README.md"
+resolver = "2"
+
+[dependencies]
+anyhow = { workspace = true }
+borsh = { workspace = true, features = ["rc"] }
+schemars = { workspace = true, optional = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+
+sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
+sov-state = { path = "../../sov-state", version = "0.3" }
+
+arbitrary = { workspace = true, optional = true }
+proptest = { workspace = true, optional = true }
+proptest-derive = { workspace = true, optional = true }
+
+[dev-dependencies]
+sov-nonces = { path = ".", features = ["native"] }
+tempfile = { workspace = true }
+sov-modules-api = { path = "../../sov-modules-api", features = ["test-utils"]}
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-test-utils = { path = "../../sov-test-utils" }
+
+
+[features]
+default = []
+arbitrary = [
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"sov-modules-api/arbitrary",
+	"sov-nonces/arbitrary",
+	"sov-state/arbitrary",
+	"sov-test-utils/arbitrary",
+]
+native = [
+	"jsonrpsee",
+	"schemars",
+	"sov-modules-api/native",
+	"sov-nonces/native",
+	"sov-state/native",
+]

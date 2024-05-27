@@ -34,8 +34,6 @@ use crate::event::Event;
 pub struct Account<S: Spec> {
     /// The address of the account.
     pub addr: S::Address,
-    /// The current nonce value associated with the account.
-    pub nonce: u64,
 }
 
 /// A module responsible for managing accounts on the rollup.
