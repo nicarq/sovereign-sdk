@@ -21,9 +21,8 @@ fn burn_deployed_tokens() {
     let sequencer_address = generate_address("sequencer");
     let sender_context =
         Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
-    let minter_address = generate_address("minter");
-    let minter_context =
-        Context::<S>::new(minter_address, Default::default(), sequencer_address, 1);
+    let minter = generate_address("minter");
+    let minter_context = Context::<S>::new(minter, Default::default(), sequencer_address, 1);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
@@ -33,8 +32,8 @@ fn burn_deployed_tokens() {
     let bank_config = BankConfig::<S> {
         gas_token_config: GasTokenConfig {
             token_name,
-            address_and_balances: vec![(minter_address, initial_balance)],
-            authorized_minters: vec![minter_address],
+            address_and_balances: vec![(minter, initial_balance)],
+            authorized_minters: vec![minter],
         },
         tokens: vec![],
     };
@@ -70,7 +69,7 @@ fn burn_deployed_tokens() {
 
     let current_total_supply = query_total_supply(&mut working_set);
     assert_eq!(Some(initial_balance - burn_amount), current_total_supply);
-    let minter_balance = query_user_balance(minter_address, &mut working_set);
+    let minter_balance = query_user_balance(minter, &mut working_set);
     assert_eq!(Some(initial_balance - burn_amount), minter_balance);
 
     let previous_total_supply = current_total_supply;
@@ -113,7 +112,7 @@ fn burn_deployed_tokens() {
     bank.call(burn_zero_message, &minter_context, &mut working_set)
         .expect("Failed to burn token");
     assert_eq!(working_set.events().len(), 2);
-    let minter_balance_after = query_user_balance(minter_address, &mut working_set);
+    let minter_balance_after = query_user_balance(minter, &mut working_set);
     assert_eq!(minter_balance, minter_balance_after);
 
     // ---
@@ -137,18 +136,15 @@ fn burn_deployed_tokens() {
             "Failed to burn coins(token_id={} amount={}) from owner {}",
             token_id,
             initial_balance + 10,
-            minter_address
+            minter
         ),
         message_1
     );
-    assert_eq!(
-        format!("Insufficient funds for {}", minter_address),
-        message_2
-    );
+    assert_eq!(format!("Insufficient funds for {}", minter), message_2);
 
     // ---
     // Try to burn non-existing token
-    let token_id = get_token_id::<S>("NotRealToken2", &minter_address, salt);
+    let token_id = get_token_id::<S>("NotRealToken2", &minter, salt);
     let burn_message = CallMessage::Burn {
         coins: Coins {
             amount: 1,
@@ -166,7 +162,7 @@ fn burn_deployed_tokens() {
     assert_eq!(
         format!(
             "Failed to burn coins(token_id={} amount={}) from owner {}",
-            token_id, 1, minter_address
+            token_id, 1, minter
         ),
         message_1
     );

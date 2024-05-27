@@ -19,7 +19,7 @@ fn initial_and_deployed_token() {
     let sequencer_address = generate_address::<S>("sequencer");
     let sender_context =
         Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
-    let minter_address = generate_address::<S>("minter");
+    let minter = generate_address::<S>("minter");
     let initial_balance = 500;
     let token_name = "Token1".to_owned();
     let salt = 1;
@@ -28,8 +28,8 @@ fn initial_and_deployed_token() {
         salt,
         token_name: token_name.clone(),
         initial_balance,
-        minter_address,
-        authorized_minters: vec![minter_address],
+        mint_to_address: minter,
+        authorized_minters: vec![minter],
     };
 
     bank.call(create_token_message, &sender_context, &mut working_set)
@@ -46,7 +46,7 @@ fn initial_and_deployed_token() {
         .expect("Token is missing its name");
     assert_eq!(&token_name, &observed_token_name);
 
-    let minter_balance = bank.get_balance_of(&minter_address, token_id, &mut working_set);
+    let minter_balance = bank.get_balance_of(&minter, token_id, &mut working_set);
     assert_eq!(Some(initial_balance), minter_balance);
 
     let total_supply = bank

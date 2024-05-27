@@ -256,13 +256,13 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
 pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
     let mut message_vec = vec![];
 
-    let (minter_address, pk) = sender_address_with_pkey::<TestSpec>();
+    let (minter, pk) = sender_address_with_pkey::<TestSpec>();
     let msg: sov_bank::CallMessage<TestSpec> = sov_bank::CallMessage::<TestSpec>::CreateToken {
         salt: 11,
         token_name: "sov-test-token".to_string(),
         initial_balance: 100000000,
-        minter_address,
-        authorized_minters: vec![minter_address],
+        mint_to_address: minter,
+        authorized_minters: vec![minter],
     };
     let enc_msg = <Runtime<TestSpec, RngDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
     let tx = Transaction::<TestSpec>::new_signed_tx(

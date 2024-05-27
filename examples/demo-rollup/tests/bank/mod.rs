@@ -94,7 +94,7 @@ fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSp
             salt: TOKEN_SALT,
             token_name: TOKEN_NAME.to_string(),
             initial_balance: 1000,
-            minter_address: user_address,
+            mint_to_address: user_address,
             authorized_minters: vec![],
         });
     let chain_id = 0;

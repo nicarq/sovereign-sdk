@@ -118,7 +118,7 @@ fn call(
             salt,
             token_name,
             initial_balance,
-            minter_address,
+            mint_to_address,
             authorized_minters,
         } => {
             self.charge_gas(working_set, &self.gas.create_token)?;
@@ -184,8 +184,8 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
         match msg {
             CallMessage::CreateToken {
                 token_name,
-                minter_address,
-            } => Ok(self.create_token(token_name, minter_address, context, working_set)?),
+                mint_to_address,
+            } => Ok(self.create_token(token_name, mint_to_address, context, working_set)?),
             CallMessage::Transfer { to, coins } => { Ok(self.transfer(to, coins, context, working_set)?) },
             CallMessage::Burn { coins } => Ok(self.burn(coins, context, working_set)?),
         }
