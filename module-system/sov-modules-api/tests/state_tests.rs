@@ -1,10 +1,12 @@
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::*;
 use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
+use sov_rollup_interface::execution_mode::{self, Native};
 use sov_state::{ArrayWitness, Prefix, ProvableNamespace, ProverStorage, Storage, ZkStorage};
 
-type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
-type Zk = sov_modules_api::default_spec::ZkDefaultSpec<MockZkVerifier, MockZkVerifier>;
+type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+type Zk =
+    sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, execution_mode::Zk>;
 pub type TestHasher = <<S as Spec>::CryptoSpec as CryptoSpec>::Hasher;
 pub type StorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
 

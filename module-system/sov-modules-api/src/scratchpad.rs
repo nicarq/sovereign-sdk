@@ -1272,6 +1272,7 @@ where
 #[cfg(test)]
 mod tests {
     use sov_mock_zkvm::MockZkVerifier;
+    use sov_rollup_interface::execution_mode::Native;
 
     use super::{PriorityFeeBips, SequencerReward, TransactionConsumption};
     use crate::default_spec::DefaultSpec;
@@ -1283,12 +1284,13 @@ mod tests {
     fn test_compute_transaction_reward_consume_all_gas() {
         const REMAINING_FUNDS: u64 = 100;
 
-        let tx_reward = transaction_consumption_helper::<DefaultSpec<MockZkVerifier, MockZkVerifier>>(
-            &GasArray::from_slice(&[REMAINING_FUNDS / 2; 2]),
-            &GasPrice::from_slice(&[1; 2]),
-            REMAINING_FUNDS,
-            PriorityFeeBips::from_percentage(10),
-        );
+        let tx_reward =
+            transaction_consumption_helper::<DefaultSpec<MockZkVerifier, MockZkVerifier, Native>>(
+                &GasArray::from_slice(&[REMAINING_FUNDS / 2; 2]),
+                &GasPrice::from_slice(&[1; 2]),
+                REMAINING_FUNDS,
+                PriorityFeeBips::from_percentage(10),
+            );
 
         assert_eq!(
             tx_reward,
@@ -1306,12 +1308,13 @@ mod tests {
     fn test_compute_transaction_reward_consume_not_all_gas() {
         const REMAINING_FUNDS: u64 = 100;
 
-        let tx_reward = transaction_consumption_helper::<DefaultSpec<MockZkVerifier, MockZkVerifier>>(
-            &GasArray::from_slice(&[REMAINING_FUNDS / 4; 2]),
-            &GasPrice::from_slice(&[1; 2]),
-            REMAINING_FUNDS,
-            PriorityFeeBips::from_percentage(100),
-        );
+        let tx_reward =
+            transaction_consumption_helper::<DefaultSpec<MockZkVerifier, MockZkVerifier, Native>>(
+                &GasArray::from_slice(&[REMAINING_FUNDS / 4; 2]),
+                &GasPrice::from_slice(&[1; 2]),
+                REMAINING_FUNDS,
+                PriorityFeeBips::from_percentage(100),
+            );
 
         assert_eq!(
             tx_reward,

@@ -29,9 +29,12 @@ pub mod value_setter_data;
 
 pub use evm::simple_smart_contract::SimpleStorageContract;
 use sov_modules_api::PrivateKey;
+use sov_rollup_interface::execution_mode::{Native, Zk};
 
-pub type TestSpec = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
-pub type ZkTestSpec = sov_modules_api::default_spec::ZkDefaultSpec<MockZkVerifier, MockZkVerifier>;
+pub type TestSpec =
+    sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+pub type ZkTestSpec =
+    sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Zk>;
 pub type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;

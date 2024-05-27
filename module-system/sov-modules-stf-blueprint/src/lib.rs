@@ -90,7 +90,7 @@ pub enum TxEffect {
     Skipped(SkippedReason),
     /// The transaction was reverted during execution.
     Reverted,
-    /// Batch was processed successfully.
+    /// The transaction was processed successfully.
     Successful,
 }
 

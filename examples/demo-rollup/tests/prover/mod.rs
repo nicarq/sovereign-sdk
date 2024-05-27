@@ -7,6 +7,7 @@ use risc0::MOCK_DA_ELF;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockZkVerifier;
+use sov_modules_api::execution_mode::WitnessGeneration;
 use sov_modules_api::SlotData;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -26,6 +27,7 @@ use crate::prover::datagen::get_blocks_from_da;
 type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
     sov_risc0_adapter::Risc0Verifier,
     sov_mock_zkvm::MockZkVerifier,
+    WitnessGeneration,
 >;
 
 mod datagen;

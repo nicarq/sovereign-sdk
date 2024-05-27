@@ -2,11 +2,12 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sha2::Sha256;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_rollup_interface::crypto::{PrivateKey, Signature};
+use sov_rollup_interface::execution_mode::Native;
 use sov_rollup_interface::zk::CryptoSpec;
 
 use crate::{ModuleId, ModuleInfo, Spec};
 
-type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;

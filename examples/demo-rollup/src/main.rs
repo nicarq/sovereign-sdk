@@ -6,7 +6,8 @@ use demo_stf::genesis_config::GenesisPaths;
 use sov_demo_rollup::{initialize_logging, CelestiaDemoRollup, MockDemoRollup};
 use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
-use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
+use sov_modules_api::execution_mode::Native;
+use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::debug;
 
@@ -102,7 +103,7 @@ async fn new_rollup_with_celestia_da(
     kernel_genesis_paths: &BasicKernelGenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig>,
-) -> Result<Rollup<CelestiaDemoRollup>, anyhow::Error> {
+) -> Result<Rollup<CelestiaDemoRollup<Native>, Native>, anyhow::Error> {
     debug!(config_path = rollup_config_path, "Starting Celestia rollup");
 
     let rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
@@ -119,7 +120,7 @@ async fn new_rollup_with_celestia_da(
         )?,
     };
 
-    let mock_rollup = CelestiaDemoRollup {};
+    let mock_rollup = CelestiaDemoRollup::<Native>::default();
     mock_rollup
         .create_new_rollup(
             rt_genesis_paths,
@@ -135,7 +136,7 @@ async fn new_rollup_with_mock_da(
     kernel_genesis_paths: &BasicKernelGenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig>,
-) -> Result<Rollup<MockDemoRollup>, anyhow::Error> {
+) -> Result<Rollup<MockDemoRollup<Native>, Native>, anyhow::Error> {
     debug!(config_path = rollup_config_path, "Starting mock rollup");
 
     let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
@@ -157,7 +158,7 @@ async fn new_rollup_with_mock_da(
         )?,
     };
 
-    let mock_rollup = MockDemoRollup {};
+    let mock_rollup = MockDemoRollup::<Native>::default();
     mock_rollup
         .create_new_rollup(
             rt_genesis_paths,

@@ -9,6 +9,7 @@ use sov_rollup_interface::RollupAddress;
 use sov_state::{Storage, Witness};
 
 use crate::common::Gas;
+use crate::higher_kinded_types::Generic;
 use crate::transaction::Credentials;
 use crate::{PublicKeyExt, SignatureExt};
 
@@ -19,9 +20,9 @@ use crate::{PublicKeyExt, SignatureExt};
 ///
 /// For example, a rollup running in a STARK-based zkVM like Risc0 might pick Sha256 or Poseidon as its preferred hasher,
 /// while a rollup running in an elliptic-curve based SNARK such as `Placeholder` from the =nil; foundation might
-/// prefer a Pedersen hash. By using a generic Context and Spec, a rollup developer can trivially customize their
+/// prefer a Pedersen hash. By using a generic Spec, a rollup developer can trivially customize their
 /// code for either (or both!) of these environments without touching their module implementations.
-pub trait Spec: Default + Debug + Clone + Send + Sync + PartialEq + 'static {
+pub trait Spec: Default + Debug + Clone + Send + Sync + PartialEq + Generic + 'static {
     /// Gas unit for the gas price computation.
     type Gas: Gas;
 

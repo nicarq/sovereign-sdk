@@ -6,6 +6,7 @@ pub mod cli;
 pub mod common;
 mod containers;
 pub mod default_spec;
+pub mod higher_kinded_types;
 pub mod hooks;
 pub mod module;
 #[cfg(feature = "native")]
@@ -51,7 +52,7 @@ pub use sov_rollup_interface::zk::aggregated_proof::{AggregatedProofPublicData, 
 pub use sov_rollup_interface::zk::{
     CryptoSpec, StateTransitionPublicData, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
-pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
+pub use sov_rollup_interface::{digest, execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::StateReaderAndWriter;
 
 pub use crate::common::ModuleError as Error;

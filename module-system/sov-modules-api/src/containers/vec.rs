@@ -300,13 +300,14 @@ mod test {
 
     use sov_mock_zkvm::MockZkVerifier;
     use sov_prover_storage_manager::new_orphan_storage;
+    use sov_rollup_interface::execution_mode::Native;
     use sov_state::codec::BorshCodec;
     use sov_state::Prefix;
 
     use super::*;
     use crate::WorkingSet;
 
-    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
     #[test]
     fn test_state_vec() {

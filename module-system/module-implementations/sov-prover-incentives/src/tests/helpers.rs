@@ -5,6 +5,7 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     Address, CryptoSpec, GasMeter, KernelModule, KernelWorkingSet, Module, ModuleInfo, PrivateKey,
@@ -16,7 +17,8 @@ use sov_state::{DefaultStorageSpec, StorageRoot};
 
 use crate::ProverIncentives;
 
-pub(crate) type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+pub(crate) type S =
+    sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 pub(crate) type Da = MockDaSpec;
 
 pub(crate) const BOND_AMOUNT: u64 = 10_000;

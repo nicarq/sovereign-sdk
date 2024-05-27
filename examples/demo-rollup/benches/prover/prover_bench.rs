@@ -148,7 +148,8 @@ fn chain_stats(num_blocks: usize, num_blocks_with_txns: usize, num_txns: usize, 
     table.printstd();
 }
 
-type BenchSpec = DefaultSpec<Risc0Verifier, Risc0Verifier>;
+type BenchSpec =
+    DefaultSpec<Risc0Verifier, Risc0Verifier, sov_rollup_interface::execution_mode::Native>;
 
 type BenchSTF<'a> = StfBlueprint<
     BenchSpec,

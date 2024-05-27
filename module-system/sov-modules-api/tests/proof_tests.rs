@@ -1,9 +1,10 @@
 use sov_mock_zkvm::MockZkVerifier;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::*;
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::{Prefix, Storage, StorageProof};
 
-type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
 #[allow(clippy::type_complexity)]
 fn make_user_map_proof(

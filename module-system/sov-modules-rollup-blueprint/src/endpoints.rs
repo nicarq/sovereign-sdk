@@ -1,33 +1,38 @@
 use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::rest::LedgerRoutes;
+use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{Authenticator, RuntimeEventProcessor, RuntimeEventResponse, Spec};
 use sov_modules_stf_blueprint::{
     BatchSequencerOutcome, Runtime as RuntimeTrait, RuntimeEndpoints, TxEffect,
 };
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
 use tokio::sync::watch;
 use tower_http::cors::CorsLayer;
 
-use crate::RollupBlueprint;
+use crate::FullNodeBlueprint;
 
 /// Register rollup's default RPC methods and Axum router.
-pub fn register_endpoints<B, Auth>(
-    storage: watch::Receiver<<B::NativeSpec as Spec>::Storage>,
+pub fn register_endpoints<B, M, Auth>(
+    storage: watch::Receiver<<B::Spec as Spec>::Storage>,
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
     sequencer: <B::DaSpec as DaSpec>::Address,
 ) -> anyhow::Result<RuntimeEndpoints>
 where
-    B: RollupBlueprint + 'static,
-    B::NativeRuntime: RuntimeEventProcessor,
+    B: FullNodeBlueprint<M> + 'static,
+    M: ExecutionMode + 'static,
+    B::Runtime: RuntimeEventProcessor,
     <B::DaService as DaService>::TransactionId: Clone + Send + Sync + serde::Serialize,
-    Auth: Authenticator<Spec = B::NativeSpec, DispatchCall = B::NativeRuntime>,
+    Auth: Authenticator<Spec = B::Spec, DispatchCall = B::Runtime>,
+    <B::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::InnerZkvm>,
+    <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,
 {
-    let mut endpoints = B::NativeRuntime::endpoints(storage.clone());
+    let mut endpoints = B::Runtime::endpoints(storage.clone());
 
     // Ledger endpoint.
     {
@@ -37,14 +42,14 @@ where
                 LedgerDb,
                 BatchSequencerOutcome,
                 TxEffect,
-                RuntimeEventResponse<<B::NativeRuntime as RuntimeEventProcessor>::RuntimeEvent>,
+                RuntimeEventResponse<<B::Runtime as RuntimeEventProcessor>::RuntimeEvent>,
             >(ledger_db.clone())?)?;
 
         let ledger_axum_router = LedgerRoutes::<
             LedgerDb,
             BatchSequencerOutcome,
             TxEffect,
-            <B::NativeRuntime as RuntimeEventProcessor>::RuntimeEvent,
+            <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
         >::axum_router(ledger_db.clone(), "/ledger");
         endpoints.axum_router = endpoints
             .axum_router
@@ -58,19 +63,14 @@ where
             max_batch_size_bytes: 1024 * 100,
             sequencer_address: sequencer.clone(),
         };
-        let batch_builder = FairBatchBuilder::<
-            B::NativeSpec,
-            B::DaSpec,
-            B::NativeRuntime,
-            B::NativeKernel,
-            Auth,
-        >::new(
-            B::NativeRuntime::default(),
-            B::NativeKernel::default(),
-            storage,
-            sequencer_db.clone(),
-            config,
-        )?;
+        let batch_builder =
+            FairBatchBuilder::<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>::new(
+                B::Runtime::default(),
+                B::Kernel::default(),
+                storage,
+                sequencer_db.clone(),
+                config,
+            )?;
 
         let sequencer = Sequencer::<_, _, Auth>::new(batch_builder, da_service.clone());
 
