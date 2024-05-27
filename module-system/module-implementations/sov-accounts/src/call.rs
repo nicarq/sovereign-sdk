@@ -40,7 +40,6 @@ impl<S: Spec> Accounts<S> {
         // Insert the new credential id.
         let account = Account {
             addr: context.sender().clone(),
-            nonce: 0,
         };
 
         self.accounts.set(&new_credential_id, &account, working_set);

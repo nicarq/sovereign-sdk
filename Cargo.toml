@@ -49,7 +49,8 @@ members = [
     "module-system/module-implementations/sov-value-setter",
     "module-system/module-implementations/module-template",
     "module-system/module-implementations/integration-tests",
-    "module-system/sov-capabilities",
+    "module-system/sov-capabilities", 
+    "module-system/module-implementations/sov-nonces",
 ]
 
 [workspace.package]

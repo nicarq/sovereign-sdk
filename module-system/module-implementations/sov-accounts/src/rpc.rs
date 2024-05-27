@@ -13,8 +13,6 @@ pub enum Response<Addr> {
     AccountExists {
         /// The address of the account,
         addr: Addr,
-        /// The nonce of the account.
-        nonce: u64,
     },
     /// The account corresponding to the credential id does not exist.
     AccountEmpty,
@@ -30,7 +28,7 @@ impl<S: Spec> Accounts<S> {
         working_set: &mut WorkingSet<S>,
     ) -> RpcResult<Response<S::Address>> {
         let response = match self.accounts.get(&credential_id, working_set) {
-            Some(Account { addr, nonce }) => Response::AccountExists { addr, nonce },
+            Some(Account { addr }) => Response::AccountExists { addr },
             None => Response::AccountEmpty,
         };
 

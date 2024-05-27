@@ -78,6 +78,8 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
 
     let accounts_config: AccountConfig<S> = read_json_file(&genesis_paths.accounts_genesis_path)?;
 
+    let nonces_config = ();
+
     let nft_config: NonFungibleTokenConfig = read_json_file(&genesis_paths.nft_path)?;
 
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
@@ -88,6 +90,7 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
         value_setter_config,
         prover_incentives_config,
         accounts_config,
+        nonces_config,
         nft_config,
         evm_config,
     ))

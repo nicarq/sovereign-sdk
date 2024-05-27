@@ -1163,6 +1163,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nft-module",
+ "sov-nonces",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
@@ -3244,6 +3245,7 @@ dependencies = [
  "sov-accounts",
  "sov-bank",
  "sov-modules-api",
+ "sov-nonces",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
@@ -3434,6 +3436,18 @@ dependencies = [
  "bech32 0.11.0",
  "borsh 0.10.3",
  "serde",
+ "sov-modules-api",
+ "sov-state",
+]
+
+[[package]]
+name = "sov-nonces"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh 0.10.3",
+ "serde",
+ "serde_with",
  "sov-modules-api",
  "sov-state",
 ]

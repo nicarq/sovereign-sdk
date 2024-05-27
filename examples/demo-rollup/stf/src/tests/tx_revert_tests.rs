@@ -1,4 +1,3 @@
-use sov_accounts::Response;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::FatalError;
@@ -134,17 +133,13 @@ fn test_tx_revert() {
         // Sequencer is not excluded from the list of allowed!
         assert_eq!(Some(sequencer_rollup_address), resp.address);
 
-        let nonce = match runtime
-            .accounts
-            .get_account(
-                admin_key.pub_key().credential_id::<TestHasher>(),
+        let nonce = runtime
+            .nonces
+            .nonce(
+                &admin_key.pub_key().credential_id::<TestHasher>(),
                 &mut working_set,
             )
-            .unwrap()
-        {
-            Response::AccountExists { nonce, .. } => nonce,
-            Response::AccountEmpty => 0,
-        };
+            .unwrap();
 
         // with 3 transactions, the final nonce should be 3
         // 0 -> 1
@@ -230,17 +225,14 @@ fn test_tx_bad_signature() {
     {
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
         let mut working_set = WorkingSet::new(storage);
-        let nonce = match runtime
-            .accounts
-            .get_account(
-                admin_key.pub_key().credential_id::<TestHasher>(),
+        let nonce = runtime
+            .nonces
+            .nonce(
+                &admin_key.pub_key().credential_id::<TestHasher>(),
                 &mut working_set,
             )
-            .unwrap()
-        {
-            Response::AccountExists { nonce, .. } => nonce,
-            Response::AccountEmpty => 0,
-        };
+            .unwrap_or_default();
+
         assert_eq!(0, nonce);
     }
 }

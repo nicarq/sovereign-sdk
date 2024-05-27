@@ -42,7 +42,6 @@ impl<S: Spec> Accounts<S> {
 
             let new_account = Account {
                 addr: acc.address.clone(),
-                nonce: 0,
             };
 
             self.accounts

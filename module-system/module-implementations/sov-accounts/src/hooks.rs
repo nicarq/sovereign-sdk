@@ -1,5 +1,5 @@
 use sov_modules_api::transaction::AuthenticatedTransactionData;
-use sov_modules_api::{Spec, StateAccessor, TxScratchpad};
+use sov_modules_api::{Spec, StateAccessor};
 
 use crate::{Account, Accounts};
 
@@ -22,7 +22,6 @@ impl<S: Spec> Accounts<S> {
                 Some(default_address) => {
                     let new_account = Account {
                         addr: default_address.clone(),
-                        nonce: 0,
                     };
 
                     self.accounts
@@ -39,52 +38,5 @@ impl<S: Spec> Accounts<S> {
                 None => anyhow::bail!("No default address found for {}", credential_id),
             },
         }
-    }
-
-    /// Checks that a transaction is not a duplicate
-    pub fn check_uniqueness(
-        &self,
-        tx: &AuthenticatedTransactionData<S>,
-        // Will become `MeteredStateAccessor` in next PR
-        state_checkpoint: &mut impl StateAccessor,
-    ) -> Result<(), anyhow::Error> {
-        // TODO(@preston-evans98) - this check should rely on the information resolved from the context.
-        // This will require a change to the account state layout
-        let credential_id = &tx.credential_id;
-        let sender_nonce = self
-            .accounts
-            .get(credential_id, state_checkpoint)
-            .map(|a| a.nonce)
-            .unwrap_or_else(|| panic!("The existence of the sender account for {} is ensured during the resolution of the sender's address.",
-              &credential_id));
-
-        let tx_nonce = tx.nonce;
-
-        anyhow::ensure!(
-            sender_nonce == tx_nonce,
-            "Tx bad nonce, expected: {}, but found: {}",
-            tx_nonce,
-            sender_nonce
-        );
-        Ok(())
-    }
-
-    /// Marks a transaction as attempted, ensuring that future attempts at execution will fail
-    pub fn mark_tx_attempted(
-        &self,
-        tx: &AuthenticatedTransactionData<S>,
-        tx_scratchpad: &mut TxScratchpad<S>,
-    ) {
-        let credential_id = &tx.credential_id;
-        let mut account = self
-            .accounts
-            .get(credential_id, tx_scratchpad)
-            .unwrap_or_else(|| panic!("The existence of the sender account for {} is ensured during the resolution of the sender's address.",
-                &credential_id));
-
-        account.nonce += 1;
-
-        self.accounts
-            .set(&tx.credential_id, &account, tx_scratchpad);
     }
 }

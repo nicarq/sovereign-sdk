@@ -2,11 +2,6 @@
 
 The `sov-accounts` module is responsible for managing accounts on the rollup.
 
-Account is represented by an `Address` and a `Nonce`.
-
-## Warning
-
-The accounts module implements `TxHooks` which must be wired into your state transition function! Be sure that your `Runtime` implementation for `TxHooks` delegates to the `sov-accounts.` 
 
 ### The `sov-accounts` module offers the following functionality:
 
@@ -16,9 +11,5 @@ The accounts module implements `TxHooks` which must be wired into your state tra
 
 1. It is possible to add new credential to a given address using the `CallMessage::InsertCredentialId(..)` message.
 
-1. Each processed rollup message increases the credential nonce. This serves to protect against double-spending attacks and ensures proper transaction ordering.
+1. It is possible to query the `sov-accounts` module using the `get_account` method and get the account corresponding to the given credential id.
 
-1. It is possible to query the `sov-accounts` module using the `get_account` method and get the account corresponding to the given public key.
-
-### The `sov-accounts` module makes the following guarantees:
-1. The credential id nonce is increased on every processed message by 1.

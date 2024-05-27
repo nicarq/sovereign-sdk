@@ -10,9 +10,9 @@ use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::tokio::time::sleep;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_accounts::AccountsRpcClient;
 use sov_bank::{BalanceResponse, BankRpcClient, TokenId};
 use sov_modules_api::{clap, CryptoSpec, PublicKey};
+use sov_nonces::NoncesRpcClient;
 use sov_rollup_interface::digest::Digest;
 
 use crate::wallet_state::{AddressEntry, KeyIdentifier, WalletState};
@@ -240,15 +240,14 @@ async fn get_nonce_for_account<S: sov_modules_api::Spec + Send + Sync + Serializ
         .pub_key
         .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
 
-    Ok(match AccountsRpcClient::<S>::get_account(
+    let nonce = NoncesRpcClient::<S>::get_nonce(
         client,
         credential_id,
     )
     .await
     .context(
         "Unable to connect to provided RPC. You can change to a different RPC url with the `rpc set-url` subcommand ",
-    )? {
-        sov_accounts::Response::AccountExists { addr: _, nonce } => nonce,
-        _ => 0,
-    })
+    )?.nonce;
+
+    Ok(nonce)
 }
