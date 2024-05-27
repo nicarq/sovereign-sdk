@@ -19,14 +19,14 @@ pub struct TokenCreateData<S: Spec> {
     pub token_name: String,
     pub salt: u64,
     pub initial_balance: u64,
-    pub minter_address: S::Address,
+    pub mint_to_address: S::Address,
     pub minter_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     pub authorized_minters: Vec<S::Address>,
 }
 
 impl<S: Spec> TokenCreateData<S> {
     fn get_token_id(&self) -> TokenId {
-        get_token_id::<S>(&self.token_name, &self.minter_address, self.salt)
+        get_token_id::<S>(&self.token_name, &self.mint_to_address, self.salt)
     }
 }
 
@@ -39,8 +39,8 @@ const DEFAULT_TOKEN_NAME: &str = "Token1";
 const DEFAULT_SALT: u64 = 10;
 const DEFAULT_INIT_BALANCE: u64 = 1000000;
 
-pub fn get_default_token_id<S: Spec>(minter_address: &<S as Spec>::Address) -> TokenId {
-    get_token_id::<S>(DEFAULT_TOKEN_NAME, minter_address, DEFAULT_SALT)
+pub fn get_default_token_id<S: Spec>(address: &<S as Spec>::Address) -> TokenId {
+    get_token_id::<S>(DEFAULT_TOKEN_NAME, address, DEFAULT_SALT)
 }
 
 impl<S: Spec> BankMessageGenerator<S>
@@ -51,12 +51,12 @@ where
     pub fn random_create_token_generator(
         private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
-        let minter_address: S::Address = (&private_key.pub_key()).into();
+        let minter: S::Address = (&private_key.pub_key()).into();
         Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
             DEFAULT_SALT,
             private_key.into(),
-            vec![minter_address],
+            vec![minter],
             DEFAULT_INIT_BALANCE,
         )
     }
@@ -89,7 +89,7 @@ where
                 token_name,
                 salt,
                 initial_balance,
-                minter_address: (&minter_pkey.pub_key()).into(),
+                mint_to_address: (&minter_pkey.pub_key()).into(),
                 minter_pkey,
                 authorized_minters,
             }],
@@ -122,16 +122,16 @@ where
     pub fn with_minter_and_transfer(
         minter_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
-        let minter_address: <S as Spec>::Address = (&minter_key.pub_key()).into();
+        let minter: <S as Spec>::Address = (&minter_key.pub_key()).into();
         let salt = DEFAULT_SALT;
         let token_name = DEFAULT_TOKEN_NAME.to_owned();
         let create_data = TokenCreateData {
             token_name: token_name.clone(),
             salt,
             initial_balance: 1000,
-            minter_address: minter_address.clone(),
+            mint_to_address: minter.clone(),
             minter_pkey: Rc::new(minter_key.clone()),
-            authorized_minters: Vec::from([minter_address.clone()]),
+            authorized_minters: Vec::from([minter.clone()]),
         };
         Self {
             token_create_txs: Vec::from([create_data]),
@@ -139,19 +139,19 @@ where
                 sender_pkey: Rc::new(minter_key),
                 transfer_amount: 15,
                 receiver_address: generate_address::<S>("just_receiver"),
-                token_id: get_token_id::<S>(&token_name, &minter_address, salt),
+                token_id: get_token_id::<S>(&token_name, &minter, salt),
             }]),
         }
     }
 
     /// Generates single [`CallMessage::CreateToken`] transaction with a specified minter.
     pub fn with_minter(minter_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey) -> Self {
-        let minter_address: <S as Spec>::Address = (&minter_key.pub_key()).into();
+        let minter: <S as Spec>::Address = (&minter_key.pub_key()).into();
         Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
             DEFAULT_SALT,
             Rc::new(minter_key),
-            vec![minter_address],
+            vec![minter],
             DEFAULT_INIT_BALANCE,
         )
     }
@@ -161,16 +161,16 @@ impl BankMessageGenerator<TestSpec> {
     pub fn create_invalid_transfer(
         minter_key: <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
-        let minter_address: <TestSpec as Spec>::Address = (&minter_key.pub_key()).into();
+        let minter: <TestSpec as Spec>::Address = (&minter_key.pub_key()).into();
         let salt = DEFAULT_SALT;
         let token_name = DEFAULT_TOKEN_NAME.to_owned();
         let token_create_data = TokenCreateData {
             token_name: token_name.clone(),
             salt,
             initial_balance: 1000,
-            minter_address,
+            mint_to_address: minter,
             minter_pkey: Rc::new(minter_key.clone()),
-            authorized_minters: Vec::from([minter_address]),
+            authorized_minters: Vec::from([minter]),
         };
         Self {
             token_create_txs: Vec::from([token_create_data]),
@@ -179,14 +179,14 @@ impl BankMessageGenerator<TestSpec> {
                     sender_pkey: Rc::new(minter_key.clone()),
                     transfer_amount: 15,
                     receiver_address: generate_address::<TestSpec>("just_receiver"),
-                    token_id: get_token_id::<TestSpec>(&token_name, &minter_address, salt),
+                    token_id: get_token_id::<TestSpec>(&token_name, &minter, salt),
                 },
                 TransferData {
                     sender_pkey: Rc::new(minter_key.clone()),
                     // invalid transfer because transfer_amount > minted supply
                     transfer_amount: 5000,
                     receiver_address: generate_address::<TestSpec>("just_receiver"),
-                    token_id: get_token_id::<TestSpec>(&token_name, &minter_address, salt),
+                    token_id: get_token_id::<TestSpec>(&token_name, &minter, salt),
                 },
             ]),
         }
@@ -198,7 +198,7 @@ pub(crate) fn create_token_tx<S: Spec>(input: &TokenCreateData<S>) -> CallMessag
         salt: input.salt,
         token_name: input.token_name.clone(),
         initial_balance: input.initial_balance,
-        minter_address: input.minter_address.clone(),
+        mint_to_address: input.mint_to_address.clone(),
         authorized_minters: input.authorized_minters.clone(),
     }
 }

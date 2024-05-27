@@ -128,7 +128,7 @@ impl BankGasTestCase {
 
         // create a context using the generated account as sender
         let height = 1;
-        let minter_address = generate_address::<S>("minter");
+        let minter = generate_address::<S>("minter");
         let sequencer_address = generate_address::<S>("sequencer");
         let ctx = Context::<S>::new(
             sender_address,
@@ -157,8 +157,8 @@ impl BankGasTestCase {
             salt,
             token_name,
             initial_balance,
-            minter_address,
-            authorized_minters: vec![minter_address],
+            mint_to_address: minter,
+            authorized_minters: vec![minter],
         };
 
         let tx: AuthenticatedTransactionData<S> = AuthenticatedTransactionData {

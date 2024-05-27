@@ -1,10 +1,11 @@
 - #730 Splits `RollupBlueprint` into two traits: `FullNodeBlueprint` and `RollupBlueprint` and feature gates the full-node blueprint behind the `"native"` feature flag. It also reduces the number of required types for the `RollupBlueprint` by making it generic over execution mode. See the diff of `celestia_rollup.rs` for a complete example of a migration.
+- #735 updates `minter_address` to `mint_to_address` in `CallMessage::CreateToken` & `CallMessage::Mint`
 - #725 removes the `macros` feature from `sov-modules-api`, which is now always enabled even with `--no-default-features`.
 - #714 integrates a batch of changes to the `StfBlueprint` and the capabilities. Meaningful changes:
   - Remove arguments of type `SequencerStakeMeter` from the capabilities and replace all of the `(SequencerStakeMeter, StateCheckpoint)` couple of variables by a single `PreExecWorkingSet` which is a type safe data structure that should charge for gas before transaction execution starts.
   - Removing the `ExecutionMode` type from the `StfBlueprint`. It is now replaced by `TxScratchpad`, which is an intermediary type between `WorkingSet` and `StateCheckpoint`. This is useful for the `sov-sequencer` crate because one may want to revert all the changes that happened during transaction execution when simulating a transaction before adding it to a sequencer batch.
   - The entire transaction processing lifecycle is now embedded in the `process_tx` method that is called by both the `apply_batch` in `StfBlueprint` and `try_add_tx_to_batch` in the `sov-sequencer` crate. Hence we now have the following state machine for transaction execution:
-        - In `to_tx_scratchpad` we convert the `StateCheckpoint` into a revertable `TxScratchpad` for transaction execution. 
+        - In `to_tx_scratchpad` we convert the `StateCheckpoint` into a revertable `TxScratchpad` for transaction execution.
         - In `authorize_sequencer` we consume the `TxScratchpad` and build a `PreExecWorkingSet` on success, we stop processing the batch on failure
         - In `try_reserve_gas` we consume the `PreExecWorkingSet` and we build a `WorkingSet` on success (transaction execution starts), or return a `PreExecWorkingSet` on failure (so that we can penalize the sequencer).
         - In `attempt_tx` we consume the `WorkingSet` and output a `TxScratchpad`
@@ -18,12 +19,12 @@
 - #696 requires `Runtime` implementers to implement the `HasCapabilities` trait, which allows the `Runtime` to delegate to another struct for much of its required functionality. If a `Runtime` does not wish to delegate, it can simply implement the trait with `Self` as the associated `Capabilities` type. Implementations can be found in the sov-capabailities crate.
 - #701 adds support for multiple credentials in `sov-accounts`. This is a breaking change for the consumers of the SDK.
 - #694 adds `Credentials` to the `Context` structure. This is a breaking change for the consumers of the SDK. See implementation of the `RuntimeAuthorization::resolve_context` method.
-- #688 follow-up of https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/681 that modifies the gas interface to prevent access to `TxGasMeter` outside of `sov-modules-api`. 
+- #688 follow-up of https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/681 that modifies the gas interface to prevent access to `TxGasMeter` outside of `sov-modules-api`.
 The spirit of this change is to increase the coupling between the `WorkingSet` and `Transaction` types. Meaningful changes:
   - Change the visibility of `TxGasMeter` to `pub(crate)`.
   - Change the `WorkingSet` interface to return `TransactionConsumption` instead of `GasMeter` when consumed with `revert` or `checkpoint`.
   - Move the `TransactionConsumption` and `SequencerReward` types to `scratchpad`
-  - Change the `GasEnforcer` capability to handle the gas workflow without having access to `TxGasMeter`. In particular change the `consume_gas_and_allocate_rewards` capability to the simpler `allocate_consumed_gas` which distributes the transaction reward returned when calling `checkpoint` on the `working_set` to the base fee and tip recipient. 
+  - Change the `GasEnforcer` capability to handle the gas workflow without having access to `TxGasMeter`. In particular change the `consume_gas_and_allocate_rewards` capability to the simpler `allocate_consumed_gas` which distributes the transaction reward returned when calling `checkpoint` on the `working_set` to the base fee and tip recipient.
   - Remove access to methods that can artificially modify the gas meter outside of testing (like methods to build `unmetered` gas meters).
 
 - #683 replace `Public Key Hash` with more general concept of `CredentialId`. This is a breaking change for the consumers of the SDK.
@@ -34,7 +35,7 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
 - #681 contains some interface improvements for the gas which become possible after `sov-core` and `sov-api` got merged. In particular:
     - Move `TxGasMeter` from `common/gas` to `transaction` which allows more type-safety by removing methods to create and modify arbitrary gas meters, tying it to the `AuthenticatedTransactionData` type.
     - Remove `Tx` and `TxGasMeter` associated types from the `GasEnforcer` trait.
-- #647 completes the gas workflow for the StfBlueprint by enhancing the interface by adding some type-safety guarantees to the StfBlueprint and simplifying the penalization workflow. Follow-up of #619. 
+- #647 completes the gas workflow for the StfBlueprint by enhancing the interface by adding some type-safety guarantees to the StfBlueprint and simplifying the penalization workflow. Follow-up of #619.
     - Added a new `consume_gas_and_allocate_rewards` capability to the GasEnforcer to allocate transaction rewards at the end of the transaction execution. This was previously done in `refund_remaining_gas`
     - Added a new type `TransactionConsumption` that tracks the amount of gas consumed and can only be built using the `AuthenticatedTransactionData` and by consuming the associated `TxGasMeter`.
     - `refund_remaining_gas` can only be called either after `consume_gas_and_allocate_rewards` or with a zero `TransactionConsumption` (speculative case for reverted transactions)
@@ -43,7 +44,7 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
 - #663 Modifies the interface of traits `RuntimeAuthenticator` and `RuntimeAuthorization`. Associated types `Tx` and `Gas` have been removed. `RuntimeAuthenticator` is now generic over `S: Spec`. Methods' type signatures have been slightly modified; please see `examples/demo-rollup/stf/src/authentication.rs` for an example on the new usage.
 - #633 Deprecate `sov-modules-core`, move definitions into `sov-modules-api` & `sov-state`
 - #664 removes the `Transaction` wrapping in `sov-ethereum` for EVM transactions. This is a breaking change for consumers of the SDK. See `RuntimeAuthenticator::authenticate`.
-- #646 adds authenticator dispatch logic in`RuntimeAuthenticator::authenticate`. 
+- #646 adds authenticator dispatch logic in`RuntimeAuthenticator::authenticate`.
 - #613 Makes `sov_state::Storage` trait to be immutable and explicitly produce changes. SimpleStorageManager should be used when data needs to be persisted between batches.
 - #631 removes the need for modules to `#[derive(ModuleCallJsonSchema)]`; the trait is automatically blanket-implemented for all modules as long as `CallMessage` implements `schemars::JsonSchema`.
 - #628 all the account resolution logic was moved to `resolve_context`. This method now returns a `Result<Context, _ >` instead of a `Context`. This is a breaking change for consumers of the SDK.
@@ -51,20 +52,20 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
 - #620 Adds more fields to the `Event`s emitted by the `sov-bank` module. Start emitting events for token minting.
 - #619 starts charging gas for signature checks in the StfBlueprint and completes the refactoring effort started in #612. There was the following changes in the interface:
   - Introduction of a `GasMeter` trait and the three associated implementations: `TxGasMeter` (what used to be the `GasMeter` struct), `UnlimitedGasMeter` (a gas meter that holds an infinite reserve of gas) and the `SequencerStakeMeter` (a gas meter specially designed to track the sequencer stake and accumulate penalties).
-  - Adding the `sequencer_stake_meter` as an argument of the `authenticate` method of the `RuntimeAuthenticator` (as an associated type) and the `Authenticator` (as a `&mut impl GasMeter` in that case). 
-  - Adding the `refund_sequencer` capability which can be used to refund the sequencer some of the penalties he accumulated during the pre-execution checks. 
+  - Adding the `sequencer_stake_meter` as an argument of the `authenticate` method of the `RuntimeAuthenticator` (as an associated type) and the `Authenticator` (as a `&mut impl GasMeter` in that case).
+  - Adding the `refund_sequencer` capability which can be used to refund the sequencer some of the penalties he accumulated during the pre-execution checks.
   - Modify the `authorize_sequencer` and `penalize_sequencer` capabilities to take the `SequencerGasMeter` as a parameter instead of a fixed amount. This allows type safety and removes the unsafe `saturating_sub` in the implementation of `penalize_sequencer`.
-  - Add a `TxSequencerOutcome` which is an enum with the variants `Rewarded(amount)` and `Penalized`. 
-  - Rename `SequencerOutcome` to `BatchSequencerOutcome` to represent the `SequencerOutcome` following batch execution. 
+  - Add a `TxSequencerOutcome` which is an enum with the variants `Rewarded(amount)` and `Penalized`.
+  - Rename `SequencerOutcome` to `BatchSequencerOutcome` to represent the `SequencerOutcome` following batch execution.
 
 - #622 Make `DefaultStorageSpec` generic over a `Hasher` instead of defaulting to `Sha256`
 - #622 Make `DefaultStorageSpec` generic over a `Hasher` instead of defaulting to `Sha256`
 - #623 updates the AccountConfig structure. This change is breaking for consumers of the SDK, as the format of the accounts.json configuration files has been changed.
 - #617 adds a `gas_estimate` method to the DA layer `Fee` trait
-- #614 Change the final argument of `Module::call` from a concrete `WorkingSet` to an abstract `impl TxState` type. It also removes the `working_set.accessory_state()` method and grants direct access to that state through the `WorkingSet` (read/write) and `impl TxState` (read-only). 
+- #614 Change the final argument of `Module::call` from a concrete `WorkingSet` to an abstract `impl TxState` type. It also removes the `working_set.accessory_state()` method and grants direct access to that state through the `WorkingSet` (read/write) and `impl TxState` (read-only).
 - #612 refactors the `StfBlueprint` to deserialize, perform signature checks and execute transactions in one pass instead of doing pre-checks for the entire batch followed by the batch execution. Simplifies and fix the sequencer reward workflow. In particular:
   - Replace the previous mechanism that was using a mutable `i64` typed, `sequencer_reward` variable that accumulated the reward/penalties for the sequencer in the entire batch. This mechanism was buggy and did not properly account for side effects (e.g when the sequencer gets penalized more than his current stake, his transactions shouldn't be processed anymore).
-  - Augment the authorization error for the `rawTx` verification with an enum with 2 variants: `FatalError` (sequencer gets slashed for acting maliciously) and `Invalid` (sequencer gets penalized a constant amount from his balance). 
+  - Augment the authorization error for the `rawTx` verification with an enum with 2 variants: `FatalError` (sequencer gets slashed for acting maliciously) and `Invalid` (sequencer gets penalized a constant amount from his balance).
   - Remove the `Penalized` variant from the `SequencerOutcome`. This is replaced by the `penalize_sequencer` capability that is called whenever the sequencer gets penalized.
   - Add a `authorize_sequencer` capability that verifies that the sequencer has locked enough tokens to execute the next transaction. Since the sequencer bond can vary between transactions (because he may get penalized), this method needs to be called whenever the sequencer start executing a new transaction.
 - #599 changes the way you define Rust constants which use the `constants.json` file.
@@ -89,7 +90,7 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
 
   Read the PR description for more details.
 
-- #586 Adds a second Zkvm generic to the `StateTransitionFunction` API. This VM is used for generation of *`Aggregate`* zk proofs, 
+- #586 Adds a second Zkvm generic to the `StateTransitionFunction` API. This VM is used for generation of *`Aggregate`* zk proofs,
 while the first VM continues Ato be used for block production. The signature of the `StfVerifier<DA, Vm, ZkSpec, RT, K>` was also changed to `StfVerifier<DA ZkSpec, RT, K, InnerVm, OuterVm>`
 
 - #584 removes support for the `DefaultRuntime` derive macro. You must replace all proc-macro invocations of `DefaultRuntime` with `#[derive(Default)]`.
@@ -98,7 +99,7 @@ while the first VM continues Ato be used for block production. The signature of 
 - #584 removes support for the `DefaultRuntime` derive macro. You must replace all proc-macro invocations
   of `DefaultRuntime` with `#[derive(Default)]`.
 
-- #572 adds a new `da_service` method `estimate_fee()` and requires all blob submission methods to provide a `fee` as an argument. 
+- #572 adds a new `da_service` method `estimate_fee()` and requires all blob submission methods to provide a `fee` as an argument.
 - #580 `sov-cli` now returns an error on duplicate nickname key import or generation.
 - #572 adds a new `da_service` method `estimate_fee()` and requires all blob submission methods to provide a `fee` as an
   argument.

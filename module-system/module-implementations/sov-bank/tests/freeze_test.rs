@@ -15,10 +15,9 @@ fn freeze_token() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    let minter_address = generate_address::<S>("minter");
+    let minter = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");
-    let minter_context =
-        Context::<S>::new(minter_address, Default::default(), sequencer_address, 1);
+    let minter_context = Context::<S>::new(minter, Default::default(), sequencer_address, 1);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
@@ -28,8 +27,8 @@ fn freeze_token() {
     let bank_config = BankConfig::<S> {
         gas_token_config: GasTokenConfig {
             token_name: token_name.clone(),
-            authorized_minters: vec![minter_address],
-            address_and_balances: vec![(minter_address, initial_balance)],
+            authorized_minters: vec![minter],
+            address_and_balances: vec![(minter, initial_balance)],
         },
         tokens: vec![],
     };
@@ -56,10 +55,7 @@ fn freeze_token() {
     let message_2 = chain.next().unwrap().to_string();
     assert!(chain.next().is_none());
     assert_eq!(
-        format!(
-            "Failed freeze token_id={} by sender {}",
-            token_id, minter_address
-        ),
+        format!("Failed freeze token_id={} by sender {}", token_id, minter),
         message_1
     );
     assert_eq!(format!("Token {} is already frozen", token_name), message_2);
@@ -67,7 +63,7 @@ fn freeze_token() {
     // create a second token
     let token_name_2 = "Token2".to_owned();
     let initial_balance = 100;
-    let token_id_2 = get_token_id::<S>(&token_name_2, &minter_address, salt);
+    let token_id_2 = get_token_id::<S>(&token_name_2, &minter, salt);
 
     // ---
     // Deploying second token
@@ -75,8 +71,8 @@ fn freeze_token() {
         salt,
         token_name: token_name_2.clone(),
         initial_balance,
-        minter_address,
-        authorized_minters: vec![minter_address],
+        mint_to_address: minter,
+        authorized_minters: vec![minter],
     };
     let _minted = bank
         .call(mint_message, &minter_context, &mut working_set)
@@ -127,7 +123,7 @@ fn freeze_token() {
             amount: mint_amount,
             token_id,
         },
-        minter_address: new_holder,
+        mint_to_address: new_holder,
     };
 
     let query_total_supply = |token_id: TokenId, working_set: &mut WorkingSet<S>| -> Option<u64> {
@@ -147,7 +143,7 @@ fn freeze_token() {
     assert_eq!(
         format!(
             "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
-            token_id, mint_amount, new_holder, minter_address
+            token_id, mint_amount, new_holder, minter
         ),
         message_1
     );
@@ -164,7 +160,7 @@ fn freeze_token() {
             amount: mint_amount,
             token_id: token_id_2,
         },
-        minter_address,
+        mint_to_address: minter,
     };
 
     let _minted = bank
@@ -180,7 +176,7 @@ fn freeze_token() {
          user_address: <S as Spec>::Address,
          working_set: &mut WorkingSet<S>|
          -> Option<u64> { bank.get_balance_of(&user_address, token_id, working_set) };
-    let bal = query_user_balance(token_id_2, minter_address, &mut working_set);
+    let bal = query_user_balance(token_id_2, minter, &mut working_set);
 
     assert_eq!(Some(110), bal);
 }

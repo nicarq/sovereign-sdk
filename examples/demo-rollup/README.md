@@ -169,7 +169,7 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
         /// The initial balance of the new token.
         initial_balance: Amount,
         /// The address of the account that the new tokens are minted to.
-        minter_address: S::Address,
+        mint_to_address: S::Address,
         /// Authorized minter list.
         authorized_minters: Vec<S::Address>,
     },
@@ -193,7 +193,7 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
         /// The amount of tokens to mint.
         coins: Coins,
         /// Address to mint tokens to
-        minter_address: S::Address,
+        mint_to_address: S::Address,
     },
 
     /// Freeze a token so that the supply is frozen

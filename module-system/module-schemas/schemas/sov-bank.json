@@ -15,7 +15,7 @@
           "required": [
             "authorized_minters",
             "initial_balance",
-            "minter_address",
+            "mint_to_address",
             "salt",
             "token_name"
           ],
@@ -33,7 +33,7 @@
               "format": "uint64",
               "minimum": 0.0
             },
-            "minter_address": {
+            "mint_to_address": {
               "description": "The address of the account that the new tokens are minted to.",
               "allOf": [
                 {
@@ -128,7 +128,7 @@
           "type": "object",
           "required": [
             "coins",
-            "minter_address"
+            "mint_to_address"
           ],
           "properties": {
             "coins": {
@@ -139,7 +139,7 @@
                 }
               ]
             },
-            "minter_address": {
+            "mint_to_address": {
               "description": "Address to mint tokens to",
               "allOf": [
                 {

@@ -16,10 +16,9 @@ fn mint_token() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    let minter_address = generate_address::<S>("minter");
+    let minter = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");
-    let minter_context =
-        Context::<S>::new(minter_address, Default::default(), sequencer_address, 1);
+    let minter_context = Context::<S>::new(minter, Default::default(), sequencer_address, 1);
 
     let token_name = "Token1".to_owned();
     let initial_balance = 100;
@@ -28,8 +27,8 @@ fn mint_token() {
     let bank_config = BankConfig::<S> {
         gas_token_config: GasTokenConfig {
             token_name: token_name.clone(),
-            address_and_balances: vec![(minter_address, initial_balance)],
-            authorized_minters: vec![minter_address],
+            address_and_balances: vec![(minter, initial_balance)],
+            authorized_minters: vec![minter],
         },
 
         tokens: vec![],
@@ -59,7 +58,7 @@ fn mint_token() {
             amount: mint_amount,
             token_id,
         },
-        minter_address: new_holder,
+        mint_to_address: new_holder,
     };
 
     let _minted = bank
@@ -75,7 +74,7 @@ fn mint_token() {
     assert_eq!(Some(10), balance);
 
     // check original token creation balance
-    let bal = query_user_balance(minter_address, &mut working_set);
+    let bal = query_user_balance(minter, &mut working_set);
     assert_eq!(Some(100), bal);
 
     // Mint with an un-authorized user
@@ -118,7 +117,7 @@ fn mint_token() {
     let salt = 0;
     let token_name = "Token_New".to_owned();
     let initial_balance = 100;
-    let token_id = get_token_id::<S>(&token_name, &minter_address, salt);
+    let token_id = get_token_id::<S>(&token_name, &minter, salt);
     let authorized_minter_address_1 = generate_address::<S>("authorized_minter_1");
     let authorized_minter_address_2 = generate_address::<S>("authorized_minter_2");
     let sequencer_address = generate_address::<S>("sequencer");
@@ -128,7 +127,7 @@ fn mint_token() {
         salt,
         token_name: token_name.clone(),
         initial_balance,
-        minter_address,
+        mint_to_address: minter,
         authorized_minters: vec![authorized_minter_address_1, authorized_minter_address_2],
     };
     let _minted = bank
@@ -144,7 +143,7 @@ fn mint_token() {
             amount: mint_amount,
             token_id,
         },
-        minter_address: new_holder,
+        mint_to_address: new_holder,
     };
 
     let minted = bank.call(mint_message, &minter_context, &mut working_set);
@@ -158,14 +157,14 @@ fn mint_token() {
     assert_eq!(
         format!(
             "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
-            token_id, mint_amount, new_holder, minter_address,
+            token_id, mint_amount, new_holder, minter,
         ),
         message_1
     );
     assert_eq!(
         format!(
             "Sender {} is not an authorized minter of token {}",
-            minter_address, token_name
+            minter, token_name
         ),
         message_2
     );
@@ -181,7 +180,7 @@ fn mint_token() {
             amount: mint_amount,
             token_id,
         },
-        minter_address: new_holder,
+        mint_to_address: new_holder,
     };
 
     let _minted = bank
@@ -203,7 +202,7 @@ fn mint_token() {
             amount: mint_amount,
             token_id,
         },
-        minter_address: new_holder,
+        mint_to_address: new_holder,
     };
 
     let _minted = bank
@@ -219,7 +218,7 @@ fn mint_token() {
             amount: u64::MAX,
             token_id,
         },
-        minter_address: new_holder,
+        mint_to_address: new_holder,
     };
 
     let minted = bank.call(
@@ -258,7 +257,7 @@ fn mint_token() {
             amount: u64::MAX - 1,
             token_id,
         },
-        minter_address: new_holder,
+        mint_to_address: new_holder,
     };
 
     let minted = bank.call(

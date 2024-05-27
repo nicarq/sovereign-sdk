@@ -100,7 +100,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
                 salt,
                 token_name,
                 initial_balance,
-                minter_address,
+                mint_to_address,
                 authorized_minters,
             } => {
                 self.charge_gas(working_set, &self.gas.create_token)?;
@@ -114,7 +114,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
                     token_name,
                     salt,
                     initial_balance,
-                    &minter_address,
+                    &mint_to_address,
                     authorized_minters,
                     context.sender(),
                     working_set,
@@ -134,10 +134,10 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 
             call::CallMessage::Mint {
                 coins,
-                minter_address,
+                mint_to_address,
             } => {
                 self.charge_gas(working_set, &self.gas.mint)?;
-                self.mint_from_eoa(&coins, &minter_address, context, working_set)?;
+                self.mint_from_eoa(&coins, &mint_to_address, context, working_set)?;
                 Ok(CallResponse::default())
             }
 
