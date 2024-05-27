@@ -6,8 +6,9 @@ use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::Spec;
-use sov_modules_rollup_blueprint::RollupBlueprint;
+use sov_modules_rollup_blueprint::FullNodeBlueprint;
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig,
     StorageConfig,
@@ -67,7 +68,7 @@ pub async fn start_rollup(
         },
     };
 
-    let mock_demo_rollup = MockDemoRollup {};
+    let mock_demo_rollup = MockDemoRollup::<Native>::default();
 
     let kernel_genesis = BasicKernelGenesisConfig {
         chain_state: serde_json::from_reader(

@@ -15,13 +15,14 @@ pub use versioned_value::VersionedStateValue;
 mod test {
     use sov_mock_zkvm::MockZkVerifier;
     use sov_prover_storage_manager::SimpleStorageManager;
+    use sov_rollup_interface::execution_mode::Native;
     use sov_state::namespaces::User;
     use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, StateWriter, Storage};
 
     use crate::{CryptoSpec, Version, WorkingSet};
 
     type StorageSpec = DefaultStorageSpec<TestHasher>;
-    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier>;
+    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
     type TestHasher = <<TestSpec as crate::Spec>::CryptoSpec as CryptoSpec>::Hasher;
 
     #[derive(Clone)]

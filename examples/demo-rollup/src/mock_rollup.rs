@@ -5,57 +5,63 @@ use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDb;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
-use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
-use sov_modules_api::default_spec::{DefaultSpec, ZkDefaultSpec};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
+use sov_modules_api::default_spec::DefaultSpec;
+use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
+use sov_modules_api::higher_kinded_types::Generic;
 use sov_modules_api::{CryptoSpec, Spec, Zkvm};
-use sov_modules_rollup_blueprint::RollupBlueprint;
+use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
+use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
 use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
+use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
-use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::SequencerDb;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverService, RollupConfig, RollupProverConfig};
 use tokio::sync::watch;
 
 /// Rollup with MockDa
-pub struct MockDemoRollup {}
+#[derive(Default)]
+pub struct MockDemoRollup<M> {
+    phantom: std::marker::PhantomData<M>,
+}
+
+impl<M: ExecutionMode> RollupBlueprint<M> for MockDemoRollup<M>
+where
+    DefaultSpec<Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
+{
+    type Spec = DefaultSpec<Risc0Verifier, MockZkVerifier, M>;
+    type Runtime = Runtime<Self::Spec, Self::DaSpec>;
+    type DaSpec = MockDaSpec;
+    type Kernel = BasicKernel<Self::Spec, Self::DaSpec>;
+}
 
 #[async_trait]
-impl RollupBlueprint for MockDemoRollup {
+impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
     type DaService = MockDaService;
-    type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
     type InnerZkvmHost = Risc0Host<'static>;
     type OuterZkvmHost = MockZkvm;
 
-    type ZkSpec = ZkDefaultSpec<
-        <<Self::InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-        <<Self::OuterZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-    >;
-    type NativeSpec = DefaultSpec<
-        <<Self::InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-        <<Self::OuterZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-    >;
     type StorageManager = ProverStorageManager<
         MockDaSpec,
-        DefaultStorageSpec<<<Self::NativeSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
+        DefaultStorageSpec<<<Self::Spec as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
     >;
 
-    type ZkRuntime = Runtime<Self::ZkSpec, Self::DaSpec>;
-    type NativeRuntime = Runtime<Self::NativeSpec, Self::DaSpec>;
-
-    type NativeKernel = BasicKernel<Self::NativeSpec, Self::DaSpec>;
-    type ZkKernel = BasicKernel<Self::ZkSpec, Self::DaSpec>;
-
     type ProverService = ParallelProverService<
-        <<Self::NativeSpec as Spec>::Storage as Storage>::Root,
-        <<Self::NativeSpec as Spec>::Storage as Storage>::Witness,
+        <<Self::Spec as Spec>::Storage as Storage>::Root,
+        <<Self::Spec as Spec>::Storage as Storage>::Witness,
         Self::DaService,
         Self::InnerZkvmHost,
         Self::OuterZkvmHost,
-        StfBlueprint<Self::ZkSpec, Self::DaSpec, Self::ZkRuntime, Self::ZkKernel>,
+        StfBlueprint<
+            <Self::Spec as Generic>::With<Zk>,
+            Self::DaSpec,
+            <MockDemoRollup<Zk> as RollupBlueprint<Zk>>::Runtime,
+            <MockDemoRollup<Zk> as RollupBlueprint<Zk>>::Kernel,
+        >,
     >;
 
     fn create_outer_code_commitment(
@@ -66,7 +72,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     fn create_endpoints(
         &self,
-        storage: watch::Receiver<<Self::NativeSpec as Spec>::Storage>,
+        storage: watch::Receiver<<Self::Spec as Spec>::Storage>,
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
@@ -74,7 +80,8 @@ impl RollupBlueprint for MockDemoRollup {
     ) -> anyhow::Result<RuntimeEndpoints> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<
             Self,
-            ModAuth<Self::NativeSpec, Self::DaSpec>,
+            Native,
+            ModAuth<Self::Spec, Self::DaSpec>,
         >(
             storage.clone(),
             ledger_db,
@@ -85,7 +92,7 @@ impl RollupBlueprint for MockDemoRollup {
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::NativeSpec, Self::DaService>(
+        crate::eth::register_ethereum::<Self::Spec, Self::DaService>(
             da_service.clone(),
             storage,
             &mut endpoints.jsonrpsee_module,

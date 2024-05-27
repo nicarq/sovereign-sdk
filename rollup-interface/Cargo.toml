@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+arbitrary = { workspace = true, optional = true }
 async-trait = { workspace = true }
 borsh = { workspace = true }
 bytes = { workspace = true, default-features = true }
@@ -44,6 +45,7 @@ sov-rollup-interface = { path = ".", features = ["native"] }
 [features]
 native = [ "futures", "schemars", "sov-rollup-interface/native", "tokio" ]
 arbitrary = [
+	"dep:arbitrary",
 	"proptest",
 	"proptest-derive",
 	"sha2",

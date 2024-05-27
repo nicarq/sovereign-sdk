@@ -10,6 +10,7 @@ use rand::Rng;
 use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_modules_api::default_spec::DefaultSpec;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::Spec;
 use sov_risc0_adapter::Risc0Verifier;
@@ -62,7 +63,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
         std::fs::read_to_string("../test-data/keys/token_deployer_private_key.json")
             .expect("Unable to read file to string");
 
-    let token_deployer: PrivateKeyAndAddress<DefaultSpec<Risc0Verifier, Risc0Verifier>> =
+    let token_deployer: PrivateKeyAndAddress<DefaultSpec<Risc0Verifier, Risc0Verifier, Native>> =
         serde_json::from_str(&token_deployer_data).unwrap_or_else(|_| {
             panic!(
                 "Unable to convert data {} to PrivateKeyAndAddress",
@@ -74,7 +75,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 0;
 
-    let messages = generate_call_message::<DefaultSpec<Risc0Verifier, Risc0Verifier>, Da>(
+    let messages = generate_call_message::<DefaultSpec<Risc0Verifier, Risc0Verifier, Native>, Da>(
         blobs_payload_bytes_range,
     );
     println!("Generate {} messages", messages.len());
@@ -93,8 +94,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
 
     for (idx, message) in messages.into_iter().enumerate() {
         println!("Nonce {} . Going to submit message: {:?}", idx, message);
-
-        let tx = Transaction::<DefaultSpec<Risc0Verifier, Risc0Verifier>>::new_signed_tx(
+        let tx = Transaction::<DefaultSpec<Risc0Verifier, Risc0Verifier, Native>>::new_signed_tx(
             &token_deployer.private_key,
             UnsignedTransaction::new(
                 message.try_to_vec().unwrap(),

@@ -1,3 +1,4 @@
+- #730 Splits `RollupBlueprint` into two traits: `FullNodeBlueprint` and `RollupBlueprint` and feature gates the full-node blueprint behind the `"native"` feature flag. It also reduces the number of required types for the `RollupBlueprint` by making it generic over execution mode. See the diff of `celestia_rollup.rs` for a complete example of a migration.
 - #725 removes the `macros` feature from `sov-modules-api`, which is now always enabled even with `--no-default-features`.
 - #714 integrates a batch of changes to the `StfBlueprint` and the capabilities. Meaningful changes:
   - Remove arguments of type `SequencerStakeMeter` from the capabilities and replace all of the `(SequencerStakeMeter, StateCheckpoint)` couple of variables by a single `PreExecWorkingSet` which is a type safe data structure that should charge for gas before transaction execution starts.

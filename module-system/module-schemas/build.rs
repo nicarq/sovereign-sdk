@@ -7,6 +7,7 @@ use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::ModuleCallJsonSchema;
 use sov_risc0_adapter::host::Risc0Host;
+use sov_rollup_interface::execution_mode;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
 type InnerZkvmHost = Risc0Host<'static>;
@@ -14,6 +15,7 @@ type OuterZkvmHost = MockZkvm;
 type S = DefaultSpec<
     <<InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
     <<OuterZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+    execution_mode::Native,
 >;
 
 fn main() -> io::Result<()> {

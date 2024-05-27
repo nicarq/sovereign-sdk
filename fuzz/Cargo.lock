@@ -5181,6 +5181,7 @@ name = "sov-rollup-interface"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "arbitrary",
  "async-trait",
  "borsh",
  "bytes",
