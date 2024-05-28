@@ -3,10 +3,9 @@ use sov_modules_api::capabilities::{
     AuthorizeSequencerError, GasEnforcer, RuntimeAuthorization, SequencerAuthorization,
     TryReserveGasError,
 };
-use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    Context, DaSpec, Gas, ModuleInfo, PreExecWorkingSet, Spec, TransactionConsumption,
-    TxScratchpad, WorkingSet,
+    Context, DaSpec, Gas, ModuleInfo, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
 };
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 

@@ -3,11 +3,9 @@ use std::marker::PhantomData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_state::{
     BorshCodec, Kernel, Namespace, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec,
-    StateReader, StateWriter,
 };
 
-use crate::kernel_state::VersionReader;
-use crate::{KernelWorkingSet, Spec};
+use crate::{KernelWorkingSet, Spec, StateReader, StateWriter, VersionReader};
 
 /// A `versioned` value stored in kernel state. The semantics of this type are different
 /// depending on the priveleges of the accessor. For a standard ("user space") interaction

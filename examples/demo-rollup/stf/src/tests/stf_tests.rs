@@ -2,7 +2,8 @@ use std::vec;
 
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{SequencerReward, Spec, WorkingSet};
+use sov_modules_api::transaction::SequencerReward;
+use sov_modules_api::{Spec, WorkingSet};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, StfBlueprint};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;

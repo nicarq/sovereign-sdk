@@ -27,10 +27,10 @@ use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
     CallResponse, Context, Error, EventEmitter, GenesisState, ModuleId, ModuleInfo, Spec,
-    StateAccessor, StateCheckpoint, StateMap, StateValue, TxState, WorkingSet,
+    StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue, TxState, WorkingSet,
 };
 use sov_state::codec::BcsCodec;
-use sov_state::{StateReader, User};
+use sov_state::User;
 use thiserror::Error;
 
 use crate::event::Event;

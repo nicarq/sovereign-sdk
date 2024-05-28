@@ -14,12 +14,13 @@ use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
 use thiserror::Error;
 
-use crate::kernel_state::BootstrapWorkingSet;
 use crate::module::Context;
-use crate::transaction::{AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData};
+use crate::transaction::{
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, TransactionConsumption,
+};
 use crate::{
-    Gas, GasMeter, KernelWorkingSet, PreExecWorkingSet, Spec, StateCheckpoint,
-    TransactionConsumption, TxScratchpad, WorkingSet,
+    BootstrapWorkingSet, Gas, GasMeter, KernelWorkingSet, PreExecWorkingSet, Spec, StateCheckpoint,
+    TxScratchpad, WorkingSet,
 };
 
 /// Indicates that a type provides the necessary capabilities for a runtime.

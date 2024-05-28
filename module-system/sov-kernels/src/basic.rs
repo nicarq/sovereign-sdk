@@ -5,8 +5,7 @@ use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
-use sov_modules_api::scratchpad::kernel_state::BootstrapWorkingSet;
-use sov_modules_api::{DaSpec, Gas, KernelModule, KernelWorkingSet, Spec};
+use sov_modules_api::{BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelWorkingSet, Spec};
 use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.

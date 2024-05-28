@@ -3,11 +3,12 @@ use std::marker::PhantomData;
 
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-use sov_state::{Prefix, StateCodec, StateItemCodec, StateReaderAndWriter};
+use sov_state::{Prefix, StateCodec, StateItemCodec};
 use thiserror::Error;
 
 use super::map::NamespacedStateMap;
 use super::value::NamespacedStateValue;
+use crate::StateReaderAndWriter;
 
 /// A growable array of values stored as JMT-backed state.
 #[derive(

@@ -11,11 +11,11 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{
-    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData,
+    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, SequencerReward,
 };
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Gas, GasArray, PreExecWorkingSet, SequencerReward, Spec,
-    StateCheckpoint, TxScratchpad, WorkingSet,
+    Context, DaSpec, DispatchCall, Gas, GasArray, PreExecWorkingSet, Spec, StateCheckpoint,
+    TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error, warn};
@@ -176,7 +176,7 @@ where
         );
 
         for raw_tx in raw_txs.iter() {
-            let tx_scratchpad = checkpoint.to_tx_scratchpad();
+            let tx_scratchpad = checkpoint.to_tx_scratchpad(gas_price);
             let process_tx_result = process_tx(
                 &self.runtime,
                 raw_tx,

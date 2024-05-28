@@ -1,3 +1,4 @@
+- #742 moves the scratchpad and the state into a submodule of the sov-modules-api and breaks these files into smaller components to make the complexity more manageable.
 - #730 Splits `RollupBlueprint` into two traits: `FullNodeBlueprint` and `RollupBlueprint` and feature gates the full-node blueprint behind the `"native"` feature flag. It also reduces the number of required types for the `RollupBlueprint` by making it generic over execution mode. See the diff of `celestia_rollup.rs` for a complete example of a migration.
 - #735 updates `minter_address` to `mint_to_address` in `CallMessage::CreateToken` & `CallMessage::Mint`
 - #725 removes the `macros` feature from `sov-modules-api`, which is now always enabled even with `--no-default-features`.

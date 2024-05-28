@@ -54,7 +54,7 @@ fn test_reward_sequencer() {
         .begin_batch_hook(&mut batch_test, &seq_da_address, &mut checkpoint)
         .expect("The begin batch hook should succeed");
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad(&gas_price);
 
     let pre_exec_ws = sequencer_test
         .registry
@@ -130,15 +130,12 @@ fn test_penalize_sequencer() {
     let checkpoint = working_set.checkpoint().0;
     let seq_da_address = sequencer_test.sequencer_config.seq_da_address;
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
+    let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad(gas_price);
 
     let mut pre_exec_ws = sequencer_test
         .registry
-        .authorize_sequencer(
-            &seq_da_address,
-            &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]),
-            transaction_scratchpad,
-        )
+        .authorize_sequencer(&seq_da_address, gas_price, transaction_scratchpad)
         .expect("The sequencer should be registered and have enough staked amount");
 
     pre_exec_ws

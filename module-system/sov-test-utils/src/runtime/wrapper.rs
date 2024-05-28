@@ -10,11 +10,11 @@ use sov_modules_api::capabilities::{
     RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
     Context, DispatchCall, EncodeCall, Gas, Genesis, GenesisState, Module, ModuleInfo,
-    PreExecWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, TransactionConsumption,
-    TxScratchpad, TypedEvent, WorkingSet,
+    PreExecWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad, TypedEvent,
+    WorkingSet,
 };
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;

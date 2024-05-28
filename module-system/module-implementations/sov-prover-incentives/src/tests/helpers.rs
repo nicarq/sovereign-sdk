@@ -102,7 +102,7 @@ pub(crate) fn simulate_chain_state_execution(
             &mut kernel_working_set,
         );
 
-        let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
+        let tx_scratchpad = state_checkpoint.to_tx_scratchpad(&price);
         let pre_exec_working_set = tx_scratchpad.pre_exec_ws_unmetered_with_price(&price);
 
         // We first need to reserve gas for the transaction

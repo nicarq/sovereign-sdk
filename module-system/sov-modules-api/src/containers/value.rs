@@ -2,11 +2,10 @@ use std::marker::PhantomData;
 
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-use sov_state::{
-    Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReader, StateReaderAndWriter,
-    StateWriter,
-};
+use sov_state::{Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec};
 use thiserror::Error;
+
+use crate::{StateReader, StateReaderAndWriter, StateWriter};
 
 /// Container for a single value.
 #[derive(
@@ -135,7 +134,7 @@ mod proofs {
     use sov_state::{StateCodec, StateItemCodec, StateItemDecoder, Storage};
 
     use super::NamespacedStateValue;
-    use crate::Spec;
+    use crate::{ProvenStateAccessor, Spec};
 
     impl<N, V, Codec> NamespacedStateValue<N, V, Codec>
     where
@@ -146,7 +145,7 @@ mod proofs {
         /// Gets the value with a proof of correctness.
         pub fn get_with_proof<W>(&self, working_set: &mut W) -> sov_state::StorageProof<W::Proof>
         where
-            W: sov_state::ProvenStateAccessor<N>,
+            W: ProvenStateAccessor<N>,
         {
             working_set.get_with_proof(self.slot_key())
         }

@@ -1,5 +1,6 @@
 use sov_state::namespaces::User;
-use sov_state::StateReaderAndWriter;
+
+use crate::StateReaderAndWriter;
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///

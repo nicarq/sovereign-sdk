@@ -33,7 +33,7 @@ use axum::routing::get;
 use serde::{Deserialize, Serialize};
 use sov_rest_utils::{PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
 use sov_state::namespaces::CompileTimeNamespace;
-use sov_state::{StateCodec, StateItemCodec, StateReader};
+use sov_state::{StateCodec, StateItemCodec};
 
 use crate::hooks::TxHooks;
 use crate::map::NamespacedStateMap;
@@ -391,6 +391,7 @@ pub mod __macros_private {
         use sov_rest_utils::{errors, ApiResult};
 
         use super::*;
+        use crate::StateReader;
 
         #[derive(derivative::Derivative)]
         #[derivative(Clone(bound = ""))]

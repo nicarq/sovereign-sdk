@@ -232,7 +232,8 @@ impl ExecutionSimulationVars {
                 &mut kernel_working_set,
             );
 
-            let transaction_scratchpad = state_checkpoint.to_tx_scratchpad();
+            let transaction_scratchpad =
+                state_checkpoint.to_tx_scratchpad(&current_base_fee_per_gas);
 
             let pre_exec_working_set = transaction_scratchpad.pre_exec_ws_unmetered();
 
