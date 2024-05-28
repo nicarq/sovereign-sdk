@@ -20,7 +20,8 @@ paths:
 
   /slots/latest:
     get:
-      tags: ["Slots"]
+      tags:
+        - ledger
       summary: Get the latest slot.
       operationId: get_latest_slot
       responses:
@@ -30,7 +31,8 @@ paths:
           $ref: "#/components/responses/NotFound"
   /slots/{slotId}:
     get:
-      tags: ["Slots"]
+      tags:
+        - ledger
       summary: Get a slot by ID.
       operationId: get_slot_by_id
       parameters:
@@ -42,7 +44,8 @@ paths:
           $ref: "#/components/responses/NotFound"
   /slots/{slotId}/batches/{batchOffset}:
     get:
-      tags: ["Slots"]
+      tags:
+        - ledger
       summary: Get a batch by slot ID and batch offset.
       operationId: get_batch_by_slot_id_and_offset
       parameters:
@@ -55,7 +58,8 @@ paths:
           $ref: "#/components/responses/NotFound"
   /slots/{slotId}/batches/{batchOffset}/txs/{txOffset}:
     get:
-      tags: ["Slots"]
+      tags:
+        - ledger
       summary: Get a transaction by slot ID, batch offset, and transaction offset.
       operationId: get_tx_by_slot_id_and_offset
       parameters:
@@ -69,7 +73,8 @@ paths:
           $ref: "#/components/responses/NotFound"
   /slots/{slotId}/batches/{batchOffset}/txs/{txOffset}/events/{eventOffset}:
     get:
-      tags: ["Slots"]
+      tags:
+        - ledger
       summary: Get an event by slot ID, batch offset, transaction offset, and event offset.
       operationId: get_event_by_slot_id_and_offset
       parameters:
@@ -88,7 +93,8 @@ paths:
 
   /batches/{batchId}:
     get:
-      tags: ["Batches"]
+      tags:
+        - ledger
       summary: Get a batch by ID.
       operationId: get_batch_by_id
       parameters:
@@ -100,7 +106,8 @@ paths:
           $ref: "#/components/responses/NotFound"
   /batches/{batchId}/txs/{txOffset}:
     get:
-      tags: ["Batches"]
+      tags:
+        - ledger
       summary: Get a transaction by batch ID and transaction offset.
       operationId: get_tx_by_batch_id_and_offset
       parameters:
@@ -113,7 +120,8 @@ paths:
           $ref: "#/components/responses/NotFound"
   /batches/{batchId}/txs/{txOffset}/events/{eventOffset}:
     get:
-      tags: ["Batches"]
+      tags:
+        - ledger
       summary: Get an event by batch ID, transaction offset, and event offset.
       operationId: get_event_by_batch_id_and_offset
       parameters:
@@ -131,7 +139,8 @@ paths:
 
   /txs/{txId}:
     get:
-      tags: ["Transactions"]
+      tags:
+        - ledger
       summary: Get a transaction by ID.
       operationId: get_tx_by_id
       parameters:
@@ -143,7 +152,8 @@ paths:
           $ref: "#/components/responses/NotFound"
   /txs/{txId}/events/{eventOffset}:
     get:
-      tags: ["Transactions"]
+      tags:
+        - ledger
       summary: Get an event by transaction ID and event offset.
       operationId: get_event_by_tx_id_and_offset
       parameters:
@@ -160,7 +170,8 @@ paths:
 
   /events/{eventId}:
     get:
-      tags: ["Events"]
+      tags:
+        - ledger
       summary: Get an event by ID.
       operationId: get_event_by_id
       parameters:
@@ -176,7 +187,8 @@ paths:
 
   /aggregated-proofs/latest:
     get:
-      tags: ["Other"]
+      tags:
+        - ledger
       summary: Get the latest aggregated proof.
       operationId: get_latest_aggregated_proof
       description: |
