@@ -19,6 +19,8 @@ paths:
     post:
       summary: Submit a batch to the rollup
       operationId: publish_batch
+      tags:
+        - sequencer
       requestBody:
         content:
           application/json:
@@ -52,6 +54,8 @@ paths:
       summary: Submit a transaction to the rollup
       description: Submit a transaction to the rollup
       operationId: acceptTx
+      tags:
+        - sequencer
       requestBody:
         content:
           application/json:
