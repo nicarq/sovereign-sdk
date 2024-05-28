@@ -2,11 +2,13 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::{Address, Context, KernelWorkingSet, StateCheckpoint, WorkingSet};
+use sov_modules_api::{
+    Address, Context, KernelWorkingSet, StateCheckpoint, StateReader, StateWriter, WorkingSet,
+};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::{Kernel, User};
-use sov_state::{SlotKey, SlotValue, StateReader, StateWriter};
+use sov_state::{SlotKey, SlotValue};
 
 type TestSpec = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 

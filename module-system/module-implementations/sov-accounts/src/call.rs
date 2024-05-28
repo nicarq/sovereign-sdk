@@ -1,7 +1,6 @@
 use anyhow::Result;
-use sov_modules_api::{CallResponse, Context, CredentialId, Spec, TxState};
+use sov_modules_api::{CallResponse, Context, CredentialId, Spec, StateReader, TxState};
 use sov_state::namespaces::User;
-use sov_state::StateReader;
 
 use crate::{Account, Accounts};
 

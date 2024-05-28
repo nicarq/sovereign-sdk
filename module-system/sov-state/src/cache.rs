@@ -5,6 +5,16 @@ use std::collections::hash_map::Entry;
 use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage};
 
+/// An enum that represents the temperature of a value in the storage.
+/// Used in cached-structs to determine whether this is the first read of a value or not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IsValueCached {
+    /// The value is cached.
+    Yes,
+    /// The value is fetched from the storage and was never cached.
+    No,
+}
+
 /// An error when merging two cache values.
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
@@ -192,7 +202,7 @@ impl Access {
 ///      ValueExists::Yes(None)
 /// - Exists and contains a value:
 ///     ValueExists::Yes(Some(value))
-enum ValueExists {
+enum ValueExistsInCache {
     /// The key exists in the cache.
     Yes(Option<SlotValue>),
     /// The key does not exist in the cache.
@@ -217,10 +227,10 @@ impl CacheLog {
     }
 
     /// Returns a value corresponding to the key.
-    fn get_value(&self, key: &SlotKey) -> ValueExists {
+    fn get_value(&self, key: &SlotKey) -> ValueExistsInCache {
         match self.log.get(key) {
-            Some(value) => ValueExists::Yes(value.last_value().cloned()),
-            None => ValueExists::No,
+            Some(value) => ValueExistsInCache::Yes(value.last_value().cloned()),
+            None => ValueExistsInCache::No,
         }
     }
 
@@ -244,13 +254,15 @@ impl CacheLog {
     }
 
     /// Adds a write entry to the cache.
-    pub fn add_write(&mut self, key: SlotKey, value: Option<SlotValue>) {
+    pub fn add_write(&mut self, key: SlotKey, value: Option<SlotValue>) -> IsValueCached {
         match self.log.entry(key) {
             Entry::Occupied(mut existing) => {
                 existing.get_mut().add_write(value);
+                IsValueCached::Yes
             }
             Entry::Vacant(vacancy) => {
                 vacancy.insert(Access::Write { modified: value });
+                IsValueCached::No
             }
         }
     }
@@ -333,26 +345,28 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         value_reader: &S,
         witness: &S::Witness,
         version: Option<u64>,
-    ) -> Option<SlotValue> {
+    ) -> (Option<SlotValue>, IsValueCached) {
         match self.tx_cache.get_value(key) {
-            ValueExists::Yes(cache_value_exists) => cache_value_exists.map(Into::into),
+            ValueExistsInCache::Yes(cache_value_exists) => {
+                (cache_value_exists.map(Into::into), IsValueCached::Yes)
+            }
             // If the value does not exist in the cache, then fetch it from an external source.
-            ValueExists::No => {
+            ValueExistsInCache::No => {
                 let storage_value = value_reader.get::<N>(key, version, witness);
                 self.add_read(key.clone(), storage_value.clone());
-                storage_value
+                (storage_value, IsValueCached::No)
             }
         }
     }
 
     /// Replaces the keyed value on the storage.
-    pub fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.tx_cache.add_write(key.clone(), Some(value));
+    pub fn set(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
+        self.tx_cache.add_write(key.clone(), Some(value))
     }
 
     /// Deletes a keyed value from the cache.
-    pub fn delete(&mut self, key: &SlotKey) {
-        self.tx_cache.add_write(key.clone(), None);
+    pub fn delete(&mut self, key: &SlotKey) -> IsValueCached {
+        self.tx_cache.add_write(key.clone(), None)
     }
 
     /// Merges the provided `ProvableStorageCache` into this one.
@@ -435,11 +449,11 @@ mod tests {
         Some(SlotValue::from(vec![v]))
     }
 
-    impl ValueExists {
+    impl ValueExistsInCache {
         fn get(self) -> Option<SlotValue> {
             match self {
-                ValueExists::Yes(value) => value,
-                ValueExists::No => unreachable!(),
+                ValueExistsInCache::Yes(value) => value,
+                ValueExistsInCache::No => unreachable!(),
             }
         }
     }

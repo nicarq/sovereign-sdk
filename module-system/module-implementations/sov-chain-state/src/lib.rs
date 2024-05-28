@@ -23,9 +23,9 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::kernel_state::VersionReader;
 use sov_modules_api::{
     DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelWorkingSet, ValidityConditionChecker,
+    VersionReader,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;

@@ -1,10 +1,11 @@
 use sov_rollup_interface::da::DaSpec;
 use sov_state::namespaces::Accessory;
-use sov_state::StateReaderAndWriter;
 
 use crate::batch::BatchWithId;
 use crate::transaction::AuthenticatedTransactionData;
-use crate::{Context, Spec, StateCheckpoint, TxState, VersionedStateReadWriter};
+use crate::{
+    Context, Spec, StateCheckpoint, StateReaderAndWriter, TxState, VersionedStateReadWriter,
+};
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///

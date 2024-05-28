@@ -32,7 +32,7 @@ fn reserve_gas_helper(
     let transaction: Transaction<S> =
         generate_empty_tx(max_priority_fee_bips, initial_balance, gas_limit.clone());
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad(gas_price);
 
     let mut pre_execution_ws = transaction_scratchpad.pre_exec_ws_unmetered_with_price(gas_price);
     pre_execution_ws
@@ -240,7 +240,8 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
 fn test_reserve_gas_no_account() {
     let (_, bank, checkpoint) = simple_bank_setup(0);
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
+    let transaction_scratchpad =
+        checkpoint.to_tx_scratchpad(&<<S as Spec>::Gas as Gas>::Price::ZEROED);
 
     let pre_exec_ws = transaction_scratchpad.pre_exec_ws_unmetered();
 
@@ -271,7 +272,7 @@ fn test_reserve_gas_not_enough_balance() {
 
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad(&gas_price);
 
     let pre_exec_ws = transaction_scratchpad.pre_exec_ws_unmetered_with_price(&gas_price);
 
@@ -312,7 +313,7 @@ fn test_reserve_gas_price_too_high() {
     // The gas price is [2; 2] which is higher than the one associated with the gas limit.
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[2; 2]);
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad(&gas_price);
 
     let pre_exec_ws = transaction_scratchpad.pre_exec_ws_unmetered_with_price(&gas_price);
 

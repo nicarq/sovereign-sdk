@@ -17,9 +17,9 @@ mod test {
     use sov_prover_storage_manager::SimpleStorageManager;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::namespaces::User;
-    use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, StateWriter, Storage};
+    use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, Storage};
 
-    use crate::{CryptoSpec, Version, WorkingSet};
+    use crate::{CryptoSpec, StateWriter, Version, WorkingSet};
 
     type StorageSpec = DefaultStorageSpec<TestHasher>;
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;

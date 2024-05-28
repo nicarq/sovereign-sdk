@@ -4,16 +4,16 @@ use std::marker::PhantomData;
 use anyhow::ensure;
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-use sov_state::{
-    EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, StateReader,
-    StateReaderAndWriter, StateWriter,
-};
+use sov_state::{EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec};
 #[cfg(feature = "native")]
-use sov_state::{ProvenStateAccessor, StateItemDecoder, Storage};
+use sov_state::{StateItemDecoder, Storage};
 use thiserror::Error;
 
+#[cfg(feature = "native")]
+use crate::ProvenStateAccessor;
 #[cfg(feature = "arbitrary")]
 use crate::WorkingSet;
+use crate::{StateReader, StateReaderAndWriter, StateWriter};
 
 /// A container that maps keys to values.
 ///

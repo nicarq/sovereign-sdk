@@ -14,7 +14,6 @@ pub mod rest;
 #[cfg(feature = "native")]
 pub mod rpc;
 pub mod runtime;
-pub mod scratchpad;
 pub mod state;
 
 pub use common::*;
@@ -22,7 +21,6 @@ pub use module::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
 pub use runtime::*;
-pub use scratchpad::*;
 pub use state::*;
 
 mod reexport_macros;
@@ -53,9 +51,9 @@ pub use sov_rollup_interface::zk::{
     CryptoSpec, StateTransitionPublicData, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
 pub use sov_rollup_interface::{digest, execution_mode, BasicAddress, RollupAddress};
-pub use sov_state::StateReaderAndWriter;
 
 pub use crate::common::ModuleError as Error;
+pub use crate::state::StateReaderAndWriter;
 pub mod optimistic {
     pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};
 }

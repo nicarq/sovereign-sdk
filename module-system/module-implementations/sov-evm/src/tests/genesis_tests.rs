@@ -236,9 +236,9 @@ pub(crate) fn setup(
     state_checkpoint: StateCheckpoint<S>,
 ) -> (Evm<S>, StateCheckpoint<S>) {
     let evm = Evm::<S>::default();
-    let mut genesis_ws = state_checkpoint.to_working_set_genesis::<Evm<S>>(evm_config);
+    let mut genesis_ws = state_checkpoint.to_genesis_state_accessor::<Evm<S>>(evm_config);
     evm.genesis(evm_config, &mut genesis_ws).unwrap();
-    let mut state_checkpoint = genesis_ws.checkpoint().0;
+    let mut state_checkpoint = genesis_ws.checkpoint();
     let kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     evm.finalize_hook(
         VisibleHash::new([10u8; 32]),

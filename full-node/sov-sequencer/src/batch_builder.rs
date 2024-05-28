@@ -96,7 +96,7 @@ where
 
         // TODO(`<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/625>`). Hack: we need to temporarily take ownership of the `StateCheckpoint` to be able to call [`sov_modules_api::runtime::capabilities::SequencerAuthorization::authorize_sequencer`].
         let state_checkpoint = ctx.state_checkpoint.take().unwrap();
-        let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
+        let tx_scratchpad = state_checkpoint.to_tx_scratchpad(&ctx.gas_price);
         let res = process_tx(
             &self.runtime,
             &RawTx {

@@ -1,8 +1,7 @@
 use sov_modules_api::capabilities::TryReserveGasError;
-use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    AuthorizeTransactionError, Gas, GasMeter, PreExecWorkingSet, Spec, TransactionConsumption,
-    TxScratchpad, WorkingSet,
+    AuthorizeTransactionError, Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
 };
 use thiserror::Error;
 
