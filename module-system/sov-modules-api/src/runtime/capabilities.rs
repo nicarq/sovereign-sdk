@@ -15,12 +15,10 @@ use sov_state::Storage;
 use thiserror::Error;
 
 use crate::module::Context;
-use crate::transaction::{
-    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, TransactionConsumption,
-};
+use crate::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use crate::{
-    BootstrapWorkingSet, Gas, GasMeter, KernelWorkingSet, PreExecWorkingSet, Spec, StateCheckpoint,
-    TxScratchpad, WorkingSet,
+    AuthenticationResult, BootstrapWorkingSet, Gas, GasMeter, KernelWorkingSet, PreExecWorkingSet,
+    Spec, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 
 /// Indicates that a type provides the necessary capabilities for a runtime.
@@ -28,7 +26,12 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// The concrete implementation of the capabilities.
     type Capabilities<'a>: GasEnforcer<S, Da, PreExecChecksMeter = Self::SequencerStakeMeter>
         + SequencerAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter>
-        + RuntimeAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter>
+        + RuntimeAuthorization<
+            S,
+            Da,
+            SequencerStakeMeter = Self::SequencerStakeMeter,
+            AuthorizationData = Self::AuthorizationData,
+        >
     where
         Self: 'a;
 
@@ -38,6 +41,9 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     // a lifetime and rustc isn't smart enough to know that he lifetime of `SequencerAuthorization::SequencerStakeMeter`
     // doesn't depend on the lifetime of capabilities.
     type SequencerStakeMeter: GasMeter<S::Gas>;
+
+    /// The type that is passed to the authorizer.
+    type AuthorizationData;
 
     /// Fetches the capabilities from the runtime.
     fn capabilities(&self) -> Self::Capabilities<'_>;
@@ -212,11 +218,14 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
     /// A type-safe struct that should be used to track the staked amount of the sequencer and the eventual execution penalities.
     type SequencerStakeMeter: GasMeter<S::Gas>;
 
+    /// The type used for authorization.
+    type AuthorizationData;
+
     /// Resolves the context for a transaction.
     /// TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
     fn resolve_context(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
+        auth_data: &Self::AuthorizationData,
         sequencer: &Da::Address,
         height: u64,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
@@ -225,7 +234,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
     /// Prevents duplicate transactions from running.
     fn check_uniqueness(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
+        auth_data: &Self::AuthorizationData,
         context: &Context<S>,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(), anyhow::Error>;
@@ -233,7 +242,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
+        auth_data: &Self::AuthorizationData,
         sequencer: &Da::Address,
         tx_scratchpad: &mut TxScratchpad<S>,
     );
@@ -284,12 +293,15 @@ pub trait RuntimeAuthenticator<S: Spec> {
     type Decodable;
     /// A struct that tracks the staked amount of the sequencer and the eventual execution penalities.
     type SequencerStakeMeter: GasMeter<S::Gas>;
+    /// The type that is passed to the authorizer.
+    type AuthorizationData;
     /// Authenticates raw transaction.
+    #[allow(clippy::type_complexity)]
     fn authenticate(
         &self,
         tx: &RawTx,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError>;
+    ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData>;
 }
 
 #[cfg(feature = "mocks")]

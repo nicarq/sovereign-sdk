@@ -10,12 +10,10 @@ use sov_modules_api::capabilities::{
     RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::transaction::{
-    AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, SequencerReward,
-};
+use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Gas, GasArray, PreExecWorkingSet, Spec, StateCheckpoint,
-    TxScratchpad, WorkingSet,
+    AuthenticationResult, Context, DaSpec, DispatchCall, Gas, GasArray, PreExecWorkingSet, Spec,
+    StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error, warn};
@@ -317,7 +315,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         }
     };
 
-    let (tx, message) =
+    let (tx, auth_data, message) =
         match authenticate_with_cycle_count(runtime, raw_tx, &mut pre_exec_working_set) {
             Err(AuthenticationError::FatalError(reason)) => {
                 return Err(TxProcessingError {
@@ -340,14 +338,14 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                     ),
                 });
             }
-            Ok((tx, message)) => (tx, message),
+            Ok((tx, auth_data, message)) => (tx, auth_data, message),
         };
 
     let raw_tx_hash = &tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
     let maybe_ctx = runtime.capabilities().resolve_context(
-        tx,
+        &auth_data,
         sequencer_da_address,
         height,
         &mut pre_exec_working_set,
@@ -371,9 +369,10 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(e) = runtime
-        .capabilities()
-        .check_uniqueness(tx, &ctx, &mut pre_exec_working_set)
+    if let Err(e) =
+        runtime
+            .capabilities()
+            .check_uniqueness(&auth_data, &ctx, &mut pre_exec_working_set)
     {
         // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
         let tx_scratchpad = runtime
@@ -418,6 +417,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         runtime,
         ctx,
         tx,
+        &auth_data,
         raw_tx_hash,
         message,
         working_set,
@@ -433,12 +433,10 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
         S,
         <R as HasCapabilities<S, Da>>::SequencerStakeMeter,
     >,
-) -> Result<
-    (
-        AuthenticatedTransactionAndRawHash<S>,
-        <R as RuntimeAuthenticator<S>>::Decodable,
-    ),
-    AuthenticationError,
+) -> AuthenticationResult<
+    S,
+    <R as RuntimeAuthenticator<S>>::Decodable,
+    <R as RuntimeAuthenticator<S>>::AuthorizationData,
 > {
     runtime.authenticate(raw_tx, pre_exec_working_set)
 }
@@ -452,6 +450,7 @@ fn apply_tx<S, RT, Da>(
     runtime: &RT,
     ctx: Context<S>,
     tx: &AuthenticatedTransactionData<S>,
+    auth_data: &<RT as RuntimeAuthenticator<S>>::AuthorizationData,
     raw_tx_hash: &[u8; 32],
     message: <RT as DispatchCall>::Decodable,
     mut working_set: WorkingSet<S>,
@@ -504,7 +503,7 @@ where
 
     runtime
         .capabilities()
-        .mark_tx_attempted(tx, sequencer, &mut tx_scratchpad);
+        .mark_tx_attempted(auth_data, sequencer, &mut tx_scratchpad);
 
     runtime
         .capabilities()

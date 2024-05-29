@@ -78,8 +78,6 @@ impl<S: Spec> Bank<S> {
 
         if tx.max_fee == 0 {
             tracing::warn!(
-                signer_default_address = ?tx.default_address,
-                nonce = tx.nonce,
                 %payer,
                 "Trying to reserve gas for tx with zero max fee"
             );

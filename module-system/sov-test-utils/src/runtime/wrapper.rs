@@ -6,22 +6,21 @@ use sov_attester_incentives::AttesterIncentives;
 use sov_bank::{Bank, IntoPayable};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
-    AuthenticationError, AuthorizeSequencerError, GasEnforcer, HasCapabilities, RawTx,
-    RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
+    AuthorizeSequencerError, GasEnforcer, HasCapabilities, RawTx, RuntimeAuthenticator,
+    RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    Context, DispatchCall, EncodeCall, Gas, Genesis, GenesisState, Module, ModuleInfo,
-    PreExecWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad, TypedEvent,
-    WorkingSet,
+    AuthenticationResult, AuthorizationData, Context, DispatchCall, EncodeCall, Gas, Genesis,
+    GenesisState, Module, ModuleInfo, PreExecWorkingSet, RuntimeEventProcessor, Spec,
+    StateCheckpoint, TxScratchpad, TypedEvent, WorkingSet,
 };
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 
 use super::traits::{MinimalRuntime, StandardRuntime, TestRuntimeHookOverrides};
-use crate::runtime::AuthenticatedTransactionAndRawHash;
 
 pub(super) type WorkingSetClosure<T> = Box<dyn FnOnce(&mut <T as TxHooks>::TxState) + Send + Sync>;
 
@@ -185,11 +184,13 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> RuntimeAuthenticator<S>
 
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
 
+    type AuthorizationData = AuthorizationData<S>;
+
     fn authenticate(
         &self,
         raw_tx: &RawTx,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError> {
+    ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData> {
         sov_modules_api::authenticate::<S, Self, Self::SequencerStakeMeter>(
             &raw_tx.data,
             pre_exec_ws,
@@ -263,6 +264,8 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> HasCapabilities<S, Da>
     where
     T: 'a,;
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+
+    type AuthorizationData = AuthorizationData<S>;
 
     fn capabilities(&self) -> Self::Capabilities<'_> {
         Self::default()
@@ -362,11 +365,13 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
     for TestRuntimeWrapper<S, Da, T>
 {
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+
+    type AuthorizationData = AuthorizationData<S>;
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
         &self,
-        _tx: &AuthenticatedTransactionData<S>,
+        _auth_tx: &Self::AuthorizationData,
         _context: &Context<S>,
         _working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(), anyhow::Error> {
@@ -376,19 +381,19 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
     /// Resolves the context for a transaction.
     fn resolve_context(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
+        auth_tx: &Self::AuthorizationData,
         sequencer: &Da::Address,
         height: u64,
         working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<Context<S>, anyhow::Error> {
-        let sender = tx.default_address.clone().unwrap();
+        let sender = auth_tx.default_address.clone().unwrap();
         let sequencer = self
             .sequencer_registry()
             .resolve_da_address(sequencer, working_set)
             .expect("Sequencer is no longer registered by the time of context resolution. This is a bug");
         Ok(Context::new(
             sender,
-            tx.credentials.clone(),
+            auth_tx.credentials.clone(),
             sequencer,
             height,
         ))
@@ -397,7 +402,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
         &self,
-        _tx: &AuthenticatedTransactionData<S>,
+        _auth_tx: &Self::AuthorizationData,
         _sequencer: &Da::Address,
         _tx_scratchpad: &mut TxScratchpad<S>,
     ) {

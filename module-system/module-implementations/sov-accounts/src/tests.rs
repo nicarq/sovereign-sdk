@@ -1,6 +1,5 @@
 use sov_modules_api::prelude::*;
-use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
-use sov_modules_api::{Address, Context, CredentialId, Gas, Module, PrivateKey, PublicKey};
+use sov_modules_api::{Address, Context, CredentialId, Module, PrivateKey, PublicKey};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
@@ -212,17 +211,15 @@ fn test_resolve_sender_address() {
     let sender_addr = sender.to_address::<<S as Spec>::Address>();
     let sender_credential_id: CredentialId = sender.credential_id::<TestHasher>();
 
-    let tx = create_test_tx::<S>(None, sender_credential_id);
-
-    let maybe_address = accounts.resolve_sender_address(&tx, &mut checkpoint);
+    let maybe_address =
+        accounts.resolve_sender_address(&None, &sender_credential_id, &mut checkpoint);
     assert_eq!(
         maybe_address.unwrap_err().to_string(),
         format!("No default address found for {}", sender_credential_id)
     );
 
-    let tx = create_test_tx::<S>(Some(sender_addr), sender_credential_id);
     accounts
-        .resolve_sender_address(&tx, &mut checkpoint)
+        .resolve_sender_address(&Some(sender_addr), &sender_credential_id, &mut checkpoint)
         .unwrap();
 
     let mut working_set = checkpoint.to_working_set_unmetered();
@@ -232,22 +229,6 @@ fn test_resolve_sender_address() {
         .unwrap();
 
     assert_eq!(acc.addr, sender_addr);
-}
-
-fn create_test_tx<S: Spec>(
-    sender_addr: Option<S::Address>,
-    sender_credential_id: CredentialId,
-) -> AuthenticatedTransactionData<S> {
-    AuthenticatedTransactionData::<S> {
-        credentials: Default::default(),
-        credential_id: sender_credential_id,
-        default_address: sender_addr,
-        chain_id: 0,
-        max_priority_fee_bips: PriorityFeeBips::ZERO,
-        max_fee: 0,
-        gas_limit: Some(<S as Spec>::Gas::zero()),
-        nonce: 0,
-    }
 }
 
 #[test]

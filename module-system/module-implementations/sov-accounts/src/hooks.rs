@@ -1,5 +1,4 @@
-use sov_modules_api::transaction::AuthenticatedTransactionData;
-use sov_modules_api::{Spec, StateAccessor};
+use sov_modules_api::{CredentialId, Spec, StateAccessor};
 
 use crate::{Account, Accounts};
 
@@ -7,10 +6,10 @@ impl<S: Spec> Accounts<S> {
     /// Resolve the sender's public key to an address. Return an error if the sender is not registered.
     pub fn resolve_sender_address(
         &self,
-        tx: &AuthenticatedTransactionData<S>,
+        maybe_default_address: &Option<S::Address>,
+        credential_id: &CredentialId,
         state_checkpoint: &mut impl StateAccessor,
     ) -> Result<S::Address, anyhow::Error> {
-        let credential_id = &tx.credential_id;
         let maybe_address = self
             .accounts
             .get(credential_id, state_checkpoint)
@@ -18,7 +17,7 @@ impl<S: Spec> Accounts<S> {
 
         match maybe_address {
             Some(address) => Ok(address),
-            None => match &tx.default_address {
+            None => match maybe_default_address {
                 Some(default_address) => {
                     let new_account = Account {
                         addr: default_address.clone(),

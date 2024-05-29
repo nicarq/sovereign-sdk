@@ -9,7 +9,6 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::batch::Batch;
 use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
 use sov_modules_api::{CryptoSpec, DaSpec, Genesis, SlotData, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;

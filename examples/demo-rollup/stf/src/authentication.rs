@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::runtime::capabilities::{
     AuthenticationError, FatalError, RawTx, RuntimeAuthenticator,
 };
-use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
-use sov_modules_api::{Authenticator, DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, Spec};
+use sov_modules_api::{
+    AuthenticationResult, Authenticator, AuthorizationData, DaSpec, DispatchCall, GasMeter,
+    PreExecWorkingSet, Spec,
+};
 use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::{Runtime, RuntimeCall};
@@ -17,11 +19,13 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
 
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
 
+    type AuthorizationData = AuthorizationData<S>;
+
     fn authenticate(
         &self,
         raw_tx: &RawTx,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> Result<(AuthenticatedTransactionAndRawHash<S>, Self::Decodable), AuthenticationError> {
+    ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData> {
         let auth = Auth::try_from_slice(raw_tx.data.as_slice()).map_err(|e| {
             AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
         })?;
@@ -47,15 +51,15 @@ pub struct ModAuth<S: Spec, Da: DaSpec> {
 impl<S: Spec, Da: DaSpec> Authenticator for ModAuth<S, Da> {
     type Spec = S;
     type DispatchCall = Runtime<S, Da>;
+    type AuthorizationData = AuthorizationData<S>;
+
     fn authenticate<Meter: GasMeter<S::Gas>>(
         tx: &[u8],
         pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
-    ) -> Result<
-        (
-            AuthenticatedTransactionAndRawHash<Self::Spec>,
-            <Self::DispatchCall as DispatchCall>::Decodable,
-        ),
-        AuthenticationError,
+    ) -> AuthenticationResult<
+        Self::Spec,
+        <Self::DispatchCall as DispatchCall>::Decodable,
+        Self::AuthorizationData,
     > {
         sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall, Meter>(
             tx,
@@ -77,20 +81,21 @@ pub struct EvmAuth<S: Spec, Da: DaSpec> {
 impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
     type Spec = S;
     type DispatchCall = Runtime<S, Da>;
+    type AuthorizationData = AuthorizationData<S>;
+
     fn authenticate<Meter: GasMeter<S::Gas>>(
         tx: &[u8],
         stake_meter: &mut PreExecWorkingSet<S, Meter>,
-    ) -> Result<
-        (
-            AuthenticatedTransactionAndRawHash<Self::Spec>,
-            <Self::DispatchCall as DispatchCall>::Decodable,
-        ),
-        AuthenticationError,
+    ) -> AuthenticationResult<
+        Self::Spec,
+        <Self::DispatchCall as DispatchCall>::Decodable,
+        Self::AuthorizationData,
     > {
-        let (tx_and_raw_hash, runtime_call) =
+        let (tx_and_raw_hash, auth_data, runtime_call) =
             sov_evm::authenticate::<Self::Spec, Meter>(tx, stake_meter)?;
         let call = RuntimeCall::evm(runtime_call);
-        Ok((tx_and_raw_hash, call))
+
+        Ok((tx_and_raw_hash, auth_data, call))
     }
 
     fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {

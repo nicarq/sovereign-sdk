@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
 
 use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::transaction::AuthenticatedTransactionAndRawHash;
-use sov_modules_api::{Authenticator, DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, Spec};
+use sov_modules_api::{
+    AuthenticationResult, Authenticator, AuthorizationData, DaSpec, DispatchCall, GasMeter,
+    PreExecWorkingSet, Spec,
+};
 
 use crate::runtime::TestRuntime;
 
@@ -14,16 +16,15 @@ pub struct TestAuth<S: Spec, Da: DaSpec> {
 impl<S: Spec, Da: DaSpec> Authenticator for TestAuth<S, Da> {
     type Spec = S;
     type DispatchCall = TestRuntime<S, Da>;
+    type AuthorizationData = AuthorizationData<S>;
 
     fn authenticate<Meter: GasMeter<S::Gas>>(
         tx: &[u8],
         stake_meter: &mut PreExecWorkingSet<S, Meter>,
-    ) -> Result<
-        (
-            AuthenticatedTransactionAndRawHash<Self::Spec>,
-            <Self::DispatchCall as DispatchCall>::Decodable,
-        ),
-        sov_modules_api::runtime::capabilities::AuthenticationError,
+    ) -> AuthenticationResult<
+        Self::Spec,
+        <Self::DispatchCall as DispatchCall>::Decodable,
+        Self::AuthorizationData,
     > {
         sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall, Meter>(tx, stake_meter)
     }
