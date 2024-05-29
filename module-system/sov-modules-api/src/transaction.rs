@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
+use std::rc::Rc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
-use sov_rollup_interface::crypto::{PublicKey, Signature as _};
+use sov_rollup_interface::crypto::Signature as _;
 use sov_rollup_interface::zk::CryptoSpec;
 
-use crate::{CredentialId, Gas, GasArray, GasMeter, Spec};
+use crate::{Gas, GasArray, GasMeter, Spec};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -268,20 +268,11 @@ type RawTxHash = [u8; 32];
 
 impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
     fn from(tx: Transaction<S>) -> Self {
-        let pub_key = tx.pub_key().clone();
-
-        let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-        let default_address = Some((&pub_key).into());
-
         Self {
-            credentials: Credentials::new(pub_key),
-            default_address,
-            credential_id,
             chain_id: tx.chain_id,
             max_priority_fee_bips: tx.max_priority_fee_bips,
             max_fee: tx.max_fee,
             gas_limit: tx.gas_limit,
-            nonce: tx.nonce,
         }
     }
 }
@@ -290,7 +281,7 @@ impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
 /// For example, this could be a public key of the sender of the transaction.
 #[derive(Clone, Debug, Default)]
 pub struct Credentials {
-    credentials: BTreeMap<core::any::TypeId, Arc<dyn core::any::Any>>,
+    credentials: Rc<BTreeMap<core::any::TypeId, Rc<dyn core::any::Any>>>,
 }
 
 impl Credentials {
@@ -299,9 +290,11 @@ impl Credentials {
     where
         T: core::any::Any,
     {
-        let mut map: BTreeMap<std::any::TypeId, Arc<dyn core::any::Any>> = BTreeMap::new();
-        map.insert(core::any::TypeId::of::<T>(), Arc::new(credential));
-        Self { credentials: map }
+        let mut map: BTreeMap<std::any::TypeId, Rc<dyn core::any::Any>> = BTreeMap::new();
+        map.insert(core::any::TypeId::of::<T>(), Rc::new(credential));
+        Self {
+            credentials: Rc::new(map),
+        }
     }
 
     /// Returns the relevant credential.
@@ -318,13 +311,6 @@ impl Credentials {
 /// Transaction data that has been authenticated.
 /// This is the output of the `RuntimeAuthenticator`.
 pub struct AuthenticatedTransactionData<S: Spec> {
-    /// Credential identifier used to retrieve relevant rollup address.
-    pub credential_id: CredentialId,
-    /// Holds the original credentials to authenticate the transaction and
-    /// provides information about which `Authenticator` was used to authenticate the transaction.
-    pub credentials: Credentials,
-    /// The default address of the signer.
-    pub default_address: Option<S::Address>,
     /// The chain ID.
     pub chain_id: u64,
     /// The maximum priority fee that can be paid for this transaction expressed in bips.
@@ -334,8 +320,6 @@ pub struct AuthenticatedTransactionData<S: Spec> {
     pub max_fee: u64,
     /// The estimated gas usage of the transaction
     pub gas_limit: Option<S::Gas>,
-    /// The nonce.
-    pub nonce: u64,
 }
 
 impl<S: Spec> AuthenticatedTransactionData<S> {

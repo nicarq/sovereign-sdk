@@ -37,13 +37,12 @@ use sov_modules_api::capabilities::HasCapabilities;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
+use sov_modules_api::{AuthorizationData, DispatchCall, Event, Genesis, MessageCodec, Spec};
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerStakeMeter;
 
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
-
 /// The `demo-stf runtime`.
 #[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
 #[derive(Default, Genesis, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
@@ -106,6 +105,7 @@ where
 impl<S: Spec, Da: DaSpec> HasCapabilities<S, Da> for Runtime<S, Da> {
     type Capabilities<'a> = StandardCapabilities<'a, S, Da>;
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+    type AuthorizationData = AuthorizationData<S>;
     fn capabilities(&self) -> Self::Capabilities<'_> {
         StandardCapabilities {
             bank: &self.bank,

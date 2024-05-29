@@ -2,14 +2,17 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{AuthorizeSequencerError, SequencerAuthorization};
 use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
+use sov_modules_api::transaction::Credentials;
 use sov_modules_api::{
-    Context, CryptoSpec, DaSpec, Gas, GasArray, KernelWorkingSet, PrivateKey, Spec, StateCheckpoint,
+    AuthorizationData, Context, CryptoSpec, DaSpec, Gas, GasArray, KernelWorkingSet, PrivateKey,
+    Spec, StateCheckpoint,
 };
 use sov_modules_stf_blueprint::TxEffect;
+use sov_rollup_interface::crypto::PublicKey;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
+use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, DEFAULT_STAKE_AMOUNT, S,
@@ -61,14 +64,21 @@ impl TestRollup {
             .create_default_messages()
             .into_iter()
             .map(|m| {
+                let tx = m.to_tx::<TestRuntime<S, Da>>();
+                let pub_key = tx.pub_key().clone();
+                let credential_id = pub_key.credential_id::<TestHasher>();
+                let default_address = Some((&pub_key).into());
+
+                let auth_data = AuthorizationData {
+                    nonce: tx.nonce,
+                    credential_id,
+                    credentials: Credentials::new(pub_key),
+                    default_address,
+                };
+
                 self.stf()
                     .runtime()
-                    .resolve_context(
-                        &m.to_tx::<TestRuntime<S, Da>>().into(),
-                        &seq_da_addr,
-                        height,
-                        &mut pre_exec_ws,
-                    )
+                    .resolve_context(&auth_data, &seq_da_addr, height, &mut pre_exec_ws)
                     .unwrap()
             })
             .collect();
