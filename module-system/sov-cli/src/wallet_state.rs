@@ -22,8 +22,10 @@ where
     pub unsent_transactions: Vec<UnsignedTransactionWithoutNonce<S, Tx>>,
     /// The addresses in the wallet
     pub addresses: AddressList<S>,
-    /// The addresses in the wallet
+    /// The RPC URL
     pub rpc_url: Option<String>,
+    /// The REST API URL
+    pub rest_api_url: Option<String>,
     /// The version of the library that serialized the state.
     pub version: String,
 }
@@ -40,6 +42,7 @@ where
                 addresses: Vec::new(),
             },
             rpc_url: None,
+            rest_api_url: None,
             version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }

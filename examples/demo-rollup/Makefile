@@ -54,7 +54,7 @@ start:
 	@timestamp=$$(date $(DATE_FORMAT)); \
 	echo "$$timestamp: Starting celestia docker compose..."
 	@echo $$(date +%s) > $(CELESTIA_START_TIME_FILE)
-	$(DOCKER_COMPOSE) up --build --force-recreate -d
+	$(DOCKER_COMPOSE) up --build --force-recreate -d --quiet-pull
 	@timestamp=$$(date $(DATE_FORMAT)); \
 	echo "$$timestamp: waiting for container 'sequencer-0' to become operational..."
 	@while true; do \
@@ -150,22 +150,22 @@ build:
 
 test-create-token: check-sov-cli
 test-create-token:
-	$(SOV_CLI_REL_PATH) rpc set-url http://127.0.0.1:12345
+	$(SOV_CLI_REL_PATH) rpc set-url --rpc=http://127.0.0.1:12345 --rest-api=http://127.0.0.1:12346
 	$(SOV_CLI_REL_PATH) keys import --nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY --path ../test-data/keys/token_deployer_private_key.json
 	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 0 --max-fee 10000 --path ../test-data/requests/create_token.json
 	@echo "Submitting a batch"
-	$(SOV_CLI_REL_PATH) rpc submit-batch by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
+	$(SOV_CLI_REL_PATH) rpc submit-batch --wait-for-processing by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
 
 test-create-token-second-seq: check-sov-cli
 test-create-token-second-seq:
-	$(SOV_CLI_REL_PATH) rpc set-url http://127.0.0.1:12355
+	$(SOV_CLI_REL_PATH) rpc set-url --rpc=http://127.0.0.1:12355 --rest-api=http://127.0.0.1:12356
 	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 0 --max-fee 10000 --path ../test-data/requests/create_token.json
 	@echo "Submitting a batch"
-	$(SOV_CLI_REL_PATH) rpc submit-batch by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
+	$(SOV_CLI_REL_PATH) rpc submit-batch --wait-for-processing by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
 
 register-second-sequencer: check-sov-cli
 register-second-sequencer:
-	$(SOV_CLI_REL_PATH) rpc set-url http://127.0.0.1:12345
+	$(SOV_CLI_REL_PATH) rpc set-url --rpc=http://127.0.0.1:12345 --rest-api=http://127.0.0.1:12346
 	$(SOV_CLI_REL_PATH) keys import --nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY --path ../test-data/keys/token_deployer_private_key.json
 	$(SOV_CLI_REL_PATH) transactions import from-file sequencer-registry --chain-id 0 --path ../test-data/requests/register_sequencer.json
 	@echo "Submitting a batch"
@@ -180,4 +180,3 @@ remove-insecure-keys:
 fix-readme-toc:
 	doctoc README.md --github --notitle
 	doctoc README_CELESTIA.md --github --notitle
-

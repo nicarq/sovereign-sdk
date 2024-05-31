@@ -101,8 +101,8 @@ $ make start
 Now run the demo-rollup full node, as shown below. You will see it consuming blocks from the Celestia node running inside Docker:
 
 ```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=rpc_address
-# Make sure you're still in the examples/demo-rollup directory.
-$ cargo run -- --da-layer celestia --rollup-config-path demo_rollup_config.toml --genesis-config-dir ../test-data/genesis/demo/celestia
+# Make sure you're still in the examples/demo-rollup directory and `make build` has been executed before
+$ ../../target/debug/sov-demo-rollup --da-layer celestia --rollup-config-path demo_rollup_config.toml --genesis-config-dir ../test-data/genesis/demo/celestia
 2024-03-05T14:42:21.332792Z  INFO sov_demo_rollup: Running demo rollup with prover config prover_config=Skip
 2024-03-05T14:42:21.332955Z DEBUG sov_demo_rollup: Starting Celestia rollup config_path="demo_rollup_config.toml"
 2024-03-05T14:42:21.333147Z DEBUG sov_stf_runner::config: Parsing config file size_in_bytes=1238 contents="[da]\n# The JWT used to authenticate with the celestia light client. Instructions for generating this token can be found in the README\ncelestia_rpc_auth_token = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiLCJhZG1pbiJdfQ.xFFGFMlIAkJ5_9dJR1GIwujpfr1tuISDvNr6cDR8wnY\"\n# The address of the *trusted* Celestia light client to interact with\ncelestia_rpc_address = \"http://127.0.0.1:26658\"\n# The largest response the rollup will accept from the Celestia node. Defaults to 100 MB\nmax_celestia_response_body_size = 104_857_600\n# The maximum time to wait for a response to an RPC query against Celestia node. Defaults to 60 seconds.\ncelestia_rpc_timeout_seconds = 60\n\n[storage]\n# The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.\npath = \"demo_data\"\n\n# We define the rollup's genesis to occur at block number `genesis_height`. The rollup will ignore\n# any blocks before this height, and any blobs at this height will not be processed\n[runner]\ngenesis_height = 3\nda_polling_interval_ms = 10000\n\n[runner.rpc_config]\n# the host and port to bind the rpc server for\nbind_host = \"127.0.0.1\"\nbind_port = 12345\n\n[proof_manager]\naggregated_proof_block_jump = 1\n"
@@ -152,8 +152,8 @@ The `make test-create-token` command above was useful to test if everything is r
 You'll need the `sov-cli` binary in order to create transactions. Build it with these commands:
 
 ```bash,test-ci,bashtestmd:compare-output
-# Make sure you're still in `examples/demo-rollup`
-$ cargo build --bin sov-cli
+# Make sure you're still in `examples/demo-rollup` and `make build` has been executed previously
+$ make check-sov-cli
 $ ./../../target/debug/sov-cli --help
 Usage: sov-cli <COMMAND>
 
@@ -308,10 +308,10 @@ This output indicates that the wallet has saved the transaction details for late
 
 You now have a batch with a single transaction in your wallet. If you want to submit any more transactions as part of this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
+'true' parameter after `submit-batch` indicates, that command will wait for batch to be processed by the node.
 
 ```bash,test-ci
-$ sleep 120  # Wait a bit for the `make test-create-token` transaction to be processed.
-$ ./../../target/debug/sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
+$ ./../../target/debug/sov-cli rpc submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94 
 ```
 
 This command will use your default private key.
@@ -319,7 +319,6 @@ This command will use your default private key.
 #### 4. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ sleep 120  # Wait a bit for the batch to be processed.
 $ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
 {"jsonrpc":"2.0","result":{"amount":1000000},"id":1}
 ```
@@ -370,7 +369,7 @@ It is possible to run several nodes and sequencers on the same host. But this re
 6. Run second node:
 
 ```
-cargo run -- --da-layer celestia --rollup-config-path demo_rollup_config_1.toml  --genesis-config-dir ../test-data/genesis/demo/celestia --prometheus-exporter-bind=127.0.0.1:9846 
+cargo run -- --da-layer celestia --rollup-config-path demo_rollup_config_1.toml --genesis-config-dir ../test-data/genesis/demo/celestia --prometheus-exporter-bind=127.0.0.1:9846 
 ```
 
 Note that it uses newly generated config and also passes a different option for prometheus exporter.

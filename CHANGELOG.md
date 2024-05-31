@@ -44,6 +44,9 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
     - `refund_remaining_gas` can only be called either after `consume_gas_and_allocate_rewards` or with a zero `TransactionConsumption` (speculative case for reverted transactions)
     - after `consume_gas_and_allocate_rewards` the `GasMeter` is consumed and cannot be used anymore
 - #673 Removes `std` feature from `rollup-interface` and `no_std` support. usage of `sov_rollup_interface::maybestd` should be changed back to `std`.
+- #680 Extends sov-cli:
+    - Adds new optional boolean parameter to `submit-batch`, that tells sov-cli to wait for batch to be processed by full node
+    - set url now expects second parameter for REST API endpoint. 
 - #663 Modifies the interface of traits `RuntimeAuthenticator` and `RuntimeAuthorization`. Associated types `Tx` and `Gas` have been removed. `RuntimeAuthenticator` is now generic over `S: Spec`. Methods' type signatures have been slightly modified; please see `examples/demo-rollup/stf/src/authentication.rs` for an example on the new usage.
 - #633 Deprecate `sov-modules-core`, move definitions into `sov-modules-api` & `sov-state`
 - #664 removes the `Transaction` wrapping in `sov-ethereum` for EVM transactions. This is a breaking change for consumers of the SDK. See `RuntimeAuthenticator::authenticate`.
