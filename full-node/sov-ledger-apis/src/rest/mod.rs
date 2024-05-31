@@ -25,8 +25,8 @@ use sov_rest_utils::{
 };
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
-    ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,
-    TxIdAndOffset, TxIdentifier, TxResponse,
+    FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
+    SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use tracing::warn;
 use utoipa_swagger_ui::{Config, SwaggerUi};
@@ -124,6 +124,7 @@ where
                     get(Self::subscribe_to_aggregated_proofs),
                 )
                 .route("/slots/latest/ws", get(Self::subscribe_to_head))
+                .route("/slots/finalized/ws", get(Self::subscribe_to_finalized))
                 .nest(
                     "/slots/latest",
                     Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
@@ -561,6 +562,61 @@ where
                 }
             })
     }
+
+    async fn subscribe_to_finalized(
+        State(ledger): State<T>,
+        ws: WebSocketUpgrade,
+    ) -> impl IntoResponse {
+        ws.on_upgrade(|mut socket| async move {
+                let mut last_notified_slot = if let Ok(previous) = ledger.get_latest_finalized_slot_number().await {
+                    previous
+                } else {
+                    return
+                };
+                let mut subscription = ledger.subscribe_finalized_slots();
+
+                loop {
+                    tokio::select! {
+                        msg = socket.recv() => {
+                            match msg {
+                                Some(Err(error)) => {
+                                    warn!(?error, "Websocket error");
+                                    return;
+                                },
+                                None => {
+                                    // The client disconnected.
+                                    return;
+                                },
+                                Some(Ok(_)) => {
+                                    // Ignore incoming messages.
+                                },
+                            }},
+                        res = subscription.changed() => {
+
+                            if let Ok(()) = res {
+                                let finalized = *subscription.borrow();
+                                let start = last_notified_slot;
+                                // Update our tracker before sending notifications to prevent double
+                                // notifications if another slot finalizes while the outbound messages are still being handled.
+                                last_notified_slot = finalized;
+
+                                for slot_number in start..=finalized {
+                                    let Ok(slot) = ledger.get_slot_by_number::<B, TxReceipt>(slot_number, QueryMode::Compact).await else {
+                                        return
+                                    };
+                                    let Ok(serialized) = serde_json::to_string(&slot) else {
+                                        return
+                                    };
+
+                                    let message = ws::Message::Text(serialized);
+                                    let _ = socket.send(message).await;
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+    }
 }
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
@@ -631,6 +687,7 @@ struct Slot<B, TxReceipt, E> {
     pub state_root: HexBytes,
     pub batch_range: Range<u64>,
     pub batches: Vec<Batch<B, TxReceipt, E>>,
+    pub finality_status: FinalityStatus,
 }
 
 impl<B, TxReceipt, E> Slot<B, TxReceipt, E> {
@@ -649,6 +706,7 @@ impl<B, TxReceipt, E> Slot<B, TxReceipt, E> {
             state_root: HexBytes(slot.state_root),
             batch_range: slot.batch_range,
             batches,
+            finality_status: slot.finality_status,
         }
     }
 }

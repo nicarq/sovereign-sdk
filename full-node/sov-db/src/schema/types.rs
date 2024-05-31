@@ -150,6 +150,21 @@ pub fn split_tx_for_storage<R: Serialize>(
     (tx_for_storage, tx.events)
 }
 
+/// A singleton key for the latest finalized slot
+#[derive(
+    Clone,
+    Copy,
+    ::core::fmt::Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    ::serde::Serialize,
+    ::serde::Deserialize,
+)]
+pub struct LatestFinalizedSlotSingleton;
+
 macro_rules! u64_wrapper {
     ($name:ident) => {
         /// A typed wrapper around u64 implementing `Encode` and `Decode`
