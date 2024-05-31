@@ -4,7 +4,9 @@
 use std::str::FromStr;
 
 use base64::prelude::*;
-use sov_ledger_json_client::types::{AggregatedProof, Batch, Hash, IntOrHash, Tx};
+use sov_ledger_json_client::types::{
+    AggregatedProof, Batch, Hash, IntOrHash, SlotFinalityStatus, Tx,
+};
 
 use crate::common::LedgerTestService;
 
@@ -40,6 +42,7 @@ async fn get_latest_slot_is_ok() {
     assert_eq!(response.data.batch_range.start, 0);
     assert_eq!(response.data.batch_range.end, 1);
     assert_eq!(response.data.batches, vec![]);
+    assert_eq!(response.data.finality_status, SlotFinalityStatus::Finalized);
 
     // Moreover, fetching the latest slot by its ID should return the very same
     // slot data.

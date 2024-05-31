@@ -329,7 +329,7 @@ where
         self.spawn_sync_status_updater(Duration::from_millis(self.da_polling_interval_ms));
 
         loop {
-            debug!(next_da_height, "Requesting DA block for");
+            debug!(next_da_height, "Requesting DA block");
             set_current_da_height(next_da_height);
             let mut transaction_count = 0;
             let mut batch_count = 0;
@@ -356,6 +356,7 @@ where
                 filtered_block = new_block;
                 self.state_root = pre_state_root;
                 info!(next_da_height, "Resuming execution at fork point's height");
+                // TODO: Prune stale entries from ledger here <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/746>!
             }
 
             let mut relevant_blobs = self.da_service.extract_relevant_blobs(&filtered_block);
@@ -474,6 +475,8 @@ where
             if height <= last_finalized_height {
                 self.storage_manager
                     .finalize(earliest_seen_state_transition_info.da_block_header())?;
+                self.ledger_db
+                    .set_latest_finalized_slot(earliest_seen_state_transition_info.slot_number)?;
 
                 let transition_data = seen_state_transition.pop_front().unwrap();
 

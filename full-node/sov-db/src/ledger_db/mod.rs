@@ -10,12 +10,12 @@ use sov_rollup_interface::stf::{BatchReceipt, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByNumber, ProofByUniqueId, SlotByHash,
-    SlotByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
+    BatchByHash, BatchByNumber, EventByKey, EventByNumber, FinalizedSlots, ProofByUniqueId,
+    SlotByHash, SlotByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, EventNumber, ProofUniqueId, SlotNumber, StoredBatch,
-    StoredSlot, StoredTransaction, TxNumber,
+    split_tx_for_storage, BatchNumber, EventNumber, LatestFinalizedSlotSingleton, ProofUniqueId,
+    SlotNumber, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
 };
 use crate::DbOptions;
 
@@ -90,6 +90,7 @@ pub struct LedgerDb {
     db: Arc<CacheDb>,
     next_item_numbers: Arc<Mutex<ItemNumbers>>,
     slot_subscriptions: tokio::sync::broadcast::Sender<u64>,
+    finalized_slot_subscriptions: tokio::sync::watch::Sender<u64>,
     proof_subscriptions: tokio::sync::broadcast::Sender<AggregatedProofResponse>,
 }
 
@@ -130,6 +131,7 @@ impl LedgerDb {
             db: Arc::new(db),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
             slot_subscriptions: tokio::sync::broadcast::channel(10).0,
+            finalized_slot_subscriptions: tokio::sync::watch::Sender::new(0),
             proof_subscriptions: tokio::sync::broadcast::channel(10).0,
         })
     }
@@ -161,45 +163,48 @@ impl LedgerDb {
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
-    pub(crate) fn _get_slot_range(
+    pub(crate) async fn _get_slot_range(
         &self,
         range: &std::ops::Range<SlotNumber>,
     ) -> Result<Vec<StoredSlot>, anyhow::Error> {
-        self.get_data_range::<SlotByNumber, _, _>(range)
+        self.get_data_range::<SlotByNumber, _, _>(range).await
     }
 
     /// Gets all batches with numbers `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
-    pub(crate) fn get_batch_range(
+    pub(crate) async fn get_batch_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
     ) -> Result<Vec<StoredBatch>, anyhow::Error> {
-        self.get_data_range::<BatchByNumber, _, _>(range)
+        self.get_data_range::<BatchByNumber, _, _>(range).await
     }
 
     /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
-    pub(crate) fn get_tx_range(
+    pub(crate) async fn get_tx_range(
         &self,
         range: &std::ops::Range<TxNumber>,
     ) -> Result<Vec<StoredTransaction>, anyhow::Error> {
-        self.get_data_range::<TxByNumber, _, _>(range)
+        self.get_data_range::<TxByNumber, _, _>(range).await
     }
 
     /// Gets all data with identifier in `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via RPC.
-    fn get_data_range<T, K, V>(&self, range: &std::ops::Range<K>) -> Result<Vec<V>, anyhow::Error>
+    async fn get_data_range<T, K, V>(
+        &self,
+        range: &std::ops::Range<K>,
+    ) -> Result<Vec<V>, anyhow::Error>
     where
         T: Schema<Key = K, Value = V>,
         K: Into<u64> + Copy + SeekKeyEncoder<T>,
     {
-        let raw_out = self.db.collect_in_range(range.clone())?;
+        let raw_out = self.db.collect_in_range_async(range.clone()).await?;
         let mut out = Vec::with_capacity(raw_out.len());
         for (_, value) in raw_out {
             out.push(value);
@@ -333,6 +338,16 @@ impl LedgerDb {
             .slot_subscriptions
             .send(current_item_numbers.slot_number);
 
+        Ok(())
+    }
+
+    /// Set the latest finalized slot in the ledger DB. This implicitly finalizes all earlier slots.
+    pub fn set_latest_finalized_slot(&self, slot_number: u64) -> Result<(), anyhow::Error> {
+        self.db
+            .put::<FinalizedSlots>(&LatestFinalizedSlotSingleton, &SlotNumber(slot_number))?;
+
+        // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
+        let _ = self.finalized_slot_subscriptions.send(slot_number);
         Ok(())
     }
 

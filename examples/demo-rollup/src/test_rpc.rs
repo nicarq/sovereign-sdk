@@ -211,7 +211,7 @@ macro_rules! jsonrpc_result {
 #[test]
 fn test_get_head() {
     let payload = jsonrpc_req!("ledger_getHead", []);
-    let expected = jsonrpc_result!({"number":0,"hash":"0xd1231a38586e68d0405dc55ae6775e219f29fff1f7e0c6410d0ac069201e550b","state_root":format!("0x{}", hex::encode(b"state-root")),"batch_range":{"start":0,"end":2}});
+    let expected = jsonrpc_result!({"number":0,"hash":"0xd1231a38586e68d0405dc55ae6775e219f29fff1f7e0c6410d0ac069201e550b","finality_status": "finalized", "state_root":format!("0x{}", hex::encode(b"state-root")),"batch_range":{"start":0,"end":2}});
 
     regular_test_helper(payload, &expected);
 }
@@ -380,10 +380,13 @@ proptest!(
         let last_slot_end_batch = total_num_batches;
 
         let payload = jsonrpc_req!("ledger_getHead", ["Compact"]);
+        let slot_number = slots.len() - 1;
+        let finality_status = if slot_number == 0 {"finalized"} else {"pending"};
         let expected = jsonrpc_result!({
-            "number": slots.len() - 1,
+            "number": slot_number,
             "hash": format!("0x{}", hex::encode(last_slot.slot_data().hash())),
             "state_root": format!("0x{}", hex::encode(b"state-root")),
+            "finality_status": finality_status,
             "batch_range": {
                 "start": last_slot_start_batch,
                 "end": last_slot_end_batch

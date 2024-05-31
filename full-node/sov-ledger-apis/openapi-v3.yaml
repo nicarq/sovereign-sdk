@@ -465,12 +465,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Batch"
+        finalityStatus:
+          type: string
+          enum:
+            - pending
+            - finalized
       required:
         - type
         - number
         - hash
         - stateRoot
         - batchRange
+        - finalityStatus
     Batch:
       type: object
       properties:

@@ -34,8 +34,9 @@ use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, ProofUniqueId, SlotNumber,
-    StoredBatch, StoredSlot, StoredTransaction, TxNumber,
+    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber,
+    LatestFinalizedSlotSingleton, ProofUniqueId, SlotNumber, StoredBatch, StoredSlot,
+    StoredTransaction, TxNumber,
 };
 
 /* Other tables used by the Rollup */
@@ -52,6 +53,7 @@ pub const LEDGER_TABLES: &[ColumnFamilyName] = &[
     EventByKey::table_name(),
     EventByNumber::table_name(),
     ProofByUniqueId::table_name(),
+    FinalizedSlots::table_name(),
 ];
 
 /// A list of all tables used by the AccessoryDB. These tables store
@@ -206,6 +208,11 @@ macro_rules! define_table_with_seek_key_codec {
 define_table_with_seek_key_codec!(
     /// The primary source for slot data
     (SlotByNumber) SlotNumber => StoredSlot
+);
+
+define_table_with_seek_key_codec!(
+    /// A table containing a single entry with the slot number of the latest finalized slot
+    (FinalizedSlots) LatestFinalizedSlotSingleton => SlotNumber
 );
 
 define_table_with_default_codec!(

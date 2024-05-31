@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
-    ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,
-    TxIdAndOffset, TxIdentifier, TxResponse,
+    FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
+    SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::StoredEvent;
 use tokio::sync::broadcast::Receiver;
@@ -15,11 +15,12 @@ use crate::ledger_db::rpc_constants::{
 };
 use crate::ledger_db::LedgerDb;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByNumber, ProofByUniqueId, SlotByHash, SlotByNumber, TxByHash,
-    TxByNumber,
+    BatchByHash, BatchByNumber, EventByNumber, FinalizedSlots, ProofByUniqueId, SlotByHash,
+    SlotByNumber, TxByHash, TxByNumber,
 };
 use crate::schema::types::{
-    BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
+    BatchNumber, EventNumber, LatestFinalizedSlotSingleton, SlotNumber, StoredBatch, StoredSlot,
+    TxNumber,
 };
 
 #[async_trait]
@@ -31,6 +32,14 @@ impl LedgerStateProvider for LedgerDb {
         let next_slot = next_ids.slot_number;
 
         Ok(Some(next_slot.saturating_sub(1)))
+    }
+
+    async fn get_latest_finalized_slot_number(&self) -> Result<u64, Self::Error> {
+        let finalized_slot = self
+            .db
+            .read_async::<FinalizedSlots>(&LatestFinalizedSlotSingleton)
+            .await?;
+        Ok(finalized_slot.map(|slot| slot.0).unwrap_or_default())
     }
 
     async fn get_slots<B, T>(
@@ -58,7 +67,10 @@ impl LedgerStateProvider for LedgerDb {
                     if let Some(stored_slot) =
                         self.db.read_async::<SlotByNumber>(&SlotNumber(num)).await?
                     {
-                        Some(self.populate_slot_response(num, stored_slot, query_mode)?)
+                        Some(
+                            self.populate_slot_response(num, stored_slot, query_mode)
+                                .await?,
+                        )
                     } else {
                         None
                     }
@@ -96,7 +108,10 @@ impl LedgerStateProvider for LedgerDb {
                         .read_async::<BatchByNumber>(&BatchNumber(num))
                         .await?
                     {
-                        Some(self.populate_batch_response(stored_batch, query_mode)?)
+                        Some(
+                            self.populate_batch_response(stored_batch, query_mode)
+                                .await?,
+                        )
                     } else {
                         None
                     }
@@ -496,19 +511,28 @@ impl LedgerStateProvider for LedgerDb {
         self.slot_subscriptions.subscribe()
     }
 
+    fn subscribe_finalized_slots(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.finalized_slot_subscriptions.subscribe()
+    }
+
     fn subscribe_proof_saved(&self) -> Receiver<AggregatedProofResponse> {
         self.proof_subscriptions.subscribe()
     }
 }
 
 impl LedgerDb {
-    fn populate_slot_response<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn populate_slot_response<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         number: u64,
         slot: StoredSlot,
         mode: QueryMode,
     ) -> Result<SlotResponse<B, T>, anyhow::Error> {
         let state_root = slot.state_root.as_ref().to_vec();
+        let finality_status = if self.get_latest_finalized_slot_number().await? >= number {
+            FinalityStatus::Finalized
+        } else {
+            FinalityStatus::Pending
+        };
 
         Ok(match mode {
             QueryMode::Compact => SlotResponse {
@@ -517,9 +541,10 @@ impl LedgerDb {
                 state_root,
                 batch_range: slot.batches.start.into()..slot.batches.end.into(),
                 batches: None,
+                finality_status,
             },
             QueryMode::Standard => {
-                let batches = self.get_batch_range(&slot.batches)?;
+                let batches = self.get_batch_range(&slot.batches).await?;
                 let batch_hashes = Some(
                     batches
                         .into_iter()
@@ -532,13 +557,16 @@ impl LedgerDb {
                     state_root,
                     batch_range: slot.batches.start.into()..slot.batches.end.into(),
                     batches: batch_hashes,
+                    finality_status,
                 }
             }
             QueryMode::Full => {
                 let num_batches = (slot.batches.end.0 - slot.batches.start.0) as usize;
                 let mut batches = Vec::with_capacity(num_batches);
-                for batch in self.get_batch_range(&slot.batches)? {
-                    batches.push(ItemOrHash::Full(self.populate_batch_response(batch, mode)?));
+                for batch in self.get_batch_range(&slot.batches).await? {
+                    batches.push(ItemOrHash::Full(
+                        self.populate_batch_response(batch, mode).await?,
+                    ));
                 }
 
                 SlotResponse {
@@ -547,12 +575,13 @@ impl LedgerDb {
                     state_root,
                     batch_range: slot.batches.start.into()..slot.batches.end.into(),
                     batches: Some(batches),
+                    finality_status,
                 }
             }
         })
     }
 
-    fn populate_batch_response<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn populate_batch_response<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         batch: StoredBatch,
         mode: QueryMode,
@@ -561,7 +590,7 @@ impl LedgerDb {
             QueryMode::Compact => batch.try_into()?,
 
             QueryMode::Standard => {
-                let txs = self.get_tx_range(&batch.txs)?;
+                let txs = self.get_tx_range(&batch.txs).await?;
                 let tx_hashes = Some(
                     txs.into_iter()
                         .map(|tx| ItemOrHash::Hash(tx.hash))
@@ -575,7 +604,7 @@ impl LedgerDb {
             QueryMode::Full => {
                 let num_txs = (batch.txs.end.0 - batch.txs.start.0) as usize;
                 let mut txs = Vec::with_capacity(num_txs);
-                for tx in self.get_tx_range(&batch.txs)? {
+                for tx in self.get_tx_range(&batch.txs).await? {
                     txs.push(ItemOrHash::Full(tx.try_into()?));
                 }
 

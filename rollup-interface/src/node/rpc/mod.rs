@@ -1,12 +1,29 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
 use async_trait::async_trait;
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 use crate::stf::{EventKey, StoredEvent};
 use crate::zk::aggregated_proof::AggregatedProof;
+
+/// The finality status of a slot.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
+)]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(proptest_derive::Arbitrary, arbitrary::Arbitrary)
+)]
+#[serde(rename_all = "camelCase")]
+pub enum FinalityStatus {
+    /// The slot has been produced but not finalized by consensus.
+    Pending,
+    /// The slot has been finalized.
+    Finalized,
+}
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -148,6 +165,8 @@ pub struct SlotResponse<B, Tx> {
     /// The batches in this slot, if the [`QueryMode`] of the request is not `Compact`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx>>>>,
+    /// The status of the slot.
+    pub finality_status: FinalityStatus,
 }
 
 /// The response to a JSON-RPC request for a particular batch.
@@ -226,6 +245,9 @@ pub trait LedgerStateProvider {
 
     /// Get the latest slot number in the ledger.
     async fn get_head_slot_number(&self) -> Result<Option<u64>, Self::Error>;
+
+    /// Get the latest slot number in the ledger.
+    async fn get_latest_finalized_slot_number(&self) -> Result<u64, Self::Error>;
 
     /// Get the latest slot in the ledger.
     async fn get_head<B, T>(
@@ -459,6 +481,10 @@ pub trait LedgerStateProvider {
     /// Get a notification each time a slot is processed
     // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
     fn subscribe_slots(&self) -> broadcast::Receiver<u64>;
+
+    /// Get a notification each time a slot is finalized
+    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
+    fn subscribe_finalized_slots(&self) -> tokio::sync::watch::Receiver<u64>;
 
     /// Get a notification each time an aggregated proof is processed
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
