@@ -1,16 +1,17 @@
 //! Query the current state of the rollup and send transactions
 
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::HttpClientBuilder;
-use jsonrpsee::tokio::time::sleep;
+use jsonrpsee::tokio::time::{interval, sleep};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_bank::{BalanceResponse, BankRpcClient, TokenId};
+use sov_ledger_json_client::Client as LedgerClient;
 use sov_modules_api::{clap, CryptoSpec, PublicKey};
 use sov_nonces::NoncesRpcClient;
 use sov_rollup_interface::digest::Digest;
@@ -24,10 +25,15 @@ const BAD_RPC_URL: &str = "Unable to connect to provided rpc. You can change to 
 /// Query the current state of the rollup and send transactions
 #[derive(clap::Subcommand)]
 pub enum RpcWorkflows<S: sov_modules_api::Spec> {
-    /// Set the url of the rpc server to use
+    /// Set the URLs of the RPC and REST API servers to use
+    // TODO: Remove 2 URLs after https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/756
     SetUrl {
-        /// A url like http://localhost:8545
-        rpc_url: String,
+        /// A URL like http://localhost:8545
+        #[arg(long)]
+        rpc: String,
+        /// A URL like http://localhost:8546
+        #[arg(long)]
+        rest_api: String,
     },
     /// Query the RPC server for the nonce of the provided account. If no account is provided, the active account is used
     GetNonce {
@@ -60,6 +66,9 @@ pub enum RpcWorkflows<S: sov_modules_api::Spec> {
         /// (Optional) The account to sign transactions for this batch (default: the active account)
         #[clap(subcommand)]
         account: Option<KeyIdentifier<S>>,
+        /// (Optional) Waits for given batch to be processed by the rollup node.
+        #[arg(short, long)]
+        wait_for_processing: bool,
         /// (Optional) The nonce to use for the first transaction in the batch (default: the current nonce for the account). Any other transactions will
         /// be signed with sequential nonces starting from this value.
         nonce_override: Option<u64>,
@@ -106,24 +115,40 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
         Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
     {
         // If the user is just setting the RPC url, we can skip the usual setup
-        if let RpcWorkflows::SetUrl { rpc_url } = self {
+        if let RpcWorkflows::SetUrl {
+            rpc: rpc_url,
+            rest_api: rest_api_url,
+        } = self
+        {
             let _client = HttpClientBuilder::default()
                 .build(rpc_url)
-                .context("Invalid RPC url: ")?;
+                .context("Invalid RPC URL: ")?;
+            let _client = HttpClientBuilder::default()
+                .build(rest_api_url)
+                .context("Invalid REST API URL: ")?;
             wallet_state.rpc_url = Some(rpc_url.clone());
-            println!("Set RPC url to {}", rpc_url);
+            wallet_state.rest_api_url = Some(rest_api_url.clone());
+            println!("Set RPC URL to {}", rpc_url);
+            println!("Set REST API URL to {}", rest_api_url);
             return Ok(());
         }
 
-        // Otherwise, we need to initialize an  RPC and resolve the active account
+        // Otherwise, we need to initialize an RPC and resolve the active account
         let rpc_url = wallet_state
             .rpc_url
             .as_ref()
             .ok_or(anyhow::format_err!(
-                "No RPC url set. Use the `rpc set-url` subcommand to set one"
+                "No RPC URL set. Use the `rpc set-url` subcommand to set one"
             ))?
             .clone();
         let client = HttpClientBuilder::default().build(&rpc_url)?;
+        let rest_api_url = wallet_state
+            .rest_api_url
+            .as_ref()
+            .ok_or(anyhow::format_err!(
+                "No REST API URL set. Use the `rpc set-url` subcommand to set one"
+            ))?
+            .clone();
 
         let wait_timeout = Duration::from_millis(500);
         // 120 * 500ms = 60s
@@ -175,7 +200,11 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                     amount.unwrap_or_default()
                 );
             }
-            RpcWorkflows::SubmitBatch { nonce_override, .. } => {
+            RpcWorkflows::SubmitBatch {
+                nonce_override,
+                wait_for_processing,
+                ..
+            } => {
                 let private_key = load_key::<S>(&account.location).with_context(|| {
                     format!("Unable to load key {}", account.location.display())
                 })?;
@@ -209,6 +238,47 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                     "Your batch was submitted to the sequencer for publication. Response: {:?}",
                     response
                 );
+                if *wait_for_processing {
+                    let target_da_height = response
+                        .get("da_height")
+                        .expect("'da_height' should be set")
+                        .as_u64()
+                        .expect("'da_height' must be a number");
+
+                    let start_wait = Instant::now();
+                    let max_waiting_time = Duration::from_secs(300);
+                    let mut interval = interval(Duration::from_millis(100));
+                    println!(
+                        "Going to wait for target slot number {} to be processed, up to {:?}",
+                        target_da_height, max_waiting_time
+                    );
+                    let ledger_url = format!("{}/ledger", rest_api_url);
+                    let client = LedgerClient::new(&ledger_url);
+
+                    let mut prev_slot_number = 0;
+                    while start_wait.elapsed() < max_waiting_time {
+                        jsonrpsee::tokio::select! {
+                            _ = interval.tick() => {
+                                let latest_slot_response = client.get_latest_slot().await.unwrap();
+                                let latest_slot_number = latest_slot_response.data.number;
+                                if latest_slot_number >= target_da_height {
+                                    println!(
+                                        "Rollup has processed target DA height={}!",
+                                        target_da_height
+                                    );
+                                    break;
+                                }
+                                if latest_slot_number != prev_slot_number {
+                                    println!("Latest processed slot number: {}", latest_slot_number);
+                                    prev_slot_number = latest_slot_number;
+                                }
+                            }
+                            _ = sleep(max_waiting_time - start_wait.elapsed()) => {
+                                anyhow::bail!("Giving up waiting for target slot");
+                            }
+                        }
+                    }
+                }
             }
             RpcWorkflows::GetTokenAddress {
                 token_name,

@@ -7305,6 +7305,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-bank",
+ "sov-ledger-json-client",
  "sov-mock-da",
  "sov-modules-api",
  "sov-nonces",
