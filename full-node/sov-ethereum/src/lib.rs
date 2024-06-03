@@ -15,8 +15,9 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
 use sov_evm::{EthApiError, Evm, RlpEvmTransaction};
+use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{Authenticator, WorkingSet};
+use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::watch;
 

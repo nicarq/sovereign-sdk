@@ -1,12 +1,11 @@
 use borsh::BorshDeserialize;
 use reth_primitives::TransactionSignedEcRecovered;
+use sov_modules_api::capabilities::{AuthenticationResult, AuthorizationData};
 use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
 };
-use sov_modules_api::{
-    AuthenticationResult, AuthorizationData, CredentialId, GasMeter, PreExecWorkingSet, Spec,
-};
+use sov_modules_api::{CredentialId, GasMeter, PreExecWorkingSet, Spec};
 
 use crate::conversions::RlpConversionError;
 use crate::{CallMessage, RlpEvmTransaction};

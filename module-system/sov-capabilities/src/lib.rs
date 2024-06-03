@@ -1,12 +1,11 @@
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
-    AuthorizeSequencerError, GasEnforcer, RuntimeAuthorization, SequencerAuthorization,
-    TryReserveGasError,
+    AuthorizationData, AuthorizeSequencerError, GasEnforcer, RuntimeAuthorization,
+    SequencerAuthorization, TryReserveGasError,
 };
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    AuthorizationData, Context, DaSpec, Gas, ModuleInfo, PreExecWorkingSet, Spec, TxScratchpad,
-    WorkingSet,
+    Context, DaSpec, Gas, ModuleInfo, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
 };
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 

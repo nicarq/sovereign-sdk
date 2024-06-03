@@ -7,18 +7,16 @@
 //! [See here for docs](https://github.com/Sovereign-Labs/sovereign-sdk/blob/nightly/examples/demo-stf/README.md)
 use core::fmt;
 use std::fmt::Debug;
-
-use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
+pub mod auth;
+pub use auth::*;
 use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
-use thiserror::Error;
 
 use crate::module::Context;
 use crate::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use crate::{
-    AuthenticationResult, BootstrapWorkingSet, Gas, GasMeter, KernelWorkingSet, PreExecWorkingSet,
-    Spec, StateCheckpoint, TxScratchpad, WorkingSet,
+    BootstrapWorkingSet, Gas, GasMeter, KernelWorkingSet, PreExecWorkingSet, Spec, StateCheckpoint,
+    TxScratchpad, WorkingSet,
 };
 
 /// Indicates that a type provides the necessary capabilities for a runtime.
@@ -211,97 +209,6 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
         sequencer: &Da::Address,
         pre_exec_ws: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> TxScratchpad<S>;
-}
-
-/// Authorizes transactions to be executed.
-pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
-    /// A type-safe struct that should be used to track the staked amount of the sequencer and the eventual execution penalities.
-    type SequencerStakeMeter: GasMeter<S::Gas>;
-
-    /// The type used for authorization.
-    type AuthorizationData;
-
-    /// Resolves the context for a transaction.
-    /// TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
-    fn resolve_context(
-        &self,
-        auth_data: &Self::AuthorizationData,
-        sequencer: &Da::Address,
-        height: u64,
-        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> Result<Context<S>, anyhow::Error>;
-
-    /// Prevents duplicate transactions from running.
-    fn check_uniqueness(
-        &self,
-        auth_data: &Self::AuthorizationData,
-        context: &Context<S>,
-        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> Result<(), anyhow::Error>;
-
-    /// Marks a transaction as having been executed, preventing it from executing again.
-    fn mark_tx_attempted(
-        &self,
-        auth_data: &Self::AuthorizationData,
-        sequencer: &Da::Address,
-        tx_scratchpad: &mut TxScratchpad<S>,
-    );
-}
-
-/// RawTx represents a serialized rollup transaction received from the DA.
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct RawTx {
-    /// Serialized transaction.
-    pub data: Vec<u8>,
-}
-
-/// Error variants that can be raised as a [`AuthenticationError::FatalError`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Error)]
-pub enum FatalError {
-    /// Transaction deserialization failed.
-    #[error("Transaction deserialization error: {0}")]
-    DeserializationFailed(String),
-    /// Signature verification failed.
-    #[error("Signature verification error: {0}")]
-    SigVerificationFailed(String),
-    /// Transaction decoding failed.
-    #[error("Transaction decoding error: {0}, tx hash: {1:?}")]
-    MessageDecodingFailed(String, [u8; 32]),
-    /// A variant to capture any other fatal error.
-    #[error("Other fatal error: {0}")]
-    Other(String),
-}
-
-/// Authentication error type.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Error)]
-pub enum AuthenticationError {
-    /// The transaction authentication failed in a way that should have been detected by the sequencer before they accepted the transaction. The sequencer is slashed.
-    #[error("Transaction authentication raised a fatal error, error: {0}")]
-    FatalError(FatalError),
-    /// The transaction authentication returned an error, but including it could have been an honest mistake. The sequencer should be charged enough to cover the cost of checking the transaction but not slashed.
-    #[error("Transaction authentication was invalid. error: {0}.")]
-    Invalid(
-        /// The reason for the penalization.       
-        String,
-    ),
-}
-
-/// Authenticates raw transactions. Implementations of this trait should provide a way to interpret the raw bytes of the transaction and authenticate it.
-/// Typically, the authentication will require checking the signature of the transaction.
-pub trait RuntimeAuthenticator<S: Spec> {
-    /// Decoded message.
-    type Decodable;
-    /// A struct that tracks the staked amount of the sequencer and the eventual execution penalities.
-    type SequencerStakeMeter: GasMeter<S::Gas>;
-    /// The type that is passed to the authorizer.
-    type AuthorizationData;
-    /// Authenticates raw transaction.
-    #[allow(clippy::type_complexity)]
-    fn authenticate(
-        &self,
-        tx: &RawTx,
-        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData>;
 }
 
 #[cfg(feature = "mocks")]
