@@ -1,5 +1,4 @@
 //! Runtime state machine definitions.
-
 use sov_state::namespaces::User;
 use sov_state::{
     CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue, Storage,
@@ -9,10 +8,9 @@ use sov_state::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
 
 use super::checkpoints::StateCheckpoint;
 use super::internals::{Delta, RevertableWriter};
-use super::kernel::VersionedStateReadWriter;
 use super::seal::CachedAccessor;
 use super::UniversalStateAccessor;
-use crate::module::{Context, Spec};
+use crate::module::Spec;
 use crate::state::events::TypedEvent;
 use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
@@ -133,6 +131,9 @@ impl<S: Spec> GasMeter<S::Gas> for TxScratchpad<S> {
     fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<(), anyhow::Error> {
         self.gas_meter.charge_gas(amount)
     }
+    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+        self.gas_meter.refund_gas(gas)
+    }
     fn gas_price(&self) -> &<S::Gas as Gas>::Price {
         self.gas_meter.gas_price()
     }
@@ -186,6 +187,10 @@ impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> PreExecWorkingSet<S, PreExec
 impl<S: Spec, Meter: GasMeter<S::Gas>> GasMeter<S::Gas> for PreExecWorkingSet<S, Meter> {
     fn gas_used(&self) -> &S::Gas {
         self.gas_meter.gas_used()
+    }
+
+    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+        self.gas_meter.refund_gas(gas)
     }
 
     fn gas_price(&self) -> &<S::Gas as Gas>::Price {
@@ -296,6 +301,29 @@ impl<S: Spec> WorkingSet<S> {
         }
     }
 
+    /// A helper function to create a new [`WorkingSet`] with a given gas price and remaining funds.
+    #[allow(dead_code)]
+    #[cfg(test)]
+    pub(crate) fn new_with_gas_meter(
+        inner: S::Storage,
+        remaining_funds: u64,
+        price: &<S::Gas as Gas>::Price,
+    ) -> Self {
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
+        let tx_scratchpad = TxScratchpad {
+            delta: RevertableWriter::new(state_checkpoint.delta),
+            gas_meter: UnlimitedGasMeter::new_with_price(price.clone()),
+        };
+
+        WorkingSet {
+            delta: RevertableWriter::new(tx_scratchpad),
+            events: Default::default(),
+            gas_meter: TxGasMeter::new(remaining_funds, price.clone()),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+        }
+    }
+
     /// Creates a new archival working set with the same underlying `Storage` but an empty Delta, without
     /// modifying the original [`WorkingSet`].
     /// Propagates the gas meter to the new working set.
@@ -330,28 +358,6 @@ impl<S: Spec> WorkingSet<S> {
             self.max_fee,
             self.max_priority_fee_bips,
         )
-    }
-
-    /// Returns a handler for the kernel state (priveleged jmt state)
-    ///
-    /// You can use this method when calling getters and setters on accessory
-    /// state containers, like KernelStateMap.
-    pub fn versioned_state(&mut self, context: &Context<S>) -> VersionedStateReadWriter<Self> {
-        VersionedStateReadWriter {
-            ws: self,
-            slot_num: context.visible_slot_number(),
-        }
-    }
-
-    /// Returns a handler for the kernel state for genesis
-    ///
-    /// You can use this method when calling getters and setters on accessory
-    /// state containers, like KernelStateMap.
-    pub fn genesis_versioned_state(&mut self) -> VersionedStateReadWriter<Self> {
-        VersionedStateReadWriter {
-            ws: self,
-            slot_num: 0,
-        }
     }
 
     /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
@@ -463,6 +469,10 @@ impl<S: Spec> WorkingSet<S> {
 impl<S: Spec> GasMeter<S::Gas> for WorkingSet<S> {
     fn charge_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
         self.gas_meter.charge_gas(gas)
+    }
+
+    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+        self.gas_meter.refund_gas(gas)
     }
 
     fn gas_price(&self) -> &<S::Gas as Gas>::Price {

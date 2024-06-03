@@ -1,3 +1,4 @@
+- #743 adds metered state accessor traits to the `sov-modules-api/state` module.
 - #750 moves `RuntimeAuthenticator, RuntimeAuthorization, and Authenticator` to a separate file in the capabilities module.
 - #749 makes the rollup generic over the `AuthorizationData` type.
 - #742 moves the scratchpad and the state into a submodule of the sov-modules-api and breaks these files into smaller components to make the complexity more manageable.

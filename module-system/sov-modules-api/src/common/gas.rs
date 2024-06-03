@@ -311,6 +311,13 @@ pub trait GasMeter<GU: Gas> {
     /// May raises an error if the gas to charge is greater than the funds available
     fn charge_gas(&mut self, amount: &GU) -> Result<(), anyhow::Error>;
 
+    /// Refunds some gas to the gas meter.
+    ///
+    /// ## Note
+    /// This method may fail if the gas to refund is greater than the funds charged to the gas meter.
+    /// In that case, the gas meter won't be updated and the refund will fail.
+    fn refund_gas(&mut self, gas: &GU) -> anyhow::Result<()>;
+
     /// Returns the current gas used accumulated by the stake meter.
     fn gas_used(&self) -> &GU;
 
@@ -343,7 +350,7 @@ impl<GU: Gas> UnlimitedGasMeter<GU> {
             gas_price,
         }
     }
-    /// Creates a new unlimited gas meter with the provided gas price.
+    /// Creates a new unlimited gas meter with a zeroed price.
     pub const fn new() -> Self {
         Self {
             gas_used: GU::ZEROED,
@@ -356,6 +363,16 @@ impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
     fn charge_gas(&mut self, gas: &GU) -> std::result::Result<(), anyhow::Error> {
         self.gas_used.combine(gas);
         std::result::Result::Ok(())
+    }
+
+    fn refund_gas(&mut self, gas: &GU) -> anyhow::Result<()> {
+        self.gas_used = self.gas_used.checked_sub(gas).ok_or_else(|| {
+            let gas_used = &self.gas_used;
+            anyhow::anyhow!(
+            "The gas to refund is greater than the gas used. The gas used is {gas_used}, the gas to refund is {gas}"
+        )})?;
+
+        Ok(())
     }
 
     fn gas_used(&self) -> &GU {
@@ -374,7 +391,89 @@ impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{GasArray, GasPrice, GasUnit};
+    use crate::{GasArray, GasMeter, GasPrice, GasUnit, UnlimitedGasMeter};
+
+    #[test]
+    fn charge_gas_should_always_succeed() {
+        let gas_price = GasPrice::<2>::from_slice(&[1; 2]);
+
+        let mut gas_meter = UnlimitedGasMeter::new_with_price(gas_price.clone());
+
+        assert!(
+            gas_meter
+                .charge_gas(&GasUnit::<2>::from_slice(&[u64::MAX; 2]))
+                .is_ok(),
+            "The unlimited gas meter should never run out of gas"
+        );
+    }
+
+    #[test]
+    fn refund_gas_should_fail_if_not_enough_funds_consumed() {
+        let gas_price = GasPrice::<2>::from_slice(&[1; 2]);
+
+        let mut gas_meter = UnlimitedGasMeter::new_with_price(gas_price.clone());
+
+        assert!(
+            gas_meter
+                .refund_gas(&GasUnit::<2>::from_slice(&[100; 2]))
+                .is_err(),
+            "The gas meter should not be able to refund gas if there is not enough gas consumed"
+        );
+    }
+
+    #[test]
+    fn try_charge_gas() {
+        const REMAINING_FUNDS: u64 = 100;
+        let gas_price = GasPrice::<2>::from_slice(&[1; 2]);
+
+        let mut gas_meter = UnlimitedGasMeter::new_with_price(gas_price.clone());
+        assert!(
+            gas_meter
+                .charge_gas(&GasUnit::<2>::from_slice(&[REMAINING_FUNDS / 2; 2]))
+                .is_ok(),
+            "It should be possible to charge gas"
+        );
+        assert_eq!(
+            gas_meter.gas_used(),
+            &GasUnit::from_slice(&[REMAINING_FUNDS / 2; 2]),
+            "The gas used should be the same as the gas charged"
+        );
+        assert_eq!(gas_meter.gas_price(), &gas_price);
+
+        assert!(
+            gas_meter
+                .charge_gas(&GasUnit::<2>::from_slice(&[1; 2]))
+                .is_ok(),
+            "The unlimited gas meter should never run out of gas"
+        );
+    }
+
+    #[test]
+    fn try_refund_gas() {
+        const FUNDS_TO_CONSUME: u64 = 100;
+        let gas_price = GasPrice::from_slice(&[1; 2]);
+
+        let mut gas_meter = UnlimitedGasMeter::new_with_price(gas_price);
+        assert!(
+            gas_meter
+                .charge_gas(&GasUnit::<2>::from_slice(&[FUNDS_TO_CONSUME / 2; 2]))
+                .is_ok(),
+            "There should be enough gas left in the meter to charge"
+        );
+
+        assert!(
+            gas_meter
+                .refund_gas(&GasUnit::from_slice(&[FUNDS_TO_CONSUME / 4; 2]))
+                .is_ok(),
+            "Enough gas should have been consumed to be refunded",
+        );
+
+        assert_eq!(
+            gas_meter.gas_used(),
+            &GasUnit::from_slice(&[FUNDS_TO_CONSUME / 4; 2],),
+            "The gas used amount should have decreased"
+        );
+    }
 
     #[test]
     fn test_gas_display_unidimensional() {

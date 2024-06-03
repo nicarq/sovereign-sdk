@@ -45,6 +45,9 @@ impl<S: Spec> GasMeter<S::Gas> for GenesisStateAccessor<S> {
     fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<()> {
         self.gas_meter.charge_gas(amount)
     }
+    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+        self.gas_meter.refund_gas(gas)
+    }
     fn gas_price(&self) -> &<S::Gas as Gas>::Price {
         self.gas_meter.gas_price()
     }

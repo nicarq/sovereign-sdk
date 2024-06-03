@@ -9,11 +9,12 @@ use sov_state::{EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItem
 use sov_state::{StateItemDecoder, Storage};
 use thiserror::Error;
 
+use crate::state::StateReader;
 #[cfg(feature = "native")]
 use crate::ProvenStateAccessor;
 #[cfg(feature = "arbitrary")]
 use crate::WorkingSet;
-use crate::{StateReader, StateReaderAndWriter, StateWriter};
+use crate::{StateReaderAndWriter, StateWriter};
 
 /// A container that maps keys to values.
 ///
@@ -130,7 +131,9 @@ where
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        working_set.set(&self.slot_key(key), self.slot_value(value));
+        working_set
+            .set(&self.slot_key(key), self.slot_value(value))
+            .unwrap();
     }
 
     /// Returns the value corresponding to the key, or [`None`] if the map
@@ -165,22 +168,24 @@ where
     ///     map.get(&key[..], ws)
     /// }
     /// ```
-    pub fn get<Q>(&self, key: &Q, working_set: &mut impl StateReader<N>) -> Option<V>
+    pub fn get<Q, WS: StateReader<N>>(&self, key: &Q, working_set: &mut WS) -> Option<V>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        working_set.get_decoded(&self.slot_key(key), self.codec())
+        working_set
+            .get_decoded(&self.slot_key(key), self.codec())
+            .unwrap()
     }
 
     /// Returns the value corresponding to the key or [`StateMapError`] if key is absent from
     /// the map.
-    pub fn get_or_err<Q>(
+    pub fn get_or_err<Q, WS: StateReader<N>>(
         &self,
         key: &Q,
-        working_set: &mut impl StateReader<N>,
+        working_set: &mut WS,
     ) -> Result<V, StateMapError<N>>
     where
         Codec: StateCodec,
@@ -206,7 +211,9 @@ where
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        working_set.remove_decoded(&self.slot_key(key), self.codec())
+        working_set
+            .remove_decoded(&self.slot_key(key), self.codec())
+            .unwrap()
     }
 
     /// Removes a key from the map, returning the corresponding value (or
@@ -243,7 +250,7 @@ where
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        working_set.delete(&self.slot_key(key));
+        working_set.delete(&self.slot_key(key)).unwrap();
     }
 }
 

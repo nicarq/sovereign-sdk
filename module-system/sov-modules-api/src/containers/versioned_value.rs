@@ -74,6 +74,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::KeyCodec: StateItemCodec<u64>,
     {
         ws.get_decoded(&self.encode_key(&ws.current_version()), &self.codec)
+            .unwrap()
     }
 
     /// Only the kernel working set can write to versioned values
@@ -87,7 +88,8 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
             ws,
             &self.encode_key(&ws.current_version()),
             SlotValue::new(value, self.codec.value_codec()),
-        );
+        )
+        .unwrap();
     }
 
     /// Only the kernel working set can write to versioned values
@@ -101,7 +103,8 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
             ws,
             &self.encode_key(key),
             SlotValue::new(value, self.codec.value_codec()),
-        );
+        )
+        .unwrap();
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
@@ -111,7 +114,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateReader::<Kernel>::get_decoded(ws, &self.encode_key(key), &self.codec)
+        StateReader::<Kernel>::get_decoded(ws, &self.encode_key(key), &self.codec).unwrap()
     }
 }
 

@@ -17,6 +17,7 @@ impl<'a, S: Spec> VersionReader for VersionedStateReadWriter<'a, StateCheckpoint
 }
 
 /// A wrapper over [`WorkingSet`] that allows access to kernel values
+/// TODO(@theochap): this struct is deprecated and should be removed in favor of [`KernelWorkingSet`]
 pub struct VersionedStateReadWriter<'a, S> {
     pub(super) ws: &'a mut S,
     pub(super) slot_num: u64,
