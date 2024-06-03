@@ -1,3 +1,4 @@
+- #750 moves `RuntimeAuthenticator, RuntimeAuthorization, and Authenticator` to a separate file in the capabilities module.
 - #749 makes the rollup generic over the `AuthorizationData` type.
 - #742 moves the scratchpad and the state into a submodule of the sov-modules-api and breaks these files into smaller components to make the complexity more manageable.
 - #730 Splits `RollupBlueprint` into two traits: `FullNodeBlueprint` and `RollupBlueprint` and feature gates the full-node blueprint behind the `"native"` feature flag. It also reduces the number of required types for the `RollupBlueprint` by making it generic over execution mode. See the diff of `celestia_rollup.rs` for a complete example of a migration.

@@ -6,14 +6,15 @@ use borsh::BorshSerialize;
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
-    AuthenticationError, AuthorizeSequencerError, FatalError, GasEnforcer, HasCapabilities, RawTx,
-    RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
+    AuthenticationError, AuthenticationResult, AuthorizeSequencerError, FatalError, GasEnforcer,
+    HasCapabilities, RawTx, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
+    TryReserveGasError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
-    AuthenticationResult, Context, DaSpec, DispatchCall, Gas, GasArray, PreExecWorkingSet, Spec,
-    StateCheckpoint, TxScratchpad, WorkingSet,
+    Context, DaSpec, DispatchCall, Gas, GasArray, PreExecWorkingSet, Spec, StateCheckpoint,
+    TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use tracing::{debug, error, warn};

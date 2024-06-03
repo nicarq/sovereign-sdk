@@ -1,11 +1,12 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::capabilities::{AuthorizeSequencerError, SequencerAuthorization};
+use sov_modules_api::capabilities::{
+    AuthorizationData, AuthorizeSequencerError, SequencerAuthorization,
+};
 use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
 use sov_modules_api::transaction::Credentials;
 use sov_modules_api::{
-    AuthorizationData, Context, CryptoSpec, DaSpec, Gas, GasArray, KernelWorkingSet, PrivateKey,
-    Spec, StateCheckpoint,
+    Context, CryptoSpec, DaSpec, Gas, GasArray, KernelWorkingSet, PrivateKey, Spec, StateCheckpoint,
 };
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::crypto::PublicKey;

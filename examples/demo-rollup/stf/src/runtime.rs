@@ -33,11 +33,11 @@
 #![allow(unused_doc_comments)]
 
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
-use sov_modules_api::capabilities::HasCapabilities;
+use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AuthorizationData, DispatchCall, Event, Genesis, MessageCodec, Spec};
+use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerStakeMeter;
 

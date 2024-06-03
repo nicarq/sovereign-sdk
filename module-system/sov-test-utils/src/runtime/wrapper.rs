@@ -6,15 +6,15 @@ use sov_attester_incentives::AttesterIncentives;
 use sov_bank::{Bank, IntoPayable};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
-    AuthorizeSequencerError, GasEnforcer, HasCapabilities, RawTx, RuntimeAuthenticator,
-    RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
+    AuthenticationResult, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
+    RawTx, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    AuthenticationResult, AuthorizationData, Context, DispatchCall, EncodeCall, Gas, Genesis,
-    GenesisState, Module, ModuleInfo, PreExecWorkingSet, RuntimeEventProcessor, Spec,
-    StateCheckpoint, TxScratchpad, TypedEvent, WorkingSet,
+    Context, DispatchCall, EncodeCall, Gas, Genesis, GenesisState, Module, ModuleInfo,
+    PreExecWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad, TypedEvent,
+    WorkingSet,
 };
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;
@@ -191,7 +191,7 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> RuntimeAuthenticator<S>
         raw_tx: &RawTx,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData> {
-        sov_modules_api::authenticate::<S, Self, Self::SequencerStakeMeter>(
+        sov_modules_api::capabilities::authenticate::<S, Self, Self::SequencerStakeMeter>(
             &raw_tx.data,
             pre_exec_ws,
         )

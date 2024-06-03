@@ -3,13 +3,11 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_modules_api::capabilities::{Authenticator, AuthorizationData};
 use sov_modules_api::runtime::capabilities::{
-    AuthenticationError, FatalError, RawTx, RuntimeAuthenticator,
+    AuthenticationError, AuthenticationResult, FatalError, RawTx, RuntimeAuthenticator,
 };
-use sov_modules_api::{
-    AuthenticationResult, Authenticator, AuthorizationData, DaSpec, DispatchCall, GasMeter,
-    PreExecWorkingSet, Spec,
-};
+use sov_modules_api::{DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, Spec};
 use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::{Runtime, RuntimeCall};
@@ -61,7 +59,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for ModAuth<S, Da> {
         <Self::DispatchCall as DispatchCall>::Decodable,
         Self::AuthorizationData,
     > {
-        sov_modules_api::authenticate::<Self::Spec, Self::DispatchCall, Meter>(
+        sov_modules_api::capabilities::authenticate::<Self::Spec, Self::DispatchCall, Meter>(
             tx,
             pre_exec_working_set,
         )

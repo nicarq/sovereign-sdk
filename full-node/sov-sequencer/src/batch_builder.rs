@@ -4,12 +4,10 @@ use core::marker::PhantomData;
 use anyhow::bail;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::capabilities::RawTx;
+use sov_modules_api::capabilities::{Authenticator, RawTx};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::{
-    Authenticator, CryptoSpec, Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint,
-};
+use sov_modules_api::{CryptoSpec, Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};

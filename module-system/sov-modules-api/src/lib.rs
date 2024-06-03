@@ -26,7 +26,6 @@ pub use state::*;
 mod reexport_macros;
 pub use reexport_macros::*;
 
-mod authentication;
 #[cfg(test)]
 mod tests;
 pub mod transaction;
@@ -61,8 +60,6 @@ pub mod optimistic {
 pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
 }
-
-pub use authentication::{authenticate, AuthenticationResult, Authenticator, AuthorizationData};
 
 /// Prelude with re-exports of external crates used by macros, as well as
 /// important traits and types.
