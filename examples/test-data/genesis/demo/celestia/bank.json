@@ -17,6 +17,18 @@
       [
         "sov1dnhqk4mdsj2kwv4xymt8a624xuahfx8906j9usdkx7ensfghndkq8p33f7",
         1000000
+      ],
+      [
+        "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm",
+        100000000
+      ],
+      [
+        "sov1nc27sae83wj0prl0en4y9lldk6e7v9qz63k50tus95zpd8h84rfsfzczmv",
+        100000000
+      ],
+      [
+        "sov16wxfprgt9lhvd097kes7e2v4juz5rn8jrzt7477cp9dw0qldydas769lvu",
+        100000000
       ]
     ],
     "authorized_minters": [

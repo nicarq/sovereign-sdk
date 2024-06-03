@@ -129,7 +129,7 @@ async function main() {
 
   return writeFile(filePath, data)
     .then(() => {
-      console.log("Addresses recorded.");
+      console.log(`Addresses has been recorded to ${filePath}`);
     })
     .catch((error) => {
       console.error("Error logging addresses:", error);
