@@ -39,7 +39,7 @@ use crate::hooks::TxHooks;
 use crate::map::NamespacedStateMap;
 use crate::value::NamespacedStateValue;
 use crate::vec::NamespacedStateVec;
-use crate::{Module, ModuleId, ModuleInfo, Spec, StateReaderAndWriter, WorkingSet};
+use crate::{Module, ModuleId, ModuleInfo, Spec, StateReader, StateReaderAndWriter, WorkingSet};
 
 /// A [`tokio::sync::watch::Receiver`] for a [`Spec`]'s storage.
 pub type StorageReceiver<S> = tokio::sync::watch::Receiver<<S as Spec>::Storage>;
@@ -391,7 +391,7 @@ pub mod __macros_private {
         use sov_rest_utils::{errors, ApiResult};
 
         use super::*;
-        use crate::StateReader;
+        use crate::AccessoryStateReader;
 
         #[derive(derivative::Derivative)]
         #[derivative(Clone(bound = ""))]
@@ -477,7 +477,7 @@ pub mod __macros_private {
         where
             N: CompileTimeNamespace,
             M: ModuleSendSync,
-            WorkingSet<M::Spec>: StateReader<N> + StateReaderAndWriter<N>,
+            WorkingSet<M::Spec>: AccessoryStateReader + StateReaderAndWriter<N>,
             T: Serialize,
             Codec: StateCodec,
             Codec::KeyCodec: StateItemCodec<usize>,
@@ -537,7 +537,7 @@ pub mod __macros_private {
         where
             N: CompileTimeNamespace,
             M: ModuleSendSync,
-            WorkingSet<M::Spec>: StateReader<N> + StateReaderAndWriter<N>,
+            WorkingSet<M::Spec>: AccessoryStateReader + StateReaderAndWriter<N>,
             T: Serialize + Clone + Send + Sync + 'static,
             Codec: StateCodec,
             Codec::KeyCodec: StateItemCodec<usize>,
@@ -607,7 +607,7 @@ pub mod __macros_private {
         where
             N: CompileTimeNamespace,
             M: ModuleSendSync,
-            WorkingSet<M::Spec>: StateReader<N> + StateReaderAndWriter<N>,
+            WorkingSet<M::Spec>: AccessoryStateReader + StateReaderAndWriter<N>,
             K: Serialize + serde::de::DeserializeOwned + Clone + Send + Sync + 'static,
             V: Serialize + Clone + Send + Sync + 'static,
             Codec: StateCodec,

@@ -11,5 +11,6 @@ pub use events::TypedEvent;
 #[cfg(feature = "native")]
 pub use traits::ProvenStateAccessor;
 pub use traits::{
-    GenesisState, StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
+    AccessoryStateReader, AccessoryStateWriter, GenesisState, StateReader, StateReaderAndWriter,
+    StateWriter, TxState, VersionReader,
 };

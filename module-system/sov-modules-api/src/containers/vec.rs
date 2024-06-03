@@ -120,10 +120,10 @@ where
     /// Returns the value for the given index.
     /// If the index is out of bounds, returns an error.
     /// If the value is absent, returns an error.
-    pub fn get_or_err(
+    pub fn get_or_err<Reader: StateReaderAndWriter<N>>(
         &self,
         index: usize,
-        working_set: &mut impl StateReaderAndWriter<N>,
+        working_set: &mut Reader,
     ) -> Result<V, StateVecError<N>> {
         let len = self.len(working_set);
 

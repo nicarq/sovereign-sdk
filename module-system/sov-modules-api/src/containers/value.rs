@@ -91,12 +91,16 @@ where
 
     /// Sets the value.
     pub fn set(&self, value: &V, working_set: &mut impl StateWriter<N>) {
-        working_set.set(&self.slot_key(), self.slot_value(value));
+        working_set
+            .set(&self.slot_key(), self.slot_value(value))
+            .unwrap();
     }
 
     /// Gets the value from state or returns None if the value is absent.
     pub fn get(&self, working_set: &mut impl StateReader<N>) -> Option<V> {
-        working_set.get_decoded(&self.slot_key(), self.codec())
+        working_set
+            .get_decoded(&self.slot_key(), self.codec())
+            .unwrap()
     }
 
     /// Gets the value from state or Error if the value is absent.
@@ -110,7 +114,9 @@ where
 
     /// Removes the value from state, returning the value (or None if the key is absent).
     pub fn remove(&self, working_set: &mut impl StateReaderAndWriter<N>) -> Option<V> {
-        working_set.remove_decoded(&self.slot_key(), self.codec())
+        working_set
+            .remove_decoded(&self.slot_key(), self.codec())
+            .unwrap()
     }
 
     /// Removes a value from state, returning the value (or Error if the key is absent).
@@ -124,7 +130,7 @@ where
 
     /// Deletes a value from state.
     pub fn delete(&self, working_set: &mut impl StateWriter<N>) {
-        working_set.delete(&self.slot_key());
+        working_set.delete(&self.slot_key()).unwrap();
     }
 }
 

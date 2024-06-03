@@ -67,7 +67,8 @@ mod test {
                 {
                     let storage = storage_manager.create_storage();
                     let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage.clone());
-                    StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone());
+                    StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone())
+                        .expect("Failed to set value");
                     let (checkpoint, _gas_meter, _) = working_set.checkpoint();
                     let (cache, _, witness) = checkpoint.freeze();
                     let (_, change_set) = storage
@@ -114,7 +115,8 @@ mod test {
             let storage = storage_manager.create_storage();
             assert!(storage.is_empty());
             let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage.clone());
-            StateWriter::<User>::set(&mut working_set, &key, value.clone());
+            StateWriter::<User>::set(&mut working_set, &key, value.clone())
+                .expect("Failed to set value");
             let (cache, _, witness) = working_set.checkpoint().0.freeze();
             let (_, change_set) = storage
                 .validate_and_materialize(cache, &witness)

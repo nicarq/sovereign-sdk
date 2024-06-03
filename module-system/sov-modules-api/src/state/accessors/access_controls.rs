@@ -1,107 +1,231 @@
 //! This file defines all the possible ways to access the state of the rollup for the
 //! accessors defined in this module.
 
-use sov_state::{Accessory, SlotKey, SlotValue, Storage, User};
+use std::convert::Infallible;
+
+use sov_state::{
+    Accessory, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
+};
 
 use super::genesis::GenesisStateAccessor;
 use super::internals::{Delta, RevertableWriter};
 use super::seal::CachedAccessor;
+use crate::state::traits::{AccessoryStateWriter, ProvableStateReader, ProvableStateWriter};
 use crate::{
-    AccessoryDelta, AccessoryStateCheckpoint, GasMeter, PreExecWorkingSet, Spec, StateCheckpoint,
-    StateReader, StateWriter, TxScratchpad, WorkingSet,
+    AccessoryDelta, AccessoryStateCheckpoint, AccessoryStateReader, GasMeter, PreExecWorkingSet,
+    Spec, StateCheckpoint, StateReader, StateWriter, TxScratchpad, WorkingSet,
 };
 
-impl<S: Storage> StateReader<Accessory> for AccessoryDelta<S> {}
-impl<S: Storage> StateWriter<Accessory> for AccessoryDelta<S> {}
+macro_rules! inner_impl_unmetered_state_reader {
+    ($namespace:ty) => {
+        type Error = Infallible;
 
-impl<S: Spec> StateReader<User> for GenesisStateAccessor<S> {}
-impl<S: Spec> StateWriter<User> for GenesisStateAccessor<S> {}
-impl<S: Spec> StateWriter<Accessory> for GenesisStateAccessor<S> {}
+        fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
+            Ok(<Self as CachedAccessor<$namespace>>::get_cached(self, key).0)
+        }
 
-impl<S: Spec> StateReader<User> for StateCheckpoint<S> {}
-impl<S: Spec> StateWriter<User> for StateCheckpoint<S> {}
-impl<S: Spec> StateWriter<Accessory> for StateCheckpoint<S> {}
+        fn get_decoded<V, Codec>(
+            &mut self,
+            storage_key: &SlotKey,
+            codec: &Codec,
+        ) -> Result<Option<V>, Self::Error>
+        where
+            Codec: StateCodec,
+            Codec::ValueCodec: StateItemCodec<V>,
+        {
+            let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
 
-impl<S: Spec> StateReader<User> for TxScratchpad<S> {}
-impl<S: Spec> StateWriter<User> for TxScratchpad<S> {}
+            Ok(storage_value
+                .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
+        }
+    };
+}
 
-impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> StateReader<User>
+macro_rules! inner_impl_unmetered_state_writer {
+    ($namespace:ty) => {
+        type Error = Infallible;
+
+        fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
+            <Self as CachedAccessor<$namespace>>::set_cached(self, key, value);
+            Ok(())
+        }
+
+        fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
+            <Self as CachedAccessor<$namespace>>::delete_cached(self, key);
+            Ok(())
+        }
+    };
+}
+
+impl<S: Storage> AccessoryStateReader for AccessoryDelta<S> {}
+impl<S: Storage> AccessoryStateWriter for AccessoryDelta<S> {}
+
+impl<S: Spec> ProvableStateReader<User> for GenesisStateAccessor<S> {
+    type GU = S::Gas;
+}
+impl<S: Spec> ProvableStateWriter<User> for GenesisStateAccessor<S> {
+    type GU = S::Gas;
+}
+impl<S: Spec> AccessoryStateWriter for GenesisStateAccessor<S> {}
+
+impl<S: Spec> StateReader<User> for StateCheckpoint<S> {
+    inner_impl_unmetered_state_reader!(User);
+}
+impl<S: Spec> StateWriter<User> for StateCheckpoint<S> {
+    inner_impl_unmetered_state_writer!(User);
+}
+
+impl<S: Spec> AccessoryStateWriter for StateCheckpoint<S> {}
+
+impl<S: Spec> ProvableStateReader<User> for TxScratchpad<S> {
+    type GU = S::Gas;
+}
+impl<S: Spec> ProvableStateWriter<User> for TxScratchpad<S> {
+    type GU = S::Gas;
+}
+
+impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> ProvableStateReader<User>
     for PreExecWorkingSet<S, PreExecChecksMeter>
 {
+    type GU = S::Gas;
 }
-impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> StateWriter<User>
+impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> ProvableStateWriter<User>
     for PreExecWorkingSet<S, PreExecChecksMeter>
 {
+    type GU = S::Gas;
 }
 
-impl<S: Spec> StateReader<User> for WorkingSet<S> {}
-impl<S: Spec> StateWriter<User> for WorkingSet<S> {}
+impl<S: Spec> ProvableStateReader<User> for WorkingSet<S> {
+    type GU = S::Gas;
+}
+impl<S: Spec> ProvableStateWriter<User> for WorkingSet<S> {
+    type GU = S::Gas;
+}
+
 impl<S: Spec> StateReader<Accessory> for WorkingSet<S> {
-    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
+    type Error = Infallible;
+    fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
         if !cfg!(feature = "native") {
             // Note: We might want to have a special case for that
             panic!("Trying to access a native-protected value {key:?}, from the accessory state, outside of native mode");
         } else {
-            <RevertableWriter<TxScratchpad<S>> as CachedAccessor<Accessory>>::get_cached(
-                &mut self.delta,
-                key,
+            Ok(
+                <RevertableWriter<TxScratchpad<S>> as CachedAccessor<Accessory>>::get_cached(
+                    &mut self.delta,
+                    key,
+                )
+                .0,
             )
-            .0
         }
     }
+
+    /// Get a decoded value from the storage.
+    fn get_decoded<V, Codec>(
+        &mut self,
+        storage_key: &SlotKey,
+        codec: &Codec,
+    ) -> Result<Option<V>, Self::Error>
+    where
+        Codec: StateCodec,
+        Codec::ValueCodec: StateItemCodec<V>,
+    {
+        let storage_value = <Self as StateReader<Accessory>>::get(self, storage_key)?;
+
+        Ok(storage_value
+            .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
+    }
 }
-impl<S: Spec> StateWriter<Accessory> for WorkingSet<S> {}
+impl<S: Spec> AccessoryStateWriter for WorkingSet<S> {}
 
 impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
-    fn get(&mut self, key: &SlotKey) -> Option<SlotValue> {
+    type Error = Infallible;
+    fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
         if !cfg!(feature = "native") {
             // Note: We might want to have a special case for that
             panic!("Trying to access a native-protected value {key:?}, from the accessory state, outside of native mode");
         } else {
-            <Delta<S::Storage> as CachedAccessor<Accessory>>::get_cached(
-                &mut self.checkpoint.delta,
-                key,
+            Ok(
+                <Delta<S::Storage> as CachedAccessor<Accessory>>::get_cached(
+                    &mut self.checkpoint.delta,
+                    key,
+                )
+                .0,
             )
-            .0
         }
     }
+
+    /// Get a decoded value from the storage.
+    fn get_decoded<V, Codec>(
+        &mut self,
+        storage_key: &SlotKey,
+        codec: &Codec,
+    ) -> Result<Option<V>, Self::Error>
+    where
+        Codec: StateCodec,
+        Codec::ValueCodec: StateItemCodec<V>,
+    {
+        let storage_value = <Self as StateReader<Accessory>>::get(self, storage_key)?;
+
+        Ok(storage_value
+            .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
+    }
 }
-impl<'a, S: Spec> StateWriter<Accessory> for AccessoryStateCheckpoint<'a, S> {}
+impl<'a, S: Spec> AccessoryStateWriter for AccessoryStateCheckpoint<'a, S> {}
 
 pub mod kernel_state {
-    use sov_state::{namespaces, User};
+    use std::convert::Infallible;
 
+    use sov_state::{
+        Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, User,
+    };
+
+    use crate::state::accessors::seal::CachedAccessor;
     use crate::{
         BootstrapWorkingSet, KernelWorkingSet, Spec, StateCheckpoint, StateReader, StateWriter,
         VersionedStateReadWriter, WorkingSet,
     };
 
-    impl<'a, S: Spec> StateReader<namespaces::Kernel>
-        for VersionedStateReadWriter<'a, StateCheckpoint<S>>
-    {
+    impl<'a, S: Spec> StateReader<Kernel> for VersionedStateReadWriter<'a, StateCheckpoint<S>> {
+        inner_impl_unmetered_state_reader!(Kernel);
     }
 
-    impl<'a, S: Spec> StateWriter<namespaces::Kernel>
-        for VersionedStateReadWriter<'a, StateCheckpoint<S>>
-    {
+    impl<'a, S: Spec> StateWriter<Kernel> for VersionedStateReadWriter<'a, StateCheckpoint<S>> {
+        inner_impl_unmetered_state_writer!(Kernel);
     }
 
-    impl<'a, S: Spec> StateReader<namespaces::Kernel> for VersionedStateReadWriter<'a, WorkingSet<S>> {}
+    impl<'a, S: Spec> StateReader<Kernel> for VersionedStateReadWriter<'a, WorkingSet<S>> {
+        inner_impl_unmetered_state_reader!(Kernel);
+    }
 
-    impl<'a, S: Spec> StateWriter<namespaces::Kernel> for VersionedStateReadWriter<'a, WorkingSet<S>> {}
+    impl<'a, S: Spec> StateWriter<Kernel> for VersionedStateReadWriter<'a, WorkingSet<S>> {
+        inner_impl_unmetered_state_writer!(Kernel);
+    }
 
-    impl<'a, S: Spec> StateReader<User> for BootstrapWorkingSet<'a, S> {}
+    impl<'a, S: Spec> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
+        inner_impl_unmetered_state_reader!(Kernel);
+    }
+    impl<'a, S: Spec> StateReader<User> for BootstrapWorkingSet<'a, S> {
+        inner_impl_unmetered_state_reader!(User);
+    }
 
-    impl<'a, S: Spec> StateWriter<User> for BootstrapWorkingSet<'a, S> {}
+    impl<'a, S: Spec> StateWriter<Kernel> for BootstrapWorkingSet<'a, S> {
+        inner_impl_unmetered_state_writer!(Kernel);
+    }
+    impl<'a, S: Spec> StateWriter<User> for BootstrapWorkingSet<'a, S> {
+        inner_impl_unmetered_state_writer!(User);
+    }
 
-    impl<'a, S: Spec> StateReader<namespaces::Kernel> for BootstrapWorkingSet<'a, S> {}
+    impl<'a, S: Spec> StateReader<Kernel> for KernelWorkingSet<'a, S> {
+        inner_impl_unmetered_state_reader!(Kernel);
+    }
+    impl<'a, S: Spec> StateReader<User> for KernelWorkingSet<'a, S> {
+        inner_impl_unmetered_state_reader!(User);
+    }
 
-    impl<'a, S: Spec> StateWriter<namespaces::Kernel> for BootstrapWorkingSet<'a, S> {}
-
-    impl<'a, S: Spec> StateReader<User> for KernelWorkingSet<'a, S> {}
-
-    impl<'a, S: Spec> StateWriter<User> for KernelWorkingSet<'a, S> {}
-    impl<'a, S: Spec> StateReader<namespaces::Kernel> for KernelWorkingSet<'a, S> {}
-
-    impl<'a, S: Spec> StateWriter<namespaces::Kernel> for KernelWorkingSet<'a, S> {}
+    impl<'a, S: Spec> StateWriter<Kernel> for KernelWorkingSet<'a, S> {
+        inner_impl_unmetered_state_writer!(Kernel);
+    }
+    impl<'a, S: Spec> StateWriter<User> for KernelWorkingSet<'a, S> {
+        inner_impl_unmetered_state_writer!(User);
+    }
 }

@@ -12,7 +12,7 @@ use sov_test_utils::TestStorageSpec as StorageSpec;
 type S = sov_test_utils::TestSpec;
 
 #[test]
-fn transfer_initial_token() {
+fn transfer_initial_token() -> Result<(), anyhow::Error> {
     let initial_balance = 100;
     let bank_config = create_bank_config_with_token(4, initial_balance);
     let tmpdir = tempfile::tempdir().unwrap();
@@ -179,8 +179,8 @@ fn transfer_initial_token() {
         &mut working_set,
         &SlotKey::from_slice(b"k"),
         SlotValue::from(b"v1".to_vec()),
-    );
-    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k")).unwrap();
+    )?;
+    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k"))?.unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     let prover_storage = commit(working_set, prover_storage, &mut storage_manager);
@@ -209,8 +209,8 @@ fn transfer_initial_token() {
         &mut working_set,
         &SlotKey::from_slice(b"k"),
         SlotValue::from(b"v2".to_vec()),
-    );
-    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k")).unwrap();
+    )?;
+    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k"))?.unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
     let prover_storage = commit(working_set, prover_storage, &mut storage_manager);
@@ -220,7 +220,7 @@ fn transfer_initial_token() {
     let archival_slot = 3;
     let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
     let mut archival = working_set.get_archival_at(archival_slot);
-    let val = StateReader::<Accessory>::get(&mut archival, &SlotKey::from_slice(b"k")).unwrap();
+    let val = StateReader::<Accessory>::get(&mut archival, &SlotKey::from_slice(b"k"))?.unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     // archival accessory set
@@ -229,12 +229,15 @@ fn transfer_initial_token() {
         &mut archival,
         &SlotKey::from_slice(b"k"),
         SlotValue::from(b"v3".to_vec()),
-    );
-    let val = StateReader::<Accessory>::get(&mut archival, &SlotKey::from_slice(b"k")).unwrap();
+    )
+    .expect("Should be able to set state");
+    let val = StateReader::<Accessory>::get(&mut archival, &SlotKey::from_slice(b"k"))?.unwrap();
     assert_eq!("v3", String::from_utf8(val.value().to_vec()).unwrap());
 
-    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k")).unwrap();
+    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k"))?.unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
+
+    Ok(())
 }
 
 fn query_sender_receiver_balances(
