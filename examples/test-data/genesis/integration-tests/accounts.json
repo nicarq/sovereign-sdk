@@ -15,6 +15,10 @@
     {
       "credential_id": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       "address": "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"
+    },
+    {
+      "credential_id": "0x0000000000000000000000003FE0233e6cf3c9753fcB7449987EC49C88aDDE71",
+      "address": "sov1nc27sae83wj0prl0en4y9lldk6e7v9qz63k50tus95zpd8h84rfsfzczmv"
     }
   ]
 }
