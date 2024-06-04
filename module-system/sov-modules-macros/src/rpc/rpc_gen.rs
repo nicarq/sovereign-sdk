@@ -214,7 +214,7 @@ fn inner_rpc_gen(
             }
         }
 
-        impl #impl_generics #rpc_server_trait_name #ty_generics for sov_modules_api::__rpc_macros_private::RpcStorage<#module_type> #where_clause {
+        impl #impl_generics #rpc_server_trait_name #ty_generics for sov_modules_api::rest::ApiState<#module_type, <#module_type as ::sov_modules_api::ModuleInfo>::Spec> #where_clause {
             #(#rpc_server_trait_items)*
         }
 
@@ -225,10 +225,10 @@ fn inner_rpc_gen(
                 &self,
                 storage: jsonrpsee::tokio::sync::watch::Receiver<<Self::Spec as sov_modules_api::Spec>::Storage>,
             ) -> jsonrpsee::RpcModule<()> {
-                (sov_modules_api::__rpc_macros_private::RpcStorage::<#module_type> {
-                    module: ::core::default::Default::default(),
+                sov_modules_api::rest::ApiState::<#module_type, <#module_type as ::sov_modules_api::ModuleInfo>::Spec>::new(
+                    ::core::default::Default::default(),
                     storage,
-                }).into_rpc().remove_context()
+                ).into_rpc().remove_context()
             }
         }
     })

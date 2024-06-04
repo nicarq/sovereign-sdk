@@ -273,7 +273,6 @@ components:
                 $ref: "#/components/schemas/Meta"
             required:
               - data
-              - meta
     Slot:
       description: Success
       content:
@@ -287,7 +286,6 @@ components:
                 $ref: "#/components/schemas/Meta"
             required:
               - data
-              - meta
     Batch:
       description: Success
       content:
@@ -301,7 +299,6 @@ components:
                 $ref: "#/components/schemas/Meta"
             required:
               - data
-              - meta
     Tx:
       description: Success
       content:
@@ -315,7 +312,6 @@ components:
                 $ref: "#/components/schemas/Meta"
             required:
               - data
-              - meta
     Event:
       description: Success
       content:
@@ -329,7 +325,6 @@ components:
                 $ref: "#/components/schemas/Meta"
             required:
               - data
-              - meta
     NotFound:
       description: Resource not found
       content:

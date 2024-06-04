@@ -3,8 +3,6 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
-use super::axum_extractors::QueryStringValidation;
-
 /// Single-column sorting options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
@@ -15,8 +13,6 @@ pub struct Sorting<T> {
     /// The sorting order.
     pub order: SortingOrder,
 }
-
-impl<T> QueryStringValidation for Sorting<T> {}
 
 impl<'a, T> serde::Deserialize<'a> for Sorting<T>
 where

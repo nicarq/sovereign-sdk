@@ -28,12 +28,44 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
         })
         .collect::<Vec<_>>();
 
+    let module_openapi_specs = input
+        .fields()
+        .iter()
+        // We happily ignore all fields marked with `skip`.
+        .filter(|f| !f.skip)
+        .map(|f| {
+            let module_identifier = f.ident();
+            let path = str_to_url_segment(module_identifier);
+
+            quote! {
+                (&self.#module_identifier).openapi_spec().map(|s| (#path.to_string(), s))
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let module_names_and_ids = input
+        .fields()
+        .iter()
+        .filter(|f| !f.skip)
+        .map(|f| {
+            let module_identifier = f.ident();
+            let name = str_to_url_segment(module_identifier);
+
+            quote! {
+                (#name.to_string(), ModuleOverview {
+                    id: sov_modules_api::ModuleInfo::id(&self.#module_identifier).clone(),
+                })
+            }
+        })
+        .collect::<Vec<_>>();
+
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let ident = input.ident;
 
     let code = wrap_in_new_scope(quote! {
         use ::sov_modules_api::rest::*;
-        use ::sov_modules_api::rest::__macros_private::*;
+        use ::sov_modules_api::rest::__private::*;
+        use ::sov_modules_api::rest::__private::openapi::*;
         use ::sov_modules_api::prelude::*;
         use ::sov_modules_api::hooks::TxHooks;
 
@@ -45,15 +77,26 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                     // `Clone` but they are `Default`, so we create a new
                     // runtime instead of cloning `self`.
                     runtime: ::std::sync::Arc::new(Self::default()),
+                    modules: ::std::vec![#(#module_names_and_ids),*].into_iter().collect(),
                 };
                 let mut router = base_impl.rest_api(storage.clone());
 
                 #(#router_nest_ops)*
 
                 let custom_router = HasCustomRestApi::<<Self as TxHooks>::Spec>::custom_rest_api(
-                    &self, storage.clone()
+                    &self, ApiState::new((&self), storage.clone()),
                 );
                 router.merge(custom_router)
+            }
+
+            fn openapi_spec(&self) -> Option<serde_json::Value> {
+                let spec = runtime_spec(
+                    vec![#(#module_openapi_specs),*]
+                        .into_iter()
+                        .filter_map(|s| s)
+                        .collect()
+                );
+                Some(serde_json::to_value(&spec).unwrap())
             }
         }
     });

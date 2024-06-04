@@ -84,7 +84,9 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
     let code = wrap_in_new_scope(quote! {
         use ::sov_modules_api::rest::utils::*;
-        use ::sov_modules_api::rest::__macros_private::*;
+        use ::sov_modules_api::rest::__private::*;
+        use ::sov_modules_api::rest::__private::state::*;
+        use ::sov_modules_api::rest::__private::openapi::*;
         use ::sov_modules_api::rest::*;
         use ::sov_modules_api::prelude::*;
         use ::sov_modules_api::{Module, ModuleInfo};
@@ -116,11 +118,17 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                 #(#router_nest_ops)*
 
                 let custom_router = HasCustomRestApi::<<Self as Module>::Spec>::custom_rest_api(
-                    &self, storage.clone()
+                    &self, ApiState::new((&self), storage.clone()),
                 );
                 router = router.nest("/", custom_router);
 
                 router
+            }
+
+            fn openapi_spec(&self) -> Option<serde_json::Value> {
+                let state_items = #map_of_state_item_exprs;
+
+                Some(serde_json::to_value(&module_spec(state_items)).unwrap())
             }
         }
     });

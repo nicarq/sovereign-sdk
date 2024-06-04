@@ -1,3 +1,4 @@
+- #726 adds Swagger UI -an OpenApi playground- as an endpoint defined inside `sov_modules_stf_blueprint::Runtime::endpoint`.
 - #743 adds metered state accessor traits to the `sov-modules-api/state` module.
 - #750 moves `RuntimeAuthenticator, RuntimeAuthorization, and Authenticator` to a separate file in the capabilities module.
 - #749 makes the rollup generic over the `AuthorizationData` type.

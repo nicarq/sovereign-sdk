@@ -120,7 +120,8 @@ thiserror = "1.0.50"
 tower = { version = "0.4", default-features = false }
 tower-http = "0.5"
 tower-request-id = "0.3"
-utoipa-swagger-ui = { version = "6" }
+utoipa = "4.2"
+utoipa-swagger-ui = { version = "6", features = ["axum"] }
 
 tiny-keccak = "2.0.2"
 tracing = { version = "0.1.40", default-features = false }

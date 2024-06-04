@@ -120,6 +120,10 @@ pub mod prelude {
     pub extern crate sov_rest_utils;
     #[cfg(feature = "native")]
     pub extern crate tokio;
+    #[cfg(feature = "native")]
+    pub extern crate utoipa;
+    #[cfg(feature = "native")]
+    pub extern crate utoipa_swagger_ui;
 }
 
 struct ModuleVisitor<'a, S: Spec> {
@@ -263,20 +267,6 @@ pub trait CliWallet: DispatchCall {
 #[cfg(feature = "native")]
 pub mod __rpc_macros_private {
     use super::*;
-
-    #[derive(Clone, derive_more::Deref, derive_more::DerefMut)]
-    pub struct RpcStorage<M: ModuleInfo> {
-        #[deref]
-        #[deref_mut]
-        pub module: M,
-        pub storage: tokio::sync::watch::Receiver<<M::Spec as Spec>::Storage>,
-    }
-
-    impl<M: ModuleInfo> RpcStorage<M> {
-        pub fn working_set(&self) -> WorkingSet<M::Spec> {
-            WorkingSet::new(self.storage.borrow().clone())
-        }
-    }
 
     /// A [`Module`] that also exposes a JSON-RPC server.
     pub trait ModuleWithRpcServer {

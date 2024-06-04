@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use super::map::NamespacedStateMap;
 use super::value::NamespacedStateValue;
-use crate::StateReaderAndWriter;
+use crate::{StateReader, StateReaderAndWriter};
 
 /// A growable array of values stored as JMT-backed state.
 #[derive(
@@ -113,7 +113,7 @@ where
     }
 
     /// Returns the value for the given index.
-    pub fn get(&self, index: usize, working_set: &mut impl StateReaderAndWriter<N>) -> Option<V> {
+    pub fn get(&self, index: usize, working_set: &mut impl StateReader<N>) -> Option<V> {
         self.elems().get(&index, working_set)
     }
 
@@ -137,7 +137,7 @@ where
     }
 
     /// Returns the length of the vector.
-    pub fn len(&self, working_set: &mut impl StateReaderAndWriter<N>) -> usize {
+    pub fn len(&self, working_set: &mut impl StateReader<N>) -> usize {
         self.len_value().get(working_set).unwrap_or_default()
     }
 
