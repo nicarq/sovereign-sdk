@@ -30,7 +30,6 @@ pub mod errors;
 #[doc(hidden)]
 pub mod test_utils;
 
-use std::collections::BTreeSet;
 use std::fmt::{Debug, Display};
 
 use axum::body::Body;
@@ -38,8 +37,8 @@ use axum::extract::Request;
 use axum::http::{HeaderName, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
-pub use axum_extractors::{PathWithErrorHandling, QueryStringValidation, ValidatedQuery};
-pub use pagination::{pagination_sizes, PageSelection, Pagination};
+pub use axum_extractors::{Path, Query};
+pub use pagination::{PageSelection, Pagination};
 pub use sorting::{Sorting, SortingOrder};
 use tower_http::compression::CompressionLayer;
 use tower_http::propagate_header::PropagateHeaderLayer;
@@ -178,51 +177,6 @@ impl<'a> serde::Deserialize<'a> for HexString {
     }
 }
 
-/// A comma-separated set of strings, useful for [`serde`] (de)serialization.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
-pub struct CommaSeparatedStringsSet(pub BTreeSet<String>);
-
-impl CommaSeparatedStringsSet {
-    /// Returns true iff the set is empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-impl serde::Serialize for CommaSeparatedStringsSet {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut s = String::new();
-        for (i, item) in self.0.iter().enumerate() {
-            if i > 0 {
-                s.push(',');
-            }
-            s.push_str(item);
-        }
-        s.serialize(serializer)
-    }
-}
-
-impl<'a> serde::Deserialize<'a> for CommaSeparatedStringsSet {
-    fn deserialize<D>(deserializer: D) -> Result<CommaSeparatedStringsSet, D::Error>
-    where
-        D: serde::Deserializer<'a>,
-    {
-        let string = String::deserialize(deserializer)?;
-        let strings = string
-            .split(',')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(ToString::to_string)
-            .collect();
-
-        Ok(Self(strings))
-    }
-}
-
 /// Exactly like [`serde_json::Value`], but returns a JSON object instead of a
 /// JSON value.
 #[macro_export]
@@ -288,12 +242,6 @@ mod tests {
     proptest! {
         #[test]
         fn hex_string_serialization_roundtrip(item: HexString) {
-            test_serialization_roundtrip_equality_json(item);
-        }
-
-        #[test]
-        fn comma_separated_strings_serialization_roundtrip(numbers: Vec<i32>) {
-            let item = CommaSeparatedStringsSet(numbers.into_iter().map(|i| i.to_string()).collect());
             test_serialization_roundtrip_equality_json(item);
         }
 

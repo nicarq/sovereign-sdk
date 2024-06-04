@@ -15,55 +15,33 @@ use crate::{json_obj, ErrorObject};
 
 /// An alternative to the built-in Axum extractor [`axum::extract::Query`],
 /// which handles properly formatted JSON errors upon deserialization failure
-/// according to our intended API. It also performs validation as defined by
-/// [`QueryStringValidation`].
+/// according to the standard API convention followed by [`ErrorObject`].
 ///
 /// See:
 /// - <https://github.com/tokio-rs/axum/issues/1116>
 /// - <https://github.com/tokio-rs/axum/blob/main/examples/customize-extractor-error/src/derive_from_request.rs>
 /// - <https://docs.rs/axum/latest/axum/extract/index.html#customizing-extractor-responses>
 #[derive(Debug, Copy, Clone, derive_more::Deref)]
-pub struct ValidatedQuery<T>(pub T);
+pub struct Query<T>(pub T);
 
-impl<T> ValidatedQuery<T>
-where
-    T: DeserializeOwned + QueryStringValidation,
-{
+impl<T: DeserializeOwned> Query<T> {
     /// Attempts to deserialize and then validate the query string from the
     /// given [`Uri`].
     pub fn try_from_uri(uri: &Uri) -> Result<Self, ErrorObject> {
-        let query_string = uri.query().unwrap_or_default();
-
-        match serde_urlencoded::from_str::<T>(query_string) {
-            Ok(query) => {
-                if let Err(err) = query.validate() {
-                    Err(ErrorObject {
-                        status: StatusCode::BAD_REQUEST,
-                        title: "Invalid query string".to_string(),
-                        details: json_obj!({
-                            "message": err.to_string(),
-                        }),
-                    })
-                } else {
-                    Ok(ValidatedQuery(query))
-                }
-            }
-            Err(err) => Err(ErrorObject {
+        axum::extract::Query::<T>::try_from_uri(uri)
+            .map(|q| Self(q.0))
+            .map_err(|err| ErrorObject {
                 status: StatusCode::BAD_REQUEST,
                 title: "Invalid query string".to_string(),
                 details: json_obj!({
                     "message": err.to_string(),
                 }),
-            }),
-        }
+            })
     }
 }
 
 #[axum::async_trait]
-impl<S, T> FromRequestParts<S> for ValidatedQuery<T>
-where
-    T: DeserializeOwned + QueryStringValidation,
-{
+impl<S, T: DeserializeOwned> FromRequestParts<S> for Query<T> {
     type Rejection = ErrorObject;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
@@ -71,28 +49,14 @@ where
     }
 }
 
-/// Defines custom query string validation rules that are run during
-/// [`ValidatedQuery`] extraction.
-pub trait QueryStringValidation {
-    /// Performs custom validation on the query string.
-    fn validate(&self) -> anyhow::Result<()> {
-        Ok(())
-    }
-}
-
-/// We never serialize tuples as query strings in production code, only custom
-/// `struct`s.
-#[cfg(test)]
-impl<T> QueryStringValidation for &[(&str, T)] where T: serde::Serialize {}
-
 /// An alternative to the built-in Axum extractor [`axum::extract::Path`], which
 /// handles errors gracefully and returns error responses in a `JSON:API`-like
 /// format.
 #[derive(Debug, derive_more::Deref)]
-pub struct PathWithErrorHandling<T>(pub T);
+pub struct Path<T>(pub T);
 
 #[axum::async_trait]
-impl<S, T> FromRequestParts<S> for PathWithErrorHandling<T>
+impl<S, T> FromRequestParts<S> for Path<T>
 where
     axum::extract::Path<T>: FromRequestParts<S>,
     <axum::extract::Path<T> as FromRequestParts<S>>::Rejection: ToString + Debug,
@@ -102,7 +66,7 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         match axum::extract::Path::from_request_parts(parts, state).await {
-            Ok(query) => Ok(PathWithErrorHandling(query.0)),
+            Ok(query) => Ok(Path(query.0)),
             Err(err) => Err(ErrorObject {
                 status: StatusCode::BAD_REQUEST,
                 title: "Failed to deserialize path string parameter(s)".to_string(),
@@ -118,31 +82,22 @@ where
 mod tests {
     use super::*;
 
-    // TODO: add tests for `PathWithErrorHandling`.
+    // TODO: add tests for `Path`.
 
-    mod validated_query {
+    mod query {
         use super::*;
         use crate::test_utils::uri_with_query_params;
 
         #[derive(Debug, serde::Deserialize)]
         struct TestQuery {
+            #[allow(unused)]
             integer: u8,
-        }
-
-        impl QueryStringValidation for TestQuery {
-            fn validate(&self) -> anyhow::Result<()> {
-                if self.integer == 0 {
-                    Err(anyhow::anyhow!("Integer must be > 0"))
-                } else {
-                    Ok(())
-                }
-            }
         }
 
         #[test]
         fn query_serde_error() {
             let uri = uri_with_query_params([("integer", "foo")]);
-            let result = ValidatedQuery::<TestQuery>::try_from_uri(&uri);
+            let result = Query::<TestQuery>::try_from_uri(&uri);
             let err = result.unwrap_err();
 
             assert_eq!(
@@ -151,25 +106,7 @@ mod tests {
                     status: StatusCode::BAD_REQUEST,
                     title: "Invalid query string".to_string(),
                     details: json_obj!({
-                        "message": "invalid digit found in string"
-                    }),
-                }
-            );
-        }
-
-        #[test]
-        fn query_validation_error() {
-            let uri = uri_with_query_params([("integer", 0)]);
-            let result = ValidatedQuery::<TestQuery>::try_from_uri(&uri);
-            let err = result.unwrap_err();
-
-            assert_eq!(
-                err,
-                ErrorObject {
-                    status: StatusCode::BAD_REQUEST,
-                    title: "Invalid query string".to_string(),
-                    details: json_obj!({
-                        "message": "Integer must be > 0"
+                        "message": "Failed to deserialize query string"
                     }),
                 }
             );
@@ -178,7 +115,7 @@ mod tests {
         #[test]
         fn query_ok() {
             let uri = uri_with_query_params([("integer", 42)]);
-            let result = ValidatedQuery::<TestQuery>::try_from_uri(&uri);
+            let result = Query::<TestQuery>::try_from_uri(&uri);
             assert!(result.is_ok());
         }
     }

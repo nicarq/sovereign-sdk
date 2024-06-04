@@ -277,8 +277,7 @@ mod axum_router {
     use serde_with::base64::Base64;
     use serde_with::serde_as;
     use sov_rest_utils::{
-        errors, json_obj, preconfigured_router_layers, ApiResult, ErrorObject, JsonObject,
-        PathWithErrorHandling,
+        errors, json_obj, preconfigured_router_layers, ApiResult, ErrorObject, JsonObject, Path,
     };
     use tracing::debug;
     use utoipa_swagger_ui::{Config, SwaggerUi};
@@ -347,7 +346,7 @@ mod axum_router {
 
         async fn axum_get_tx_ws(
             sequencer: State<Self>,
-            tx_hash: PathWithErrorHandling<HexHash>,
+            tx_hash: Path<HexHash>,
             ws: ws::WebSocketUpgrade,
         ) -> impl IntoResponse {
             let notifier = sequencer.0 .0.tx_status_notifier.clone();
@@ -369,7 +368,7 @@ mod axum_router {
 
         async fn axum_get_tx(
             sequencer: State<Self>,
-            tx_hash: PathWithErrorHandling<HexHash>,
+            tx_hash: Path<HexHash>,
         ) -> ApiResult<JsonObject> {
             let tx_status = sequencer.0 .0.tx_status_notifier.get_cached(&tx_hash.0 .0);
 

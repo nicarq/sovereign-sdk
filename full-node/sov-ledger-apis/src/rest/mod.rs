@@ -19,10 +19,7 @@ use sov_modules_api::{EventModuleName, RuntimeEventResponse};
 use sov_rest_utils::errors::{
     self, database_error_response_500, internal_server_error_response_500, not_found_404,
 };
-use sov_rest_utils::{
-    json_obj, preconfigured_router_layers, ApiResult, ErrorObject, PathWithErrorHandling,
-    QueryStringValidation, ValidatedQuery,
-};
+use sov_rest_utils::{json_obj, preconfigured_router_layers, ApiResult, ErrorObject, Path, Query};
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
     FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
@@ -33,7 +30,7 @@ use utoipa_swagger_ui::{Config, SwaggerUi};
 
 use crate::{HexBytes, HexHash};
 
-type PathMap = PathWithErrorHandling<HashMap<String, NumberOrHash>>;
+type PathMap = Path<HashMap<String, NumberOrHash>>;
 
 /// This function does a pretty expensive clone of the entire OpenAPI
 /// specification object, so it might be slow.
@@ -216,7 +213,7 @@ where
 
     async fn get_slot(
         State(ledger): State<T>,
-        include_children_opt: Option<ValidatedQuery<IncludeChildren>>,
+        include_children_opt: Option<Query<IncludeChildren>>,
         Extension(SlotNumber(slot_number)): Extension<SlotNumber>,
     ) -> ApiResult<Slot<B, TxReceipt, E>> {
         match ledger
@@ -234,7 +231,7 @@ where
 
     async fn get_batch(
         State(ledger): State<T>,
-        include_children_opt: Option<ValidatedQuery<IncludeChildren>>,
+        include_children_opt: Option<Query<IncludeChildren>>,
         Extension(BatchNumber(batch_number)): Extension<BatchNumber>,
     ) -> ApiResult<Batch<B, TxReceipt, E>> {
         match ledger
@@ -252,7 +249,7 @@ where
 
     async fn get_tx(
         State(ledger): State<T>,
-        include_children_opt: Option<ValidatedQuery<IncludeChildren>>,
+        include_children_opt: Option<Query<IncludeChildren>>,
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
     ) -> ApiResult<Transaction<TxReceipt, E>> {
         match ledger
@@ -650,8 +647,6 @@ impl<'de> serde::Deserialize<'de> for IncludeChildren {
         Ok(Self(value != 0))
     }
 }
-
-impl QueryStringValidation for IncludeChildren {}
 
 #[serde_with::serde_as]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

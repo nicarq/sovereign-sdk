@@ -86,11 +86,19 @@ where
     fn endpoints(
         storage: tokio::sync::watch::Receiver<S::Storage>,
     ) -> sov_modules_stf_blueprint::RuntimeEndpoints {
+        use ::sov_modules_api::prelude::*;
         use ::sov_modules_api::rest::HasRestApi;
+        use utoipa_swagger_ui::{Config, SwaggerUi};
+
+        let axum_router = Self::default().rest_api(storage.clone()).merge(
+            SwaggerUi::new("/swagger-ui")
+                .external_url_unchecked("/openapi-v3.yaml", Self::default().openapi_spec().unwrap())
+                .config(Config::from("/openapi-v3.yaml")),
+        );
 
         sov_modules_stf_blueprint::RuntimeEndpoints {
             jsonrpsee_module: get_rpc_methods::<S, Da>(storage.clone()),
-            axum_router: Self::default().rest_api(storage),
+            axum_router,
         }
     }
 
