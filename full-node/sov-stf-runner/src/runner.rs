@@ -210,6 +210,7 @@ where
                     ledger_change_set,
                 )?;
                 storage_manager.finalize(&block_header)?;
+                ledger_db.send_notifications();
                 info!(
                     genesis_root = hex::encode(genesis_root.as_ref()),
                     "Chain initialization is done"
@@ -436,13 +437,17 @@ where
             self.sync_state
                 .synced_da_height
                 .store(next_da_height, std::sync::atomic::Ordering::Release);
+
+            // We could've sent notifications now, as RPC storage and sync status has been updated,
+            // But prover might add notifications,
+            // so instead of calling send now, we call it once after finalize.
+            // But this could be changed if lower latency is needed.
             next_da_height += 1;
 
             // ----------------
             // Finalization. Done after seen block for proper handling of instant finality
             // Can be moved to another thread to improve throughput
             let last_finalized = self.da_service.get_last_finalized_block_header().await?;
-            // For safety we finalize blocks one by one
 
             let last_finalized_height = last_finalized.height();
 
@@ -454,6 +459,9 @@ where
 
             self.finalize(&mut seen_state_transition, last_finalized_height)
                 .await?;
+
+            self.ledger_db.send_notifications();
+
             inc_rollup_batches_processed(batch_count);
             inc_rollup_transactions_processed(transaction_count);
         }
@@ -475,6 +483,8 @@ where
             if height <= last_finalized_height {
                 self.storage_manager
                     .finalize(earliest_seen_state_transition_info.da_block_header())?;
+                // TODO: Here is storage bug, as ledger_db changes are dropped on next height,
+                //     probably described here https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/746
                 self.ledger_db
                     .set_latest_finalized_slot(earliest_seen_state_transition_info.slot_number)?;
 
@@ -484,7 +494,6 @@ where
                 self.proof_manager
                     .post_aggregated_proof_to_da_when_ready(transition_data)
                     .await?;
-
                 continue;
             }
 

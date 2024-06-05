@@ -41,6 +41,7 @@ async fn run_make_proof_sync(
     }
 
     test_node.try_send_aggregated_proof().await?;
+    test_node.make_block_proof();
 
     let mut init_slot = 1;
     for _ in (0..nb_of_batches).step_by(jump) {
@@ -78,6 +79,7 @@ async fn run_make_proof_async(
     }
 
     test_node.try_send_aggregated_proof().await?;
+    test_node.make_block_proof();
 
     let mut init_slot = 1;
     for _ in (0..nb_of_batches).step_by(jump) {
