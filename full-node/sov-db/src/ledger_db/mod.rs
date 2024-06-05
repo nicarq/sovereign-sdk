@@ -77,6 +77,96 @@ impl<S: SlotData, B, T> SlotCommit<S, B, T> {
     }
 }
 
+/// Single struct responsible for aggregating and sending all notifications.
+#[derive(Debug, Clone)]
+pub(crate) struct LedgerNotificationService {
+    // Regular slots
+    slot_notifications: Arc<Mutex<Vec<u64>>>,
+    pub(crate) slot_subscriptions: tokio::sync::broadcast::Sender<u64>,
+    // Finalized slots
+    finalized_slot_notifications: Arc<Mutex<Vec<u64>>>,
+    pub(crate) finalized_slot_subscriptions: tokio::sync::watch::Sender<u64>,
+    // Proofs
+    proof_notifications: Arc<Mutex<Vec<AggregatedProofResponse>>>,
+    pub(crate) proof_subscriptions: tokio::sync::broadcast::Sender<AggregatedProofResponse>,
+}
+
+impl LedgerNotificationService {
+    pub(crate) fn new() -> Self {
+        LedgerNotificationService {
+            slot_notifications: Default::default(),
+            slot_subscriptions: tokio::sync::broadcast::channel(10).0,
+            finalized_slot_notifications: Default::default(),
+            finalized_slot_subscriptions: tokio::sync::watch::Sender::new(0),
+            proof_notifications: Default::default(),
+            proof_subscriptions: tokio::sync::broadcast::channel(10).0,
+        }
+    }
+
+    pub(crate) fn register_slot_notification(&self, slot_number: u64) {
+        self.slot_notifications
+            .lock()
+            .expect("Slot notification lock is poisoned")
+            .push(slot_number);
+    }
+
+    pub(crate) fn register_finalized_slot_notification(&self, slot_number: u64) {
+        self.finalized_slot_notifications
+            .lock()
+            .expect("Finalized slot notification lock is poisoned")
+            .push(slot_number);
+    }
+
+    pub(crate) fn register_aggregated_proof_notification(
+        &self,
+        aggregated_proof: AggregatedProofResponse,
+    ) {
+        self.proof_notifications
+            .lock()
+            .expect("Aggregated proof notification lock is poisoned")
+            .push(aggregated_proof);
+    }
+
+    pub(crate) fn send_notifications(&self) {
+        {
+            let mut slot_notifications = self
+                .slot_notifications
+                .lock()
+                .expect("Slot notification lock is poisoned");
+            let slot_numbers = std::mem::take(&mut *slot_notifications);
+            for slot_number in slot_numbers {
+                // Notify subscribers.
+                // This call returns an error if there are no subscribers,
+                // so we don't need to check the result
+                let _ = self.slot_subscriptions.send(slot_number);
+            }
+        }
+
+        {
+            let mut finalized_slot_notifications = self
+                .finalized_slot_notifications
+                .lock()
+                .expect("Finalized slot notification lock is poisoned");
+            let finalized_slot_numbers = std::mem::take(&mut *finalized_slot_notifications);
+            for slot_number in finalized_slot_numbers {
+                // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
+                let _ = self.finalized_slot_subscriptions.send(slot_number);
+            }
+        }
+
+        {
+            let mut proof_notifications = self
+                .proof_notifications
+                .lock()
+                .expect("Proof notification lock is poisoned");
+            let aggregated_proofs = std::mem::take(&mut *proof_notifications);
+            for agg_proof in aggregated_proofs {
+                let _ = self.proof_subscriptions.send(agg_proof);
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 /// A database which stores the ledger history (slots, transactions, events, etc).
 /// Ledger data is first ingested into an in-memory map
@@ -89,9 +179,7 @@ pub struct LedgerDb {
     /// requires transactions to be executed before being committed.
     db: Arc<CacheDb>,
     next_item_numbers: Arc<Mutex<ItemNumbers>>,
-    slot_subscriptions: tokio::sync::broadcast::Sender<u64>,
-    finalized_slot_subscriptions: tokio::sync::watch::Sender<u64>,
-    proof_subscriptions: tokio::sync::broadcast::Sender<AggregatedProofResponse>,
+    notification_service: LedgerNotificationService,
 }
 
 impl LedgerDb {
@@ -130,9 +218,7 @@ impl LedgerDb {
         Ok(Self {
             db: Arc::new(db),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
-            slot_subscriptions: tokio::sync::broadcast::channel(10).0,
-            finalized_slot_subscriptions: tokio::sync::watch::Sender::new(0),
-            proof_subscriptions: tokio::sync::broadcast::channel(10).0,
+            notification_service: LedgerNotificationService::new(),
         })
     }
 
@@ -333,12 +419,15 @@ impl LedgerDb {
 
         self.db.write_many(schema_batch)?;
 
-        // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
-        let _ = self
-            .slot_subscriptions
-            .send(current_item_numbers.slot_number);
+        self.notification_service
+            .register_slot_notification(current_item_numbers.slot_number);
 
         Ok(())
+    }
+
+    /// Sending all previously registered notifications.
+    pub fn send_notifications(&self) {
+        self.notification_service.send_notifications();
     }
 
     /// Set the latest finalized slot in the ledger DB. This implicitly finalizes all earlier slots.
@@ -346,8 +435,8 @@ impl LedgerDb {
         self.db
             .put::<FinalizedSlots>(&LatestFinalizedSlotSingleton, &SlotNumber(slot_number))?;
 
-        // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
-        let _ = self.finalized_slot_subscriptions.send(slot_number);
+        self.notification_service
+            .register_finalized_slot_notification(slot_number);
         Ok(())
     }
 
@@ -378,11 +467,8 @@ impl LedgerDb {
         schema_batch.put::<ProofByUniqueId>(&ProofUniqueId(unique_id), &agg_proof)?;
 
         self.db.write_many(schema_batch)?;
-        // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
-
-        let _ = self
-            .proof_subscriptions
-            .send(AggregatedProofResponse { proof: agg_proof });
+        self.notification_service
+            .register_aggregated_proof_notification(AggregatedProofResponse { proof: agg_proof });
         Ok(())
     }
 }

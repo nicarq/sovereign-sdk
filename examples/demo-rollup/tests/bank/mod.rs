@@ -267,7 +267,6 @@ async fn assert_bank_event<S: Spec>(
     )
     .await?
     .unwrap();
-    println!("{:?}", &response_event);
     if let Value::Object(ref map) = response_event {
         let event_value = map.get("event_value").unwrap();
         // Ensure "bank" is present in response json

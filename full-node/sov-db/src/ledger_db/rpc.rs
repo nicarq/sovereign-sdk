@@ -508,15 +508,17 @@ impl LedgerStateProvider for LedgerDb {
     }
 
     fn subscribe_slots(&self) -> Receiver<u64> {
-        self.slot_subscriptions.subscribe()
+        self.notification_service.slot_subscriptions.subscribe()
     }
 
     fn subscribe_finalized_slots(&self) -> tokio::sync::watch::Receiver<u64> {
-        self.finalized_slot_subscriptions.subscribe()
+        self.notification_service
+            .finalized_slot_subscriptions
+            .subscribe()
     }
 
     fn subscribe_proof_saved(&self) -> Receiver<AggregatedProofResponse> {
-        self.proof_subscriptions.subscribe()
+        self.notification_service.proof_subscriptions.subscribe()
     }
 }
 
@@ -643,6 +645,7 @@ mod tests {
                 b"state-root",
             )
             .unwrap();
+        ledger_db.send_notifications();
 
         assert_eq!(rx.blocking_recv().unwrap(), 0);
     }
@@ -663,7 +666,7 @@ mod tests {
     async fn test_save_aggregated_proof() {
         let temp_dir = tempfile::tempdir().unwrap();
         let ledger_db = create_ledger(temp_dir.path());
-        let _rx = ledger_db.proof_subscriptions.subscribe();
+        let _rx = ledger_db.subscribe_proof_saved();
 
         let proof_from_db = ledger_db.get_latest_aggregated_proof().await.unwrap();
         assert_eq!(None, proof_from_db);
