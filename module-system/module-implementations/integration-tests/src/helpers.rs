@@ -15,6 +15,7 @@ use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::Storage;
+use sov_test_utils::runtime::traits::MinimalRuntime;
 use sov_test_utils::runtime::{GenesisConfig, TestRuntime};
 pub(crate) use sov_test_utils::TestStorageSpec as StorageSpec;
 use sov_value_setter::ValueSetterConfig;
@@ -48,7 +49,7 @@ impl Default for SequencerParams<S, MockDaSpec> {
     }
 }
 
-pub struct AttesterIncentivesParams<S: Spec, Da: DaSpec> {
+pub struct AttesterIncentivesParams<S: Spec> {
     pub initial_attesters: Vec<(S::Address, u64)>,
     pub rollup_finality_period: u64,
     pub minimum_attester_bond: u64,
@@ -56,10 +57,9 @@ pub struct AttesterIncentivesParams<S: Spec, Da: DaSpec> {
     pub maximum_attested_height: u64,
     pub light_client_finalized_height: u64,
     pub commitment_to_allowed_challenge_method: <S::InnerZkvm as Zkvm>::CodeCommitment,
-    pub validity_condition_checker: Da::Checker,
 }
 
-impl Default for AttesterIncentivesParams<S, MockDaSpec> {
+impl Default for AttesterIncentivesParams<S> {
     fn default() -> Self {
         AttesterIncentivesParams {
             initial_attesters: vec![([1; 32].into(), 0)],
@@ -69,7 +69,6 @@ impl Default for AttesterIncentivesParams<S, MockDaSpec> {
             maximum_attested_height: 0,
             light_client_finalized_height: 0,
             commitment_to_allowed_challenge_method: MockCodeCommitment([0; 32]),
-            validity_condition_checker: <MockDaSpec as DaSpec>::Checker::default(),
         }
     }
 }
@@ -156,7 +155,7 @@ impl TestRollup {
         admin_pub_key: <S as Spec>::Address,
         seq_params: SequencerParams<S, Da>,
         bank_params: BankParams,
-        attester_params: AttesterIncentivesParams<S, Da>,
+        attester_params: AttesterIncentivesParams<S>,
     ) -> GenesisParams<GenesisConfig<S, Da>, BasicKernelGenesisConfig<S, Da>> {
         let runtime_config: <TestRuntime<S, Da> as Runtime<S, Da>>::GenesisConfig = GenesisConfig {
             value_setter: ValueSetterConfig {
@@ -183,7 +182,6 @@ impl TestRollup {
                 minimum_challenger_bond: attester_params.minimum_challenger_bond,
                 maximum_attested_height: attester_params.maximum_attested_height,
                 light_client_finalized_height: attester_params.light_client_finalized_height,
-                validity_condition_checker: attester_params.validity_condition_checker,
                 phantom_data: Default::default(),
             },
         };
@@ -209,7 +207,7 @@ impl TestRollup {
         admin_pub_key: <S as Spec>::Address,
         seq_params: SequencerParams<S, Da>,
         bank_params: BankParams,
-        attester_params: AttesterIncentivesParams<S, Da>,
+        attester_params: AttesterIncentivesParams<S>,
     ) -> <<S as Spec>::Storage as Storage>::Root {
         let storage = self.storage();
         let (init_root_hash, stf_change_set) = self.stf.init_chain(

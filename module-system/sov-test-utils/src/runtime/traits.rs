@@ -13,21 +13,32 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_sequencer_registry::SequencerRegistry;
 
+use super::wrapper::EndSlotClosure;
 use super::WorkingSetClosure;
 
 /// A struct which contains at least the bank, sequencer registry, and attester incentives modules.
 pub trait MinimalRuntime<S: Spec, Da: DaSpec>: Default {
+    /// Returns a reference to the sequencer registry module.
     fn sequencer_registry(&self) -> &SequencerRegistry<S, Da>;
+    /// Returns a reference to the bank module.
     fn bank(&self) -> &Bank<S>;
+    /// Returns a reference to the attester-incentives module.
     fn attester_incentives(&self) -> &AttesterIncentives<S, Da>;
 }
 
-/// A genesis config which contains at least a sequencer registry config.
-pub trait MinimalGenesis<S: Spec>: Genesis {
+/// A trait which allows access to the contents of the genesis configuration
+/// for a [`MinimalRuntime`] which implements [`Genesis`].
+pub trait MinimalGenesis<S: Spec>: Genesis<Spec = S> {
     type Da: DaSpec;
-    fn sequencer_registry(
-        config: &Self::Config,
-    ) -> &<SequencerRegistry<S, Self::Da> as Genesis>::Config;
+    fn sequencer_registry_config(
+        config: &mut Self::Config,
+    ) -> &mut <SequencerRegistry<S, Self::Da> as Genesis>::Config;
+
+    fn bank_config(config: &mut Self::Config) -> &mut <Bank<S> as Genesis>::Config;
+
+    fn attester_incentives_config(
+        config: &mut Self::Config,
+    ) -> &mut <AttesterIncentives<S, Self::Da> as Genesis>::Config;
 }
 
 /// A marker trait which bundles a [`MinimalRuntime`] with additional traits that we require
@@ -59,11 +70,24 @@ impl<S: Spec, Da: DaSpec, T> StandardRuntime<S, Da> for T where
 /// Implementers must also implement [`TestRuntimeHookOverrides`] to invoke the closures in their post tx hook.
 pub trait PostTxHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, Da> {
     fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<WorkingSetClosure<Self>>);
-    fn try_get_next(&self) -> Option<WorkingSetClosure<Self>>;
+    fn try_get_next_tx_action(&self) -> Option<Option<WorkingSetClosure<Self>>>;
+}
+
+/// The PostTxHookRegistry trait allows a `Runtime` to inject closures into its post transaction hook.
+///
+/// Implementers must also implement [`TestRuntimeHookOverrides`] to invoke the closures in their post tx hook.
+pub trait EndSlotHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, Da> {
+    fn add_end_slot_hook_actions(&self, closures: Vec<EndSlotClosure<StateCheckpoint<S>>>);
+    /// For backward compatibility, we allow tests not to configure end slot hooks at all.
+    /// In this case, the outer option will be None and the hook will have no effect.
+    /// if the outer Option is some, then the runtime will expect exactly one inner Option per call.
+    fn try_get_next_slot_action(&self) -> Option<Option<EndSlotClosure<StateCheckpoint<S>>>>;
 }
 
 /// Allows the implementer to override the hooks in a wrapped runtime.
-pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>: StandardRuntime<S, Da> {
+pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
+    TxHooks<Spec = S> + MinimalRuntime<S, Da>
+{
     fn pre_dispatch_tx_hook_override(
         &self,
         _tx: &AuthenticatedTransactionData<S>,

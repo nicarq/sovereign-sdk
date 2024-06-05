@@ -7,7 +7,7 @@ use sov_modules_api::{
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
 
-pub trait TestSpec: Default + 'static {
+pub trait TestSpec: Default + std::fmt::Debug + 'static {
     type Data: Data;
 }
 
@@ -109,7 +109,7 @@ struct Runtime<S: Spec, T: TestSpec> {
     pub first: my_module::QueryModule<S, T::Data>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct ActualSpec;
 
 impl TestSpec for ActualSpec {

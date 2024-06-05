@@ -1,12 +1,10 @@
 use sov_bank::{BankConfig, GasTokenConfig, IntoPayable, ReserveGasError};
-use sov_mock_da::{
-    MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond, MockValidityCondChecker,
-};
+use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    CryptoSpec, Gas, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
+    CryptoSpec, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
     PrivateKey, Spec, StateCheckpoint, UnlimitedGasMeter, WorkingSet,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
@@ -133,7 +131,6 @@ pub(crate) fn setup(
         rollup_finality_period: DEFAULT_ROLLUP_FINALITY,
         maximum_attested_height: INIT_HEIGHT,
         light_client_finalized_height: INIT_HEIGHT,
-        validity_condition_checker: MockValidityCondChecker::<MockValidityCond>::new(),
         phantom_data: Default::default(),
     };
 
@@ -154,15 +151,9 @@ pub(crate) struct ExecutionSimulationVars {
     pub state_root: StorageRoot<StorageSpec>,
     pub state_proof:
         StorageProof<SparseMerkleProof<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
-    pub base_fee_per_gas: <<S as Spec>::Gas as Gas>::Price,
 }
 
 impl ExecutionSimulationVars {
-    /// Simple function that returns the gas reward for a transaction execution.
-    pub(crate) fn tx_reward(gas_price: &<<S as Spec>::Gas as Gas>::Price) -> u64 {
-        <S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED).value(gas_price)
-    }
-
     /// Generate an execution simulation for a given number of rounds. Returns a list of the successive state roots
     /// with associated bonding proofs.
     /// The execution simulation also performs a gas charge and refund for the sequencer, which locks reward to the attester module.
@@ -276,7 +267,6 @@ impl ExecutionSimulationVars {
             ret_exec_vars.push(ExecutionSimulationVars {
                 state_root: root_hash,
                 state_proof: bond_proof,
-                base_fee_per_gas: current_base_fee_per_gas,
             });
 
             let kernel = MockKernel::<S, MockDaSpec>::new((i + 1) as u64, (i + 1) as u64);

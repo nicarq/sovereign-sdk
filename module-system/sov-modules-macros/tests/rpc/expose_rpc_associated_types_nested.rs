@@ -11,12 +11,13 @@ pub trait Message: 'static {
     type Caller: std::fmt::Display;
     type Data: Data;
 }
-pub trait TestSpec: Default + 'static {
+pub trait TestSpec: Default + std::fmt::Debug + 'static {
     type Message: Message;
 }
 
 pub trait Data:
     Clone
+    + std::fmt::Debug
     + Eq
     + PartialEq
     + std::fmt::Debug
@@ -119,7 +120,7 @@ impl Message for ActualMessage {
     type Data = u32;
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct ActualSpec;
 
 impl TestSpec for ActualSpec {

@@ -33,7 +33,6 @@ pub(crate) type ApplyBatch = ApplyBatchResult<BatchReceipt<BatchSequencerOutcome
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
 pub struct StfBlueprint<S: Spec, Da: DaSpec, RT: Runtime<S, Da>, K: KernelSlotHooks<S, Da>> {
-    /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
     pub(crate) kernel: K,

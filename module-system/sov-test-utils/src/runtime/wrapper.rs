@@ -20,35 +20,136 @@ use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 
-use super::traits::{MinimalRuntime, StandardRuntime, TestRuntimeHookOverrides};
+use super::traits::{
+    EndSlotHookRegistry, MinimalGenesis, MinimalRuntime, PostTxHookRegistry, StandardRuntime,
+    TestRuntimeHookOverrides,
+};
 
-pub(super) type WorkingSetClosure<T> = Box<dyn FnOnce(&mut <T as TxHooks>::TxState) + Send + Sync>;
+pub type WorkingSetClosure<T> = Box<dyn FnOnce(&mut <T as TxHooks>::TxState) + Send + Sync>;
+pub type StateRootClosure<Call, Root, Ws> = dyn FnMut(&mut Call, Root, &mut Ws) + Send + Sync;
+pub type EndSlotClosure<T> = Box<dyn FnMut(&mut T) + Send + Sync>;
 
 /// A queue of closures which can be executed in a `Runtime`'s post transaction hook.
-#[derive(Default)]
-pub(crate) struct ClosureQueue<T: TxHooks> {
-    closures: Mutex<VecDeque<WorkingSetClosure<T>>>,
+///
+/// The queue is `None` if no closures have ever been inserted, in which case
+/// the runtime will not attempt to execute any closures. If the `closures` field is `Some`,
+/// but not enough closures are provided, the runtime will treat this as an error.
+pub(crate) struct ClosureQueue<T> {
+    closures: Mutex<Option<VecDeque<T>>>,
 }
 
-impl<RT: TxHooks> ClosureQueue<RT> {
-    pub fn insert_all(&self, closures: Vec<WorkingSetClosure<RT>>) {
+impl<T> Default for ClosureQueue<T> {
+    fn default() -> Self {
+        Self {
+            closures: Mutex::new(None),
+        }
+    }
+}
+
+impl<T> ClosureQueue<T> {
+    pub fn insert_all(&self, closures: Vec<T>) {
         // Sleep until the the queue is empty. This ensures that two different tests using the same runtime
         // cannot pollute each other's closure queues. Note that this requires a catch_unwind handler when a test panics
         // to empty the queue so that other tests can run.
-        let mut contents = self.closures.lock().unwrap();
+        let mut guard = self.closures.lock().unwrap();
+        let contents = guard.get_or_insert_with(Default::default);
         contents.extend(closures);
     }
 
-    pub fn try_get_next(&self) -> Option<WorkingSetClosure<RT>> {
-        self.closures.lock().unwrap().pop_front()
+    pub fn try_get_next(&self) -> Option<Option<T>> {
+        self.closures
+            .lock()
+            .unwrap()
+            .as_mut()
+            .map(|x| x.pop_front())
     }
 }
 
 #[derive(Default, Clone)]
-pub struct TestRuntimeWrapper<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> {
+pub struct TestRuntimeWrapper<S: Spec, Da: DaSpec, T: TxHooks<Spec = S>> {
     pub inner: T,
-    pub(super) hook_action_queue: Arc<ClosureQueue<T>>,
+    pub(super) post_tx_hook_action_queue: Arc<ClosureQueue<WorkingSetClosure<T>>>,
+    pub(super) end_slot_hook_action_queue: Arc<ClosureQueue<EndSlotClosure<StateCheckpoint<S>>>>,
     phantom: PhantomData<(S, Da)>,
+}
+
+impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> PostTxHookRegistry<S, Da>
+    for TestRuntimeWrapper<S, Da, T>
+{
+    fn try_get_next_tx_action(&self) -> Option<Option<WorkingSetClosure<Self>>> {
+        self.post_tx_hook_action_queue.try_get_next()
+    }
+
+    // Add assertions to the post dispatch hook. Callers should provide exactly one assertion per transaction.
+    fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<WorkingSetClosure<Self>>) {
+        self.post_tx_hook_action_queue.insert_all(closures);
+    }
+}
+
+impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> EndSlotHookRegistry<S, Da>
+    for TestRuntimeWrapper<S, Da, T>
+{
+    fn add_end_slot_hook_actions(&self, closures: Vec<EndSlotClosure<StateCheckpoint<S>>>) {
+        self.end_slot_hook_action_queue.insert_all(closures);
+    }
+
+    fn try_get_next_slot_action(&self) -> Option<Option<EndSlotClosure<StateCheckpoint<S>>>> {
+        self.end_slot_hook_action_queue.try_get_next()
+    }
+}
+
+impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> TestRuntimeHookOverrides<S, Da>
+    for TestRuntimeWrapper<S, Da, T>
+{
+    // Override the post dispatch hook to run the assertions which
+    // were set up using `add_post_dispatch_tx_hook_actions`
+    fn post_dispatch_tx_hook_override(
+        &self,
+        _tx: &AuthenticatedTransactionData<S>,
+        _ctx: &Context<S>,
+        working_set: &mut <Self as TxHooks>::TxState,
+    ) -> anyhow::Result<()> {
+        if let Some(queue) = self.try_get_next_tx_action() {
+            let closure = queue
+                .into_iter()
+                .next()
+                .expect("Must provide one closure per transaction");
+
+            closure(working_set);
+        }
+        Ok(())
+    }
+
+    fn end_slot_hook_override(&self, working_set: &mut StateCheckpoint<S>) {
+        if let Some(queue) = self.try_get_next_slot_action() {
+            let mut closure = queue
+                .into_iter()
+                .next()
+                .expect("Must provide one closure per transaction");
+
+            closure(working_set);
+        }
+    }
+}
+impl<S: Spec, Da: DaSpec, T: MinimalGenesis<S, Da = Da> + TxHooks<Spec = S>> MinimalGenesis<S>
+    for TestRuntimeWrapper<S, Da, T>
+{
+    type Da = Da;
+    fn sequencer_registry_config(
+        config: &mut <T as Genesis>::Config,
+    ) -> &mut <SequencerRegistry<S, Da> as Genesis>::Config {
+        T::sequencer_registry_config(config)
+    }
+
+    fn bank_config(config: &mut <T as Genesis>::Config) -> &mut <Bank<S> as Genesis>::Config {
+        T::bank_config(config)
+    }
+
+    fn attester_incentives_config(
+        config: &mut <T as Genesis>::Config,
+    ) -> &mut <AttesterIncentives<S, Self::Da> as Genesis>::Config {
+        T::attester_incentives_config(config)
+    }
 }
 
 impl<S, Da, T> TxHooks for TestRuntimeWrapper<S, Da, T>
@@ -238,6 +339,7 @@ where
     <Self as Genesis>::Config: Send + Sync,
     S: Spec,
     Da: DaSpec,
+    Self: TxHooks<TxState = WorkingSet<S>>,
 {
     type GenesisConfig = <Self as Genesis>::Config;
 
@@ -281,7 +383,9 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> RuntimeEventProcessor
     }
 }
 
-impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> Genesis for TestRuntimeWrapper<S, Da, T> {
+impl<S: Spec, Da: DaSpec, T: Genesis<Spec = S> + TxHooks<Spec = S>> Genesis
+    for TestRuntimeWrapper<S, Da, T>
+{
     type Spec = S;
     type Config = T::Config;
 

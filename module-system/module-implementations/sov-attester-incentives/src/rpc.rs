@@ -1,6 +1,6 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{StateAccessor, WorkingSet};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 
 use super::AttesterIncentives;
@@ -24,7 +24,7 @@ where
         &self,
         address: S::Address,
         role: Role,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateAccessor,
     ) -> BondAmountResponse {
         match role {
             Role::Attester => BondAmountResponse {
