@@ -105,10 +105,12 @@ impl<S: Spec> TxScratchpad<S> {
             gas_meter,
         }
     }
+}
 
+#[cfg(feature = "test-utils")]
+impl<S: Spec> TxScratchpad<S> {
     /// Produces an unmetered [`PreExecWorkingSet`] from this [`StateCheckpoint`].
     /// This is useful for tests that don't need to track gas consumption.
-    #[cfg(feature = "test-utils")]
     pub fn pre_exec_ws_unmetered(self) -> PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>> {
         PreExecWorkingSet {
             inner: self,
@@ -118,7 +120,6 @@ impl<S: Spec> TxScratchpad<S> {
 
     /// Produces an unmetered [`PreExecWorkingSet`] from this [`StateCheckpoint`] for a given price.
     /// This is useful for tests that don't need to test failure over gas exhaustion.
-    #[cfg(feature = "test-utils")]
     pub fn pre_exec_ws_unmetered_with_price(
         self,
         gas_price: &<S::Gas as Gas>::Price,
@@ -223,10 +224,10 @@ impl<S: Spec, Meter: GasMeter<S::Gas>> CachedAccessor<User> for PreExecWorkingSe
     }
 }
 
+#[cfg(feature = "test-utils")]
 impl<S: Spec> StateCheckpoint<S> {
     /// Produces an unmetered [`WorkingSet`] from this [`StateCheckpoint`].
     /// This is useful for tests that don't need to track gas consumption.
-    #[cfg(feature = "test-utils")]
     pub fn to_working_set_unmetered(self) -> WorkingSet<S> {
         let stashed_working_set = TxScratchpad {
             delta: RevertableWriter::new(self.delta),
@@ -244,7 +245,6 @@ impl<S: Spec> StateCheckpoint<S> {
 
     /// Produces a metered [`WorkingSet`] from this [`StateCheckpoint`].
     /// This is useful for tests that need to bypass pre-execution checks.
-    #[cfg(feature = "test-utils")]
     pub fn to_working_set(
         self,
         tx: &AuthenticatedTransactionData<S>,
@@ -281,73 +281,6 @@ pub struct WorkingSet<S: Spec> {
 }
 
 impl<S: Spec> WorkingSet<S> {
-    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`].
-    ///
-    /// The witness value is set to [`Default::default`]. Use
-    /// [`WorkingSet::with_witness`] to set a custom witness value.
-    #[cfg(feature = "test-utils")]
-    pub fn new(inner: S::Storage) -> Self {
-        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
-        let tx_scratchpad = TxScratchpad {
-            delta: RevertableWriter::new(state_checkpoint.delta),
-            gas_meter: UnlimitedGasMeter::new(),
-        };
-
-        WorkingSet {
-            delta: RevertableWriter::new(tx_scratchpad),
-            events: Default::default(),
-            gas_meter: TxGasMeter::unmetered(),
-            max_fee: 0,
-            max_priority_fee_bips: PriorityFeeBips::ZERO,
-        }
-    }
-
-    /// A helper function to create a new [`WorkingSet`] with a given gas price and remaining funds.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn new_with_gas_meter(
-        inner: S::Storage,
-        remaining_funds: u64,
-        price: &<S::Gas as Gas>::Price,
-    ) -> Self {
-        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
-        let tx_scratchpad = TxScratchpad {
-            delta: RevertableWriter::new(state_checkpoint.delta),
-            gas_meter: UnlimitedGasMeter::new_with_price(price.clone()),
-        };
-
-        WorkingSet {
-            delta: RevertableWriter::new(tx_scratchpad),
-            events: Default::default(),
-            gas_meter: TxGasMeter::new(remaining_funds, price.clone()),
-            max_fee: 0,
-            max_priority_fee_bips: PriorityFeeBips::ZERO,
-        }
-    }
-
-    /// Creates a new archival working set with the same underlying `Storage` but an empty Delta, without
-    /// modifying the original [`WorkingSet`].
-    /// Propagates the gas meter to the new working set.
-    ///
-    /// ## TODO(@theochap)
-    /// We should be able to remove this method once we rewrite the archival state tests.
-    #[cfg(feature = "test-utils")]
-    pub fn get_archival_at(&self, version: u64) -> Self {
-        let storage = self.storage().clone();
-        let tx_scratchpad = TxScratchpad {
-            delta: RevertableWriter::new(Delta::new(storage.clone(), Some(version))),
-            gas_meter: UnlimitedGasMeter::new(),
-        };
-
-        Self {
-            delta: RevertableWriter::new(tx_scratchpad),
-            events: Default::default(),
-            gas_meter: TxGasMeter::unmetered(),
-            max_fee: 0,
-            max_priority_fee_bips: PriorityFeeBips::ZERO,
-        }
-    }
-
     /// Builds a [`crate::TransactionConsumption`] from the [`WorkingSet`].
     pub(crate) fn transaction_consumption(&self) -> TransactionConsumption<S::Gas> {
         // The base fee is the amount of gas consumed by the transaction execution.
@@ -360,46 +293,6 @@ impl<S: Spec> WorkingSet<S> {
             self.max_fee,
             self.max_priority_fee_bips,
         )
-    }
-
-    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
-    /// and a custom witness value.
-    #[cfg(feature = "test-utils")]
-    pub fn with_witness(inner: S::Storage, witness: <S::Storage as Storage>::Witness) -> Self {
-        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::with_witness(inner, witness);
-        let tx_scratchpad = TxScratchpad {
-            delta: RevertableWriter::new(state_checkpoint.delta),
-            gas_meter: UnlimitedGasMeter::new(),
-        };
-
-        WorkingSet {
-            delta: RevertableWriter::new(tx_scratchpad),
-            events: Default::default(),
-            gas_meter: TxGasMeter::unmetered(),
-            max_fee: 0,
-            max_priority_fee_bips: PriorityFeeBips::ZERO,
-        }
-    }
-
-    /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
-    /// committing the changes to the underlying [`Storage`] via
-    /// [`StateCheckpoint::freeze`].
-    ///
-    /// ## Safety note
-    /// This function calls [`WorkingSet::finalize`] under the hood, please be sure that we can skip this
-    /// intermediary committing step. This function is only accessible in tests
-    #[cfg(feature = "test-utils")]
-    pub fn checkpoint(
-        self,
-    ) -> (
-        StateCheckpoint<S>,
-        TransactionConsumption<S::Gas>,
-        Vec<TypedEvent>,
-    ) {
-        let (tx_scratchpad, transaction_consumption, events) = self.finalize();
-        let checkpoint = tx_scratchpad.commit();
-
-        (checkpoint, transaction_consumption, events)
     }
 
     /// Turns this [`WorkingSet`] into a [`TxScratchpad`], commits the changes to the [`WorkingSet`] to the
@@ -447,6 +340,11 @@ impl<S: Spec> WorkingSet<S> {
         self.gas_meter.remaining_funds()
     }
 
+    /// Returns the maximum fee that can be paid for this transaction expressed in gas token amount.
+    pub fn max_fee(&self) -> u64 {
+        self.max_fee
+    }
+
     #[cfg(any(feature = "native", feature = "test-utils"))]
     fn inner(&self) -> &TxScratchpad<S> {
         &self.delta.inner
@@ -456,15 +354,109 @@ impl<S: Spec> WorkingSet<S> {
     fn storage(&self) -> &S::Storage {
         &self.inner().delta().inner
     }
+}
 
-    #[cfg(feature = "native")]
-    fn version(&self) -> Option<u64> {
-        self.inner().delta().version
+#[cfg(feature = "test-utils")]
+impl<S: Spec> WorkingSet<S> {
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`].
+    ///
+    /// The witness value is set to [`Default::default`]. Use
+    /// [`WorkingSet::with_witness`] to set a custom witness value.
+    pub fn new(inner: S::Storage) -> Self {
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
+        let tx_scratchpad = TxScratchpad {
+            delta: RevertableWriter::new(state_checkpoint.delta),
+            gas_meter: UnlimitedGasMeter::new(),
+        };
+
+        WorkingSet {
+            delta: RevertableWriter::new(tx_scratchpad),
+            events: Default::default(),
+            gas_meter: TxGasMeter::unmetered(),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+        }
     }
 
-    /// Returns the maximum fee that can be paid for this transaction expressed in gas token amount.
-    pub fn max_fee(&self) -> u64 {
-        self.max_fee
+    /// A helper function to create a new [`WorkingSet`] with a given gas price and remaining funds.
+    pub fn new_with_gas_meter(
+        inner: S::Storage,
+        remaining_funds: u64,
+        price: &<S::Gas as Gas>::Price,
+    ) -> Self {
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
+        let tx_scratchpad = TxScratchpad {
+            delta: RevertableWriter::new(state_checkpoint.delta),
+            gas_meter: UnlimitedGasMeter::new_with_price(price.clone()),
+        };
+
+        WorkingSet {
+            delta: RevertableWriter::new(tx_scratchpad),
+            events: Default::default(),
+            gas_meter: TxGasMeter::new(remaining_funds, price.clone()),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+        }
+    }
+
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
+    /// and a custom witness value.
+    pub fn with_witness(inner: S::Storage, witness: <S::Storage as Storage>::Witness) -> Self {
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::with_witness(inner, witness);
+        let tx_scratchpad = TxScratchpad {
+            delta: RevertableWriter::new(state_checkpoint.delta),
+            gas_meter: UnlimitedGasMeter::new(),
+        };
+
+        WorkingSet {
+            delta: RevertableWriter::new(tx_scratchpad),
+            events: Default::default(),
+            gas_meter: TxGasMeter::unmetered(),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+        }
+    }
+
+    /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
+    /// committing the changes to the underlying [`Storage`] via
+    /// [`StateCheckpoint::freeze`].
+    ///
+    /// ## Safety note
+    /// This function calls [`WorkingSet::finalize`] under the hood, please be sure that we can skip this
+    /// intermediary committing step. This function is only accessible in tests
+    pub fn checkpoint(
+        self,
+    ) -> (
+        StateCheckpoint<S>,
+        TransactionConsumption<S::Gas>,
+        Vec<TypedEvent>,
+    ) {
+        let (tx_scratchpad, transaction_consumption, events) = self.finalize();
+        let checkpoint = tx_scratchpad.commit();
+
+        (checkpoint, transaction_consumption, events)
+    }
+
+    /// Creates a new archival working set with the same underlying `Storage` but an empty Delta, without
+    /// modifying the original [`WorkingSet`].
+    /// Propagates the gas meter to the new working set.
+    ///
+    /// ## TODO(@theochap)
+    /// We should be able to remove this method once we rewrite the archival state tests.
+    pub fn get_archival_at(&self, version: u64) -> Self {
+        let storage = self.storage().clone();
+        let tx_scratchpad = TxScratchpad {
+            delta: RevertableWriter::new(Delta::new(storage.clone(), Some(version))),
+            gas_meter: UnlimitedGasMeter::new(),
+        };
+
+        Self {
+            delta: RevertableWriter::new(tx_scratchpad),
+            events: Default::default(),
+            gas_meter: TxGasMeter::unmetered(),
+            max_fee: 0,
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+        }
     }
 }
 
@@ -506,6 +498,13 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for WorkingSet<S> {
 impl<S: Spec> EventContainer for WorkingSet<S> {
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
         self.events.push(TypedEvent::new(event_key, event));
+    }
+}
+
+#[cfg(feature = "native")]
+impl<S: Spec> WorkingSet<S> {
+    fn version(&self) -> Option<u64> {
+        self.inner().delta().version
     }
 }
 
