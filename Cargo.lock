@@ -8006,6 +8006,7 @@ dependencies = [
  "sov-db",
  "sov-rollup-interface",
  "tempfile",
+ "thiserror",
 ]
 
 [[package]]

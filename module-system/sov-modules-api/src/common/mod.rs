@@ -12,10 +12,5 @@ mod key;
 pub use address::*;
 pub use error::*;
 pub use gas::*;
-#[cfg(feature = "std")]
-pub use jmt::Version;
 pub use key::*;
-
-/// The version of the JellyfishMerkleTree state.
-#[cfg(not(feature = "std"))]
-pub type Version = u64;
+pub use sov_state::jmt::Version;

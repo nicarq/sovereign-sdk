@@ -197,7 +197,7 @@ fn test_state_vec_set() {
 
 #[test]
 fn test_state_vec_push() {
-    test_state_thing::<S, StateVecSet>(&CONDITIONS[..]);
+    test_state_thing::<S, StateVecPush>(&CONDITIONS[..]);
 }
 
 #[test]
