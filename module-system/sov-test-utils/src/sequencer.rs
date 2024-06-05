@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec, MockValidityCondChecker};
+use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::{Address, CryptoSpec, PrivateKey, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
@@ -87,7 +87,6 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
         100,
         "SovereignToken".to_string(),
         10_000_000,
-        MockValidityCondChecker::default(),
     );
 
     let kernel_genesis = BasicKernelGenesisConfig {

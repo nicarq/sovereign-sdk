@@ -13,19 +13,45 @@ use crate::SlashingReason;
 pub enum Event<S: sov_modules_api::Spec> {
     /// Event for User Slashed
     UserSlashed {
+        /// The address of the user who was slashed.
         address: S::Address,
+        /// The reason the user was slashed.
         reason: SlashingReason,
     },
     /// Event for a new deposit
-    BondedAttester { new_deposit: u64, total_bond: u64 },
+    BondedAttester {
+        /// The amount of tokens deposited by this call.
+        new_deposit: u64,
+        /// The total bond of the attester after succesfully processing the call.
+        total_bond: u64,
+    },
+    /// Event for a new deposit.
+    BondedChallenger {
+        /// The amount of tokens deposited by this call.
+        new_deposit: u64,
+        /// The total bond of the challenger after this call.
+        total_bond: u64,
+    },
     /// Event for a new deposit
-    BondedChallenger { new_deposit: u64, total_bond: u64 },
-    /// Event for a new deposit
-    NewDeposit { new_deposit: u64, total_bond: u64 },
+    NewDeposit {
+        /// The amount of tokens deposited by this call.
+        new_deposit: u64,
+        /// The total bond of the challenger after this call.
+        total_bond: u64,
+    },
     /// Event for Unbonding
-    UnbondedChallenger { amount_withdrawn: u64 },
+    UnbondedChallenger {
+        /// The number of tokens returned to the caller's bank balance.
+        amount_withdrawn: u64,
+    },
     /// Event for processing a valid attestation
-    ProcessedValidAttestation { attester: S::Address },
+    ProcessedValidAttestation {
+        /// The address of the attester.
+        attester: S::Address,
+    },
     /// Event for processing a valid proof
-    ProcessedValidProof { challenger: S::Address },
+    ProcessedValidProof {
+        /// The address of the challenger.
+        challenger: S::Address,
+    },
 }

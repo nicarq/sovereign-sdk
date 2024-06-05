@@ -109,6 +109,7 @@ pub mod prelude {
         Context, DaSpec, ModuleCallJsonSchema, Spec, StateAccessor, StateReaderAndWriter,
         WorkingSet,
     };
+    pub extern crate tracing;
 
     #[cfg(feature = "native")]
     pub extern crate axum;

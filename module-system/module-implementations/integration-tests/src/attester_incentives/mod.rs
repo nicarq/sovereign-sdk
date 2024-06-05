@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use sov_attester_incentives::Role;
 use sov_bank::BurnRate;
-use sov_mock_da::MockValidityCondChecker;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::batch::BatchWithId;
@@ -176,7 +175,7 @@ impl AttesterIncentivesTestHandler {
         }
     }
 
-    pub fn attester_incentives_params(&self) -> AttesterIncentivesParams<S, Da> {
+    pub fn attester_incentives_params(&self) -> AttesterIncentivesParams<S> {
         AttesterIncentivesParams {
             initial_attesters: vec![(
                 self.attester_private_key
@@ -189,7 +188,6 @@ impl AttesterIncentivesTestHandler {
             maximum_attested_height: 0,
             light_client_finalized_height: 0,
             commitment_to_allowed_challenge_method: MockCodeCommitment([0; 32]),
-            validity_condition_checker: MockValidityCondChecker::default(),
         }
     }
 

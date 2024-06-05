@@ -308,7 +308,7 @@ mod tests {
     use borsh::BorshSerialize;
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
-    use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCondChecker};
+    use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, WorkingSet};
     use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
@@ -464,7 +464,6 @@ mod tests {
             100,
             "BatchBuilderTestToken".to_string(),
             100_000,
-            MockValidityCondChecker::default(),
         );
         runtime.genesis(&config, &mut working_set).unwrap();
         let (log, _, witness) = working_set.checkpoint().0.freeze();

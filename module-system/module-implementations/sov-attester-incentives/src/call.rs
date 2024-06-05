@@ -16,7 +16,7 @@ use sov_modules_api::{
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use thiserror::Error;
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{AttesterIncentives, Event, UnbondingInfo};
 
@@ -617,6 +617,13 @@ where
         {
             // We first need to compare the initial block hash to the previous post state root
             if !curr_tx.compare_hashes(&attestation.slot_hash, &attestation.post_state_root) {
+                debug!(
+                    claimed_transition_height,
+                    attestation_slot_hash = ?attestation.slot_hash,
+                    attestation_post_state = ?attestation.post_state_root,
+                    curr_tx_slot_hash = ?curr_tx.slot_hash(),
+                    curr_tx_state_root = ?curr_tx.post_state_root(),
+                    "The attestation has an invalid block hash or post state root");
                 // Check if the attestation has the same slot_hash and post_state_root as the actual transition
                 // that we found in state. If not, slash the attester.
                 // If so, the attestation is valid, so return Ok

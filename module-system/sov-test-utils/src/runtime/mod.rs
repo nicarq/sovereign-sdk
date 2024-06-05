@@ -1,28 +1,39 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use borsh::BorshSerialize;
-use sov_attester_incentives::AttesterIncentivesConfig;
+pub use sov_attester_incentives;
+pub use sov_attester_incentives::{
+    AttesterIncentives, AttesterIncentivesConfig, CallMessage as AttesterCallMessage,
+};
 pub use sov_bank::{Bank, BankConfig, Coins, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
-use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::batch::Batch;
+use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::{CryptoSpec, DaSpec, Genesis, SlotData, Spec};
-use sov_modules_stf_blueprint::{GenesisParams, Runtime, StfBlueprint};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::{
+    CryptoSpec, DaSpec, EncodeCall, Genesis, Module, PrivateKey, SlotData, Spec, StateCheckpoint,
+    WorkingSet,
+};
+pub use sov_modules_stf_blueprint::GenesisParams;
+use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
-use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
-mod traits;
-mod wrapper;
-use traits::{MinimalGenesis, PostTxHookRegistry, TestRuntimeHookOverrides};
-use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
+pub mod genesis;
+pub mod traits;
+pub mod wrapper;
+use traits::{MinimalGenesis, PostTxHookRegistry};
+pub use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
 
 // Constants used in the genesis configuration of the test runtime
 const MIN_USER_BOND: u64 = 10;
@@ -32,6 +43,7 @@ const ROLLUP_FINALITY_PERIOD: u64 = 1;
 
 /// Generates a runtime containing the [`Bank`], [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
 /// and [`SequencerRegistry`] modules in addition to any provided as arguments`
+#[macro_export]
 macro_rules! generate_optimistic_runtime {
     ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
         #[derive(
@@ -49,25 +61,25 @@ macro_rules! generate_optimistic_runtime {
             ::serde::Deserialize
         )]
         pub struct __GeneratedRuntimeInternals<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> {
-            pub sequencer_registry: ::sov_sequencer_registry::SequencerRegistry<S, Da>,
-            pub attester_incentives: ::sov_attester_incentives::AttesterIncentives<S, Da>,
-            pub bank: ::sov_bank::Bank<S>,
+            pub sequencer_registry: $crate::runtime::SequencerRegistry<S, Da>,
+            pub attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
+            pub bank: $crate::runtime::Bank<S>,
             $(pub $module_name: $module_ty),*
         }
 
-        pub type $id<S, Da> = TestRuntimeWrapper<S, Da, __GeneratedRuntimeInternals<S, Da>>;
+        pub type $id<S, Da> = $crate::runtime::wrapper::TestRuntimeWrapper<S, Da, __GeneratedRuntimeInternals<S, Da>>;
 
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalRuntime<S, Da> for __GeneratedRuntimeInternals<S, Da> {
-            fn bank(&self) -> &::sov_bank::Bank<S> {
+            fn bank(&self) -> &$crate::runtime::Bank<S> {
                 &self.bank
             }
 
-            fn sequencer_registry(&self) -> &::sov_sequencer_registry::SequencerRegistry<S, Da> {
+            fn sequencer_registry(&self) -> &$crate::runtime::SequencerRegistry<S, Da> {
                 &self.sequencer_registry
             }
 
-            fn attester_incentives(&self) -> &::sov_attester_incentives::AttesterIncentives<S, Da> {
+            fn attester_incentives(&self) -> &$crate::runtime::AttesterIncentives<S, Da> {
                 &self.attester_incentives
             }
         }
@@ -94,41 +106,54 @@ macro_rules! generate_optimistic_runtime {
             }
         }
 
-        impl <S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> TestRuntimeWrapper<S, Da, __GeneratedRuntimeInternals<S, Da>> {
-            /// Get a reference to the bank module.
-            pub fn bank(&self) -> &::sov_bank::Bank<S> {
-                &self.inner.bank
-            }
-
-            /// Get a reference to the sequencer registry.
-            pub fn sequencer_registry(&self) -> &::sov_sequencer_registry::SequencerRegistry<S, Da> {
-                &self.inner.sequencer_registry
-            }
-
-            /// Get a reference to the attester incentives module.
-            pub fn attester_incentives(&self) -> &::sov_attester_incentives::AttesterIncentives<S, Da> {
-                &self.inner.attester_incentives
-            }
-
-            $(
-            /// Get a references to the $module_name module.
-            pub fn $module_name(&self) -> & $module_ty {
-                &self.inner.$module_name
-            }
-            )*
-        }
-
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalGenesis<S> for __GeneratedRuntimeInternals<S, Da> {
             type Da = Da;
-            fn sequencer_registry(config: &GenesisConfig<S, Da>) -> &<::sov_sequencer_registry::SequencerRegistry<S, Self::Da> as Genesis>::Config {
-                &config.sequencer_registry
+            fn sequencer_registry_config(config: &mut GenesisConfig<S, Da>) -> &mut <$crate::runtime::SequencerRegistry<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
+                &mut config.sequencer_registry
+            }
+
+            fn bank_config(config: &mut GenesisConfig<S, Da>) -> &mut <$crate::runtime::Bank<S> as ::sov_modules_api::Genesis>::Config {
+                &mut config.bank
+            }
+
+            fn attester_incentives_config(config: &mut GenesisConfig<S, Da>) -> &mut <$crate::runtime::AttesterIncentives<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
+                &mut config.attester_incentives
             }
         }
 
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalGenesis<S> for $id<S, Da> {
-            type Da = Da;
-            fn sequencer_registry(config: &GenesisConfig<S, Da>) -> &<::sov_sequencer_registry::SequencerRegistry<S, Self::Da> as Genesis>::Config {
-                &config.sequencer_registry
+
+
+        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> GenesisConfig<S, Da> {
+            #[allow(unused)]
+            pub fn from_minimal_config(minimal_config: $crate::runtime::genesis::MinimalOptimisticGenesisConfig<S, Da>,
+                $($module_name: <$module_ty as ::sov_modules_api::Genesis>::Config),*
+            ) -> Self {
+                Self {
+                    sequencer_registry: minimal_config.sequencer_registry,
+                    attester_incentives: minimal_config.attester_incentives,
+                    bank: minimal_config.bank,
+                    $(
+                        $module_name,
+                    )*
+                }
+            }
+        }
+        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> GenesisConfig<S, Da>
+        where <S::InnerZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,
+         <S::OuterZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,{
+            #[allow(unused)]
+            pub fn into_genesis_params(self) -> $crate::runtime::GenesisParams<Self, $crate::runtime::BasicKernelGenesisConfig<S, Da>> {
+                $crate::runtime::GenesisParams {
+                    runtime: self,
+                    kernel: $crate::runtime::BasicKernelGenesisConfig {
+                        chain_state: $crate::runtime::ChainStateConfig {
+                            current_time: Default::default(),
+                            inner_code_commitment: Default::default(),
+                            outer_code_commitment: Default::default(),
+                            genesis_da_height: 0,
+                        }
+                    }
+                }
             }
         }
     };
@@ -141,62 +166,149 @@ macro_rules! generate_optimistic_runtime {
 #[macro_export]
 macro_rules! generate_optimistic_runtime_with_test_hooks {
     ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
-        generate_optimistic_runtime!( $id <= $($module_name : $module_ty),*);
-
-        impl <S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::PostTxHookRegistry<S, Da> for $id <S, Da> {
-            fn try_get_next(&self) ->  ::std::option::Option<$crate::runtime::wrapper::WorkingSetClosure<Self>>
-            {
-                self.hook_action_queue.try_get_next()
-            }
-
-            // Add assertions to the post dispatch hook. Callers should provide exactly one assertion per transaction.
-            fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<$crate::runtime::wrapper::WorkingSetClosure<Self>>) {
-                self.hook_action_queue.insert_all(closures);
-            }
-        }
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::TestRuntimeHookOverrides<S, Da> for $id <S, Da>  {
-            // Override the post dispatch hook to run the assertions which
-            // were set up using `add_post_dispatch_tx_hook_actions`
-            fn post_dispatch_tx_hook_override(
-                &self,
-                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
-                _ctx: &::sov_modules_api::Context<S>,
-                working_set: &mut <Self as ::sov_modules_api::hooks::TxHooks>::TxState,
-            ) -> ::anyhow::Result<()> {
-                let closure = self.try_get_next().expect("Must provide one closure per transaction");
-                closure(working_set);
-                Ok(())
-            }
-        }
+        $crate::generate_optimistic_runtime!( $id <= $($module_name : $module_ty),*);
     }
 }
 
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
+pub struct SlotTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
+    pub transaction_test_cases: Vec<TxTestCase<RT, M, S>>,
+    pub post_hook: EndSlotClosure<StateCheckpoint<S>>,
+}
+
+impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
+    pub fn empty() -> Self {
+        Self {
+            transaction_test_cases: vec![],
+            post_hook: Box::new(|_| {}),
+        }
+    }
+}
+
+impl<T: Into<TxTestCase<RT, M, S>>, RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> From<Vec<T>>
+    for SlotTestCase<RT, M, S>
+{
+    fn from(test_cases: Vec<T>) -> Self {
+        SlotTestCase {
+            transaction_test_cases: test_cases.into_iter().map(Into::into).collect(),
+            post_hook: Box::new(|_| {}),
+        }
+    }
+}
+
+impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec>
+    From<(
+        <S::CryptoSpec as CryptoSpec>::PrivateKey,
+        WorkingSetClosure<RT>,
+        <M as Module>::CallMessage,
+    )> for TxTestCase<RT, M, S>
+{
+    fn from(
+        (sender_key, post_check, message): (
+            <S::CryptoSpec as CryptoSpec>::PrivateKey,
+            WorkingSetClosure<RT>,
+            <M as Module>::CallMessage,
+        ),
+    ) -> Self {
+        TxTestCase {
+            sender_key,
+            outcome: TxOutcome::Applied(post_check),
+            message,
+        }
+    }
+}
+
+pub enum TxOutcome<RT: TxHooks> {
+    /// Expects that the tx was successful and runs the provided closure in the post_dispatch hook
+    Applied(WorkingSetClosure<RT>),
+    /// Expects that the tx was reverted
+    Reverted,
+}
+
+pub struct TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
+    pub sender_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+    pub outcome: TxOutcome<RT>,
+    // Note: We can easily make this an enum with a variant for a pre-encoded message in order to support calls from other modules
+    pub message: <M as Module>::CallMessage,
+}
+
 /// Run a test on the given runtime
-pub fn run_test<RT, S>(
-    genesis_config: GenesisParams<<RT as Genesis>::Config, BasicKernelGenesisConfig<S, MockDaSpec>>,
-    txs_and_post_checks: Vec<(RawTx, WorkingSetClosure<RT>)>,
+///
+/// The test is defined by a series of slot test cases, where the workflow is...
+/// 1. Run genesis
+/// 2. For each slot, apply the provided pre-execution closure to each call message
+/// with the current state as an argument. This allows us to set update any call messages
+/// that depend on the current state.
+/// 3. For each call message, execute the message and apply the post-execution closure to check
+/// that the result is valid.
+pub fn run_test<RT, S, M>(
+    mut genesis_config: GenesisParams<
+        <RT as Genesis>::Config,
+        BasicKernelGenesisConfig<S, MockDaSpec>,
+    >,
+    tx_setup_fn: &mut StateRootClosure<
+        <M as Module>::CallMessage,
+        <<S as Spec>::Storage as Storage>::Root,
+        <RT as TxHooks>::TxState,
+    >,
+    slots: Vec<SlotTestCase<RT, M, S>>,
     runtime: RT,
 ) where
     RT: Runtime<S, MockDaSpec>
         + PostTxHookRegistry<S, MockDaSpec>
-        + MinimalGenesis<S, Da = MockDaSpec>,
+        + EndSlotHookRegistry<S, MockDaSpec>
+        + MinimalGenesis<S, Da = MockDaSpec>
+        + EncodeCall<M>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
+    M: Module,
 {
-    let stf = StfBlueprint::<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>::with_runtime(
-        runtime.clone(),
-    );
-    let (txs, assertions) = txs_and_post_checks.into_iter().unzip();
-    runtime.add_post_dispatch_tx_hook_actions(assertions);
+    let mut nonces = HashMap::new();
+    let mut post_slot_closures = Vec::with_capacity(slots.len());
+    let mut msgs_and_senders_by_slot = Vec::with_capacity(slots.len());
+    let mut tx_successful = Vec::new();
+    // Register the transaction hooks with the runtime. Destructure the test cases for easier processing.
+    {
+        for slot in slots {
+            let SlotTestCase {
+                transaction_test_cases,
+                post_hook,
+            } = slot;
+            post_slot_closures.push(post_hook);
 
+            let mut msgs_and_senders = Vec::with_capacity(transaction_test_cases.len());
+            let mut hooks = Vec::with_capacity(transaction_test_cases.len());
+            for test_case in transaction_test_cases {
+                let TxTestCase {
+                    sender_key,
+                    outcome,
+                    message,
+                } = test_case;
+                msgs_and_senders.push((message, sender_key));
+                if let TxOutcome::Applied(post_check) = outcome {
+                    hooks.push(post_check);
+                    tx_successful.push(true);
+                } else {
+                    tx_successful.push(false);
+                };
+            }
+            runtime.add_post_dispatch_tx_hook_actions(hooks);
+            msgs_and_senders_by_slot.push(msgs_and_senders);
+        }
+    }
+    runtime.add_end_slot_hook_actions(post_slot_closures);
+
+    // Use the runtime to create an STF blueprint
+    let stf = StfBlueprint::<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>::with_runtime(runtime);
+
+    // ----- Setup and run genesis ---------
     let temp_dir = tempfile::tempdir().unwrap();
     let storage_config = sov_state::config::Config {
         path: PathBuf::from(temp_dir.path()),
     };
     let sequencer_da_address =
-        <RT as MinimalGenesis<S>>::sequencer_registry(&genesis_config.runtime).seq_da_address;
+        <RT as MinimalGenesis<S>>::sequencer_registry_config(&mut genesis_config.runtime)
+            .seq_da_address;
 
     let mut storage_manager = ProverStorageManager::<MockDaSpec, _>::new(storage_config)
         .expect("ProverStorageManager initialization has failed");
@@ -210,36 +322,94 @@ pub fn run_test<RT, S>(
     storage_manager
         .save_change_set(genesis_block.header(), change_set, ledger_state.into())
         .unwrap();
-    // Write it to the database immediately!
+    // Write it to the database immediately
     storage_manager.finalize(&genesis_block.header).unwrap();
+    let mut prev_state_root = state_root;
+    // ----- End genesis ---------
 
-    let batch = Batch { txs };
-    let blob = batch.try_to_vec().unwrap();
-    let mut blob = MockBlob::new_with_hash(blob, sequencer_da_address);
-    let block_header = MockBlockHeader::from_height(1);
+    let mut expect_success = tx_successful.into_iter();
+    for (prev_slot_number, msgs_and_priv_keys) in msgs_and_senders_by_slot.into_iter().enumerate() {
+        let block_header = MockBlockHeader::from_height(prev_slot_number as u64 + 1);
+        let (stf_state, ledger_state) = storage_manager
+            .create_state_for(&block_header)
+            .expect("Block builds on height zero");
+        // Setup call messages
+        let txs = {
+            let mut working_set = WorkingSet::<S>::new(stf_state.clone());
+            let mut signed_txs = Vec::new();
 
-    let (stf_state, _ledger_state) = storage_manager
-        .create_state_for(&block_header)
-        .expect("Block builds on height zero");
-    let relevant_blobs = RelevantBlobIters {
-        proof_blobs: vec![],
-        batch_blobs: vec![&mut blob],
-    };
-    stf.apply_slot(
-        &state_root,
-        stf_state,
-        Default::default(),
-        &block_header,
-        &Default::default(),
-        relevant_blobs,
+            for (mut msg, priv_key) in msgs_and_priv_keys.into_iter() {
+                let pub_key = priv_key.pub_key();
+                tx_setup_fn(&mut msg, prev_state_root, &mut working_set);
+
+                let msg = <RT as EncodeCall<M>>::encode_call(msg);
+                let nonce = *nonces.get(&pub_key).unwrap_or(&0);
+                nonces.insert(pub_key, nonce + 1);
+
+                let tx = Transaction::<S>::new_signed_tx(
+                    &priv_key,
+                    UnsignedTransaction::new(msg, 0, 1.into(), 100_000, nonce, None),
+                );
+                signed_txs.push(RawTx {
+                    data: tx.try_to_vec().unwrap(),
+                });
+            }
+            signed_txs
+        };
+
+        let batch = Batch { txs };
+        let blob = batch.try_to_vec().unwrap();
+        let mut blob = MockBlob::new_with_hash(blob, sequencer_da_address);
+
+        let relevant_blobs = RelevantBlobIters {
+            proof_blobs: vec![],
+            batch_blobs: vec![&mut blob],
+        };
+        let result = stf.apply_slot(
+            &state_root,
+            stf_state,
+            Default::default(),
+            &block_header,
+            &Default::default(),
+            relevant_blobs,
+        );
+        for batch in result.batch_receipts {
+            for tx_receipt in batch.tx_receipts {
+                if expect_success
+                    .next()
+                    .expect("Must have one outcome per transaction")
+                {
+                    assert_eq!(tx_receipt.receipt, TxEffect::Successful);
+                } else {
+                    assert_eq!(tx_receipt.receipt, TxEffect::Reverted);
+                }
+            }
+        }
+
+        storage_manager
+            .save_change_set(&block_header, result.change_set, ledger_state.into())
+            .unwrap();
+        prev_state_root = result.state_root;
+    }
+
+    assert!(
+        stf.runtime().try_get_next_tx_action().flatten().is_none(),
+        "All post tx hooks must have run! This error indicates that at least one transaction failed that was expected to succeed!"
+    );
+
+    assert!(
+        stf.runtime().try_get_next_slot_action().flatten().is_none(),
+        "All end slot hooks must have run! This should be unreachable!"
     );
 }
 
 // TODO: Delete the hookless TestRuntime after upgrading tests to the HookedRuntime
 // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/682>
 generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
-impl<S: Spec, Da: DaSpec> TestRuntimeHookOverrides<S, Da> for TestRuntime<S, Da> {}
 pub use framework::{GenesisConfig as HookedRuntimeGenesisConfig, HookedRuntime};
+
+use self::traits::EndSlotHookRegistry;
+use self::wrapper::{EndSlotClosure, StateRootClosure};
 mod framework {
     use super::*;
     generate_optimistic_runtime_with_test_hooks!(HookedRuntime <= value_setter: ValueSetter<S>);
@@ -256,7 +426,6 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     seq_stake_amount: u64,
     token_name: String,
     init_balance: u64,
-    validity_condition_checker: Da::Checker,
 ) -> GenesisConfig<S, Da> {
     assert!(
         init_balance >= seq_stake_amount,
@@ -279,7 +448,6 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
             rollup_finality_period: ROLLUP_FINALITY_PERIOD,
             maximum_attested_height: MAX_ATTESTED_HEIGHT,
             light_client_finalized_height: LIGHT_CLIENT_FINALIZED_HEIGHT,
-            validity_condition_checker,
             phantom_data: PhantomData,
         },
 
@@ -305,10 +473,9 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
 mod test_rt {
 
     use sov_kernels::basic::BasicKernelGenesisConfig;
-    use sov_mock_da::{MockDaSpec, MockValidityCondChecker};
+    use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockCodeCommitment;
-    use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-    use sov_modules_api::{Address, EncodeCall, PrivateKey, WorkingSet};
+    use sov_modules_api::{Address, PrivateKey, WorkingSet};
     use sov_modules_stf_blueprint::GenesisParams;
 
     use super::*;
@@ -364,7 +531,6 @@ mod test_rt {
             100_000,
             "SovereignToken".to_string(),
             10_000_000_000,
-            MockValidityCondChecker::default(),
         );
         let kernel_genesis = BasicKernelGenesisConfig {
             chain_state: ChainStateConfig {
@@ -378,28 +544,22 @@ mod test_rt {
             runtime: genesis_config,
             kernel: kernel_genesis,
         };
-        let txs_and_assertions = values_and_assertions
+        let tx_test_cases = values_and_assertions
             .into_iter()
             .map(|(value, assertion)| {
                 let msg = sov_value_setter::CallMessage::SetValue(value);
-                let msg = <TestRuntime<TestSpec, MockDaSpec> as EncodeCall<
-                    ValueSetter<TestSpec>,
-                >>::encode_call(msg);
-
-                let tx = Transaction::<TestSpec>::new_signed_tx(
-                    &admin_pkey,
-                    UnsignedTransaction::new(msg, 0, 1.into(), 100_000, 0, None),
-                );
-                let tx = RawTx {
-                    data: tx.try_to_vec().unwrap(),
-                };
-                (tx, assertion)
+                TxTestCase::<_, ValueSetter<TestSpec>, _>::from((
+                    admin_pkey.clone(),
+                    assertion,
+                    msg,
+                ))
             })
             .collect::<Vec<_>>();
 
-        run_test::<_, _>(
+        run_test::<_, _, _>(
             params,
-            txs_and_assertions,
+            &mut |_, _, _| {},
+            vec![SlotTestCase::from(tx_test_cases)],
             TestRuntime::<TestSpec, MockDaSpec>::default(),
         );
     }
@@ -419,7 +579,6 @@ mod test_rt {
         seq_stake_amount: u64,
         token_name: String,
         init_balance: u64,
-        validity_condition_checker: Da::Checker,
     ) -> GenesisConfig<S, Da> {
         assert!(
             init_balance >= seq_stake_amount,
@@ -442,7 +601,6 @@ mod test_rt {
                 rollup_finality_period: ROLLUP_FINALITY_PERIOD,
                 maximum_attested_height: MAX_ATTESTED_HEIGHT,
                 light_client_finalized_height: LIGHT_CLIENT_FINALIZED_HEIGHT,
-                validity_condition_checker,
                 phantom_data: PhantomData,
             },
 

@@ -23,7 +23,7 @@ use sov_bank::{Amount, BurnRate};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState};
 
-use crate::event::Event;
+pub use crate::event::Event;
 
 /// The information about an attender's unbonding
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, PartialEq, Eq)]
@@ -135,7 +135,7 @@ where
         context: &Context<Self::Spec>,
         working_set: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
-        match msg {
+        let res = match msg {
             call::CallMessage::BondAttester(bond_amount) => self
                 .bond_user_helper(bond_amount, context.sender(), Role::Attester, working_set)
                 .map_err(|err| err.into()),
@@ -157,6 +157,12 @@ where
                 .process_challenge(context, &proof, &transition, working_set)
                 .map_err(|error| error.into()),
         }
-        .map_err(|e| e.into())
+        .map_err(|e| e.into());
+        if let Err(ref err) = res {
+            tracing::debug!("Attester incentives call reverted with error {}", err);
+        } else {
+            tracing::debug!("Attester incentives call succeeded!");
+        }
+        res
     }
 }
