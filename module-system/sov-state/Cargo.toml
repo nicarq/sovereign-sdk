@@ -29,6 +29,7 @@ sov-db = { path = "../../full-node/sov-db", version = "0.3", optional = true }
 hex = { workspace = true }
 jmt = { workspace = true }
 sha2 = { workspace = true }
+thiserror = { workspace = true }
 
 risc0-cycle-macros = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }

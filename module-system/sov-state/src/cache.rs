@@ -16,14 +16,10 @@ pub enum IsValueCached {
 }
 
 /// An error when merging two cache values.
-#[derive(Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum MergeError {
     /// Consecutive reads error.
-    #[cfg_attr(
-        feature = "std",
-        error("consecutive reads are inconsistent: left read: {left:?}, right read: {right:?}")
-    )]
+    #[error("consecutive reads are inconsistent: left read: {left:?}, right read: {right:?}")]
     ReadThenRead {
         /// Left-read associated cache value.
         left: Option<SlotValue>,
@@ -31,10 +27,7 @@ pub enum MergeError {
         right: Option<SlotValue>,
     },
     /// A read operation is inconsistent with the previous write operation.
-    #[cfg_attr(
-        feature = "std",
-        error("the read: {read:?} is in inconsistent with the previous write: {write:?}")
-    )]
+    #[error("the read: {read:?} is in inconsistent with the previous write: {write:?}")]
     WriteThenRead {
         /// The associated write operation.
         write: Option<SlotValue>,
@@ -43,49 +36,17 @@ pub enum MergeError {
     },
 }
 
-#[cfg(not(feature = "std"))]
-impl core::fmt::Display for MergeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        <MergeError as core::fmt::Debug>::fmt(self, f)
-    }
-}
-
-#[cfg(all(not(feature = "std"), feature = "sync"))]
-impl From<MergeError> for anyhow::Error {
-    fn from(err: MergeError) -> anyhow::Error {
-        anyhow::Error::msg(err)
-    }
-}
-
 /// An error when reading from the cache.
-#[derive(Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ReadError {
     /// The value returned from the cache is not expected.
-    #[cfg_attr(
-        feature = "std",
-        error("inconsistent read, expected: {expected:?}, found: {found:?}")
-    )]
+    #[error("inconsistent read, expected: {expected:?}, found: {found:?}")]
     InconsistentRead {
         /// Expected value.
         expected: Option<SlotValue>,
         /// Found value.
         found: Option<SlotValue>,
     },
-}
-
-#[cfg(not(feature = "std"))]
-impl core::fmt::Display for ReadError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        <ReadError as core::fmt::Debug>::fmt(self, f)
-    }
-}
-
-#[cfg(all(not(feature = "std"), feature = "sync"))]
-impl From<ReadError> for anyhow::Error {
-    fn from(err: ReadError) -> anyhow::Error {
-        anyhow::Error::msg(err)
-    }
 }
 
 /// `Access` represents a sequence of events on a particular value.

@@ -7,9 +7,7 @@ use proptest::{prop_compose, proptest};
 use reqwest::header::CONTENT_TYPE;
 use serde_json::json;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
-use sov_mock_da::MockDaSpec;
-#[cfg(test)]
-use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
+use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash};
 use sov_modules_api::RuntimeEventResponse;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::Time;
@@ -17,7 +15,6 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-#[cfg(test)]
 use sov_stf_runner::HttpServerConfig;
 use sov_test_utils::{TestSpec, TestStorageSpec};
 use tendermint::crypto::Sha256;
@@ -34,20 +31,16 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: HttpServ
 
     for query in test_queries {
         let res = client
-            .post(url_str.clone())
+            .post(&url_str)
             .header(CONTENT_TYPE, "application/json")
             .body(query.payload.to_string())
             .send()
             .await
             .unwrap();
 
-        assert_eq!(res.status().as_u16(), 200);
-
-        let response_body = res.text().await.unwrap();
-        assert_eq!(
-            query.expected,
-            serde_json::from_str::<serde_json::Value>(&response_body).unwrap(),
-        );
+        assert!(res.status().is_success());
+        let response_body = res.json::<serde_json::Value>().await.unwrap();
+        assert_eq!(query.expected, response_body);
     }
 }
 

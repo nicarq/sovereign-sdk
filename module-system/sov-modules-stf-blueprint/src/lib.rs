@@ -14,8 +14,6 @@ use sov_modules_api::capabilities::{
     AuthenticationError, FatalError, HasCapabilities, RuntimeAuthenticator,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-#[cfg(feature = "mocks")]
-use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{

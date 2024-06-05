@@ -3530,6 +3530,7 @@ dependencies = [
  "serde-big-array",
  "sha2 0.10.8",
  "sov-rollup-interface",
+ "thiserror",
 ]
 
 [[package]]
