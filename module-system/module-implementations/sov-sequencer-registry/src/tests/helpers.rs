@@ -50,14 +50,11 @@ impl TestSequencer {
         let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
 
         // The genesis sequencer address should be registered
-        let registry_response = test_sequencer
-            .registry
-            .sequencer_address(
-                MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
-                &mut working_set,
-            )
-            .unwrap();
-        assert_eq!(Some(sequencer_address), registry_response.address);
+        let registry_response = test_sequencer.registry.get_sequencer_address(
+            MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
+            &mut working_set,
+        );
+        assert_eq!(Some(sequencer_address), registry_response);
 
         // The genesis sequencer balance should be the initial balance minus the locked amount
         let balance_after_genesis = test_sequencer

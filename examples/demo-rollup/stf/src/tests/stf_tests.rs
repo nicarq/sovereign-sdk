@@ -3,7 +3,7 @@ use std::vec;
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::{ApiStateAccessor, Spec};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, StfBlueprint};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
@@ -91,18 +91,21 @@ fn test_demo_values_in_db() {
         let (stf_state, _ledger_state) = storage_manager
             .create_state_for(next_block.header())
             .unwrap();
-        let mut working_set = WorkingSet::new(stf_state);
+        let mut api_state_accessor = ApiStateAccessor::new(stf_state);
         let resp = runtime
             .bank
             .supply_of(
                 None,
                 get_default_token_id::<S>(&admin_address),
-                &mut working_set,
+                &mut api_state_accessor,
             )
             .unwrap();
         assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
-        assert_eq!(runtime.value_setter.value.get(&mut working_set), Some(33));
+        assert_eq!(
+            runtime.value_setter.value.get(&mut api_state_accessor),
+            Some(33)
+        );
     }
 }
 
@@ -179,19 +182,22 @@ fn test_demo_values_in_cache() {
         .create_state_after(block_1.header())
         .unwrap();
 
-    let mut working_set = WorkingSet::new(stf_storage);
+    let mut api_state_accessor = ApiStateAccessor::new(stf_storage);
 
     let resp = runtime
         .bank
         .supply_of(
             None,
             get_default_token_id::<S>(&admin_address),
-            &mut working_set,
+            &mut api_state_accessor,
         )
         .unwrap();
     assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
-    assert_eq!(runtime.value_setter.value.get(&mut working_set), Some(33));
+    assert_eq!(
+        runtime.value_setter.value.get(&mut api_state_accessor),
+        Some(33)
+    );
 }
 
 #[test]

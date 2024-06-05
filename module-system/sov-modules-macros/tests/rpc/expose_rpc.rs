@@ -1,8 +1,8 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
-    CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateValue, TxState,
-    WorkingSet,
+    ApiStateAccessor, CallResponse, Context, Error, Module, ModuleId, ModuleInfo, Spec, StateValue,
+    TxState,
 };
 
 #[derive(ModuleInfo)]
@@ -51,9 +51,12 @@ pub struct QueryResponse {
 #[rpc_gen(client, server, namespace = "queryModule")]
 impl<S: Spec> QueryModule<S> {
     #[rpc_method(name = "queryValue")]
-    pub fn query_value(&self, working_set: &mut WorkingSet<S>) -> RpcResult<QueryResponse> {
+    pub fn query_value(
+        &self,
+        api_state_accessor: &mut ApiStateAccessor<S>,
+    ) -> RpcResult<QueryResponse> {
         Ok(QueryResponse {
-            value: self.data.get(working_set),
+            value: self.data.get(api_state_accessor),
         })
     }
 }

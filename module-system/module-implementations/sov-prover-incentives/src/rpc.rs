@@ -2,7 +2,7 @@
 use jsonrpsee::core::RpcResult;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{DaSpec, WorkingSet};
+use sov_modules_api::{ApiStateAccessor, DaSpec};
 
 use super::ProverIncentives;
 
@@ -19,16 +19,16 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// Queries the state of the module and returns the bond amount of the address `address`.
     /// If the `address` is not bonded, returns a default value.
     #[rpc_method(name = "proverBondAmount")]
-    pub fn get_bond_amount(
+    pub fn bond_amount(
         &self,
         address: S::Address,
-        working_set: &mut WorkingSet<S>,
+        api_state_accessor: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Response> {
         Ok(Response {
             value: self
                 .bonded_provers
-                .get(&address, working_set)
-                .unwrap_or_default(), // self.value.get(working_set),
+                .get(&address, api_state_accessor)
+                .unwrap_or_default(), // self.value.get(api_state_accessor),
         })
     }
 }

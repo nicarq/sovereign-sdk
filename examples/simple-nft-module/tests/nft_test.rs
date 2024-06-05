@@ -26,17 +26,17 @@ fn genesis_and_mint() {
     };
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let nft = NonFungibleToken::default();
 
     // Genesis
     let genesis_result = nft.genesis(&config, &mut working_set);
     assert!(genesis_result.is_ok());
 
-    let query1: OwnerResponse<S> = nft.get_owner(0, &mut working_set).unwrap();
+    let query1: OwnerResponse<S> = nft.get_owner(0, &mut working_set);
     assert_eq!(query1.owner, Some(owner1));
 
-    let query2: OwnerResponse<S> = nft.get_owner(1, &mut working_set).unwrap();
+    let query2: OwnerResponse<S> = nft.get_owner(1, &mut working_set);
     assert!(query2.owner.is_none());
 
     // Mint, anybody can mint
@@ -51,7 +51,7 @@ fn genesis_and_mint() {
         typed_event.downcast::<Event>().unwrap(),
         Event::Mint { id: 1 }
     );
-    let query3: OwnerResponse<S> = nft.get_owner(1, &mut working_set).unwrap();
+    let query3: OwnerResponse<S> = nft.get_owner(1, &mut working_set);
     assert_eq!(query3.owner, Some(owner2));
 
     // Try to mint again same token, should fail
@@ -91,7 +91,7 @@ fn transfer() {
 
     let query_token_owner =
         |token_id: u64, working_set: &mut WorkingSet<S>| -> Option<<S as Spec>::Address> {
-            let query: OwnerResponse<S> = nft.get_owner(token_id, working_set).unwrap();
+            let query: OwnerResponse<S> = nft.get_owner(token_id, working_set);
             query.owner
         };
 
@@ -135,7 +135,7 @@ fn burn() {
     };
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let nft = NonFungibleToken::default();
     nft.genesis(&config, &mut working_set).unwrap();
 
@@ -159,7 +159,7 @@ fn burn() {
         typed_event.downcast::<Event>().unwrap(),
         Event::Burn { id: 0 }
     );
-    let query: OwnerResponse<S> = nft.get_owner(0, &mut working_set).unwrap();
+    let query: OwnerResponse<S> = nft.get_owner(0, &mut working_set);
 
     assert!(query.owner.is_none());
 

@@ -1,9 +1,7 @@
 mod helpers;
 
 use helpers::*;
-use sov_bank::{
-    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TotalSupplyResponse,
-};
+use sov_bank::{get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -34,9 +32,7 @@ fn transfer_initial_token() {
         };
 
     let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
-        let total_supply: TotalSupplyResponse =
-            bank.supply_of(None, token_id, working_set).unwrap();
-        total_supply.amount
+        bank.get_total_supply_of(&token_id, working_set)
     };
 
     let sender_balance_before = query_user_balance(sender_address, &mut working_set);
@@ -286,9 +282,7 @@ fn transfer_deployed_token() {
         };
 
     let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
-        let total_supply: TotalSupplyResponse =
-            bank.supply_of(None, token_id, working_set).unwrap();
-        total_supply.amount
+        bank.get_total_supply_of(&token_id, working_set)
     };
 
     let total_supply_before = query_total_supply(&mut working_set);

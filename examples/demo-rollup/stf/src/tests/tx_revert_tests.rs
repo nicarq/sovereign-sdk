@@ -2,7 +2,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS}
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{PrivateKey, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{ApiStateAccessor, PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, SkippedReason, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
@@ -111,14 +111,14 @@ fn test_tx_revert() {
     // Checks on storage after execution
     {
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let mut working_set = WorkingSet::new(storage);
+        let mut api_state_accessor = ApiStateAccessor::new(storage);
         let resp = runtime
             .bank
             .balance_of(
                 None,
                 admin_address,
                 get_default_token_id::<TestSpec>(&admin_address),
-                &mut working_set,
+                &mut api_state_accessor,
             )
             .unwrap();
 
@@ -128,7 +128,7 @@ fn test_tx_revert() {
             .sequencer_registry
             .sequencer_address(
                 MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS),
-                &mut working_set,
+                &mut api_state_accessor,
             )
             .unwrap();
         // Sequencer is not excluded from the list of allowed!
@@ -138,7 +138,7 @@ fn test_tx_revert() {
             .nonces
             .nonce(
                 &admin_key.pub_key().credential_id::<TestHasher>(),
-                &mut working_set,
+                &mut api_state_accessor,
             )
             .unwrap();
 
@@ -225,12 +225,12 @@ fn test_tx_bad_signature() {
 
     {
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let mut working_set = WorkingSet::new(storage);
+        let mut api_state_accessor = ApiStateAccessor::<TestSpec>::new(storage);
         let nonce = runtime
             .nonces
             .nonce(
                 &admin_key.pub_key().credential_id::<TestHasher>(),
-                &mut working_set,
+                &mut api_state_accessor,
             )
             .unwrap_or_default();
 
@@ -441,23 +441,30 @@ fn test_tx_bad_serialization() {
 
     {
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let mut working_set = WorkingSet::new(storage);
+        let mut api_state_accessor = ApiStateAccessor::<TestSpec>::new(storage);
 
         // Sequencer is not in the list of allowed sequencers
 
         let allowed_sequencer = runtime
             .sequencer_registry
-            .sequencer_address(MockAddress::from(SEQUENCER_DA_ADDRESS), &mut working_set)
+            .sequencer_address(
+                MockAddress::from(SEQUENCER_DA_ADDRESS),
+                &mut api_state_accessor,
+            )
             .unwrap();
         assert!(allowed_sequencer.address.is_none());
 
         // Balance of sequencer is not increased
         let coins = runtime
             .sequencer_registry
-            .get_coins_to_lock(&mut working_set);
+            .get_coins_to_lock(&mut api_state_accessor);
         let sequencer_balance_after = runtime
             .bank
-            .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut working_set)
+            .get_balance_of(
+                &sequencer_rollup_address,
+                coins.token_id,
+                &mut api_state_accessor,
+            )
             .unwrap();
         assert_eq!(sequencer_balance_before, sequencer_balance_after);
     }

@@ -1,7 +1,9 @@
 //! Runtime state machine definitions.
 use sov_state::namespaces::User;
+#[cfg(any(feature = "native", feature = "test-utils"))]
+use sov_state::Storage;
 use sov_state::{
-    CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue, Storage,
+    CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue,
 };
 #[cfg(feature = "native")]
 use sov_state::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
@@ -77,6 +79,7 @@ impl<S: Spec> UniversalStateAccessor for TxScratchpad<S> {
 }
 
 impl<S: Spec> TxScratchpad<S> {
+    #[cfg(any(feature = "native", feature = "test-utils"))]
     fn delta(&self) -> &Delta<S::Storage> {
         &self.delta.inner
     }
@@ -282,9 +285,7 @@ impl<S: Spec> WorkingSet<S> {
     ///
     /// The witness value is set to [`Default::default`]. Use
     /// [`WorkingSet::with_witness`] to set a custom witness value.
-    ///
-    /// ## TODO(@theochap)
-    /// `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/678>`: This method is *deprecated* and should be removed once we have a way to call rpc methods using the [`StateCheckpoint`].
+    #[cfg(feature = "test-utils")]
     pub fn new(inner: S::Storage) -> Self {
         let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
         let tx_scratchpad = TxScratchpad {
@@ -329,7 +330,8 @@ impl<S: Spec> WorkingSet<S> {
     /// Propagates the gas meter to the new working set.
     ///
     /// ## TODO(@theochap)
-    /// `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/678>`: This method is *deprecated* should be removed once we have a way to call rpc methods using the [`StateCheckpoint`].
+    /// We should be able to remove this method once we rewrite the archival state tests.
+    #[cfg(feature = "test-utils")]
     pub fn get_archival_at(&self, version: u64) -> Self {
         let storage = self.storage().clone();
         let tx_scratchpad = TxScratchpad {
@@ -362,9 +364,7 @@ impl<S: Spec> WorkingSet<S> {
 
     /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
     /// and a custom witness value.
-    ///
-    /// ## TODO(@theochap)
-    /// This method is *deprecated* and should be removed once we have completed the gas integration for state accesses.
+    #[cfg(feature = "test-utils")]
     pub fn with_witness(inner: S::Storage, witness: <S::Storage as Storage>::Witness) -> Self {
         let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::with_witness(inner, witness);
         let tx_scratchpad = TxScratchpad {
@@ -447,10 +447,12 @@ impl<S: Spec> WorkingSet<S> {
         self.gas_meter.remaining_funds()
     }
 
+    #[cfg(any(feature = "native", feature = "test-utils"))]
     fn inner(&self) -> &TxScratchpad<S> {
         &self.delta.inner
     }
 
+    #[cfg(any(feature = "native", feature = "test-utils"))]
     fn storage(&self) -> &S::Storage {
         &self.inner().delta().inner
     }

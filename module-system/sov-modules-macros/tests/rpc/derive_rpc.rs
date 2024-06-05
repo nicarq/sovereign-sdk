@@ -2,7 +2,7 @@ use std::hash::Hasher;
 
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
-use sov_modules_api::{ModuleId, ModuleInfo, Spec, WorkingSet};
+use sov_modules_api::{ApiStateAccessor, ModuleId, ModuleInfo, Spec};
 
 #[derive(ModuleInfo)]
 // Test: const generics, multiple generics, unusual `Spec` placement (not the first generic).
@@ -46,14 +46,18 @@ where
 
     #[rpc_method(name = "b")]
     // Test: unused `WorkingSet`.
-    pub fn b(&self, _working_set: &mut WorkingSet<S>) -> RpcResult<u32> {
+    pub fn b(&self, _api_state_accessor: &mut ApiStateAccessor<S>) -> RpcResult<u32> {
         // Test: reference to `self` field.
         let _ = &self.data;
         unimplemented!()
     }
 
     #[rpc_method(name = "anotherMethod")]
-    fn another_method(&self, result: D, _working_set: &mut WorkingSet<S>) -> RpcResult<(D, u64)> {
+    fn another_method(
+        &self,
+        result: D,
+        _api_state_accessor: &mut ApiStateAccessor<S>,
+    ) -> RpcResult<(D, u64)> {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         let value = result.clone();
         value.hash(&mut hasher);

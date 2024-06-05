@@ -1,6 +1,5 @@
 use sov_bank::{
-    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId,
-    TotalSupplyResponse, GAS_TOKEN_ID,
+    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId, GAS_TOKEN_ID,
 };
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, ModuleId, Spec, WorkingSet};
@@ -36,9 +35,7 @@ fn mint_token() {
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
     let query_total_supply = |token_id: TokenId, working_set: &mut WorkingSet<S>| -> Option<u64> {
-        let total_supply: TotalSupplyResponse =
-            bank.supply_of(None, token_id, working_set).unwrap();
-        total_supply.amount
+        bank.get_total_supply_of(&token_id, working_set)
     };
 
     let query_user_balance =
@@ -296,7 +293,7 @@ fn mint_token_from_module_and_address() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    let bank = Bank::default();
+    let bank = Bank::<S>::default();
 
     let sender_context = {
         let sender_address = generate_address::<S>("sender");
@@ -379,7 +376,7 @@ fn create_token_from_module() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    let bank = Bank::default();
+    let bank = Bank::<S>::default();
 
     let module_id = ModuleId::from([0; 32]);
     let mod_originator = module_id.to_payable();

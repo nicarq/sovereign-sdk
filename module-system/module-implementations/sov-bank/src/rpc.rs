@@ -1,7 +1,7 @@
 //! Defines rpc queries exposed by the bank module, along with the relevant types
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::ApiStateAccessor;
 
 use crate::{get_token_id, Amount, Bank, TokenId};
 
@@ -29,12 +29,16 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         version: Option<u64>,
         user_address: S::Address,
         token_id: TokenId,
-        working_set: &mut WorkingSet<S>,
+        api_state_accessor: &mut ApiStateAccessor<S>,
     ) -> RpcResult<BalanceResponse> {
         let amount = if let Some(v) = version {
-            self.get_balance_of(&user_address, token_id, &mut working_set.get_archival_at(v))
+            self.get_balance_of(
+                &user_address,
+                token_id,
+                &mut api_state_accessor.get_archival_at(v),
+            )
         } else {
-            self.get_balance_of(&user_address, token_id, working_set)
+            self.get_balance_of(&user_address, token_id, api_state_accessor)
         };
         Ok(BalanceResponse { amount })
     }
@@ -45,12 +49,12 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         version: Option<u64>,
         token_id: TokenId,
-        working_set: &mut WorkingSet<S>,
+        api_state_accessor: &mut ApiStateAccessor<S>,
     ) -> RpcResult<TotalSupplyResponse> {
         let amount = if let Some(v) = version {
-            self.get_total_supply_of(&token_id, &mut working_set.get_archival_at(v))
+            self.get_total_supply_of(&token_id, &mut api_state_accessor.get_archival_at(v))
         } else {
-            self.get_total_supply_of(&token_id, working_set)
+            self.get_total_supply_of(&token_id, api_state_accessor)
         };
         Ok(TotalSupplyResponse { amount })
     }

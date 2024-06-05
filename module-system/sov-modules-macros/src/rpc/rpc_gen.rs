@@ -9,13 +9,13 @@ struct RpcMethod {
     method: syn::ImplItemMethod,
     docs: Vec<Attribute>,
     rpc_attribute: RpcMethodAttribute,
-    working_set_arg: Option<WorkingSetArg>,
+    api_state_accessor_arg: Option<ApiStateAccessorArg>,
 }
 
 impl RpcMethod {
     fn parse(method: &syn::ImplItemMethod) -> syn::Result<Self> {
         let rpc_attribute = RpcMethodAttribute::parse(method)?;
-        let working_set_arg = WorkingSetArg::parse(&method.sig)?;
+        let api_state_accessor_arg = ApiStateAccessorArg::parse(&method.sig)?;
 
         let docs = doc_attributes(&method.attrs);
 
@@ -23,7 +23,7 @@ impl RpcMethod {
             method: method.clone(),
             rpc_attribute,
             docs,
-            working_set_arg,
+            api_state_accessor_arg,
         })
     }
 
@@ -48,7 +48,7 @@ impl RpcMethod {
         let mut method_signature = self.method.sig.clone();
 
         // Remove the working set argument from the method signature, if present.
-        if let Some(WorkingSetArg { idx, .. }) = self.working_set_arg {
+        if let Some(ApiStateAccessorArg { idx, .. }) = self.api_state_accessor_arg {
             let mut inputs: Vec<syn::FnArg> = method_signature.inputs.into_iter().collect();
             inputs.remove(idx);
             method_signature.inputs = inputs.into_iter().collect();
@@ -68,7 +68,7 @@ impl RpcMethod {
 struct RpcImplBlock {
     pub module_type: syn::Type,
     pub methods: Vec<RpcMethod>,
-    pub working_set_type: Option<syn::Type>,
+    pub api_state_accessor_type: Option<syn::Type>,
 }
 
 impl RpcImplBlock {
@@ -78,11 +78,11 @@ impl RpcImplBlock {
         let method_name = &method.name();
         let module_type = &self.module_type;
 
-        if let Some(WorkingSetArg {
+        if let Some(ApiStateAccessorArg {
             idx,
-            ident: ref working_set_ident,
+            ident: ref api_state_accessor_ident,
             ..
-        }) = method.working_set_arg
+        }) = method.api_state_accessor_arg
         {
             let mut signature = method.signature().clone();
 
@@ -90,14 +90,14 @@ impl RpcImplBlock {
                 .inputs
                 .into_iter()
                 .enumerate()
-                .filter(|(i, _)| *i != idx) // Drop the working set argument.
+                .filter(|(i, _)| *i != idx) // Drop the state checkpoint argument.
                 .map(|(_, arg)| arg)
                 .collect();
 
             Ok(quote! {
                 #( #docs )*
                 #signature {
-                    let #working_set_ident = &mut Self::working_set(self);
+                    let #api_state_accessor_ident = &mut Self::api_state_accessor(self);
                     <#module_type>::#method_name(#(#arg_names),*)
                 }
             })
@@ -113,20 +113,23 @@ impl RpcImplBlock {
         }
     }
 
-    /// If the working set type is not set, set it.
+    /// If the state checkpoint type is not set, set it.
     /// If it is, we need to check that it's the same type.
-    fn set_working_set_type(&mut self, method: &RpcMethod) -> syn::Result<()> {
-        let method_ws_type = method.working_set_arg.as_ref().map(|arg| arg.ty.clone());
-        match (&self.working_set_type, &method_ws_type) {
+    fn set_api_state_accessor_type(&mut self, method: &RpcMethod) -> syn::Result<()> {
+        let method_checkpoint_type = method
+            .api_state_accessor_arg
+            .as_ref()
+            .map(|arg| arg.ty.clone());
+        match (&self.api_state_accessor_type, &method_checkpoint_type) {
             (Some(ws), Some(ref method_ws_type)) if ws != method_ws_type => {
                 return Err(syn::Error::new_spanned(
                     method.name(),
-                    format!("All `#[rpc_method]` annotated methods must have the same working set type. Found `{:?}` and `{:?}`", ws, method_ws_type),
+                    format!("All `#[rpc_method]` annotated methods must have the same state checkpoint type. Found `{:?}` and `{:?}`", ws, method_ws_type),
                 ));
             }
             // The method has no working set argument; do nothing.
             (_, None) => {}
-            _ => self.working_set_type = method_ws_type,
+            _ => self.api_state_accessor_type = method_checkpoint_type,
         };
 
         Ok(())
@@ -152,7 +155,7 @@ fn inner_rpc_gen(
     let mut rpc_info = RpcImplBlock {
         methods: vec![],
         module_type: parse_quote! { #module_type },
-        working_set_type: None,
+        api_state_accessor_type: None,
     };
 
     let mut rpc_trait_items = vec![];
@@ -165,7 +168,7 @@ fn inner_rpc_gen(
         if let ImplItem::Method(ref method) = item {
             let method = RpcMethod::parse(method)?;
 
-            rpc_info.set_working_set_type(&method)?;
+            rpc_info.set_api_state_accessor_type(&method)?;
             rpc_trait_items.push(method.annotated_signature_for_rpc_trait());
             bare_impl_block_items.push(ImplItem::Method(method.method_without_rpc_attr()));
 
@@ -314,18 +317,18 @@ mod utils {
         }
     }
 
-    pub struct WorkingSetArg {
+    pub struct ApiStateAccessorArg {
         pub ty: syn::Type,
         pub ident: syn::Ident,
         pub idx: usize,
     }
 
-    impl WorkingSetArg {
+    impl ApiStateAccessorArg {
         pub fn parse(sig: &Signature) -> syn::Result<Option<Self>> {
             let error = || {
                 syn::Error::new_spanned(
                     sig,
-                    "The `working_set` argument to the `#[rpc_method]`-annotated function has the wrong type. It should be a mutable reference to a `WorkingSet<...>`. Either fix the type or remove the `working_set` argument.",
+                    "The `api_state_accessor` argument to the `#[rpc_method]`-annotated function has the wrong type. It should be a mutable reference to a `ApiStateAccessor<...>`. Either fix the type or remove the `api_state_accessor` argument.",
                 )
             };
 
@@ -340,7 +343,7 @@ mod utils {
                     continue;
                 };
 
-                if ident != "working_set" && ident != "_working_set" {
+                if ident != "api_state_accessor" && ident != "_api_state_accessor" {
                     continue;
                 }
 

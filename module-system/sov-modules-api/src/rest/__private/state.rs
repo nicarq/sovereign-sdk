@@ -21,11 +21,11 @@ use sov_state::{CompileTimeNamespace, StateCodec, StateItemCodec};
 
 use super::types::StateItemContents;
 use super::{
-    maybe_archival_ws, HeightQueryParam, ModuleSendSync, NamespacedStateMap, NamespacedStateVec,
-    StateItemInfo, StorageReceiver,
+    maybe_archival_accessor, HeightQueryParam, ModuleSendSync, NamespacedStateMap,
+    NamespacedStateVec, StateItemInfo, StorageReceiver,
 };
 use crate::value::NamespacedStateValue;
-use crate::{Module, StateReader, WorkingSet};
+use crate::{ApiStateAccessor, Module, StateReader};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,7 +67,7 @@ impl<N, M, T, Codec> StateItemRestApiImpl<M, NamespacedStateValue<N, T, Codec>>
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    WorkingSet<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N>,
     T: Serialize,
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<T>,
@@ -76,8 +76,8 @@ where
         State(state): State<Self>,
         height_opt: Option<Query<HeightQueryParam>>,
     ) -> ApiResult<StateItemContents<T, T>> {
-        let mut working_set = maybe_archival_ws(
-            WorkingSet::<M::Spec>::new(state.storage.borrow().clone()),
+        let mut state_accessor = maybe_archival_accessor(
+            ApiStateAccessor::<M::Spec>::new(state.storage.borrow().clone()),
             height_opt.map(|q| q.0.height),
         );
 
@@ -86,7 +86,7 @@ where
             Codec::default(),
         );
 
-        let value = state_value.get(&mut working_set);
+        let value = state_value.get(&mut state_accessor);
         Ok(StateItemContents::Value { value }.into())
     }
 }
@@ -95,7 +95,7 @@ impl<N, M, T, Codec> StateItemRestApi for StateItemRestApiImpl<M, NamespacedStat
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    WorkingSet<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N>,
     T: Serialize + Send + Sync + 'static,
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<T>,
@@ -111,19 +111,19 @@ impl<N, M, T, Codec> StateItemRestApiImpl<M, NamespacedStateVec<N, T, Codec>>
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    WorkingSet<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N>,
     T: Serialize,
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<usize>,
     Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<usize>,
 {
-    fn working_set_and_vec(
+    fn checkpoint_and_vec(
         &self,
         height_opt: Option<Query<HeightQueryParam>>,
-    ) -> (WorkingSet<M::Spec>, NamespacedStateVec<N, T, Codec>) {
+    ) -> (ApiStateAccessor<M::Spec>, NamespacedStateVec<N, T, Codec>) {
         (
-            maybe_archival_ws(
-                WorkingSet::new(self.storage.borrow().clone()),
+            maybe_archival_accessor(
+                ApiStateAccessor::new(self.storage.borrow().clone()),
                 height_opt.map(|q| q.0.height),
             ),
             NamespacedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default()),
@@ -134,9 +134,9 @@ where
         State(state): State<Self>,
         height_opt: Option<Query<HeightQueryParam>>,
     ) -> ApiResult<StateItemContents<T, T>> {
-        let (mut working_set, state_vec) = Self::working_set_and_vec(&state, height_opt);
+        let (mut api_state_accessor, state_vec) = Self::checkpoint_and_vec(&state, height_opt);
 
-        let length = state_vec.len(&mut working_set);
+        let length = state_vec.len(&mut api_state_accessor);
         Ok(StateItemContents::Vec { length }.into())
     }
 
@@ -145,9 +145,9 @@ where
         Path(item_index): Path<usize>,
         height_opt: Option<Query<HeightQueryParam>>,
     ) -> ApiResult<StateItemContents<T, T>> {
-        let (mut working_set, state_vec) = Self::working_set_and_vec(&state, height_opt);
+        let (mut api_state_accessor, state_vec) = Self::checkpoint_and_vec(&state, height_opt);
 
-        let value = state_vec.get(item_index, &mut working_set);
+        let value = state_vec.get(item_index, &mut api_state_accessor);
         Ok(StateItemContents::VecElement {
             index: item_index,
             value,
@@ -160,7 +160,7 @@ impl<N, M, T, Codec> StateItemRestApi for StateItemRestApiImpl<M, NamespacedStat
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    WorkingSet<M::Spec>: StateReader<N> + StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N>,
     T: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<usize>,
@@ -178,7 +178,7 @@ impl<N, M, K, V, Codec> StateItemRestApiImpl<M, NamespacedStateMap<N, K, V, Code
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    WorkingSet<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N>,
     K: Serialize + serde::de::DeserializeOwned,
     V: Serialize,
     Codec: StateCodec,
@@ -201,8 +201,8 @@ where
         Path(key): Path<K>,
         height_opt: Option<Query<HeightQueryParam>>,
     ) -> ApiResult<StateItemContents<K, V>> {
-        let mut working_set = maybe_archival_ws(
-            WorkingSet::<M::Spec>::new(state.storage.borrow().clone()),
+        let mut working_set = maybe_archival_accessor(
+            ApiStateAccessor::<M::Spec>::new(state.storage.borrow().clone()),
             height_opt.map(|q| q.0.height),
         );
         let state_map = NamespacedStateMap::<N, K, V, Codec>::with_codec(
@@ -220,7 +220,7 @@ impl<N, M, K, V, Codec> StateItemRestApi
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    WorkingSet<M::Spec>: StateReader<N> + StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N>,
     K: Serialize + serde::de::DeserializeOwned + Clone + Send + Sync + 'static,
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,

@@ -2,6 +2,8 @@ mod accessors;
 mod events;
 mod traits;
 
+#[cfg(feature = "native")]
+pub use accessors::ApiStateAccessor;
 pub use accessors::{
     AccessoryDelta, AccessoryStateCheckpoint, AuthorizeTransactionError, BootstrapWorkingSet,
     GenesisStateAccessor, KernelWorkingSet, PreExecWorkingSet, StateCheckpoint, TxScratchpad,

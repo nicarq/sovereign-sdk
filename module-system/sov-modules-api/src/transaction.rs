@@ -418,6 +418,7 @@ where
     }
 }
 
+#[cfg(feature = "test-utils")]
 impl<GU> TxGasMeter<GU>
 where
     GU: Gas,

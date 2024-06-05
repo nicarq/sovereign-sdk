@@ -1,8 +1,5 @@
 use helpers::generate_address;
-use sov_bank::{
-    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TotalSupplyResponse,
-    GAS_TOKEN_ID,
-};
+use sov_bank::{get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, GAS_TOKEN_ID};
 use sov_modules_api::{Context, Error, Module, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -40,9 +37,7 @@ fn burn_deployed_tokens() {
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
     let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
-        let total_supply: TotalSupplyResponse =
-            bank.supply_of(None, token_id, working_set).unwrap();
-        total_supply.amount
+        bank.get_total_supply_of(&token_id, working_set)
     };
 
     let query_user_balance =

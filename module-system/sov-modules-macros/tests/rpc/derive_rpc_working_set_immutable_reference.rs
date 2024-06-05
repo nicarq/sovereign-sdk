@@ -15,7 +15,7 @@ impl<S: sov_modules_api::Spec> TestStruct<S> {
     #[rpc_method(name = "foo")]
     pub fn foo(
         &self,
-        _working_set: &sov_modules_api::WorkingSet<S>,
+        _api_state_accessor: &sov_modules_api::ApiStateAccessor<S>,
     ) -> jsonrpsee::core::RpcResult<u32> {
         Ok(42)
     }

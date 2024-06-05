@@ -2,7 +2,9 @@ mod helpers;
 
 use helpers::*;
 use sov_bank::{Amount, Bank, CallMessage, Coins, TokenId};
-use sov_modules_api::{Context, Module, Spec, StateReader, StateWriter, WorkingSet};
+use sov_modules_api::{
+    ApiStateAccessor, Context, Module, Spec, StateReader, StateWriter, WorkingSet,
+};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::namespaces::Accessory;
 use sov_state::storage::{SlotKey, SlotValue, StateUpdate};
@@ -218,8 +220,8 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
     // archival versioned state query
 
     let archival_slot = 3;
-    let mut working_set: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
-    let mut archival = working_set.get_archival_at(archival_slot);
+    let mut api_state_accessor: ApiStateAccessor<S> = ApiStateAccessor::new(prover_storage.clone());
+    let mut archival = api_state_accessor.get_archival_at(archival_slot);
     let val = StateReader::<Accessory>::get(&mut archival, &SlotKey::from_slice(b"k"))?.unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
@@ -234,7 +236,8 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
     let val = StateReader::<Accessory>::get(&mut archival, &SlotKey::from_slice(b"k"))?.unwrap();
     assert_eq!("v3", String::from_utf8(val.value().to_vec()).unwrap());
 
-    let val = StateReader::<Accessory>::get(&mut working_set, &SlotKey::from_slice(b"k"))?.unwrap();
+    let val = StateReader::<Accessory>::get(&mut api_state_accessor, &SlotKey::from_slice(b"k"))?
+        .unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
     Ok(())

@@ -28,7 +28,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use __private::maybe_archival_ws;
 use axum::extract::{FromRequestParts, State};
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
@@ -36,8 +35,9 @@ use sov_rest_utils::Query;
 
 use crate::hooks::TxHooks;
 use crate::map::NamespacedStateMap;
+use crate::rest::__private::maybe_archival_accessor;
 use crate::vec::NamespacedStateVec;
-use crate::{Module, ModuleId, ModuleInfo, Spec, WorkingSet};
+use crate::{ApiStateAccessor, Module, ModuleId, ModuleInfo, Spec};
 
 /// This Rust module is **NOT** part of the public API of the crate, and can
 /// change at any time.
@@ -191,13 +191,13 @@ impl<T, S: Spec> ApiState<T, S> {
         self.storage_receiver.borrow()
     }
 
-    /// Returns a [`WorkingSet`] that you can use to read state from within REST
+    /// Returns a [`ApiStateAccessor`] that you can use to read state from within REST
     /// API.
-    pub fn working_set(&self) -> WorkingSet<S> {
+    pub fn api_state_accessor(&self) -> ApiStateAccessor<S> {
         let storage = self.storage().clone();
-        let working_set = WorkingSet::new(storage);
+        let state_accessor = ApiStateAccessor::new(storage);
 
-        maybe_archival_ws(working_set, self.height)
+        maybe_archival_accessor(state_accessor, self.height)
     }
 }
 
