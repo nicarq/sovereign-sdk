@@ -1,6 +1,6 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::{ApiStateAccessor, Spec};
 
 use crate::{CredentialId, Nonces};
 
@@ -18,9 +18,11 @@ impl<S: Spec> Nonces<S> {
     pub fn get_nonce(
         &self,
         credential_id: CredentialId,
-        working_set: &mut WorkingSet<S>,
+        api_state_accessor: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Response> {
-        let nonce = self.nonce(&credential_id, working_set).unwrap_or_default();
+        let nonce = self
+            .nonce(&credential_id, api_state_accessor)
+            .unwrap_or_default();
 
         Ok(Response { nonce })
     }

@@ -1,8 +1,8 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::{
-    Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
-    ModuleId, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
+    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis,
+    MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -85,8 +85,14 @@ pub mod my_module {
             S: Spec,
         {
             #[rpc_method(name = "queryValue")]
-            pub fn query_value(&self, working_set: &mut WorkingSet<S>) -> RpcResult<QueryResponse> {
-                let value = self.data.get(working_set).map(|d| format!("{:?}", d));
+            pub fn query_value(
+                &self,
+                api_state_accessor: &mut ApiStateAccessor<S>,
+            ) -> RpcResult<QueryResponse> {
+                let value = self
+                    .data
+                    .get(api_state_accessor)
+                    .map(|d| format!("{:?}", d));
                 Ok(QueryResponse { value })
             }
         }

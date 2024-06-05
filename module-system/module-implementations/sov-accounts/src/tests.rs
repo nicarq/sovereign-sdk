@@ -3,8 +3,8 @@ use sov_modules_api::{Address, Context, CredentialId, Module, PrivateKey, Public
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
-use crate::rpc::{self, Response};
-use crate::{call, AccountConfig, AccountData, Accounts};
+use crate::rpc::Response;
+use crate::{call, Account, AccountConfig, AccountData, Accounts};
 
 type S = sov_test_utils::TestSpec;
 
@@ -24,24 +24,22 @@ fn test_config_account() {
 
     let accounts = &mut Accounts::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let working_set = &mut WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     accounts.init_module(&account_config, working_set).unwrap();
 
     let query_response = accounts
-        .get_account(init_credential_id, working_set)
-        .unwrap();
+        .accounts
+        .get(&init_credential_id, working_set)
+        .map(|Account { addr: a }| a);
 
-    assert_eq!(
-        query_response,
-        rpc::Response::AccountExists { addr: init_addr }
-    );
+    assert_eq!(query_response, Some(init_addr));
 }
 
 #[test]
 fn test_update_account() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let working_set = &mut WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
     let priv_key = TestPrivateKey::generate();
@@ -66,13 +64,11 @@ fn test_update_account() {
     // Test new account creation
     {
         let query_response = accounts
-            .get_account(sender_credential_id, working_set)
-            .unwrap();
+            .accounts
+            .get(&sender_credential_id, working_set)
+            .map(|Account { addr: a }| a);
 
-        assert_eq!(
-            query_response,
-            rpc::Response::AccountExists { addr: sender_addr }
-        );
+        assert_eq!(query_response, Some(sender_addr));
     }
 
     // Test credentials id update
@@ -90,23 +86,19 @@ fn test_update_account() {
 
         // Account corresponding to the old credential still exists.
         let query_response = accounts
-            .get_account(sender_credential_id, working_set)
-            .unwrap();
+            .accounts
+            .get(&sender_credential_id, working_set)
+            .map(|Account { addr: a }| a);
 
-        assert_eq!(
-            query_response,
-            rpc::Response::AccountExists { addr: sender_addr }
-        );
+        assert_eq!(query_response, Some(sender_addr));
 
         // New account with the new public key and an old address is created.
         let query_response = accounts
-            .get_account(new_credential_id, working_set)
-            .unwrap();
+            .accounts
+            .get(&new_credential_id, working_set)
+            .map(|Account { addr: a }| a);
 
-        assert_eq!(
-            query_response,
-            rpc::Response::AccountExists { addr: sender_addr }
-        );
+        assert_eq!(query_response, Some(sender_addr));
     }
 }
 

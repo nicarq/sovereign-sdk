@@ -1,7 +1,10 @@
 use anyhow::{bail, Context as _, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, TxState, WorkingSet};
+use sov_modules_api::{
+    CallResponse, Context, EventEmitter, StateAccessor, StateReader, TxState, WorkingSet,
+};
+use sov_state::User;
 
 use crate::event::Event;
 use crate::utils::{Payable, TokenHolderRef};
@@ -362,7 +365,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub fn get_total_supply_of(
         &self,
         token_id: &TokenId,
-        working_set: &mut WorkingSet<S>,
+        working_set: &mut impl StateReader<User>,
     ) -> Option<u64> {
         self.tokens
             .get(token_id, working_set)

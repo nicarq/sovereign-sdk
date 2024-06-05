@@ -1,6 +1,5 @@
 use sov_bank::{
-    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId,
-    TotalSupplyResponse, GAS_TOKEN_ID,
+    get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId, GAS_TOKEN_ID,
 };
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, Spec, WorkingSet};
@@ -127,9 +126,7 @@ fn freeze_token() {
     };
 
     let query_total_supply = |token_id: TokenId, working_set: &mut WorkingSet<S>| -> Option<u64> {
-        let total_supply: TotalSupplyResponse =
-            bank.supply_of(None, token_id, working_set).unwrap();
-        total_supply.amount
+        bank.get_total_supply_of(&token_id, working_set)
     };
 
     let minted = bank.call(mint_message, &minter_context, &mut working_set);

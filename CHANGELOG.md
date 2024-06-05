@@ -1,3 +1,4 @@
+- #766 modifies the RPC interface to accept an `ApiStateAccessor` instead of a `WorkingSet` to prepare the full integration of the gas metering for state accesses. In particular this commit changes the `RPC` macro to accept an `ApiStateAccessor` instead of a `WorkingSet` as an argument to the rpc methods. 
 - #726 adds Swagger UI -an OpenApi playground- as an endpoint defined inside `sov_modules_stf_blueprint::Runtime::endpoint`.
 - #743 adds metered state accessor traits to the `sov-modules-api/state` module.
 - #764 changes notifications logic, so ledger notifications arrive after state has been completely updated.

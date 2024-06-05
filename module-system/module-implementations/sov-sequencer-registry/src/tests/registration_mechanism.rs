@@ -35,9 +35,8 @@ fn test_registration_lifecycle() {
 
     let registry_response_before = test_sequencer
         .registry
-        .sequencer_address(da_address, &mut working_set)
-        .unwrap();
-    assert!(registry_response_before.address.is_none());
+        .get_sequencer_address(da_address, &mut working_set);
+    assert!(registry_response_before.is_none());
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
@@ -55,11 +54,10 @@ fn test_registration_lifecycle() {
 
     let registry_response_after_registration = test_sequencer
         .registry
-        .sequencer_address(da_address, &mut working_set)
-        .unwrap();
+        .get_sequencer_address(da_address, &mut working_set);
     assert_eq!(
         Some(sequencer_address),
-        registry_response_after_registration.address
+        registry_response_after_registration
     );
 
     let exit_message = CallMessage::Exit {
@@ -77,9 +75,8 @@ fn test_registration_lifecycle() {
 
     let registry_response_after_exit = test_sequencer
         .registry
-        .sequencer_address(da_address, &mut working_set)
-        .unwrap();
-    assert!(registry_response_after_exit.address.is_none());
+        .get_sequencer_address(da_address, &mut working_set);
+    assert!(registry_response_after_exit.is_none());
 }
 
 #[test]

@@ -79,13 +79,7 @@ fn check_prover_slashed(
     );
 
     // Assert that the prover's bond amount has been burned
-    assert_eq!(
-        module
-            .get_bond_amount(prover_address, working_set)
-            .unwrap()
-            .value,
-        0
-    );
+    assert_eq!(module.get_bond_amount(prover_address, working_set), 0);
 }
 
 #[test]

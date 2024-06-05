@@ -1,6 +1,6 @@
 use sov_modules_api::{
-    AccessoryStateValue, CallResponse, Context, GenesisState, Module, ModuleError, ModuleId,
-    ModuleInfo, Spec, TxState, WorkingSet,
+    AccessoryStateValue, ApiStateAccessor, CallResponse, Context, GenesisState, Module,
+    ModuleError, ModuleId, ModuleInfo, Spec, TxState, WorkingSet,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::Storage;
@@ -116,11 +116,11 @@ fn test_accessory_value_setter() {
 
     storage_manager.commit(change_set_after);
     let storage = storage_manager.create_storage();
-    let mut ws = WorkingSet::<TestSpec>::new(storage.clone());
+    let mut api_state_accessor = ApiStateAccessor::<TestSpec>::new(storage.clone());
 
     assert_eq!(
         42,
-        module.accessory_state.get(&mut ws).unwrap(),
+        module.accessory_state.get(&mut api_state_accessor).unwrap(),
         "AccessoryStateValue revert has failed"
     );
 }

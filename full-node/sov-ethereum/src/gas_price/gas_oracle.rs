@@ -8,7 +8,7 @@ use reth_primitives::{B256, U256, U64};
 use reth_rpc_types::BlockTransactions;
 use serde::{Deserialize, Serialize};
 use sov_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
-use sov_modules_api::WorkingSet;
+use sov_modules_api::ApiStateAccessor;
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -117,10 +117,13 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
     }
 
     /// Suggests a gas price estimate based on recent blocks, using the configured percentile.
-    pub async fn suggest_tip_cap(&self, working_set: &mut WorkingSet<S>) -> EthResult<U256> {
+    pub async fn suggest_tip_cap(
+        &self,
+        api_state_accessor: &mut ApiStateAccessor<S>,
+    ) -> EthResult<U256> {
         let header = &self
             .provider
-            .get_block_by_number(None, None, working_set)
+            .get_block_by_number(None, None, api_state_accessor)
             .unwrap()
             .unwrap()
             .header;
@@ -152,7 +155,7 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
 
         for _ in 0..max_blocks {
             let (parent_hash, block_values) = self
-                .get_block_values(current_hash, SAMPLE_NUMBER as usize, working_set)
+                .get_block_values(current_hash, SAMPLE_NUMBER as usize, api_state_accessor)
                 .await?
                 .ok_or(EthApiError::UnknownBlockNumber)?;
 
@@ -206,10 +209,10 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
         &self,
         block_hash: B256,
         limit: usize,
-        working_set: &mut WorkingSet<S>,
+        api_state_accessor: &mut ApiStateAccessor<S>,
     ) -> EthResult<Option<(B256, Vec<U256>)>> {
         // check the cache (this will hit the disk if the block is not cached)
-        let block = match self.cache.get_block(block_hash, working_set)? {
+        let block = match self.cache.get_block(block_hash, api_state_accessor)? {
             Some(block) => block,
             None => return Ok(None),
         };

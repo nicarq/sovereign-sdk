@@ -28,6 +28,18 @@ pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([
 
 pub const MAX_TX_GAS_AMOUNT: u64 = 10_000;
 
+impl ProverIncentives<S, Da> {
+    pub fn get_bond_amount(
+        &self,
+        address: <S as Spec>::Address,
+        working_set: &mut WorkingSet<S>,
+    ) -> u64 {
+        self.bonded_provers
+            .get(&address, working_set)
+            .unwrap_or_default()
+    }
+}
+
 /// Generates an address by hashing the provided `key`.
 pub fn generate_address(key: &str) -> <S as Spec>::Address {
     let hash: [u8; 32] =
@@ -214,10 +226,7 @@ pub(crate) fn setup() -> (
 
     // Assert that the prover has the correct bond amount before processing the proof
     assert_eq!(
-        module
-            .get_bond_amount(prover_address, &mut working_set)
-            .unwrap()
-            .value,
+        module.get_bond_amount(prover_address, &mut working_set),
         BOND_AMOUNT
     );
 

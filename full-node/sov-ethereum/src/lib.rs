@@ -17,7 +17,7 @@ use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoH
 use sov_evm::{EthApiError, Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::ApiStateAccessor;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::watch;
 
@@ -179,17 +179,18 @@ fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
 ) -> Result<(), jsonrpsee::core::client::Error> {
     rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
         let price = {
-            let mut working_set = WorkingSet::<S>::new(ethereum.storage.borrow().clone());
+            let mut api_state_accessor =
+                ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
 
             let suggested_tip = ethereum
                 .gas_price_oracle
-                .suggest_tip_cap(&mut working_set)
+                .suggest_tip_cap(&mut api_state_accessor)
                 .await
                 .unwrap();
 
             let evm = Evm::<S>::default();
             let base_fee = evm
-                .get_block_by_number(None, None, &mut working_set)
+                .get_block_by_number(None, None, &mut api_state_accessor)
                 .unwrap()
                 .unwrap()
                 .header

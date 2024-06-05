@@ -6,6 +6,13 @@ mod checkpoints;
 mod genesis;
 mod internals;
 mod kernel;
+
+#[cfg(feature = "native")]
+mod http_api;
+
+#[cfg(feature = "native")]
+pub use http_api::ApiStateAccessor;
+
 mod scratchpad;
 
 pub use checkpoints::{AccessoryStateCheckpoint, StateCheckpoint};

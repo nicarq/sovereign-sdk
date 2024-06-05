@@ -8,7 +8,7 @@ use sov_state::{
 };
 
 use super::genesis::GenesisStateAccessor;
-use super::internals::{Delta, RevertableWriter};
+use super::internals::Delta;
 use super::seal::CachedAccessor;
 use crate::state::traits::{AccessoryStateWriter, ProvableStateReader, ProvableStateWriter};
 use crate::{
@@ -57,6 +57,36 @@ macro_rules! inner_impl_unmetered_state_writer {
     };
 }
 
+#[cfg(feature = "native")]
+mod http_api {
+    use std::convert::Infallible;
+
+    use sov_state::{
+        Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, User,
+    };
+
+    use super::CachedAccessor;
+    use crate::state::accessors::http_api::ApiStateAccessor;
+    use crate::{AccessoryStateReader, AccessoryStateWriter, Spec, StateReader, StateWriter};
+
+    impl<S: Spec> AccessoryStateReader for ApiStateAccessor<S> {}
+    impl<S: Spec> AccessoryStateWriter for ApiStateAccessor<S> {}
+
+    impl<S: Spec> StateReader<User> for ApiStateAccessor<S> {
+        inner_impl_unmetered_state_reader!(User);
+    }
+    impl<S: Spec> StateWriter<User> for ApiStateAccessor<S> {
+        inner_impl_unmetered_state_writer!(User);
+    }
+
+    impl<S: Spec> StateReader<Kernel> for ApiStateAccessor<S> {
+        inner_impl_unmetered_state_reader!(Kernel);
+    }
+    impl<S: Spec> StateWriter<Kernel> for ApiStateAccessor<S> {
+        inner_impl_unmetered_state_writer!(Kernel);
+    }
+}
+
 impl<S: Storage> AccessoryStateReader for AccessoryDelta<S> {}
 impl<S: Storage> AccessoryStateWriter for AccessoryDelta<S> {}
 
@@ -102,40 +132,10 @@ impl<S: Spec> ProvableStateWriter<User> for WorkingSet<S> {
     type GU = S::Gas;
 }
 
-impl<S: Spec> StateReader<Accessory> for WorkingSet<S> {
-    type Error = Infallible;
-    fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        if !cfg!(feature = "native") {
-            // Note: We might want to have a special case for that
-            panic!("Trying to access a native-protected value {key:?}, from the accessory state, outside of native mode");
-        } else {
-            Ok(
-                <RevertableWriter<TxScratchpad<S>> as CachedAccessor<Accessory>>::get_cached(
-                    &mut self.delta,
-                    key,
-                )
-                .0,
-            )
-        }
-    }
-
-    /// Get a decoded value from the storage.
-    fn get_decoded<V, Codec>(
-        &mut self,
-        storage_key: &SlotKey,
-        codec: &Codec,
-    ) -> Result<Option<V>, Self::Error>
-    where
-        Codec: StateCodec,
-        Codec::ValueCodec: StateItemCodec<V>,
-    {
-        let storage_value = <Self as StateReader<Accessory>>::get(self, storage_key)?;
-
-        Ok(storage_value
-            .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
-    }
-}
 impl<S: Spec> AccessoryStateWriter for WorkingSet<S> {}
+
+#[cfg(feature = "test-utils")]
+impl<S: Spec> AccessoryStateReader for WorkingSet<S> {}
 
 impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
     type Error = Infallible;

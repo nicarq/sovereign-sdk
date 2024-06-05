@@ -26,13 +26,7 @@ fn test_unbonding() {
         .expect("Unbonding should succeed");
 
     // Assert that the prover no longer has bonded tokens
-    assert_eq!(
-        module
-            .get_bond_amount(prover_address, &mut working_set)
-            .unwrap()
-            .value,
-        0
-    );
+    assert_eq!(module.get_bond_amount(prover_address, &mut working_set), 0);
 
     // Assert that the prover's unlocked balance has increased by the amount they unbonded
     let unlocked_balance = module
@@ -56,13 +50,7 @@ fn test_prover_not_bonded() {
         .expect("Unbonding should succeed");
 
     // Assert that the prover no longer has bonded tokens
-    assert_eq!(
-        module
-            .get_bond_amount(prover_address, &mut working_set)
-            .unwrap()
-            .value,
-        0
-    );
+    assert_eq!(module.get_bond_amount(prover_address, &mut working_set), 0);
 
     // Process a valid proof
     {

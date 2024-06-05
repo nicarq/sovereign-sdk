@@ -8,8 +8,9 @@ use call::NotInstantiable;
 #[cfg(feature = "native")]
 pub use rpc::*;
 use sov_modules_api::{
-    Context, CredentialId, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState, WorkingSet,
+    Context, CredentialId, Error, GenesisState, ModuleId, ModuleInfo, Spec, StateReader, TxState,
 };
+use sov_state::User;
 
 /// A module responsible for managing nonces on the rollup.
 #[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
@@ -32,9 +33,9 @@ impl<S: Spec> Nonces<S> {
     pub fn nonce(
         &self,
         credential_id: &CredentialId,
-        working_set: &mut WorkingSet<S>,
+        reader: &mut impl StateReader<User>,
     ) -> Option<u64> {
-        self.nonces.get(credential_id, working_set)
+        self.nonces.get(credential_id, reader)
     }
 }
 

@@ -1,6 +1,7 @@
 use jsonrpsee::core::RpcResult;
+use jsonrpsee::types::ErrorCode;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::{ApiStateAccessor, Spec, StateAccessor};
 
 use crate::utils::get_collection_id;
 use crate::{CollectionId, CreatorAddress, NftIdentifier, NonFungibleToken, OwnerAddress, TokenId};
@@ -11,7 +12,7 @@ use crate::{CollectionId, CreatorAddress, NftIdentifier, NonFungibleToken, Owner
     deserialize = "CreatorAddress<S>: serde::Deserialize<'de>"
 ))]
 /// Response for `getCollection` method
-pub struct CollectionResponse<S: Spec> {
+pub struct CollectionDetails<S: Spec> {
     /// Collection name
     pub name: String,
     /// Creator Address
@@ -30,7 +31,7 @@ pub struct CollectionResponse<S: Spec> {
     deserialize = "OwnerAddress<S>: serde::Deserialize<'de>"
 ))]
 /// Response for `getNft` method
-pub struct NftResponse<S: Spec> {
+pub struct NftDetails<S: Spec> {
     /// Unique token id scoped to the collection
     pub token_id: TokenId,
     /// URI pointing to offchain metadata
@@ -46,9 +47,56 @@ pub struct NftResponse<S: Spec> {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 
 /// Response for `getCollectionId` method
-pub struct CollectionIdResponse {
+pub struct CollectionIdDetails {
     /// Address of the collection
     pub collection_id: CollectionId,
+}
+
+impl<S: Spec> NonFungibleToken<S> {
+    /// Get the collection details
+    pub fn collection(
+        &self,
+        collection_id: CollectionId,
+        accessor: &mut impl StateAccessor,
+    ) -> Option<CollectionDetails<S>> {
+        let c = self.collections.get(&collection_id, accessor)?;
+
+        Some(CollectionDetails {
+            name: c.get_name().to_string(),
+            creator: c.get_creator().clone(),
+            frozen: c.is_frozen(),
+            supply: c.get_supply(),
+            collection_uri: c.get_collection_uri().to_string(),
+        })
+    }
+
+    /// Get the collection id
+    pub fn collection_id(
+        &self,
+        creator: CreatorAddress<S>,
+        collection_name: &str,
+    ) -> CollectionIdDetails {
+        let ca = get_collection_id::<S>(collection_name, creator.as_ref());
+        CollectionIdDetails { collection_id: ca }
+    }
+
+    /// Get the NFT details
+    pub fn nft(
+        &self,
+        collection_id: CollectionId,
+        token_id: TokenId,
+        accessor: &mut impl StateAccessor,
+    ) -> Option<NftDetails<S>> {
+        let nft_id = NftIdentifier(token_id, collection_id);
+        let n = self.nfts.get(&nft_id, accessor)?;
+        Some(NftDetails {
+            token_id: n.get_token_id(),
+            token_uri: n.get_token_uri().to_string(),
+            frozen: n.is_frozen(),
+            owner: n.get_owner().clone(),
+            collection_id: *n.get_collection_id(),
+        })
+    }
 }
 
 #[rpc_gen(client, server, namespace = "nft")]
@@ -58,17 +106,10 @@ impl<S: Spec> NonFungibleToken<S> {
     pub fn get_collection(
         &self,
         collection_id: CollectionId,
-        working_set: &mut WorkingSet<S>,
-    ) -> RpcResult<CollectionResponse<S>> {
-        let c = self.collections.get(&collection_id, working_set).unwrap();
-
-        Ok(CollectionResponse {
-            name: c.get_name().to_string(),
-            creator: c.get_creator().clone(),
-            frozen: c.is_frozen(),
-            supply: c.get_supply(),
-            collection_uri: c.get_collection_uri().to_string(),
-        })
+        api_state_accessor: &mut ApiStateAccessor<S>,
+    ) -> RpcResult<CollectionDetails<S>> {
+        self.collection(collection_id, api_state_accessor)
+            .ok_or(ErrorCode::InvalidParams.into())
     }
     #[rpc_method(name = "getCollectionId")]
     /// Get the collection id
@@ -76,9 +117,8 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         creator: CreatorAddress<S>,
         collection_name: &str,
-    ) -> RpcResult<CollectionIdResponse> {
-        let ca = get_collection_id::<S>(collection_name, creator.as_ref());
-        Ok(CollectionIdResponse { collection_id: ca })
+    ) -> RpcResult<CollectionIdDetails> {
+        Ok(self.collection_id(creator, collection_name))
     }
     #[rpc_method(name = "getNft")]
     /// Get the NFT details
@@ -86,16 +126,9 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         collection_id: CollectionId,
         token_id: TokenId,
-        working_set: &mut WorkingSet<S>,
-    ) -> RpcResult<NftResponse<S>> {
-        let nft_id = NftIdentifier(token_id, collection_id);
-        let n = self.nfts.get(&nft_id, working_set).unwrap();
-        Ok(NftResponse {
-            token_id: n.get_token_id(),
-            token_uri: n.get_token_uri().to_string(),
-            frozen: n.is_frozen(),
-            owner: n.get_owner().clone(),
-            collection_id: *n.get_collection_id(),
-        })
+        api_state_accessor: &mut ApiStateAccessor<S>,
+    ) -> RpcResult<NftDetails<S>> {
+        self.nft(collection_id, token_id, api_state_accessor)
+            .ok_or(ErrorCode::InvalidParams.into())
     }
 }

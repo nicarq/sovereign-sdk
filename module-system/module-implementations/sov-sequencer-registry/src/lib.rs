@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
     CallResponse, Context, Error, EventEmitter, GenesisState, ModuleId, ModuleInfo, Spec,
-    StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue, TxState, WorkingSet,
+    StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -159,7 +159,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// Returns the minimum amount of tokens that the sequencer must lock.
-    pub fn get_coins_to_lock(&self, working_set: &mut WorkingSet<S>) -> Coins {
+    pub fn get_coins_to_lock(&self, working_set: &mut impl StateReader<User>) -> Coins {
         let amount = self
             .minimum_bond
             .get(working_set)
@@ -313,6 +313,17 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         self.allowed_sequencers
             .get(sender, working_set)
             .map(|s| s.balance)
+    }
+
+    /// Returns the rollup address of the sequencer with the given DA address.
+    pub fn get_sequencer_address(
+        &self,
+        da_address: Da::Address,
+        state_accessor: &mut impl StateAccessor,
+    ) -> Option<S::Address> {
+        self.allowed_sequencers
+            .get(&da_address, state_accessor)
+            .map(|s| s.address)
     }
 
     /// Slash the sequencer with the given address.

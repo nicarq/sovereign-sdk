@@ -122,10 +122,7 @@ fn check_reward(
 
     // Assert that the prover's bond amount has not been burned
     assert_eq!(
-        module
-            .get_bond_amount(prover_address, working_set)
-            .unwrap()
-            .value,
+        module.get_bond_amount(prover_address, working_set),
         BOND_AMOUNT
     );
 
@@ -177,10 +174,7 @@ fn check_penalization_if_proven_again(
 
     // Assert that the prover's bond amount has been penalized
     assert_eq!(
-        module
-            .get_bond_amount(prover_address, working_set)
-            .unwrap()
-            .value,
+        module.get_bond_amount(prover_address, working_set),
         BOND_AMOUNT - proving_penalty
     );
 }
@@ -214,13 +208,7 @@ fn check_unbonding(
     );
 
     // Check that the prover has been unbonded
-    assert_eq!(
-        module
-            .get_bond_amount(prover_address, working_set)
-            .unwrap()
-            .value,
-        0
-    );
+    assert_eq!(module.get_bond_amount(prover_address, working_set), 0);
 
     // Check the amount on the prover's balance
     assert_eq!(

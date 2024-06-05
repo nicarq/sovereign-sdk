@@ -7,6 +7,7 @@ use sov_rest_utils::ApiResult;
 use self::state::StateItemKind;
 use self::types::{ModuleObject, Namespace};
 use super::*;
+use crate::ApiStateAccessor;
 
 /// Trait "alias" for simpler trait bounds.
 pub trait ModuleSendSync: Module + Send + Sync + 'static {}
@@ -24,14 +25,14 @@ pub struct StateItemInfo {
     pub prefix: Prefix,
 }
 
-pub fn maybe_archival_ws<S: Spec>(
-    working_set: WorkingSet<S>,
+pub fn maybe_archival_accessor<S: Spec>(
+    api_state_accessor: ApiStateAccessor<S>,
     height_opt: Option<u64>,
-) -> WorkingSet<S> {
+) -> ApiStateAccessor<S> {
     if let Some(height) = height_opt {
-        working_set.get_archival_at(height)
+        api_state_accessor.get_archival_at(height)
     } else {
-        working_set
+        api_state_accessor
     }
 }
 
