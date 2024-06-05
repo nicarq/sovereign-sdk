@@ -432,7 +432,6 @@ where
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn new(remaining_funds: u64, gas_price: GU::Price) -> Self {
         Self {
             remaining_funds,
