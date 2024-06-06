@@ -33,10 +33,10 @@ impl<S: Spec> Accounts<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         for acc in config.accounts.iter() {
-            if self.accounts.get(&acc.credential_id, working_set).is_some() {
+            if self.accounts.get(&acc.credential_id, state).is_some() {
                 bail!("Account already exists")
             }
 
@@ -44,11 +44,10 @@ impl<S: Spec> Accounts<S> {
                 addr: acc.address.clone(),
             };
 
-            self.accounts
-                .set(&acc.credential_id, &new_account, working_set);
+            self.accounts.set(&acc.credential_id, &new_account, state);
 
             self.credential_ids
-                .set(&acc.address, &vec![acc.credential_id], working_set);
+                .set(&acc.address, &vec![acc.credential_id], state);
         }
 
         Ok(())

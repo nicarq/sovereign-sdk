@@ -25,9 +25,9 @@ impl<S: Spec> Accounts<S> {
     pub fn get_account(
         &self,
         credential_id: CredentialId,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Response<S::Address>> {
-        let response = match self.accounts.get(&credential_id, api_state_accessor) {
+        let response = match self.accounts.get(&credential_id, state) {
             Some(Account { addr }) => Response::AccountExists { addr },
             None => Response::AccountEmpty,
         };

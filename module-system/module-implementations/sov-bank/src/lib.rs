@@ -84,16 +84,16 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::CreateToken {
@@ -103,7 +103,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
                 mint_to_address,
                 authorized_minters,
             } => {
-                self.charge_gas(working_set, &self.gas.create_token)?;
+                self.charge_gas(state, &self.gas.create_token)?;
 
                 let authorized_minters = authorized_minters
                     .iter()
@@ -117,33 +117,33 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
                     &mint_to_address,
                     authorized_minters,
                     context.sender(),
-                    working_set,
+                    state,
                 )?;
                 Ok(CallResponse::default())
             }
 
             call::CallMessage::Transfer { to, coins } => {
-                self.charge_gas(working_set, &self.gas.create_token)?;
-                Ok(self.transfer(&to, coins, context, working_set)?)
+                self.charge_gas(state, &self.gas.create_token)?;
+                Ok(self.transfer(&to, coins, context, state)?)
             }
 
             call::CallMessage::Burn { coins } => {
-                self.charge_gas(working_set, &self.gas.burn)?;
-                Ok(self.burn_from_eoa(coins, context, working_set)?)
+                self.charge_gas(state, &self.gas.burn)?;
+                Ok(self.burn_from_eoa(coins, context, state)?)
             }
 
             call::CallMessage::Mint {
                 coins,
                 mint_to_address,
             } => {
-                self.charge_gas(working_set, &self.gas.mint)?;
-                self.mint_from_eoa(&coins, &mint_to_address, context, working_set)?;
+                self.charge_gas(state, &self.gas.mint)?;
+                self.mint_from_eoa(&coins, &mint_to_address, context, state)?;
                 Ok(CallResponse::default())
             }
 
             call::CallMessage::Freeze { token_id } => {
-                self.charge_gas(working_set, &self.gas.freeze)?;
-                Ok(self.freeze(token_id, context, working_set)?)
+                self.charge_gas(state, &self.gas.freeze)?;
+                Ok(self.freeze(token_id, context, state)?)
             }
         }
     }

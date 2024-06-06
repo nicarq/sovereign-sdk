@@ -15,17 +15,13 @@ fn test_two_phase_unbonding() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let working_set = WorkingSet::new(storage.clone());
-    let (module, attester_address, _, sequencer, mut working_set) = setup(working_set);
+    let state = WorkingSet::new(storage.clone());
+    let (module, attester_address, _, sequencer, mut state) = setup(state);
 
     // Assert that the attester has the correct bond amount before processing the proof
     assert_eq!(
         module
-            .get_bond_amount(
-                attester_address,
-                crate::call::Role::Attester,
-                &mut working_set
-            )
+            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)
             .value,
         BOND_AMOUNT
     );
@@ -41,12 +37,12 @@ fn test_two_phase_unbonding() {
     {
         // Should fail
         let err = module
-            .end_unbond_attester(&context, &mut working_set)
+            .end_unbond_attester(&context, &mut state)
             .unwrap_err();
         assert_eq!(err, AttesterIncentiveErrors::AttesterIsNotUnbonding);
     }
 
-    let state_checkpoint = working_set.checkpoint().0;
+    let state_checkpoint = state.checkpoint().0;
     commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
@@ -58,10 +54,10 @@ fn test_two_phase_unbonding() {
         &attester_address,
     );
 
-    let mut working_set = state_checkpoint.to_working_set_unmetered();
+    let mut state = state_checkpoint.to_working_set_unmetered();
     // Start unbonding and then try to prove a transition. User slashed
     module
-        .begin_unbond_attester(&context, &mut working_set)
+        .begin_unbond_attester(&context, &mut state)
         .expect("Should succeed");
 
     let _transition_2 = exec_vars.pop().unwrap();
@@ -81,7 +77,7 @@ fn test_two_phase_unbonding() {
         };
 
         let err = module
-            .process_attestation(&context, attestation.into(), &mut working_set)
+            .process_attestation(&context, attestation.into(), &mut state)
             .unwrap_err();
 
         assert_eq!(
@@ -96,7 +92,7 @@ fn test_two_phase_unbonding() {
                 BOND_AMOUNT,
                 &attester_address,
                 crate::call::Role::Attester,
-                &mut working_set,
+                &mut state,
             )
             .unwrap_err();
 
@@ -114,7 +110,7 @@ fn test_two_phase_unbonding() {
                 BOND_AMOUNT,
                 &attester_address,
                 crate::call::Role::Attester,
-                &mut working_set,
+                &mut state,
             )
             .unwrap_err();
 
@@ -131,7 +127,7 @@ fn test_two_phase_unbonding() {
     {
         // Should fail
         let err = module
-            .end_unbond_attester(&context, &mut working_set)
+            .end_unbond_attester(&context, &mut state)
             .unwrap_err();
         assert_eq!(err, AttesterIncentiveErrors::UnbondingNotFinalized);
     }
@@ -140,17 +136,15 @@ fn test_two_phase_unbonding() {
     {
         let initial_account_balance = module
             .bank
-            .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut working_set)
+            .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut state)
             .unwrap();
 
         // Start unbonding the user: should succeed
-        module
-            .begin_unbond_attester(&context, &mut working_set)
-            .unwrap();
+        module.begin_unbond_attester(&context, &mut state).unwrap();
 
         let unbonding_info = module
             .unbonding_attesters
-            .get(&attester_address, &mut working_set)
+            .get(&attester_address, &mut state)
             .unwrap();
 
         assert_eq!(
@@ -161,19 +155,17 @@ fn test_two_phase_unbonding() {
         // Wait for the light client to finalize
         module
             .light_client_finalized_height
-            .set(&(INIT_HEIGHT + DEFAULT_ROLLUP_FINALITY), &mut working_set);
+            .set(&(INIT_HEIGHT + DEFAULT_ROLLUP_FINALITY), &mut state);
 
         // Finish the unbonding: should succeed
-        module
-            .end_unbond_attester(&context, &mut working_set)
-            .unwrap();
+        module.end_unbond_attester(&context, &mut state).unwrap();
 
         // Check that the final balance is the same as the initial balance
         assert_eq!(
             initial_account_balance + BOND_AMOUNT,
             module
                 .bank
-                .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut working_set)
+                .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut state)
                 .unwrap(),
             "The initial and final account balance don't match"
         );

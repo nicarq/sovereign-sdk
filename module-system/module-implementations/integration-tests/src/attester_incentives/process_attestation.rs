@@ -25,11 +25,11 @@ impl AttesterIncentivesTestHandler {
             self.attester_stake
         );
 
-        let mut working_set = WorkingSet::<S>::new(rollup.storage());
+        let mut state = WorkingSet::<S>::new(rollup.storage());
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state),
             Some(self.attester_balance - self.attester_stake)
         );
     }
@@ -48,11 +48,11 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(tx_receipt.receipt, TxEffect::Successful);
 
         // We have to check that the attester was rewarded with its stake.
-        let mut working_set = WorkingSet::<S>::new(rollup.storage());
+        let mut state = WorkingSet::<S>::new(rollup.storage());
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state),
             Some(honest_attester_new_balance)
         );
     }
@@ -164,12 +164,12 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(rollup.get_maximum_attested_height(), 3);
 
         // We have to check that the attester was rewarded correctly.
-        let mut working_set = WorkingSet::<S>::new(rollup.storage());
+        let mut state = WorkingSet::<S>::new(rollup.storage());
 
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state),
             Some(expected_attester_balance)
         );
     }

@@ -44,7 +44,7 @@ pub mod first_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            _working_set: &mut impl sov_modules_api::GenesisState<S>,
+            _state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
             Ok(())
         }
@@ -53,7 +53,7 @@ pub mod first_test_module {
             &self,
             _msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut impl TxState<S>,
+            _state: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
             Ok(CallResponse::default())
         }
@@ -98,7 +98,7 @@ pub mod second_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            _working_set: &mut impl sov_modules_api::GenesisState<S>,
+            _state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
             Ok(())
         }
@@ -107,7 +107,7 @@ pub mod second_test_module {
             &self,
             _msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut impl TxState<S>,
+            _state: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
             Ok(CallResponse::default())
         }

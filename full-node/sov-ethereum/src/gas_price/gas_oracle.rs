@@ -117,13 +117,10 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
     }
 
     /// Suggests a gas price estimate based on recent blocks, using the configured percentile.
-    pub async fn suggest_tip_cap(
-        &self,
-        api_state_accessor: &mut ApiStateAccessor<S>,
-    ) -> EthResult<U256> {
+    pub async fn suggest_tip_cap(&self, state: &mut ApiStateAccessor<S>) -> EthResult<U256> {
         let header = &self
             .provider
-            .get_block_by_number(None, None, api_state_accessor)
+            .get_block_by_number(None, None, state)
             .unwrap()
             .unwrap()
             .header;
@@ -155,7 +152,7 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
 
         for _ in 0..max_blocks {
             let (parent_hash, block_values) = self
-                .get_block_values(current_hash, SAMPLE_NUMBER as usize, api_state_accessor)
+                .get_block_values(current_hash, SAMPLE_NUMBER as usize, state)
                 .await?
                 .ok_or(EthApiError::UnknownBlockNumber)?;
 
@@ -209,10 +206,10 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
         &self,
         block_hash: B256,
         limit: usize,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> EthResult<Option<(B256, Vec<U256>)>> {
         // check the cache (this will hit the disk if the block is not cached)
-        let block = match self.cache.get_block(block_hash, api_state_accessor)? {
+        let block = match self.cache.get_block(block_hash, state)? {
             Some(block) => block,
             None => return Ok(None),
         };

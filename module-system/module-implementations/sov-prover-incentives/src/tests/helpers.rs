@@ -239,10 +239,10 @@ pub(crate) fn setup() -> (
 pub(crate) fn get_transition_unwrap(
     transition_num: u64,
     module: &ProverIncentives<S, Da>,
-    working_set: &mut WorkingSet<S>,
+    state: &mut WorkingSet<S>,
 ) -> StateTransition<S, Da> {
     module
         .chain_state
-        .get_historical_transitions(transition_num, working_set)
+        .get_historical_transitions(transition_num, state)
         .expect("transition must exist")
 }

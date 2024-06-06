@@ -343,7 +343,7 @@ mod utils {
                     continue;
                 };
 
-                if ident != "api_state_accessor" && ident != "_api_state_accessor" {
+                if ident != "state" && ident != "_state" {
                     continue;
                 }
 

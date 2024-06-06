@@ -26,36 +26,36 @@ fn genesis_and_mint() {
     };
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let nft = NonFungibleToken::default();
 
     // Genesis
-    let genesis_result = nft.genesis(&config, &mut working_set);
+    let genesis_result = nft.genesis(&config, &mut state);
     assert!(genesis_result.is_ok());
 
-    let query1: OwnerResponse<S> = nft.get_owner(0, &mut working_set);
+    let query1: OwnerResponse<S> = nft.get_owner(0, &mut state);
     assert_eq!(query1.owner, Some(owner1));
 
-    let query2: OwnerResponse<S> = nft.get_owner(1, &mut working_set);
+    let query2: OwnerResponse<S> = nft.get_owner(1, &mut state);
     assert!(query2.owner.is_none());
 
     // Mint, anybody can mint
     let mint_message = CallMessage::Mint { id: 1 };
     let owner2_context = Context::<S>::new(owner2, Default::default(), sequencer, 1);
-    nft.call(mint_message.clone(), &owner2_context, &mut working_set)
+    nft.call(mint_message.clone(), &owner2_context, &mut state)
         .expect("Minting failed");
 
-    let typed_event = working_set.take_event(0).unwrap();
+    let typed_event = state.take_event(0).unwrap();
 
     assert_eq!(
         typed_event.downcast::<Event>().unwrap(),
         Event::Mint { id: 1 }
     );
-    let query3: OwnerResponse<S> = nft.get_owner(1, &mut working_set);
+    let query3: OwnerResponse<S> = nft.get_owner(1, &mut state);
     assert_eq!(query3.owner, Some(owner2));
 
     // Try to mint again same token, should fail
-    let mint_attempt = nft.call(mint_message, &owner2_context, &mut working_set);
+    let mint_attempt = nft.call(mint_message, &owner2_context, &mut state);
 
     assert!(mint_attempt.is_err());
     let error_message = mint_attempt.err().unwrap().to_string();
@@ -76,14 +76,14 @@ fn transfer() {
         owners: vec![(0, admin), (1, owner1), (2, owner2)],
     };
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let nft = NonFungibleToken::default();
-    nft.genesis(&config, &mut working_set).unwrap();
+    nft.genesis(&config, &mut state).unwrap();
 
     let transfer_message = CallMessage::Transfer { id: 1, to: owner2 };
 
     // admin cannot transfer token of the owner1
-    let transfer_attempt = nft.call(transfer_message.clone(), &admin_context, &mut working_set);
+    let transfer_attempt = nft.call(transfer_message.clone(), &admin_context, &mut state);
 
     assert!(transfer_attempt.is_err());
     let error_message = transfer_attempt.err().unwrap().to_string();
@@ -96,25 +96,25 @@ fn transfer() {
         };
 
     // Normal transfer
-    let token1_owner = query_token_owner(1, &mut working_set);
+    let token1_owner = query_token_owner(1, &mut state);
     assert_eq!(Some(owner1), token1_owner);
-    nft.call(transfer_message, &owner1_context, &mut working_set)
+    nft.call(transfer_message, &owner1_context, &mut state)
         .expect("Transfer failed");
 
-    let typed_event = working_set.take_event(0).unwrap();
+    let typed_event = state.take_event(0).unwrap();
 
     assert_eq!(
         typed_event.downcast::<Event>().unwrap(),
         Event::Transfer { id: 1 }
     );
 
-    let token1_owner = query_token_owner(1, &mut working_set);
+    let token1_owner = query_token_owner(1, &mut state);
     assert_eq!(Some(owner2), token1_owner);
 
     // Attempt to transfer non existing token
     let transfer_message = CallMessage::Transfer { id: 3, to: admin };
 
-    let transfer_attempt = nft.call(transfer_message, &owner1_context, &mut working_set);
+    let transfer_attempt = nft.call(transfer_message, &owner1_context, &mut state);
 
     assert!(transfer_attempt.is_err());
     let error_message = transfer_attempt.err().unwrap().to_string();
@@ -135,35 +135,35 @@ fn burn() {
     };
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let nft = NonFungibleToken::default();
-    nft.genesis(&config, &mut working_set).unwrap();
+    nft.genesis(&config, &mut state).unwrap();
 
     let burn_message = CallMessage::Burn { id: 0 };
 
     // Only owner can burn token
-    let burn_attempt = nft.call(burn_message.clone(), &admin_context, &mut working_set);
+    let burn_attempt = nft.call(burn_message.clone(), &admin_context, &mut state);
 
     assert!(burn_attempt.is_err());
     let error_message = burn_attempt.err().unwrap().to_string();
     assert_eq!("Only token owner can burn token", error_message);
 
     // Normal burn
-    nft.call(burn_message.clone(), &owner1_context, &mut working_set)
+    nft.call(burn_message.clone(), &owner1_context, &mut state)
         .expect("Burn failed");
-    assert!(!working_set.events().is_empty());
+    assert!(!state.events().is_empty());
 
-    let typed_event = working_set.take_event(0).unwrap();
+    let typed_event = state.take_event(0).unwrap();
 
     assert_eq!(
         typed_event.downcast::<Event>().unwrap(),
         Event::Burn { id: 0 }
     );
-    let query: OwnerResponse<S> = nft.get_owner(0, &mut working_set);
+    let query: OwnerResponse<S> = nft.get_owner(0, &mut state);
 
     assert!(query.owner.is_none());
 
-    let burn_attempt = nft.call(burn_message, &owner1_context, &mut working_set);
+    let burn_attempt = nft.call(burn_message, &owner1_context, &mut state);
     assert!(burn_attempt.is_err());
     let error_message = burn_attempt.err().unwrap().to_string();
     assert_eq!("Token with id 0 does not exist", error_message);

@@ -164,17 +164,17 @@ fn test_simple_value_setter_with_chain_state() {
         );
 
         // Computes the new working set after slot application
-        let mut working_set = WorkingSet::new(rollup.storage());
+        let mut state = WorkingSet::new(rollup.storage());
 
         let chain_state_ref: &ChainState<S, MockDaSpec> = test_kernel.chain_state();
 
         // Check that the root hash has been stored correctly
-        let stored_root = chain_state_ref.get_genesis_hash(&mut working_set).unwrap();
+        let stored_root = chain_state_ref.get_genesis_hash(&mut state).unwrap();
 
         assert_eq!(stored_root, init_root_hash, "Root hashes don't match");
 
         // Check the slot number
-        let mut state_checkpoint = working_set.checkpoint().0;
+        let mut state_checkpoint = state.checkpoint().0;
         let mut kernel_working_set =
             KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let new_height_storage = chain_state_ref.true_slot_number(&mut kernel_working_set);

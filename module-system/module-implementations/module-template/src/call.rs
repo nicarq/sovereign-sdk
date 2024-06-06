@@ -26,10 +26,10 @@ impl<S: sov_modules_api::Spec> ExampleModule<S> {
         &self,
         new_value: u32,
         _context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse> {
-        self.value.set(&new_value, working_set);
-        self.emit_event(working_set, "set_value", Event::Set { value: new_value });
+        self.value.set(&new_value, state);
+        self.emit_event(state, "set_value", Event::Set { value: new_value });
 
         Ok(CallResponse::default())
     }

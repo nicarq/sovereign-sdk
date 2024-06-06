@@ -34,18 +34,18 @@ fn test_value_setter() {
 fn test_value_setter_helper<S: Spec>(
     context: Context<S>,
     config: &ValueSetterConfig<S>,
-    working_set: &mut WorkingSet<S>,
+    state: &mut WorkingSet<S>,
 ) {
     let module = ValueSetter::<S>::default();
-    module.genesis(config, working_set).unwrap();
+    module.genesis(config, state).unwrap();
 
     let new_value = 99;
     let call_msg = call::CallMessage::SetValue(new_value);
 
     // Test events
     {
-        module.call(call_msg, &context, working_set).unwrap();
-        let typed_event = working_set.take_event(0).unwrap();
+        module.call(call_msg, &context, state).unwrap();
+        let typed_event = state.take_event(0).unwrap();
         assert_eq!(
             typed_event.downcast::<Event>().unwrap(),
             Event::NewValue(99)
@@ -53,7 +53,7 @@ fn test_value_setter_helper<S: Spec>(
     }
 
     // Test query
-    assert_eq!(module.value.get(working_set), Some(new_value));
+    assert_eq!(module.value.get(state), Some(new_value));
 }
 
 #[test]
@@ -91,11 +91,11 @@ fn test_err_on_sender_is_not_admin() {
 fn test_err_on_sender_is_not_admin_helper<S: Spec>(
     context: Context<S>,
     config: &ValueSetterConfig<S>,
-    working_set: &mut WorkingSet<S>,
+    state: &mut WorkingSet<S>,
 ) {
     let module = ValueSetter::<S>::default();
-    module.genesis(config, working_set).unwrap();
-    let resp = module.set_value(11, &context, working_set);
+    module.genesis(config, state).unwrap();
+    let resp = module.set_value(11, &context, state);
 
     assert!(resp.is_err());
 }

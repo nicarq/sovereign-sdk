@@ -262,14 +262,14 @@ where
         user: &S::Address,
         role: Role,
         reason: SlashingReason,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> u64 {
         let bonded_set = match role {
             Role::Attester => {
                 // We have to remove the attester from the unbonding set
                 // to prevent him from skipping the first phase
                 // unbonding if he bonds himself again.
-                self.unbonding_attesters.remove(user, working_set);
+                self.unbonding_attesters.remove(user, state);
 
                 &self.bonded_attesters
             }
@@ -277,12 +277,12 @@ where
         };
 
         // We have to deplete the attester's bonded account, it amounts to removing the attester from the bonded set
-        let reward = bonded_set.get(user, working_set).unwrap_or_default();
-        bonded_set.remove(user, working_set);
+        let reward = bonded_set.get(user, state).unwrap_or_default();
+        bonded_set.remove(user, state);
 
         // We raise an event
         self.emit_event(
-            working_set,
+            state,
             "user_slashed",
             Event::<S>::UserSlashed {
                 address: user.clone(),
@@ -298,9 +298,9 @@ where
         user: &S::Address,
         role: Role,
         reason: SlashingReason,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> AttesterIncentiveErrors {
-        self.slash_user(user, role, reason, working_set);
+        self.slash_user(user, role, reason, state);
         AttesterIncentiveErrors::UserSlashed(reason)
     }
 
@@ -310,18 +310,17 @@ where
         attester: &S::Address,
         height: TransitionHeight,
         reason: SlashingReason,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> AttesterIncentiveErrors {
-        let reward = self.slash_user(attester, Role::Attester, reason, working_set);
+        let reward = self.slash_user(attester, Role::Attester, reason, state);
 
         let curr_reward_value = self
             .bad_transition_pool
-            .get(&height, working_set)
+            .get(&height, state)
             .unwrap_or_default();
 
         let new_value = curr_reward_value.saturating_add(reward);
-        self.bad_transition_pool
-            .set(&height, &new_value, working_set);
+        self.bad_transition_pool.set(&height, &new_value, state);
 
         AttesterIncentiveErrors::UserSlashed(reason)
     }
@@ -332,13 +331,13 @@ where
         &self,
         context: &Context<S>,
         amount: u64,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Result<CallResponse, AttesterIncentiveErrors> {
         self.transfer_tokens_to_sender(
             context,
             // Note: if we have an empty block, the attester will pay more than the reward (because of the transaction cost)
             self.burn_rate().apply(amount),
-            working_set,
+            state,
         )
     }
 
@@ -346,7 +345,7 @@ where
         &self,
         context: &Context<S>,
         amount: u64,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Result<CallResponse, AttesterIncentiveErrors> {
         let coins = Coins {
             token_id: GAS_TOKEN_ID,
@@ -355,7 +354,7 @@ where
 
         // The reward tokens are unlocked from the module's id.
         self.bank
-            .transfer_from(self.id.to_payable(), context.sender(), coins, working_set)
+            .transfer_from(self.id.to_payable(), context.sender(), coins, state)
             .map_err(|_err| AttesterIncentiveErrors::RewardTransferFailure)?;
 
         Ok(CallResponse::default())
@@ -368,15 +367,10 @@ where
         bond_amount: u64,
         user_address: &S::Address,
         role: Role,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, AttesterIncentiveErrors> {
         // If the user is an attester, we have to check that he's not trying to unbond
-        if role == Role::Attester
-            && self
-                .unbonding_attesters
-                .get(user_address, working_set)
-                .is_some()
-        {
+        if role == Role::Attester && self.unbonding_attesters.get(user_address, state).is_some() {
             return Err(AttesterIncentiveErrors::AttesterIsUnbonding);
         }
 
@@ -388,7 +382,7 @@ where
         };
 
         self.bank
-            .transfer_from(user_address, self.id.to_payable(), coins, working_set)
+            .transfer_from(user_address, self.id.to_payable(), coins, state)
             .map_err(|_err| AttesterIncentiveErrors::BondTransferFailure)?;
 
         let balances = match role {
@@ -398,19 +392,19 @@ where
 
         // Update our record of the total bonded amount for the sender.
         // This update is infallible, so no value can be destroyed.
-        let old_balance = balances.get(user_address, working_set).unwrap_or_default();
+        let old_balance = balances.get(user_address, state).unwrap_or_default();
         let total_balance = old_balance
             .checked_add(bond_amount)
             .with_context(|| {
                 anyhow::anyhow!("The total balance overflows with the given operation")
             })
             .map_err(|_| AttesterIncentiveErrors::BondTransferFailure)?;
-        balances.set(user_address, &total_balance, working_set);
+        balances.set(user_address, &total_balance, state);
 
         // Emit the bonding event
         match role {
             Role::Attester => self.emit_event(
-                working_set,
+                state,
                 "bonded_attester",
                 Event::<S>::BondedAttester {
                     new_deposit: bond_amount,
@@ -418,7 +412,7 @@ where
                 },
             ),
             Role::Challenger => self.emit_event(
-                working_set,
+                state,
                 "bonded_challenger",
                 Event::<S>::BondedChallenger {
                     new_deposit: bond_amount,
@@ -434,17 +428,17 @@ where
     pub(crate) fn unbond_challenger(
         &self,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse> {
         // Get the user's old balance.
-        if let Some(old_balance) = self.bonded_challengers.get(context.sender(), working_set) {
+        if let Some(old_balance) = self.bonded_challengers.get(context.sender(), state) {
             // Transfer the bond amount from the sender to the module's id.
             // On failure, no state is changed
-            self.transfer_tokens_to_sender(context, old_balance, working_set)?;
+            self.transfer_tokens_to_sender(context, old_balance, state)?;
 
             // Emit the unbonding event
             self.emit_event(
-                working_set,
+                state,
                 "unbond_challenger",
                 Event::<S>::UnbondedChallenger {
                     amount_withdrawn: old_balance,
@@ -462,17 +456,17 @@ where
     pub(crate) fn begin_unbond_attester(
         &self,
         context: &Context<S>,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         // First get the bonded attester
-        if let Some(bond) = self.bonded_attesters.get(context.sender(), working_set) {
+        if let Some(bond) = self.bonded_attesters.get(context.sender(), state) {
             let finalized_height = self
                 .light_client_finalized_height
-                .get(working_set)
+                .get(state)
                 .expect("Must be set at genesis");
 
             // Remove the attester from the bonding set
-            self.bonded_attesters.remove(context.sender(), working_set);
+            self.bonded_attesters.remove(context.sender(), state);
 
             // Then add the bonded attester to the unbonding set, with the current finalized height
             self.unbonding_attesters.set(
@@ -481,7 +475,7 @@ where
                     unbonding_initiated_height: finalized_height,
                     amount: bond,
                 },
-                working_set,
+                state,
             );
         }
 
@@ -491,19 +485,19 @@ where
     pub(crate) fn end_unbond_attester(
         &self,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         // We have to ensure that the attester is unbonding, and that the unbonding transaction
         // occurred at least `finality_period` blocks ago to let the attester unbond
-        if let Some(unbonding_info) = self.unbonding_attesters.get(context.sender(), working_set) {
+        if let Some(unbonding_info) = self.unbonding_attesters.get(context.sender(), state) {
             // These two constants should always be set beforehand, hence we can panic if they're not set
             let curr_height = self
                 .light_client_finalized_height
-                .get(working_set)
+                .get(state)
                 .expect("Should be defined at genesis");
             let finality_period = self
                 .rollup_finality_period
-                .get(working_set)
+                .get(state)
                 .expect("Should be defined at genesis");
 
             if unbonding_info
@@ -517,15 +511,14 @@ where
             // Get the user's old balance.
             // Transfer the bond amount from the sender to the module's id.
             // On failure, no state is changed
-            self.transfer_tokens_to_sender(context, unbonding_info.amount, working_set)?;
+            self.transfer_tokens_to_sender(context, unbonding_info.amount, state)?;
 
             // Update our internal tracking of the total bonded amount for the sender.
-            self.bonded_attesters.remove(context.sender(), working_set);
-            self.unbonding_attesters
-                .remove(context.sender(), working_set);
+            self.bonded_attesters.remove(context.sender(), state);
+            self.unbonding_attesters.remove(context.sender(), state);
 
             self.emit_event(
-                working_set,
+                state,
                 "unbond_challenger",
                 Event::<S>::UnbondedChallenger {
                     amount_withdrawn: unbonding_info.amount,
@@ -549,7 +542,7 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<(), AttesterIncentiveErrors> {
         let bonding_root = {
             // If we cannot get the transition before the current one, it means that we are trying
@@ -563,12 +556,12 @@ where
             );
             if let Some(transition) = self
                 .chain_state
-                .get_historical_transitions(transition_height, working_set)
+                .get_historical_transitions(transition_height, state)
             {
                 transition.post_state_root().clone()
             } else {
                 self.chain_state
-                    .get_genesis_hash(working_set)
+                    .get_genesis_hash(state)
                     .expect("The genesis hash should be set at genesis")
             }
         };
@@ -588,7 +581,7 @@ where
 
         let minimum_bond = self
             .minimum_attester_bond
-            .get_or_err(working_set)
+            .get_or_err(state)
             .expect("The minimum bond should be set at genesis");
 
         // We then have to check that the bond was greater than the minimum bond
@@ -609,11 +602,11 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         if let Some(curr_tx) = self
             .chain_state
-            .get_historical_transitions(claimed_transition_height, working_set)
+            .get_historical_transitions(claimed_transition_height, state)
         {
             // We first need to compare the initial block hash to the previous post state root
             if !curr_tx.compare_hashes(&attestation.slot_hash, &attestation.post_state_root) {
@@ -631,7 +624,7 @@ where
                     attester,
                     claimed_transition_height,
                     SlashingReason::TransitionInvalid,
-                    working_set,
+                    state,
                 ));
             }
             Ok(CallResponse::default())
@@ -641,7 +634,7 @@ where
                 attester,
                 Role::Attester,
                 SlashingReason::TransitionNotFound,
-                working_set,
+                state,
             ))
         }
     }
@@ -656,12 +649,12 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         // Normal state
         if let Some(transition) = self
             .chain_state
-            .get_historical_transitions(claimed_transition_height.saturating_sub(1), working_set)
+            .get_historical_transitions(claimed_transition_height.saturating_sub(1), state)
         {
             if transition.post_state_root() != &attestation.initial_state_root {
                 // The initial root hashes don't match, just slash the attester
@@ -669,7 +662,7 @@ where
                     attester,
                     Role::Attester,
                     SlashingReason::InvalidInitialHash,
-                    working_set,
+                    state,
                 ));
             }
         } else {
@@ -688,13 +681,13 @@ where
                     attester,
                     Role::Attester,
                     SlashingReason::TransitionNotFound,
-                    working_set,
+                    state,
                 ));
             }
 
             if self
                 .chain_state
-                .get_genesis_hash(working_set)
+                .get_genesis_hash(state)
                 .expect("The initial hash should be set")
                 != attestation.initial_state_root
             {
@@ -703,7 +696,7 @@ where
                     attester,
                     Role::Attester,
                     SlashingReason::InvalidInitialHash,
-                    working_set,
+                    state,
                 ));
             }
 
@@ -725,33 +718,29 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         let attestation = attestation.inner;
         // We first need to check that the attester is still in the bonding set
-        if self
-            .bonded_attesters
-            .get(context.sender(), working_set)
-            .is_none()
-        {
+        if self.bonded_attesters.get(context.sender(), state).is_none() {
             return Err(AttesterIncentiveErrors::UserNotBonded);
         }
 
         // If the bonding proof in the attestation is invalid, light clients will ignore the attestation. In that case, we should too.
-        self.check_bonding_proof(context, &attestation, working_set)?;
+        self.check_bonding_proof(context, &attestation, state)?;
 
         // We suppose that these values are always defined, otherwise we panic
         let last_attested_height = self
             .maximum_attested_height
-            .get(working_set)
+            .get(state)
             .expect("The maximum attested height should be set at genesis");
         let current_finalized_height = self
             .light_client_finalized_height
-            .get(working_set)
+            .get(state)
             .expect("The light client finalized height should be set at genesis");
         let finality = self
             .rollup_finality_period
-            .get(working_set)
+            .get(state)
             .expect("The rollup finality period should be set at genesis");
 
         assert!(
@@ -788,7 +777,7 @@ where
             attestation.proof_of_bond.claimed_transition_num,
             context.sender(),
             &attestation,
-            working_set,
+            state,
         ) {
             error!(
                 error = ?err,
@@ -802,7 +791,7 @@ where
             attestation.proof_of_bond.claimed_transition_num,
             context.sender(),
             &attestation,
-            working_set,
+            state,
         ) {
             error!(
                 error = ?err,
@@ -812,7 +801,7 @@ where
         }
 
         self.emit_event(
-            working_set,
+            state,
             "process_attestation",
             Event::<S>::ProcessedValidAttestation {
                 attester: context.sender().clone(),
@@ -825,16 +814,16 @@ where
             // We reward the attester with the amount of gas used for the transition.
             let transition = self
                 .chain_state
-                .get_historical_transitions(new_height_to_attest, working_set)
+                .get_historical_transitions(new_height_to_attest, state)
                 .expect("The transition should exist. The check has been done above");
 
             let reward = transition.gas_used().value(transition.gas_price());
 
             // Update the maximum attested height
             self.maximum_attested_height
-                .set(&(new_height_to_attest), working_set);
+                .set(&(new_height_to_attest), state);
 
-            self.reward_sender(context, reward, working_set)?;
+            self.reward_sender(context, reward, state)?;
         }
 
         // Then we can optimistically process the transaction
@@ -845,22 +834,22 @@ where
         &self,
         public_outputs: StateTransitionPublicData<Da, <S::Storage as Storage>::Root>,
         height: &TransitionHeight,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<(), SlashingReason> {
         let transition = self
             .chain_state
-            .get_historical_transitions(*height, working_set)
+            .get_historical_transitions(*height, state)
             .ok_or(SlashingReason::TransitionInvalid)?;
 
         let initial_hash = {
             if let Some(prev_transition) = self
                 .chain_state
-                .get_historical_transitions(height.saturating_sub(1), working_set)
+                .get_historical_transitions(height.saturating_sub(1), state)
             {
                 prev_transition.post_state_root().clone()
             } else {
                 self.chain_state
-                    .get_genesis_hash(working_set)
+                    .get_genesis_hash(state)
                     .expect("The genesis hash should be set")
             }
         };
@@ -888,19 +877,19 @@ where
         context: &Context<S>,
         proof: &[u8],
         transition_num: &TransitionHeight,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
         // Get the challenger's old balance.
         // Revert if they aren't bonded
         let old_balance = self
             .bonded_challengers
-            .get_or_err(context.sender(), working_set)
+            .get_or_err(context.sender(), state)
             .map_err(|_| AttesterIncentiveErrors::UserNotBonded)?;
 
         // Check that the challenger has enough balance to process the proof.
         let minimum_bond = self
             .minimum_challenger_bond
-            .get(working_set)
+            .get(state)
             .expect("Should be set at genesis");
 
         if old_balance < minimum_bond {
@@ -909,32 +898,30 @@ where
 
         let code_commitment = self
             .chain_state
-            .inner_code_commitment(working_set)
+            .inner_code_commitment(state)
             .expect("Should be set at genesis");
 
         // Find the faulty attestation pool and get the associated reward
-        let attestation_reward: u64 = match self
-            .bad_transition_pool
-            .get_or_err(transition_num, working_set)
-        {
-            Ok(reward) => reward,
-            Err(err) => {
-                let slash_err = self.slash_burn_reward(
-                    context.sender(),
-                    Role::Challenger,
-                    SlashingReason::NoInvalidTransition,
-                    working_set,
-                );
+        let attestation_reward: u64 =
+            match self.bad_transition_pool.get_or_err(transition_num, state) {
+                Ok(reward) => reward,
+                Err(err) => {
+                    let slash_err = self.slash_burn_reward(
+                        context.sender(),
+                        Role::Challenger,
+                        SlashingReason::NoInvalidTransition,
+                        state,
+                    );
 
-                error!(
+                    error!(
                     error = ?slash_err,
                     ?err,
                     transition_num,
                     "Impossible to find the bad transition associated with the transition");
 
-                return Ok(CallResponse::default());
-            }
-        };
+                    return Ok(CallResponse::default());
+                }
+            };
 
         let public_outputs_opt = <S::InnerZkvm as Zkvm>::verify::<
             StateTransitionPublicData<Da, <S::Storage as Storage>::Root>,
@@ -948,14 +935,10 @@ where
                 if let Err(err) = self.check_challenge_outputs_against_transition(
                     public_output,
                     transition_num,
-                    working_set,
+                    state,
                 ) {
-                    let err = self.slash_burn_reward(
-                        context.sender(),
-                        Role::Challenger,
-                        err,
-                        working_set,
-                    );
+                    let err =
+                        self.slash_burn_reward(context.sender(), Role::Challenger, err, state);
                     error!(
                         error = ?err,
                         "Error raised when checking the challenge outputs against the transition");
@@ -964,13 +947,13 @@ where
                 };
 
                 // Reward the sender
-                self.reward_sender(context, attestation_reward, working_set)?;
+                self.reward_sender(context, attestation_reward, state)?;
 
                 // Now remove the bad transition from the pool
-                self.bad_transition_pool.remove(transition_num, working_set);
+                self.bad_transition_pool.remove(transition_num, state);
 
                 self.emit_event(
-                    working_set,
+                    state,
                     "process_challenge",
                     Event::<S>::ProcessedValidProof {
                         challenger: context.sender().clone(),
@@ -983,7 +966,7 @@ where
                     context.sender(),
                     Role::Challenger,
                     SlashingReason::InvalidProofOutputs,
-                    working_set,
+                    state,
                 );
 
                 error!(

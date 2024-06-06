@@ -84,9 +84,9 @@ impl<S: sov_modules_api::Spec> Evm<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(state);
 
         for acc in &config.data {
             evm_db.insert_account_info(
@@ -135,7 +135,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             base_fee_params: config.base_fee_params,
         };
 
-        self.cfg.set(&chain_cfg, working_set);
+        self.cfg.set(&chain_cfg, state);
 
         let header = reth_primitives::Header {
             parent_hash: B256::default(),
@@ -169,10 +169,10 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             transactions: 0u64..0u64,
         };
 
-        self.head.set(&block, working_set);
+        self.head.set(&block, state);
         #[cfg(feature = "native")]
         {
-            self.pending_head.set(&block, working_set);
+            self.pending_head.set(&block, state);
         }
 
         Ok(())

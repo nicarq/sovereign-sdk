@@ -15,11 +15,11 @@ where
     pub fn begin_slot_hook(
         &self,
         pre_state_user_root: S::VisibleHash,
-        versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
+        state: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
         let mut parent_block = self
             .head
-            .get(versioned_working_set.get_ws_mut())
+            .get(state.get_ws_mut())
             .expect("Head block should always be set");
 
         let pre_state_user_root: [u8; 32] = pre_state_user_root.into();
@@ -27,13 +27,9 @@ where
         parent_block.header.state_root =
             // We have to force the conversion to [u8;32] to prevent the `from_slice` method from panicking
             B256::from_slice(&pre_state_user_root);
-        self.head
-            .set(&parent_block, versioned_working_set.get_ws_mut());
+        self.head.set(&parent_block, state.get_ws_mut());
 
-        let cfg = self
-            .cfg
-            .get(versioned_working_set.get_ws_mut())
-            .unwrap_or_default();
+        let cfg = self.cfg.get(state.get_ws_mut()).unwrap_or_default();
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block.header.number.wrapping_add(1)),
@@ -58,23 +54,22 @@ where
             difficulty: Default::default(),
             blob_excess_gas_and_price: None,
         };
-        self.block_env
-            .set(&new_pending_env, versioned_working_set.get_ws_mut());
+        self.block_env.set(&new_pending_env, state.get_ws_mut());
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
-    pub fn end_slot_hook(&self, working_set: &mut StateCheckpoint<S>) {
-        let cfg = self.cfg.get(working_set).unwrap_or_default();
+    pub fn end_slot_hook(&self, state: &mut StateCheckpoint<S>) {
+        let cfg = self.cfg.get(state).unwrap_or_default();
 
         let block_env = self
             .block_env
-            .get(working_set)
+            .get(state)
             .expect("Pending block should always be set");
 
         let parent_block = self
             .head
-            .get(working_set)
+            .get(state)
             .expect("Head block should always be set")
             .seal();
 
@@ -88,9 +83,9 @@ where
         );
 
         let pending_transactions: Vec<PendingTransaction> =
-            self.pending_transactions.iter(working_set).collect();
+            self.pending_transactions.iter(state).collect();
 
-        self.pending_transactions.clear(working_set);
+        self.pending_transactions.clear(state);
 
         let start_tx_index = parent_block.transactions.end;
 
@@ -145,11 +140,11 @@ where
                 ..start_tx_index.saturating_add(pending_transactions.len() as u64),
         };
 
-        self.head.set(&block, working_set);
+        self.head.set(&block, state);
 
         #[cfg(feature = "native")]
         {
-            let mut accessory_state = working_set.accessory_state();
+            let mut accessory_state = state.accessory_state();
             self.pending_head.set(&block, &mut accessory_state);
 
             let mut tx_index = start_tx_index;
@@ -171,7 +166,7 @@ where
             }
         }
 
-        self.pending_transactions.clear(working_set);
+        self.pending_transactions.clear(state);
     }
 
     /// This logic is executed after calculating the root hash.
@@ -182,11 +177,11 @@ where
     pub fn finalize_hook(
         &self,
         root_hash: S::VisibleHash,
-        accessory_state: &mut impl StateReaderAndWriter<Accessory>,
+        state: &mut impl StateReaderAndWriter<Accessory>,
     ) {
-        let expected_block_number = self.blocks.len(accessory_state) as u64;
+        let expected_block_number = self.blocks.len(state) as u64;
 
-        let mut block = self.pending_head.get(accessory_state).unwrap_or_else(|| {
+        let mut block = self.pending_head.get(state).unwrap_or_else(|| {
             panic!(
                 "Pending head must be set to block {}, but was empty",
                 expected_block_number
@@ -204,12 +199,12 @@ where
 
         let sealed_block = block.seal();
 
-        self.blocks.push(&sealed_block, accessory_state);
+        self.blocks.push(&sealed_block, state);
         self.block_hashes.set(
             &sealed_block.header.hash(),
             &sealed_block.header.number,
-            accessory_state,
+            state,
         );
-        self.pending_head.delete(accessory_state);
+        self.pending_head.delete(state);
     }
 }

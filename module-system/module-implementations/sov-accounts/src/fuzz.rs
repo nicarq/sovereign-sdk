@@ -49,16 +49,16 @@ where
     S::Address: Arbitrary<'a>,
     <S::CryptoSpec as CryptoSpec>::PublicKey: Arbitrary<'a>,
 {
-    /// Creates an arbitrary set of accounts and stores it under `working_set`.
+    /// Creates an arbitrary set of accounts and stores it under `state`.
     pub fn arbitrary_workset(
         u: &mut Unstructured<'a>,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> arbitrary::Result<Self> {
         let config: AccountConfig<S> = u.arbitrary()?;
         let accounts = Accounts::default();
 
         accounts
-            .genesis(&config, working_set)
+            .genesis(&config, state)
             .map_err(|_| arbitrary::Error::IncorrectFormat)?;
 
         Ok(accounts)

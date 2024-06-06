@@ -56,9 +56,9 @@ pub mod my_module {
         fn genesis(
             &self,
             config: &Self::Config,
-            working_set: &mut impl sov_modules_api::GenesisState<S>,
+            state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
-            self.data.set(config, working_set);
+            self.data.set(config, state);
             Ok(())
         }
 
@@ -66,9 +66,9 @@ pub mod my_module {
             &self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            working_set: &mut impl TxState<S>,
+            state: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
-            self.data.set(&msg, working_set);
+            self.data.set(&msg, state);
             Ok(CallResponse::default())
         }
     }
@@ -88,14 +88,8 @@ pub mod my_module {
             S: Spec,
         {
             #[rpc_method(name = "queryValue")]
-            pub fn query_value(
-                &self,
-                api_state_accessor: &mut ApiStateAccessor<S>,
-            ) -> RpcResult<QueryResponse> {
-                let value = self
-                    .data
-                    .get(api_state_accessor)
-                    .map(|d| format!("{:?}", d));
+            pub fn query_value(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<QueryResponse> {
+                let value = self.data.get(state).map(|d| format!("{:?}", d));
                 Ok(QueryResponse { value })
             }
         }

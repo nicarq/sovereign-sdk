@@ -29,16 +29,12 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         version: Option<u64>,
         user_address: S::Address,
         token_id: TokenId,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<BalanceResponse> {
         let amount = if let Some(v) = version {
-            self.get_balance_of(
-                &user_address,
-                token_id,
-                &mut api_state_accessor.get_archival_at(v),
-            )
+            self.get_balance_of(&user_address, token_id, &mut state.get_archival_at(v))
         } else {
-            self.get_balance_of(&user_address, token_id, api_state_accessor)
+            self.get_balance_of(&user_address, token_id, state)
         };
         Ok(BalanceResponse { amount })
     }
@@ -49,12 +45,12 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         version: Option<u64>,
         token_id: TokenId,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<TotalSupplyResponse> {
         let amount = if let Some(v) = version {
-            self.get_total_supply_of(&token_id, &mut api_state_accessor.get_archival_at(v))
+            self.get_total_supply_of(&token_id, &mut state.get_archival_at(v))
         } else {
-            self.get_total_supply_of(&token_id, api_state_accessor)
+            self.get_total_supply_of(&token_id, state)
         };
         Ok(TotalSupplyResponse { amount })
     }

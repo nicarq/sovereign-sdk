@@ -179,18 +179,17 @@ fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
 ) -> Result<(), jsonrpsee::core::client::Error> {
     rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
         let price = {
-            let mut api_state_accessor =
-                ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
+            let mut state = ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
 
             let suggested_tip = ethereum
                 .gas_price_oracle
-                .suggest_tip_cap(&mut api_state_accessor)
+                .suggest_tip_cap(&mut state)
                 .await
                 .unwrap();
 
             let evm = Evm::<S>::default();
             let base_fee = evm
-                .get_block_by_number(None, None, &mut api_state_accessor)
+                .get_block_by_number(None, None, &mut state)
                 .unwrap()
                 .unwrap()
                 .header

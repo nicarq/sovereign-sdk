@@ -31,7 +31,7 @@ pub trait TxHooks {
     fn pre_dispatch_tx_hook(
         &self,
         _tx: &AuthenticatedTransactionData<Self::Spec>,
-        _working_set: &mut Self::TxState,
+        _state: &mut Self::TxState,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -42,7 +42,7 @@ pub trait TxHooks {
         &self,
         _tx: &AuthenticatedTransactionData<Self::Spec>,
         _ctx: &Context<Self::Spec>,
-        _working_set: &mut Self::TxState,
+        _state: &mut Self::TxState,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -87,11 +87,11 @@ pub trait SlotHooks {
     fn begin_slot_hook(
         &self,
         _pre_state_root: <Self::Spec as Spec>::VisibleHash,
-        _working_set: &mut VersionedStateReadWriter<StateCheckpoint<Self::Spec>>,
+        _state: &mut VersionedStateReadWriter<StateCheckpoint<Self::Spec>>,
     ) {
     }
 
-    fn end_slot_hook(&self, _working_set: &mut StateCheckpoint<Self::Spec>) {}
+    fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
 }
 
 pub trait FinalizeHook {
@@ -100,7 +100,7 @@ pub trait FinalizeHook {
     fn finalize_hook(
         &self,
         _root_hash: <Self::Spec as Spec>::VisibleHash,
-        _accessory_working_set: &mut impl StateReaderAndWriter<Accessory>,
+        _state: &mut impl StateReaderAndWriter<Accessory>,
     ) {
     }
 }

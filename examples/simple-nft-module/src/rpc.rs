@@ -21,13 +21,9 @@ pub struct NftsCountResponse {
 
 impl<S: Spec> NonFungibleToken<S> {
     /// Get the owner of a token
-    pub fn get_owner(
-        &self,
-        token_id: u64,
-        api_state_accessor: &mut impl StateReader<User>,
-    ) -> OwnerResponse<S> {
+    pub fn get_owner(&self, token_id: u64, state: &mut impl StateReader<User>) -> OwnerResponse<S> {
         OwnerResponse {
-            owner: self.owners.get(&token_id, api_state_accessor),
+            owner: self.owners.get(&token_id, state),
         }
     }
 }
@@ -39,8 +35,8 @@ impl<S: Spec> NonFungibleToken<S> {
     pub fn get_owner_rpc(
         &self,
         token_id: u64,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<OwnerResponse<S>> {
-        Ok(self.get_owner(token_id, api_state_accessor))
+        Ok(self.get_owner(token_id, state))
     }
 }

@@ -65,20 +65,20 @@ impl<S: Spec> sov_modules_api::Module for Accounts<S> {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::InsertCredentialId(new_credential_id) => {
-                Ok(self.insert_credential_id(new_credential_id, context, working_set)?)
+                Ok(self.insert_credential_id(new_credential_id, context, state)?)
             }
         }
     }

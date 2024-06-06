@@ -46,10 +46,10 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         &self,
         new_value: u32,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         // If admin is not then early return:
-        let admin = self.admin.get_or_err(working_set)?;
+        let admin = self.admin.get_or_err(state)?;
 
         if &admin != context.sender() {
             // Here we use a custom error type.
@@ -57,9 +57,9 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         }
 
         // This is how we set a new value:
-        self.value.set(&new_value, working_set);
+        self.value.set(&new_value, state);
 
-        self.emit_event(working_set, "set_value", Event::NewValue(new_value));
+        self.emit_event(state, "set_value", Event::NewValue(new_value));
 
         Ok(CallResponse::default())
     }
@@ -68,9 +68,9 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         &self,
         new_value: Vec<u8>,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let admin = self.admin.get_or_err(working_set)?;
+        let admin = self.admin.get_or_err(state)?;
 
         if &admin != context.sender() {
             // Here we use a custom error type.
@@ -78,7 +78,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         }
 
         // This is how we set a new value:
-        self.many_values.set_all(new_value, working_set);
+        self.many_values.set_all(new_value, state);
         Ok(CallResponse::default())
     }
 }

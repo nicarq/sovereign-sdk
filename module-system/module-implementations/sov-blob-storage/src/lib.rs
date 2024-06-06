@@ -54,9 +54,9 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
         &self,
         slot_number: TransitionHeight,
         batches: &Vec<(BatchWithId, Da::Address)>,
-        working_set: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S>,
     ) {
-        self.deferred_blobs.set(&slot_number, batches, working_set);
+        self.deferred_blobs.set(&slot_number, batches, state);
     }
 
     /// Take all blobs for given block number, return empty vector if not exists
@@ -64,18 +64,18 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
     pub fn take_blobs_for_slot_number(
         &self,
         slot_height: TransitionHeight,
-        working_set: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S>,
     ) -> Vec<(BatchWithId, Da::Address)> {
         self.deferred_blobs
-            .remove(&slot_height, working_set)
+            .remove(&slot_height, state)
             .unwrap_or_default()
     }
 
     pub(crate) fn get_preferred_sequencer(
         &self,
-        working_set: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S>,
     ) -> Option<Da::Address> {
-        self.sequencer_registry.get_preferred_sequencer(working_set)
+        self.sequencer_registry.get_preferred_sequencer(state)
     }
 }
 
@@ -87,7 +87,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> KernelModule for Blo
     fn genesis_unchecked(
         &self,
         _config: &Self::Config,
-        _working_set: &mut KernelWorkingSet<'_, Self::Spec>,
+        _state: &mut KernelWorkingSet<'_, Self::Spec>,
     ) -> Result<(), sov_modules_api::Error> {
         Ok(())
     }

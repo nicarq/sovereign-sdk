@@ -29,7 +29,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::KernelModule>::Config,
-        working_set: &mut KernelWorkingSet<S>,
+        state: &mut KernelWorkingSet<S>,
     ) -> Result<()> {
         tracing::info!(
             current_time = ?config.current_time,
@@ -38,20 +38,18 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             outer_code_commitment = ?config.outer_code_commitment,
             "Starting chain state genesis...",
         );
-        self.true_slot_number.set(&0, working_set);
-        self.next_visible_slot_number.set(&1, working_set);
+        self.true_slot_number.set(&0, state);
+        self.next_visible_slot_number.set(&1, state);
 
-        self.time
-            .set_true_current(&config.current_time, working_set);
+        self.time.set_true_current(&config.current_time, state);
 
         self.inner_code_commitment
-            .set(&config.inner_code_commitment, working_set);
+            .set(&config.inner_code_commitment, state);
 
         self.outer_code_commitment
-            .set(&config.outer_code_commitment, working_set);
+            .set(&config.outer_code_commitment, state);
 
-        self.genesis_da_height
-            .set(&config.genesis_da_height, working_set);
+        self.genesis_da_height.set(&config.genesis_da_height, state);
 
         Ok(())
     }

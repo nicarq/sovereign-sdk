@@ -7,7 +7,7 @@ impl<S: sov_modules_api::Spec> ExampleModule<S> {
     pub(crate) fn init_module(
         &self,
         _config: &<Self as sov_modules_api::Module>::Config,
-        _working_set: &mut impl GenesisState<S>,
+        _state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         Ok(())
     }

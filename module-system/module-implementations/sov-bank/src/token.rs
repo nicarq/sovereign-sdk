@@ -160,26 +160,26 @@ impl<S: sov_modules_api::Spec> Token<S> {
         from: TokenHolderRef<'_, S>,
         to: TokenHolderRef<'_, S>,
         amount: Amount,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         if from == to {
             return Ok(());
         }
         let from_balance = self
-            .decrease_balance_checked(from, amount, working_set)
+            .decrease_balance_checked(from, amount, state)
             .with_context(|| format!("Incorrect balance on={} for token={}", from, self.name))?;
 
         let to_balance = self
             .balances
-            .get(&to, working_set)
+            .get(&to, state)
             .unwrap_or_default()
             .checked_add(amount)
             .with_context(|| {
                 format!("Account balance overflow on={} for token={}", to, self.name)
             })?;
 
-        self.balances.set(&from, &from_balance, working_set);
-        self.balances.set(&to, &to_balance, working_set);
+        self.balances.set(&from, &from_balance, state);
+        self.balances.set(&to, &to_balance, state);
         Ok(())
     }
     /// Burns a specified `amount` of token from the address `from`. First check that the address has enough token to burn,
@@ -188,10 +188,10 @@ impl<S: sov_modules_api::Spec> Token<S> {
         &mut self,
         from: TokenHolderRef<'_, S>,
         amount: Amount,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
-        let new_balance = self.decrease_balance_checked(from, amount, working_set)?;
-        self.balances.set(&from, &new_balance, working_set);
+        let new_balance = self.decrease_balance_checked(from, amount, state)?;
+        self.balances.set(&from, &new_balance, state);
 
         Ok(())
     }
@@ -218,7 +218,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         authorizer: TokenHolderRef<'_, S>,
         mint_to_identity: TokenHolderRef<'_, S>,
         amount: Amount,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         if self.authorized_minters.is_empty() {
             bail!("Attempt to mint frozen token {}", self.name)
@@ -228,15 +228,14 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
         let to_balance: Amount = self
             .balances
-            .get(&mint_to_identity, working_set)
+            .get(&mint_to_identity, state)
             .unwrap_or_default()
             .checked_add(amount)
             .ok_or(anyhow::Error::msg(
                 "Account balance overflow in the mint method of bank module",
             ))?;
 
-        self.balances
-            .set(&mint_to_identity, &to_balance, working_set);
+        self.balances.set(&mint_to_identity, &to_balance, state);
         self.total_supply = self
             .total_supply
             .checked_add(amount)
@@ -266,9 +265,9 @@ impl<S: sov_modules_api::Spec> Token<S> {
         &self,
         from: TokenHolderRef<'_, S>,
         amount: Amount,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<Amount> {
-        let balance = self.balances.get_or_err(&from, working_set)?;
+        let balance = self.balances.get_or_err(&from, state)?;
         let new_balance = match balance.checked_sub(amount) {
             Some(from_balance) => from_balance,
             None => bail!("Insufficient funds for {}", from),
@@ -288,7 +287,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         originator: impl Payable<S>,
         salt: u64,
         parent_prefix: &Prefix,
-        working_set: &mut impl StateReaderAndWriter<User>,
+        state: &mut impl StateReaderAndWriter<User>,
     ) -> anyhow::Result<(TokenId, Self)> {
         let token_id = super::get_token_id::<S>(token_name, originator, salt);
         let token = Self::create_with_token_id(
@@ -297,7 +296,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
             authorized_minters,
             &token_id,
             parent_prefix,
-            working_set,
+            state,
         )?;
         Ok((token_id, token))
     }
@@ -309,14 +308,14 @@ impl<S: sov_modules_api::Spec> Token<S> {
         authorized_minters: &[TokenHolderRef<'_, S>],
         token_id: &TokenId,
         parent_prefix: &Prefix,
-        working_set: &mut impl StateReaderAndWriter<User>,
+        state: &mut impl StateReaderAndWriter<User>,
     ) -> anyhow::Result<Token<S>> {
         let token_prefix = prefix_from_address_with_parent(parent_prefix, token_id);
         let balances = sov_modules_api::StateMap::new(token_prefix);
 
         let mut total_supply: Option<u64> = Some(0);
         for (address, balance) in identities_and_balances.iter() {
-            balances.set(address, balance, working_set);
+            balances.set(address, balance, state);
             total_supply = total_supply.and_then(|ts| ts.checked_add(*balance));
         }
 

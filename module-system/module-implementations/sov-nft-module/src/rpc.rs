@@ -106,9 +106,9 @@ impl<S: Spec> NonFungibleToken<S> {
     pub fn get_collection(
         &self,
         collection_id: CollectionId,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<CollectionDetails<S>> {
-        self.collection(collection_id, api_state_accessor)
+        self.collection(collection_id, state)
             .ok_or(ErrorCode::InvalidParams.into())
     }
     #[rpc_method(name = "getCollectionId")]
@@ -126,9 +126,9 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         collection_id: CollectionId,
         token_id: TokenId,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<NftDetails<S>> {
-        self.nft(collection_id, token_id, api_state_accessor)
+        self.nft(collection_id, token_id, state)
             .ok_or(ErrorCode::InvalidParams.into())
     }
 }

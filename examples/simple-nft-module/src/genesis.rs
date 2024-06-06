@@ -18,14 +18,14 @@ impl<S: Spec> NonFungibleToken<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        self.admin.set(&config.admin, working_set);
+        self.admin.set(&config.admin, state);
         for (id, owner) in config.owners.iter() {
-            if self.owners.get(id, working_set).is_some() {
+            if self.owners.get(id, state).is_some() {
                 bail!("Token id {} already exists", id);
             }
-            self.give_nft(owner, *id, working_set)?;
+            self.give_nft(owner, *id, state)?;
         }
         Ok(())
     }

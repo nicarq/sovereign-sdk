@@ -49,11 +49,11 @@ pub struct BasicKernelGenesisConfig<S: Spec, Da: DaSpec> {
 }
 
 impl<S: Spec, Da: DaSpec> Kernel<S, Da> for BasicKernel<S, Da> {
-    fn true_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, S>) -> u64 {
-        self.chain_state.true_slot_number(working_set)
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+        self.chain_state.true_slot_number(state)
     }
-    fn visible_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, S>) -> u64 {
-        self.chain_state.true_slot_number(working_set)
+    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+        self.chain_state.true_slot_number(state)
     }
 
     type GenesisConfig = BasicKernelGenesisConfig<S, Da>;
@@ -64,11 +64,11 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for BasicKernel<S, Da> {
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        working_set: &mut KernelWorkingSet<'_, S>,
+        state: &mut KernelWorkingSet<'_, S>,
     ) -> Result<(), anyhow::Error> {
         self.chain_state
-            .genesis_unchecked(&config.chain_state, working_set)?;
-        self.blob_storage.genesis_unchecked(&(), working_set)?;
+            .genesis_unchecked(&config.chain_state, state)?;
+        self.blob_storage.genesis_unchecked(&(), state)?;
         Ok(())
     }
 }
@@ -81,14 +81,14 @@ impl<S: Spec, Da: DaSpec> BatchSelector<Da> for BasicKernel<S, Da> {
     fn get_batches_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        working_set: &mut sov_modules_api::KernelWorkingSet<'k, Self::Spec>,
+        state: &mut sov_modules_api::KernelWorkingSet<'k, Self::Spec>,
     ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         Ok(self
             .blob_storage
-            .select_blobs_as_based_sequencer(current_blobs, working_set))
+            .select_blobs_as_based_sequencer(current_blobs, state))
     }
 }
 

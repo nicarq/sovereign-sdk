@@ -91,7 +91,7 @@ macro_rules! generate_optimistic_runtime {
             fn pre_dispatch_tx_hook(
                 &self,
                 _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
-                _working_set: &mut Self::TxState,
+                _state: &mut Self::TxState,
             ) -> ::anyhow::Result<()> {
                 Ok(())
             }
@@ -100,7 +100,7 @@ macro_rules! generate_optimistic_runtime {
                 &self,
                 _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
                 _ctx: &::sov_modules_api::Context<S>,
-                _working_set: &mut Self::TxState,
+                _state: &mut Self::TxState,
             ) -> ::anyhow::Result<()> {
                 Ok(())
             }
@@ -335,12 +335,12 @@ pub fn run_test<RT, S, M>(
             .expect("Block builds on height zero");
         // Setup call messages
         let txs = {
-            let mut working_set = WorkingSet::<S>::new(stf_state.clone());
+            let mut state = WorkingSet::<S>::new(stf_state.clone());
             let mut signed_txs = Vec::new();
 
             for (mut msg, priv_key) in msgs_and_priv_keys.into_iter() {
                 let pub_key = priv_key.pub_key();
-                tx_setup_fn(&mut msg, prev_state_root, &mut working_set);
+                tx_setup_fn(&mut msg, prev_state_root, &mut state);
 
                 let msg = <RT as EncodeCall<M>>::encode_call(msg);
                 let nonce = *nonces.get(&pub_key).unwrap_or(&0);
@@ -488,9 +488,9 @@ mod test_rt {
     // Tests the test setup by running the value setter module and checking if the value was set correctly
     fn test_value_setter_tx_success() {
         let value_to_set = 18;
-        let assertion = Box::new(move |working_set: &mut WorkingSet<TestSpec>| {
+        let assertion = Box::new(move |state: &mut WorkingSet<TestSpec>| {
             let value_setter = ValueSetter::<TestSpec>::default();
-            let value = value_setter.value.get(working_set);
+            let value = value_setter.value.get(state);
             assert_eq!(value, Some(value_to_set));
         });
 
@@ -504,9 +504,9 @@ mod test_rt {
     // failed to handle panics.
     fn test_value_setter_tx_bad_assertion() {
         let value_to_set = 18;
-        let bad_assertion = Box::new(move |working_set: &mut WorkingSet<TestSpec>| {
+        let bad_assertion = Box::new(move |state: &mut WorkingSet<TestSpec>| {
             let value_setter = ValueSetter::<TestSpec>::default();
-            let value = value_setter.value.get(working_set);
+            let value = value_setter.value.get(state);
             assert_eq!(value, Some(value_to_set + 1)); // This will fail!
         });
 

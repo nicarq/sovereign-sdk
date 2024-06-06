@@ -127,7 +127,7 @@ fn test_honest_unbonding() {
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
         assert_eq!(TxEffect::Successful, tx_receipt.receipt);
 
-        let mut working_set = WorkingSet::<S>::new(rollup.storage());
+        let mut state = WorkingSet::<S>::new(rollup.storage());
 
         assert!(!rollup.is_attester_unbonding(test_handler.attester_addr()));
 
@@ -140,11 +140,9 @@ fn test_honest_unbonding() {
         // We have to substract 2 * gas_per_transaction because the attester has to pay for the gas
         // for both the start and end unbonding messages
         assert_eq!(
-            rollup.bank().get_balance_of(
-                &test_handler.attester_addr(),
-                GAS_TOKEN_ID,
-                &mut working_set
-            ),
+            rollup
+                .bank()
+                .get_balance_of(&test_handler.attester_addr(), GAS_TOKEN_ID, &mut state),
             Some(
                 USER_BALANCE
                     - rollup.tx_cost(&ChainState::<S, MockDaSpec>::initial_base_fee_per_gas())
@@ -250,12 +248,12 @@ fn test_premature_unbonding() {
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
         assert_eq!(tx_receipt.receipt, TxEffect::Successful);
 
-        let mut working_set = WorkingSet::<S>::new(rollup.storage());
+        let mut state = WorkingSet::<S>::new(rollup.storage());
 
         let unbonding_info = rollup
             .attester_incentives()
             .unbonding_attesters
-            .get(&test_handle.attester_addr(), &mut working_set)
+            .get(&test_handle.attester_addr(), &mut state)
             .expect("The attester should be unbonding");
 
         assert_eq!(

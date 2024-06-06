@@ -14,13 +14,13 @@ trait StateThing {
     type Value: core::fmt::Debug + Eq + PartialEq;
 
     /// Write itself to WorkingSet
-    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self;
+    fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self;
 
     /// Gets owb value from [`WorkingSet`]
-    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value;
+    fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value;
 
     /// Changes itself in [`WorkingSet`]
-    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>);
+    fn change<S: Spec>(&self, state: &mut WorkingSet<S>);
 }
 
 #[allow(dead_code)]
@@ -91,20 +91,20 @@ struct StateValueSet(StateValue<u32>);
 impl StateThing for StateValueSet {
     type Value = u32;
 
-    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self {
+    fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self {
         let state_value = StateValue::new(Prefix::new(vec![0]));
-        state_value.set(&10, working_set);
+        state_value.set(&10, state);
         StateValueSet(state_value)
     }
 
-    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value {
-        self.0.get(working_set).expect("Value wasn't set")
+    fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
+        self.0.get(state).expect("Value wasn't set")
     }
 
-    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>) {
-        let mut value = self.value(working_set);
+    fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
+        let mut value = self.value(state);
         value += 1;
-        self.0.set(&value, working_set);
+        self.0.set(&value, state);
     }
 }
 
@@ -113,23 +113,23 @@ struct StateVecSet(StateVec<u32>);
 impl StateThing for StateVecSet {
     type Value = Vec<u32>;
 
-    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self {
+    fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self {
         let state_vec = StateVec::new(Prefix::new(vec![0]));
-        state_vec.set_all(vec![10, 20, 30, 40, 50, 60], working_set);
+        state_vec.set_all(vec![10, 20, 30, 40, 50, 60], state);
         StateVecSet(state_vec)
     }
 
-    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value {
-        self.0.iter(working_set).collect()
+    fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
+        self.0.iter(state).collect()
     }
 
-    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>) {
-        let mut value = self.value(working_set);
+    fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
+        let mut value = self.value(state);
         for v in value.iter_mut() {
             // TODO: More sophisticated ways of updating it
             *v += 1;
         }
-        self.0.set_all(value, working_set);
+        self.0.set_all(value, state);
     }
 }
 
@@ -138,19 +138,19 @@ struct StateVecPush(StateVec<u32>);
 impl StateThing for StateVecPush {
     type Value = Vec<u32>;
 
-    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self {
+    fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self {
         let state_vec = StateVec::new(Prefix::new(vec![0]));
-        state_vec.set_all(vec![10], working_set);
+        state_vec.set_all(vec![10], state);
         StateVecPush(state_vec)
     }
 
-    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value {
-        self.0.iter(working_set).collect()
+    fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
+        self.0.iter(state).collect()
     }
 
-    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>) {
-        let value = self.0.get(0, working_set).expect("Value wasn't set");
-        self.0.push(&(value + 1), working_set);
+    fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
+        let value = self.0.get(0, state).expect("Value wasn't set");
+        self.0.push(&(value + 1), state);
     }
 }
 
@@ -159,18 +159,18 @@ struct StateVecRemove(StateVec<u32>);
 impl StateThing for StateVecRemove {
     type Value = Vec<u32>;
 
-    fn create<S: Spec>(working_set: &mut WorkingSet<S>) -> Self {
+    fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self {
         let state_vec = StateVec::new(Prefix::new(vec![0]));
-        state_vec.set_all(vec![3u32; 100], working_set);
+        state_vec.set_all(vec![3u32; 100], state);
         StateVecRemove(state_vec)
     }
 
-    fn value<S: Spec>(&self, working_set: &mut WorkingSet<S>) -> Self::Value {
-        self.0.iter(working_set).collect()
+    fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
+        self.0.iter(state).collect()
     }
 
-    fn change<S: Spec>(&self, working_set: &mut WorkingSet<S>) {
-        self.0.pop(working_set);
+    fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
+        self.0.pop(state);
     }
 }
 

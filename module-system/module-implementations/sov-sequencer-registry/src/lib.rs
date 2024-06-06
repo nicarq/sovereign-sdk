@@ -126,31 +126,31 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 
     fn call(
         &self,
         message: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, Error> {
         Ok(match message {
             CallMessage::Register { da_address, amount } => {
                 let da_address = Da::Address::try_from(&da_address)?;
-                self.register(&da_address, amount, context, working_set)
+                self.register(&da_address, amount, context, state)
                     .map_err(|e| Error::ModuleError(e.into()))?
             }
             CallMessage::Deposit { da_address, amount } => {
                 let da_address = Da::Address::try_from(&da_address)?;
-                self.increase_sender_balance(&da_address, amount, working_set)
+                self.increase_sender_balance(&da_address, amount, state)
                     .map_err(|e| Error::ModuleError(e.into()))?
             }
             CallMessage::Exit { da_address } => {
                 let da_address = Da::Address::try_from(&da_address)?;
-                self.exit(&da_address, context, working_set)
+                self.exit(&da_address, context, state)
                     .map_err(|e| Error::ModuleError(e.into()))?
             }
         })
@@ -159,10 +159,10 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// Returns the minimum amount of tokens that the sequencer must lock.
-    pub fn get_coins_to_lock(&self, working_set: &mut impl StateReader<User>) -> Coins {
+    pub fn get_coins_to_lock(&self, state: &mut impl StateReader<User>) -> Coins {
         let amount = self
             .minimum_bond
-            .get(working_set)
+            .get(state)
             .expect("The minimum bond should be set at genesis");
         Coins {
             amount,
@@ -183,13 +183,9 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         da_address: &Da::Address,
         address: &S::Address,
         amount: Amount,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<(), SequencerRegistryError<S, Da>> {
-        if self
-            .allowed_sequencers
-            .get(da_address, working_set)
-            .is_some()
-        {
+        if self.allowed_sequencers.get(da_address, state).is_some() {
             return Err(SequencerRegistryError::SequencerAlreadyRegistered(
                 address.clone(),
             ));
@@ -197,7 +193,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
 
         let minimum_bond = self
             .minimum_bond
-            .get(working_set)
+            .get(state)
             .ok_or(SequencerRegistryError::NoMinimumBondSet)?;
 
         if amount < minimum_bond {
@@ -215,7 +211,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         };
 
         self.bank
-            .transfer_from(address, locker.to_payable(), coins, working_set)
+            .transfer_from(address, locker.to_payable(), coins, state)
             .map_err(|_| SequencerRegistryError::<S, Da>::InsufficientFundsToRegister(amount))?;
 
         self.allowed_sequencers.set(
@@ -224,11 +220,11 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
                 address: address.clone(),
                 balance: amount,
             },
-            working_set,
+            state,
         );
 
         self.emit_event(
-            working_set,
+            state,
             "sequencer_registered",
             Event::<S>::Registered {
                 sequencer: address.clone(),
@@ -243,21 +239,18 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     ///
     /// Read about [`SequencerConfig::is_preferred_sequencer`] to learn about
     /// preferred sequencers.
-    pub fn get_preferred_sequencer(
-        &self,
-        working_set: &mut impl StateAccessor,
-    ) -> Option<Da::Address> {
-        self.preferred_sequencer.get(working_set)
+    pub fn get_preferred_sequencer(&self, state: &mut impl StateAccessor) -> Option<Da::Address> {
+        self.preferred_sequencer.get(state)
     }
 
     /// Resolve a DA address to a rollup address.
     pub fn resolve_da_address(
         &self,
         address: &Da::Address,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<S::Address> {
         self.allowed_sequencers
-            .get(address, working_set)
+            .get(address, state)
             .map(|s| s.address)
     }
 
@@ -267,11 +260,11 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// preferred sequencers.
     pub fn get_preferred_sequencer_rollup_address(
         &self,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<S::Address> {
-        self.preferred_sequencer.get(working_set).map(|da_addr| {
+        self.preferred_sequencer.get(state).map(|da_addr| {
             self.allowed_sequencers
-                .get(&da_addr, working_set)
+                .get(&da_addr, state)
                 .expect("Preferred Sequencer must have known address on rollup")
                 .address
         })
@@ -283,12 +276,12 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn is_sender_allowed(
         &self,
         sender: &Da::Address,
-        working_set: &mut impl StateReader<User>,
+        state: &mut impl StateReader<User>,
     ) -> Result<AllowedSequencer<S>, AllowedSequencerError> {
-        if let Some(sequencer) = self.allowed_sequencers.get(sender, working_set) {
+        if let Some(sequencer) = self.allowed_sequencers.get(sender, state) {
             let min_bond = self
                 .minimum_bond
-                .get(working_set)
+                .get(state)
                 .expect("The minimum bond should be set at genesis");
 
             if sequencer.balance < min_bond {
@@ -308,10 +301,10 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn get_sender_balance(
         &self,
         sender: &Da::Address,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<Amount> {
         self.allowed_sequencers
-            .get(sender, working_set)
+            .get(sender, state)
             .map(|s| s.balance)
     }
 
@@ -327,7 +320,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     }
 
     /// Slash the sequencer with the given address.
-    pub fn slash_sequencer(&self, da_address: &Da::Address, working_set: &mut StateCheckpoint<S>) {
-        self.delete(da_address, working_set);
+    pub fn slash_sequencer(&self, da_address: &Da::Address, state: &mut StateCheckpoint<S>) {
+        self.delete(da_address, state);
     }
 }

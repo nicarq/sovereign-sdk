@@ -33,9 +33,9 @@ impl<S: Spec> Nonces<S> {
     pub fn nonce(
         &self,
         credential_id: &CredentialId,
-        reader: &mut impl StateReader<User>,
+        state: &mut impl StateReader<User>,
     ) -> Option<u64> {
-        self.nonces.get(credential_id, reader)
+        self.nonces.get(credential_id, state)
     }
 }
 
@@ -51,7 +51,7 @@ impl<S: Spec> sov_modules_api::Module for Nonces<S> {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut impl GenesisState<S>,
+        _state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
         Ok(())
     }
@@ -60,7 +60,7 @@ impl<S: Spec> sov_modules_api::Module for Nonces<S> {
         &self,
         _msg: Self::CallMessage,
         _context: &Context<S>,
-        _working_set: &mut impl TxState<S>,
+        _state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         unreachable!()
     }

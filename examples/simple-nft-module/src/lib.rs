@@ -45,21 +45,21 @@ impl<S: Spec> Module for NonFungibleToken<S> {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, Error> {
         let call_result = match msg {
-            CallMessage::Mint { id } => self.mint(id, context, working_set),
-            CallMessage::Transfer { to, id } => self.transfer(id, to, context, working_set),
-            CallMessage::Burn { id } => self.burn(id, context, working_set),
+            CallMessage::Mint { id } => self.mint(id, context, state),
+            CallMessage::Transfer { to, id } => self.transfer(id, to, context, state),
+            CallMessage::Burn { id } => self.burn(id, context, state),
         };
         Ok(call_result?)
     }

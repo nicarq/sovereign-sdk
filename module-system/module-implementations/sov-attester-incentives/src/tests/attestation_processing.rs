@@ -26,7 +26,7 @@ const DUMMY_CALL_MESSAGE: CallMessage<S, MockDaSpec> = CallMessage::UnbondChalle
 fn create_attestation(
     slot_to_attest: u64,
     attester_address: &<S as Spec>::Address,
-    working_set: &mut WorkingSet<S>,
+    state: &mut WorkingSet<S>,
 ) -> Attestation<
     MockDaSpec,
     StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
@@ -36,14 +36,14 @@ fn create_attestation(
 
     // Get the values for the transition being attested
     let current_transition = chain_state
-        .get_historical_transitions(slot_to_attest, working_set)
+        .get_historical_transitions(slot_to_attest, state)
         .unwrap();
 
     let prev_root = if slot_to_attest == 1 {
-        chain_state.get_genesis_hash(working_set)
+        chain_state.get_genesis_hash(state)
     } else {
         chain_state
-            .get_historical_transitions(slot_to_attest - 1, working_set)
+            .get_historical_transitions(slot_to_attest - 1, state)
             .map(|t| *t.post_state_root())
     }
     .unwrap();
@@ -52,7 +52,7 @@ fn create_attestation(
     // Since finalization takes a long time (24 hours), we know that it will never advance past slot 1 in tests.
     let proof_of_bond = AttesterIncentives::<S, MockDaSpec>::default()
         .bonded_attesters
-        .get_with_proof(attester_address, &mut working_set.get_archival_at(1));
+        .get_with_proof(attester_address, &mut state.get_archival_at(1));
 
     Attestation {
         initial_state_root: prev_root,
@@ -92,10 +92,10 @@ fn test_process_valid_attestation() {
     let mut attestation_setup =
         move |message: &mut <AttesterIncentives<S, MockDaSpec> as Module>::CallMessage,
               _root: <<S as Spec>::Storage as Storage>::Root,
-              working_set: &mut <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState| {
+              state: &mut <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState| {
             if message == &DUMMY_CALL_MESSAGE {
                 let next_slot = last_attested_slot + 1;
-                let attestation = create_attestation(next_slot, &attester_address, working_set);
+                let attestation = create_attestation(next_slot, &attester_address, state);
                 *message =
                     CallMessage::ProcessAttestation(WrappedAttestation { inner: attestation });
                 last_attested_slot = next_slot;
@@ -225,24 +225,20 @@ fn test_burn_on_invalid_attestation() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let working_set = WorkingSet::new(storage.clone());
-    let (module, attester_address, _, sequencer, mut working_set) = setup(working_set);
+    let state = WorkingSet::new(storage.clone());
+    let (module, attester_address, _, sequencer, mut state) = setup(state);
 
     // Assert that the prover has the correct bond amount before processing the proof
     assert_eq!(
         module
-            .get_bond_amount(
-                attester_address,
-                crate::call::Role::Attester,
-                &mut working_set
-            )
+            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)
             .value,
         BOND_AMOUNT
     );
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
-    let state_checkpoint = working_set.checkpoint().0;
+    let state_checkpoint = state.checkpoint().0;
     commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         3,
@@ -258,7 +254,7 @@ fn test_burn_on_invalid_attestation() {
 
     let context = Context::<S>::new(attester_address, Default::default(), sequencer, 1);
 
-    let mut working_set = state_checkpoint.to_working_set_unmetered();
+    let mut state = state_checkpoint.to_working_set_unmetered();
     // Process an invalid proof for genesis: everything is correct except the storage proof.
     // Must simply return an error. Cannot burn the token at this point because we don't know if the
     // sender is bonded or not.
@@ -274,11 +270,11 @@ fn test_burn_on_invalid_attestation() {
         };
 
         let attestation_error = module
-            .process_attestation(&context, attestation.into(), &mut working_set)
+            .process_attestation(&context, attestation.into(), &mut state)
             .unwrap_err();
 
         // The working set does not produce events because the method has returned an error
-        assert_eq!(working_set.events().len(), 0);
+        assert_eq!(state.events().len(), 0);
 
         assert_eq!(
             attestation_error,
@@ -290,11 +286,7 @@ fn test_burn_on_invalid_attestation() {
     // Assert that the prover's bond amount has not been burned
     assert_eq!(
         module
-            .get_bond_amount(
-                attester_address,
-                crate::call::Role::Attester,
-                &mut working_set
-            )
+            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)
             .value,
         BOND_AMOUNT
     );
@@ -312,14 +304,14 @@ fn test_burn_on_invalid_attestation() {
         };
 
         module
-            .process_attestation(&context, attestation.into(), &mut working_set)
+            .process_attestation(&context, attestation.into(), &mut state)
             .expect("An invalid proof is an error");
 
         // The working set has only returned one event
-        assert_eq!(working_set.events().len(), 1);
+        assert_eq!(state.events().len(), 1);
 
         // This is a valid attestation event.
-        let valid_event = working_set.take_event(0).unwrap();
+        let valid_event = state.take_event(0).unwrap();
         let valid_event = valid_event.downcast::<crate::Event<S>>().unwrap();
 
         assert_eq!(
@@ -343,13 +335,13 @@ fn test_burn_on_invalid_attestation() {
         };
 
         module
-            .process_attestation(&context, attestation.into(), &mut working_set)
+            .process_attestation(&context, attestation.into(), &mut state)
             .expect("Since we slash the user we must exit gracefully");
 
         // The working set has only returned one event
-        assert_eq!(working_set.events().len(), 1);
+        assert_eq!(state.events().len(), 1);
 
-        let slash_event = working_set.take_event(0).unwrap();
+        let slash_event = state.take_event(0).unwrap();
         let slash_event = slash_event.downcast::<crate::Event<S>>().unwrap();
 
         assert_eq!(
@@ -364,11 +356,7 @@ fn test_burn_on_invalid_attestation() {
     // Check that the attester's bond has been burnt
     assert_eq!(
         module
-            .get_bond_amount(
-                attester_address,
-                crate::call::Role::Attester,
-                &mut working_set
-            )
+            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)
             .value,
         0
     );
@@ -377,7 +365,7 @@ fn test_burn_on_invalid_attestation() {
     assert!(
         module
             .bad_transition_pool
-            .get(&(INIT_HEIGHT + 2), &mut working_set)
+            .get(&(INIT_HEIGHT + 2), &mut state)
             .is_none(),
         "The transition should not exist in the pool"
     );
@@ -388,7 +376,7 @@ fn test_burn_on_invalid_attestation() {
             BOND_AMOUNT,
             &attester_address,
             crate::call::Role::Attester,
-            &mut working_set,
+            &mut state,
         )
         .unwrap();
 
@@ -396,9 +384,9 @@ fn test_burn_on_invalid_attestation() {
         // Check that the attester has been bonded again
 
         // The working set has only returned one event
-        assert_eq!(working_set.events().len(), 1);
+        assert_eq!(state.events().len(), 1);
 
-        let bond_event = working_set.take_event(0).unwrap();
+        let bond_event = state.take_event(0).unwrap();
         let bond_event = bond_event.downcast::<crate::Event<S>>().unwrap();
 
         assert_eq!(
@@ -423,13 +411,13 @@ fn test_burn_on_invalid_attestation() {
         };
 
         module
-            .process_attestation(&context, attestation.into(), &mut working_set)
+            .process_attestation(&context, attestation.into(), &mut state)
             .expect("Since we slash the user we must exit gracefully");
 
         // The working set has only returned one event
-        assert_eq!(working_set.events().len(), 1);
+        assert_eq!(state.events().len(), 1);
 
-        let slash_event = working_set.take_event(0).unwrap();
+        let slash_event = state.take_event(0).unwrap();
         let slash_event = slash_event.downcast::<crate::Event<S>>().unwrap();
 
         assert_eq!(
@@ -444,11 +432,7 @@ fn test_burn_on_invalid_attestation() {
     // Check that the attester's bond has been burnt
     assert_eq!(
         module
-            .get_bond_amount(
-                attester_address,
-                crate::call::Role::Attester,
-                &mut working_set
-            )
+            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)
             .value,
         0
     );
@@ -457,7 +441,7 @@ fn test_burn_on_invalid_attestation() {
     assert_eq!(
         module
             .bad_transition_pool
-            .get(&(INIT_HEIGHT + 2), &mut working_set)
+            .get(&(INIT_HEIGHT + 2), &mut state)
             .unwrap(),
         BOND_AMOUNT,
         "The transition should not exist in the pool"

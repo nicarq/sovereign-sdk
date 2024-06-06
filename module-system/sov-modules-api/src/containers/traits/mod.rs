@@ -5,11 +5,11 @@ use crate::StateReaderAndWriter;
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
 /// ```
-/// fn delete_state_string(value: sov_modules_api::StateValue<String>, accessor: &mut impl sov_modules_api::StateAccessor) {
-///     if let Some(original) = value.get(accessor) {
+/// fn delete_state_string(value: sov_modules_api::StateValue<String>, state: &mut impl sov_modules_api::StateAccessor) {
+///     if let Some(original) = value.get(state) {
 ///         println!("original: {}", original);
 ///     }
-///     value.delete(accessor);
+///     value.delete(state);
 /// }
 ///
 ///

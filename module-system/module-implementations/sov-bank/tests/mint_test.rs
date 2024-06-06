@@ -13,7 +13,7 @@ type S = sov_test_utils::TestSpec;
 fn mint_token() {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let minter = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");
@@ -32,18 +32,18 @@ fn mint_token() {
 
         tokens: vec![],
     };
-    bank.genesis(&bank_config, &mut working_set).unwrap();
+    bank.genesis(&bank_config, &mut state).unwrap();
 
-    let query_total_supply = |token_id: TokenId, working_set: &mut WorkingSet<S>| -> Option<u64> {
-        bank.get_total_supply_of(&token_id, working_set)
+    let query_total_supply = |token_id: TokenId, state: &mut WorkingSet<S>| -> Option<u64> {
+        bank.get_total_supply_of(&token_id, state)
     };
 
     let query_user_balance =
-        |user_address: <S as Spec>::Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(&user_address, token_id, working_set)
+        |user_address: <S as Spec>::Address, state: &mut WorkingSet<S>| -> Option<u64> {
+            bank.get_balance_of(&user_address, token_id, state)
         };
 
-    let previous_total_supply = query_total_supply(token_id, &mut working_set);
+    let previous_total_supply = query_total_supply(token_id, &mut state);
     assert_eq!(Some(initial_balance), previous_total_supply);
 
     // -----
@@ -59,19 +59,19 @@ fn mint_token() {
     };
 
     let _minted = bank
-        .call(mint_message.clone(), &minter_context, &mut working_set)
+        .call(mint_message.clone(), &minter_context, &mut state)
         .expect("Failed to mint token");
-    assert_eq!(working_set.events().len(), 1);
+    assert_eq!(state.events().len(), 1);
 
-    let total_supply = query_total_supply(token_id, &mut working_set);
+    let total_supply = query_total_supply(token_id, &mut state);
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
 
     // check user balance after minting
-    let balance = query_user_balance(new_holder, &mut working_set);
+    let balance = query_user_balance(new_holder, &mut state);
     assert_eq!(Some(10), balance);
 
     // check original token creation balance
-    let bal = query_user_balance(minter, &mut working_set);
+    let bal = query_user_balance(minter, &mut state);
     assert_eq!(Some(100), bal);
 
     // Mint with an un-authorized user
@@ -83,8 +83,8 @@ fn mint_token() {
         sequencer_address,
         1,
     );
-    let unauthorized_mint = bank.call(mint_message, &unauthorized_context, &mut working_set);
-    assert_eq!(working_set.events().len(), 1);
+    let unauthorized_mint = bank.call(mint_message, &unauthorized_context, &mut state);
+    assert_eq!(state.events().len(), 1);
 
     assert!(unauthorized_mint.is_err());
 
@@ -128,9 +128,9 @@ fn mint_token() {
         authorized_minters: vec![authorized_minter_address_1, authorized_minter_address_2],
     };
     let _minted = bank
-        .call(mint_message, &minter_context, &mut working_set)
+        .call(mint_message, &minter_context, &mut state)
         .expect("Failed to mint token");
-    assert_eq!(working_set.events().len(), 2);
+    assert_eq!(state.events().len(), 2);
 
     // Try to mint new token with original token creator, in this case minter_context
     let mint_amount = 10;
@@ -143,7 +143,7 @@ fn mint_token() {
         mint_to_address: new_holder,
     };
 
-    let minted = bank.call(mint_message, &minter_context, &mut working_set);
+    let minted = bank.call(mint_message, &minter_context, &mut state);
     assert!(minted.is_err());
     let Error::ModuleError(err) = minted.err().unwrap();
     let mut chain = err.chain();
@@ -181,10 +181,10 @@ fn mint_token() {
     };
 
     let _minted = bank
-        .call(mint_message, &authorized_minter_2_context, &mut working_set)
+        .call(mint_message, &authorized_minter_2_context, &mut state)
         .expect("Failed to mint token");
-    let supply = query_total_supply(token_id, &mut working_set);
-    assert_eq!(working_set.events().len(), 3);
+    let supply = query_total_supply(token_id, &mut state);
+    assert_eq!(state.events().len(), 3);
     assert_eq!(Some(110), supply);
 
     // Try to mint new token with authorized sender 1
@@ -203,10 +203,10 @@ fn mint_token() {
     };
 
     let _minted = bank
-        .call(mint_message, &authorized_minter_1_context, &mut working_set)
+        .call(mint_message, &authorized_minter_1_context, &mut state)
         .expect("Failed to mint token");
-    let supply = query_total_supply(token_id, &mut working_set);
-    assert_eq!(working_set.events().len(), 4);
+    let supply = query_total_supply(token_id, &mut state);
+    assert_eq!(state.events().len(), 4);
     assert_eq!(Some(120), supply);
 
     // Overflow test - account balance
@@ -221,7 +221,7 @@ fn mint_token() {
     let minted = bank.call(
         overflow_mint_message,
         &authorized_minter_1_context,
-        &mut working_set,
+        &mut state,
     );
     assert!(minted.is_err());
     let Error::ModuleError(err) = minted.err().unwrap();
@@ -244,7 +244,7 @@ fn mint_token() {
         message_2,
     );
     // assert that the supply is unchanged after the overflow mint
-    let supply = query_total_supply(token_id, &mut working_set);
+    let supply = query_total_supply(token_id, &mut state);
     assert_eq!(Some(120), supply);
 
     // Overflow test 2 - total supply
@@ -260,7 +260,7 @@ fn mint_token() {
     let minted = bank.call(
         overflow_mint_message,
         &authorized_minter_1_context,
-        &mut working_set,
+        &mut state,
     );
     assert!(minted.is_err());
     let Error::ModuleError(err) = minted.err().unwrap();
@@ -284,14 +284,14 @@ fn mint_token() {
     );
 
     // assert that the supply is unchanged after the overflow mint
-    let supply = query_total_supply(token_id, &mut working_set);
+    let supply = query_total_supply(token_id, &mut state);
     assert_eq!(Some(120), supply);
 }
 
 #[test]
 fn mint_token_from_module_and_address() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let bank = Bank::<S>::default();
 
@@ -318,18 +318,16 @@ fn mint_token_from_module_and_address() {
             mod_minter,
             vec![mod_minter, addr_minter],
             sender_context.sender(),
-            &mut working_set,
+            &mut state,
         )
         .unwrap();
 
     // Test token creation.
     {
-        let minter_balance = bank.get_balance_of(mod_minter, token_id, &mut working_set);
+        let minter_balance = bank.get_balance_of(mod_minter, token_id, &mut state);
         assert_eq!(Some(initial_balance), minter_balance);
 
-        let total_supply = bank
-            .get_total_supply_of(&token_id, &mut working_set)
-            .unwrap();
+        let total_supply = bank.get_total_supply_of(&token_id, &mut state).unwrap();
 
         assert_eq!(initial_balance, total_supply);
     }
@@ -342,30 +340,26 @@ fn mint_token_from_module_and_address() {
 
     // Test token minting from module.
     {
-        bank.mint(&coins, mod_minter, mod_minter, &mut working_set)
+        bank.mint(&coins, mod_minter, mod_minter, &mut state)
             .unwrap();
 
-        let minter_balance = bank.get_balance_of(mod_minter, token_id, &mut working_set);
+        let minter_balance = bank.get_balance_of(mod_minter, token_id, &mut state);
         assert_eq!(Some(initial_balance + coins.amount), minter_balance);
 
-        let total_supply = bank
-            .get_total_supply_of(&token_id, &mut working_set)
-            .unwrap();
+        let total_supply = bank.get_total_supply_of(&token_id, &mut state).unwrap();
 
         assert_eq!(initial_balance + coins.amount, total_supply);
     }
 
     // Test token minting from address.
     {
-        bank.mint(&coins, addr_minter, addr_minter, &mut working_set)
+        bank.mint(&coins, addr_minter, addr_minter, &mut state)
             .unwrap();
 
-        let minter_balance = bank.get_balance_of(addr_minter, token_id, &mut working_set);
+        let minter_balance = bank.get_balance_of(addr_minter, token_id, &mut state);
         assert_eq!(Some(coins.amount), minter_balance);
 
-        let total_supply = bank
-            .get_total_supply_of(&token_id, &mut working_set)
-            .unwrap();
+        let total_supply = bank.get_total_supply_of(&token_id, &mut state).unwrap();
 
         assert_eq!(initial_balance + 2 * coins.amount, total_supply);
     }
@@ -374,7 +368,7 @@ fn mint_token_from_module_and_address() {
 #[test]
 fn create_token_from_module() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let bank = Bank::<S>::default();
 
@@ -395,16 +389,14 @@ fn create_token_from_module() {
             addr_minter,
             vec![addr_minter],
             mod_originator,
-            &mut working_set,
+            &mut state,
         )
         .unwrap();
 
-    let minter_balance = bank.get_balance_of(addr_minter, token_id, &mut working_set);
+    let minter_balance = bank.get_balance_of(addr_minter, token_id, &mut state);
     assert_eq!(Some(initial_balance), minter_balance);
 
-    let total_supply = bank
-        .get_total_supply_of(&token_id, &mut working_set)
-        .unwrap();
+    let total_supply = bank.get_total_supply_of(&token_id, &mut state).unwrap();
 
     assert_eq!(initial_balance, total_supply);
 }

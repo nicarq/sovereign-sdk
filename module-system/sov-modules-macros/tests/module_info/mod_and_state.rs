@@ -1,6 +1,4 @@
-use sov_modules_api::{
-    Context, CryptoSpec, Module, ModuleId, ModuleInfo, Spec, StateMap, TxState,
-};
+use sov_modules_api::{Context, CryptoSpec, Module, ModuleId, ModuleInfo, Spec, StateMap, TxState};
 use sov_test_utils::ZkTestSpec;
 
 pub mod first_test_module {
@@ -34,7 +32,7 @@ pub mod first_test_module {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut impl TxState<S>,
+            _state: &mut impl TxState<S>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
@@ -42,8 +40,9 @@ pub mod first_test_module {
 }
 
 mod second_test_module {
-    use super::*;
     use sov_modules_api::Module;
+
+    use super::*;
 
     #[derive(ModuleInfo)]
     pub(crate) struct SecondTestStruct<S: Spec> {
@@ -70,7 +69,7 @@ mod second_test_module {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut impl TxState<S>,
+            _state: &mut impl TxState<S>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }

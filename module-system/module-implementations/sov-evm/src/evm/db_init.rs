@@ -18,11 +18,11 @@ impl<'a, Ws: StateAccessor> InitEvmDb for EvmDb<'a, Ws> {
         let parent_prefix = self.accounts.prefix();
         let db_account = DbAccount::new_with_info(parent_prefix, sender, info);
 
-        self.accounts.set(&sender, &db_account, self.working_set);
+        self.accounts.set(&sender, &db_account, self.state);
     }
 
     fn insert_code(&mut self, code_hash: B256, code: Bytes) {
-        self.code.set(&code_hash, &code, self.working_set);
+        self.code.set(&code_hash, &code, self.state);
     }
 }
 

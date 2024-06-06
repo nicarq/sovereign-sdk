@@ -18,11 +18,9 @@ impl<S: Spec> Nonces<S> {
     pub fn get_nonce(
         &self,
         credential_id: CredentialId,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Response> {
-        let nonce = self
-            .nonce(&credential_id, api_state_accessor)
-            .unwrap_or_default();
+        let nonce = self.nonce(&credential_id, state).unwrap_or_default();
 
         Ok(Response { nonce })
     }

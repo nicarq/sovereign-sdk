@@ -122,18 +122,18 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         auth_data: &Self::AuthorizationData,
         sequencer: &Da::Address,
         height: u64,
-        working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<Context<S>, anyhow::Error> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
         let sequencer = self
             .sequencer_registry
-            .resolve_da_address(sequencer, working_set)
+            .resolve_da_address(sequencer, state)
             .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
             &auth_data.credential_id,
-            working_set,
+            state,
         )?;
         Ok(Context::new(
             sender,

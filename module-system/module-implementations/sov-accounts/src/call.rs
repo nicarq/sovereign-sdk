@@ -32,24 +32,22 @@ impl<S: Spec> Accounts<S> {
         &self,
         new_credential_id: CredentialId,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        self.exit_if_account_exists(&new_credential_id, working_set)?;
+        self.exit_if_account_exists(&new_credential_id, state)?;
 
         // Insert the new credential id.
         let account = Account {
             addr: context.sender().clone(),
         };
 
-        self.accounts.set(&new_credential_id, &account, working_set);
+        self.accounts.set(&new_credential_id, &account, state);
 
-        let mut credential_ids = self
-            .credential_ids
-            .get_or_err(context.sender(), working_set)?;
+        let mut credential_ids = self.credential_ids.get_or_err(context.sender(), state)?;
 
         credential_ids.push(new_credential_id);
         self.credential_ids
-            .set(context.sender(), &credential_ids, working_set);
+            .set(context.sender(), &credential_ids, state);
 
         Ok(CallResponse::default())
     }
@@ -57,10 +55,10 @@ impl<S: Spec> Accounts<S> {
     fn exit_if_account_exists(
         &self,
         new_credential_id: &CredentialId,
-        working_set: &mut impl StateReader<User>,
+        state: &mut impl StateReader<User>,
     ) -> Result<()> {
         anyhow::ensure!(
-            self.accounts.get(new_credential_id, working_set).is_none(),
+            self.accounts.get(new_credential_id, state).is_none(),
             "New CredentialId already exists"
         );
         Ok(())

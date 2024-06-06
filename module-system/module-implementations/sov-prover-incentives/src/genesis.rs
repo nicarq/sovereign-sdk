@@ -34,20 +34,19 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         anyhow::ensure!(
             !config.initial_provers.is_empty(),
             "At least one prover must be set at genesis!"
         );
 
-        self.minimum_bond.set(&config.minimum_bond, working_set);
-        self.proving_penalty
-            .set(&config.proving_penalty, working_set);
-        self.last_claimed_reward.set(&0, working_set);
+        self.minimum_bond.set(&config.minimum_bond, state);
+        self.proving_penalty.set(&config.proving_penalty, state);
+        self.last_claimed_reward.set(&0, state);
 
         for (prover, bond) in config.initial_provers.iter() {
-            self.bond_prover_helper(*bond, prover, working_set)?;
+            self.bond_prover_helper(*bond, prover, state)?;
         }
 
         Ok(())

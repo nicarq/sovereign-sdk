@@ -40,14 +40,14 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         id: u64,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        if self.owners.get(&id, working_set).is_some() {
+        if self.owners.get(&id, state).is_some() {
             bail!("Token with id {} already exists", id);
         }
 
-        self.give_nft(context.sender(), id, working_set)?;
-        self.emit_event(working_set, "simple_nft_mint", Event::Mint { id });
+        self.give_nft(context.sender(), id, state)?;
+        self.emit_event(state, "simple_nft_mint", Event::Mint { id });
 
         Ok(CallResponse::default())
     }
@@ -57,18 +57,18 @@ impl<S: Spec> NonFungibleToken<S> {
         id: u64,
         to: S::Address,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let Some(token_owner) = self.owners.get(&id, working_set) else {
+        let Some(token_owner) = self.owners.get(&id, state) else {
             bail!("Token with id {} does not exist", id);
         };
         if &token_owner != context.sender() {
             bail!("Only token owner can transfer token");
         }
 
-        self.remove_nft(id, working_set)?;
-        self.give_nft(&to, id, working_set)?;
-        self.emit_event(working_set, "nft_transfer", Event::Transfer { id });
+        self.remove_nft(id, state)?;
+        self.give_nft(&to, id, state)?;
+        self.emit_event(state, "nft_transfer", Event::Transfer { id });
 
         Ok(CallResponse::default())
     }
@@ -77,17 +77,17 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         id: u64,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let Some(token_owner) = self.owners.get(&id, working_set) else {
+        let Some(token_owner) = self.owners.get(&id, state) else {
             bail!("Token with id {} does not exist", id);
         };
         if &token_owner != context.sender() {
             bail!("Only token owner can burn token");
         }
 
-        self.remove_nft(id, working_set)?;
-        self.emit_event(working_set, "nft_burned", Event::Burn { id });
+        self.remove_nft(id, state)?;
+        self.emit_event(state, "nft_burned", Event::Burn { id });
 
         Ok(CallResponse::default())
     }
@@ -96,14 +96,14 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         owner: &S::Address,
         nft_id: u64,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
-        self.owners.set(&nft_id, owner, working_set);
+        self.owners.set(&nft_id, owner, state);
         Ok(())
     }
 
-    fn remove_nft(&self, nft_id: u64, working_set: &mut impl StateAccessor) -> anyhow::Result<()> {
-        self.owners.remove(&nft_id, working_set);
+    fn remove_nft(&self, nft_id: u64, state: &mut impl StateAccessor) -> anyhow::Result<()> {
+        self.owners.remove(&nft_id, state);
         Ok(())
     }
 }

@@ -81,7 +81,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         minter: impl Payable<S>,
         authorized_minters: Vec<impl Payable<S>>,
         originator: impl Payable<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<TokenId> {
         tracing::info!(%token_name, %salt, %initial_balance, %minter, sender= %originator, "Create token request");
 
@@ -97,10 +97,10 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             originator,
             salt,
             self.tokens.prefix(),
-            working_set,
+            state,
         )?;
 
-        if self.tokens.get(&token_id, working_set).is_some() {
+        if self.tokens.get(&token_id, state).is_some() {
             bail!(
                 "Token {} at {} address already exists",
                 token_name,
@@ -108,9 +108,9 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             );
         }
 
-        self.tokens.set(&token_id, &token, working_set);
+        self.tokens.set(&token_id, &token, state);
         self.emit_event(
-            working_set,
+            state,
             "token_created",
             Event::TokenCreated {
                 token_name: token_name.clone(),
@@ -132,16 +132,16 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         to: impl Payable<S>,
         coins: Coins,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let to = to.as_token_holder();
         let sender = context.sender();
-        self.transfer_from(sender, to, coins.clone(), working_set)
+        self.transfer_from(sender, to, coins.clone(), state)
             .map(|response| {
                 // TODO: move this back into the body of transfer_from once we create a trait for StateAccessor + EventEmitter
                 // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/168
                 self.emit_event(
-                    working_set,
+                    state,
                     "token_transfer",
                     Event::TokenTransferred {
                         from: sender.as_token_holder().into(),
@@ -162,16 +162,16 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         coins: Coins,
         owner: impl Payable<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<()> {
         let owner = owner.as_token_holder();
         let context_logger = || format!("Failed to burn coins({}) from owner {}", coins, owner);
         let mut token = self
             .tokens
-            .get_or_err(&coins.token_id, working_set)
+            .get_or_err(&coins.token_id, state)
             .with_context(context_logger)?;
         token
-            .burn(owner, coins.amount, working_set)
+            .burn(owner, coins.amount, state)
             .with_context(context_logger)?;
         token.total_supply = token
             .total_supply
@@ -182,10 +182,10 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                     coins.token_id
                 )
             })?;
-        self.tokens.set(&coins.token_id, &token, working_set);
+        self.tokens.set(&coins.token_id, &token, state);
 
         self.emit_event(
-            working_set,
+            state,
             "token_burned",
             Event::TokenBurned {
                 owner: owner.into(),
@@ -201,9 +201,9 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         coins: Coins,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        self.burn(coins, context.sender(), working_set)?;
+        self.burn(coins, context.sender(), state)?;
         Ok(CallResponse::default())
     }
 
@@ -217,13 +217,13 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         coins: &Coins,
         mint_to_identity: impl Payable<S>,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<()> {
         self.mint(
             coins,
             mint_to_identity,
             TokenHolderRef::from(&context.sender()),
-            working_set,
+            state,
         )
     }
 
@@ -236,7 +236,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         coins: &Coins,
         mint_to_identity: impl Payable<S>,
         authorizer: impl Payable<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<()> {
         let mint_to_identity = mint_to_identity.as_token_holder();
         let context_logger = || {
@@ -247,16 +247,16 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         };
         let mut token = self
             .tokens
-            .get_or_err(&coins.token_id, working_set)
+            .get_or_err(&coins.token_id, state)
             .with_context(context_logger)?;
 
         let authorizer = authorizer.as_token_holder();
         token
-            .mint(authorizer, mint_to_identity, coins.amount, working_set)
+            .mint(authorizer, mint_to_identity, coins.amount, state)
             .with_context(context_logger)?;
-        self.tokens.set(&coins.token_id, &token, working_set);
+        self.tokens.set(&coins.token_id, &token, state);
         self.emit_event(
-            working_set,
+            state,
             "token_minted",
             Event::TokenMinted {
                 mint_to_identity: mint_to_identity.into(),
@@ -274,7 +274,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         token_id: TokenId,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let context_logger = || {
             format!(
@@ -286,16 +286,16 @@ impl<S: sov_modules_api::Spec> Bank<S> {
 
         let mut token = self
             .tokens
-            .get_or_err(&token_id, working_set)
+            .get_or_err(&token_id, state)
             .with_context(context_logger)?;
 
         let sender_ref = context.sender();
         let sender = sender_ref.as_token_holder();
         token.freeze(sender).with_context(context_logger)?;
 
-        self.tokens.set(&token_id, &token, working_set);
+        self.tokens.set(&token_id, &token, state);
         self.emit_event(
-            working_set,
+            state,
             "token_frozen",
             Event::TokenFrozen {
                 freezer: sender.into(),
@@ -316,7 +316,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         from: impl Payable<S>,
         to: impl Payable<S>,
         coins: Coins,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Result<CallResponse> {
         let from = from.as_token_holder();
         let to = to.as_token_holder();
@@ -328,10 +328,10 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         };
         let token = self
             .tokens
-            .get_or_err(&coins.token_id, working_set)
+            .get_or_err(&coins.token_id, state)
             .with_context(context_logger)?;
         token
-            .transfer(from, to, coins.amount, working_set)
+            .transfer(from, to, coins.amount, state)
             .with_context(context_logger)?;
         Ok(CallResponse::default())
     }
@@ -343,21 +343,17 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         user_address: impl Payable<S>,
         token_id: TokenId,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<u64> {
         let user_address = user_address.as_token_holder();
         self.tokens
-            .get(&token_id, working_set)
-            .and_then(|token| token.balances.get(&user_address, working_set))
+            .get(&token_id, state)
+            .and_then(|token| token.balances.get(&user_address, state))
     }
 
     /// Get the name of a token by ID
-    pub fn get_token_name(
-        &self,
-        token_id: &TokenId,
-        working_set: &mut WorkingSet<S>,
-    ) -> Option<String> {
-        let token = self.tokens.get(token_id, working_set);
+    pub fn get_token_name(&self, token_id: &TokenId, state: &mut WorkingSet<S>) -> Option<String> {
+        let token = self.tokens.get(token_id, state);
         token.map(|token| token.name)
     }
 
@@ -365,10 +361,10 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub fn get_total_supply_of(
         &self,
         token_id: &TokenId,
-        working_set: &mut impl StateReader<User>,
+        state: &mut impl StateReader<User>,
     ) -> Option<u64> {
         self.tokens
-            .get(token_id, working_set)
+            .get(token_id, state)
             .map(|token| token.total_supply)
     }
 }

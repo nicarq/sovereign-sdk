@@ -9,9 +9,9 @@ pub struct Response {
 
 impl<S: sov_modules_api::Spec> ExampleModule<S> {
     /// Queries the state of the module.
-    pub fn query_value(&self, working_set: &mut WorkingSet<S>) -> Response {
+    pub fn query_value(&self, state: &mut WorkingSet<S>) -> Response {
         Response {
-            value: self.value.get(working_set),
+            value: self.value.get(state),
         }
     }
 }

@@ -83,17 +83,16 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_name: &str,
         collection_uri: &str,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let (collection_id, collection) = Collection::new(
             collection_name,
             collection_uri,
             &self.collections,
             context,
-            working_set,
+            state,
         )?;
-        self.collections
-            .set(&collection_id, &collection, working_set);
+        self.collections.set(&collection_id, &collection, state);
         update_collection(&collection);
         Ok(CallResponse::default())
     }
@@ -103,18 +102,14 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_name: &str,
         collection_uri: &str,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let (collection_id, collection_state) = Collection::get_owned_collection(
-            collection_name,
-            &self.collections,
-            context,
-            working_set,
-        )?;
+        let (collection_id, collection_state) =
+            Collection::get_owned_collection(collection_name, &self.collections, context, state)?;
         let mut collection = collection_state.get_mutable_or_bail()?;
         collection.set_collection_uri(collection_uri);
         self.collections
-            .set(&collection_id, collection.inner(), working_set);
+            .set(&collection_id, collection.inner(), state);
         update_collection(collection.inner());
         Ok(CallResponse::default())
     }
@@ -123,18 +118,14 @@ impl<S: Spec> NonFungibleToken<S> {
         &self,
         collection_name: &str,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let (collection_id, collection_state) = Collection::get_owned_collection(
-            collection_name,
-            &self.collections,
-            context,
-            working_set,
-        )?;
+        let (collection_id, collection_state) =
+            Collection::get_owned_collection(collection_name, &self.collections, context, state)?;
         let mut collection = collection_state.get_mutable_or_bail()?;
         collection.freeze();
         self.collections
-            .set(&collection_id, collection.inner(), working_set);
+            .set(&collection_id, collection.inner(), state);
         update_collection(collection.inner());
         Ok(CallResponse::default())
     }
@@ -148,14 +139,10 @@ impl<S: Spec> NonFungibleToken<S> {
         mint_to_address: &UserAddress<S>,
         frozen: bool,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let (collection_id, collection_state) = Collection::get_owned_collection(
-            collection_name,
-            &self.collections,
-            context,
-            working_set,
-        )?;
+        let (collection_id, collection_state) =
+            Collection::get_owned_collection(collection_name, &self.collections, context, state)?;
         let mut collection = collection_state.get_mutable_or_bail()?;
         let new_nft = Nft::new(
             token_id,
@@ -164,16 +151,13 @@ impl<S: Spec> NonFungibleToken<S> {
             frozen,
             &collection_id,
             &self.nfts,
-            working_set,
+            state,
         )?;
-        self.nfts.set(
-            &NftIdentifier(token_id, collection_id),
-            &new_nft,
-            working_set,
-        );
+        self.nfts
+            .set(&NftIdentifier(token_id, collection_id), &new_nft, state);
         collection.increment_supply();
         self.collections
-            .set(&collection_id, collection.inner(), working_set);
+            .set(&collection_id, collection.inner(), state);
 
         update_collection(collection.inner());
         update_nft(&new_nft, None);
@@ -187,16 +171,15 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_id: &CollectionId,
         to: &UserAddress<S>,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let mut owned_nft =
-            Nft::get_owned_nft(nft_id, collection_id, &self.nfts, context, working_set)?;
+        let mut owned_nft = Nft::get_owned_nft(nft_id, collection_id, &self.nfts, context, state)?;
         let original_owner = owned_nft.inner().get_owner().clone();
         owned_nft.set_owner(to);
         self.nfts.set(
             &NftIdentifier(nft_id, *collection_id),
             owned_nft.inner(),
-            working_set,
+            state,
         );
         update_nft(owned_nft.inner(), Some(original_owner.clone()));
         Ok(CallResponse::default())
@@ -209,7 +192,7 @@ impl<S: Spec> NonFungibleToken<S> {
         token_uri: Option<String>,
         frozen: Option<bool>,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         let (collection_id, mut mutable_nft) = Nft::get_mutable_nft(
             token_id,
@@ -217,7 +200,7 @@ impl<S: Spec> NonFungibleToken<S> {
             &self.nfts,
             &self.collections,
             context,
-            working_set,
+            state,
         )?;
         if let Some(true) = frozen {
             mutable_nft.freeze();
@@ -228,7 +211,7 @@ impl<S: Spec> NonFungibleToken<S> {
         self.nfts.set(
             &NftIdentifier(token_id, collection_id),
             mutable_nft.inner(),
-            working_set,
+            state,
         );
         update_nft(mutable_nft.inner(), None);
         Ok(CallResponse::default())

@@ -67,40 +67,41 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
-    pub fn get_current(&self, ws: &mut impl VersionReader) -> Option<V>
+    pub fn get_current(&self, state: &mut impl VersionReader) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        ws.get_decoded(&self.encode_key(&ws.current_version()), &self.codec)
+        state
+            .get_decoded(&self.encode_key(&state.current_version()), &self.codec)
             .unwrap()
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set_true_current<S: Spec>(&self, value: &V, ws: &mut KernelWorkingSet<'_, S>)
+    pub fn set_true_current<S: Spec>(&self, value: &V, state: &mut KernelWorkingSet<'_, S>)
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
         StateWriter::<Kernel>::set(
-            ws,
-            &self.encode_key(&ws.current_version()),
+            state,
+            &self.encode_key(&state.current_version()),
             SlotValue::new(value, self.codec.value_codec()),
         )
         .unwrap();
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set<S: Spec>(&self, key: &u64, value: &V, ws: &mut KernelWorkingSet<'_, S>)
+    pub fn set<S: Spec>(&self, key: &u64, value: &V, state: &mut KernelWorkingSet<'_, S>)
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
         StateWriter::<Kernel>::set(
-            ws,
+            state,
             &self.encode_key(key),
             SlotValue::new(value, self.codec.value_codec()),
         )
@@ -108,13 +109,13 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
-    pub fn get<S: Spec>(&self, key: &u64, ws: &mut KernelWorkingSet<'_, S>) -> Option<V>
+    pub fn get<S: Spec>(&self, key: &u64, state: &mut KernelWorkingSet<'_, S>) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateReader::<Kernel>::get_decoded(ws, &self.encode_key(key), &self.codec).unwrap()
+        StateReader::<Kernel>::get_decoded(state, &self.encode_key(key), &self.codec).unwrap()
     }
 }
 
