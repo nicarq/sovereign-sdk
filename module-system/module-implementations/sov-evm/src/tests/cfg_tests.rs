@@ -1,4 +1,5 @@
 use revm::primitives::{BlockEnv, CfgEnv, HandlerCfg, SpecId, U256};
+use sov_modules_api::macros::config_value;
 
 use crate::call::get_cfg_env_with_handler;
 use crate::evm::EvmChainConfig;
@@ -24,7 +25,7 @@ fn cfg_test() {
     let cfg_env_with_hanlder = get_cfg_env_with_handler(&block_env, cfg, Some(template_cfg_env));
 
     let mut expected_cfg_env = CfgEnv::default();
-    expected_cfg_env.chain_id = 1;
+    expected_cfg_env.chain_id = config_value!("CHAIN_ID");
     expected_cfg_env.disable_base_fee = true;
     expected_cfg_env.limit_contract_code_size = Some(100);
 

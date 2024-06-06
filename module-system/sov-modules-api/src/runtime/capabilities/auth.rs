@@ -22,6 +22,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_modules_macros::config_value;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use thiserror::Error;
@@ -29,6 +30,9 @@ use thiserror::Error;
 use crate::digest::Digest;
 use crate::transaction::{AuthenticatedTransactionAndRawHash, Credentials, Transaction};
 use crate::{Context, CryptoSpec, DispatchCall, GasMeter, PreExecWorkingSet, Spec, TxScratchpad};
+
+/// The chain id of the rollup.
+pub const CHAIN_ID: u64 = config_value!("CHAIN_ID");
 
 /// Authenticates raw transactions. Implementations of this trait should provide a way to interpret the raw bytes of the transaction and authenticate it.
 /// Typically, the authentication will require checking the signature of the transaction.
@@ -102,6 +106,14 @@ pub enum FatalError {
     /// Signature verification failed.
     #[error("Signature verification error: {0}")]
     SigVerificationFailed(String),
+    /// The ChainID was invalid
+    #[error("Invalid chain id: expected {expected}, got {got}")]
+    InvalidChainId {
+        /// The expected chain id
+        expected: u64,
+        /// The actual chain id
+        got: u64,
+    },
     /// Transaction decoding failed.
     #[error("Transaction decoding error: {0}, tx hash: {1:?}")]
     MessageDecodingFailed(String, [u8; 32]),
@@ -193,6 +205,15 @@ pub fn authenticate<S: Spec, D: DispatchCall, Meter: GasMeter<S::Gas>>(
             e
         ))
     })?;
+
+    if tx.chain_id != CHAIN_ID {
+        return Err(AuthenticationError::FatalError(
+            FatalError::InvalidChainId {
+                expected: CHAIN_ID,
+                got: tx.chain_id,
+            },
+        ));
+    }
 
     tx.verify().map_err(|e| {
         AuthenticationError::FatalError(FatalError::SigVerificationFailed(e.to_string()))

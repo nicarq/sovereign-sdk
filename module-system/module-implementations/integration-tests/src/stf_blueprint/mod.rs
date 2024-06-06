@@ -3,17 +3,26 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
     AuthorizationData, AuthorizeSequencerError, SequencerAuthorization,
 };
+use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
-use sov_modules_api::transaction::Credentials;
+use sov_modules_api::transaction::{Credentials, UnsignedTransaction};
 use sov_modules_api::{
-    Context, CryptoSpec, DaSpec, Gas, GasArray, KernelWorkingSet, PrivateKey, Spec, StateCheckpoint,
+    Context, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray, KernelWorkingSet, PrivateKey, Spec,
+    StateCheckpoint,
 };
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_test_utils::auth::TestAuth;
-use sov_test_utils::runtime::TestRuntime;
+use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::{
+    run_test, MessageType, SlotTestCase, TestRuntime, TxOutcome, TxTestCase,
+};
 use sov_test_utils::value_setter_data::ValueSetterMessages;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestHasher};
+use sov_test_utils::{
+    generate_optimistic_runtime, new_test_blob_from_batch, MessageGenerator, TestAddress,
+    TestHasher, TestPrivateKey,
+};
+use sov_value_setter::{CallMessage, ValueSetter};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, DEFAULT_STAKE_AMOUNT, S,
@@ -176,4 +185,49 @@ fn test_stf_internal_updates() {
         seq_da_addr,
         seq_rollup_addr,
     );
+}
+
+#[test]
+fn test_enforces_chain_id() {
+    generate_optimistic_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
+
+    // Run an indivdual transaction with the given chain id on a fresh chain. Assert that the outcome is as expected.
+    fn test_tx_with_chain_id(
+        chain_id: u64,
+        expected_outcome: TxOutcome<IntegTestRuntime<S, MockDaSpec>>,
+    ) {
+        let test_key = TestPrivateKey::generate();
+        let test_address = TestAddress::from(&test_key.pub_key());
+        let mut genesis = HighLevelOptimisticGenesisConfig::generate();
+        genesis
+            .additional_accounts
+            .push((test_address, 1_000_000_000));
+        let genesis = GenesisConfig::from_minimal_config(
+            genesis.into(),
+            sov_value_setter::ValueSetterConfig {
+                admin: test_address,
+            },
+        );
+
+        let encoded_message =
+            <IntegTestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(
+                CallMessage::SetValue(8),
+            );
+
+        let utx = UnsignedTransaction::new(encoded_message, chain_id, 100.into(), 100_000, 0, None);
+        run_test(
+            genesis.into_genesis_params(),
+            vec![SlotTestCase::from_txs(vec![TxTestCase {
+                outcome: expected_outcome,
+                message: MessageType::<ValueSetter<S>, S>::pre_signed(utx, &test_key),
+            }])],
+            Default::default(),
+        );
+    }
+
+    let real_chain_id = config_value!("CHAIN_ID");
+    let fake_chain_id = real_chain_id + 1;
+
+    test_tx_with_chain_id(real_chain_id, TxOutcome::applied());
+    test_tx_with_chain_id(fake_chain_id, TxOutcome::Reverted);
 }

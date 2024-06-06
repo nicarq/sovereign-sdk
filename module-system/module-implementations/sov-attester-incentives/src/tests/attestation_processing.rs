@@ -8,12 +8,14 @@ use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, CryptoSpec, GasMeter, Module, PrivateKey, Spec, WorkingSet};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::{Storage, StorageProof};
-use sov_test_utils::generate_optimistic_runtime_with_test_hooks;
+use sov_test_utils::generate_optimistic_runtime;
 use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::sov_attester_incentives::{
     AttesterIncentives, CallMessage, Event, Role, WrappedAttestation,
 };
-use sov_test_utils::runtime::{run_test, SlotTestCase, TxOutcome, TxTestCase};
+use sov_test_utils::runtime::{
+    run_test_with_setup_fn, MessageType, SlotTestCase, TxOutcome, TxTestCase,
+};
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
@@ -70,7 +72,7 @@ fn create_attestation(
 /// attesters are rewarded as expected
 #[test]
 fn test_process_valid_attestation() {
-    generate_optimistic_runtime_with_test_hooks!(AttesterRuntime <=);
+    generate_optimistic_runtime!(AttesterRuntime <=);
 
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
@@ -115,7 +117,7 @@ fn test_process_valid_attestation() {
     // words, attestations lag by two slots). Then we run three attestations, one for each of the
     // empty blocks and one for the first slot that contains a transaction. This allows us to test
     // that gas metering is done correctly.
-    run_test(
+    run_test_with_setup_fn(
         genesis.into_genesis_params(),
         &mut attestation_setup,
         vec![
@@ -138,7 +140,6 @@ fn test_process_valid_attestation() {
             // event is emitted and do necessary accounting to check the attester's balance later
             SlotTestCase {
                 transaction_test_cases: vec![TxTestCase {
-                    sender_key: attester_key.clone(),
                     outcome: TxOutcome::Applied(Box::new(move |ws: &mut WorkingSet<S>| {
                         // Do accounting for the attester's balance
                         {
@@ -162,13 +163,12 @@ fn test_process_valid_attestation() {
                             Some(Event::ProcessedValidAttestation { .. })
                         )));
                     })),
-                    message: DUMMY_CALL_MESSAGE.clone(),
+                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
                 }],
                 post_hook: Box::new(|_| {}),
             },
             SlotTestCase {
                 transaction_test_cases: vec![TxTestCase {
-                    sender_key: attester_key.clone(),
                     outcome: TxOutcome::Applied(Box::new(move |ws: &mut WorkingSet<S>| {
                         // Check that the attestation succeeded
                         assert!(ws.events().iter().any(|event| matches!(
@@ -179,13 +179,12 @@ fn test_process_valid_attestation() {
                         expected_balance_ref_1
                             .fetch_sub(ws.gas_used_value(), std::sync::atomic::Ordering::SeqCst);
                     })),
-                    message: DUMMY_CALL_MESSAGE.clone(),
+                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
                 }],
                 post_hook: Box::new(|_| {}),
             },
             SlotTestCase {
                 transaction_test_cases: vec![TxTestCase {
-                    sender_key: attester_key,
                     outcome: TxOutcome::Applied(Box::new(move |ws: &mut WorkingSet<S>| {
                         // Check that the attestation succeeded
                         assert!(ws.events().iter().any(|event| matches!(
@@ -196,7 +195,7 @@ fn test_process_valid_attestation() {
                         expected_balance_ref_2
                             .fetch_sub(ws.gas_used_value(), std::sync::atomic::Ordering::SeqCst);
                     })),
-                    message: DUMMY_CALL_MESSAGE.clone(),
+                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
                 }],
                 post_hook: Box::new(move |ws| {
                     // Check the attester's non-bonded balance

@@ -4,6 +4,7 @@ use anyhow::Result;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{Bloom, Bytes, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
 use revm::primitives::{AccountInfo, Address, SpecId, B256, U256};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::GenesisState;
 
 use crate::evm::db_init::InitEvmDb;
@@ -67,7 +68,7 @@ impl Default for EvmConfig {
     fn default() -> Self {
         Self {
             data: vec![],
-            chain_id: 1,
+            chain_id: config_value!("CHAIN_ID"),
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             coinbase: Address::ZERO,
@@ -200,7 +201,7 @@ mod tests {
                 code: Bytes::default(),
                 nonce: 0,
             }],
-            chain_id: 1,
+            chain_id: 4321, // Use a hard-coded value instead of config_value!("CHAIN_ID") since the string below is hard-coded
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             block_timestamp_delta: 1u64,
@@ -217,7 +218,7 @@ mod tests {
                     "code":"0x",
                     "nonce":0
                 }],
-                "chain_id":1,
+                "chain_id":4321,
                 "limit_contract_code_size":null,
                 "spec":{
                     "0":"SHANGHAI"

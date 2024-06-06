@@ -309,6 +309,7 @@ mod tests {
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec};
+    use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, WorkingSet};
     use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
@@ -345,7 +346,7 @@ mod tests {
     fn generate_valid_tx(private_key: &TestPrivateKey, value: u32) -> Vec<u8> {
         let msg = CallMessage::SetValue(value);
         let msg = <TestRuntime<_, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
-        let chain_id = 0;
+        let chain_id = config_value!("CHAIN_ID");
         let max_priority_fee_bips = PriorityFeeBips::ZERO;
         let max_fee = 10_000;
         let gas_limit = None;
@@ -382,7 +383,7 @@ mod tests {
     #[allow(dead_code)]
     fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey) -> Vec<u8> {
         let msg = generate_random_bytes();
-        let chain_id = 0;
+        let chain_id = config_value!("CHAIN_ID");
         let max_priority_fee_bips = PriorityFeeBips::ZERO;
         let max_fee = 10_000;
         let gas_limit = None;

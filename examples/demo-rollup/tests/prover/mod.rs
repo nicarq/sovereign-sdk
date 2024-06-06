@@ -45,6 +45,7 @@ type TestSTF<'a> = StfBlueprint<
 #[tokio::test]
 #[cfg_attr(skip_guest_build, ignore)]
 async fn test_proof_generation() {
+    sov_test_utils::logging::initialize_logging();
     let genesis_conf_dir = String::from(DEFAULT_GENESIS_CONFIG_DIR);
 
     let rollup_config_path = "tests/prover/rollup_config.toml".to_string();
@@ -53,6 +54,7 @@ async fn test_proof_generation() {
         .unwrap();
 
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
+    println!("Creating temp dir at {}", temp_dir.path().display());
     rollup_config.storage.path = PathBuf::from(temp_dir.path());
     let da_service = MockDaService::new(MockAddress::default());
     let storage_config = sov_state::config::Config {

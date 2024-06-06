@@ -5,6 +5,7 @@ use reth_rpc_types::transaction::EIP1559TransactionRequest;
 use reth_rpc_types::TypedTransactionRequest;
 use secp256k1::{PublicKey, SecretKey};
 use sov_eth_dev_signer::{DevSigner, SignError};
+use sov_modules_api::macros::config_value;
 
 use crate::evm::RlpEvmTransaction;
 
@@ -37,7 +38,7 @@ impl TestSigner {
         self.address
     }
 
-    /// Signs default Eip1559 transaction with to, data and nonce overridden.
+    /// Signs default Eip1559 transaction with to, data chain-id, and nonce overridden.
     pub(crate) fn sign_default_transaction(
         &self,
         kind: TransactionKind,
@@ -45,7 +46,7 @@ impl TestSigner {
         nonce: u64,
     ) -> Result<(RlpEvmTransaction, Address), SignError> {
         let reth_tx = EIP1559TransactionRequest {
-            chain_id: 1,
+            chain_id: config_value!("CHAIN_ID"),
             nonce: U64::from(nonce),
             max_priority_fee_per_gas: Default::default(),
             max_fee_per_gas: U256::from(reth_primitives::constants::MIN_PROTOCOL_BASE_FEE * 2),

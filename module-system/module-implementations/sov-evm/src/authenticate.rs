@@ -1,6 +1,7 @@
 use borsh::BorshDeserialize;
 use reth_primitives::TransactionSignedEcRecovered;
 use sov_modules_api::capabilities::{AuthenticationResult, AuthorizationData};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
@@ -31,8 +32,7 @@ pub fn authenticate<S: Spec, Meter: GasMeter<S::Gas>>(
     let tx_hash = evm_tx_recovered.hash();
     let (signed_tx, signer) = evm_tx_recovered.to_components();
 
-    // TODO `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/521>`: These values should be correctly set from the raw message
-    let chain_id = 0;
+    let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 10_000;
     let gas_limit = None;

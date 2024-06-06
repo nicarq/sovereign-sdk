@@ -1,6 +1,7 @@
 use sov_bank::{IntoPayable, GAS_TOKEN_ID};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, ModuleInfo, Spec};
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
@@ -50,7 +51,7 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages
         .create_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>(
-            0,
+            config_value!("CHAIN_ID"),
             TEST_PRIORITY_FEE,
             max_fee,
             None,

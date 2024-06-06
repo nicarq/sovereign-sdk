@@ -6,6 +6,7 @@ use reth_primitives::BaseFeeParams;
 use revm::primitives::specification::SpecId;
 use revm::primitives::{AccountInfo, Address, U256};
 use serde::{Deserialize, Serialize};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::StateMap;
 use sov_state::Prefix;
 
@@ -87,7 +88,7 @@ pub struct EvmChainConfig {
 impl Default for EvmChainConfig {
     fn default() -> EvmChainConfig {
         EvmChainConfig {
-            chain_id: 1,
+            chain_id: config_value!("CHAIN_ID"),
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)],
             coinbase: Address::ZERO,

@@ -5,6 +5,7 @@ use revm::primitives::{
     Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, KECCAK_EMPTY, U256,
 };
 use revm::{Database, DatabaseCommit};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::SimpleStorageContract;
@@ -47,12 +48,13 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
     // We are not supporting CANCUN yet
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    let cfg_env_with_handler = CfgEnvWithHandlerCfg::new(
+    let mut cfg_env_with_handler = CfgEnvWithHandlerCfg::new(
         CfgEnv::default(),
         revm_primitives::HandlerCfg {
             spec_id: SpecId::SHANGHAI,
         },
     );
+    cfg_env_with_handler.chain_id = config_value!("CHAIN_ID");
 
     let contract_address: Address = {
         let (tx, signer) = dev_signer

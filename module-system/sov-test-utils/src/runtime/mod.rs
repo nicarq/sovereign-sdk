@@ -13,6 +13,7 @@ pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::batch::Batch;
 use sov_modules_api::hooks::TxHooks;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
@@ -159,17 +160,6 @@ macro_rules! generate_optimistic_runtime {
     };
 }
 
-/// Generates a runtime containing the [`Bank`], [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
-/// and [`SequencerRegistry`] modules in addition to any provided as arguments. The generated runtime has an extensible post
-/// transaction hook system that allows for making assertions about the state of the rollup after
-/// each transaction. It is meant to be used with the [`run_test`] function.
-#[macro_export]
-macro_rules! generate_optimistic_runtime_with_test_hooks {
-    ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
-        $crate::generate_optimistic_runtime!( $id <= $($module_name : $module_ty),*);
-    }
-}
-
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
 pub struct SlotTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
@@ -181,6 +171,13 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
     pub fn empty() -> Self {
         Self {
             transaction_test_cases: vec![],
+            post_hook: Box::new(|_| {}),
+        }
+    }
+
+    pub fn from_txs(test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
+        Self {
+            transaction_test_cases: test_cases,
             post_hook: Box::new(|_| {}),
         }
     }
@@ -212,9 +209,8 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec>
         ),
     ) -> Self {
         TxTestCase {
-            sender_key,
             outcome: TxOutcome::Applied(post_check),
-            message,
+            message: MessageType::Plain(message, sender_key),
         }
     }
 }
@@ -226,11 +222,94 @@ pub enum TxOutcome<RT: TxHooks> {
     Reverted,
 }
 
+impl<RT: TxHooks> TxOutcome<RT> {
+    pub fn applied() -> Self {
+        Self::Applied(Box::new(|_| {}))
+    }
+}
+
+pub enum MessageType<M: Module, S: Spec> {
+    PreSigned(RawTx),
+    PreEncoded(Vec<u8>, <S::CryptoSpec as CryptoSpec>::PrivateKey),
+    Plain(M::CallMessage, <S::CryptoSpec as CryptoSpec>::PrivateKey),
+}
+
+impl<M: Module, S: Spec> MessageType<M, S> {
+    pub fn to_raw_tx<RT: EncodeCall<M>>(
+        self,
+        nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+    ) -> RawTx {
+        match self {
+            MessageType::PreSigned(raw_tx) => raw_tx,
+            MessageType::PreEncoded(msg, key) => Self::sign_with_defaults(msg, key, nonces),
+            MessageType::Plain(msg, key) => {
+                let msg = <RT as EncodeCall<M>>::encode_call(msg);
+                Self::sign_with_defaults(msg, key, nonces)
+            }
+        }
+    }
+
+    pub fn pre_signed(
+        unsigned_tx: UnsignedTransaction<S>,
+        key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
+    ) -> Self {
+        let tx = Transaction::new_signed_tx(key, unsigned_tx)
+            .try_to_vec()
+            .unwrap();
+        Self::PreSigned(RawTx { data: tx })
+    }
+
+    pub fn sign_with_defaults(
+        msg: Vec<u8>,
+        key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+        nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+    ) -> RawTx {
+        let pub_key = key.pub_key();
+        let nonce = *nonces.get(&pub_key).unwrap_or(&0);
+        nonces.insert(pub_key, nonce + 1);
+        let tx = Transaction::<S>::new_signed_tx(
+            &key,
+            UnsignedTransaction::new(
+                msg,
+                config_value!("CHAIN_ID"),
+                1.into(),
+                100_000,
+                nonce,
+                None,
+            ),
+        )
+        .try_to_vec()
+        .unwrap();
+
+        RawTx { data: tx }
+    }
+}
+
 pub struct TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
-    pub sender_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     pub outcome: TxOutcome<RT>,
-    // Note: We can easily make this an enum with a variant for a pre-encoded message in order to support calls from other modules
-    pub message: <M as Module>::CallMessage,
+    pub message: MessageType<M, S>,
+}
+
+/// Run a test on the given runtime
+///
+/// The test is defined by a series of slot test cases, where the workflow is...
+/// 1. Run genesis
+/// 2. For each call message, execute the message and apply the post-execution closure to check
+/// that the result is valid.
+pub fn run_test<RT, S, M>(
+    genesis_config: GenesisParams<<RT as Genesis>::Config, BasicKernelGenesisConfig<S, MockDaSpec>>,
+    slots: Vec<SlotTestCase<RT, M, S>>,
+    runtime: RT,
+) where
+    RT: Runtime<S, MockDaSpec>
+        + PostTxHookRegistry<S, MockDaSpec>
+        + EndSlotHookRegistry<S, MockDaSpec>
+        + MinimalGenesis<S, Da = MockDaSpec>
+        + EncodeCall<M>,
+    S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
+    M: Module,
+{
+    run_test_with_setup_fn(genesis_config, &mut |_, _, _| {}, slots, runtime);
 }
 
 /// Run a test on the given runtime
@@ -242,7 +321,7 @@ pub struct TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
 /// that depend on the current state.
 /// 3. For each call message, execute the message and apply the post-execution closure to check
 /// that the result is valid.
-pub fn run_test<RT, S, M>(
+pub fn run_test_with_setup_fn<RT, S, M>(
     mut genesis_config: GenesisParams<
         <RT as Genesis>::Config,
         BasicKernelGenesisConfig<S, MockDaSpec>,
@@ -265,7 +344,7 @@ pub fn run_test<RT, S, M>(
 {
     let mut nonces = HashMap::new();
     let mut post_slot_closures = Vec::with_capacity(slots.len());
-    let mut msgs_and_senders_by_slot = Vec::with_capacity(slots.len());
+    let mut messages_by_slot = Vec::with_capacity(slots.len());
     let mut tx_successful = Vec::new();
     // Register the transaction hooks with the runtime. Destructure the test cases for easier processing.
     {
@@ -276,15 +355,11 @@ pub fn run_test<RT, S, M>(
             } = slot;
             post_slot_closures.push(post_hook);
 
-            let mut msgs_and_senders = Vec::with_capacity(transaction_test_cases.len());
+            let mut messages = Vec::with_capacity(transaction_test_cases.len());
             let mut hooks = Vec::with_capacity(transaction_test_cases.len());
             for test_case in transaction_test_cases {
-                let TxTestCase {
-                    sender_key,
-                    outcome,
-                    message,
-                } = test_case;
-                msgs_and_senders.push((message, sender_key));
+                let TxTestCase { outcome, message } = test_case;
+                messages.push(message);
                 if let TxOutcome::Applied(post_check) = outcome {
                     hooks.push(post_check);
                     tx_successful.push(true);
@@ -293,7 +368,7 @@ pub fn run_test<RT, S, M>(
                 };
             }
             runtime.add_post_dispatch_tx_hook_actions(hooks);
-            msgs_and_senders_by_slot.push(msgs_and_senders);
+            messages_by_slot.push(messages);
         }
     }
     runtime.add_end_slot_hook_actions(post_slot_closures);
@@ -328,7 +403,7 @@ pub fn run_test<RT, S, M>(
     // ----- End genesis ---------
 
     let mut expect_success = tx_successful.into_iter();
-    for (prev_slot_number, msgs_and_priv_keys) in msgs_and_senders_by_slot.into_iter().enumerate() {
+    for (prev_slot_number, msgs_and_priv_keys) in messages_by_slot.into_iter().enumerate() {
         let block_header = MockBlockHeader::from_height(prev_slot_number as u64 + 1);
         let (stf_state, ledger_state) = storage_manager
             .create_state_for(&block_header)
@@ -338,21 +413,12 @@ pub fn run_test<RT, S, M>(
             let mut state = WorkingSet::<S>::new(stf_state.clone());
             let mut signed_txs = Vec::new();
 
-            for (mut msg, priv_key) in msgs_and_priv_keys.into_iter() {
-                let pub_key = priv_key.pub_key();
-                tx_setup_fn(&mut msg, prev_state_root, &mut state);
+            for mut msg in msgs_and_priv_keys.into_iter() {
+                if let MessageType::Plain(msg, _) = &mut msg {
+                    tx_setup_fn(msg, prev_state_root, &mut state);
+                }
 
-                let msg = <RT as EncodeCall<M>>::encode_call(msg);
-                let nonce = *nonces.get(&pub_key).unwrap_or(&0);
-                nonces.insert(pub_key, nonce + 1);
-
-                let tx = Transaction::<S>::new_signed_tx(
-                    &priv_key,
-                    UnsignedTransaction::new(msg, 0, 1.into(), 100_000, nonce, None),
-                );
-                signed_txs.push(RawTx {
-                    data: tx.try_to_vec().unwrap(),
-                });
+                signed_txs.push(msg.to_raw_tx::<RT>(&mut nonces));
             }
             signed_txs
         };
@@ -406,14 +472,9 @@ pub fn run_test<RT, S, M>(
 // TODO: Delete the hookless TestRuntime after upgrading tests to the HookedRuntime
 // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/682>
 generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
-pub use framework::{GenesisConfig as HookedRuntimeGenesisConfig, HookedRuntime};
 
 use self::traits::EndSlotHookRegistry;
 use self::wrapper::{EndSlotClosure, StateRootClosure};
-mod framework {
-    use super::*;
-    generate_optimistic_runtime_with_test_hooks!(HookedRuntime <= value_setter: ValueSetter<S>);
-}
 
 /// Admin: single address that will be used as admin and minter.
 /// Sequencer is another address that will be used as sequencer.
@@ -482,7 +543,7 @@ mod test_rt {
     use crate::{TestPrivateKey, TestSpec};
 
     const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
-    generate_optimistic_runtime_with_test_hooks!(TestRuntime <= value_setter: ValueSetter<S>);
+    generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 
     #[test]
     // Tests the test setup by running the value setter module and checking if the value was set correctly
@@ -558,7 +619,6 @@ mod test_rt {
 
         run_test::<_, _, _>(
             params,
-            &mut |_, _, _| {},
             vec![SlotTestCase::from(tx_test_cases)],
             TestRuntime::<TestSpec, MockDaSpec>::default(),
         );
