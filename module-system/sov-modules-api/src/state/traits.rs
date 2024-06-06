@@ -1,18 +1,18 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
 
-use anyhow::Context;
 use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 use sov_state::StorageProof;
 use sov_state::{
     namespaces, Accessory, CompileTimeNamespace, EventContainer, IsValueCached, Kernel,
-    ProvableCompileTimeNamespace, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
-    User,
+    ProvableCompileTimeNamespace, ProvableNamespace, SlotKey, SlotValue, StateCodec,
+    StateItemCodec, StateItemDecoder, User,
 };
+use thiserror::Error;
 
 use super::accessors::seal::CachedAccessor;
-use crate::{Gas, GasMeter, Spec};
+use crate::{Gas, GasMeter, GasMeteringError, Spec};
 
 /// The state accessor used during transaction execution. It provides unrestricted
 /// access to [`User`]-space state, as well as limited visibility into the `Kernel` state.
@@ -35,7 +35,7 @@ impl<S: Spec, T> TxState<S> for T where
 pub trait GenesisState<S: Spec>:
     StateReaderAndWriter<User>
     // + StateReader<Kernel> TODO: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/596>
-    + StateWriter<Accessory>
+    + AccessoryStateWriter
     + EventContainer
     + GasMeter<S::Gas>
 {}
@@ -43,10 +43,52 @@ pub trait GenesisState<S: Spec>:
 impl<S: Spec, T> GenesisState<S> for T where
     T: StateReaderAndWriter<User>
         // + StateReaderAndWriter<sov_state::Kernel>
-        + StateWriter<Accessory>
+        + AccessoryStateWriter
         + EventContainer
         + GasMeter<S::Gas>
 {
+}
+
+/// The set of errors that can be raised during state accesses. For now all these errors are
+/// caused by gas metering issues, hence this error type is a wrapper around the [`GasMeteringError`].
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum StateAccessorError<GU: Gas> {
+    /// An error occurred when trying to get a value from the state.
+    #[error(
+        "An error occured while trying to get the value (key {key:?}) from the state: {inner}, namespace: {namespace:?}"
+    )]
+    Get {
+        key: SlotKey,
+        inner: GasMeteringError<GU>,
+        namespace: ProvableNamespace,
+    },
+    /// An error occurred when trying to set a value in the state.
+    #[error(
+        "An error occured while trying to set the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
+    )]
+    Set {
+        key: SlotKey,
+        inner: GasMeteringError<GU>,
+        namespace: ProvableNamespace,
+    },
+    /// An error occurred when trying to decode a value retrieved from the state.
+    #[error(
+        "An error occured while trying to decode the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
+    )]
+    Decode {
+        key: SlotKey,
+        inner: GasMeteringError<GU>,
+        namespace: ProvableNamespace,
+    },
+    /// An error occurred when trying to delete a value from the state.
+    #[error(
+        "An error occured while trying to delete the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
+    )]
+    Delete {
+        key: SlotKey,
+        inner: GasMeteringError<GU>,
+        namespace: ProvableNamespace,
+    },
 }
 
 /// Returns the gas to charge for a decoding operation.
@@ -165,7 +207,7 @@ where
 
 /// A storage reader which can access a particular namespace.
 pub trait StateReader<N: CompileTimeNamespace> {
-    type Error: Debug;
+    type Error: std::error::Error + Send + Sync;
 
     /// Get a value from the storage. Basically a wrapper around [`StateReader::get`].
     ///
@@ -205,11 +247,15 @@ pub trait ProvableStateReader<N: ProvableCompileTimeNamespace>:
 macro_rules! blanket_impl_metered_state_reader {
     ($namespace:ty) => {
         impl<T: ProvableStateReader<$namespace>> StateReader<$namespace> for T {
-            type Error = anyhow::Error;
+            type Error = StateAccessorError<T::GU>;
 
             fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
                 self.charge_gas(&gas_to_charge_for_read())
-                    .map_err(|e| e.context("StateReader ran out of gas when trying to read from state"))?;
+                    .map_err(|e| StateAccessorError::Get{
+                        key: key.clone(),
+                        inner: e,
+                        namespace: <$namespace>::PROVABLE_NAMESPACE,
+                    })?;
 
                 let (val, is_value_cached) = CachedAccessor::<$namespace>::get_cached(self, key);
 
@@ -232,7 +278,11 @@ macro_rules! blanket_impl_metered_state_reader {
                 let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
 
                 if let Some(storage_value) = &storage_value {
-                    self.charge_gas(&decode_gas_cost(storage_value))?;
+                    self.charge_gas(&decode_gas_cost(storage_value)).map_err(|e| StateAccessorError::Decode{
+                        key: storage_key.clone(),
+                        inner: e,
+                        namespace: <$namespace>::PROVABLE_NAMESPACE,
+                    })?
                 }
 
                 Ok(storage_value
@@ -272,7 +322,7 @@ impl<T: AccessoryStateReader> StateReader<Accessory> for T {
 
 /// Provides write-only access to a particular namespace
 pub trait StateWriter<N: CompileTimeNamespace> {
-    type Error: Debug;
+    type Error: std::error::Error + Send + Sync;
 
     /// Sets a value in the storage. Basically a wrapper around [`StateWriter::set`].
     ///
@@ -296,11 +346,15 @@ pub trait ProvableStateWriter<N: ProvableCompileTimeNamespace>:
 macro_rules! blanket_impl_metered_state_writer {
     ($namespace:ty) => {
         impl<T: ProvableStateWriter<$namespace>> StateWriter<$namespace> for T {
-            type Error = anyhow::Error;
+            type Error = StateAccessorError<T::GU>;
 
             fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
                 self.charge_gas(&gas_to_charge_for_write())
-                    .context("Failed to charge gas for read operation")?;
+                    .map_err(|e| StateAccessorError::Set{
+                        key: key.clone(),
+                        inner: e,
+                        namespace: <$namespace>::PROVABLE_NAMESPACE,
+                    })?;
                 let is_value_cached = CachedAccessor::<$namespace>::set_cached(self, key, value);
 
                 if is_value_cached == IsValueCached::Yes {
@@ -311,8 +365,12 @@ macro_rules! blanket_impl_metered_state_writer {
             }
 
             fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
-                self.charge_gas(&gas_to_charge_for_delete())
-                    .context("Failed to charge gas for delete operation")?;
+                self.charge_gas(&gas_to_charge_for_delete()).
+                    map_err(|e| StateAccessorError::Delete{
+                        key: key.clone(),
+                        inner: e,
+                        namespace: <$namespace>::PROVABLE_NAMESPACE,
+                    })?;
                 let is_value_cached = CachedAccessor::<$namespace>::delete_cached(self, key);
 
                 if is_value_cached == IsValueCached::Yes {
