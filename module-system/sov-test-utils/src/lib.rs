@@ -7,6 +7,7 @@ use sov_mock_da::{MockAddress, MockBlob};
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::Authenticator;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::utils::generate_address;
@@ -36,6 +37,7 @@ pub type TestSpec =
     sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 pub type ZkTestSpec =
     sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Zk>;
+pub type TestAddress = <TestSpec as Spec>::Address;
 pub type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
@@ -171,7 +173,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
 
 /// Trait used to generate messages from the DA layer to automate module testing
 pub trait MessageGenerator {
-    const DEFAULT_CHAIN_ID: u64 = 0;
+    const DEFAULT_CHAIN_ID: u64 = config_value!("CHAIN_ID");
     const DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
     const DEFAULT_MAX_FEE: u64 = 10_000;
     const DEFAULT_ESTIMATED_GAS_USAGE: [u64; 2] = [10, 10];

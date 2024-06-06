@@ -1,4 +1,5 @@
 use sov_bank::{Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, GAS_TOKEN_ID};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Gas, GasArray, GasPrice, Module, Spec, WorkingSet};
@@ -163,7 +164,7 @@ impl BankGasTestCase {
 
         let tx: AuthenticatedTransactionData<S> = AuthenticatedTransactionData {
             max_fee: sender_balance,
-            chain_id: 0,
+            chain_id: config_value!("CHAIN_ID"),
             max_priority_fee_bips: PriorityFeeBips::ZERO,
             gas_limit: None,
         };

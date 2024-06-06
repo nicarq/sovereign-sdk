@@ -3,13 +3,14 @@ use jsonrpsee::RpcModule;
 use reth_primitives::U256;
 use sov_evm::{Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::Authenticator;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::ApiStateAccessor;
 use sov_rollup_interface::services::da::DaService;
 
 use crate::{Ethereum, ETH_RPC_ERROR};
 
-const DEFAULT_CHAIN_ID: u64 = 1;
+const DEFAULT_CHAIN_ID: u64 = config_value!("CHAIN_ID");
 
 pub(crate) fn register_signer_rpc_methods<
     S: sov_modules_api::Spec,
@@ -165,7 +166,7 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
                     value: value.unwrap_or_default(),
                     input: data.into_input().unwrap_or_default(),
                     kind: address_to_tx_kind(to),
-                    chain_id: 0,
+                    chain_id: config_value!("CHAIN_ID"),
                     access_list,
                 },
             ))
@@ -186,7 +187,7 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
                     value: value.unwrap_or_default(),
                     input: data.into_input().unwrap_or_default(),
                     kind: address_to_tx_kind(to),
-                    chain_id: 0,
+                    chain_id: config_value!("CHAIN_ID"),
                     access_list: access_list.unwrap_or_default(),
                 },
             ))

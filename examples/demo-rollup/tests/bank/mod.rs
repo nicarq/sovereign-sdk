@@ -14,6 +14,7 @@ use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
+use sov_modules_macros::config_value;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
@@ -97,7 +98,7 @@ fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSp
             mint_to_address: user_address,
             authorized_minters: vec![],
         });
-    let chain_id = 0;
+    let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = MAX_TX_FEE;
     let gas_limit = None;
@@ -126,7 +127,7 @@ fn build_transfer_token_tx(
             to: recipient,
             coins: Coins { amount, token_id },
         });
-    let chain_id = 0;
+    let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = MAX_TX_FEE;
     let gas_limit = None;

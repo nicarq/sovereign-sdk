@@ -1,19 +1,16 @@
 {
   "comment": "Sovereign SDK constants",
   "constants": {
+    "CHAIN_ID": 4321,
     "DEFERRED_SLOTS_COUNT": 2,
     "GAS_TOKEN_ID": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
     "TEST_TOKEN_ID": "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm",
     "TEST_TOKEN_ID_INVALID_CHECKSUM": "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqabcdef",
-
     "GAS_TO_CHARGE_FOR_ACCESS": [10, 10],
     "GAS_TO_REFUND_FOR_HOT_ACCESS": [8, 8],
-
     "GAS_TO_CHARGE_FOR_WRITE": [10, 10],
     "GAS_TO_REFUND_FOR_HOT_WRITE": [8, 8],
-
     "GAS_TO_CHARGE_FOR_DECODING": [0, 0],
-
     "GAS_TX_FIXED_COST": [10, 10],
     "GAS_TX_COST_PER_BYTE": [0, 0],
     "TEST_U32": 42,

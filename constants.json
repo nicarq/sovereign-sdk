@@ -10,19 +10,16 @@
     }
   },
   "constants": {
+    "CHAIN_ID": 4321,
     "DEFERRED_SLOTS_COUNT": 2,
     "GAS_TOKEN_ID": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
     "GAS_TX_FIXED_COST": [10, 10],
     "GAS_TX_COST_PER_BYTE": [0, 0],
-
     "GAS_TO_CHARGE_FOR_ACCESS": [0, 0],
     "GAS_TO_REFUND_FOR_HOT_ACCESS": [0, 0],
-
     "GAS_TO_CHARGE_FOR_WRITE": [0, 0],
     "GAS_TO_REFUND_FOR_HOT_WRITE": [0, 0],
-
     "GAS_TO_CHARGE_FOR_DECODING": [0, 0],
-
     "PERCENT_BASE_FEE_TO_BURN": 10,
     "INITIAL_GAS_LIMIT": [100000000, 100000000],
     "INITIAL_BASE_FEE_PER_GAS": [100, 100],

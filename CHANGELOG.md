@@ -1,3 +1,5 @@
+- #770 enforces that transactions are set with the correct chain ID. To get the ID, use `config_value!("CHAIN_ID")`. 
+
 - #775 adds a couple of custom error types that will be useful to allow using the `try` pattern within the module system to automatically convert errors into `anyhow::Error`. Meaningful changes:
   - Adding a custom `GasMeteringError` enum that describes the possible causes for error inside the `GasMeter` trait methods
   - Adding a custom `StateAccessorError` enum that describes the situations where accessing the state might fail.

@@ -3,6 +3,7 @@ use std::time::Duration;
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_nft_module::utils::{
@@ -25,7 +26,7 @@ pub fn build_transaction(
     nonce: u64,
 ) -> Transaction<TestSpec> {
     let runtime_encoded_message = RuntimeCall::<TestSpec, MockDaSpec>::nft(message);
-    let chain_id = 0;
+    let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 0;
     let gas_limit = None;

@@ -4,6 +4,7 @@ use reth_primitives::{
     EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
 use revm::primitives::BlockEnv;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::{KernelWorkingSet, StateCheckpoint, VersionedStateReadWriter};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
@@ -81,7 +82,7 @@ fn end_slot_hook_sets_head() {
                 beneficiary: TEST_CONFIG.coinbase,
                 state_root: KECCAK_EMPTY,
                 transactions_root: B256::from(hex!(
-                    "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
+                    "9c3857045a725a519d5328ba197188bceacc6178760c4f7eac7a423666320104"
                 )),
                 receipts_root: B256::from(hex!(
                     "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
@@ -166,7 +167,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
                 hash,
                 signature: Signature::default(),
                 transaction: reth_primitives::Transaction::Eip1559(reth_primitives::TxEip1559 {
-                    chain_id: 1u64,
+                    chain_id: config_value!("CHAIN_ID"),
                     nonce: 1u64,
                     gas_limit: 1000u64,
                     max_fee_per_gas: 2000u64 as u128,
@@ -241,7 +242,7 @@ fn finalize_hook_creates_final_block() {
                     beneficiary: TEST_CONFIG.coinbase,
                     state_root: B256::from(root_hash),
                     transactions_root: B256::from(hex!(
-                        "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
+                        "9c3857045a725a519d5328ba197188bceacc6178760c4f7eac7a423666320104"
                     )),
                     receipts_root: B256::from(hex!(
                         "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
@@ -263,7 +264,7 @@ fn finalize_hook_creates_final_block() {
                 },
                 B256::from(hex!(
                     // This hash changes because the header is different
-                    "29be93851c5baf9039ec6f792328f107dd93f40e20772d0beb9bd925adeebe3f"
+                    "2dc597cf3b00b4af7c30e0cfd4f26340557543d0e2f168f96b8dfe1546b0699c"
                 )),
             ),
             transactions: 0..2

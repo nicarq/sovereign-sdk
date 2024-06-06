@@ -4,6 +4,7 @@ use ethers_core::abi::Address;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::CredentialId;
+use sov_modules_macros::config_value;
 use sov_test_utils::TestSpec;
 
 use super::test_client::TestClient;
@@ -12,7 +13,7 @@ use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_key
 
 #[tokio::test]
 async fn test_evm_account_abstraction() {
-    let chain_id = 1;
+    let chain_id = config_value!("CHAIN_ID");
     let finalization_blocks = 0;
     let rollup_prover_config = get_appropriate_rollup_prover_config();
     let (rollup_task, port) =

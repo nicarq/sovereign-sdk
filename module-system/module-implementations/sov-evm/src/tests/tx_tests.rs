@@ -8,6 +8,7 @@ use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U64, U8};
 use reth_rpc_types::request::TransactionInput;
 use reth_rpc_types::TransactionRequest;
 use revm::primitives::{BlockEnv, TransactTo, TxEnv};
+use sov_modules_api::macros::config_value;
 
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
 use crate::helpers::prepare_call_env;
@@ -26,7 +27,7 @@ async fn tx_rlp_encoding_test() -> Result<(), Box<dyn std::error::Error>> {
 
     let tx_request = Eip1559TransactionRequest::new()
         .from(from_addr)
-        .chain_id(1u64)
+        .chain_id(config_value!("CHAIN_ID"))
         .nonce(0u64)
         .max_priority_fee_per_gas(413047990155u64)
         .max_fee_per_gas(768658734568u64)

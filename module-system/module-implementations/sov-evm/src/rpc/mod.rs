@@ -7,7 +7,7 @@ use revm::primitives::{
     KECCAK_EMPTY, U256,
 };
 use revm_primitives::BlockEnv;
-use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::{ApiStateAccessor, StateAccessor};
 use tracing::debug;
 
@@ -618,7 +618,7 @@ fn get_cfg_env_template() -> revm::primitives::CfgEnv {
     cfg_env.disable_block_gas_limit = false;
     cfg_env.disable_eip3607 = true;
     cfg_env.disable_base_fee = true;
-    cfg_env.chain_id = 0;
+    cfg_env.chain_id = config_value!("CHAIN_ID");
     cfg_env.perf_analyse_created_bytecodes = revm::primitives::AnalysisKind::Analyse;
     cfg_env.limit_contract_code_size = None;
     cfg_env

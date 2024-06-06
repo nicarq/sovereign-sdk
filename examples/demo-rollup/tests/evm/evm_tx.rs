@@ -1,3 +1,4 @@
+use sov_modules_macros::config_value;
 use sov_stf_runner::RollupProverConfig;
 
 use super::evm_test_helper;
@@ -19,7 +20,7 @@ async fn evm_tx_test(
     finalization_blocks: u32,
     rollup_prover_config: RollupProverConfig,
 ) -> anyhow::Result<()> {
-    let chain_id = 1;
+    let chain_id = config_value!("CHAIN_ID");
     let (rollup_task, port) =
         evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 

@@ -172,7 +172,7 @@ This imports two keys:
 Execute the following commands to create a new NFT collection:
 
 ```bash
-cargo run --bin sov-cli transactions import from-file nft --chain-id 0 --path examples/test-data/requests/nft/create_collection.json
+cargo run --bin sov-cli transactions import from-file nft --chain-id 4321 --path examples/test-data/requests/nft/create_collection.json
 cargo run --bin sov-cli rpc submit-batch by-nickname nft_creator
 ```
 
@@ -197,7 +197,7 @@ curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","metho
 To mint an NFT, execute the following commands:
 
 ```bash
-cargo run --bin sov-cli transactions import from-file nft --chain-id 0 --path examples/test-data/requests/nft/mint_nft.json
+cargo run --bin sov-cli transactions import from-file nft --chain-id 4321 --path examples/test-data/requests/nft/mint_nft.json
 cargo run --bin sov-cli rpc submit-batch by-nickname nft_creator
 ```
 
@@ -214,7 +214,7 @@ curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","metho
 To transfer the ownership of an NFT, execute the following commands:
 
 ```bash
-cargo run --bin sov-cli transactions import from-file nft --chain-id 0 --path examples/test-data/requests/nft/transfer_nft.json
+cargo run --bin sov-cli transactions import from-file nft --chain-id 4321 --path examples/test-data/requests/nft/transfer_nft.json
 cargo run --bin sov-cli rpc submit-batch by-nickname nft_owner
 ```
 
