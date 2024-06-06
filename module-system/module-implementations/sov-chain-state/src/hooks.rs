@@ -11,12 +11,12 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
-        working_set: &mut KernelWorkingSet<S>,
+        state: &mut KernelWorkingSet<S>,
     ) -> <S::Gas as Gas>::Price {
-        let gas_info = if self.genesis_root.get(working_set.inner).is_none() {
+        let gas_info = if self.genesis_root.get(state.inner).is_none() {
             // The genesis hash is not set, hence this is the
             // first transition right after the genesis block
-            self.genesis_root.set(pre_state_root, working_set.inner);
+            self.genesis_root.set(pre_state_root, state.inner);
 
             BlockGasInfo::new(Self::initial_gas_limit(), Self::initial_base_fee_per_gas())
         } else {
@@ -27,7 +27,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
                     gas_info,
                 } = self
                     .in_progress_transition
-                    .get_current(working_set)
+                    .get_current(state)
                     .expect("There should always be a transition in progress");
 
                 StateTransition {
@@ -38,9 +38,9 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
                 }
             };
 
-            let slot_number = self.true_slot_number(working_set);
+            let slot_number = self.true_slot_number(state);
             self.historical_transitions
-                .set(&slot_number, &transition, working_set.inner);
+                .set(&slot_number, &transition, state.inner);
 
             // The base fee per gas is updated according to the EIP-1559 specification
             let computed_base_fee = Self::compute_base_fee_per_gas(&transition.gas_info);
@@ -53,9 +53,9 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         };
 
         // Since we increment the true slot number, we have to update the working set.
-        self.increment_true_slot_number(working_set);
+        self.increment_true_slot_number(state);
 
-        self.time.set_true_current(&slot_header.time(), working_set);
+        self.time.set_true_current(&slot_header.time(), state);
 
         let new_base_fee = gas_info.base_fee_per_gas.clone();
 
@@ -65,17 +65,17 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
                 validity_condition: *validity_condition,
                 gas_info,
             },
-            working_set,
+            state,
         );
 
         new_base_fee
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot
-    pub fn end_slot_hook(&self, gas_used: &S::Gas, working_set: &mut KernelWorkingSet<S>) {
+    pub fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelWorkingSet<S>) {
         let mut in_progress_transition = self
             .in_progress_transition
-            .get_current(working_set)
+            .get_current(state)
             .expect("There should always be a transition in progress");
 
         in_progress_transition
@@ -83,6 +83,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             .update_gas_used(gas_used.clone());
 
         self.in_progress_transition
-            .set_true_current(&in_progress_transition, working_set);
+            .set_true_current(&in_progress_transition, state);
     }
 }

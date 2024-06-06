@@ -68,7 +68,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         bond_amount: u64,
         prover: &S::Address,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Transfer the bond amount from the sender to the module's id.
         // On failure, no state is changed
@@ -77,14 +77,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             amount: bond_amount,
         };
         self.bank
-            .transfer_from(prover, self.id.to_payable(), coins, working_set)
+            .transfer_from(prover, self.id.to_payable(), coins, state)
             .map_err(|_| ProverIncentiveError::BondTransferFailure)?;
 
         // Check that total balance does not overflow before doing transfer.
-        let old_balance = self
-            .bonded_provers
-            .get(prover, working_set)
-            .unwrap_or_default();
+        let old_balance = self.bonded_provers.get(prover, state).unwrap_or_default();
 
         let total_balance = old_balance
             .checked_add(bond_amount)
@@ -95,11 +92,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // Update our record of the total bonded amount for the sender.
         // This update is infallible, so no value can be destroyed.
-        self.bonded_provers.set(prover, &total_balance, working_set);
+        self.bonded_provers.set(prover, &total_balance, state);
 
         // Emit the bonding event
         self.emit_event(
-            working_set,
+            state,
             "bond_prover_helper",
             Event::<S>::BondedProver {
                 prover: prover.clone(),
@@ -116,27 +113,27 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         bond_amount: u64,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
-        self.bond_prover_helper(bond_amount, context.sender(), working_set)
+        self.bond_prover_helper(bond_amount, context.sender(), state)
     }
 
     /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
     pub(crate) fn unbond_prover(
         &self,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
-        if let Some(old_balance) = self.bonded_provers.get(context.sender(), working_set) {
-            self.transfer_to_prover(old_balance, context, working_set)?;
+        if let Some(old_balance) = self.bonded_provers.get(context.sender(), state) {
+            self.transfer_to_prover(old_balance, context, state)?;
 
             // Update our internal tracking of the total bonded amount for the sender.
-            self.bonded_provers.set(context.sender(), &0, working_set);
+            self.bonded_provers.set(context.sender(), &0, state);
 
             // Emit the unbonding event
             self.emit_event(
-                working_set,
+                state,
                 "unbond_prover",
                 Event::<S>::UnBondedProver {
                     prover: context.sender().clone(),
@@ -152,11 +149,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     fn check_proof_outputs(
         &self,
         public_outputs: &AggregatedProofPublicData,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Result<(), SlashingReason> {
         let expected_genesis_hash = self
             .chain_state
-            .get_genesis_hash(working_set)
+            .get_genesis_hash(state)
             .expect("The genesis hash should be set at genesis");
 
         // We have to check that the genesis hash is valid
@@ -169,12 +166,12 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         let initial_transition = self
             .chain_state
-            .get_historical_transitions(initial_slot_num, working_set)
+            .get_historical_transitions(initial_slot_num, state)
             .ok_or(SlashingReason::InitialTransitionDoesNotExist)?;
 
         let initial_state_root = if let Some(prev_transition) = self
             .chain_state
-            .get_historical_transitions(initial_slot_num.saturating_sub(1), working_set)
+            .get_historical_transitions(initial_slot_num.saturating_sub(1), state)
         {
             prev_transition.post_state_root().clone()
         } else {
@@ -195,7 +192,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         let final_slot_num = public_outputs.final_slot_number;
         let expected_final_transition = self
             .chain_state
-            .get_historical_transitions(final_slot_num, working_set)
+            .get_historical_transitions(final_slot_num, state)
             .ok_or(SlashingReason::FinalTransitionDoesNotExist)?;
 
         if expected_final_transition.post_state_root().as_ref() != public_outputs.final_state_root {
@@ -218,10 +215,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         for (slot_num, output_condition) in
             (initial_slot_num..=final_slot_num).zip(public_outputs.validity_conditions.iter())
         {
-            match self
-                .chain_state
-                .get_historical_transitions(slot_num, working_set)
-            {
+            match self.chain_state.get_historical_transitions(slot_num, state) {
                 Some(transition) => {
                     if transition
                         .validity_condition()
@@ -244,7 +238,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         total_reward: u64,
         context: &Context<S>,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Result<(), ProverIncentiveError> {
         let coins = Coins {
             token_id: GAS_TOKEN_ID,
@@ -253,7 +247,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // We can transfer the reward from the `ProverIncentives` module to the prover's account.
         self.bank
-            .transfer_from(self.id.to_payable(), context.sender(), coins, working_set)
+            .transfer_from(self.id.to_payable(), context.sender(), coins, state)
             .map_err(|_| ProverIncentiveError::TransferFailure)?;
 
         Ok(())
@@ -267,14 +261,14 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         final_slot_num: u64,
         old_balance: u64,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<u64, ProverIncentiveError> {
         // Let's compute the total reward
         let mut total_reward = 0;
 
         let first_available_reward = self
             .last_claimed_reward
-            .get(working_set)
+            .get(state)
             .expect("The last claimed reward should be set at genesis")
             + 1;
 
@@ -288,10 +282,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // If not, reward the prover with the block reward
             // `get_historical_transitions` should always return `Some` because we are iterating over the range of `init_slot_num..=final_slot_num`
             // whose integrity was checked beforehand.
-            if let Some(transition) = self
-                .chain_state
-                .get_historical_transitions(slot_num, working_set)
-            {
+            if let Some(transition) = self.chain_state.get_historical_transitions(slot_num, state) {
                 let curr_reward = transition.gas_used().value(transition.gas_price());
                 total_reward += curr_reward;
             }
@@ -299,16 +290,16 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // We need to remove the reward once it is claimed
         self.last_claimed_reward
-            .set(&max(first_available_reward, final_slot_num), working_set);
+            .set(&max(first_available_reward, final_slot_num), state);
 
         if total_reward > 0 {
             // We only reward a portion of the total reward - we burn some of it
             // to avoid the provers to collude to prove empty blocks.
             let reward_amount = self.burn_rate().apply(total_reward);
-            self.transfer_to_prover(reward_amount, context, working_set)?;
+            self.transfer_to_prover(reward_amount, context, state)?;
 
             self.emit_event(
-                working_set,
+                state,
                 "process_valid_proof",
                 Event::<S>::ProcessedValidProof {
                     prover: context.sender().clone(),
@@ -321,15 +312,15 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // We need to fine the prover
             let fine = self
                 .proving_penalty
-                .get(working_set)
+                .get(state)
                 .expect("Should be set at genesis");
 
             // Unlock the prover's bond
             self.bonded_provers
-                .set(context.sender(), &(old_balance - fine), working_set);
+                .set(context.sender(), &(old_balance - fine), state);
 
             self.emit_event(
-                working_set,
+                state,
                 "prover_penalized",
                 Event::<S>::ProverPenalized {
                     prover: context.sender().clone(),
@@ -347,11 +338,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         proof: &[u8],
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
         // Revert if they aren't bonded
-        let old_balance = match self.bonded_provers.get(context.sender(), working_set) {
+        let old_balance = match self.bonded_provers.get(context.sender(), state) {
             Some(balance) => balance,
             None => return Err(ProverIncentiveError::ProverNotBonded),
         };
@@ -359,7 +350,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         // Check that the prover has enough balance to process the proof.
         let minimum_bond = self
             .minimum_bond
-            .get(working_set)
+            .get(state)
             .expect("The minimum bond should be set at genesis");
 
         if old_balance < minimum_bond {
@@ -370,11 +361,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         );
         // Lock the prover's bond amount.
         self.bonded_provers
-            .set(context.sender(), &new_balance, working_set);
+            .set(context.sender(), &new_balance, state);
 
         let code_commitment = self
             .chain_state
-            .outer_code_commitment(working_set)
+            .outer_code_commitment(state)
             .expect("The code commitment should be set at genesis");
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         let verification_result =
@@ -384,7 +375,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             Ok(public_outputs) => public_outputs,
             Err(_) => {
                 self.emit_event(
-                    working_set,
+                    state,
                     "prover_slashed",
                     Event::<S>::ProverSlashed {
                         prover: context.sender().clone(),
@@ -397,9 +388,9 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         };
 
         // Check that the public outputs are valid
-        if let Err(err) = self.check_proof_outputs(&public_outputs, working_set) {
+        if let Err(err) = self.check_proof_outputs(&public_outputs, state) {
             self.emit_event(
-                working_set,
+                state,
                 "prover_slashed",
                 Event::<S>::ProverSlashed {
                     prover: context.sender().clone(),
@@ -416,12 +407,12 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             public_outputs.final_slot_number,
             old_balance,
             context,
-            working_set,
+            state,
         )?;
 
         // Unlock the prover's bond
         self.bonded_provers
-            .set(context.sender(), &new_staked_balance, working_set);
+            .set(context.sender(), &new_staked_balance, state);
 
         Ok(CallResponse::default())
     }

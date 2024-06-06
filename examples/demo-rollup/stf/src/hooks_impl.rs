@@ -22,18 +22,18 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
         &self,
         batch: &mut BatchWithId,
         sender: &Da::Address,
-        working_set: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
         // Before executing each batch, check that the sender is registered as a sequencer
         self.sequencer_registry
-            .begin_batch_hook(batch, sender, working_set)
+            .begin_batch_hook(batch, sender, state)
     }
 
     fn end_batch_hook(
         &self,
         result: Self::BatchResult,
         sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S>,
     ) {
         // Since we need to make sure the `StfBlueprint` doesn't depend on the module system, we need to
         // convert the `SequencerOutcome` structures manually.
@@ -44,7 +44,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                     &self.sequencer_registry,
                     sov_sequencer_registry::SequencerOutcome::Rewarded(amount.into()),
                     sender,
-                    state_checkpoint,
+                    state,
                 );
             }
             BatchSequencerOutcome::Ignored => {}
@@ -54,7 +54,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                     &self.sequencer_registry,
                     sov_sequencer_registry::SequencerOutcome::Slashed,
                     sender,
-                    state_checkpoint,
+                    state,
                 );
             }
         }
@@ -73,8 +73,8 @@ impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
             .begin_slot_hook(pre_state_root, versioned_working_set);
     }
 
-    fn end_slot_hook(&self, working_set: &mut sov_modules_api::StateCheckpoint<S>) {
-        self.evm.end_slot_hook(working_set);
+    fn end_slot_hook(&self, state: &mut sov_modules_api::StateCheckpoint<S>) {
+        self.evm.end_slot_hook(state);
     }
 }
 
@@ -84,9 +84,9 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
     fn finalize_hook(
         &self,
         #[allow(unused_variables)] root_hash: S::VisibleHash,
-        #[allow(unused_variables)] accessory_state: &mut impl StateReaderAndWriter<Accessory>,
+        #[allow(unused_variables)] state: &mut impl StateReaderAndWriter<Accessory>,
     ) {
         #[cfg(feature = "native")]
-        self.evm.finalize_hook(root_hash, accessory_state);
+        self.evm.finalize_hook(root_hash, state);
     }
 }

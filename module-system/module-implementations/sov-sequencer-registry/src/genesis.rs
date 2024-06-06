@@ -40,7 +40,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         tracing::info!(
             sequencer_rollup_address = %config.seq_rollup_address,
@@ -49,18 +49,17 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             minimum_bond = config.minimum_bond,
             "Starting sequencer registry genesis..."
         );
-        self.minimum_bond.set(&config.minimum_bond, working_set);
+        self.minimum_bond.set(&config.minimum_bond, state);
 
         self.register_sequencer(
             &config.seq_da_address,
             &config.seq_rollup_address,
             config.minimum_bond,
-            working_set,
+            state,
         )?;
 
         if config.is_preferred_sequencer {
-            self.preferred_sequencer
-                .set(&config.seq_da_address, working_set);
+            self.preferred_sequencer.set(&config.seq_da_address, state);
         }
 
         Ok(())

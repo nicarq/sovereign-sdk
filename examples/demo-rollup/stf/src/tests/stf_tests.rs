@@ -91,21 +91,14 @@ fn test_demo_values_in_db() {
         let (stf_state, _ledger_state) = storage_manager
             .create_state_for(next_block.header())
             .unwrap();
-        let mut api_state_accessor = ApiStateAccessor::new(stf_state);
+        let mut state = ApiStateAccessor::new(stf_state);
         let resp = runtime
             .bank
-            .supply_of(
-                None,
-                get_default_token_id::<S>(&admin_address),
-                &mut api_state_accessor,
-            )
+            .supply_of(None, get_default_token_id::<S>(&admin_address), &mut state)
             .unwrap();
         assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
-        assert_eq!(
-            runtime.value_setter.value.get(&mut api_state_accessor),
-            Some(33)
-        );
+        assert_eq!(runtime.value_setter.value.get(&mut state), Some(33));
     }
 }
 
@@ -182,22 +175,15 @@ fn test_demo_values_in_cache() {
         .create_state_after(block_1.header())
         .unwrap();
 
-    let mut api_state_accessor = ApiStateAccessor::new(stf_storage);
+    let mut state = ApiStateAccessor::new(stf_storage);
 
     let resp = runtime
         .bank
-        .supply_of(
-            None,
-            get_default_token_id::<S>(&admin_address),
-            &mut api_state_accessor,
-        )
+        .supply_of(None, get_default_token_id::<S>(&admin_address), &mut state)
         .unwrap();
     assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
-    assert_eq!(
-        runtime.value_setter.value.get(&mut api_state_accessor),
-        Some(33)
-    );
+    assert_eq!(runtime.value_setter.value.get(&mut state), Some(33));
 }
 
 #[test]

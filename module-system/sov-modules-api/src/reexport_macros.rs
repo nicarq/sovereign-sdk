@@ -177,7 +177,7 @@ pub mod macros {
     ///    which can simply be signatures, these methods must all have function
     ///    bodies as they provide the trait definition and its implementation at the
     ///    same time.
-    /// 4. Working set arguments with signature `working_set: &mut WorkingSet<S>`
+    /// 4. Working set arguments with signature `state: &mut WorkingSet<S>`
     ///    are automatically removed from the method signatures (as they are not
     ///    [`serde`]-compatible) and injected directly within the method bodies.
     ///
@@ -213,8 +213,8 @@ pub mod macros {
     /// #[rpc_gen(client, server, namespace = "myNamespace")]
     /// impl<S: Spec> MyModule<S> {
     ///     #[rpc_method(name = "myMethod")]
-    ///     fn my_method(&self, api_state_accessor: &mut ApiStateAccessor<S>, param: u32) -> RpcResult<S::Address> {
-    ///         Ok(self.values.get(api_state_accessor).unwrap())
+    ///     fn my_method(&self, state: &mut ApiStateAccessor<S>, param: u32) -> RpcResult<S::Address> {
+    ///         Ok(self.values.get(state).unwrap())
     ///     }
     /// }
     /// ```
@@ -349,7 +349,7 @@ pub mod macros {
     /// #    fn genesis(
     /// #        &self,
     /// #        _config: &Self::Config,
-    /// #        _working_set: &mut impl sov_modules_api::state::GenesisState<S>,
+    /// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
     /// #    ) -> Result<(), sov_modules_api::Error> {
     /// #        Ok(())
     /// #    }
@@ -358,7 +358,7 @@ pub mod macros {
     /// #        &self,
     /// #        _msg: Self::CallMessage,
     /// #        _context: &Context<Self::Spec>,
-    /// #        _working_set: &mut impl sov_modules_api::state::TxState<S>,
+    /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
     /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
     /// #        unimplemented!()
     /// #    }
@@ -396,7 +396,7 @@ pub mod macros {
     /// #    fn genesis(
     /// #        &self,
     /// #        _config: &Self::Config,
-    /// #        _working_set: &mut impl sov_modules_api::state::GenesisState<S>,
+    /// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
     /// #    ) -> Result<(), sov_modules_api::Error> {
     /// #        Ok(())
     /// #    }
@@ -405,7 +405,7 @@ pub mod macros {
     /// #        &self,
     /// #        _msg: Self::CallMessage,
     /// #        _context: &Context<Self::Spec>,
-    /// #        _working_set: &mut impl sov_modules_api::state::TxState<S>,
+    /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
     /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
     /// #        unimplemented!()
     /// #    }
@@ -447,7 +447,7 @@ pub mod macros {
     /// #    fn genesis(
     /// #        &self,
     /// #        _config: &Self::Config,
-    /// #        _working_set: &mut impl sov_modules_api::state::GenesisState<S>,
+    /// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
     /// #    ) -> Result<(), sov_modules_api::Error> {
     /// #        Ok(())
     /// #    }
@@ -456,7 +456,7 @@ pub mod macros {
     /// #        &self,
     /// #        _msg: Self::CallMessage,
     /// #        _context: &Context<Self::Spec>,
-    /// #        _working_set: &mut impl sov_modules_api::state::TxState<S>,
+    /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
     /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
     /// #        unimplemented!()
     /// #    }

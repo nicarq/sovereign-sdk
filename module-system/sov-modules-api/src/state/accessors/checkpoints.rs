@@ -38,7 +38,7 @@ impl<S: Spec> StateCheckpoint<S> {
     /// state containers, like KernelStateMap.
     pub fn versioned_state(&mut self, context: &Context<S>) -> VersionedStateReadWriter<Self> {
         VersionedStateReadWriter {
-            ws: self,
+            state: self,
             slot_num: context.visible_slot_number(),
         }
     }

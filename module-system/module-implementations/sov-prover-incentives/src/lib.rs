@@ -71,26 +71,24 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
         // The initialization logic
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::BondProver(bond_amount) => {
-                self.bond_prover(bond_amount, context, working_set)
+                self.bond_prover(bond_amount, context, state)
             }
-            call::CallMessage::UnbondProver => self.unbond_prover(context, working_set),
-            call::CallMessage::VerifyProof(proof) => {
-                self.process_proof(&proof, context, working_set)
-            }
+            call::CallMessage::UnbondProver => self.unbond_prover(context, state),
+            call::CallMessage::VerifyProof(proof) => self.process_proof(&proof, context, state),
         }
         .map_err(|e| Error::ModuleError(e.into()))
     }

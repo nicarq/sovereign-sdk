@@ -139,10 +139,10 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         da_address: &Da::Address,
         amount: Amount,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
         let sequencer = context.sender();
-        self.register_sequencer(da_address, sequencer, amount, working_set)?;
+        self.register_sequencer(da_address, sequencer, amount, state)?;
         Ok(CallResponse::default())
     }
 
@@ -160,13 +160,13 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         &self,
         da_address: &Da::Address,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
         let sender = context.sender();
 
         let belongs_to = self
             .allowed_sequencers
-            .get_or_err(da_address, working_set)
+            .get_or_err(da_address, state)
             .map_err(|_| SequencerRegistryError::IsNotRegisteredSequencer(da_address.clone()))?
             .address;
 
@@ -185,9 +185,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             );
         }
 
-        let sender_balance = self
-            .get_sender_balance(da_address, working_set)
-            .unwrap_or(0);
+        let sender_balance = self.get_sender_balance(da_address, state).unwrap_or(0);
 
         self.bank
             .transfer_from(
@@ -197,17 +195,17 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
                     amount: sender_balance,
                     token_id: GAS_TOKEN_ID,
                 },
-                working_set,
+                state,
             )
             .map_err(|_| {
                 SequencerRegistryError::InsufficientFundsToRefundStakedAmount(sender_balance)
             })?;
 
         // we remove the sequencer from the registry *once the sequencer has received its staked amount*
-        self.delete(da_address, working_set);
+        self.delete(da_address, state);
 
         self.emit_event(
-            working_set,
+            state,
             "sequencer_exited",
             Event::<S>::Exited {
                 sequencer: sender.clone(),
@@ -217,12 +215,12 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         Ok(CallResponse::default())
     }
 
-    pub(crate) fn delete(&self, da_address: &Da::Address, working_set: &mut impl StateAccessor) {
-        self.allowed_sequencers.delete(da_address, working_set);
+    pub(crate) fn delete(&self, da_address: &Da::Address, state: &mut impl StateAccessor) {
+        self.allowed_sequencers.delete(da_address, state);
 
-        if let Some(preferred_sequencer) = self.preferred_sequencer.get(working_set) {
+        if let Some(preferred_sequencer) = self.preferred_sequencer.get(state) {
             if da_address == &preferred_sequencer {
-                self.preferred_sequencer.delete(working_set);
+                self.preferred_sequencer.delete(state);
             }
         }
     }
@@ -240,10 +238,10 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         &self,
         sender: &Da::Address,
         amount: Amount,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
         let AllowedSequencer { address, balance } =
-            self.allowed_sequencers.get(sender, working_set).ok_or(
+            self.allowed_sequencers.get(sender, state).ok_or(
                 SequencerRegistryError::IsNotRegisteredSequencer(sender.clone()),
             )?;
 
@@ -261,7 +259,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         };
 
         self.bank
-            .transfer_from(&address, self.id().to_payable(), coins, working_set)
+            .transfer_from(&address, self.id().to_payable(), coins, state)
             .map_err(
                 |_| SequencerRegistryError::<S, Da>::InsufficientFundsToTopUpAccount {
                     address: address.clone(),
@@ -275,11 +273,11 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
                 address: address.clone(),
                 balance,
             },
-            working_set,
+            state,
         );
 
         self.emit_event(
-            working_set,
+            state,
             "sequencer_balance_increased",
             Event::<S>::Deposited {
                 sequencer: address,
@@ -301,12 +299,12 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         &self,
         sequencer: &Da::Address,
         amount: u64,
-        working_set: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S>,
     ) {
         let AllowedSequencer {
             address: rollup_address,
             balance: _,
-        } = self.allowed_sequencers.get(sequencer, working_set).expect("Sequencer must be allowed. This should have been checked in the `begin_batch_hook`. This is a bug");
+        } = self.allowed_sequencers.get(sequencer, state).expect("Sequencer must be allowed. This should have been checked in the `begin_batch_hook`. This is a bug");
 
         self.bank
             .transfer_from(
@@ -316,7 +314,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
                     amount,
                     token_id: GAS_TOKEN_ID,
                 },
-                working_set,
+                state,
             )
             .expect(
                 "Impossible to transfer the reward from the module account to the sequencer. This is a bug",

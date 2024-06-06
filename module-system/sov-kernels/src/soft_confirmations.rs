@@ -37,11 +37,11 @@ pub struct SoftConfirmationsKernelGenesisConfig<S: Spec, Da: DaSpec> {
 }
 
 impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
-    fn true_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, S>) -> u64 {
-        self.chain_state.true_slot_number(working_set)
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+        self.chain_state.true_slot_number(state)
     }
-    fn visible_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, S>) -> u64 {
-        self.chain_state.next_visible_slot_number(working_set)
+    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+        self.chain_state.next_visible_slot_number(state)
     }
 
     type GenesisConfig = SoftConfirmationsKernelGenesisConfig<S, Da>;
@@ -52,11 +52,11 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        working_set: &mut KernelWorkingSet<'_, S>,
+        state: &mut KernelWorkingSet<'_, S>,
     ) -> Result<(), anyhow::Error> {
         Ok(self
             .chain_state
-            .genesis_unchecked(&config.chain_state, working_set)?)
+            .genesis_unchecked(&config.chain_state, state)?)
     }
 }
 
@@ -67,13 +67,13 @@ impl<S: Spec, Da: DaSpec> BatchSelector<Da> for SoftConfirmationsKernel<S, Da> {
     fn get_batches_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        _working_set: &mut sov_modules_api::KernelWorkingSet<'k, Self::Spec>,
+        state: &mut KernelWorkingSet<'k, Self::Spec>,
     ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         self.blob_storage
-            .get_batches_for_this_slot(current_blobs, _working_set)
+            .get_batches_for_this_slot(current_blobs, state)
     }
 }
 
@@ -85,9 +85,13 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
         pre_state_root: &<<Self::Spec as sov_modules_api::Spec>::Storage as Storage>::Root,
         state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
     ) -> <S::Gas as Gas>::Price {
-        let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
-        self.chain_state
-            .begin_slot_hook(slot_header, validity_condition, pre_state_root, &mut ws)
+        let mut state = KernelWorkingSet::from_kernel(self, state_checkpoint);
+        self.chain_state.begin_slot_hook(
+            slot_header,
+            validity_condition,
+            pre_state_root,
+            &mut state,
+        )
     }
 
     fn end_slot_hook(
@@ -95,8 +99,8 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
         gas_used: &S::Gas,
         state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
     ) {
-        let mut ws = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
-        self.chain_state.end_slot_hook(gas_used, &mut ws);
+        let mut state = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
+        self.chain_state.end_slot_hook(gas_used, &mut state);
     }
 }
 

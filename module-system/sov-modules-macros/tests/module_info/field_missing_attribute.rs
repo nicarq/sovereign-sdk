@@ -27,7 +27,7 @@ impl<S: Spec> Module for TestStruct<S> {
         &self,
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
-        _working_set: &mut impl TxState<S>,
+        _state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
         todo!()
     }

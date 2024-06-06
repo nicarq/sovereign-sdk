@@ -66,55 +66,48 @@ impl TestSequencer {
         (test_sequencer, working_set)
     }
 
-    pub fn genesis(&self, working_set: &mut WorkingSet<S>) {
-        self.bank.genesis(&self.bank_config, working_set).unwrap();
+    pub fn genesis(&self, state: &mut WorkingSet<S>) {
+        self.bank.genesis(&self.bank_config, state).unwrap();
 
         self.registry
-            .genesis(&self.sequencer_config, working_set)
+            .genesis(&self.sequencer_config, state)
             .unwrap();
     }
 
-    pub fn query_sequencer_balance(&self, working_set: &mut impl StateAccessor) -> Option<Amount> {
+    pub fn query_sequencer_balance(&self, state: &mut impl StateAccessor) -> Option<Amount> {
         self.bank.get_balance_of(
             &self.sequencer_config.seq_rollup_address,
             GAS_TOKEN_ID,
-            working_set,
+            state,
         )
     }
 
     pub fn query_balance(
         &self,
         user_address: impl Payable<S>,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<Amount> {
-        self.bank
-            .get_balance_of(user_address, GAS_TOKEN_ID, working_set)
+        self.bank.get_balance_of(user_address, GAS_TOKEN_ID, state)
     }
 
     pub fn query_sender_balance(
         &self,
         user_address: &<Da as DaSpec>::Address,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<sov_bank::Amount> {
-        self.registry.get_sender_balance(user_address, working_set)
+        self.registry.get_sender_balance(user_address, state)
     }
 
     pub fn query_if_sequencer_is_allowed(
         &self,
         user_address: &<Da as DaSpec>::Address,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> bool {
-        self.registry
-            .is_sender_allowed(user_address, working_set)
-            .is_ok()
+        self.registry.is_sender_allowed(user_address, state).is_ok()
     }
 
-    pub fn set_coins_amount_to_lock(
-        &self,
-        amount: sov_bank::Amount,
-        working_set: &mut WorkingSet<S>,
-    ) {
-        self.registry.minimum_bond.set(&amount, working_set);
+    pub fn set_coins_amount_to_lock(&self, amount: sov_bank::Amount, state: &mut WorkingSet<S>) {
+        self.registry.minimum_bond.set(&amount, state);
     }
 }
 

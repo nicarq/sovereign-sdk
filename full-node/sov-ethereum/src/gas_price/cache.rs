@@ -24,7 +24,7 @@ impl<S: sov_modules_api::Spec> BlockCache<S> {
     pub fn get_block(
         &self,
         block_hash: B256,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> EthResult<Option<Rich<Block>>> {
         // Check if block is in cache
         let mut cache = self.cache.lock().unwrap();
@@ -35,7 +35,7 @@ impl<S: sov_modules_api::Spec> BlockCache<S> {
         // Get block from provider
         let block = self
             .provider
-            .get_block_by_hash(block_hash, Some(true), api_state_accessor)
+            .get_block_by_hash(block_hash, Some(true), state)
             .unwrap_or(None);
 
         // Add a block to cache if it exists

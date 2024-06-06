@@ -24,19 +24,19 @@ where
         &self,
         address: S::Address,
         role: Role,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> BondAmountResponse {
         match role {
             Role::Attester => BondAmountResponse {
                 value: self
                     .bonded_attesters
-                    .get(&address, working_set)
+                    .get(&address, state)
                     .unwrap_or_default(),
             },
             Role::Challenger => BondAmountResponse {
                 value: self
                     .bonded_challengers
-                    .get(&address, working_set)
+                    .get(&address, state)
                     .unwrap_or_default(),
             },
         }
@@ -56,9 +56,9 @@ where
     pub fn get_bond_proof(
         &self,
         address: S::Address,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> StorageProof<<S::Storage as Storage>::Proof> {
-        self.bonded_attesters.get_with_proof(&address, working_set)
+        self.bonded_attesters.get_with_proof(&address, state)
     }
 
     /// TODO: Make the unbonding amount queryable:

@@ -441,7 +441,7 @@ mod tests {
     ) -> ProverStorage<StorageSpec> {
         let runtime = TestRuntime::<S, MockDaSpec>::default();
         let storage = storage_manager.create_storage();
-        let mut working_set = WorkingSet::<S>::new(storage.clone());
+        let mut state = WorkingSet::<S>::new(storage.clone());
 
         let admin = admin.unwrap_or_else(|| {
             let admin_private_key = TestPrivateKey::generate();
@@ -465,8 +465,8 @@ mod tests {
             "BatchBuilderTestToken".to_string(),
             100_000,
         );
-        runtime.genesis(&config, &mut working_set).unwrap();
-        let (log, _, witness) = working_set.checkpoint().0.freeze();
+        runtime.genesis(&config, &mut state).unwrap();
+        let (log, _, witness) = state.checkpoint().0.freeze();
         let (_root_hash, change_set) = storage.validate_and_materialize(log, &witness).unwrap();
         storage_manager.commit(change_set);
         storage_manager.create_storage()

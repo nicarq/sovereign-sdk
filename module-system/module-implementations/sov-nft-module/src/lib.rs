@@ -56,7 +56,7 @@ impl<S: Spec> Module for NonFungibleToken<S> {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut impl GenesisState<S>,
+        _state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
         Ok(())
     }
@@ -65,15 +65,15 @@ impl<S: Spec> Module for NonFungibleToken<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, Error> {
         let call_result = match msg {
             CallMessage::CreateCollection {
                 name,
                 collection_uri,
-            } => self.create_collection(&name, &collection_uri, context, working_set),
+            } => self.create_collection(&name, &collection_uri, context, state),
             CallMessage::FreezeCollection { collection_name } => {
-                self.freeze_collection(&collection_name, context, working_set)
+                self.freeze_collection(&collection_name, context, state)
             }
             CallMessage::MintNft {
                 collection_name,
@@ -88,17 +88,17 @@ impl<S: Spec> Module for NonFungibleToken<S> {
                 &owner,
                 frozen,
                 context,
-                working_set,
+                state,
             ),
             CallMessage::UpdateCollection {
                 name,
                 collection_uri,
-            } => self.update_collection(&name, &collection_uri, context, working_set),
+            } => self.update_collection(&name, &collection_uri, context, state),
             CallMessage::TransferNft {
                 collection_id,
                 token_id,
                 to,
-            } => self.transfer_nft(token_id, &collection_id, &to, context, working_set),
+            } => self.transfer_nft(token_id, &collection_id, &to, context, state),
             CallMessage::UpdateNft {
                 collection_name,
                 token_id,
@@ -110,7 +110,7 @@ impl<S: Spec> Module for NonFungibleToken<S> {
                 token_uri,
                 frozen,
                 context,
-                working_set,
+                state,
             ),
         };
         Ok(call_result?)

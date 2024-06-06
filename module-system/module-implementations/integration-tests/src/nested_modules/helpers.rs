@@ -47,18 +47,18 @@ pub mod module_a {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut impl TxState<Self::Spec>,
+            _state: &mut impl TxState<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
     }
 
     impl<S: Spec> ModuleA<S> {
-        pub fn update(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<S>) {
-            self.emit_event(working_set, "modulea_update", Event::Update);
+        pub fn update(&mut self, key: &str, value: &str, state: &mut WorkingSet<S>) {
+            self.emit_event(state, "modulea_update", Event::Update);
             self.state_1_a
-                .set(&key.to_owned(), &value.to_owned(), working_set);
-            self.state_2_a.set(&value.to_owned(), working_set);
+                .set(&key.to_owned(), &value.to_owned(), state);
+            self.state_2_a.set(&value.to_owned(), state);
         }
     }
 }
@@ -93,18 +93,18 @@ pub mod module_b {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut impl TxState<Self::Spec>,
+            _state: &mut impl TxState<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
     }
 
     impl<S: Spec> ModuleB<S> {
-        pub fn update(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<S>) {
-            self.emit_event(working_set, "moduleb_update", Event::Update);
+        pub fn update(&mut self, key: &str, value: &str, state: &mut WorkingSet<S>) {
+            self.emit_event(state, "moduleb_update", Event::Update);
             self.state_1_b
-                .set(&key.to_owned(), &value.to_owned(), working_set);
-            self.mod_1_a.update("key_from_b", value, working_set);
+                .set(&key.to_owned(), &value.to_owned(), state);
+            self.mod_1_a.update("key_from_b", value, state);
         }
     }
 }
@@ -139,18 +139,18 @@ pub(crate) mod module_c {
             &self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            _working_set: &mut impl TxState<Self::Spec>,
+            _state: &mut impl TxState<Self::Spec>,
         ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
             todo!()
         }
     }
 
     impl<S: Spec> ModuleC<S> {
-        pub fn execute(&mut self, key: &str, value: &str, working_set: &mut WorkingSet<S>) {
-            self.emit_event(working_set, "modulec_execute", Event::Execute);
-            self.mod_1_a.update(key, value, working_set);
-            self.mod_1_b.update(key, value, working_set);
-            self.mod_1_a.update(key, value, working_set);
+        pub fn execute(&mut self, key: &str, value: &str, state: &mut WorkingSet<S>) {
+            self.emit_event(state, "modulec_execute", Event::Execute);
+            self.mod_1_a.update(key, value, state);
+            self.mod_1_b.update(key, value, state);
+            self.mod_1_a.update(key, value, state);
         }
     }
 }

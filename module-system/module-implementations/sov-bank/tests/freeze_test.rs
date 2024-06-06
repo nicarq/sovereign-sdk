@@ -12,7 +12,7 @@ type S = sov_test_utils::TestSpec;
 fn freeze_token() {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let minter = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");
@@ -31,22 +31,22 @@ fn freeze_token() {
         },
         tokens: vec![],
     };
-    bank.genesis(&bank_config, &mut working_set).unwrap();
+    bank.genesis(&bank_config, &mut state).unwrap();
 
     // -----
     // Freeze
     let freeze_message = CallMessage::Freeze { token_id };
 
     let _freeze = bank
-        .call(freeze_message, &minter_context, &mut working_set)
+        .call(freeze_message, &minter_context, &mut state)
         .expect("Failed to freeze token");
-    assert_eq!(working_set.events().len(), 1);
+    assert_eq!(state.events().len(), 1);
 
     // ----
     // Try to freeze an already frozen token
     let freeze_message = CallMessage::Freeze { token_id };
 
-    let freeze = bank.call(freeze_message, &minter_context, &mut working_set);
+    let freeze = bank.call(freeze_message, &minter_context, &mut state);
     assert!(freeze.is_err());
     let Error::ModuleError(err) = freeze.err().unwrap();
     let mut chain = err.chain();
@@ -74,10 +74,10 @@ fn freeze_token() {
         authorized_minters: vec![minter],
     };
     let _minted = bank
-        .call(mint_message, &minter_context, &mut working_set)
+        .call(mint_message, &minter_context, &mut state)
         .expect("Failed to mint token");
     // Two create token events should be present because of the second create token above
-    assert_eq!(working_set.events().len(), 2);
+    assert_eq!(state.events().len(), 2);
 
     // Try to freeze with a non authorized minter
     let unauthorized_address = generate_address::<S>("unauthorized_address");
@@ -92,7 +92,7 @@ fn freeze_token() {
         token_id: token_id_2,
     };
 
-    let freeze = bank.call(freeze_message, &unauthorized_context, &mut working_set);
+    let freeze = bank.call(freeze_message, &unauthorized_context, &mut state);
     assert!(freeze.is_err());
     let Error::ModuleError(err) = freeze.err().unwrap();
     let mut chain = err.chain();
@@ -125,11 +125,11 @@ fn freeze_token() {
         mint_to_address: new_holder,
     };
 
-    let query_total_supply = |token_id: TokenId, working_set: &mut WorkingSet<S>| -> Option<u64> {
-        bank.get_total_supply_of(&token_id, working_set)
+    let query_total_supply = |token_id: TokenId, state: &mut WorkingSet<S>| -> Option<u64> {
+        bank.get_total_supply_of(&token_id, state)
     };
 
-    let minted = bank.call(mint_message, &minter_context, &mut working_set);
+    let minted = bank.call(mint_message, &minter_context, &mut state);
     assert!(minted.is_err());
 
     let Error::ModuleError(err) = minted.err().unwrap();
@@ -161,19 +161,19 @@ fn freeze_token() {
     };
 
     let _minted = bank
-        .call(mint_message, &minter_context, &mut working_set)
+        .call(mint_message, &minter_context, &mut state)
         .expect("Failed to mint token");
-    assert_eq!(working_set.events().len(), 3);
+    assert_eq!(state.events().len(), 3);
 
-    let total_supply = query_total_supply(token_id_2, &mut working_set);
+    let total_supply = query_total_supply(token_id_2, &mut state);
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
 
     let query_user_balance =
         |token_id: TokenId,
          user_address: <S as Spec>::Address,
-         working_set: &mut WorkingSet<S>|
-         -> Option<u64> { bank.get_balance_of(&user_address, token_id, working_set) };
-    let bal = query_user_balance(token_id_2, minter, &mut working_set);
+         state: &mut WorkingSet<S>|
+         -> Option<u64> { bank.get_balance_of(&user_address, token_id, state) };
+    let bal = query_user_balance(token_id_2, minter, &mut state);
 
     assert_eq!(Some(110), bal);
 }

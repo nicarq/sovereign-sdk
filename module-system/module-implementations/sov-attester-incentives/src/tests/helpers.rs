@@ -82,7 +82,7 @@ pub(crate) fn create_bank_config_with_token(
 /// Returns the prover incentives module and the attester and challenger's addresses.
 #[allow(clippy::type_complexity)]
 pub(crate) fn setup(
-    mut working_set: WorkingSet<S>,
+    mut state: WorkingSet<S>,
 ) -> (
     AttesterIncentives<S, MockDaSpec>,
     <S as Spec>::Address,
@@ -97,7 +97,7 @@ pub(crate) fn setup(
         INITIAL_USER_BALANCE,
     );
     let bank = sov_bank::Bank::<S>::default();
-    bank.genesis(&bank_config, &mut working_set)
+    bank.genesis(&bank_config, &mut state)
         .expect("bank genesis must succeed");
 
     let attester_address = addresses.pop().unwrap();
@@ -112,7 +112,7 @@ pub(crate) fn setup(
         outer_code_commitment: Default::default(),
     };
 
-    let mut state_checkpoint = working_set.checkpoint().0;
+    let mut state_checkpoint = state.checkpoint().0;
     let chain_state = sov_chain_state::ChainState::<S, MockDaSpec>::default();
     chain_state
         .genesis_unchecked(
@@ -121,7 +121,7 @@ pub(crate) fn setup(
         )
         .expect("Chain state genesis must succeed");
 
-    let mut working_set = state_checkpoint.to_working_set_unmetered();
+    let mut state = state_checkpoint.to_working_set_unmetered();
     // initialize prover incentives
     let module = AttesterIncentives::<S, MockDaSpec>::default();
     let config = crate::AttesterIncentivesConfig {
@@ -135,7 +135,7 @@ pub(crate) fn setup(
     };
 
     module
-        .genesis(&config, &mut working_set)
+        .genesis(&config, &mut state)
         .expect("prover incentives genesis must succeed");
 
     (
@@ -143,7 +143,7 @@ pub(crate) fn setup(
         attester_address,
         challenger_address,
         sequencer,
-        working_set,
+        state,
     )
 }
 
@@ -229,11 +229,10 @@ impl ExecutionSimulationVars {
             let pre_exec_working_set = transaction_scratchpad.pre_exec_ws_unmetered();
 
             // We first need to reserve gas for the transaction
-            let mut working_set = match module.bank.reserve_gas(
-                &tx,
-                sequencer,
-                pre_exec_working_set,
-            ) {
+            let mut state = match module
+                .bank
+                .reserve_gas(&tx, sequencer, pre_exec_working_set)
+            {
                 Ok(ws) => ws,
                 Err(ReserveGasError::<S, UnlimitedGasMeter<<S as Spec>::Gas>> {
                     pre_exec_working_set: _,
@@ -244,11 +243,11 @@ impl ExecutionSimulationVars {
             };
 
             // We charge some gas to the sequencer to make sure the gas meter is updated
-            working_set
+            state
                 .charge_gas(&<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED))
                 .expect("Gas charge failed");
 
-            let (mut tx_scratchpad, tx_consumption, _) = working_set.finalize();
+            let (mut tx_scratchpad, tx_consumption, _) = state.finalize();
 
             module.bank.allocate_consumed_gas(
                 &module.id().to_payable(),

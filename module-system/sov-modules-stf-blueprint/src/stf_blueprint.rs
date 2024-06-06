@@ -533,13 +533,13 @@ fn attempt_tx<S: Spec, Da: DaSpec, RT: Runtime<S, Da>>(
     message: <RT as DispatchCall>::Decodable,
     ctx: &Context<S>,
     runtime: &RT,
-    working_set: &mut WorkingSet<S>,
+    state: &mut WorkingSet<S>,
 ) -> Result<(), anyhow::Error> {
-    runtime.pre_dispatch_tx_hook(tx, working_set)?;
+    runtime.pre_dispatch_tx_hook(tx, state)?;
 
-    runtime.dispatch_call(message, working_set, ctx)?;
+    runtime.dispatch_call(message, state, ctx)?;
 
-    runtime.post_dispatch_tx_hook(tx, ctx, working_set)?;
+    runtime.post_dispatch_tx_hook(tx, ctx, state)?;
 
     Ok(())
 }

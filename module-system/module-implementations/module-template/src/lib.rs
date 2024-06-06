@@ -48,21 +48,21 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for ExampleModule<S> {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
         // The initialization logic
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
             call::CallMessage::SetValue(new_value) => {
-                Ok(self.set_value(new_value, context, working_set)?)
+                Ok(self.set_value(new_value, context, state)?)
             }
         }
     }

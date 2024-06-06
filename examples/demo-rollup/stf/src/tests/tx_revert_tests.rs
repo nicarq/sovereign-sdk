@@ -111,14 +111,14 @@ fn test_tx_revert() {
     // Checks on storage after execution
     {
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let mut api_state_accessor = ApiStateAccessor::new(storage);
+        let mut state = ApiStateAccessor::new(storage);
         let resp = runtime
             .bank
             .balance_of(
                 None,
                 admin_address,
                 get_default_token_id::<TestSpec>(&admin_address),
-                &mut api_state_accessor,
+                &mut state,
             )
             .unwrap();
 
@@ -126,10 +126,7 @@ fn test_tx_revert() {
 
         let resp = runtime
             .sequencer_registry
-            .sequencer_address(
-                MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS),
-                &mut api_state_accessor,
-            )
+            .sequencer_address(MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS), &mut state)
             .unwrap();
         // Sequencer is not excluded from the list of allowed!
         assert_eq!(Some(sequencer_rollup_address), resp.address);
@@ -138,7 +135,7 @@ fn test_tx_revert() {
             .nonces
             .nonce(
                 &admin_key.pub_key().credential_id::<TestHasher>(),
-                &mut api_state_accessor,
+                &mut state,
             )
             .unwrap();
 
@@ -225,12 +222,12 @@ fn test_tx_bad_signature() {
 
     {
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let mut api_state_accessor = ApiStateAccessor::<TestSpec>::new(storage);
+        let mut state = ApiStateAccessor::<TestSpec>::new(storage);
         let nonce = runtime
             .nonces
             .nonce(
                 &admin_key.pub_key().credential_id::<TestHasher>(),
-                &mut api_state_accessor,
+                &mut state,
             )
             .unwrap_or_default();
 
@@ -245,10 +242,10 @@ fn get_attester_stake_for_block(
 ) -> u64 {
     let (stf_state, _ledger_state) = storage_manager.create_state_for(block.header()).unwrap();
 
-    let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(stf_state);
+    let mut state: WorkingSet<TestSpec> = WorkingSet::new(stf_state);
     stf.runtime()
         .sequencer_registry
-        .get_sender_balance(&(MOCK_SEQUENCER_DA_ADDRESS.into()), &mut working_set)
+        .get_sender_balance(&(MOCK_SEQUENCER_DA_ADDRESS.into()), &mut state)
         .expect("The sequencer should be registered")
 }
 
@@ -374,15 +371,13 @@ fn test_tx_bad_serialization() {
                 .create_state_after(genesis_block.header())
                 .unwrap();
             let runtime: RuntimeTest = Runtime::default();
-            let mut working_set = WorkingSet::<TestSpec>::new(stf_state.clone());
+            let mut state = WorkingSet::<TestSpec>::new(stf_state.clone());
 
-            let coins = runtime
-                .sequencer_registry
-                .get_coins_to_lock(&mut working_set);
+            let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state);
 
             runtime
                 .bank
-                .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut working_set)
+                .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut state)
                 .unwrap()
         };
         (genesis_root, balance)
@@ -441,30 +436,21 @@ fn test_tx_bad_serialization() {
 
     {
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let mut api_state_accessor = ApiStateAccessor::<TestSpec>::new(storage);
+        let mut state = ApiStateAccessor::<TestSpec>::new(storage);
 
         // Sequencer is not in the list of allowed sequencers
 
         let allowed_sequencer = runtime
             .sequencer_registry
-            .sequencer_address(
-                MockAddress::from(SEQUENCER_DA_ADDRESS),
-                &mut api_state_accessor,
-            )
+            .sequencer_address(MockAddress::from(SEQUENCER_DA_ADDRESS), &mut state)
             .unwrap();
         assert!(allowed_sequencer.address.is_none());
 
         // Balance of sequencer is not increased
-        let coins = runtime
-            .sequencer_registry
-            .get_coins_to_lock(&mut api_state_accessor);
+        let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state);
         let sequencer_balance_after = runtime
             .bank
-            .get_balance_of(
-                &sequencer_rollup_address,
-                coins.token_id,
-                &mut api_state_accessor,
-            )
+            .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut state)
             .unwrap();
         assert_eq!(sequencer_balance_before, sequencer_balance_after);
     }

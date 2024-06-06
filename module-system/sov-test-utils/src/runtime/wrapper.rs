@@ -165,18 +165,18 @@ where
     fn pre_dispatch_tx_hook(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        working_set: &mut Self::TxState,
+        state: &mut Self::TxState,
     ) -> anyhow::Result<()> {
-        self.pre_dispatch_tx_hook_override(tx, working_set)
+        self.pre_dispatch_tx_hook_override(tx, state)
     }
 
     fn post_dispatch_tx_hook(
         &self,
         tx: &AuthenticatedTransactionData<S>,
         ctx: &Context<S>,
-        working_set: &mut Self::TxState,
+        state: &mut Self::TxState,
     ) -> anyhow::Result<()> {
-        self.post_dispatch_tx_hook_override(tx, ctx, working_set)
+        self.post_dispatch_tx_hook_override(tx, ctx, state)
     }
 }
 
@@ -197,10 +197,10 @@ where
     fn dispatch_call(
         &self,
         message: Self::Decodable,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
         context: &Context<S>,
     ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
-        self.inner.dispatch_call(message, working_set, context)
+        self.inner.dispatch_call(message, state, context)
     }
 
     fn module_id(&self, message: &Self::Decodable) -> &sov_modules_api::ModuleId {
@@ -249,13 +249,13 @@ where
     fn begin_slot_hook(
         &self,
         pre_state_root: S::VisibleHash,
-        working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
+        state: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
-        self.begin_slot_hook_override(pre_state_root, working_set);
+        self.begin_slot_hook_override(pre_state_root, state);
     }
 
-    fn end_slot_hook(&self, working_set: &mut StateCheckpoint<S>) {
-        self.end_slot_hook_override(working_set);
+    fn end_slot_hook(&self, state: &mut StateCheckpoint<S>) {
+        self.end_slot_hook_override(state);
     }
 }
 
@@ -270,11 +270,11 @@ where
     fn finalize_hook(
         &self,
         root_hash: S::VisibleHash,
-        accessory_working_set: &mut impl sov_modules_api::prelude::StateReaderAndWriter<
+        state: &mut impl sov_modules_api::prelude::StateReaderAndWriter<
             sov_state::namespaces::Accessory,
         >,
     ) {
-        self.finalize_hook_override(root_hash, accessory_working_set);
+        self.finalize_hook_override(root_hash, state);
     }
 }
 
@@ -392,9 +392,9 @@ impl<S: Spec, Da: DaSpec, T: Genesis<Spec = S> + TxHooks<Spec = S>> Genesis
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), sov_modules_api::Error> {
-        self.inner.genesis(config, working_set)
+        self.inner.genesis(config, state)
     }
 }
 
@@ -477,7 +477,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         &self,
         _auth_tx: &Self::AuthorizationData,
         _context: &Context<S>,
-        _working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        _state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<(), anyhow::Error> {
         Ok(())
     }
@@ -488,12 +488,12 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         auth_tx: &Self::AuthorizationData,
         sequencer: &Da::Address,
         height: u64,
-        working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<Context<S>, anyhow::Error> {
         let sender = auth_tx.default_address.clone().unwrap();
         let sequencer = self
             .sequencer_registry()
-            .resolve_da_address(sequencer, working_set)
+            .resolve_da_address(sequencer, state)
             .expect("Sequencer is no longer registered by the time of context resolution. This is a bug");
         Ok(Context::new(
             sender,

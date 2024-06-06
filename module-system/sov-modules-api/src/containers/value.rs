@@ -90,31 +90,24 @@ where
     }
 
     /// Sets the value.
-    pub fn set(&self, value: &V, working_set: &mut impl StateWriter<N>) {
-        working_set
-            .set(&self.slot_key(), self.slot_value(value))
-            .unwrap();
+    pub fn set(&self, value: &V, state: &mut impl StateWriter<N>) {
+        state.set(&self.slot_key(), self.slot_value(value)).unwrap();
     }
 
     /// Gets the value from state or returns None if the value is absent.
-    pub fn get(&self, working_set: &mut impl StateReader<N>) -> Option<V> {
-        working_set
-            .get_decoded(&self.slot_key(), self.codec())
-            .unwrap()
+    pub fn get(&self, state: &mut impl StateReader<N>) -> Option<V> {
+        state.get_decoded(&self.slot_key(), self.codec()).unwrap()
     }
 
     /// Gets the value from state or Error if the value is absent.
-    pub fn get_or_err(
-        &self,
-        working_set: &mut impl StateReader<N>,
-    ) -> Result<V, StateValueError<N>> {
-        self.get(working_set)
+    pub fn get_or_err(&self, state: &mut impl StateReader<N>) -> Result<V, StateValueError<N>> {
+        self.get(state)
             .ok_or_else(|| StateValueError::<N>::MissingValue(self.prefix().clone(), PhantomData))
     }
 
     /// Removes the value from state, returning the value (or None if the key is absent).
-    pub fn remove(&self, working_set: &mut impl StateReaderAndWriter<N>) -> Option<V> {
-        working_set
+    pub fn remove(&self, state: &mut impl StateReaderAndWriter<N>) -> Option<V> {
+        state
             .remove_decoded(&self.slot_key(), self.codec())
             .unwrap()
     }
@@ -122,15 +115,15 @@ where
     /// Removes a value from state, returning the value (or Error if the key is absent).
     pub fn remove_or_err(
         &self,
-        working_set: &mut impl StateReaderAndWriter<N>,
+        state: &mut impl StateReaderAndWriter<N>,
     ) -> Result<V, StateValueError<N>> {
-        self.remove(working_set)
+        self.remove(state)
             .ok_or_else(|| StateValueError::<N>::MissingValue(self.prefix().clone(), PhantomData))
     }
 
     /// Deletes a value from state.
-    pub fn delete(&self, working_set: &mut impl StateWriter<N>) {
-        working_set.delete(&self.slot_key()).unwrap();
+    pub fn delete(&self, state: &mut impl StateWriter<N>) {
+        state.delete(&self.slot_key()).unwrap();
     }
 }
 
@@ -149,11 +142,11 @@ mod proofs {
         N: ProvableCompileTimeNamespace,
     {
         /// Gets the value with a proof of correctness.
-        pub fn get_with_proof<W>(&self, working_set: &mut W) -> sov_state::StorageProof<W::Proof>
+        pub fn get_with_proof<W>(&self, state: &mut W) -> sov_state::StorageProof<W::Proof>
         where
             W: ProvenStateAccessor<N>,
         {
-            working_set.get_with_proof(self.slot_key())
+            state.get_with_proof(self.slot_key())
         }
 
         pub fn verify_proof<S: Spec>(

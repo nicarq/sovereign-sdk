@@ -20,12 +20,12 @@ fn test_valid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let working_set = WorkingSet::new(storage.clone());
-    let (module, attester_address, challenger_address, sequencer, working_set) = setup(working_set);
+    let state = WorkingSet::new(storage.clone());
+    let (module, attester_address, challenger_address, sequencer, state) = setup(state);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
-    let state_checkpoint = working_set.checkpoint().0;
+    let state_checkpoint = state.checkpoint().0;
     commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         3,
@@ -35,7 +35,7 @@ fn test_valid_challenge() {
         &attester_address,
     );
 
-    let mut working_set = state_checkpoint.to_working_set_unmetered();
+    let mut state = state_checkpoint.to_working_set_unmetered();
 
     let _ = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();
@@ -46,7 +46,7 @@ fn test_valid_challenge() {
             BOND_AMOUNT,
             &challenger_address,
             crate::call::Role::Challenger,
-            &mut working_set,
+            &mut state,
         )
         .unwrap();
 
@@ -56,7 +56,7 @@ fn test_valid_challenge() {
             .get_bond_amount(
                 challenger_address,
                 crate::call::Role::Challenger,
-                &mut working_set
+                &mut state
             )
             .value,
         BOND_AMOUNT
@@ -65,7 +65,7 @@ fn test_valid_challenge() {
     // Set a bad transition to get a reward from
     module
         .bad_transition_pool
-        .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut working_set);
+        .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut state);
 
     let context = Context::<S>::new(
         challenger_address,
@@ -85,19 +85,14 @@ fn test_valid_challenge() {
         let proof = &MockZkvm::create_serialized_proof(true, transition);
 
         module
-            .process_challenge(
-                &context,
-                proof.as_slice(),
-                &(INIT_HEIGHT + 1),
-                &mut working_set,
-            )
+            .process_challenge(&context, proof.as_slice(), &(INIT_HEIGHT + 1), &mut state)
             .expect("Should not fail");
 
         // Check that the challenger was rewarded
         assert_eq!(
             module
                 .bank
-                .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut working_set)
+                .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut state)
                 .unwrap(),
             INITIAL_USER_BALANCE - BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
             "The challenger should have been rewarded"
@@ -107,7 +102,7 @@ fn test_valid_challenge() {
         assert_eq!(
             module
                 .bad_transition_pool
-                .get(&(INIT_HEIGHT + 1), &mut working_set),
+                .get(&(INIT_HEIGHT + 1), &mut state),
             None,
             "The transition should have disappeared"
         );
@@ -116,14 +111,14 @@ fn test_valid_challenge() {
     {
         // Now try to unbond the challenger
         module
-            .unbond_challenger(&context, &mut working_set)
+            .unbond_challenger(&context, &mut state)
             .expect("The challenger should be able to unbond");
 
         // Check the final balance of the challenger
         assert_eq!(
             module
                 .bank
-                .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut working_set)
+                .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut state)
                 .unwrap(),
             INITIAL_USER_BALANCE + module.burn_rate().apply(BOND_AMOUNT),
             "The challenger should have been unbonded"
@@ -137,7 +132,7 @@ fn invalid_proof_helper(
     reason: SlashingReason,
     challenger_address: <S as Spec>::Address,
     module: &crate::AttesterIncentives<S, MockDaSpec>,
-    working_set: &mut WorkingSet<S>,
+    state: &mut WorkingSet<S>,
 ) {
     // Let's bond the challenger and try to publish a false challenge
     module
@@ -145,16 +140,16 @@ fn invalid_proof_helper(
             BOND_AMOUNT,
             &challenger_address,
             crate::call::Role::Challenger,
-            working_set,
+            state,
         )
         .expect("Should be able to bond");
 
     module
-        .process_challenge(context, proof.as_slice(), &(INIT_HEIGHT + 1), working_set)
+        .process_challenge(context, proof.as_slice(), &(INIT_HEIGHT + 1), state)
         .expect("Since the challenger is slashed this should exit gracefully");
 
     // We get the last event from the working set to check the slashing reason
-    let mut events = working_set.take_events();
+    let mut events = state.take_events();
     let slash_event = events.pop().unwrap();
     let slash_event = slash_event.downcast::<crate::Event<S>>().unwrap();
 
@@ -174,12 +169,12 @@ fn test_invalid_challenge() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let working_set = WorkingSet::new(storage.clone());
-    let (module, attester_address, challenger_address, sequencer, working_set) = setup(working_set);
+    let state = WorkingSet::new(storage.clone());
+    let (module, attester_address, challenger_address, sequencer, state) = setup(state);
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
-    let state_checkpoint = working_set.checkpoint().0;
+    let state_checkpoint = state.checkpoint().0;
     commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
     let (mut exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
         3,
@@ -188,7 +183,7 @@ fn test_invalid_challenge() {
         &sequencer,
         &attester_address,
     );
-    let mut working_set = state_checkpoint.to_working_set_unmetered();
+    let mut state = state_checkpoint.to_working_set_unmetered();
 
     let _ = exec_vars.pop().unwrap();
     let transition_1 = exec_vars.pop().unwrap();
@@ -197,7 +192,7 @@ fn test_invalid_challenge() {
     // Set a bad transition to get a reward from
     module
         .bad_transition_pool
-        .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut working_set);
+        .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut state);
 
     let context = Context::<S>::new(
         challenger_address,
@@ -217,12 +212,7 @@ fn test_invalid_challenge() {
         let proof = MockZkvm::create_serialized_proof(true, &transition);
 
         let err = module
-            .process_challenge(
-                &context,
-                proof.as_slice(),
-                &(INIT_HEIGHT + 1),
-                &mut working_set,
-            )
+            .process_challenge(&context, proof.as_slice(), &(INIT_HEIGHT + 1), &mut state)
             .unwrap_err();
 
         // Check the error raised
@@ -244,7 +234,7 @@ fn test_invalid_challenge() {
             SlashingReason::InvalidProofOutputs,
             challenger_address,
             &module,
-            &mut working_set,
+            &mut state,
         );
 
         // Bad slot hash
@@ -264,7 +254,7 @@ fn test_invalid_challenge() {
             SlashingReason::TransitionInvalid,
             challenger_address,
             &module,
-            &mut working_set,
+            &mut state,
         );
 
         // Bad validity condition
@@ -283,7 +273,7 @@ fn test_invalid_challenge() {
             SlashingReason::TransitionInvalid,
             challenger_address,
             &module,
-            &mut working_set,
+            &mut state,
         );
 
         // Bad initial root
@@ -302,7 +292,7 @@ fn test_invalid_challenge() {
             SlashingReason::InvalidInitialHash,
             challenger_address,
             &module,
-            &mut working_set,
+            &mut state,
         );
     }
 }

@@ -41,7 +41,7 @@ pub trait Module {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut impl GenesisState<Self::Spec>,
+        _state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
         Ok(())
     }
@@ -52,7 +52,7 @@ pub trait Module {
         &self,
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
-        _working_set: &mut impl TxState<Self::Spec>,
+        _state: &mut impl TxState<Self::Spec>,
     ) -> Result<CallResponse, ModuleError>;
 
     /// Attempts to charge the provided amount of gas from the working set.
@@ -60,10 +60,10 @@ pub trait Module {
     /// The scalar gas value will be computed from the price defined on the working set.
     fn charge_gas(
         &self,
-        working_set: &mut impl TxState<Self::Spec>,
+        state: &mut impl TxState<Self::Spec>,
         gas: &<Self::Spec as Spec>::Gas,
     ) -> anyhow::Result<()> {
-        Ok(working_set.charge_gas(gas)?)
+        Ok(state.charge_gas(gas)?)
     }
 }
 
@@ -116,12 +116,7 @@ pub trait EventEmitter {
     type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;
 
     /// Emit event
-    fn emit_event(
-        &self,
-        working_set: &mut impl EventContainer,
-        event_key: &str,
-        event: Self::Event,
-    );
+    fn emit_event(&self, state: &mut impl EventContainer, event_key: &str, event: Self::Event);
 }
 
 impl<T> EventEmitter for T
@@ -130,16 +125,11 @@ where
 {
     type Spec = <T as ModuleInfo>::Spec;
     type Event = <T as Module>::Event;
-    fn emit_event(
-        &self,
-        working_set: &mut impl EventContainer,
-        event_key: &str,
-        event: Self::Event,
-    ) {
+    fn emit_event(&self, state: &mut impl EventContainer, event_key: &str, event: Self::Event) {
         #[allow(unused_variables)]
-        let _ = || (&working_set, &event_key, &event);
+        let _ = || (&state, &event_key, &event);
         if cfg!(feature = "native") {
-            working_set.add_event(event_key, event);
+            state.add_event(event_key, event);
         }
     }
 }
@@ -162,7 +152,7 @@ pub trait Genesis {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<Self::Spec>,
+        state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError>;
 }
 
@@ -177,8 +167,8 @@ where
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<Self::Spec>,
+        state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
-        <Self as Module>::genesis(self, config, working_set)
+        <Self as Module>::genesis(self, config, state)
     }
 }

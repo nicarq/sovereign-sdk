@@ -121,7 +121,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         let parent_prefix = self.tokens.prefix();
         let gas_token_config: TokenConfig<S> = config.gas_token_config.clone().into();
@@ -150,14 +150,14 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                 &authorized_minters,
                 token_id,
                 parent_prefix,
-                working_set,
+                state,
             )?;
 
-            if self.tokens.get(token_id, working_set).is_some() {
+            if self.tokens.get(token_id, state).is_some() {
                 bail!("token ID {} already exists", token_config.token_id);
             }
 
-            self.tokens.set(token_id, &token, working_set);
+            self.tokens.set(token_id, &token, state);
             tracing::debug!(
                 token_name = %token.name,
                 token_id = %token_id,

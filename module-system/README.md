@@ -111,7 +111,7 @@ fn call(
     &self,
     msg: Self::CallMessage,
     context: &Context<Self::Spec>,
-    working_set: &mut impl TxState<S>,
+    state: &mut impl TxState<S>,
 ) -> Result<sov_modules_api::CallResponse, Error> {
     match msg {
         call::CallMessage::CreateToken {
@@ -121,7 +121,7 @@ fn call(
             mint_to_address,
             authorized_minters,
         } => {
-            self.charge_gas(working_set, &self.gas.create_token)?;
+            self.charge_gas(state, &self.gas.create_token)?;
             // Implementation elided...
 }
 ```
@@ -156,7 +156,7 @@ accessible to other modules, but cannot be directly invoked by other users. A go
 
 ```rust
 impl<S: Spec> Bank<S> {
-    pub fn transfer_from(&self, from: &S::Address, to: &S::Address, coins: Coins, working_set: &mut WorkingSet<S>) {
+    pub fn transfer_from(&self, from: &S::Address, to: &S::Address, coins: Coins, state: &mut WorkingSet<S>) {
         // Implementation elided...
     }
 }
@@ -180,14 +180,14 @@ tells the `call` function which inner method of the module to invoke. So a typic
 ```rust
 impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 	// Several definitions elided here ...
-    fn call(&self, msg: Self::CallMessage, context: &Context<Self::Spec>, working_set: &mut impl TxState<S>) {
+    fn call(&self, msg: Self::CallMessage, context: &Context<Self::Spec>, state: &mut impl TxState<S>) {
         match msg {
             CallMessage::CreateToken {
                 token_name,
                 mint_to_address,
-            } => Ok(self.create_token(token_name, mint_to_address, context, working_set)?),
-            CallMessage::Transfer { to, coins } => { Ok(self.transfer(to, coins, context, working_set)?) },
-            CallMessage::Burn { coins } => Ok(self.burn(coins, context, working_set)?),
+            } => Ok(self.create_token(token_name, mint_to_address, context, state)?),
+            CallMessage::Transfer { to, coins } => { Ok(self.transfer(to, coins, context, state)?) },
+            CallMessage::Burn { coins } => Ok(self.burn(coins, context, state)?),
         }
     }
 }
@@ -206,10 +206,10 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         &self,
         user_address: S::Address,
         token_id: TokenId,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> RpcResult<BalanceResponse> {
         Ok(BalanceResponse {
-            amount: self.get_balance_of(user_address, token_id, working_set),
+            amount: self.get_balance_of(user_address, token_id, state),
         })
     }
 }
@@ -397,7 +397,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
 ```
 
 Once set, you can use a value of the type Event inside any call function and emit it as needed.
-`emit_event` has the following signature `fn emit_event(&self, working_set: &mut impl TxState<Self::Spec>, event_key: &str, event: Self::Event)`
+`emit_event` has the following signature `fn emit_event(&self, state: &mut impl TxState<Self::Spec>, event_key: &str, event: Self::Event)`
 
 Some things to note -
 
@@ -419,13 +419,13 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         to: S::Address,
         coins: Coins,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         // Implementation details elided...
 q
         // Use emit event with a specific value of the type Event that was created and bound to the Module implementation
         self.emit_event(
-            working_set,
+            state,
             "token_transfer",
             Event::TokenTransferred {
                 token_id: coins.token_id,

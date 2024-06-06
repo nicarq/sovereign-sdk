@@ -26,7 +26,7 @@ impl<'a, Ws: StateAccessor> DatabaseCommit for EvmDb<'a, Ws> {
 
             let mut db_account = self
                 .accounts
-                .get(&address, self.working_set)
+                .get(&address, self.state)
                 .unwrap_or_else(|| DbAccount::new(accounts_prefix, address));
 
             let account_info = account.info;
@@ -35,7 +35,7 @@ impl<'a, Ws: StateAccessor> DatabaseCommit for EvmDb<'a, Ws> {
                 if !code.is_empty() {
                     // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                     self.code
-                        .set(&account_info.code_hash, &code.bytecode, self.working_set);
+                        .set(&account_info.code_hash, &code.bytecode, self.state);
                 }
             }
 
@@ -49,10 +49,10 @@ impl<'a, Ws: StateAccessor> DatabaseCommit for EvmDb<'a, Ws> {
                 // Unwrap because we took key from map itself, so key exists by definition.
                 let value = account.storage.get(key).unwrap();
                 let value = value.present_value();
-                db_account.storage.set(key, &value, self.working_set);
+                db_account.storage.set(key, &value, self.state);
             }
 
-            self.accounts.set(&address, &db_account, self.working_set);
+            self.accounts.set(&address, &db_account, self.state);
         }
     }
 }

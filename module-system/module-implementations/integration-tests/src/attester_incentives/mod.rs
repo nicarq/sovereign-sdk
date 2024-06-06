@@ -54,14 +54,14 @@ impl TestRollup {
         &mut self,
         height: u64,
     ) -> StorageRoot<StorageSpec> {
-        let mut working_set = WorkingSet::<S>::new(self.storage());
+        let mut state = WorkingSet::<S>::new(self.storage());
         let attester_incentives = &self.attester_incentives();
 
         attester_incentives
             .light_client_finalized_height
-            .set(&(height), &mut working_set);
+            .set(&(height), &mut state);
 
-        let (checkpoint, _, _) = working_set.checkpoint();
+        let (checkpoint, _, _) = state.checkpoint();
 
         let (reads_writes, _, _) = checkpoint.freeze();
 
@@ -77,46 +77,46 @@ impl TestRollup {
     }
 
     pub(crate) fn get_user_bond(&mut self, role: Role, user_addr: <S as Spec>::Address) -> u64 {
-        let mut working_set = WorkingSet::<S>::new(self.storage());
+        let mut state = WorkingSet::<S>::new(self.storage());
 
         match role {
             Role::Attester => self
                 .attester_incentives()
                 .bonded_attesters
-                .get(&user_addr, &mut working_set)
+                .get(&user_addr, &mut state)
                 .unwrap_or_default(),
             Role::Challenger => self
                 .attester_incentives()
                 .bonded_challengers
-                .get(&user_addr, &mut working_set)
+                .get(&user_addr, &mut state)
                 .unwrap_or_default(),
         }
     }
 
     pub(crate) fn get_bad_transition_reward(&mut self, height: u64) -> u64 {
-        let mut working_set = WorkingSet::<S>::new(self.storage());
+        let mut state = WorkingSet::<S>::new(self.storage());
 
         self.attester_incentives()
             .bad_transition_pool
-            .get(&height, &mut working_set)
+            .get(&height, &mut state)
             .unwrap_or_default()
     }
 
     pub(crate) fn is_attester_unbonding(&mut self, user_addr: <S as Spec>::Address) -> bool {
-        let mut working_set = WorkingSet::<S>::new(self.storage());
+        let mut state = WorkingSet::<S>::new(self.storage());
 
         self.attester_incentives()
             .unbonding_attesters
-            .get(&user_addr, &mut working_set)
+            .get(&user_addr, &mut state)
             .is_some()
     }
 
     pub fn get_maximum_attested_height(&mut self) -> u64 {
-        let mut working_set = WorkingSet::<S>::new(self.storage());
+        let mut state = WorkingSet::<S>::new(self.storage());
 
         self.attester_incentives()
             .maximum_attested_height
-            .get(&mut working_set)
+            .get(&mut state)
             .unwrap_or_default()
     }
 }

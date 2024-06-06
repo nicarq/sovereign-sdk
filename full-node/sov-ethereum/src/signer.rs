@@ -40,20 +40,18 @@ pub(crate) fn register_signer_rpc_methods<
         }
 
         let raw_evm_tx = {
-            let mut api_state_accessor =
-                ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
+            let mut state = ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
 
             // set nonce if none
             if transaction_request.nonce.is_none() {
                 let nonce = evm
-                    .get_transaction_count(from, None, &mut api_state_accessor)
+                    .get_transaction_count(from, None, &mut state)
                     .unwrap_or_default();
 
                 transaction_request.nonce = Some(nonce);
             }
 
-            let transaction =
-                to_typed_transaction_request(transaction_request, &evm, &mut api_state_accessor)?;
+            let transaction = to_typed_transaction_request(transaction_request, &evm, &mut state)?;
 
             // sign transaction
             let signed_tx = ethereum
@@ -79,10 +77,10 @@ pub(crate) fn register_signer_rpc_methods<
 fn to_typed_transaction_request<S: sov_modules_api::Spec>(
     transaction_request: reth_rpc_types::TransactionRequest,
     evm: &Evm<S>,
-    api_state_accessor: &mut ApiStateAccessor<S>,
+    state: &mut ApiStateAccessor<S>,
 ) -> Result<reth_rpc_types::TypedTransactionRequest, ErrorObjectOwned> {
     let chain_id = evm
-        .chain_id(api_state_accessor)
+        .chain_id(state)
         .expect("Failed to get chain id")
         .map(|id| id.to())
         .unwrap_or(DEFAULT_CHAIN_ID);
@@ -112,7 +110,7 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
             ..Default::default()
         },
         Some("pending".to_string()),
-        api_state_accessor,
+        state,
     )?;
 
     let gas_limit = estimated_gas.to::<U256>();

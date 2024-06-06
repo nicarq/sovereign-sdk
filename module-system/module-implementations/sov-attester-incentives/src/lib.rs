@@ -123,38 +123,38 @@ where
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
         // The initialization logic
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         let res = match msg {
             call::CallMessage::BondAttester(bond_amount) => self
-                .bond_user_helper(bond_amount, context.sender(), Role::Attester, working_set)
+                .bond_user_helper(bond_amount, context.sender(), Role::Attester, state)
                 .map_err(|err| err.into()),
             call::CallMessage::BeginUnbondingAttester => self
-                .begin_unbond_attester(context, working_set)
+                .begin_unbond_attester(context, state)
                 .map_err(|error| error.into()),
             call::CallMessage::EndUnbondingAttester => self
-                .end_unbond_attester(context, working_set)
+                .end_unbond_attester(context, state)
                 .map_err(|error| error.into()),
             call::CallMessage::BondChallenger(bond_amount) => self
-                .bond_user_helper(bond_amount, context.sender(), Role::Challenger, working_set)
+                .bond_user_helper(bond_amount, context.sender(), Role::Challenger, state)
                 .map_err(|err| err.into()),
-            call::CallMessage::UnbondChallenger => self.unbond_challenger(context, working_set),
+            call::CallMessage::UnbondChallenger => self.unbond_challenger(context, state),
             call::CallMessage::ProcessAttestation(attestation) => self
-                .process_attestation(context, attestation, working_set)
+                .process_attestation(context, attestation, state)
                 .map_err(|error| error.into()),
 
             call::CallMessage::ProcessChallenge(proof, transition) => self
-                .process_challenge(context, &proof, &transition, working_set)
+                .process_challenge(context, &proof, &transition, state)
                 .map_err(|error| error.into()),
         }
         .map_err(|e| e.into());

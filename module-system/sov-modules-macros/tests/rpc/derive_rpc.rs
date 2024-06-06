@@ -46,18 +46,14 @@ where
 
     #[rpc_method(name = "b")]
     // Test: unused `WorkingSet`.
-    pub fn b(&self, _api_state_accessor: &mut ApiStateAccessor<S>) -> RpcResult<u32> {
+    pub fn b(&self, _state: &mut ApiStateAccessor<S>) -> RpcResult<u32> {
         // Test: reference to `self` field.
         let _ = &self.data;
         unimplemented!()
     }
 
     #[rpc_method(name = "anotherMethod")]
-    fn another_method(
-        &self,
-        result: D,
-        _api_state_accessor: &mut ApiStateAccessor<S>,
-    ) -> RpcResult<(D, u64)> {
+    fn another_method(&self, result: D, _state: &mut ApiStateAccessor<S>) -> RpcResult<(D, u64)> {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         let value = result.clone();
         value.hash(&mut hasher);

@@ -19,7 +19,7 @@ pub trait DispatchCall: Send + Sync {
     fn dispatch_call(
         &self,
         message: Self::Decodable,
-        working_set: &mut WorkingSet<Self::Spec>,
+        state: &mut WorkingSet<Self::Spec>,
         context: &Context<Self::Spec>,
     ) -> Result<CallResponse, ModuleError>;
 

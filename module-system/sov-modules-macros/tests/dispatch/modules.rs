@@ -3,8 +3,9 @@ use sov_modules_api::{
 };
 
 pub mod first_test_module {
-    use super::*;
     use sov_modules_api::ModuleId;
+
+    use super::*;
 
     #[derive(ModuleInfo)]
     pub struct FirstTestStruct<S: Spec> {
@@ -19,8 +20,8 @@ pub mod first_test_module {
     }
 
     impl<S: Spec> FirstTestStruct<S> {
-        pub fn get_state_value(&self, working_set: &mut WorkingSet<S>) -> u8 {
-            self.state_in_first_struct.get(working_set).unwrap()
+        pub fn get_state_value(&self, state: &mut WorkingSet<S>) -> u8 {
+            self.state_in_first_struct.get(state).unwrap()
         }
     }
 
@@ -48,9 +49,9 @@ pub mod first_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            working_set: &mut impl sov_modules_api::GenesisState<S>,
+            state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
-            self.state_in_first_struct.set(&1, working_set);
+            self.state_in_first_struct.set(&1, state);
             Ok(())
         }
 
@@ -58,17 +59,18 @@ pub mod first_test_module {
             &self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            working_set: &mut impl TxState<S>,
+            state: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
-            self.state_in_first_struct.set(&msg, working_set);
+            self.state_in_first_struct.set(&msg, state);
             Ok(CallResponse::default())
         }
     }
 }
 
 pub mod second_test_module {
-    use super::*;
     use sov_modules_api::ModuleId;
+
+    use super::*;
 
     #[derive(ModuleInfo)]
     pub struct SecondTestStruct<S: Spec> {
@@ -83,8 +85,8 @@ pub mod second_test_module {
     }
 
     impl<S: Spec> SecondTestStruct<S> {
-        pub fn get_state_value(&self, working_set: &mut WorkingSet<S>) -> u8 {
-            self.state_in_second_struct.get(working_set).unwrap()
+        pub fn get_state_value(&self, state: &mut WorkingSet<S>) -> u8 {
+            self.state_in_second_struct.get(state).unwrap()
         }
     }
 
@@ -110,9 +112,9 @@ pub mod second_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            working_set: &mut impl sov_modules_api::GenesisState<S>,
+            state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
-            self.state_in_second_struct.set(&2, working_set);
+            self.state_in_second_struct.set(&2, state);
             Ok(())
         }
 
@@ -120,17 +122,18 @@ pub mod second_test_module {
             &self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            working_set: &mut impl TxState<S>,
+            state: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
-            self.state_in_second_struct.set(&msg, working_set);
+            self.state_in_second_struct.set(&msg, state);
             Ok(CallResponse::default())
         }
     }
 }
 
 pub mod third_test_module {
-    use super::*;
     use sov_modules_api::ModuleId;
+
+    use super::*;
 
     pub trait ModuleThreeStorable:
         borsh::BorshSerialize + borsh::BorshDeserialize + core::fmt::Debug + Default + Send + Sync
@@ -152,8 +155,8 @@ pub mod third_test_module {
     }
 
     impl<S: Spec, OtherGeneric: ModuleThreeStorable> ThirdTestStruct<S, OtherGeneric> {
-        pub fn get_state_value(&self, working_set: &mut WorkingSet<S>) -> Option<OtherGeneric> {
-            self.state_in_third_struct.get(working_set)
+        pub fn get_state_value(&self, state: &mut WorkingSet<S>) -> Option<OtherGeneric> {
+            self.state_in_third_struct.get(state)
         }
     }
 
@@ -179,10 +182,9 @@ pub mod third_test_module {
         fn genesis(
             &self,
             _config: &Self::Config,
-            working_set: &mut impl sov_modules_api::GenesisState<S>,
+            state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
-            self.state_in_third_struct
-                .set(&Default::default(), working_set);
+            self.state_in_third_struct.set(&Default::default(), state);
             Ok(())
         }
 
@@ -190,9 +192,9 @@ pub mod third_test_module {
             &self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
-            working_set: &mut impl TxState<S>,
+            state: &mut impl TxState<S>,
         ) -> Result<CallResponse, Error> {
-            self.state_in_third_struct.set(&msg, working_set);
+            self.state_in_third_struct.set(&msg, state);
             Ok(CallResponse::default())
         }
     }

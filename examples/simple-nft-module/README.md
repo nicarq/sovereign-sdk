@@ -184,7 +184,7 @@ impl<S: sov_modules_api::Spec> Module for NonFungibleToken<S> {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<S>,
+        _state: &mut WorkingSet<S>,
     ) -> anyhow::Result<(), Error> {
         Ok(())
     }
@@ -193,7 +193,7 @@ impl<S: sov_modules_api::Spec> Module for NonFungibleToken<S> {
         &self,
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
-        _working_set: &mut impl TxState<S>,
+        _state: &mut impl TxState<S>,
     ) -> anyhow::Result<sov_modules_api::CallResponse, Error> {
         Ok(sov_modules_api::CallResponse::default())
     }
@@ -221,9 +221,9 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for NonFungibleToken<S> {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> Result<(), Error> {
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 }
 
@@ -232,14 +232,14 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
-        self.admin.set(&config.admin, working_set);
+        self.admin.set(&config.admin, state);
         for (id, owner) in config.owners.iter() {
-            if self.owners.get(id, working_set).is_some() {
+            if self.owners.get(id, state).is_some() {
                 anyhow::bail!("Token id {} already exists", id);
             }
-            self.owners.set(id, owner, working_set);
+            self.owners.set(id, owner, state);
         }
         Ok(())
     }
@@ -258,15 +258,15 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
         &self,
         id: u64,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> anyhow::Result<sov_modules_api::CallResponse> {
-        if self.owners.get(&id, working_set).is_some() {
+        if self.owners.get(&id, state).is_some() {
             bail!("Token with id {} already exists", id);
         }
 
-        self.owners.set(&id, context.sender(), working_set);
+        self.owners.set(&id, context.sender(), state);
 
-        self.emit_event(working_set, "nft_mint", Event::Mint { id });
+        self.emit_event(state, "nft_mint", Event::Mint { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 
@@ -275,9 +275,9 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
         id: u64,
         to: S::Address,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> anyhow::Result<sov_modules_api::CallResponse> {
-        let token_owner = match self.owners.get(&id, working_set) {
+        let token_owner = match self.owners.get(&id, state) {
             None => {
                 anyhow::bail!("Token with id {} does not exist", id);
             }
@@ -286,8 +286,8 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
         if &token_owner != context.sender() {
             anyhow::bail!("Only token owner can transfer token");
         }
-        self.owners.set(&id, &to, working_set);
-        self.emit_event(working_set, "nft_transfer", Event::Transfer { id });
+        self.owners.set(&id, &to, state);
+        self.emit_event(state, "nft_transfer", Event::Transfer { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 
@@ -295,9 +295,9 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
         &self,
         id: u64,
         context: &Context<S>,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> anyhow::Result<sov_modules_api::CallResponse> {
-        let token_owner = match self.owners.get(&id, working_set) {
+        let token_owner = match self.owners.get(&id, state) {
             None => {
                 anyhow::bail!("Token with id {} does not exist", id);
             }
@@ -306,9 +306,9 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
         if &token_owner != context.sender() {
             anyhow::bail!("Only token owner can burn token");
         }
-        self.owners.remove(&id, working_set);
+        self.owners.remove(&id, state);
 
-        self.emit_event(working_set, "nft_burn", Event::Burn { id });
+        self.emit_event(state, "nft_burn", Event::Burn { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 }
@@ -325,12 +325,12 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for NonFungibleToken<S> {
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,,
+        state: &mut impl TxState<S>,,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         let call_result = match msg {
-            CallMessage::Mint { id } => self.mint(id, context, working_set),
-            CallMessage::Transfer { to, id } => self.transfer(id, to, context, working_set),
-            CallMessage::Burn { id } => self.burn(id, context, working_set),
+            CallMessage::Mint { id } => self.mint(id, context, state),
+            CallMessage::Transfer { to, id } => self.transfer(id, to, context, state),
+            CallMessage::Burn { id } => self.burn(id, context, state),
         };
         Ok(call_result?)
     }
@@ -360,10 +360,10 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
     pub fn get_owner(
         &self,
         token_id: u64,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> RpcResult<OwnerResponse<S>> {
         Ok(OwnerResponse {
-            owner: self.owners.get(&token_id, working_set),
+            owner: self.owners.get(&token_id, state),
         })
     }
 }
@@ -423,9 +423,9 @@ fn transfer() {
         admin: admin.clone(),
         owners: vec![(0, admin.clone()), (1, owner1.clone()), (2, owner2.clone())],
     };
-    let mut working_set = WorkingSet::new(ProverStorage::temporary());
+    let mut state = WorkingSet::new(ProverStorage::temporary());
     let nft = NonFungibleToken::new();
-    nft.genesis(&config, &mut working_set).unwrap();
+    nft.genesis(&config, &mut state).unwrap();
 
     let transfer_message = CallMessage::Transfer {
         id: 1,
@@ -433,7 +433,7 @@ fn transfer() {
     };
 
     // admin cannot transfer token of the owner1
-    let transfer_attempt = nft.call(transfer_message.clone(), &admin_context, &mut working_set);
+    let transfer_attempt = nft.call(transfer_message.clone(), &admin_context, &mut state);
 
     assert!(transfer_attempt.is_err());
     // ... rest of the tests

@@ -125,7 +125,7 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 /// #    fn genesis(
 /// #        &self,
 /// #        _config: &Self::Config,
-/// #        _working_set: &mut impl sov_modules_api::state::GenesisState<S>,
+/// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
 /// #    ) -> Result<(), sov_modules_api::Error> {
 /// #        Ok(())
 /// #    }
@@ -134,7 +134,7 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 /// #        &self,
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
-/// #        _working_set: &mut impl sov_modules_api::state::TxState<S>,
+/// #        _state: &mut impl sov_modules_api::state::TxState<S>,
 /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
 /// #        unimplemented!()
 /// #    }

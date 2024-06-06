@@ -22,7 +22,7 @@ pub trait KernelModule {
     fn genesis_unchecked(
         &self,
         _config: &Self::Config,
-        _working_set: &mut KernelWorkingSet<Self::Spec>,
+        _state: &mut KernelWorkingSet<Self::Spec>,
     ) -> Result<(), ModuleError> {
         Ok(())
     }

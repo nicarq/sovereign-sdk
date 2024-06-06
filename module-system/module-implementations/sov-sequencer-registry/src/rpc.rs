@@ -25,10 +25,10 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn sequencer_address(
         &self,
         da_address: Da::Address,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<SequencerAddressResponse<S>> {
         Ok(SequencerAddressResponse {
-            address: self.get_sequencer_address(da_address, api_state_accessor),
+            address: self.get_sequencer_address(da_address, state),
         })
     }
 }

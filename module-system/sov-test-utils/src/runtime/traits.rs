@@ -91,7 +91,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
     fn pre_dispatch_tx_hook_override(
         &self,
         _tx: &AuthenticatedTransactionData<S>,
-        _working_set: &mut <Self as TxHooks>::TxState,
+        _state: &mut <Self as TxHooks>::TxState,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -99,7 +99,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
         &self,
         _tx: &AuthenticatedTransactionData<S>,
         _ctx: &Context<S>,
-        _working_set: &mut <Self as TxHooks>::TxState,
+        _state: &mut <Self as TxHooks>::TxState,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -143,16 +143,16 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
     fn begin_slot_hook_override(
         &self,
         _pre_state_root: S::VisibleHash,
-        _working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
+        _state: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
     }
 
-    fn end_slot_hook_override(&self, _working_set: &mut StateCheckpoint<S>) {}
+    fn end_slot_hook_override(&self, _state: &mut StateCheckpoint<S>) {}
 
     fn finalize_hook_override(
         &self,
         _root_hash: S::VisibleHash,
-        _accessory_working_set: &mut impl sov_modules_api::prelude::StateReaderAndWriter<
+        _state: &mut impl sov_modules_api::prelude::StateReaderAndWriter<
             sov_state::namespaces::Accessory,
         >,
     ) {

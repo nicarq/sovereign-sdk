@@ -90,10 +90,10 @@ impl<S: Spec> Nft<S> {
         frozen: bool,
         collection_id: &CollectionId,
         nfts: &StateMap<NftIdentifier, Nft<S>>,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<Self> {
         if nfts
-            .get(&NftIdentifier(token_id, *collection_id), working_set)
+            .get(&NftIdentifier(token_id, *collection_id), state)
             .is_some()
         {
             bail!(
@@ -116,11 +116,11 @@ impl<S: Spec> Nft<S> {
         collection_id: &CollectionId,
         nfts: &StateMap<NftIdentifier, Nft<S>>,
         context: &Context<S>,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<OwnedNft<S>> {
         let nft_identifier = NftIdentifier(token_id, *collection_id);
         let nft = nfts
-            .get(&nft_identifier, working_set)
+            .get(&nft_identifier, state)
             .ok_or_else(|| anyhow!("NFT not found"))
             .with_context(|| {
                 format!(
@@ -137,12 +137,12 @@ impl<S: Spec> Nft<S> {
         nfts: &StateMap<NftIdentifier, Nft<S>>,
         collections: &StateMap<CollectionId, Collection<S>>,
         context: &Context<S>,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<(CollectionId, MutableNft<S>)> {
         let (collection_id, _) =
-            Collection::get_owned_collection(collection_name, collections, context, working_set)?;
+            Collection::get_owned_collection(collection_name, collections, context, state)?;
         let token_identifier = NftIdentifier(token_id, collection_id);
-        let n = nfts.get(&token_identifier, working_set);
+        let n = nfts.get(&token_identifier, state);
         if let Some(nft) = n {
             if !nft.frozen {
                 Ok((collection_id, MutableNft(nft.clone())))

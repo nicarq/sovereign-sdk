@@ -12,14 +12,14 @@ type S = sov_test_utils::TestSpec;
 fuzz_target!(|input: (&[u8], Vec<(Context<S>, CallMessage)>)| {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let working_set = &mut WorkingSet::new(storage);
+    let state = &mut WorkingSet::new(storage);
 
     let (seed, msgs) = input;
     let u = &mut Unstructured::new(seed);
-    let accounts: Accounts<S> = Accounts::arbitrary_workset(u, working_set).unwrap();
+    let accounts: Accounts<S> = Accounts::arbitrary_workset(u, state).unwrap();
 
     for (ctx, msg) in msgs {
         // assert malformed calls won't panic
-        accounts.call(msg, &ctx, working_set).ok();
+        accounts.call(msg, &ctx, state).ok();
     }
 });

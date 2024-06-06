@@ -128,23 +128,23 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 
     fn call(
         &self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
-        Ok(self.execute_call(msg, context, working_set)?)
+        Ok(self.execute_call(msg, context, state)?)
     }
 }
 
 impl<S: sov_modules_api::Spec> Evm<S> {
-    pub(crate) fn get_db<'a, Ws>(&self, working_set: &'a mut Ws) -> EvmDb<'a, Ws> {
-        EvmDb::new(self.accounts.clone(), self.code.clone(), working_set)
+    pub(crate) fn get_db<'a, Ws>(&self, state: &'a mut Ws) -> EvmDb<'a, Ws> {
+        EvmDb::new(self.accounts.clone(), self.code.clone(), state)
     }
 }

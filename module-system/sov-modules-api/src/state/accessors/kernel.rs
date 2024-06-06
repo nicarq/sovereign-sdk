@@ -19,7 +19,7 @@ impl<'a, S: Spec> VersionReader for VersionedStateReadWriter<'a, StateCheckpoint
 /// A wrapper over [`WorkingSet`] that allows access to kernel values
 /// TODO(@theochap): this struct is deprecated and should be removed in favor of [`KernelWorkingSet`]
 pub struct VersionedStateReadWriter<'a, S> {
-    pub(super) ws: &'a mut S,
+    pub(super) state: &'a mut S,
     pub(super) slot_num: u64,
 }
 
@@ -30,7 +30,7 @@ impl<'a, S: Spec> VersionedStateReadWriter<'a, StateCheckpoint<S>> {
         kernel_ws: KernelWorkingSet<'a, S>,
     ) -> VersionedStateReadWriter<'a, StateCheckpoint<S>> {
         VersionedStateReadWriter {
-            ws: kernel_ws.inner,
+            state: kernel_ws.inner,
             slot_num: kernel_ws.virtual_slot_num,
         }
     }
@@ -44,12 +44,12 @@ impl<'a, S> VersionedStateReadWriter<'a, S> {
 
     /// Returns a reference to the inner working set
     pub fn get_ws(&self) -> &S {
-        self.ws
+        self.state
     }
 
     /// Returns a mutable reference to the inner working set
     pub fn get_ws_mut(&mut self) -> &mut S {
-        self.ws
+        self.state
     }
 }
 
@@ -58,14 +58,14 @@ impl<'a, S: Spec> CachedAccessor<namespaces::Kernel>
 {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         <Delta<S::Storage> as CachedAccessor<namespaces::Kernel>>::get_cached(
-            &mut self.ws.delta,
+            &mut self.state.delta,
             key,
         )
     }
 
     fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
         <Delta<S::Storage> as CachedAccessor<namespaces::Kernel>>::set_cached(
-            &mut self.ws.delta,
+            &mut self.state.delta,
             key,
             value,
         )
@@ -73,7 +73,7 @@ impl<'a, S: Spec> CachedAccessor<namespaces::Kernel>
 
     fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
         <Delta<S::Storage> as CachedAccessor<namespaces::Kernel>>::delete_cached(
-            &mut self.ws.delta,
+            &mut self.state.delta,
             key,
         )
     }
@@ -84,14 +84,14 @@ impl<'a, S: Spec> CachedAccessor<namespaces::Kernel>
 {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         <RevertableWriter<TxScratchpad<S>> as CachedAccessor<namespaces::Kernel>>::get_cached(
-            &mut self.ws.delta,
+            &mut self.state.delta,
             key,
         )
     }
 
     fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
         <RevertableWriter<TxScratchpad<S>> as CachedAccessor<namespaces::Kernel>>::set_cached(
-            &mut self.ws.delta,
+            &mut self.state.delta,
             key,
             value,
         )
@@ -99,7 +99,7 @@ impl<'a, S: Spec> CachedAccessor<namespaces::Kernel>
 
     fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
         <RevertableWriter<TxScratchpad<S>> as CachedAccessor<namespaces::Kernel>>::delete_cached(
-            &mut self.ws.delta,
+            &mut self.state.delta,
             key,
         )
     }
@@ -150,13 +150,13 @@ impl<'a, S: Spec> KernelWorkingSet<'a, S> {
     /// Build a new kernel working set from the associated kernel
     pub fn from_kernel<K: Kernel<S, Da>, Da: DaSpec>(
         kernel: &K,
-        ws: &'a mut StateCheckpoint<S>,
+        state_checkpoint: &'a mut StateCheckpoint<S>,
     ) -> Self {
-        let mut bootstrapper = KernelWorkingSet::get_bootstrap(ws);
+        let mut bootstrapper = KernelWorkingSet::get_bootstrap(state_checkpoint);
         let true_slot_num = kernel.true_slot_number(&mut bootstrapper);
         let virtual_slot_num = kernel.visible_slot_number(&mut bootstrapper);
         Self {
-            inner: ws,
+            inner: state_checkpoint,
             true_slot_num,
             virtual_slot_num,
         }
@@ -164,9 +164,9 @@ impl<'a, S: Spec> KernelWorkingSet<'a, S> {
 
     /// Returns a kernel working set with its heights intiialized to 0.
     /// This is intended to be used for genesis setup only.
-    pub fn uninitialized(ws: &'a mut StateCheckpoint<S>) -> Self {
+    pub fn uninitialized(state_checkpoint: &'a mut StateCheckpoint<S>) -> Self {
         Self {
-            inner: ws,
+            inner: state_checkpoint,
             true_slot_num: 0,
             virtual_slot_num: 0,
         }

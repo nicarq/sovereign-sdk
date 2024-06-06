@@ -30,7 +30,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         &self,
         message: CallMessage,
         context: &Context<S>,
-        working_set: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         // Check if the tx went through the EVM authenticator.
         let signer = *context
@@ -43,16 +43,16 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let block_env = self
             .block_env
-            .get(working_set)
+            .get(state)
             .expect("Pending block must be set");
 
-        let cfg = self.cfg.get(working_set).expect("Evm config must be set");
+        let cfg = self.cfg.get(state).expect("Evm config must be set");
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
-        let evm_db: EvmDb<'_, _> = self.get_db(working_set);
+        let evm_db: EvmDb<'_, _> = self.get_db(state);
         let result = executor::execute_tx(evm_db, &block_env, &evm_tx, signer, cfg_env);
 
-        let previous_transaction = self.pending_transactions.last(working_set);
+        let previous_transaction = self.pending_transactions.last(state);
         let previous_transaction_cumulative_gas_used = previous_transaction
             .as_ref()
             .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
@@ -114,8 +114,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             receipt,
         };
 
-        self.pending_transactions
-            .push(&pending_transaction, working_set);
+        self.pending_transactions.push(&pending_transaction, state);
 
         Ok(CallResponse::default())
     }

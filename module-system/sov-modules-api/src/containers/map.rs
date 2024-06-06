@@ -126,12 +126,12 @@ where
     ///
     /// The key may be any borrowed form of the
     /// map’s key type.
-    pub fn set<Q>(&self, key: &Q, value: &V, working_set: &mut impl StateWriter<N>)
+    pub fn set<Q>(&self, key: &Q, value: &V, state: &mut impl StateWriter<N>)
     where
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        working_set
+        state
             .set(&self.slot_key(key), self.slot_value(value))
             .unwrap();
     }
@@ -147,11 +147,11 @@ where
     /// ```
     /// use sov_modules_api::{ Spec, Context, StateMap, WorkingSet};
     ///
-    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: &[u8], ws: &mut WorkingSet<S>) -> Option<u64>
+    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: &[u8], state: &mut WorkingSet<S>) -> Option<u64>
     /// {
     ///     // We perform the `get` with a slice, and not the `Vec`. it is so because `Vec` borrows
     ///     // `[T]`.
-    ///     map.get(key, ws)
+    ///     map.get(key, state)
     /// }
     /// ```
     ///
@@ -163,19 +163,19 @@ where
     /// ```
     /// use sov_modules_api::{ Spec, Context, StateMap, WorkingSet};
     ///
-    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], ws: &mut WorkingSet<S>) -> Option<u64>
+    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], state: &mut WorkingSet<S>) -> Option<u64>
     /// {
-    ///     map.get(&key[..], ws)
+    ///     map.get(&key[..], state)
     /// }
     /// ```
-    pub fn get<Q, WS: StateReader<N>>(&self, key: &Q, working_set: &mut WS) -> Option<V>
+    pub fn get<Q, WS: StateReader<N>>(&self, key: &Q, state: &mut WS) -> Option<V>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        working_set
+        state
             .get_decoded(&self.slot_key(key), self.codec())
             .unwrap()
     }
@@ -185,7 +185,7 @@ where
     pub fn get_or_err<Q, WS: StateReader<N>>(
         &self,
         key: &Q,
-        working_set: &mut WS,
+        state: &mut WS,
     ) -> Result<V, StateMapError<N>>
     where
         Codec: StateCodec,
@@ -193,7 +193,7 @@ where
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        self.get(key, working_set).ok_or_else(|| {
+        self.get(key, state).ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
                 SlotKey::new(self.prefix(), key, self.codec().key_codec()),
@@ -204,14 +204,14 @@ where
 
     /// Removes a key from the map, returning the corresponding value (or
     /// [`None`] if the key is absent).
-    pub fn remove<Q>(&self, key: &Q, working_set: &mut impl StateReaderAndWriter<N>) -> Option<V>
+    pub fn remove<Q>(&self, key: &Q, state: &mut impl StateReaderAndWriter<N>) -> Option<V>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        working_set
+        state
             .remove_decoded(&self.slot_key(key), self.codec())
             .unwrap()
     }
@@ -223,7 +223,7 @@ where
     pub fn remove_or_err<Q>(
         &self,
         key: &Q,
-        working_set: &mut impl StateReaderAndWriter<N>,
+        state: &mut impl StateReaderAndWriter<N>,
     ) -> Result<V, StateMapError<N>>
     where
         Codec: StateCodec,
@@ -231,7 +231,7 @@ where
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        self.remove(key, working_set).ok_or_else(|| {
+        self.remove(key, state).ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
                 SlotKey::new(self.prefix(), key, self.codec().key_codec()),
@@ -244,13 +244,13 @@ where
     ///
     /// This is equivalent to [`NamespacedStateMap::remove`], but doesn't deserialize and
     /// return the value before deletion.
-    pub fn delete<Q>(&self, key: &Q, working_set: &mut impl StateWriter<N>)
+    pub fn delete<Q>(&self, key: &Q, state: &mut impl StateWriter<N>)
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        working_set.delete(&self.slot_key(key)).unwrap();
+        state.delete(&self.slot_key(key)).unwrap();
     }
 }
 
@@ -262,17 +262,13 @@ where
     Codec::ValueCodec: StateItemCodec<V>,
     Codec::KeyCodec: StateItemCodec<K>,
 {
-    pub fn get_with_proof<Q, W>(
-        &self,
-        key: &Q,
-        working_set: &mut W,
-    ) -> sov_state::StorageProof<W::Proof>
+    pub fn get_with_proof<Q, W>(&self, key: &Q, state: &mut W) -> sov_state::StorageProof<W::Proof>
     where
         Q: ?Sized,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         W: ProvenStateAccessor<N>,
     {
-        working_set.get_with_proof(self.slot_key(key))
+        state.get_with_proof(self.slot_key(key))
     }
 
     pub fn verify_proof<S: crate::Spec>(

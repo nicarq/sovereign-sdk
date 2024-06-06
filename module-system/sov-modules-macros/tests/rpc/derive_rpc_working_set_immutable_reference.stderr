@@ -4,6 +4,6 @@ error: The `api_state_accessor` argument to the `#[rpc_method]`-annotated functi
 16 |       pub fn foo(
    |  _________^
 17 | |         &self,
-18 | |         _api_state_accessor: &sov_modules_api::ApiStateAccessor<S>,
+18 | |         _state: &sov_modules_api::ApiStateAccessor<S>,
 19 | |     ) -> jsonrpsee::core::RpcResult<u32> {
    | |________________________________________^

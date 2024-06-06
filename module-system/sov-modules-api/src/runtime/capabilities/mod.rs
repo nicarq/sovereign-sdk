@@ -63,13 +63,13 @@ pub trait Kernel<S: Spec, Da: DaSpec>: BatchSelector<Da, Spec = S> + Default + S
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        working_set: &mut KernelWorkingSet<'_, S>,
+        state: &mut KernelWorkingSet<'_, S>,
     ) -> Result<(), anyhow::Error>;
 
     /// Return the current slot number
-    fn true_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, S>) -> u64;
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
     /// Return the slot number at which transactions currently *appear* to be executing.
-    fn visible_slot_number(&self, working_set: &mut BootstrapWorkingSet<'_, S>) -> u64;
+    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state
@@ -80,10 +80,10 @@ pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: Kernel<S, Da> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        working_set: &mut StateCheckpoint<Self::Spec>,
+        state: &mut StateCheckpoint<Self::Spec>,
     ) -> <S::Gas as Gas>::Price;
     /// Called at the end of a slot
-    fn end_slot_hook(&self, gas_used: &S::Gas, working_set: &mut StateCheckpoint<Self::Spec>);
+    fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut StateCheckpoint<Self::Spec>);
 }
 
 /// BatchSelector decides which batches to process in a current slot.
@@ -96,12 +96,12 @@ pub trait BatchSelector<Da: DaSpec> {
 
     /// It takes two arguments.
     /// 1. `current_blobs` - blobs that were received from the network for the current slot.
-    /// 2. `working_set` - the working to access storage.
+    /// 2. `state` - the working to access storage.
     /// It returns a vector containing a mix of borrowed and owned blobs.
     fn get_batches_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        working_set: &mut KernelWorkingSet<'k, Self::Spec>,
+        state: &mut KernelWorkingSet<'k, Self::Spec>,
     ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
@@ -242,10 +242,9 @@ pub mod mocks {
         }
 
         /// The genesis working set
-        pub fn genesis_ws(ws: &mut StateCheckpoint<S>) -> KernelWorkingSet<'_, S> {
+        pub fn genesis_ws(state_checkpoint: &mut StateCheckpoint<S>) -> KernelWorkingSet<'_, S> {
             let kernel = Self::new(0, 0);
-            let ws = KernelWorkingSet::from_kernel(&kernel, ws);
-            ws
+            KernelWorkingSet::from_kernel(&kernel, state_checkpoint)
         }
     }
 
@@ -265,7 +264,7 @@ pub mod mocks {
         fn genesis(
             &self,
             _config: &Self::GenesisConfig,
-            _working_set: &mut KernelWorkingSet<'_, S>,
+            _state: &mut KernelWorkingSet<'_, S>,
         ) -> Result<(), anyhow::Error> {
             Ok(())
         }
@@ -279,7 +278,7 @@ pub mod mocks {
         fn get_batches_for_this_slot<'a, 'k, I>(
             &self,
             _current_blobs: I,
-            _working_set: &mut crate::KernelWorkingSet<'k, Self::Spec>,
+            _state: &mut crate::KernelWorkingSet<'k, Self::Spec>,
         ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
         where
             I: IntoIterator<Item = &'a mut Da::BlobTransaction>,

@@ -43,7 +43,7 @@ where
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         anyhow::ensure!(
             !config.initial_attesters.is_empty(),
@@ -51,22 +51,22 @@ where
         );
 
         self.minimum_attester_bond
-            .set(&config.minimum_attester_bond, working_set);
+            .set(&config.minimum_attester_bond, state);
         self.minimum_challenger_bond
-            .set(&config.minimum_challenger_bond, working_set);
+            .set(&config.minimum_challenger_bond, state);
 
         self.rollup_finality_period
-            .set(&config.rollup_finality_period, working_set);
+            .set(&config.rollup_finality_period, state);
 
         for (attester, bond) in config.initial_attesters.iter() {
-            self.bond_user_helper(*bond, attester, Role::Attester, working_set)?;
+            self.bond_user_helper(*bond, attester, Role::Attester, state)?;
         }
 
         self.maximum_attested_height
-            .set(&config.maximum_attested_height, working_set);
+            .set(&config.maximum_attested_height, state);
 
         self.light_client_finalized_height
-            .set(&config.light_client_finalized_height, working_set);
+            .set(&config.light_client_finalized_height, state);
 
         Ok(())
     }

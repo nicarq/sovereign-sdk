@@ -27,13 +27,12 @@ fn transfer_initial_token() {
 
     // Preparation
     let query_user_balance =
-        |user_address: <S as Spec>::Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(&user_address, token_id, working_set)
+        |user_address: <S as Spec>::Address, state: &mut WorkingSet<S>| -> Option<u64> {
+            bank.get_balance_of(&user_address, token_id, state)
         };
 
-    let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
-        bank.get_total_supply_of(&token_id, working_set)
-    };
+    let query_total_supply =
+        |state: &mut WorkingSet<S>| -> Option<u64> { bank.get_total_supply_of(&token_id, state) };
 
     let sender_balance_before = query_user_balance(sender_address, &mut working_set);
     let receiver_balance_before = query_user_balance(receiver_address, &mut working_set);
@@ -277,13 +276,12 @@ fn transfer_deployed_token() {
 
     // Preparation
     let query_user_balance =
-        |user_address: <S as Spec>::Address, working_set: &mut WorkingSet<S>| -> Option<u64> {
-            bank.get_balance_of(&user_address, token_id, working_set)
+        |user_address: <S as Spec>::Address, state: &mut WorkingSet<S>| -> Option<u64> {
+            bank.get_balance_of(&user_address, token_id, state)
         };
 
-    let query_total_supply = |working_set: &mut WorkingSet<S>| -> Option<u64> {
-        bank.get_total_supply_of(&token_id, working_set)
-    };
+    let query_total_supply =
+        |state: &mut WorkingSet<S>| -> Option<u64> { bank.get_total_supply_of(&token_id, state) };
 
     let total_supply_before = query_total_supply(&mut working_set);
     assert!(total_supply_before.is_some());

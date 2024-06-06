@@ -116,17 +116,17 @@ impl<S: Spec> TxHooks for Runtime<S> {
     fn pre_dispatch_tx_hook(
         &self,
         tx: Transaction<Self::Spec>,
-        working_set: &mut Self::TxState<S>,
+        state: &mut Self::TxState<S>,
     ) -> anyhow::Result<<Self::Spec as Spec>::Address> {
-        self.accounts.pre_dispatch_tx_hook(tx, working_set)
+        self.accounts.pre_dispatch_tx_hook(tx, state)
     }
 
     fn post_dispatch_tx_hook(
         &self,
         tx: &Transaction<Self::Spec>,
-        working_set: &mut Self::TxState,
+        state: &mut Self::TxState,
     ) -> anyhow::Result<()> {
-        self.accounts.post_dispatch_tx_hook(tx, working_set)
+        self.accounts.post_dispatch_tx_hook(tx, state)
     }
 }
 ```
@@ -138,17 +138,17 @@ impl<S: Spec> ApplyBatchHooks for Runtime<S> {
     fn lock_sequencer_bond(
         &self,
         sequencer: &[u8],
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
-        self.sequencer.lock_sequencer_bond(sequencer, working_set)
+        self.sequencer.lock_sequencer_bond(sequencer, state)
     }
 
     fn reward_sequencer(
         &self,
         amount: u64,
-        working_set: &mut WorkingSet<S>,
+        state: &mut WorkingSet<S>,
     ) -> anyhow::Result<()> {
-        self.sequencer.reward_sequencer(amount, working_set)
+        self.sequencer.reward_sequencer(amount, state)
     }
 }
 ```

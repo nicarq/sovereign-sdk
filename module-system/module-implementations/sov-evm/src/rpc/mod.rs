@@ -26,13 +26,13 @@ pub(crate) mod error;
 impl<S: sov_modules_api::Spec> Evm<S> {
     /// Handler for `net_version`
     #[rpc_method(name = "net_version")]
-    pub fn net_version(&self, api_state_accessor: &mut ApiStateAccessor<S>) -> RpcResult<String> {
+    pub fn net_version(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<String> {
         debug!("EVM module JSON-RPC request to `net_version`");
 
         // Network ID is the same as chain ID for most networks
         let chain_id = self
             .cfg
-            .get(api_state_accessor)
+            .get(state)
             .expect("EVM config must be set at genesis")
             .chain_id;
 
@@ -41,10 +41,10 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
     /// Handler for: `eth_chainId`
     #[rpc_method(name = "eth_chainId")]
-    pub fn chain_id(&self, api_state_accessor: &mut ApiStateAccessor<S>) -> RpcResult<Option<U64>> {
+    pub fn chain_id(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<Option<U64>> {
         let chain_id = self
             .cfg
-            .get(api_state_accessor)
+            .get(state)
             .expect("EVM config must be set at genesis")
             .chain_id;
         debug!(
@@ -60,7 +60,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         &self,
         block_hash: B256,
         details: Option<bool>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         debug!(
             ?block_hash,
@@ -69,11 +69,11 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let block_number_hex = self
             .block_hashes
-            .get(&block_hash, api_state_accessor)
+            .get(&block_hash, state)
             .map(|number| hex::encode(number.to_be_bytes()))
             .expect("Block number for known block hash must be set");
 
-        self.get_block_by_number(Some(block_number_hex), details, api_state_accessor)
+        self.get_block_by_number(Some(block_number_hex), details, state)
     }
 
     /// Handler for: `eth_getBlockByNumber`
@@ -82,14 +82,14 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         &self,
         block_number: Option<String>,
         details: Option<bool>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         debug!(
             block_number,
             "EVM module JSON-RPC request to `eth_getBlockByNumber`"
         );
 
-        let block = self.get_sealed_block_by_number(block_number, api_state_accessor);
+        let block = self.get_sealed_block_by_number(block_number, state);
 
         // Build rpc header response
         let header = from_primitive_with_hash(block.header.clone());
@@ -98,7 +98,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         let transactions_with_ids = block.transactions.clone().map(|id| {
             let tx = self
                 .transactions
-                .get(id as usize, api_state_accessor)
+                .get(id as usize, state)
                 .expect("Transaction must be set");
             (id, tx)
         });
@@ -144,14 +144,14 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         &self,
         address: Address,
         _block_number: Option<String>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<U256> {
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
 
         let balance = self
             .accounts
-            .get(&address, api_state_accessor)
+            .get(&address, state)
             .map(|account| account.info.balance)
             .unwrap_or_default();
 
@@ -171,7 +171,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         address: Address,
         index: U256,
         _block_number: Option<String>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<U256> {
         debug!("EVM module JSON-RPC request to `eth_getStorageAt`");
 
@@ -180,8 +180,8 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let storage_slot = self
             .accounts
-            .get(&address, api_state_accessor)
-            .and_then(|account| account.storage.get(&index, api_state_accessor))
+            .get(&address, state)
+            .and_then(|account| account.storage.get(&index, state))
             .unwrap_or_default();
 
         Ok(storage_slot)
@@ -193,14 +193,14 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         &self,
         address: Address,
         _block_number: Option<String>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<U64> {
         // TODO: Implement block_number once we have archival state #882
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/882
 
         let nonce = self
             .accounts
-            .get(&address, api_state_accessor)
+            .get(&address, state)
             .map(|account| account.info.nonce)
             .unwrap_or_default();
 
@@ -215,7 +215,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         &self,
         address: Address,
         _block_number: Option<String>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<reth_primitives::Bytes> {
         debug!("EVM module JSON-RPC request to `eth_getCode`");
 
@@ -224,8 +224,8 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let code = self
             .accounts
-            .get(&address, api_state_accessor)
-            .and_then(|account| self.code.get(&account.info.code_hash, api_state_accessor))
+            .get(&address, state)
+            .and_then(|account| self.code.get(&account.info.code_hash, state))
             .unwrap_or_default();
 
         Ok(code)
@@ -253,22 +253,22 @@ impl<S: sov_modules_api::Spec> Evm<S> {
     pub fn get_transaction_by_hash(
         &self,
         hash: B256,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
-        let tx_number = self.transaction_hashes.get(&hash, api_state_accessor);
+        let tx_number = self.transaction_hashes.get(&hash, state);
 
         let transaction = tx_number.map(|number| {
             let tx = self
                 .transactions
-                .get(number as usize, api_state_accessor)
+                .get(number as usize, state)
                 .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
                                           hash,
                                           number,
-                                          self.transactions.len( api_state_accessor)));
+                                          self.transactions.len( state)));
 
             let block = self
                 .blocks
-                .get(tx.block_number as usize, api_state_accessor)
+                .get(tx.block_number as usize, state)
                 .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
                                           tx.block_number,
                                           tx.signed_transaction.hash));
@@ -296,28 +296,28 @@ impl<S: sov_modules_api::Spec> Evm<S> {
     pub fn get_transaction_receipt(
         &self,
         hash: B256,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
         debug!(
             %hash,
             "EVM module JSON-RPC request to `eth_getTransactionReceipt`"
         );
 
-        let tx_number = self.transaction_hashes.get(&hash, api_state_accessor);
+        let tx_number = self.transaction_hashes.get(&hash, state);
 
         let receipt = tx_number.map(|number| {
             let tx = self
                 .transactions
-                .get(number as usize, api_state_accessor)
+                .get(number as usize, state)
                 .expect("Transaction with known hash must be set");
             let block = self
                 .blocks
-                .get(tx.block_number as usize, api_state_accessor)
+                .get(tx.block_number as usize, state)
                 .expect("Block number for known transaction must be set");
 
             let receipt = self
                 .receipts
-                .get(tx_number.unwrap() as usize, api_state_accessor)
+                .get(tx_number.unwrap() as usize, state)
                 .expect("Receipt for known transaction must be set");
 
             build_rpc_receipt(block, tx, tx_number.unwrap(), receipt)
@@ -336,28 +336,26 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         block_number: Option<String>,
         _state_overrides: Option<reth_rpc_types::state::StateOverride>,
         _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<reth_primitives::Bytes> {
         debug!("EVM module JSON-RPC request to `eth_call`");
 
         let block_env = match block_number {
-            Some(ref block_number) if block_number == "pending" => self
-                .block_env
-                .get(api_state_accessor)
-                .unwrap_or_default()
-                .clone(),
+            Some(ref block_number) if block_number == "pending" => {
+                self.block_env.get(state).unwrap_or_default().clone()
+            }
             _ => {
-                let block = self.get_sealed_block_by_number(block_number, api_state_accessor);
+                let block = self.get_sealed_block_by_number(block_number, state);
                 BlockEnv::from(block)
             }
         };
 
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
 
-        let cfg = self.cfg.get(api_state_accessor).unwrap_or_default();
+        let cfg = self.cfg.get(state).unwrap_or_default();
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, Some(get_cfg_env_template()));
 
-        let evm_db: EvmDb<'_, _> = self.get_db(api_state_accessor);
+        let evm_db: EvmDb<'_, _> = self.get_db(state);
 
         let result = match executor::inspect(evm_db, &block_env, tx_env, cfg_env) {
             Ok(result) => result.result,
@@ -369,8 +367,8 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
     /// Handler for: `eth_blockNumber`
     #[rpc_method(name = "eth_blockNumber")]
-    pub fn block_number(&self, api_state_accessor: &mut ApiStateAccessor<S>) -> RpcResult<U256> {
-        let block_number = self.blocks.len(api_state_accessor).saturating_sub(1);
+    pub fn block_number(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<U256> {
+        let block_number = self.blocks.len(state).saturating_sub(1);
         debug!(%block_number, "EVM module JSON-RPC request to `eth_blockNumber`");
 
         Ok(U256::from(block_number))
@@ -383,24 +381,22 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<String>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<U64> {
         debug!("EVM module JSON-RPC request to `eth_estimateGas`");
         let mut block_env = match block_number {
-            Some(ref block_number) if block_number == "pending" => self
-                .block_env
-                .get(api_state_accessor)
-                .unwrap_or_default()
-                .clone(),
+            Some(ref block_number) if block_number == "pending" => {
+                self.block_env.get(state).unwrap_or_default().clone()
+            }
             _ => {
-                let block = self.get_sealed_block_by_number(block_number, api_state_accessor);
+                let block = self.get_sealed_block_by_number(block_number, state);
                 BlockEnv::from(block)
             }
         };
 
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
 
-        let cfg = self.cfg.get(api_state_accessor).unwrap_or_default();
+        let cfg = self.cfg.get(state).unwrap_or_default();
         let cfg_env_with_handler =
             get_cfg_env_with_handler(&block_env, cfg, Some(get_cfg_env_template()));
 
@@ -414,7 +410,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let account = self
             .accounts
-            .get(&tx_env.caller, api_state_accessor)
+            .get(&tx_env.caller, state)
             .map(|account| account.info)
             .unwrap_or_default();
 
@@ -423,7 +419,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             if let TransactTo::Call(to) = tx_env.transact_to {
                 let to_account = self
                     .accounts
-                    .get(&to, api_state_accessor)
+                    .get(&to, state)
                     .map(|account| account.info)
                     .unwrap_or_default();
                 if KECCAK_EMPTY == to_account.code_hash {
@@ -452,7 +448,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         // if the provided gas limit is less than computed cap, use that
         block_env.gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
 
-        let evm_db = self.get_db(api_state_accessor);
+        let evm_db = self.get_db(state);
 
         // execute the call without writing to db
         let result = executor::inspect(
@@ -469,7 +465,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             // if price or limit was included in the request, then we can execute the request
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas.is_some() || request_gas_price.is_some() {
-                let evm_db = self.get_db(api_state_accessor);
+                let evm_db = self.get_db(state);
                 return Err(
                     map_out_of_gas_err(block_env, tx_env, cfg_env_with_handler, evm_db).into(),
                 );
@@ -487,7 +483,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
                     // then we can execute the request
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas.is_some() || request_gas_price.is_some() {
-                        let evm_db = self.get_db(api_state_accessor);
+                        let evm_db = self.get_db(state);
                         Err(
                             map_out_of_gas_err(block_env, tx_env, cfg_env_with_handler, evm_db)
                                 .into(),
@@ -527,7 +523,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             let mut tx_env = tx_env.clone();
             tx_env.gas_limit = mid_gas_limit;
 
-            let evm_db = self.get_db(api_state_accessor);
+            let evm_db = self.get_db(state);
             let result = executor::inspect(
                 evm_db,
                 &block_env,
@@ -591,30 +587,26 @@ impl<S: sov_modules_api::Spec> Evm<S> {
     fn get_sealed_block_by_number(
         &self,
         block_number: Option<String>,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> SealedBlock {
         // safe, finalized, and pending are not supported
         match block_number {
             Some(ref block_number) if block_number == "earliest" => self
                 .blocks
-                .get(0, api_state_accessor)
+                .get(0, state)
                 .expect("Genesis block must be set"),
-            Some(ref block_number) if block_number == "latest" => self
-                .blocks
-                .last(api_state_accessor)
-                .expect("Head block must be set"),
+            Some(ref block_number) if block_number == "latest" => {
+                self.blocks.last(state).expect("Head block must be set")
+            }
             Some(ref block_number) => {
                 // hex representation may have 0x prefix
                 let block_number = usize::from_str_radix(block_number.trim_start_matches("0x"), 16)
                     .expect("Block number must be a valid hex number, with or without 0x prefix");
                 self.blocks
-                    .get(block_number, api_state_accessor)
+                    .get(block_number, state)
                     .expect("Block must be set")
             }
-            None => self
-                .blocks
-                .last(api_state_accessor)
-                .expect("Head block must be set"),
+            None => self.blocks.last(state).expect("Head block must be set"),
         }
     }
 }

@@ -24,11 +24,11 @@ impl AttesterIncentivesTestHandler {
             self.attester_stake
         );
 
-        let mut working_set = WorkingSet::<S>::new(rollup.storage());
+        let mut state = WorkingSet::<S>::new(rollup.storage());
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut working_set),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state),
             Some(self.attester_balance - self.attester_stake)
         );
     }
@@ -167,7 +167,7 @@ impl AttesterIncentivesTestHandler {
             assert_eq!(fst_tx_receipt.receipt, TxEffect::Successful);
             assert_eq!(snd_tx_receipt.receipt, TxEffect::Successful);
 
-            let mut working_set = WorkingSet::<S>::new(rollup.storage());
+            let mut state = WorkingSet::<S>::new(rollup.storage());
 
             // The challenger has bonded
             assert_eq!(
@@ -196,7 +196,7 @@ impl AttesterIncentivesTestHandler {
                         .challenger_private_key
                         .to_address::<<S as Spec>::Address>(),
                     GAS_TOKEN_ID,
-                    &mut working_set
+                    &mut state
                 ),
                 Some(
                     self.challenger_balance - self.challenger_stake - gas_consumed

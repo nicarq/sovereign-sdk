@@ -27,7 +27,7 @@ impl<S: Spec> Module for TestModule<S> {
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut impl GenesisState<S>,
+        _state: &mut impl GenesisState<S>,
     ) -> Result<(), ModuleError> {
         Ok(())
     }
@@ -36,7 +36,7 @@ impl<S: Spec> Module for TestModule<S> {
         &self,
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
-        _working_set: &mut impl TxState<S>,
+        _state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ModuleError> {
         unimplemented!()
     }

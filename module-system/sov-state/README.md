@@ -17,12 +17,12 @@ Here is a snippet showcasing part of the `StateValue` API:
 impl StateValue<V> {
 
     /// Sets a value in the StateValue.
-    pub fn set<S: Storage>(&self, value: V, working_set: &mut WorkingSet<S>) {
+    pub fn set<S: Storage>(&self, value: V, state: &mut WorkingSet<S>) {
         // Implementation details
     }
 
     /// Gets a value from the StateValue or None if the value is absent.
-    pub fn get<S: Storage>(&self, working_set: &mut WorkingSet<S>) -> Option<V> {
+    pub fn get<S: Storage>(&self, state: &mut WorkingSet<S>) -> Option<V> {
        // Implementation details
     }
 

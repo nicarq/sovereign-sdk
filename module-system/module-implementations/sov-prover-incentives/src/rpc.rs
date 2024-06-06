@@ -22,13 +22,10 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
     pub fn bond_amount(
         &self,
         address: S::Address,
-        api_state_accessor: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Response> {
         Ok(Response {
-            value: self
-                .bonded_provers
-                .get(&address, api_state_accessor)
-                .unwrap_or_default(), // self.value.get(api_state_accessor),
+            value: self.bonded_provers.get(&address, state).unwrap_or_default(), // self.value.get(api_state_accessor),
         })
     }
 }

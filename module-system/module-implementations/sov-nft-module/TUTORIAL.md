@@ -491,7 +491,7 @@ use crate::offchain::{update_collection, update_nft};
 
 ```
     self.collections
-        .set(&collection_id, &collection, working_set);
+        .set(&collection_id, &collection, state);
 +    update_collection(&collection);
     Ok(CallResponse::default())
 
@@ -505,11 +505,11 @@ use crate::offchain::{update_collection, update_nft};
         self.nfts.set(
             &NftIdentifier(token_id, *collection_id),
             &new_nft,
-            working_set,
+            state,
         );
         collection.increment_supply();
         self.collections
-            .set(&collection_id, collection.inner(), working_set);
+            .set(&collection_id, collection.inner(), state);
 
 +        update_collection(collection.inner());
 +        update_nft(&new_nft, None);
@@ -524,7 +524,7 @@ use crate::offchain::{update_collection, update_nft};
         self.nfts.set(
             &NftIdentifier(nft_id, *collection_id),
             owned_nft.inner(),
-            working_set,
+            state,
         );
 +        update_nft(owned_nft.inner(), Some(original_owner.clone()));
         Ok(CallResponse::default())

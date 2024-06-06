@@ -96,7 +96,7 @@ fn very_high_gas_price_wont_panic_or_overflow() {
 
 #[allow(dead_code)]
 pub struct BankGasTestCase {
-    ws: WorkingSet<S>,
+    state: WorkingSet<S>,
     bank: Bank<S>,
     ctx: Context<S>,
     message: CallMessage<S>,
@@ -168,10 +168,10 @@ impl BankGasTestCase {
             gas_limit: None,
         };
 
-        let ws = checkpoint.to_working_set(&tx, &gas_price);
+        let state = checkpoint.to_working_set(&tx, &gas_price);
 
         Self {
-            ws,
+            state,
             bank,
             ctx,
             message,
@@ -192,18 +192,18 @@ impl BankGasTestCase {
 
     pub fn execute(self) -> anyhow::Result<u64> {
         let Self {
-            mut ws,
+            mut state,
             bank,
             ctx,
             message,
             tmpdir,
         } = self;
 
-        bank.call(message, &ctx, &mut ws)?;
+        bank.call(message, &ctx, &mut state)?;
 
         // can unlock storage dir
         let _ = tmpdir;
 
-        Ok(ws.gas_remaining_funds())
+        Ok(state.gas_remaining_funds())
     }
 }

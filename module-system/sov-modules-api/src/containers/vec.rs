@@ -81,8 +81,8 @@ where
         &self.prefix
     }
 
-    fn set_len(&self, length: usize, working_set: &mut impl StateReaderAndWriter<N>) {
-        self.len_value.set(&length, working_set);
+    fn set_len(&self, length: usize, state: &mut impl StateReaderAndWriter<N>) {
+        self.len_value.set(&length, state);
     }
 
     fn elems(&self) -> &NamespacedStateMap<N, usize, V, Codec> {
@@ -100,12 +100,12 @@ where
         &self,
         index: usize,
         value: &V,
-        working_set: &mut impl StateReaderAndWriter<N>,
+        state: &mut impl StateReaderAndWriter<N>,
     ) -> Result<(), StateVecError<N>> {
-        let len = self.len(working_set);
+        let len = self.len(state);
 
         if index < len {
-            self.elems().set(&index, value, working_set);
+            self.elems().set(&index, value, state);
             Ok(())
         } else {
             Err(StateVecError::IndexOutOfBounds(index))
@@ -113,8 +113,8 @@ where
     }
 
     /// Returns the value for the given index.
-    pub fn get(&self, index: usize, working_set: &mut impl StateReader<N>) -> Option<V> {
-        self.elems().get(&index, working_set)
+    pub fn get(&self, index: usize, state: &mut impl StateReader<N>) -> Option<V> {
+        self.elems().get(&index, state)
     }
 
     /// Returns the value for the given index.
@@ -123,12 +123,12 @@ where
     pub fn get_or_err<Reader: StateReaderAndWriter<N>>(
         &self,
         index: usize,
-        working_set: &mut Reader,
+        state: &mut Reader,
     ) -> Result<V, StateVecError<N>> {
-        let len = self.len(working_set);
+        let len = self.len(state);
 
         if index < len {
-            self.elems().get(&index, working_set).ok_or_else(|| {
+            self.elems().get(&index, state).ok_or_else(|| {
                 StateVecError::MissingValue(self.prefix().clone(), index, PhantomData)
             })
         } else {
@@ -137,36 +137,36 @@ where
     }
 
     /// Returns the length of the vector.
-    pub fn len(&self, working_set: &mut impl StateReader<N>) -> usize {
-        self.len_value().get(working_set).unwrap_or_default()
+    pub fn len(&self, state: &mut impl StateReader<N>) -> usize {
+        self.len_value().get(state).unwrap_or_default()
     }
 
     /// Pushes a value to the end of the vector.
-    pub fn push(&self, value: &V, working_set: &mut impl StateReaderAndWriter<N>) {
-        let len = self.len(working_set);
+    pub fn push(&self, value: &V, state: &mut impl StateReaderAndWriter<N>) {
+        let len = self.len(state);
 
-        self.elems().set(&len, value, working_set);
-        self.set_len(len + 1, working_set);
+        self.elems().set(&len, value, state);
+        self.set_len(len + 1, state);
     }
 
     /// Pops a value from the end of the vector and returns it.
-    pub fn pop(&self, working_set: &mut impl StateReaderAndWriter<N>) -> Option<V> {
-        let len = self.len(working_set);
+    pub fn pop(&self, state: &mut impl StateReaderAndWriter<N>) -> Option<V> {
+        let len = self.len(state);
         let last_i = len.checked_sub(1)?;
-        let elem = self.elems().remove(&last_i, working_set)?;
+        let elem = self.elems().remove(&last_i, state)?;
 
         let new_len = last_i;
-        self.set_len(new_len, working_set);
+        self.set_len(new_len, state);
 
         Some(elem)
     }
 
     /// Removes all values from this vector.
-    pub fn clear(&self, working_set: &mut impl StateReaderAndWriter<N>) {
-        let len = self.len_value().remove(working_set).unwrap_or_default();
+    pub fn clear(&self, state: &mut impl StateReaderAndWriter<N>) {
+        let len = self.len_value().remove(state).unwrap_or_default();
 
         for i in 0..len {
-            self.elems().delete(&i, working_set);
+            self.elems().delete(&i, state);
         }
     }
 
@@ -174,33 +174,30 @@ where
     ///
     /// If the length of the provided values is less than the length of the
     /// vector, the remaining values will be removed from storage.
-    pub fn set_all(&self, values: Vec<V>, working_set: &mut impl StateReaderAndWriter<N>) {
-        let old_len = self.len(working_set);
+    pub fn set_all(&self, values: Vec<V>, state: &mut impl StateReaderAndWriter<N>) {
+        let old_len = self.len(state);
         let new_len = values.len();
 
         for i in new_len..old_len {
-            self.elems().delete(&i, working_set);
+            self.elems().delete(&i, state);
         }
 
         for (i, value) in values.into_iter().enumerate() {
-            self.elems().set(&i, &value, working_set);
+            self.elems().set(&i, &value, state);
         }
 
-        self.set_len(new_len, working_set);
+        self.set_len(new_len, state);
     }
 
     /// Returns an iterator over all the values in the vector.
-    pub fn iter<'a, 'ws, W>(
-        &'a self,
-        working_set: &'ws mut W,
-    ) -> StateVecIter<'a, 'ws, N, V, Codec, W>
+    pub fn iter<'a, 'ws, W>(&'a self, state: &'ws mut W) -> StateVecIter<'a, 'ws, N, V, Codec, W>
     where
         W: StateReaderAndWriter<N>,
     {
-        let len = self.len(working_set);
+        let len = self.len(state);
         StateVecIter {
             state_vec: self,
-            ws: working_set,
+            state,
             len,
             next_i: 0,
             _phantom: Default::default(),
@@ -209,10 +206,10 @@ where
 
     /// Returns the last value in the vector, or [`None`] if
     /// empty.
-    pub fn last(&self, working_set: &mut impl StateReaderAndWriter<N>) -> Option<V> {
-        let len = self.len(working_set);
+    pub fn last(&self, state: &mut impl StateReaderAndWriter<N>) -> Option<V> {
+        let len = self.len(state);
         let i = len.checked_sub(1)?;
-        self.elems().get(&i, working_set)
+        self.elems().get(&i, state)
     }
 }
 
@@ -228,7 +225,7 @@ where
     W: StateReaderAndWriter<N>,
 {
     state_vec: &'a NamespacedStateVec<N, V, Codec>,
-    ws: &'ws mut W,
+    state: &'ws mut W,
     len: usize,
     next_i: usize,
     _phantom: std::marker::PhantomData<(N, V, Codec)>,
@@ -245,7 +242,7 @@ where
     type Item = V;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let elem = self.state_vec.get(self.next_i, self.ws);
+        let elem = self.state_vec.get(self.next_i, self.state);
         if elem.is_some() {
             self.next_i += 1;
         }
@@ -291,7 +288,7 @@ where
         }
 
         self.len -= 1;
-        self.state_vec.get(self.len, self.ws)
+        self.state_vec.get(self.len, self.state)
     }
 }
 
@@ -374,7 +371,7 @@ mod test {
     fn check_test_case_action<N, T, W>(
         state_vec: &NamespacedStateVec<N, T>,
         action: TestCaseAction<T>,
-        ws: &mut W,
+        state: &mut W,
     ) where
         BorshCodec: StateItemCodec<T>,
         T: Eq + Debug,
@@ -383,39 +380,39 @@ mod test {
     {
         match action {
             TestCaseAction::CheckContents(expected) => {
-                let contents: Vec<T> = state_vec.iter(ws).collect();
+                let contents: Vec<T> = state_vec.iter(state).collect();
                 assert_eq!(expected, contents);
             }
             TestCaseAction::CheckLen(expected) => {
-                let actual = state_vec.len(ws);
+                let actual = state_vec.len(state);
                 assert_eq!(actual, expected);
             }
             TestCaseAction::Pop(expected) => {
-                let actual = state_vec.pop(ws);
+                let actual = state_vec.pop(state);
                 assert_eq!(actual, Some(expected));
             }
             TestCaseAction::Push(value) => {
-                state_vec.push(&value, ws);
+                state_vec.push(&value, state);
             }
             TestCaseAction::Set(index, value) => {
-                state_vec.set(index, &value, ws).unwrap();
+                state_vec.set(index, &value, state).unwrap();
             }
             TestCaseAction::SetAll(values) => {
-                state_vec.set_all(values, ws);
+                state_vec.set_all(values, state);
             }
             TestCaseAction::CheckGet(index, expected) => {
-                let actual = state_vec.get(index, ws);
+                let actual = state_vec.get(index, state);
                 assert_eq!(actual, expected);
             }
             TestCaseAction::Clear => {
-                state_vec.clear(ws);
+                state_vec.clear(state);
             }
             TestCaseAction::Last(expected) => {
-                let actual = state_vec.last(ws);
+                let actual = state_vec.last(state);
                 assert_eq!(actual, Some(expected));
             }
             TestCaseAction::CheckContentsReverse(expected) => {
-                let contents: Vec<T> = state_vec.iter(ws).rev().collect();
+                let contents: Vec<T> = state_vec.iter(state).rev().collect();
                 assert_eq!(expected, contents);
             }
         }

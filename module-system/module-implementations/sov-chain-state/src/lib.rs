@@ -276,89 +276,83 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
 
 impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Returns transition height in the current slot
-    pub fn true_slot_number<T>(&self, working_set: &mut T) -> TransitionHeight
+    pub fn true_slot_number<T>(&self, state: &mut T) -> TransitionHeight
     where
         T: StateReaderAndWriter<Kernel>,
     {
-        self.true_slot_number.get(working_set).unwrap_or_default()
+        self.true_slot_number.get(state).unwrap_or_default()
     }
 
     /// Returns transition height for the next slot to start execution
-    pub fn next_visible_slot_number<T>(&self, working_set: &mut T) -> TransitionHeight
+    pub fn next_visible_slot_number<T>(&self, state: &mut T) -> TransitionHeight
     where
         T: StateReaderAndWriter<Kernel>,
     {
-        self.next_visible_slot_number
-            .get(working_set)
-            .unwrap_or_default()
+        self.next_visible_slot_number.get(state).unwrap_or_default()
     }
 
     /// Returns transition height in the current slot
-    pub fn set_next_visible_slot_number<T>(&self, value: &u64, working_set: &mut T)
+    pub fn set_next_visible_slot_number<T>(&self, value: &u64, state: &mut T)
     where
         T: StateReaderAndWriter<Kernel>,
     {
         tracing::debug!(slot_number = value, "Setting next visible slot number");
-        self.next_visible_slot_number.set(value, working_set);
+        self.next_visible_slot_number.set(value, state);
     }
 
     /// Returns the current time, as reported by the DA layer
-    pub fn get_time(&self, working_set: &mut impl VersionReader) -> Time {
+    pub fn get_time(&self, state: &mut impl VersionReader) -> Time {
         self.time
-            .get_current(working_set)
+            .get_current(state)
             .expect("Time must be set at initialization")
     }
 
     /// Return the genesis hash of the module.
     pub fn get_genesis_hash(
         &self,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<<S::Storage as Storage>::Root> {
-        self.genesis_root.get(working_set)
+        self.genesis_root.get(state)
     }
 
     /// Return the code commitment to be used for verifying the rollup's execution
     /// for each state transition.
     pub fn inner_code_commitment(
         &self,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<<S::InnerZkvm as Zkvm>::CodeCommitment> {
-        self.inner_code_commitment.get(working_set)
+        self.inner_code_commitment.get(state)
     }
 
     /// Return the code commitment to be used for verifying the rollup's execution from genesis to the current slot
     /// in the aggregated proving circuit.
     pub fn outer_code_commitment(
         &self,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<<S::OuterZkvm as Zkvm>::CodeCommitment> {
-        self.outer_code_commitment.get(working_set)
+        self.outer_code_commitment.get(state)
     }
 
     /// Return the initial height of the DA layer.
-    pub fn genesis_da_height(
-        &self,
-        working_set: &mut impl StateAccessor,
-    ) -> Option<TransitionHeight> {
-        self.genesis_da_height.get(working_set)
+    pub fn genesis_da_height(&self, state: &mut impl StateAccessor) -> Option<TransitionHeight> {
+        self.genesis_da_height.get(state)
     }
 
     /// Returns the transition in progress of the module.
     pub fn get_in_progress_transition(
         &self,
-        working_set: &mut impl VersionReader,
+        state: &mut impl VersionReader,
     ) -> Option<TransitionInProgress<S, Da>> {
-        self.in_progress_transition.get_current(working_set)
+        self.in_progress_transition.get_current(state)
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.
     pub fn get_historical_transitions(
         &self,
         transition_num: TransitionHeight,
-        working_set: &mut impl StateAccessor,
+        state: &mut impl StateAccessor,
     ) -> Option<StateTransition<S, Da>> {
-        self.historical_transitions
-            .get(&transition_num, working_set)
+        self.historical_transitions.get(&transition_num, state)
     }
 }
 
@@ -370,9 +364,9 @@ impl<S: Spec, Da: DaSpec> KernelModule for ChainState<S, Da> {
     fn genesis_unchecked(
         &self,
         config: &Self::Config,
-        working_set: &mut KernelWorkingSet<S>,
+        state: &mut KernelWorkingSet<S>,
     ) -> Result<(), Error> {
         // The initialization logic
-        Ok(self.init_module(config, working_set)?)
+        Ok(self.init_module(config, state)?)
     }
 }
