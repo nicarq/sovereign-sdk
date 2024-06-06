@@ -4,7 +4,7 @@ use super::checkpoints::StateCheckpoint;
 use super::internals::Delta;
 use super::seal::CachedAccessor;
 use crate::state::events::TypedEvent;
-use crate::{Gas, GasMeter, Genesis, Spec, UnlimitedGasMeter};
+use crate::{Gas, GasMeter, GasMeteringError, Genesis, Spec, UnlimitedGasMeter};
 
 pub struct GenesisStateAccessor<S: Spec> {
     delta: Delta<S::Storage>,
@@ -42,10 +42,10 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for GenesisStateAccesso
 }
 
 impl<S: Spec> GasMeter<S::Gas> for GenesisStateAccessor<S> {
-    fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<()> {
+    fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
-    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }
     fn gas_price(&self) -> &<S::Gas as Gas>::Price {

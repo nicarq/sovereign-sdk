@@ -63,7 +63,7 @@ pub trait Module {
         working_set: &mut impl TxState<Self::Spec>,
         gas: &<Self::Spec as Spec>::Gas,
     ) -> anyhow::Result<()> {
-        working_set.charge_gas(gas)
+        Ok(working_set.charge_gas(gas)?)
     }
 }
 

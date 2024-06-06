@@ -18,7 +18,7 @@ use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
     TransactionConsumption, TxGasMeter,
 };
-use crate::{Gas, GasMeter, UnlimitedGasMeter};
+use crate::{Gas, GasMeter, GasMeteringError, UnlimitedGasMeter};
 #[cfg(feature = "native")]
 use crate::{ProvenStateAccessor, StateReaderAndWriter};
 
@@ -132,10 +132,10 @@ impl<S: Spec> TxScratchpad<S> {
 }
 
 impl<S: Spec> GasMeter<S::Gas> for TxScratchpad<S> {
-    fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<(), anyhow::Error> {
+    fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
-    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }
     fn gas_price(&self) -> &<S::Gas as Gas>::Price {
@@ -173,7 +173,7 @@ impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> PreExecWorkingSet<S, PreExec
 
         if let Err(e) = gas_meter.charge_gas(self.gas_meter.gas_used()) {
             return Err(AuthorizeTransactionError {
-                reason: e,
+                reason: e.into(),
                 pre_exec_working_set: self,
             });
         }
@@ -193,7 +193,7 @@ impl<S: Spec, Meter: GasMeter<S::Gas>> GasMeter<S::Gas> for PreExecWorkingSet<S,
         self.gas_meter.gas_used()
     }
 
-    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }
 
@@ -201,7 +201,7 @@ impl<S: Spec, Meter: GasMeter<S::Gas>> GasMeter<S::Gas> for PreExecWorkingSet<S,
         self.gas_meter.gas_price()
     }
 
-    fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<(), anyhow::Error> {
+    fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
 
@@ -461,11 +461,11 @@ impl<S: Spec> WorkingSet<S> {
 }
 
 impl<S: Spec> GasMeter<S::Gas> for WorkingSet<S> {
-    fn charge_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+    fn charge_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(gas)
     }
 
-    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<()> {
+    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }
 

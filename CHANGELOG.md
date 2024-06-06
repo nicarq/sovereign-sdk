@@ -1,3 +1,7 @@
+- #775 adds a couple of custom error types that will be useful to allow using the `try` pattern within the module system to automatically convert errors into `anyhow::Error`. Meaningful changes:
+  - Adding a custom `GasMeteringError` enum that describes the possible causes for error inside the `GasMeter` trait methods
+  - Adding a custom `StateAccessorError` enum that describes the situations where accessing the state might fail.
+  - Adding the `std::error::Error + Send + Sync` bounds to the associated `Error` type in `StateReader` and `StateWriter` (this allows automatic conversion to `anyhow::Error`
 - #766 modifies the RPC interface to accept an `ApiStateAccessor` instead of a `WorkingSet` to prepare the full integration of the gas metering for state accesses. In particular this commit changes the `RPC` macro to accept an `ApiStateAccessor` instead of a `WorkingSet` as an argument to the rpc methods. 
 - #726 adds Swagger UI -an OpenApi playground- as an endpoint defined inside `sov_modules_stf_blueprint::Runtime::endpoint`.
 - #743 adds metered state accessor traits to the `sov-modules-api/state` module.

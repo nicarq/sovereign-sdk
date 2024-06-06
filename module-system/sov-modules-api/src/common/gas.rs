@@ -6,6 +6,7 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use thiserror::Error;
 
 /// A multi-dimensional gas unit represented as an array of `u64`.`
 pub trait GasArray:
@@ -303,20 +304,36 @@ impl From<u64> for GasUnit<1> {
     }
 }
 
+/// Error type that can be raised by the `GasMeter` trait.
+/// Errors can be raised either when the meter runs out of gas or when the refund operation fails.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum GasMeteringError<GU: Gas> {
+    /// The gas meter has ran out of gas.
+    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, remaining funds {remaining_funds}")]
+    OutOfGas {
+        gas_to_charge: GU,
+        gas_price: GU::Price,
+        remaining_funds: u64,
+    },
+    /// The refund operation failed for the gas meter.
+    #[error("The gas to refund is greater than the gas used. Gas to refund {gas_to_refund}, gas used {gas_used}")]
+    ImpossibleToRefundGas { gas_to_refund: GU, gas_used: GU },
+}
+
 /// A type-safe trait that should track the gas consumed by a finite ressource over time.
 pub trait GasMeter<GU: Gas> {
     /// Charges some gas in the gas meter.
     ///
     /// # Error
     /// May raises an error if the gas to charge is greater than the funds available
-    fn charge_gas(&mut self, amount: &GU) -> Result<(), anyhow::Error>;
+    fn charge_gas(&mut self, amount: &GU) -> Result<(), GasMeteringError<GU>>;
 
     /// Refunds some gas to the gas meter.
     ///
     /// ## Note
     /// This method may fail if the gas to refund is greater than the funds charged to the gas meter.
     /// In that case, the gas meter won't be updated and the refund will fail.
-    fn refund_gas(&mut self, gas: &GU) -> anyhow::Result<()>;
+    fn refund_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>>;
 
     /// Returns the current gas used accumulated by the stake meter.
     fn gas_used(&self) -> &GU;
@@ -360,17 +377,18 @@ impl<GU: Gas> UnlimitedGasMeter<GU> {
 }
 
 impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
-    fn charge_gas(&mut self, gas: &GU) -> std::result::Result<(), anyhow::Error> {
+    fn charge_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
         self.gas_used.combine(gas);
         std::result::Result::Ok(())
     }
 
-    fn refund_gas(&mut self, gas: &GU) -> anyhow::Result<()> {
+    fn refund_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
         self.gas_used = self.gas_used.checked_sub(gas).ok_or_else(|| {
-            let gas_used = &self.gas_used;
-            anyhow::anyhow!(
-            "The gas to refund is greater than the gas used. The gas used is {gas_used}, the gas to refund is {gas}"
-        )})?;
+            GasMeteringError::ImpossibleToRefundGas {
+                gas_to_refund: gas.clone(),
+                gas_used: self.gas_used.clone(),
+            }
+        })?;
 
         Ok(())
     }

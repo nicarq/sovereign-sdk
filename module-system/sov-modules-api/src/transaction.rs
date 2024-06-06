@@ -13,7 +13,7 @@ pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::Signature as _;
 use sov_rollup_interface::zk::CryptoSpec;
 
-use crate::{Gas, GasArray, GasMeter, Spec};
+use crate::{Gas, GasArray, GasMeter, GasMeteringError, Spec};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -370,12 +370,13 @@ where
         &self.gas_used
     }
 
-    fn refund_gas(&mut self, gas: &GU) -> anyhow::Result<()> {
+    fn refund_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
         self.gas_used = self.gas_used.checked_sub(gas).ok_or_else(|| {
-            let gas_used = &self.gas_used;
-            anyhow::anyhow!(
-            "The gas to refund is greater than the gas used. The gas used is {gas_used}, the gas to refund is {gas}"
-        )})?;
+            GasMeteringError::ImpossibleToRefundGas {
+                gas_to_refund: gas.clone(),
+                gas_used: self.gas_used.clone(),
+            }
+        })?;
 
         self.remaining_funds = self
             .remaining_funds
@@ -386,7 +387,7 @@ where
 
     /// Deducts the provided gas unit from the remaining funds, computing the scalar value of the
     /// funds from the price of the instance.
-    fn charge_gas(&mut self, gas: &GU) -> Result<(), anyhow::Error> {
+    fn charge_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
         // Check that there's enough gas to cover the cost before mutating the gas_used counter.
         // This ensures that in the corner case where...
         //  - User wants to do expensive operation
@@ -399,9 +400,11 @@ where
         let remaining_funds = self.remaining_funds;
         self.remaining_funds = remaining_funds
             .checked_sub(funds_to_charge)
-            .ok_or_else(|| anyhow::anyhow!(
-                "Insufficient funds to charge gas. Required {funds_to_charge}, remaining {remaining_funds}"
-            ))?;
+            .ok_or_else(|| GasMeteringError::OutOfGas {
+                gas_to_charge: gas.clone(),
+                gas_price: self.gas_price.clone(),
+                remaining_funds: self.remaining_funds,
+            })?;
 
         self.gas_used.combine(gas);
 

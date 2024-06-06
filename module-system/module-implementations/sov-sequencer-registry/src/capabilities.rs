@@ -1,6 +1,6 @@
 use sov_bank::Amount;
 use sov_modules_api::capabilities::AuthorizeSequencerError;
-use sov_modules_api::{Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad};
+use sov_modules_api::{Gas, GasMeter, GasMeteringError, PreExecWorkingSet, Spec, TxScratchpad};
 use thiserror::Error;
 
 use crate::{AllowedSequencer, SequencerRegistry};
@@ -34,16 +34,15 @@ pub struct SequencerStakeError<GU: Gas> {
 }
 
 impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
-    fn charge_gas(&mut self, amount: &GU) -> Result<(), anyhow::Error> {
+    fn charge_gas(&mut self, amount: &GU) -> Result<(), GasMeteringError<GU>> {
         let amount_value = amount.value(&self.gas_price);
 
         if amount_value > self.remaining_stake {
-            let remaining_staked_amount = self.remaining_stake;
-            let gas_price = self.gas_price.clone();
-            let amount_to_charge = amount;
-            anyhow::bail!(
-                "The remaining stake amount of the sequencer (value: {remaining_staked_amount}) is lower than the amount to charge (gas price: {gas_price}, gas value: {amount_to_charge})",
-            );
+            return Err(GasMeteringError::OutOfGas {
+                gas_to_charge: amount.clone(),
+                gas_price: self.gas_price.clone(),
+                remaining_funds: self.remaining_stake,
+            });
         }
 
         self.remaining_stake -= amount_value;
@@ -52,12 +51,13 @@ impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
         Ok(())
     }
 
-    fn refund_gas(&mut self, gas: &GU) -> anyhow::Result<()> {
+    fn refund_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
         self.penalty_accumulator = self.penalty_accumulator.checked_sub(gas).ok_or_else(|| {
-            let gas_used = &self.penalty_accumulator;
-            anyhow::anyhow!(
-            "The gas to refund is greater than the gas used. The gas used is {gas_used}, the gas to refund is {gas}"
-        )})?;
+            GasMeteringError::ImpossibleToRefundGas {
+                gas_to_refund: gas.clone(),
+                gas_used: self.penalty_accumulator.clone(),
+            }
+        })?;
         self.remaining_stake = self
             .remaining_stake
             .saturating_add(gas.value(&self.gas_price));
