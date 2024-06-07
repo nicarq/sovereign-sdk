@@ -42,6 +42,23 @@ paths:
           $ref: "#/components/responses/Slot"
         "404":
           $ref: "#/components/responses/NotFound"
+  /slots/{slotId}/events:
+    get:
+      tags:
+        - ledger
+      summary: Get all the events for a slot, optionally filtered by key prefix.
+      operationId: get_slot_filtered_events
+      parameters:
+        - $ref: "#/components/parameters/slotId"
+        - name: prefix
+          in: query
+          description: The key prefix to filter by.
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Events"
   /slots/{slotId}/batches/{batchOffset}:
     get:
       tags:
@@ -325,6 +342,21 @@ components:
                 $ref: "#/components/schemas/Meta"
             required:
               - data
+    Events:
+      description: Success
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+              meta:
+                $ref: "#/components/schemas/Meta"
+            required:
+              - data
     NotFound:
       description: Resource not found
       content:
@@ -541,7 +573,7 @@ components:
         key:
           type: string
         value:
-          type: object
+          $ref: "#/components/schemas/AnyJsonValue"
         module:
           $ref: "#/components/schemas/ModuleRef"
       required:

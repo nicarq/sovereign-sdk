@@ -1,12 +1,10 @@
-use common::LedgerTestService;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::params::ArrayParams;
 use sov_ledger_apis::rpc::client::RpcClient;
 use sov_ledger_apis::HexHash;
 use sov_modules_api::StoredEvent;
 use sov_rollup_interface::rpc::{EventIdentifier, QueryMode, TxIdAndOffset, TxIdentifier};
-
-mod common;
+use sov_test_utils::ledger_db::LedgerTestService;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn getters_succeed() {

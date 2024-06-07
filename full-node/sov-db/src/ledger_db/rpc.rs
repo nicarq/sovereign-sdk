@@ -188,6 +188,67 @@ impl LedgerStateProvider for LedgerDb {
         Ok(out)
     }
 
+    async fn get_filtered_slot_events<B, T, E>(
+        &self,
+        slot_id: &SlotIdentifier,
+        event_key_prefix_filter: Option<Vec<u8>>,
+    ) -> Result<Vec<(u64, E)>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+    {
+        let slot_not_found_err = || anyhow::anyhow!("Slot `{:?}` not found", slot_id);
+
+        let slot_num = self
+            .resolve_slot_identifier(slot_id)
+            .await?
+            .ok_or_else(slot_not_found_err)?;
+        let slot: SlotResponse<B, T> = self
+            .get_slot_by_number(slot_num, QueryMode::Full)
+            .await?
+            .ok_or_else(slot_not_found_err)?;
+
+        let batches = slot
+            .batches
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|b| match b {
+                ItemOrHash::Full(b) => Some(b),
+                _ => None,
+            });
+        let txs = batches.flat_map(|b| {
+            b.txs
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|t| match t {
+                    ItemOrHash::Full(t) => Some(t),
+                    _ => None,
+                })
+        });
+        let event_nums = txs.flat_map(|t| t.event_range);
+
+        let mut events = vec![];
+
+        for event_num in event_nums {
+            let event = self
+                .db
+                .read_async::<EventByNumber>(&EventNumber(event_num))
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Event not found but should be present"))?;
+
+            if let Some(prefix) = &event_key_prefix_filter {
+                if !event.key().inner().starts_with(prefix) {
+                    continue;
+                }
+            }
+
+            events.push((event_num, event.try_into()?));
+        }
+
+        Ok(events)
+    }
+
     // Get X by hash
     async fn get_slot_by_hash<B, T>(
         &self,
@@ -615,94 +676,5 @@ impl LedgerDb {
                 batch_response
             }
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::{Arc, RwLock};
-
-    use rockbound::cache::cache_container::CacheContainer;
-    use rockbound::cache::cache_db::CacheDb;
-    use sov_mock_da::{MockBlob, MockBlock};
-    use sov_mock_zkvm::MockZkvm;
-    use sov_rollup_interface::rpc::LedgerStateProvider;
-    use sov_rollup_interface::zk::aggregated_proof::{
-        AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
-    };
-
-    use crate::ledger_db::{LedgerDb, SlotCommit};
-
-    #[test]
-    fn test_slot_subscription() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let ledger_db = create_ledger(temp_dir.path());
-
-        let mut rx = ledger_db.subscribe_slots();
-        ledger_db
-            .commit_slot(
-                SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()),
-                b"state-root",
-            )
-            .unwrap();
-        ledger_db.send_notifications();
-
-        assert_eq!(rx.blocking_recv().unwrap(), 0);
-    }
-
-    fn create_ledger(path: &std::path::Path) -> LedgerDb {
-        let db = LedgerDb::get_rockbound_options()
-            .default_setup_db_in_path(path)
-            .unwrap();
-        let cache_container = Arc::new(RwLock::new(CacheContainer::new(
-            db,
-            Arc::new(RwLock::new(Default::default())).into(),
-        )));
-        let cache_db = CacheDb::new(0, cache_container.into());
-        LedgerDb::with_cache_db(cache_db).unwrap()
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_save_aggregated_proof() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let ledger_db = create_ledger(temp_dir.path());
-        let _rx = ledger_db.subscribe_proof_saved();
-
-        let proof_from_db = ledger_db.get_latest_aggregated_proof().await.unwrap();
-        assert_eq!(None, proof_from_db);
-
-        for i in 0..10 {
-            let public_data = AggregatedProofPublicData {
-                validity_conditions: vec![],
-                initial_slot_number: i as u64,
-                final_slot_number: i as u64,
-                genesis_state_root: vec![1],
-                initial_state_root: vec![i],
-                final_state_root: vec![i + 1],
-                initial_slot_hash: vec![i + 2],
-                final_slot_hash: vec![i + 3],
-                code_commitment: CodeCommitment::default(),
-            };
-
-            let raw_aggregated_proof = MockZkvm::create_serialized_proof(true, public_data.clone());
-
-            let agg_proof = AggregatedProof::new(
-                SerializedAggregatedProof {
-                    raw_aggregated_proof,
-                },
-                public_data.clone(),
-            );
-
-            ledger_db
-                .save_finalized_aggregated_proof(agg_proof)
-                .unwrap();
-
-            let proof_from_db = ledger_db
-                .get_latest_aggregated_proof()
-                .await
-                .unwrap()
-                .unwrap();
-            assert_eq!(&public_data, proof_from_db.proof.public_data());
-        }
     }
 }

@@ -302,6 +302,18 @@ pub trait LedgerStateProvider {
     where
         E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
 
+    /// Get all events from a slot with an optional prefix filter. If a filter
+    /// is not provided, all events from that slot are returned.
+    async fn get_filtered_slot_events<B, T, E>(
+        &self,
+        slot_id: &SlotIdentifier,
+        event_key_prefix_filter: Option<Vec<u8>>,
+    ) -> Result<Vec<(u64, E)>, Self::Error>
+    where
+        B: DeserializeOwned + Send + Sync,
+        T: DeserializeOwned + Send + Sync,
+        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
+
     /// Get a single slot by hash.
     async fn get_slot_by_hash<B, T>(
         &self,

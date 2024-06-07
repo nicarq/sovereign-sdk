@@ -36,6 +36,8 @@ sov-value-setter = { path = "../module-implementations/sov-value-setter", featur
 sov-attester-incentives = { path = "../module-implementations/sov-attester-incentives", features = ["native"] }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-kernels = { path = "../sov-kernels", features = ["native"] }
+sov-ledger-apis = { path = "../../full-node/sov-ledger-apis", features = ["server"] }
+sov-ledger-json-client = { path = "../../full-node/sov-ledger-json-client" }
 sov-capabilities = { path = "../sov-capabilities", features = ["native"] }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
