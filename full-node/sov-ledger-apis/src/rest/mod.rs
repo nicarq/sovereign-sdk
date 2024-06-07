@@ -172,13 +172,16 @@ where
     // - /txs/0x1337/events/42
 
     fn router_slot(ledger: T) -> axum::Router<T> {
-        axum::Router::new().route("/", get(Self::get_slot)).nest(
-            "/batches/:batchOffset",
-            Self::router_batch(ledger.clone()).layer(middleware::from_fn_with_state(
-                ledger.clone(),
-                Self::resolve_batch_offset,
-            )),
-        )
+        axum::Router::new()
+            .route("/", get(Self::get_slot))
+            .nest(
+                "/batches/:batchOffset",
+                Self::router_batch(ledger.clone()).layer(middleware::from_fn_with_state(
+                    ledger.clone(),
+                    Self::resolve_batch_offset,
+                )),
+            )
+            .route("/events", get(Self::get_slot_events))
     }
 
     fn router_batch(ledger: T) -> axum::Router<T> {
@@ -227,6 +230,34 @@ where
             Ok(None) => Err(errors::not_found_404("Slot", slot_number)),
             Err(err) => Err(errors::database_error_response_500(err)),
         }
+    }
+
+    async fn get_slot_events(
+        State(ledger): State<T>,
+        Extension(SlotNumber(slot_number)): Extension<SlotNumber>,
+        event_key_prefix_opt: Option<Query<EventFilter>>,
+    ) -> ApiResult<Vec<Event<E>>> {
+        let filter = event_key_prefix_opt.map(|q| q.0.prefix.into());
+        let events = ledger
+            .get_filtered_slot_events::<B, TxReceipt, RuntimeEventResponse<E>>(
+                &SlotIdentifier::Number(slot_number),
+                filter,
+            )
+            .await
+            .map_err(database_error_response_500)?;
+
+        Ok(events
+            .into_iter()
+            .map(|(number, e)| Event {
+                number,
+                key: e.event_key,
+                value: e.event_value,
+                module: ModuleRef {
+                    name: e.module_name,
+                },
+            })
+            .collect::<Vec<_>>()
+            .into())
     }
 
     async fn get_batch(
@@ -614,6 +645,11 @@ where
                 }
             })
     }
+}
+
+#[derive(Deserialize)]
+struct EventFilter {
+    prefix: String,
 }
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]

@@ -38,7 +38,7 @@ hex = { workspace = true }
 [dev-dependencies]
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
-sov-test-utils = { path = "../../module-system/sov-test-utils" }
+sov-test-utils = { path = "../../module-system/sov-test-utils", features = ["demo-stf"] }
 tempfile = { workspace = true }
 criterion = "0.5.1"
 rand = { workspace = true }

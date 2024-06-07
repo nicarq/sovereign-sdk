@@ -7,10 +7,7 @@ use base64::prelude::*;
 use sov_ledger_json_client::types::{
     AggregatedProof, Batch, Hash, IntOrHash, SlotFinalityStatus, Tx,
 };
-
-use crate::common::LedgerTestService;
-
-mod common;
+use sov_test_utils::ledger_db::LedgerTestService;
 
 /// We want 404s to return rich, JSON errors, like all the other kind of errors
 /// we generate.

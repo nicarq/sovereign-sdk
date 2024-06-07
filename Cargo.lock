@@ -8072,6 +8072,8 @@ dependencies = [
  "sov-chain-state",
  "sov-db",
  "sov-kernels",
+ "sov-ledger-apis",
+ "sov-ledger-json-client",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
