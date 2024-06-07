@@ -1,3 +1,4 @@
+- #787 split capabilities into separate modules.
 - #770 enforces that transactions are set with the correct chain ID. To get the ID, use `config_value!("CHAIN_ID")`. 
 
 - #775 adds a couple of custom error types that will be useful to allow using the `try` pattern within the module system to automatically convert errors into `anyhow::Error`. Meaningful changes:
