@@ -1,3 +1,4 @@
+- #753 updates default `max_fee` in `sov-cli` to `10_000` (from previous value of `0`)
 - #787 split capabilities into separate modules.
 - #770 enforces that transactions are set with the correct chain ID. To get the ID, use `config_value!("CHAIN_ID")`. 
 
@@ -15,7 +16,7 @@
 - #730 Splits `RollupBlueprint` into two traits: `FullNodeBlueprint` and `RollupBlueprint` and feature gates the full-node blueprint behind the `"native"` feature flag. It also reduces the number of required types for the `RollupBlueprint` by making it generic over execution mode. See the diff of `celestia_rollup.rs` for a complete example of a migration.
 - #735 updates `minter_address` to `mint_to_address` in `CallMessage::CreateToken` & `CallMessage::Mint`
 - #725 removes the `macros` feature from `sov-modules-api`, which is now always enabled even with `--no-default-features`.
-- #732 adds the `sov-nonces` module. 
+- #732 adds the `sov-nonces` module.
 - #714 integrates a batch of changes to the `StfBlueprint` and the capabilities. Meaningful changes:
   - Remove arguments of type `SequencerStakeMeter` from the capabilities and replace all of the `(SequencerStakeMeter, StateCheckpoint)` couple of variables by a single `PreExecWorkingSet` which is a type safe data structure that should charge for gas before transaction execution starts.
   - Removing the `ExecutionMode` type from the `StfBlueprint`. It is now replaced by `TxScratchpad`, which is an intermediary type between `WorkingSet` and `StateCheckpoint`. This is useful for the `sov-sequencer` crate because one may want to revert all the changes that happened during transaction execution when simulating a transaction before adding it to a sequencer batch.

@@ -56,17 +56,17 @@ pub struct JsonStringArg {
         long,
         help = "The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
         charged for the gas fees of the transaction. This value contains both the tip and the base fee.",
-        default_value = "0"
+        default_value = "10000"
     )]
     pub max_fee: u64,
 
     /// The gas limit for the transaction execution.
     #[arg(
         long,
-        help = "The gas limit for the transaction execution. This is an optional field that can be used to enforce a 
-        gas limit on the transaction execution - in a way that reproduces the behavior of the EIP-1559. If the gas limit is 
-        not provided, the transaction will be executed without checking the gas limit. The gas limit is a multi-dimensional gas vector 
-        that specify the maximum amount of gas that can be used along each dimension. 
+        help = "The gas limit for the transaction execution. This is an optional field that can be used to enforce a
+        gas limit on the transaction execution - in a way that reproduces the behavior of the EIP-1559. If the gas limit is
+        not provided, the transaction will be executed without checking the gas limit. The gas limit is a multi-dimensional gas vector
+        that specify the maximum amount of gas that can be used along each dimension.
         If specified, up to `gas_limit *_scalar gas_price` tokens can be spent on gas execution in the transaction execution",
         num_args = 0..
     )]
@@ -106,10 +106,10 @@ pub struct FileNameArg {
     /// The gas limit for the transaction execution.
     #[arg(
         long,
-        help = "The gas limit for the transaction execution. This is an optional field that can be used to enforce a 
-        gas limit on the transaction execution - in a way that reproduces the behavior of the EIP-1559. If the gas limit is 
-        not provided, the transaction will be executed without checking the gas limit. The gas limit is a multi-dimensional gas vector 
-        that specify the maximum amount of gas that can be used along each dimension. 
+        help = "The gas limit for the transaction execution. This is an optional field that can be used to enforce a
+        gas limit on the transaction execution - in a way that reproduces the behavior of the EIP-1559. If the gas limit is
+        not provided, the transaction will be executed without checking the gas limit. The gas limit is a multi-dimensional gas vector
+        that specify the maximum amount of gas that can be used along each dimension.
         If specified, up to `gas_limit *_scalar gas_price` tokens can be spent on gas execution in the transaction execution",
         num_args = 0..
     )]
