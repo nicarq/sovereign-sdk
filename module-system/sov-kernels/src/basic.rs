@@ -49,17 +49,18 @@ pub struct BasicKernelGenesisConfig<S: Spec, Da: DaSpec> {
 }
 
 impl<S: Spec, Da: DaSpec> Kernel<S, Da> for BasicKernel<S, Da> {
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
-        self.chain_state.true_slot_number(state)
-    }
-    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
-        self.chain_state.true_slot_number(state)
-    }
-
     type GenesisConfig = BasicKernelGenesisConfig<S, Da>;
 
     #[cfg(feature = "native")]
     type GenesisPaths = BasicKernelGenesisPaths;
+
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+        self.chain_state.true_slot_number(state)
+    }
+
+    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+        self.chain_state.true_slot_number(state)
+    }
 
     fn genesis(
         &self,

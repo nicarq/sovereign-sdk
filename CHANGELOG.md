@@ -1,3 +1,4 @@
+- #790 Simplify `BlobSelector` code.
 - #753 updates default `max_fee` in `sov-cli` to `10_000` (from previous value of `0`)
 - #787 split capabilities into separate modules.
 - #770 enforces that transactions are set with the correct chain ID. To get the ID, use `config_value!("CHAIN_ID")`. 
