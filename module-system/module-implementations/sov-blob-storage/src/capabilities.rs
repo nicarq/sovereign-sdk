@@ -12,7 +12,7 @@ use crate::{
 
 /// Why blob can be discarded
 #[derive(Debug)]
-pub(crate) enum BlobDiscardReason {
+enum BlobDiscardReason {
     /// Sender simply not registered in the registry
     SenderNotAllowed,
     /// More complicated case for preferred sequencer. Ping @prestonevans__ at Twitter for more info
@@ -20,7 +20,50 @@ pub(crate) enum BlobDiscardReason {
 }
 
 impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
-    pub(crate) fn log_discarded_blob(&self, b: &Da::BlobTransaction, reason: BlobDiscardReason) {
+    /// Select the blobs to execute this slot using "based sequencing". In this mode,
+    /// blobs are processed in the order that they appear on the DA layer.
+    pub fn select_blobs_as_based_sequencer<'a, 'k, I>(
+        &self,
+        current_blobs: I,
+        state: &mut KernelWorkingSet<'k, S>,
+    ) -> Vec<(BatchWithId, Da::Address)>
+    where
+        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
+    {
+        self.chain_state
+            .set_next_visible_slot_number(&(state.current_slot().saturating_add(1)), state);
+        self.select_blobs_da_ordering(current_blobs, state)
+    }
+
+    fn select_blobs_da_ordering<'a, 'k, I>(
+        &self,
+        current_blobs: I,
+        state: &mut KernelWorkingSet<'k, S>,
+    ) -> Vec<(BatchWithId, Da::Address)>
+    where
+        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
+    {
+        let mut batches = Vec::new();
+        for blob in current_blobs.into_iter() {
+            if !self.blob_is_allowed(blob, state.inner) {
+                self.log_discarded_blob(blob, BlobDiscardReason::SenderNotAllowed);
+                continue;
+            }
+
+            if let Some(batch) = self.deserialize_or_slash_sender::<Batch>(blob, state.inner) {
+                batches.push((
+                    BatchWithId {
+                        txs: batch.txs,
+                        id: blob.hash(),
+                    },
+                    blob.sender(),
+                ));
+            }
+        }
+        batches
+    }
+
+    fn log_discarded_blob(&self, b: &Da::BlobTransaction, reason: BlobDiscardReason) {
         info!(
             blob_hash = hex::encode(b.hash()),
             sender = hex::encode(b.sender()),
@@ -30,20 +73,11 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     }
 
     /// Check if a blob is allowed to be processed. (Meaning that its sender is appropriately bonded/registered)
-    pub(crate) fn blob_is_allowed(
-        &self,
-        b: &Da::BlobTransaction,
-        state: &mut StateCheckpoint<S>,
-    ) -> bool {
+    fn blob_is_allowed(&self, b: &Da::BlobTransaction, state: &mut StateCheckpoint<S>) -> bool {
         // TODO(@vlopes11): Add gas check
         self.sequencer_registry
             .is_sender_allowed(&b.sender(), state)
             .is_ok()
-    }
-
-    /// Slash a particular sequencer.
-    pub(crate) fn slash_sequencer(&self, sender: &Da::Address, state: &mut StateCheckpoint<S>) {
-        self.sequencer_registry.slash_sequencer(sender, state);
     }
 
     /// Enforce the ordering constraints on preferred batches by discarding or deferring blobs that arrive
@@ -88,7 +122,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     /// This occurs when the preferred sequencer was slashed for malicious behavior. In recovery mode,
     /// the rollup processes two virtual slots at a time until it catches up to the current slot, after
     /// which it performs standard based sequencing.
-    pub fn select_blobs_in_recovery_mode<'a, 'k, I>(
+    fn select_blobs_in_recovery_mode<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelWorkingSet<'k, S>,
@@ -106,45 +140,19 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                 0 => return self.select_blobs_as_based_sequencer(current_blobs, state),
                 // If the virtual slot is only trailing by one, we process one stored slot (to catch up) and
                 // then process the new blobs from this slot
-                1 => Some(self.select_blobs_as_based_sequencer(current_blobs, state)),
+                1 => {
+                    self.select_blobs_as_based_sequencer(current_blobs, state);
+                    1
+                }
                 // Otherwise, we need to process two slots from storage  - which means that we need to save the new blobs
                 _ => {
-                    let mut new_batches = Vec::new();
-                    for blob in current_blobs.into_iter() {
-                        if !self.blob_is_allowed(blob, state.inner) {
-                            self.log_discarded_blob(blob, BlobDiscardReason::SenderNotAllowed);
-                            continue;
-                        }
-                        match self.deserialize_batch::<Batch>(blob) {
-                            Ok(batch) => new_batches.push((
-                                BatchWithId {
-                                    txs: batch.txs,
-                                    id: blob.hash(),
-                                },
-                                blob.sender(),
-                            )),
-                            Err(e) => {
-                                warn!(
-                                    blob_hash = hex::encode(blob.hash()),
-                                    sender = %blob.sender(),
-                                    error = ?e,
-                                    "Unable to deserialize blob as a valid batch. Slashing sender",
-                                );
-                                self.slash_sequencer(&blob.sender(), state.inner);
-                            }
-                        }
-                    }
+                    let new_batches = self.select_blobs_da_ordering(current_blobs, state);
                     self.store_batches(state.current_slot(), &new_batches, state.inner);
-                    None
+                    2
                 }
             };
-        let num_slots_to_load = if batches_needed_from_this_slot.is_some() {
-            1
-        } else {
-            2
-        };
 
-        for slot in 0..num_slots_to_load {
+        for slot in 0..batches_needed_from_this_slot {
             let slot_to_check = state.virtual_slot().saturating_add(slot);
             let batches_from_next_slot =
                 self.take_blobs_for_slot_number(slot_to_check, state.inner);
@@ -152,49 +160,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         }
 
         self.chain_state
-            .set_next_visible_slot_number(&(state.virtual_slot().wrapping_add(2)), state);
+            .set_next_visible_slot_number(&(state.virtual_slot().saturating_add(2)), state);
 
         batches_to_process
-    }
-
-    /// Select the blobs to execute this slot using "based sequencing". In this mode,
-    /// blobs are processed in the order that they appear on the DA layer.
-    pub fn select_blobs_as_based_sequencer<'a, 'k, I>(
-        &self,
-        current_blobs: I,
-        state: &mut KernelWorkingSet<'k, S>,
-    ) -> Vec<(BatchWithId, Da::Address)>
-    where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
-    {
-        self.chain_state
-            .set_next_visible_slot_number(&(state.current_slot().wrapping_add(1)), state);
-        let mut batches = Vec::new();
-        for blob in current_blobs.into_iter() {
-            if !self.blob_is_allowed(blob, state.inner) {
-                self.log_discarded_blob(blob, BlobDiscardReason::SenderNotAllowed);
-                continue;
-            }
-            match self.deserialize_batch::<Batch>(blob) {
-                Ok(batch) => batches.push((
-                    BatchWithId {
-                        txs: batch.txs,
-                        id: blob.hash(),
-                    },
-                    blob.sender(),
-                )),
-                Err(e) => {
-                    warn!(
-                        blob_hash = hex::encode(blob.hash()),
-                        sender = ?blob.sender(),
-                        error = %e,
-                        "Unable to deserialize blob as a valid batch. Slashing sender",
-                    );
-                    self.slash_sequencer(&blob.sender(), state.inner);
-                }
-            }
-        }
-        batches
     }
 
     // We have two cases to handle:
@@ -207,7 +175,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     //   Step 4: Deserialize all blobs into batches. Return (Batch, Sender)
     /// Select the blobs to execute this slot based on the preferred sequencer and set the next virtual_height
     #[tracing::instrument(skip_all)]
-    pub fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
+    fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelWorkingSet<'k, S>,
@@ -216,18 +184,13 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        // We only want to process one blob from the preferred sequencer per slot, so we need to keep track of whether we've already processed one
-        let mut preferred_batch = None;
         let mut new_forced_blobs = Vec::new();
         let next_sequence_number = self.next_sequence_number.get(state).unwrap_or(0);
 
         // Step 0: Retrieve the next preferred batch from storage, if applicable
-        if let Some(next_preferred_batch) = self
+        let mut preferred_batch = self
             .deferred_preferred_sequencer_blobs
-            .remove(&next_sequence_number, state.inner)
-        {
-            preferred_batch = Some(next_preferred_batch);
-        }
+            .remove(&next_sequence_number, state.inner);
 
         for blob in current_blobs.into_iter() {
             // Step 1: Filter any ineligible blobs from current slot.
@@ -237,17 +200,20 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             }
 
             // Check if the blob is from the preferred sequencer
-            if Some(blob.sender()) == self.sequencer_registry.get_preferred_sequencer(state.inner) {
-                // If so, deserialize it as the appropriate type
-                let batch = self.deserialize_or_slash_sender::<PreferredBatch>(blob, state.inner);
-                if let Some(next_preferred_batch) = batch.and_then(|batch| {
-                    self.enforce_preferred_batch_ordering(
-                        batch,
-                        next_sequence_number,
-                        blob,
-                        state.inner,
-                    )
-                }) {
+            if &blob.sender() == preferred_sender {
+                let maybe_batch = self
+                    .deserialize_or_slash_sender::<PreferredBatch>(blob, state.inner)
+                    .and_then(|batch| {
+                        self.enforce_preferred_batch_ordering(
+                            batch,
+                            next_sequence_number,
+                            blob,
+                            state.inner,
+                        )
+                    });
+
+                // Even if we retrieved `preferred_batch`` in `step0``, we override it because it has the same `sequence_number`.
+                if let Some(next_preferred_batch) = maybe_batch {
                     preferred_batch = Some(next_preferred_batch);
                 }
             } else {
@@ -274,6 +240,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             .saturating_sub(state.virtual_slot())
             .saturating_add(1);
         let mut batches_to_process = Vec::new();
+
         let num_slots_to_advance = if let Some(preferred_batch) = preferred_batch {
             self.next_sequence_number
                 .set(&next_sequence_number.saturating_add(1), state);
@@ -282,6 +249,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                 txs: preferred_batch.inner.txs,
                 id: preferred_batch.id,
             };
+
             batches_to_process.push((first_batch, preferred_sender.clone()));
             tracing::debug!(
                 seq_number = preferred_batch.inner.sequence_number,
@@ -331,6 +299,32 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             .set_next_visible_slot_number(&next_virtual_height, state);
         batches_to_process
     }
+
+    /// Deserialize a blob into a `Batch` or slash the sender if it's malformed.
+    fn deserialize_or_slash_sender<B: BorshDeserialize>(
+        &self,
+        blob: &mut Da::BlobTransaction,
+        state: &mut StateCheckpoint<S>,
+    ) -> Option<B> {
+        match B::try_from_slice(data_for_deserialization(blob)) {
+            Ok(batch) => Some(batch),
+            // if the blob is malformed, slash the sequencer
+            Err(e) => {
+                assert_eq!(blob.verified_data().len(), blob.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
+                error!(
+                    blob_hash = hex::encode(blob.hash()),
+                    slashed_sender = %blob.sender(),
+                    error = ?e,
+                    "Unable to deserialize blob. slashing sender"
+                );
+
+                self.sequencer_registry
+                    .slash_sequencer(&blob.sender(), state);
+
+                None
+            }
+        }
+    }
 }
 
 impl<S: Spec, Da: DaSpec> BatchSelector<Da> for BlobStorage<S, Da> {
@@ -368,54 +362,6 @@ impl<S: Spec, Da: DaSpec> BatchSelector<Da> for BlobStorage<S, Da> {
         // Otherwise, we're configured for a preferred sequencer but one doesn't exist. This usually means that the preferred sequencer was slashed.
         // Entery recovery mode.
         Ok(self.select_blobs_in_recovery_mode(current_blobs, state))
-    }
-}
-
-impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
-    /// Attempt to deserialize a blob into a list of transactions.
-    pub(crate) fn deserialize_batch<B: BorshDeserialize>(
-        &self,
-        blob_data: &mut impl BlobReaderTrait,
-    ) -> Result<B, borsh::maybestd::io::Error> {
-        match B::try_from_slice(data_for_deserialization(blob_data)) {
-            Ok(batch) => Ok(batch),
-            Err(e) => {
-                assert_eq!(blob_data.verified_data().len(), blob_data.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
-                // If the deserialization fails, we need to make sure it's not because the prover was malicious and left
-                // out some relevant data! Make that check here. If the data is missing, panic.
-                error!(
-                    sender = %blob_data.sender(),
-                    error = ?e,
-                    "Unable to deserialize batch provided by the sequencer",
-                );
-                Err(e)
-            }
-        }
-    }
-
-    /// Deserialize a blob into a `Batch` or slash the sender if it's malformed.
-    pub(crate) fn deserialize_or_slash_sender<B: BorshDeserialize>(
-        &self,
-        blob: &mut Da::BlobTransaction,
-        state: &mut StateCheckpoint<S>,
-    ) -> Option<B> {
-        let batch = self.deserialize_batch::<B>(blob);
-        match batch {
-            Ok(batch) => Some(batch),
-            // if the blob is malformed, slash the sequencer
-            Err(e) => {
-                warn!(
-                    blob_hash = hex::encode(blob.hash()),
-                    slashed_sender = %blob.sender(),
-                    error = ?e,
-                    "Unable to deserialize blob. slashing sender"
-                );
-
-                self.sequencer_registry
-                    .slash_sequencer(&blob.sender(), state);
-                None
-            }
-        }
     }
 }
 

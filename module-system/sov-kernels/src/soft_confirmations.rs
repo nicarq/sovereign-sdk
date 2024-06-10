@@ -37,17 +37,17 @@ pub struct SoftConfirmationsKernelGenesisConfig<S: Spec, Da: DaSpec> {
 }
 
 impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
+    type GenesisConfig = SoftConfirmationsKernelGenesisConfig<S, Da>;
+
+    #[cfg(feature = "native")]
+    type GenesisPaths = SoftConfirmationsKernelGenesisPaths;
+
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
         self.chain_state.true_slot_number(state)
     }
     fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
         self.chain_state.next_visible_slot_number(state)
     }
-
-    type GenesisConfig = SoftConfirmationsKernelGenesisConfig<S, Da>;
-
-    #[cfg(feature = "native")]
-    type GenesisPaths = SoftConfirmationsKernelGenesisPaths;
 
     fn genesis(
         &self,
