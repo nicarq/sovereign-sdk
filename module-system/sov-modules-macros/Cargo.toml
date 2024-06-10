@@ -20,7 +20,7 @@ proc-macro = true
 
 [[test]]
 name = "tests"
-path = "tests/all_tests.rs"
+path = "tests/integration/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
