@@ -3,7 +3,7 @@ use sov_bank::{Bank, BankConfig, GasTokenConfig};
 use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
-use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
+use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::Kernel;
@@ -21,10 +21,6 @@ pub(crate) use sov_test_utils::TestStorageSpec as StorageSpec;
 use sov_value_setter::ValueSetterConfig;
 
 type TestStf = StfBlueprint<S, MockDaSpec, TestRuntime<S, MockDaSpec>, BasicKernel<S, MockDaSpec>>;
-type BatchReceiptContents =
-    <TestStf as StateTransitionFunction<MockZkVerifier, MockZkVerifier, Da>>::BatchReceiptContents;
-type TxReceiptContents =
-    <TestStf as StateTransitionFunction<MockZkVerifier, MockZkVerifier, Da>>::TxReceiptContents;
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
@@ -105,7 +101,7 @@ pub(crate) type TestKernel<S, Da> = BasicKernel<S, Da>;
 #[derive(Clone, Debug)]
 pub(crate) struct ExecutionSimulationVars {
     pub state_root: <<S as Spec>::Storage as Storage>::Root,
-    pub batch_receipts: Vec<BatchReceipt<BatchReceiptContents, TxReceiptContents>>,
+    pub batch_receipts: Vec<BatchReceipt>,
     pub state_proof: Option<StorageProof<<<S as Spec>::Storage as Storage>::Proof>>,
 }
 

@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_rollup_interface::rpc::{BatchResponse, TxResponse};
-use sov_rollup_interface::stf::{StoredEvent, TransactionReceipt};
+use sov_rollup_interface::stf::{StoredEvent, TransactionReceipt, TxReceiptContents};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -87,15 +86,15 @@ pub struct StoredBatch {
     /// The range of transactions which occurred in this batch.
     pub txs: std::ops::Range<TxNumber>,
     /// A customer "receipt" for this batch defined by the rollup.
-    pub custom_receipt: DbBytes,
+    pub receipt: DbBytes,
 }
 
-impl<B: DeserializeOwned, T> TryFrom<StoredBatch> for BatchResponse<B, T> {
+impl<B: DeserializeOwned, T: TxReceiptContents> TryFrom<StoredBatch> for BatchResponse<B, T> {
     type Error = anyhow::Error;
     fn try_from(value: StoredBatch) -> Result<Self, Self::Error> {
         Ok(Self {
             hash: value.hash,
-            custom_receipt: bincode::deserialize(&value.custom_receipt.0)?,
+            receipt: bincode::deserialize(&value.receipt.0)?,
             tx_range: value.txs.start.into()..value.txs.end.into(),
             txs: None,
         })
@@ -117,24 +116,24 @@ pub struct StoredTransaction {
     /// The serialized transaction data, if the rollup decides to store it.
     pub body: Option<Vec<u8>>,
     /// A customer "receipt" for this transaction defined by the rollup.
-    pub custom_receipt: DbBytes,
+    pub receipt: DbBytes,
 }
 
-impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
+impl<R: TxReceiptContents> TryFrom<StoredTransaction> for TxResponse<R> {
     type Error = anyhow::Error;
     fn try_from(value: StoredTransaction) -> Result<Self, Self::Error> {
         Ok(Self {
             hash: value.hash,
             event_range: value.events.start.into()..value.events.end.into(),
             body: value.body,
-            custom_receipt: bincode::deserialize(&value.custom_receipt.0)?,
+            receipt: bincode::deserialize(&value.receipt.0)?,
         })
     }
 }
 
 /// Split a `TransactionReceipt` into a `StoredTransaction` and a list of `Event`s for storage in the database.
-pub fn split_tx_for_storage<R: Serialize>(
-    tx: TransactionReceipt<R>,
+pub fn split_tx_for_storage<T: TxReceiptContents>(
+    tx: TransactionReceipt<T>,
     event_offset: u64,
 ) -> (StoredTransaction, Vec<StoredEvent>) {
     let event_range =
@@ -143,7 +142,7 @@ pub fn split_tx_for_storage<R: Serialize>(
         hash: tx.tx_hash,
         events: event_range,
         body: tx.body_to_save,
-        custom_receipt: DbBytes::new(
+        receipt: DbBytes::new(
             bincode::serialize(&tx.receipt).expect("Serialization to vec is infallible"),
         ),
     };

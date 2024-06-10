@@ -21,7 +21,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
 };
 use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
-use sov_test_utils::{TestPrivateKey, TestSpec};
+use sov_test_utils::{TestPrivateKey, TestSpec, TestTxReceiptContents};
 
 use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys, start_rollup};
 
@@ -219,9 +219,9 @@ async fn assert_aggregated_proof(
     client: &SimpleClient,
 ) -> Result<(), anyhow::Error> {
     let proof_resp = RpcClient::<
-        SlotResponse<u32, u32>,
-        BatchResponse<u32, u32>,
-        TxResponse<u32>,
+        SlotResponse<u32, TestTxReceiptContents>,
+        BatchResponse<u32, TestTxReceiptContents>,
+        TxResponse<TestTxReceiptContents>,
     >::get_aggregated_proof(client.http())
     .await?
     .expect("Proof missing in the ledger db");
@@ -235,9 +235,9 @@ async fn assert_aggregated_proof(
     assert!(final_slot <= proof_pub_data.final_slot_number);
 
     let proof_data_info_resp = RpcClient::<
-        SlotResponse<u32, u32>,
-        BatchResponse<u32, u32>,
-        TxResponse<u32>,
+        SlotResponse<u32, TestTxReceiptContents>,
+        BatchResponse<u32, TestTxReceiptContents>,
+        TxResponse<TestTxReceiptContents>,
     >::get_aggregated_proof_info(client.http())
     .await?
     .expect("Proof missing in the ledger db");

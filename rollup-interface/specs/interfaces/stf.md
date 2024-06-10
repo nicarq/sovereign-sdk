@@ -102,7 +102,7 @@ state of a particular instance of the state transition function.
 | -------------- | --------------------------- | ---------------------------------------------------------------------------- |
 | batch_hash     | bytes                       | The canonical hash of this batch                                             |
 | tx_receipts    | repeated TransactionReceipt | A receipt for each transaction included in this batch                        |
-| custom_receipt | CUSTOM_BATCH_RECEIPT        | extra data to be stored as part of this batch's receipt, custom for each STF |
+| receipt | CUSTOM_BATCH_RECEIPT        | extra data to be stored as part of this batch's receipt, custom for each STF |
 
 ### TransactionReceipt
 
@@ -111,7 +111,7 @@ state of a particular instance of the state transition function.
 | tx_hash        | bytes             | The canonical hash of this transaction                                                 |
 | body_to_save   | optional bytes    | The canonical representation of this transaction to be stored by full nodes if present |
 | events         | repeated Event    | The value, to be returned when the index is queried                                    |
-| custom_receipt | CUSTOM_TX_RECEIPT | extra data to be stored as part of this transaction's receipt, custom for each STF     |
+| receipt | CUSTOM_TX_RECEIPT | extra data to be stored as part of this transaction's receipt, custom for each STF     |
 
 ### Witness
 

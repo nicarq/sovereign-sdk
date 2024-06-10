@@ -6,7 +6,7 @@ use rockbound::{Schema, SchemaBatch, SeekKeyEncoder};
 use serde::Serialize;
 use sov_rollup_interface::rpc::AggregatedProofResponse;
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, StoredEvent};
+use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TxReceiptContents};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use crate::schema::tables::{
@@ -41,14 +41,14 @@ pub struct ItemNumbers {
 
 /// All of the data to be committed to the ledger db for a single slot.
 #[derive(Debug)]
-pub struct SlotCommit<S: SlotData, B, T> {
+pub struct SlotCommit<S: SlotData, B, T: TxReceiptContents> {
     slot_data: S,
     batch_receipts: Vec<BatchReceipt<B, T>>,
     num_txs: usize,
     num_events: usize,
 }
 
-impl<S: SlotData, B, T> SlotCommit<S, B, T> {
+impl<S: SlotData, B, T: TxReceiptContents> SlotCommit<S, B, T> {
     /// Returns a reference to the commit's slot_data
     pub fn slot_data(&self) -> &S {
         &self.slot_data
@@ -341,7 +341,7 @@ impl LedgerDb {
 
     /// Commits a slot to the database by inserting its events, transactions, and batches before
     /// inserting the slot metadata.
-    pub fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
+    pub fn commit_slot<S: SlotData, B: Serialize, T: TxReceiptContents>(
         &self,
         data_to_commit: SlotCommit<S, B, T>,
         state_root: &[u8],
@@ -391,7 +391,7 @@ impl LedgerDb {
             let batch_to_store = StoredBatch {
                 hash: batch_receipt.batch_hash,
                 txs: TxNumber(first_tx_number)..TxNumber(last_tx_number),
-                custom_receipt: bincode::serialize(&batch_receipt.inner)
+                receipt: bincode::serialize(&batch_receipt.inner)
                     .expect("serialization to vec is infallible")
                     .into(),
             };

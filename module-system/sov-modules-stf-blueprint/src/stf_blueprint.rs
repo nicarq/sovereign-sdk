@@ -13,21 +13,26 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Gas, GasArray, PreExecWorkingSet, Spec, StateCheckpoint,
+    Context, DaSpec, DispatchCall, Error, Gas, GasArray, PreExecWorkingSet, Spec, StateCheckpoint,
     TxScratchpad, WorkingSet,
 };
-use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
-use tracing::{debug, error, warn};
+use sov_rollup_interface::stf::StoredEvent;
+use tracing::{debug, error, info, warn};
 
 use crate::{
     ApplyTxResult, BatchSequencerOutcome, Runtime, SkippedReason, TxEffect, TxProcessingError,
-    TxProcessingErrorReason,
+    TxProcessingErrorReason, TxReceiptContents,
 };
 
-type ApplyBatchResult<T> = Result<T, ApplyBatchError<TxEffect>>;
+type ApplyBatchResult<T> = Result<T, ApplyBatchError>;
+/// The receipt for a batch using the STF blueprint.
+pub type BatchReceipt =
+    sov_rollup_interface::stf::BatchReceipt<BatchSequencerOutcome, TxReceiptContents>;
+/// The receipt type for a transacition using the STF blueprint.
+pub type TransactionReceipt = sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents>;
 
 #[allow(type_alias_bounds)]
-pub(crate) type ApplyBatch = ApplyBatchResult<BatchReceipt<BatchSequencerOutcome, TxEffect>>;
+pub(crate) type ApplyBatch = ApplyBatchResult<BatchReceipt>;
 
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
@@ -40,21 +45,21 @@ pub struct StfBlueprint<S: Spec, Da: DaSpec, RT: Runtime<S, Da>, K: KernelSlotHo
     phantom_da: PhantomData<Da>,
 }
 
-pub(crate) enum ApplyBatchError<TxReceiptContents> {
+pub(crate) enum ApplyBatchError {
     // Contains batch hash
     Ignored([u8; 32]),
     Slashed {
         // Contains batch hash
         hash: [u8; 32],
-        tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
+        tx_receipts: Vec<TransactionReceipt>,
         // TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/595>`: change to `S::Gas`
         gas_price: Vec<u64>,
         reason: FatalError,
     },
 }
 
-impl From<ApplyBatchError<TxEffect>> for BatchReceipt<BatchSequencerOutcome, TxEffect> {
-    fn from(value: ApplyBatchError<TxEffect>) -> Self {
+impl From<ApplyBatchError> for BatchReceipt {
+    fn from(value: ApplyBatchError) -> Self {
         match value {
             ApplyBatchError::Ignored(hash) => BatchReceipt {
                 batch_hash: hash,
@@ -472,14 +477,15 @@ where
                     tx_hash: *raw_tx_hash,
                     body_to_save: None,
                     events: convert_to_runtime_events::<S, RT, Da>(events),
-                    receipt: TxEffect::Successful,
+                    receipt: TxEffect::Successful(()),
                     gas_used: transaction_consumption.base_fee().to_vec(),
                 },
                 transaction_consumption,
             )
         }
         Err(e) => {
-            error!(
+            // It's expected that transactions will revert, so we log them at the info level.
+            info!(
                 error = %e,
                 raw_tx_hash = hex::encode(raw_tx_hash),
                 "Tx was reverted",
@@ -493,7 +499,7 @@ where
                 tx_hash: *raw_tx_hash,
                 body_to_save: None,
                 events: vec![], // As in Ethereum, reverted transactions don't emit events
-                receipt: TxEffect::Reverted,
+                receipt: TxEffect::Reverted(e),
                 gas_used: transaction_consumption.base_fee().to_vec(),
             };
 
@@ -534,7 +540,7 @@ fn attempt_tx<S: Spec, Da: DaSpec, RT: Runtime<S, Da>>(
     ctx: &Context<S>,
     runtime: &RT,
     state: &mut WorkingSet<S>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), Error> {
     runtime.pre_dispatch_tx_hook(tx, state)?;
 
     runtime.dispatch_call(message, state, ctx)?;

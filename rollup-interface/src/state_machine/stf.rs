@@ -3,6 +3,8 @@
 //!
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
+use std::fmt::Debug;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -44,7 +46,8 @@ mod sealed {
 /// store additional data, such as the status code of the transaction or the amount of gas used.s
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A receipt showing the result of a transaction
-pub struct TransactionReceipt<R> {
+#[serde(bound = "T: TxReceiptContents")]
+pub struct TransactionReceipt<T: TxReceiptContents> {
     /// The canonical hash of this transaction
     pub tx_hash: [u8; 32],
     /// The canonically serialized body of the transaction, if it should be persisted
@@ -54,7 +57,7 @@ pub struct TransactionReceipt<R> {
     pub events: Vec<StoredEvent>,
     /// Any additional structured data to be saved in the database and served over RPC
     /// For example, this might contain a status code.
-    pub receipt: R,
+    pub receipt: TxEffect<T>,
     /// Total gas incurred for this transaction.
     pub gas_used: Vec<u64>,
 }
@@ -64,12 +67,12 @@ pub struct TransactionReceipt<R> {
 /// can use to store arbitrary typed data, like the gas used by the batch. They are also generic over a type `TxReceiptContents`,
 /// since they contain a vectors of [`TransactionReceipt`]s.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-/// A receipt giving the outcome of a batch of transactions
-pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
+#[serde(bound = "T: TxReceiptContents, BatchReceiptContents: Serialize + DeserializeOwned + Clone")]
+pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents> {
     /// The canonical hash of this batch
     pub batch_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
-    pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
+    pub tx_receipts: Vec<TransactionReceipt<T>>,
     /// Computed gas price for this batch.
     pub gas_price: Vec<u64>,
     /// Any additional structured data to be saved in the database and served over RPC
@@ -107,6 +110,7 @@ pub enum ProofOutcome<Da: DaSpec, Root> {
     /// The blob is some kind of invalid proof
     Invalid,
 }
+
 /// The result of applying a slot to current state.
 pub struct ApplySlotOutput<
     InnerVm: Zkvm,
@@ -153,8 +157,8 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
     /// The contents of a proof receipt. This is the data that is persisted in the database
     type ProofReceiptContents: Serialize + DeserializeOwned + Clone;
 
-    /// The contents of a transaction receipt. This is the data that is persisted in the database
-    type TxReceiptContents: Serialize + DeserializeOwned + Clone;
+    /// The contents of a transaction for a successful transaction.
+    type TxReceiptContents: TxReceiptContents;
 
     /// The contents of a batch receipt. This is the data that is persisted in the database
     type BatchReceiptContents: Serialize + DeserializeOwned + Clone;
@@ -269,5 +273,73 @@ impl EventValue {
     /// Return the inner bytes of the event key.
     pub fn inner(&self) -> &Vec<u8> {
         &self.0
+    }
+}
+
+/// The outcome of a transaction.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
+pub enum TxEffect<T: TxReceiptContents> {
+    /// The transaction was skipped.
+    Skipped(T::Skipped),
+    /// The transaction was reverted during execution.
+    Reverted(T::Reverted),
+    /// The transaction was processed successfully.
+    Successful(T::Successful),
+}
+
+/// A (typically zero-sized) struct which marks the contents of a [`TxEffect`].
+// We require a bunch of bounds on the marker struct to work around issues with rust's type inference
+// even though they aren't strictly needed.
+pub trait TxReceiptContents:
+    Debug + Clone + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'static
+{
+    /// The receipt contents for a skipped transaction.
+    type Skipped: Debug
+        + Clone
+        + PartialEq
+        + Eq
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync
+        + 'static;
+    /// The receipt contents for a reverted transaction.
+    type Reverted: Debug
+        + Clone
+        + PartialEq
+        + Eq
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync
+        + 'static;
+    /// The receipt contents for a successful transaction.
+    type Successful: Debug
+        + Clone
+        + PartialEq
+        + Eq
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync
+        + 'static;
+}
+
+impl TxReceiptContents for () {
+    type Skipped = ();
+    type Reverted = ();
+    type Successful = ();
+}
+
+impl<T: TxReceiptContents> TxEffect<T> {
+    /// Returns true if and only if the effect is the [`TxEffect::Successful`] variant.
+    pub fn is_successful(&self) -> bool {
+        matches!(self, TxEffect::Successful(_))
+    }
+
+    /// Returns true if and only if the effect is the [`TxEffect::Reverted`] variant.
+    pub fn is_reverted(&self) -> bool {
+        matches!(self, TxEffect::Reverted(_))
     }
 }

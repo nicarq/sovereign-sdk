@@ -91,9 +91,9 @@ fn test_tx_revert() {
         // create 1000 tokens
         // transfer 15 tokens
         // transfer 5000 tokens // this should be reverted
-        assert_eq!(txn_receipts[0].receipt, TxEffect::Successful);
-        assert_eq!(txn_receipts[1].receipt, TxEffect::Successful);
-        assert_eq!(txn_receipts[2].receipt, TxEffect::Reverted);
+        assert!(txn_receipts[0].receipt.is_successful());
+        assert!(txn_receipts[1].receipt.is_successful());
+        assert!(txn_receipts[2].receipt.is_reverted());
 
         storage_manager
             .save_change_set(

@@ -1,8 +1,8 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod stf_blueprint;
+use serde::{Deserialize, Serialize};
 use sov_modules_api::TxScratchpad;
-use sov_rollup_interface::stf::TransactionReceipt;
 #[cfg(feature = "test-utils")]
 mod utils;
 
@@ -17,17 +17,16 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    BlobReaderTrait, DaSpec, DispatchCall, Gas, GasArray, Genesis, KernelWorkingSet,
+    BlobReaderTrait, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
-pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{
     ApplySlotOutput, ProofOutcome, ProofReceipt, StateTransitionFunction,
 };
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
-pub use stf_blueprint::{process_tx, StfBlueprint};
+pub use stf_blueprint::{process_tx, BatchReceipt, StfBlueprint, TransactionReceipt};
 use thiserror::Error;
 use tracing::{debug, info};
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
@@ -82,15 +81,16 @@ pub enum SkippedReason {
     CannotResolveContext(String),
 }
 
-/// The receipts of all the transactions in a batch.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum TxEffect {
-    /// The transaction was skipped because of a sequencer error
-    Skipped(SkippedReason),
-    /// The transaction was reverted during execution.
-    Reverted,
-    /// The transaction was processed successfully.
-    Successful,
+/// The effect of a transaction using the STF blueprint.
+pub type TxEffect = sov_rollup_interface::stf::TxEffect<TxReceiptContents>;
+/// The effect of a batch using the STF blueprint.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct TxReceiptContents;
+
+impl sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents {
+    type Reverted = Error;
+    type Skipped = SkippedReason;
+    type Successful = ();
 }
 
 /// Represents the different outcomes that can occur for a sequencer after batch processing.
@@ -114,7 +114,7 @@ pub struct ApplyTxResult<S: Spec> {
     /// The transaction scratchpad following the application of the transaction.
     pub tx_scratchpad: TxScratchpad<S>,
     /// The transaction receipt.
-    pub receipt: TransactionReceipt<TxEffect>,
+    pub receipt: TransactionReceipt,
     /// The amount of gas tokens that the sequencer should be rewarded.
     pub sequencer_reward: SequencerReward,
 }
@@ -282,7 +282,7 @@ where
     type PreState = S::Storage;
     type ChangeSet = <S::Storage as Storage>::ChangeSet;
 
-    type TxReceiptContents = TxEffect;
+    type TxReceiptContents = TxReceiptContents;
 
     type BatchReceiptContents = BatchSequencerOutcome;
 

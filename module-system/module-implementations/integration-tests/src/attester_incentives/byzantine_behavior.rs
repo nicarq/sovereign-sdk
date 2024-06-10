@@ -87,10 +87,9 @@ impl AttesterIncentivesTestHandler {
             // The transaction was successful (we need to gracefully exit to be able to update the state)
             assert_eq!(attestation_res.batch_receipts.len(), 1);
 
-            assert_eq!(
-                get_first_transaction_receipt(attestation_res).receipt,
-                TxEffect::Successful
-            );
+            assert!(get_first_transaction_receipt(attestation_res)
+                .receipt
+                .is_successful(),);
 
             // The attester is slashed
             assert_eq!(rollup.get_bad_transition_reward(1), self.attester_stake);
@@ -164,8 +163,8 @@ impl AttesterIncentivesTestHandler {
             assert_eq!(tx_receipts.len(), 2);
             let snd_tx_receipt = tx_receipts.pop().unwrap();
             let fst_tx_receipt = tx_receipts.pop().unwrap();
-            assert_eq!(fst_tx_receipt.receipt, TxEffect::Successful);
-            assert_eq!(snd_tx_receipt.receipt, TxEffect::Successful);
+            assert_eq!(fst_tx_receipt.receipt, TxEffect::Successful(()));
+            assert_eq!(snd_tx_receipt.receipt, TxEffect::Successful(()));
 
             let mut state = WorkingSet::<S>::new(rollup.storage());
 

@@ -7,8 +7,7 @@ use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, WorkingSet};
-use sov_modules_stf_blueprint::TxEffect;
-use sov_rollup_interface::stf::TransactionReceipt;
+use sov_modules_stf_blueprint::TransactionReceipt;
 use sov_state::{Storage, StorageRoot};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
@@ -31,7 +30,7 @@ const USER_STAKE: u64 = 2_000;
 const ROLLUP_FINALITY_PERIOD: u64 = 2;
 const USER_BALANCE: u64 = 100_000;
 
-fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionReceipt<TxEffect> {
+fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionReceipt {
     env.batch_receipts
         .first()
         .expect("Should contain a batch receipt")
@@ -262,15 +261,13 @@ impl AttesterIncentivesTestHandler {
         // Both executions have succeeded
         {
             assert_eq!(fst_res.batch_receipts.len(), 1);
-            assert_eq!(
-                get_first_transaction_receipt(&fst_res).receipt,
-                TxEffect::Successful
-            );
+            assert!(get_first_transaction_receipt(&fst_res)
+                .receipt
+                .is_successful());
             assert_eq!(snd_res.batch_receipts.len(), 1);
-            assert_eq!(
-                get_first_transaction_receipt(&snd_res).receipt,
-                TxEffect::Successful
-            );
+            assert!(get_first_transaction_receipt(&snd_res)
+                .receipt
+                .is_successful());
         }
 
         vec![fst_res, snd_res]

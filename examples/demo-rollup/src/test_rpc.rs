@@ -13,10 +13,10 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
-use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt, TxEffect};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_stf_runner::HttpServerConfig;
-use sov_test_utils::{TestSpec, TestStorageSpec};
+use sov_test_utils::{TestSpec, TestStorageSpec, TestTxReceiptContents};
 use tendermint::crypto::Sha256;
 
 struct TestExpect {
@@ -44,13 +44,19 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: HttpServ
     }
 }
 
-fn populate_ledger(ledger_db: &mut LedgerDb, slots: Vec<SlotCommit<MockBlock, u32, u32>>) {
+fn populate_ledger(
+    ledger_db: &mut LedgerDb,
+    slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>>,
+) {
     for slot in slots {
         ledger_db.commit_slot(slot, b"state-root").unwrap();
     }
 }
 
-fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u32, u32>>) {
+fn test_helper(
+    test_queries: Vec<TestExpect>,
+    slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>>,
+) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
         .enable_time()
@@ -82,7 +88,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
         let server_rpc_module = sov_ledger_apis::rpc::server::rpc_module::<
             LedgerDb,
             u32,
-            u32,
+            TestTxReceiptContents,
             RuntimeEventResponse<demo_stf::runtime::RuntimeEvent<TestSpec, MockDaSpec>>,
         >(ledger_db)
         .unwrap();
@@ -97,50 +103,51 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
     });
 }
 
-fn batch2_tx_receipts() -> Vec<TransactionReceipt<u32>> {
+fn batch2_tx_receipts() -> Vec<TransactionReceipt<TestTxReceiptContents>> {
     (0..260u64)
-        .map(|i| TransactionReceipt::<u32> {
+        .map(|i| TransactionReceipt::<TestTxReceiptContents> {
             tx_hash: ::sha2::Sha256::digest(i.to_string()),
             body_to_save: Some(b"tx body".to_vec()),
             events: vec![],
-            receipt: 0,
+            receipt: TxEffect::Skipped(0),
             gas_used: vec![0, 0],
         })
         .collect()
 }
 
 fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value) {
-    let mut slots: Vec<SlotCommit<MockBlock, u32, u32>> = vec![SlotCommit::new(MockBlock {
-        header: MockBlockHeader {
-            prev_hash: sha2::Sha256::digest(b"prev_header").into(),
-            hash: sha2::Sha256::digest(b"slot_data").into(),
-            height: 0,
-            time: Time::now(),
-        },
-        validity_cond: Default::default(),
-        batch_blobs: Default::default(),
-        proof_blobs: Default::default(),
-    })];
+    let mut slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>> =
+        vec![SlotCommit::new(MockBlock {
+            header: MockBlockHeader {
+                prev_hash: sha2::Sha256::digest(b"prev_header").into(),
+                hash: sha2::Sha256::digest(b"slot_data").into(),
+                height: 0,
+                time: Time::now(),
+            },
+            validity_cond: Default::default(),
+            batch_blobs: Default::default(),
+            proof_blobs: Default::default(),
+        })];
 
     let batches = vec![
         BatchReceipt {
             batch_hash: ::sha2::Sha256::digest(b"batch_receipt"),
             tx_receipts: vec![
-                TransactionReceipt::<u32> {
+                TransactionReceipt::<TestTxReceiptContents> {
                     tx_hash: ::sha2::Sha256::digest(b"tx1"),
                     body_to_save: Some(b"tx1 body".to_vec()),
                     events: vec![],
-                    receipt: 0,
+                    receipt: TxEffect::Successful(0),
                     gas_used: vec![0, 0],
                 },
-                TransactionReceipt::<u32> {
+                TransactionReceipt::<TestTxReceiptContents> {
                     tx_hash: ::sha2::Sha256::digest(b"tx2"),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
                         StoredEvent::new("event1_key".as_bytes(), "event1_value".as_bytes()),
                         StoredEvent::new("event2_key".as_bytes(), "event2_value".as_bytes()),
                     ],
-                    receipt: 1,
+                    receipt: TxEffect::Successful(1),
                     gas_used: vec![2, 3],
                 },
             ],
@@ -213,7 +220,7 @@ fn test_get_head() {
 fn test_get_transactions_offset_first_batch() {
     // Tests for different types of argument
     let payload = jsonrpc_req!("ledger_getTransactions", [[{"batch_id": 0, "offset": 0}]]);
-    let expected = jsonrpc_result!([{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","event_range":{"start":0,"end":0},"body":[116,120,49,32,98,111,100,121],"custom_receipt":0}]);
+    let expected = jsonrpc_result!([{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","event_range":{"start":0,"end":0},"body":[116,120,49,32,98,111,100,121],"receipt":{"Successful":0}}]);
     regular_test_helper(payload, &expected);
 
     // Tests for flattened args
@@ -233,7 +240,7 @@ fn test_get_transactions_offset_first_batch() {
     regular_test_helper(payload, &expected);
 
     let payload = jsonrpc_req!("ledger_getTransactions", [[{ "batch_id": 0, "offset": 1}]]);
-    let expected = jsonrpc_result!([{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","event_range":{"start":0,"end":2},"body":[116,120,50,32,98,111,100,121],"custom_receipt":1}]);
+    let expected = jsonrpc_result!([{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","event_range":{"start":0,"end":2},"body":[116,120,50,32,98,111,100,121],"receipt":{"Successful":1}}]);
     regular_test_helper(payload, &expected);
 }
 
@@ -244,7 +251,7 @@ fn test_get_batches() {
         "hash":"0xf85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e",
         "tx_range":{"start":2,"end":262},
         "txs": batch2_tx_receipts().into_iter().map(|tx_receipt| format!("0x{}", hex::encode(tx_receipt.tx_hash) )).collect::<Vec<_>>(),
-        "custom_receipt":1
+        "receipt":1
     }]);
     regular_test_helper(payload, &expected);
 
@@ -255,34 +262,35 @@ fn test_get_batches() {
     regular_test_helper(payload, &expected);
 
     let payload = jsonrpc_req!("ledger_getBatches", [[0], "Compact"]);
-    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","tx_range":{"start":0,"end":2},"custom_receipt":0}]);
+    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","tx_range":{"start":0,"end":2},"receipt":0}]);
     regular_test_helper(payload, &expected);
 
     let payload = jsonrpc_req!("ledger_getBatches", [[0], "Full"]);
-    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","tx_range":{"start":0,"end":2},"txs":[{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","event_range":{"start":0,"end":0},"body":[116,120,49,32,98,111,100,121],"custom_receipt":0},{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","event_range":{"start":0,"end":2},"body":[116,120,50,32,98,111,100,121],"custom_receipt":1}],"custom_receipt":0}]);
+    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","tx_range":{"start":0,"end":2},"txs":[{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","event_range":{"start":0,"end":0},"body":[116,120,49,32,98,111,100,121],"receipt":{"Successful":0}},{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","event_range":{"start":0,"end":2},"body":[116,120,50,32,98,111,100,121],"receipt":{"Successful":1},}],"receipt":0}]);
     regular_test_helper(payload, &expected);
 }
 
-fn batch_receipt_without_hasher() -> impl Strategy<Value = BatchReceipt<u32, u32>> {
+fn batch_receipt_without_hasher() -> impl Strategy<Value = BatchReceipt<u32, TestTxReceiptContents>>
+{
     let mut args = BatchReceiptStrategyArgs {
         hasher: None,
         ..Default::default()
     };
     args.transaction_strategy_args.hasher = None;
-    any_with::<BatchReceipt<u32, u32>>(args)
+    any_with::<BatchReceipt<u32, TestTxReceiptContents>>(args)
 }
 
 prop_compose! {
     fn arb_batches_and_slot_hash(max_batches : usize)
      (slot_hash in proptest::array::uniform32(0_u8..), batches in proptest::collection::vec(batch_receipt_without_hasher(), 1..max_batches)) ->
-       (Vec<BatchReceipt<u32, u32>>, [u8;32]) {
+       (Vec<BatchReceipt<u32, TestTxReceiptContents>>, [u8;32]) {
         (batches, slot_hash)
     }
 }
 
 prop_compose! {
     fn arb_slots(max_slots: usize, max_batches: usize)
-    (batches_and_hashes in proptest::collection::vec(arb_batches_and_slot_hash(max_batches), 1..max_slots)) -> (Vec<SlotCommit<MockBlock, u32, u32>>, HashMap<usize, (usize, usize)>, usize)
+    (batches_and_hashes in proptest::collection::vec(arb_batches_and_slot_hash(max_batches), 1..max_slots)) -> (Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>>, HashMap<usize, (usize, usize)>, usize)
     {
         let mut slots = std::vec::Vec::with_capacity(max_slots);
 
@@ -333,7 +341,7 @@ prop_compose! {
 
 fn full_tx_json(
     tx_id: usize,
-    tx: &TransactionReceipt<u32>,
+    tx: &TransactionReceipt<TestTxReceiptContents>,
     tx_id_to_event_range: &HashMap<usize, (usize, usize)>,
 ) -> serde_json::Value {
     let (event_range_begin, event_range_end) = tx_id_to_event_range.get(&tx_id).unwrap();
@@ -345,7 +353,7 @@ fn full_tx_json(
                 "start": event_range_begin,
                 "end": event_range_end
             },
-            "custom_receipt": tx.receipt,
+            "receipt": tx.receipt,
         }),
         Some(body) => {
             json!({
@@ -355,7 +363,7 @@ fn full_tx_json(
                     "end": event_range_end
                 },
                 "body": body,
-                "custom_receipt": tx.receipt,
+                "receipt": tx.receipt,
             })
         }
     }
@@ -431,27 +439,27 @@ proptest!(
                         payload:
                         jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Compact"]),
                         expected:
-                        jsonrpc_result!([{"hash": format!("0x{batch_hash}"),"tx_range": {"start":first_tx_num,"end":last_tx_num},"custom_receipt": batch_receipt}])},
+                        jsonrpc_result!([{"hash": format!("0x{batch_hash}"),"tx_range": {"start":first_tx_num,"end":last_tx_num},"receipt": batch_receipt}])},
                     TestExpect{
                         payload:
                         jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Standard"]),
                         expected:
-                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes,"custom_receipt":batch_receipt}])},
+                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes,"receipt":batch_receipt}])},
                     TestExpect{
                         payload:
                         jsonrpc_req!("ledger_getBatches", [[random_batch_num]]),
                         expected:
-                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes,"custom_receipt":batch_receipt}])},
+                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes,"receipt":batch_receipt}])},
                     TestExpect{
                         payload:
                         jsonrpc_req!("ledger_getBatches", [random_batch_num]),
                         expected:
-                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes,"custom_receipt":batch_receipt}])},
+                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes,"receipt":batch_receipt}])},
                     TestExpect{
                         payload:
                         jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Full"]),
                         expected:
-                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":full_txs,"custom_receipt":batch_receipt}])},
+                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":full_txs,"receipt":batch_receipt}])},
                     ],
                     slots);
 

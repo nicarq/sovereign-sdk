@@ -6,7 +6,7 @@ use sov_rollup_interface::rpc::{
     FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
     SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
-use sov_rollup_interface::stf::StoredEvent;
+use sov_rollup_interface::stf::{StoredEvent, TxReceiptContents};
 use tokio::sync::broadcast::Receiver;
 
 use crate::ledger_db::rpc_constants::{
@@ -49,7 +49,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         anyhow::ensure!(
             slot_ids.len() <= MAX_SLOTS_PER_REQUEST as usize,
@@ -88,7 +88,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         anyhow::ensure!(
             batch_ids.len() <= MAX_BATCHES_PER_REQUEST as usize,
@@ -128,7 +128,7 @@ impl LedgerStateProvider for LedgerDb {
         _query_mode: QueryMode,
     ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
     where
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         anyhow::ensure!(
             tx_ids.len() <= MAX_TRANSACTIONS_PER_REQUEST as usize,
@@ -195,7 +195,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Vec<(u64, E)>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
         E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
     {
         let slot_not_found_err = || anyhow::anyhow!("Slot `{:?}` not found", slot_id);
@@ -257,7 +257,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
             .await
@@ -271,7 +271,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
             .await
@@ -284,7 +284,7 @@ impl LedgerStateProvider for LedgerDb {
         query_mode: QueryMode,
     ) -> Result<Option<TxResponse<T>>, anyhow::Error>
     where
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
             .await
@@ -311,7 +311,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
             .await
@@ -325,7 +325,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
             .await
@@ -413,7 +413,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
@@ -433,7 +433,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
@@ -452,7 +452,7 @@ impl LedgerStateProvider for LedgerDb {
         query_mode: QueryMode,
     ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
     where
-        T: DeserializeOwned + Send + Sync,
+        T: TxReceiptContents,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
@@ -584,7 +584,7 @@ impl LedgerStateProvider for LedgerDb {
 }
 
 impl LedgerDb {
-    async fn populate_slot_response<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn populate_slot_response<B: DeserializeOwned, T: TxReceiptContents>(
         &self,
         number: u64,
         slot: StoredSlot,
@@ -644,7 +644,7 @@ impl LedgerDb {
         })
     }
 
-    async fn populate_batch_response<B: DeserializeOwned, T: DeserializeOwned>(
+    async fn populate_batch_response<B: DeserializeOwned, T: TxReceiptContents>(
         &self,
         batch: StoredBatch,
         mode: QueryMode,

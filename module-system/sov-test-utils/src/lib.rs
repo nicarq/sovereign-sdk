@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use borsh::ser::BorshSerialize;
+use serde::{Deserialize, Serialize};
 use sov_bank::{Bank, BankConfig, GasTokenConfig, GAS_TOKEN_ID};
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
@@ -15,8 +16,9 @@ pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
     CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint, WorkingSet,
 };
-use sov_modules_stf_blueprint::{Batch, BatchReceipt, TxEffect};
+use sov_modules_stf_blueprint::{Batch, BatchReceipt};
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_rollup_interface::stf::TxReceiptContents;
 
 pub mod attester_incentive_data;
 pub mod auth;
@@ -43,6 +45,17 @@ pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicK
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
 pub type TestHasher = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;
 pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
+
+/// An implementation of [`TxReceiptContents`] for testing. TestTxReceiptContents uses
+/// a `u32` as the receipt contents.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct TestTxReceiptContents;
+
+impl TxReceiptContents for TestTxReceiptContents {
+    type Skipped = u32;
+    type Reverted = u32;
+    type Successful = u32;
+}
 
 /// Test helper: Generates an empty transaction with the given gas parameters.
 pub fn generate_empty_tx(
@@ -105,9 +118,7 @@ pub fn new_test_blob_from_batch(
     MockBlob::new(data, address, hash)
 }
 
-pub fn has_tx_events(
-    apply_blob_outcome: &BatchReceipt<sov_modules_stf_blueprint::BatchSequencerOutcome, TxEffect>,
-) -> bool {
+pub fn has_tx_events(apply_blob_outcome: &BatchReceipt) -> bool {
     let events = apply_blob_outcome
         .tx_receipts
         .iter()

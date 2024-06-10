@@ -66,7 +66,7 @@ fn test_slot_subscription() {
     let mut rx = ledger_db.subscribe_slots();
     ledger_db
         .commit_slot(
-            SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()),
+            SlotCommit::<_, MockBlob, ()>::new(MockBlock::default()),
             b"state-root",
         )
         .unwrap();
