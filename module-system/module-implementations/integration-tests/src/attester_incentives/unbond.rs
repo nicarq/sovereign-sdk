@@ -4,7 +4,6 @@ use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
-use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
@@ -61,7 +60,7 @@ fn test_honest_unbonding() {
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
-        assert_eq!(tx_receipt.receipt, TxEffect::Successful);
+        assert!(tx_receipt.receipt.is_successful());
 
         assert!(rollup.is_attester_unbonding(test_handler.attester_addr()));
     }
@@ -89,7 +88,7 @@ fn test_honest_unbonding() {
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
-        assert_eq!(tx_receipt.receipt, TxEffect::Successful);
+        assert!(tx_receipt.receipt.is_successful());
     }
 
     // TODO: We need a way to sync the light clients with the current state height. Since the light clients are not implemented yet
@@ -125,7 +124,7 @@ fn test_honest_unbonding() {
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
-        assert_eq!(TxEffect::Successful, tx_receipt.receipt);
+        assert!(tx_receipt.receipt.is_successful());
 
         let mut state = WorkingSet::<S>::new(rollup.storage());
 
@@ -194,7 +193,7 @@ fn test_unbonding_without_bonded() {
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
-        assert_eq!(tx_receipt.receipt, TxEffect::Reverted);
+        assert!(tx_receipt.receipt.is_reverted());
     }
 }
 
@@ -246,7 +245,7 @@ fn test_premature_unbonding() {
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
-        assert_eq!(tx_receipt.receipt, TxEffect::Successful);
+        assert!(tx_receipt.receipt.is_successful());
 
         let mut state = WorkingSet::<S>::new(rollup.storage());
 
@@ -289,6 +288,6 @@ fn test_premature_unbonding() {
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
-        assert_eq!(tx_receipt.receipt, TxEffect::Reverted);
+        assert!(tx_receipt.receipt.is_reverted());
     }
 }

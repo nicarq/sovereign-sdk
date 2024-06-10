@@ -173,7 +173,7 @@ fn test_stf_internal_updates() {
         {
             assert_eq!(
                 tx.receipt,
-                TxEffect::Successful,
+                TxEffect::Successful(()),
                 "The transaction {i} failed in slot at height {j}"
             );
         }

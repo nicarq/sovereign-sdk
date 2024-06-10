@@ -11,7 +11,6 @@ use sov_modules_api::{CryptoSpec, Gas, GasArray, KernelWorkingSet, Spec, StateCh
 use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
-use sov_rollup_interface::stf::TransactionReceipt;
 use tokio::sync::watch;
 
 use crate::db::{MempoolTx, SequencerDb};
@@ -84,7 +83,7 @@ where
         &self,
         mempool_tx: &MempoolTx,
         ctx: &mut BatchConstructionContext<S>,
-    ) -> anyhow::Result<Option<TransactionReceipt<TxEffect>>> {
+    ) -> anyhow::Result<Option<sov_modules_stf_blueprint::TransactionReceipt>> {
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
         let tx_len = mempool_tx.tx_bytes.len();
@@ -236,7 +235,7 @@ where
             let tx_receipt = self.try_add_tx_to_batch(&mempool_tx, &mut ctx)?;
 
             match tx_receipt.map(|r| r.receipt) {
-                Some(TxEffect::Successful) => {
+                Some(TxEffect::Successful(_)) => {
                     tracing::info!(
                         hash = hex::encode(mempool_tx.hash),
                         "Transaction has been included in the batch",

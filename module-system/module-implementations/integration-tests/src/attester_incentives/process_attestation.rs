@@ -45,7 +45,7 @@ impl AttesterIncentivesTestHandler {
         let batch_receipt = attestation_tx.batch_receipts.first().unwrap();
         assert_eq!(batch_receipt.tx_receipts.len(), 1);
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
-        assert_eq!(tx_receipt.receipt, TxEffect::Successful);
+        assert_eq!(tx_receipt.receipt, TxEffect::Successful(()));
 
         // We have to check that the attester was rewarded with its stake.
         let mut state = WorkingSet::<S>::new(rollup.storage());
@@ -157,8 +157,8 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(tx_receipts.len(), 2);
         let snd_tx_receipt = tx_receipts.pop().unwrap();
         let fst_tx_receipt = tx_receipts.pop().unwrap();
-        assert_eq!(fst_tx_receipt.receipt, TxEffect::Successful);
-        assert_eq!(snd_tx_receipt.receipt, TxEffect::Successful);
+        assert_eq!(fst_tx_receipt.receipt, TxEffect::Successful(()));
+        assert_eq!(snd_tx_receipt.receipt, TxEffect::Successful(()));
 
         // The current maximum attested height is 3
         assert_eq!(rollup.get_maximum_attested_height(), 3);

@@ -11,7 +11,7 @@ use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdentifier, EventIdentifier, LedgerStateProvider,
     ProofInfoResponse, QueryMode, SlotIdentifier, TxIdentifier,
 };
-use sov_rollup_interface::stf::StoredEvent;
+use sov_rollup_interface::stf::{StoredEvent, TxReceiptContents};
 use tokio::sync::broadcast::Receiver;
 
 use crate::HexHash;
@@ -45,7 +45,7 @@ pub type TxnRangeParam = Option<(u64, u64)>;
 ///     let cache_container = CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
 ///     let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
 ///     let ledger_db = LedgerDb::with_cache_db(cache_db).unwrap();
-///     let rpc_module = rpc_module::<LedgerDb, u32, u32, RuntimeEventResponse<<Runtime<TestSpec, MockDaSpec> as RuntimeEventProcessor>::RuntimeEvent>>(ledger_db).unwrap();
+///     let rpc_module = rpc_module::<LedgerDb, u32, (), RuntimeEventResponse<<Runtime<TestSpec, MockDaSpec> as RuntimeEventProcessor>::RuntimeEvent>>(ledger_db).unwrap();
 ///
 ///     let server = jsonrpsee::server::ServerBuilder::default()
 ///         .build("127.0.0.1:0")
@@ -58,7 +58,7 @@ pub fn rpc_module<T, B, Tx, E>(ledger: T) -> anyhow::Result<RpcModule<T>>
 where
     T: LedgerStateProvider + LedgerStateProviderExt + Send + Sync + 'static,
     B: serde::Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
-    Tx: serde::Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    Tx: TxReceiptContents,
     E: TryFrom<StoredEvent, Error = anyhow::Error>
         + serde::Serialize
         + DeserializeOwned

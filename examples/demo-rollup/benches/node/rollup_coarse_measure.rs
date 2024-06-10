@@ -15,7 +15,7 @@ use prometheus::{Histogram, HistogramOpts, Registry};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rng_da_service::{RngDaService, RngDaSpec};
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -232,7 +232,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut data_to_commit = SlotCommit::new(filtered_block);
         for receipt in apply_block_result.batch_receipts {
             for t in &receipt.tx_receipts {
-                if t.receipt == TxEffect::Successful {
+                if t.receipt.is_successful() {
                     num_success_txns += 1;
                 }
             }

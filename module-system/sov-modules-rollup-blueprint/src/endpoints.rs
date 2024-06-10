@@ -5,7 +5,7 @@ use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse, Spec};
 use sov_modules_stf_blueprint::{
-    BatchSequencerOutcome, Runtime as RuntimeTrait, RuntimeEndpoints, TxEffect,
+    BatchSequencerOutcome, Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents,
 };
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
@@ -42,14 +42,14 @@ where
             .merge(sov_ledger_apis::rpc::server::rpc_module::<
                 LedgerDb,
                 BatchSequencerOutcome,
-                TxEffect,
+                TxReceiptContents,
                 RuntimeEventResponse<<B::Runtime as RuntimeEventProcessor>::RuntimeEvent>,
             >(ledger_db.clone())?)?;
 
         let ledger_axum_router = LedgerRoutes::<
             LedgerDb,
             BatchSequencerOutcome,
-            TxEffect,
+            TxReceiptContents,
             <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
         >::axum_router(ledger_db.clone(), "/ledger");
         endpoints.axum_router = endpoints

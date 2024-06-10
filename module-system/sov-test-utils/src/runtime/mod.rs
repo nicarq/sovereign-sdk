@@ -21,7 +21,7 @@ use sov_modules_api::{
     WorkingSet,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -445,9 +445,9 @@ pub fn run_test_with_setup_fn<RT, S, M>(
                     .next()
                     .expect("Must have one outcome per transaction")
                 {
-                    assert_eq!(tx_receipt.receipt, TxEffect::Successful);
+                    assert!(tx_receipt.receipt.is_successful());
                 } else {
-                    assert_eq!(tx_receipt.receipt, TxEffect::Reverted);
+                    assert!(tx_receipt.receipt.is_reverted());
                 }
             }
         }

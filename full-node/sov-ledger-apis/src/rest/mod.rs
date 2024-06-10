@@ -25,6 +25,7 @@ use sov_rollup_interface::rpc::{
     FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
     SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
+use sov_rollup_interface::stf::{TxEffect, TxReceiptContents};
 use tracing::warn;
 use utoipa_swagger_ui::{Config, SwaggerUi};
 
@@ -89,7 +90,7 @@ impl<T, B, TxReceipt, E> LedgerRoutes<T, B, TxReceipt, E>
 where
     T: LedgerStateProvider + Clone + Send + Sync + 'static,
     B: serde::Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
-    TxReceipt: serde::Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    TxReceipt: TxReceiptContents,
     E: EventModuleName
         + serde::Serialize
         + serde::de::DeserializeOwned
@@ -711,8 +712,13 @@ impl Display for NumberOrHash {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename = "slot", rename_all = "camelCase")]
-struct Slot<B, TxReceipt, E> {
+#[serde(
+    tag = "type",
+    rename = "slot",
+    rename_all = "camelCase",
+    bound = "B: Serialize + DeserializeOwned, TxReceipt: TxReceiptContents, E: Serialize + DeserializeOwned"
+)]
+struct Slot<B, TxReceipt: TxReceiptContents, E> {
     pub number: u64,
     pub hash: HexHash,
     pub state_root: HexBytes,
@@ -721,7 +727,7 @@ struct Slot<B, TxReceipt, E> {
     pub finality_status: FinalityStatus,
 }
 
-impl<B, TxReceipt, E> Slot<B, TxReceipt, E> {
+impl<B, TxReceipt: TxReceiptContents, E> Slot<B, TxReceipt, E> {
     fn new(slot: SlotResponse<B, TxReceipt>) -> Self {
         let mut batches = vec![];
 
@@ -743,8 +749,13 @@ impl<B, TxReceipt, E> Slot<B, TxReceipt, E> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename = "batch", rename_all = "camelCase")]
-struct Batch<B, TxReceipt, E> {
+#[serde(
+    tag = "type",
+    rename = "batch",
+    rename_all = "camelCase",
+    bound = "B: Serialize + DeserializeOwned, TxReceipt: TxReceiptContents, E: Serialize + DeserializeOwned"
+)]
+struct Batch<B, TxReceipt: TxReceiptContents, E> {
     pub number: u64,
     pub hash: HexHash,
     pub tx_range: Range<u64>,
@@ -752,7 +763,7 @@ struct Batch<B, TxReceipt, E> {
     pub txs: Vec<Transaction<TxReceipt, E>>,
 }
 
-impl<B, TxReceipt, E> Batch<B, TxReceipt, E> {
+impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
     fn new(batch: BatchResponse<B, TxReceipt>, number: u64) -> Self {
         let mut txs = vec![];
 
@@ -766,7 +777,7 @@ impl<B, TxReceipt, E> Batch<B, TxReceipt, E> {
             number,
             hash: HexHash(batch.hash),
             tx_range: batch.tx_range,
-            receipt: batch.custom_receipt,
+            receipt: batch.receipt,
             txs,
         }
     }
@@ -774,25 +785,30 @@ impl<B, TxReceipt, E> Batch<B, TxReceipt, E> {
 
 #[serde_as]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename = "tx", rename_all = "camelCase")]
-struct Transaction<TxReceipt, E> {
+#[serde(
+    tag = "type",
+    rename = "tx",
+    rename_all = "camelCase",
+    bound = "TxReceipt: TxReceiptContents, E: Serialize + DeserializeOwned"
+)]
+struct Transaction<TxReceipt: TxReceiptContents, E> {
     pub number: u64,
     pub hash: HexHash,
     pub event_range: Range<u64>,
     #[serde_as(as = "serde_with::base64::Base64")]
     pub body: Vec<u8>,
-    pub receipt: TxReceipt,
+    pub receipt: TxEffect<TxReceipt>,
     pub events: Vec<Event<E>>,
 }
 
-impl<TxReceipt, E> Transaction<TxReceipt, E> {
+impl<TxReceipt: TxReceiptContents, E> Transaction<TxReceipt, E> {
     fn new(tx: TxResponse<TxReceipt>, number: u64) -> Self {
         Self {
             number,
             hash: HexHash(tx.hash),
             event_range: tx.event_range,
             body: tx.body.unwrap_or_default(),
-            receipt: tx.custom_receipt,
+            receipt: tx.receipt,
             events: vec![],
         }
     }

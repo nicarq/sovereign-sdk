@@ -5,7 +5,7 @@ use digest::Digest;
 use proptest::prelude::{any, Arbitrary};
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use super::{BatchReceipt, StoredEvent, TransactionReceipt};
+use super::{BatchReceipt, StoredEvent, TransactionReceipt, TxEffect, TxReceiptContents};
 
 /// An object-safe hashing trait, which is blanket implemented for all
 /// [`digest::Digest`] implementors.
@@ -107,8 +107,11 @@ impl Default for TransactionReceiptStrategyArgs {
     }
 }
 
-impl<R: proptest::arbitrary::Arbitrary + 'static> proptest::arbitrary::Arbitrary
-    for TransactionReceipt<R>
+impl<T: TxReceiptContents> proptest::arbitrary::Arbitrary for TransactionReceipt<T>
+where
+    T::Skipped: proptest::arbitrary::Arbitrary + 'static,
+    T::Reverted: proptest::arbitrary::Arbitrary + 'static,
+    T::Successful: proptest::arbitrary::Arbitrary + 'static,
 {
     type Parameters = TransactionReceiptStrategyArgs;
     type Strategy = BoxedStrategy<Self>;
@@ -126,7 +129,7 @@ impl<R: proptest::arbitrary::Arbitrary + 'static> proptest::arbitrary::Arbitrary
                 any::<[u8; 32]>(),
                 tx_body_strategy,
                 proptest::collection::vec(any::<StoredEvent>(), 0..args.max_events),
-                any::<R>(),
+                any::<TxEffect<T>>(),
                 proptest::collection::vec(any::<u64>(), 0..args.gas_unit_dimensions),
             )
                 .prop_map(
@@ -175,7 +178,13 @@ impl Default for BatchReceiptStrategyArgs {
     }
 }
 
-impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<B, R> {
+impl<B, T: TxReceiptContents> Arbitrary for BatchReceipt<B, T>
+where
+    B: Arbitrary + 'static,
+    T::Reverted: Arbitrary + 'static,
+    T::Skipped: Arbitrary + 'static,
+    T::Successful: Arbitrary + 'static,
+{
     type Parameters = BatchReceiptStrategyArgs;
     type Strategy = BoxedStrategy<Self>;
 

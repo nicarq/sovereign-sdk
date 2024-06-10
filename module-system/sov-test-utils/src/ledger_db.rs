@@ -14,13 +14,12 @@ use sov_mock_da::{MockBlock, MockDaSpec};
 use sov_modules_api::{
     AggregatedProofPublicData, CodeCommitment, ModuleId, RuntimeEventResponse, StoredEvent,
 };
-use sov_modules_stf_blueprint::BatchReceipt;
 use sov_rollup_interface::rpc::{BatchResponse, SlotResponse, TxResponse};
-use sov_rollup_interface::stf::TransactionReceipt;
+use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use tempfile::{tempdir, TempDir};
 
-use crate::TestSpec;
+use crate::{TestSpec, TestTxReceiptContents};
 
 type TestEvent = demo_stf::runtime::RuntimeEvent<TestSpec, MockDaSpec>;
 
@@ -31,13 +30,13 @@ pub extern crate sov_ledger_json_client;
 pub async fn add_data_to_ledger_db(ledger_db: &LedgerDb) -> anyhow::Result<()> {
     let block_a = MockBlock::default();
 
-    let mut slot: SlotCommit<MockBlock, i32, i32> = SlotCommit::new(block_a);
+    let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents> = SlotCommit::new(block_a);
 
     let tx_receipts = vec![TransactionReceipt {
         tx_hash: [1; 32],
         body_to_save: Some(b"tx-body".to_vec()),
         events: events(),
-        receipt: 0,
+        receipt: TxEffect::Successful(0),
         gas_used: vec![0, 1, u64::MAX],
     }];
 
@@ -124,7 +123,9 @@ impl LedgerTestService {
         add_data_to_ledger_db(&ledger_db).await?;
 
         let rpc_module =
-            rpc_module::<LedgerDb, u32, u32, RuntimeEventResponse<TestEvent>>(ledger_db.clone())?;
+            rpc_module::<LedgerDb, u32, TestTxReceiptContents, RuntimeEventResponse<TestEvent>>(
+                ledger_db.clone(),
+            )?;
 
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")
@@ -139,7 +140,7 @@ impl LedgerTestService {
             axum_server::Server::bind(addr)
                 .handle(axum_handle1)
                 .serve(
-                    LedgerRoutes::<LedgerDb, u32, u32, TestEvent>::axum_router(
+                    LedgerRoutes::<LedgerDb, u32, TestTxReceiptContents, TestEvent>::axum_router(
                         ledger_db1.clone(),
                         "/ledger",
                     )
@@ -168,8 +169,11 @@ impl LedgerTestService {
     pub async fn rpc_client(
         &self,
     ) -> Arc<
-        impl RpcClient<SlotResponse<u32, u32>, BatchResponse<u32, u32>, TxResponse<u32>>
-            + SubscriptionClientT,
+        impl RpcClient<
+                SlotResponse<u32, TestTxReceiptContents>,
+                BatchResponse<u32, TestTxReceiptContents>,
+                TxResponse<TestTxReceiptContents>,
+            > + SubscriptionClientT,
     > {
         Arc::new(
             jsonrpsee::ws_client::WsClientBuilder::new()
