@@ -16,7 +16,7 @@ pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
     CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint, WorkingSet,
 };
-use sov_modules_stf_blueprint::{Batch, BatchReceipt};
+use sov_modules_stf_blueprint::BatchReceipt;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::stf::TxReceiptContents;
 
@@ -109,12 +109,12 @@ pub fn simple_bank_setup(
 }
 
 pub fn new_test_blob_from_batch(
-    batch: BatchWithId,
+    batch_with_id: BatchWithId,
     address: &[u8],
     hash: [u8; 32],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
     let address = MockAddress::try_from(address).unwrap();
-    let data = Batch { txs: batch.txs }.try_to_vec().unwrap();
+    let data = batch_with_id.batch.try_to_vec().unwrap();
     MockBlob::new(data, address, hash)
 }
 

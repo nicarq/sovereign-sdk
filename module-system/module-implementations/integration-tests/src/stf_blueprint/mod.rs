@@ -10,7 +10,7 @@ use sov_modules_api::{
     Context, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray, KernelWorkingSet, PrivateKey, Spec,
     StateCheckpoint,
 };
-use sov_modules_stf_blueprint::TxEffect;
+use sov_modules_stf_blueprint::{Batch, TxEffect};
 use sov_rollup_interface::crypto::PublicKey;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
@@ -146,7 +146,7 @@ fn test_stf_internal_updates() {
 
     let blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: value_setter,
+            batch: Batch { txs: value_setter },
             id: [0; 32],
         },
         seq_da_addr.as_ref(),

@@ -4,6 +4,7 @@ use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
+use sov_modules_stf_blueprint::Batch;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
@@ -34,14 +35,16 @@ fn test_honest_unbonding() {
         test_handler.attester_stake
     );
 
+    let txs = AttesterIncentivesMessageGenerator::from(vec![(
+        test_handler.attester_private_key.clone(),
+        CallMessage::BeginUnbondingAttester,
+    )])
+    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
     // Let's unbond the attester.
     let attestation_blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: AttesterIncentivesMessageGenerator::from(vec![(
-                test_handler.attester_private_key.clone(),
-                CallMessage::BeginUnbondingAttester,
-            )])
-            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+            batch: Batch { txs },
             id: [1; 32],
         },
         test_handler.seq_da_addr.as_ref(),
@@ -69,7 +72,9 @@ fn test_honest_unbonding() {
     // Then we can finish the two phase unbonding process.
     let blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: test_handler.value_setter.clone(),
+            batch: Batch {
+                txs: test_handler.value_setter.clone(),
+            },
             id: [0; 32],
         },
         test_handler.seq_da_addr.as_ref(),
@@ -96,14 +101,16 @@ fn test_honest_unbonding() {
     let new_state_root =
         rollup.increase_and_commit_light_client_attested_height(ROLLUP_FINALITY_PERIOD);
 
+    let txs = AttesterIncentivesMessageGenerator::from(vec![(
+        test_handler.attester_private_key.clone(),
+        CallMessage::EndUnbondingAttester,
+    )])
+    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
     // Let's finish the unbonding process
     let attestation_blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: AttesterIncentivesMessageGenerator::from(vec![(
-                test_handler.attester_private_key.clone(),
-                CallMessage::EndUnbondingAttester,
-            )])
-            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+            batch: Batch { txs },
             id: [1; 32],
         },
         test_handler.seq_da_addr.as_ref(),
@@ -169,14 +176,16 @@ fn test_unbonding_without_bonded() {
         test_handle.attester_incentives_params(),
     );
 
+    let txs = AttesterIncentivesMessageGenerator::from(vec![(
+        test_handle.attester_private_key.clone(),
+        CallMessage::EndUnbondingAttester,
+    )])
+    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
     // Let's finish the unbonding process
     let attestation_blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: AttesterIncentivesMessageGenerator::from(vec![(
-                test_handle.attester_private_key.clone(),
-                CallMessage::EndUnbondingAttester,
-            )])
-            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+            batch: Batch { txs },
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),
@@ -219,14 +228,16 @@ fn test_premature_unbonding() {
         test_handle.attester_stake
     );
 
+    let txs = AttesterIncentivesMessageGenerator::from(vec![(
+        test_handle.attester_private_key.clone(),
+        CallMessage::BeginUnbondingAttester,
+    )])
+    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
     // Let's unbond the attester.
     let attestation_blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: AttesterIncentivesMessageGenerator::from(vec![(
-                test_handle.attester_private_key.clone(),
-                CallMessage::BeginUnbondingAttester,
-            )])
-            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+            batch: Batch { txs },
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),
@@ -264,14 +275,16 @@ fn test_premature_unbonding() {
         );
     }
 
+    let txs = AttesterIncentivesMessageGenerator::from(vec![(
+        test_handle.attester_private_key.clone(),
+        CallMessage::EndUnbondingAttester,
+    )])
+    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
     // Let's finish the unbonding process without waiting for the finality period to pass.
     let attestation_blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: AttesterIncentivesMessageGenerator::from(vec![(
-                test_handle.attester_private_key.clone(),
-                CallMessage::EndUnbondingAttester,
-            )])
-            .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+            batch: Batch { txs },
             id: [1; 32],
         },
         test_handle.seq_da_addr.as_ref(),

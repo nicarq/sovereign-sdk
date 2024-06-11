@@ -1,6 +1,6 @@
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{Context, Module};
 
@@ -23,7 +23,7 @@ fn end_batch_hook_slash() {
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
     let mut test_batch = BatchWithId {
-        txs: Vec::new(),
+        batch: Batch { txs: vec![] },
         id: [0u8; 32],
     };
 
@@ -66,7 +66,7 @@ fn end_batch_hook_slash_preferred_sequencer() {
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
     let mut test_batch = BatchWithId {
-        txs: Vec::new(),
+        batch: Batch { txs: vec![] },
         id: [0u8; 32],
     };
 
@@ -107,7 +107,7 @@ fn end_batch_hook_slash_unknown_sequencer() {
     let (test_sequencer, working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let mut test_batch = BatchWithId {
-        txs: Vec::new(),
+        batch: Batch { txs: vec![] },
         id: [0u8; 32],
     };
     let sequencer_address = MockAddress::from(UNKNOWN_SEQUENCER_DA_ADDRESS);
@@ -146,7 +146,7 @@ fn begin_batch_hook_without_enough_stake() {
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
     let mut test_blob = BatchWithId {
-        txs: vec![],
+        batch: Batch { txs: vec![] },
         id: [0; 32],
     };
 
@@ -246,7 +246,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let result = SequencerOutcome::Slashed;
 
     let mut test_blob = BatchWithId {
-        txs: vec![],
+        batch: Batch { txs: vec![] },
         id: hash,
     };
 

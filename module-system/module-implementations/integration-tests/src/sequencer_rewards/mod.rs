@@ -4,7 +4,7 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, ModuleInfo, Spec};
-use sov_modules_stf_blueprint::BatchSequencerOutcome;
+use sov_modules_stf_blueprint::{Batch, BatchSequencerOutcome};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -85,7 +85,7 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_
 
     let blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: value_setter,
+            batch: Batch { txs: value_setter },
             id: [0; 32],
         },
         seq_da_addr.as_ref(),

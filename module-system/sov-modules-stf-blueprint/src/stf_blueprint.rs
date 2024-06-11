@@ -136,13 +136,13 @@ where
     pub(crate) fn apply_batch(
         &self,
         mut checkpoint: StateCheckpoint<S>,
-        mut batch: BatchWithId,
+        mut batch_with_id: BatchWithId,
         sequencer_da_address: &Da::Address,
         gas_price: &<S::Gas as Gas>::Price,
         height: u64,
     ) -> (ApplyBatch, StateCheckpoint<S>, S::Gas) {
         debug!(
-            batch_id = hex::encode(batch.id),
+            batch_id = hex::encode(batch_with_id.id),
             sequencer_da_address = %sequencer_da_address,
             ?gas_price,
             "Applying a batch"
@@ -151,29 +151,29 @@ where
         // ApplyBlobHook: begin
         if let Err(e) =
             self.runtime
-                .begin_batch_hook(&mut batch, sequencer_da_address, &mut checkpoint)
+                .begin_batch_hook(&mut batch_with_id, sequencer_da_address, &mut checkpoint)
         {
             error!(
                 error = %e,
-                batch_id = hex::encode(batch.id),
+                batch_id = hex::encode(batch_with_id.id),
                 "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer",
             );
 
             return (
-                Err(ApplyBatchError::Ignored(batch.id)),
+                Err(ApplyBatchError::Ignored(batch_with_id.id)),
                 checkpoint,
                 S::Gas::zero(),
             );
         }
 
-        let raw_txs = batch.txs;
+        let raw_txs = batch_with_id.batch.txs;
 
         let mut tx_receipts = Vec::with_capacity(raw_txs.len());
         let mut gas_used = S::Gas::zero();
         let mut accumulated_reward = SequencerReward::ZERO;
 
         debug!(
-            batch_id = hex::encode(batch.id),
+            batch_id = hex::encode(batch_with_id.id),
             txs_num = raw_txs.len(),
             "Verifying & executing transactions"
         );
@@ -221,7 +221,7 @@ where
 
                             return (
                                 Err(ApplyBatchError::Slashed {
-                                    hash: batch.id,
+                                    hash: batch_with_id.id,
                                     reason: err,
                                     tx_receipts,
                                     gas_price: gas_price.to_vec(),
@@ -279,7 +279,7 @@ where
 
         (
             Ok(BatchReceipt {
-                batch_hash: batch.id,
+                batch_hash: batch_with_id.id,
                 tx_receipts,
                 inner: sequencer_outcome,
                 gas_price: gas_price.to_vec(),

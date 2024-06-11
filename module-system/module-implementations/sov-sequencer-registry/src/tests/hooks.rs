@@ -1,5 +1,5 @@
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::hooks::ApplyBatchHooks;
 
 use crate::tests::helpers::{
@@ -24,7 +24,7 @@ fn begin_batch_hook_known_sequencer() {
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
     let mut test_batch = BatchWithId {
-        txs: Vec::new(),
+        batch: Batch { txs: vec![] },
         id: [0u8; 32],
     };
 
@@ -54,7 +54,7 @@ fn begin_batch_hook_unknown_sequencer() {
     let (test_sequencer, working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
 
     let mut test_batch = BatchWithId {
-        txs: Vec::new(),
+        batch: Batch { txs: vec![] },
         id: [0u8; 32],
     };
 
@@ -83,7 +83,7 @@ fn end_batch_hook_success() {
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
     let mut test_batch = BatchWithId {
-        txs: Vec::new(),
+        batch: Batch { txs: Vec::new() },
         id: [0u8; 32],
     };
 
