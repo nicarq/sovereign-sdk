@@ -60,7 +60,7 @@ impl BlobReaderTrait for BlobWithSender {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, PartialOrd, Ord, Clone, Eq, Hash, Serialize, Deserialize)]
 // Important: #[repr(transparent)] is required for safety as long as we're using
 // std::mem::transmute to implement AsRef<TmHash> for tendermint::Hash
 #[repr(transparent)]
