@@ -1,5 +1,7 @@
 use std::fs;
 
+use sov_modules_macros::config_value;
+
 use crate::{clap, CliWallet};
 
 pub trait CliFrontEnd<RT>
@@ -38,7 +40,7 @@ pub struct JsonStringArg {
     pub json: String,
 
     /// The chain ID of the transaction.
-    #[arg(long, help = "The chain ID of the transaction.")]
+    #[arg(long, help = "The chain ID of the transaction.", default_value_t = config_value!("CHAIN_ID"))]
     pub chain_id: u64,
 
     /// the gas tip for the sequencer.
@@ -81,7 +83,7 @@ pub struct FileNameArg {
     pub path: String,
 
     /// The chain ID of the transaction.
-    #[arg(long, help = "The chain ID of the transaction.")]
+    #[arg(long, help = "The chain ID of the transaction.", default_value_t = config_value!("CHAIN_ID"))]
     pub chain_id: u64,
 
     /// the gas tip for the sequencer.
