@@ -1,12 +1,14 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use celestia_rpc::prelude::*;
-use celestia_types::blob::{Blob as JsonBlob, SubmitOptions};
+use celestia_types::blob::Blob as JsonBlob;
 use celestia_types::consts::appconsts::{
     CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, FIRST_SPARSE_SHARE_CONTENT_SIZE, SHARE_SIZE,
 };
 use celestia_types::nmt::Namespace;
+use celestia_types::state::Uint;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
@@ -20,7 +22,7 @@ use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
 use crate::utils::BoxError;
 use crate::verifier::address::CelestiaAddress;
 use crate::verifier::proofs::{self};
-use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, PFB_NAMESPACE};
+use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, TmHash, PFB_NAMESPACE};
 use crate::CelestiaHeader;
 
 // https://github.com/celestiaorg/celestia-app/blob/c90e61d5a2d0c0bd0e123df4ab416f6f0d141b7f/pkg/appconsts/initial_consts.go#L16-L18
@@ -74,6 +76,46 @@ impl CelestiaService {
             rollup_batch_namespace,
             rollup_proof_namespace,
         }
+    }
+
+    async fn submit_blob_to_namespace(
+        &self,
+        blob: &[u8],
+        fee: CelestiaFee,
+        namespace: Namespace,
+    ) -> anyhow::Result<TmHash> {
+        let bytes = blob.len();
+        debug!(bytes, ?fee, ?namespace, "Sending raw data to Celestia");
+
+        let blob = JsonBlob::new(namespace, blob.to_vec())?;
+        info!(
+            commitment = hex::encode(blob.commitment.0),
+            ?fee,
+            bytes,
+            "Submitting a blob"
+        );
+
+        let tx_response = self
+            .client
+            .lock()
+            .await
+            .state_submit_pay_for_blob(fee.get_fee(), fee.gas_limit, &[blob])
+            .await?;
+
+        let tx_hash = TmHash(
+            tendermint::Hash::from_str(&tx_response.txhash)
+                .expect("Failed to decode hash from `TxResponse`"),
+        );
+
+        info!(
+            height = tx_response.height,
+            tx_hash = ?tx_hash,
+            gas_used = %tx_response.gas_used,
+            gas_wanted = %tx_response.gas_wanted,
+            code = %tx_response.code,
+            "Blob has been submitted to Celestia"
+        );
+        Ok(tx_hash)
     }
 }
 
@@ -153,14 +195,11 @@ impl CelestiaFee {
             gas_limit: get_gas_limit_for_bytes_as_in_golang(blob_size) as u64,
         }
     }
-}
 
-impl From<CelestiaFee> for SubmitOptions {
-    fn from(fee: CelestiaFee) -> Self {
-        SubmitOptions {
-            fee: Some((fee.gas_limit.saturating_mul(fee.fee_per_gas)) / 1000), // divide by 1000 to convert to the expected uTIA
-            gas_limit: Some(fee.gas_limit),
-        }
+    /// Get full fee in uTIA
+    pub(crate) fn get_fee(&self) -> Uint {
+        // divide by 1000 to convert to the expected uTIA
+        Uint::from((self.gas_limit.saturating_mul(self.fee_per_gas)) / GAS_PRICE_NANO_TIA)
     }
 }
 
@@ -188,7 +227,7 @@ impl DaService for CelestiaService {
 
     type FilteredBlock = FilteredCelestiaBlock;
     type HeaderStream = BoxStream<'static, anyhow::Result<CelestiaHeader>>;
-    type TransactionId = ();
+    type TransactionId = TmHash;
     type Error = BoxError;
     type Fee = CelestiaFee;
 
@@ -300,7 +339,7 @@ impl DaService for CelestiaService {
         };
 
         let proof = {
-            // Note: The second call to new_inclusion_proof merklizes and parse the exectuable transactions namespace again.
+            // Note: The second call to new_inclusion_proof merklizes and parse the executable transactions namespace again.
             let inclusion_proof = proofs::new_inclusion_proof(
                 &block.header,
                 &block.pfb_rows,
@@ -317,43 +356,24 @@ impl DaService for CelestiaService {
         RelevantProofs { proof, batch }
     }
 
-    async fn send_transaction(&self, blob: &[u8], fee: Self::Fee) -> Result<(), Self::Error> {
-        let bytes = blob.len();
-        debug!(bytes = bytes, "Sending raw data to Celestia");
-
-        let blob = JsonBlob::new(self.rollup_batch_namespace, blob.to_vec())?;
-        info!(
-            commitment = hex::encode(blob.commitment.0),
-            ?fee,
-            bytes,
-            "Submitting a blob"
-        );
-
-        let height = self
-            .client
-            .lock()
+    async fn send_transaction(
+        &self,
+        blob: &[u8],
+        fee: Self::Fee,
+    ) -> Result<Self::TransactionId, Self::Error> {
+        debug!("Submitting batch of transactions to Celestia");
+        self.submit_blob_to_namespace(blob, fee, self.rollup_batch_namespace)
             .await
-            .blob_submit(&[blob], fee.into())
-            .await?;
-        info!(height, "Blob has been submitted to Celestia");
-        Ok(())
     }
 
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof: &[u8],
         fee: Self::Fee,
-    ) -> Result<(), Self::Error> {
-        let blob = JsonBlob::new(self.rollup_proof_namespace, aggregated_proof.to_vec())?;
-
-        let _height = self
-            .client
-            .lock()
+    ) -> Result<Self::TransactionId, Self::Error> {
+        debug!("Submitting aggregated proof to Celestia");
+        self.submit_blob_to_namespace(aggregated_proof, fee, self.rollup_proof_namespace)
             .await
-            .blob_submit(&[blob], fee.into())
-            .await?;
-
-        Ok(())
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
@@ -457,6 +477,7 @@ mod tests {
     use std::time::Duration;
 
     use celestia_types::nmt::Namespace;
+    use celestia_types::state::Uint;
     use celestia_types::Blob as JsonBlob;
     use serde_json::json;
     use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier, RelevantBlobs};
@@ -534,26 +555,37 @@ mod tests {
         let expected_body = json!({
             "id": 0,
             "jsonrpc": "2.0",
-            "method": "blob.Submit",
+            "method": "state.SubmitPayForBlob",
             "params": [
+                Uint::from(gas_limit * (GAS_PRICE_NANO_TIA / 1000) as usize),
+                gas_limit,
                 [JsonBlob::new(rollup_params.rollup_batch_namespace, blob.to_vec()).unwrap()],
-                {
-                    "GasLimit": gas_limit,
-                    "Fee": (gas_limit * (GAS_PRICE_NANO_TIA / 1000) as usize),
-                },
             ]
         });
-
         Mock::given(method("POST"))
             .and(path("/"))
             .and(bearer_token(config.celestia_rpc_auth_token))
             .and(body_json(&expected_body))
             .respond_with(|req: &Request| {
                 let request: BasicJsonRpcRequest = serde_json::from_slice(&req.body).unwrap();
+                // Empty strings is what was observed with actual celestia 0.12.0
                 let response_json = json!({
                     "jsonrpc": "2.0",
                     "id": request.id,
-                    "result": 14, // just some block-height
+                    "result": {
+                        "height": 30497,
+                        "txhash": "05D9016060072AA71B007A6CFB1B895623192D6616D513017964C3BFCD047282",
+                        "codespace": "",
+                        "code": 0,
+                        "data": "12260A242F636F736D6F732E62616E6B2E763162657461312E4D736753656E64526573706F6E7365",
+                        "raw_log": "[]",
+                        "logs": [],
+                        "info": "",
+                        "gas_wanted": 10000000,
+                        "gas_used": 69085,
+                        "timestamp": "",
+                        "events": [],
+                    }
                 });
 
                 ResponseTemplate::new(200)
@@ -643,9 +675,6 @@ mod tests {
     }
 
     #[tokio::test]
-    // This test is slow now, but it can be fixed when
-    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/478 is implemented
-    // Slower request timeout can be set
     async fn test_submit_blob_response_timeout() -> anyhow::Result<()> {
         let timeout = 1;
         let (mock_server, _config, da_service, _namespace) =
@@ -660,10 +689,8 @@ mod tests {
                 "gas_used": 70522,
                 "gas_wanted": 133540,
                 "height": 26,
-                "logs":  [
-                   "some log"
-                ],
-                "raw_log": "some raw logs",
+                "logs":  [],
+                "raw_log": "",
                 "txhash": "C9FEFD6D35FCC73F9E7D5C74E1D33F0B7666936876F2AD75E5D0FB2944BFADF2"
             }
         });
@@ -737,7 +764,7 @@ mod tests {
             proof_blobs: Default::default(),
             batch_blobs: Default::default(),
         };
-        // give verifier empty txs list
+        // give to verifier an empty transactions list
         let error = verifier
             .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap_err();
@@ -863,13 +890,11 @@ mod tests {
         let expected_body = json!({
             "id": 0,
             "jsonrpc": "2.0",
-            "method": "blob.Submit",
+            "method": "state.SubmitPayForBlob",
             "params": [
+                Uint::from(gas_limit * (GAS_PRICE_NANO_TIA / 1000) as usize),
+                gas_limit,
                 [JsonBlob::new(rollup_params.rollup_proof_namespace, zk_proof.to_vec()).unwrap()],
-                {
-                    "GasLimit": gas_limit,
-                    "Fee": gas_limit * (GAS_PRICE_NANO_TIA / 1000) as usize, // convert to utia
-                },
             ]
         });
 
@@ -882,7 +907,20 @@ mod tests {
                 let response_json = json!({
                     "jsonrpc": "2.0",
                     "id": request.id,
-                    "result": 14, // just some block-height
+                    "result": {
+                        "height": 30497,
+                        "txhash": "05D9016060072AA71B007A6CFB1B895623192D6616D513017964C3BFCD047282",
+                        "codespace": "",
+                        "code": 0,
+                        "data": "12260A242F636F736D6F732E62616E6B2E763162657461312E4D736753656E64526573706F6E7365",
+                        "raw_log": "[]",
+                        "logs": [],
+                        "info": "",
+                        "gas_wanted": 10000000,
+                        "gas_used": 69085,
+                        "timestamp": "",
+                        "events": [],
+                     }
                 });
 
                 ResponseTemplate::new(200)

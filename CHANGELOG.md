@@ -2,6 +2,7 @@
 - #789 Changes the Transaction receipt type to include the reason a transaction was skipped or reverted. Consumers of the API should now use the `sov_stf_blueprint::TxEffect` as the `TxReceipt` return type for ledger RPC queries.
 - #790 Simplify `BlobSelector` code.
 - #753 updates default `max_fee` in `sov-cli` to `10_000` (from previous value of `0`)
+- #791 adds `Self::TransactionId` to `DaService::send_aggregated_zk_proof`.
 - #787 split capabilities into separate modules.
 - #770 enforces that transactions are set with the correct chain ID. To get the ID, use `config_value!("CHAIN_ID")`. 
 
