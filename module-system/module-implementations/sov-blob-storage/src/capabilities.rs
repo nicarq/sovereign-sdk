@@ -53,7 +53,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             if let Some(batch) = self.deserialize_or_slash_sender::<Batch>(blob, state.inner) {
                 batches.push((
                     BatchWithId {
-                        txs: batch.txs,
+                        batch,
                         id: blob.hash(),
                     },
                     blob.sender(),
@@ -223,7 +223,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                 if let Some(batch) = batch {
                     new_forced_blobs.push((
                         BatchWithId {
-                            txs: batch.txs,
+                            batch,
                             id: blob.hash(),
                         },
                         blob.sender(),
@@ -246,7 +246,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                 .set(&next_sequence_number.saturating_add(1), state);
 
             let first_batch = BatchWithId {
-                txs: preferred_batch.inner.txs,
+                batch: preferred_batch.inner.batch,
                 id: preferred_batch.id,
             };
 

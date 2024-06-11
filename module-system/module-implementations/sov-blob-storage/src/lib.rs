@@ -4,9 +4,8 @@ mod capabilities;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::{
     KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, ModuleId, StateCheckpoint,
     StateMap,
@@ -100,8 +99,7 @@ pub struct PreferredBatch {
     /// The sequence number of the batch. The rollup attempts to process batches in order by sequence number.
     pub sequence_number: u64,
     /// The actual transactions of the batch
-    pub txs: Vec<RawTx>,
-
+    pub batch: Batch,
     /// The number of virtual slots to advance after processing the batch. Minimum 1.
     pub virtual_slots_to_advance: u8,
 }

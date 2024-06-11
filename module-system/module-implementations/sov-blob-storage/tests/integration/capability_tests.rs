@@ -76,19 +76,23 @@ fn make_blobs(
                 SequencerInfo::Preferred {
                     slots_to_advance,
                     sequence_number,
-                } => MockBlob::new(
-                    PreferredBatch {
-                        txs: vec![RawTx {
-                            data: vec![*blob_num],
-                        }],
-                        sequence_number,
-                        virtual_slots_to_advance: slots_to_advance as u8,
-                    }
-                    .try_to_vec()
-                    .unwrap(),
-                    PREFERRED_SEQUENCER_DA,
-                    [*blob_num + offset as u8; 32],
-                ),
+                } => {
+                    let txs = vec![RawTx {
+                        data: vec![*blob_num],
+                    }];
+
+                    MockBlob::new(
+                        PreferredBatch {
+                            batch: Batch { txs },
+                            sequence_number,
+                            virtual_slots_to_advance: slots_to_advance as u8,
+                        }
+                        .try_to_vec()
+                        .unwrap(),
+                        PREFERRED_SEQUENCER_DA,
+                        [*blob_num + offset as u8; 32],
+                    )
+                }
                 SequencerInfo::Regular => make_blob(
                     vec![*blob_num],
                     REGULAR_SEQUENCER_DA,
@@ -719,7 +723,7 @@ fn assert_blob_matches_batch<B: BlobReaderTrait>(
     if is_preferred {
         assert_eq!(expected.hash(), actual.0.id);
         let expected = PreferredBatch::try_from_slice(expected.full_data()).unwrap();
-        assert_eq!(expected.txs, actual.0.txs);
+        assert_eq!(expected.batch, actual.0.batch);
     } else {
         let mut actual_inner = new_test_blob_from_batch(actual.0, actual.1.as_ref(), actual_id);
         assert_eq!(

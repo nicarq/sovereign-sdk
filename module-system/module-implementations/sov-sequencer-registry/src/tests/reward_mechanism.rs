@@ -1,6 +1,6 @@
 use borsh::BorshSerialize;
 use sov_bank::{IntoPayable, Payable, ReserveGasError};
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::PriorityFeeBips;
@@ -41,11 +41,12 @@ fn test_reward_sequencer() {
 
     let mut checkpoint = working_set.checkpoint().0;
 
+    let txs = vec![RawTx {
+        data: tx.try_to_vec().unwrap(),
+    }];
     // Execute the begin batch hook
     let mut batch_test = BatchWithId {
-        txs: vec![RawTx {
-            data: tx.try_to_vec().unwrap(),
-        }],
+        batch: Batch { txs },
         id: [0; 32],
     };
 

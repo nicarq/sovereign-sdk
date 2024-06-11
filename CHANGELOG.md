@@ -1,3 +1,4 @@
+- #796 Reuse Batch struct in BatchWithId & PreferredBatch.
 - #789 Changes the Transaction receipt type to include the reason a transaction was skipped or reverted. Consumers of the API should now use the `sov_stf_blueprint::TxEffect` as the `TxReceipt` return type for ledger RPC queries.
 - #790 Simplify `BlobSelector` code.
 - #753 updates default `max_fee` in `sov-cli` to `10_000` (from previous value of `0`)

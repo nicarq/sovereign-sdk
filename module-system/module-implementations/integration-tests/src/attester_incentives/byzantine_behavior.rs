@@ -5,7 +5,7 @@ use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Gas, GasArray, Spec, StateTransitionPublicData, WorkingSet};
-use sov_modules_stf_blueprint::TxEffect;
+use sov_modules_stf_blueprint::{Batch, TxEffect};
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
@@ -58,15 +58,15 @@ impl AttesterIncentivesTestHandler {
             },
         };
 
+        let txs = AttesterIncentivesMessageGenerator::from(vec![(
+            self.attester_private_key.clone(),
+            CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(fake_attestation)),
+        )])
+        .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
         let fake_attestation_blob = new_test_blob_from_batch(
             BatchWithId {
-                txs: AttesterIncentivesMessageGenerator::from(vec![(
-                    self.attester_private_key.clone(),
-                    CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(
-                        fake_attestation,
-                    )),
-                )])
-                .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+                batch: Batch { txs },
                 id: [1; 32],
             },
             self.seq_da_addr.as_ref(),
@@ -127,20 +127,22 @@ impl AttesterIncentivesTestHandler {
 
         let proof = MockZkvm::create_serialized_proof(true, transition);
 
+        let txs = AttesterIncentivesMessageGenerator::from(vec![
+            (
+                self.challenger_private_key.clone(),
+                CallMessage::BondChallenger::<S, Da>(self.challenger_stake),
+            ),
+            (
+                self.challenger_private_key.clone(),
+                CallMessage::ProcessChallenge(proof, 1),
+            ),
+        ])
+        .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
         // The challenger has to bond first, then he can send the attestation.
         let challenger_bond_blob = new_test_blob_from_batch(
             BatchWithId {
-                txs: AttesterIncentivesMessageGenerator::from(vec![
-                    (
-                        self.challenger_private_key.clone(),
-                        CallMessage::BondChallenger::<S, Da>(self.challenger_stake),
-                    ),
-                    (
-                        self.challenger_private_key.clone(),
-                        CallMessage::ProcessChallenge(proof, 1),
-                    ),
-                ])
-                .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+                batch: Batch { txs },
                 id: [2; 32],
             },
             self.seq_da_addr.as_ref(),

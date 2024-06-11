@@ -3,7 +3,9 @@ use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{ApiStateAccessor, PrivateKey, PublicKey, Spec, WorkingSet};
-use sov_modules_stf_blueprint::{BatchSequencerOutcome, SkippedReason, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{
+    Batch, BatchSequencerOutcome, SkippedReason, StfBlueprint, TxEffect,
+};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
@@ -57,7 +59,10 @@ fn test_tx_revert() {
 
         let txs = simulate_da_with_revert_msg(admin_key.clone());
         let blob = new_test_blob_from_batch(
-            BatchWithId { txs, id: [0; 32] },
+            BatchWithId {
+                batch: Batch { txs },
+                id: [0; 32],
+            },
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
@@ -172,7 +177,10 @@ fn test_tx_bad_signature() {
         let txs = simulate_da_with_bad_sig(admin_key.clone());
 
         let blob = new_test_blob_from_batch(
-            BatchWithId { txs, id: [0; 32] },
+            BatchWithId {
+                batch: Batch { txs },
+                id: [0; 32],
+            },
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
@@ -274,7 +282,10 @@ fn test_tx_bad_nonce() {
         let txs = simulate_da_with_bad_nonce(admin_key);
 
         let blob = new_test_blob_from_batch(
-            BatchWithId { txs, id: [0; 32] },
+            BatchWithId {
+                batch: Batch { txs },
+                id: [0; 32],
+            },
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
@@ -388,7 +399,10 @@ fn test_tx_bad_serialization() {
 
         let txs = simulate_da_with_bad_serialization(admin_key.clone());
         let blob = new_test_blob_from_batch(
-            BatchWithId { txs, id: [0; 32] },
+            BatchWithId {
+                batch: Batch { txs },
+                id: [0; 32],
+            },
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );

@@ -4,7 +4,7 @@ use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{ApiStateAccessor, Spec};
-use sov_modules_stf_blueprint::{BatchSequencerOutcome, StfBlueprint};
+use sov_modules_stf_blueprint::{Batch, BatchSequencerOutcome, StfBlueprint};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -45,7 +45,10 @@ fn test_demo_values_in_db() {
 
         let txs = simulate_da(admin_private_key);
         let blob = new_test_blob_from_batch(
-            BatchWithId { txs, id: [0; 32] },
+            BatchWithId {
+                batch: Batch { txs },
+                id: [0; 32],
+            },
             &MOCK_SEQUENCER_DA_ADDRESS,
             [0; 32],
         );
@@ -128,7 +131,10 @@ fn test_demo_values_in_cache() {
     let txs = simulate_da(admin_private_key);
 
     let blob = new_test_blob_from_batch(
-        BatchWithId { txs, id: [0; 32] },
+        BatchWithId {
+            batch: Batch { txs },
+            id: [0; 32],
+        },
         &MOCK_SEQUENCER_DA_ADDRESS,
         [0; 32],
     );
@@ -211,7 +217,14 @@ fn test_sequencer_unknown_sequencer() {
 
     let private_key = read_private_keys::<TestSpec>().tx_signer.private_key;
     let txs = simulate_da(private_key);
-    let blob = new_test_blob_from_batch(BatchWithId { txs, id: [0; 32] }, &some_sequencer, [0; 32]);
+    let blob = new_test_blob_from_batch(
+        BatchWithId {
+            batch: Batch { txs },
+            id: [0; 32],
+        },
+        &some_sequencer,
+        [0; 32],
+    );
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),

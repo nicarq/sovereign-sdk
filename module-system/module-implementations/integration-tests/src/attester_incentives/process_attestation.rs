@@ -5,7 +5,7 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
-use sov_modules_stf_blueprint::TxEffect;
+use sov_modules_stf_blueprint::{Batch, TxEffect};
 use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::auth::TestAuth;
@@ -89,13 +89,15 @@ impl AttesterIncentivesTestHandler {
             },
         };
 
+        let txs = AttesterIncentivesMessageGenerator::from(vec![(
+            self.attester_private_key.clone(),
+            CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(attestation)),
+        )])
+        .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
         let attestation_blob = new_test_blob_from_batch(
             BatchWithId {
-                txs: AttesterIncentivesMessageGenerator::from(vec![(
-                    self.attester_private_key.clone(),
-                    CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(attestation)),
-                )])
-                .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+                batch: Batch { txs },
                 id: [1; 32],
             },
             self.seq_da_addr.as_ref(),
@@ -221,23 +223,21 @@ impl AttesterIncentivesTestHandler {
             },
         };
 
+        let txs = AttesterIncentivesMessageGenerator::from(vec![
+            (
+                self.attester_private_key.clone(),
+                CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(fst_attestation)),
+            ),
+            (
+                self.attester_private_key.clone(),
+                CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(snd_attestation)),
+            ),
+        ])
+        .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+
         let attestation_blob = new_test_blob_from_batch(
             BatchWithId {
-                txs: AttesterIncentivesMessageGenerator::from(vec![
-                    (
-                        self.attester_private_key.clone(),
-                        CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(
-                            fst_attestation,
-                        )),
-                    ),
-                    (
-                        self.attester_private_key.clone(),
-                        CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(
-                            snd_attestation,
-                        )),
-                    ),
-                ])
-                .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+                batch: Batch { txs },
                 id: [2; 32],
             },
             self.seq_da_addr.as_ref(),

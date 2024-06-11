@@ -3,7 +3,7 @@ use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint, WorkingSet};
-use sov_modules_stf_blueprint::BatchSequencerOutcome;
+use sov_modules_stf_blueprint::{Batch, BatchSequencerOutcome};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -52,7 +52,7 @@ fn test_simple_value_setter_with_chain_state() {
 
     let blob = new_test_blob_from_batch(
         BatchWithId {
-            txs: value_setter,
+            batch: Batch { txs: value_setter },
             id: [0; 32],
         },
         seq_da_addr.as_ref(),
