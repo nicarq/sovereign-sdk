@@ -36,6 +36,7 @@ sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-metrics = { path = "../sov-metrics" }
 
 [dev-dependencies]
+backon = { workspace = true }
 tempfile = { workspace = true }
 sha2 = { workspace = true }
 

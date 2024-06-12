@@ -16,6 +16,7 @@ use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
+use sov_rollup_interface::services::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::SequencerDb;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
@@ -40,7 +41,7 @@ where
 
 #[async_trait]
 impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
-    type DaService = MockDaService;
+    type DaService = DaServiceWithRetries<MockDaService>;
     type DaConfig = MockDaConfig;
     type InnerZkvmHost = Risc0Host<'static>;
     type OuterZkvmHost = MockZkvm;
@@ -105,7 +106,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         &self,
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Self::DaService {
-        MockDaService::from_config(rollup_config.da.clone())
+        DaServiceWithRetries::new_fast(MockDaService::from_config(rollup_config.da.clone()))
     }
 
     async fn create_prover_service(

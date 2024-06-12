@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use backon::ExponentialBuilder;
 use demo_stf::authentication::ModAuth;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
@@ -16,6 +17,7 @@ use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
+use sov_rollup_interface::services::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::Zkvm;
 use sov_sequencer::SequencerDb;
@@ -43,7 +45,7 @@ where
 
 #[async_trait]
 impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
-    type DaService = CelestiaService;
+    type DaService = DaServiceWithRetries<CelestiaService>;
     type DaConfig = CelestiaConfig;
 
     type InnerZkvmHost = Risc0Host<'static>;
@@ -111,14 +113,19 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         &self,
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Self::DaService {
-        CelestiaService::new(
-            rollup_config.da.clone(),
-            RollupParams {
-                rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
-                rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
-            },
+        DaServiceWithRetries::with_exponential_backoff(
+            CelestiaService::new(
+                rollup_config.da.clone(),
+                RollupParams {
+                    rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
+                    rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
+                },
+            )
+            .await,
+            // NOTE: Current exponential backoff policy defaults:
+            // jitter: false, factor: 2, min_delay: 1s, max_delay: 60s, max_times: 3,
+            ExponentialBuilder::default(),
         )
-        .await
     }
 
     async fn create_prover_service(

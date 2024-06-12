@@ -4,17 +4,20 @@
 - #753 updates default `max_fee` in `sov-cli` to `10_000` (from previous value of `0`)
 - #791 adds `Self::TransactionId` to `DaService::send_aggregated_zk_proof`.
 - #787 split capabilities into separate modules.
-- #770 enforces that transactions are set with the correct chain ID. To get the ID, use `config_value!("CHAIN_ID")`. 
+- #770 enforces that transactions are set with the correct chain ID. To get the ID, use `config_value!("CHAIN_ID")`.
 
 - #775 adds a couple of custom error types that will be useful to allow using the `try` pattern within the module system to automatically convert errors into `anyhow::Error`. Meaningful changes:
   - Adding a custom `GasMeteringError` enum that describes the possible causes for error inside the `GasMeter` trait methods
   - Adding a custom `StateAccessorError` enum that describes the situations where accessing the state might fail.
   - Adding the `std::error::Error + Send + Sync` bounds to the associated `Error` type in `StateReader` and `StateWriter` (this allows automatic conversion to `anyhow::Error`
-- #766 modifies the RPC interface to accept an `ApiStateAccessor` instead of a `WorkingSet` to prepare the full integration of the gas metering for state accesses. In particular this commit changes the `RPC` macro to accept an `ApiStateAccessor` instead of a `WorkingSet` as an argument to the rpc methods. 
+- #766 modifies the RPC interface to accept an `ApiStateAccessor` instead of a `WorkingSet` to prepare the full integration of the gas metering for state accesses. In particular this commit changes the `RPC` macro to accept an `ApiStateAccessor` instead of a `WorkingSet` as an argument to the rpc methods.
 - #726 adds Swagger UI -an OpenApi playground- as an endpoint defined inside `sov_modules_stf_blueprint::Runtime::endpoint`.
 - #743 adds metered state accessor traits to the `sov-modules-api/state` module.
 - #764 changes notifications logic, so ledger notifications arrive after state has been completely updated.
 - #750 moves `RuntimeAuthenticator, RuntimeAuthorization, and Authenticator` to a separate file in the capabilities module.
+- #751 adds `DaServiceWithRetries` wrapper.
+   - To use it, make sure your `DaService::Error` type is `MaybeRetryable<anyhow::Error>`. You can then wrap your `DaService` in `DaServiceWithRetries` whilst providing a policy for exponential retries via: `DaServiceWithRetries::with_exponential_backoff(<da-service>, <exponential-backoff-policy>)`. This wrapped `DaService` can then be used normally as a `DaService` anywhere.
+   - Use the `MaybeRetryable` return type in your `DaService` to indicate whether a fallibe function maybe retried or not, by returning either `MaybeRetryable::Transient(e)` if you want your functions to be retried in the case of errors, or `MaybeRetryable::Permanent(e)` if you don't want them to be retried.
 - #749 makes the rollup generic over the `AuthorizationData` type.
 - #742 moves the scratchpad and the state into a submodule of the sov-modules-api and breaks these files into smaller components to make the complexity more manageable.
 - #730 Splits `RollupBlueprint` into two traits: `FullNodeBlueprint` and `RollupBlueprint` and feature gates the full-node blueprint behind the `"native"` feature flag. It also reduces the number of required types for the `RollupBlueprint` by making it generic over execution mode. See the diff of `celestia_rollup.rs` for a complete example of a migration.
@@ -63,7 +66,7 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
 - #673 Removes `std` feature from `rollup-interface` and `no_std` support. usage of `sov_rollup_interface::maybestd` should be changed back to `std`.
 - #680 Extends sov-cli:
     - Adds new optional boolean parameter to `submit-batch`, that tells sov-cli to wait for batch to be processed by full node
-    - set url now expects second parameter for REST API endpoint. 
+    - set url now expects second parameter for REST API endpoint.
 - #663 Modifies the interface of traits `RuntimeAuthenticator` and `RuntimeAuthorization`. Associated types `Tx` and `Gas` have been removed. `RuntimeAuthenticator` is now generic over `S: Spec`. Methods' type signatures have been slightly modified; please see `examples/demo-rollup/stf/src/authentication.rs` for an example on the new usage.
 - #633 Deprecate `sov-modules-core`, move definitions into `sov-modules-api` & `sov-state`
 - #664 removes the `Transaction` wrapping in `sov-ethereum` for EVM transactions. This is a breaking change for consumers of the SDK. See `RuntimeAuthenticator::authenticate`.

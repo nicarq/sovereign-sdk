@@ -779,6 +779,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "backon"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d67782c3f868daa71d3533538e98a8e13713231969def7536e8039606fc46bf0"
+dependencies = [
+ "fastrand 2.1.0",
+ "futures-core",
+ "pin-project",
+ "tokio",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7350,6 +7362,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "backon",
  "bincode",
  "borsh 0.10.3",
  "clap",
@@ -7882,6 +7895,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "async-trait",
+ "backon",
  "borsh 0.10.3",
  "bytes",
  "digest 0.10.7",
@@ -7896,6 +7910,7 @@ dependencies = [
  "sov-rollup-interface",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -8016,6 +8031,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "backon",
  "borsh 0.10.3",
  "derivative",
  "futures",

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService};
+use sov_rollup_interface::services::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_stf_runner::InitVariant;
 use tokio::task::JoinHandle;
@@ -123,7 +124,9 @@ fn spawn(
         genesis_params: vec![1],
     };
 
-    let da_service = Arc::new(MockDaService::new(MockAddress::new([11u8; 32])));
+    let da_service = Arc::new(DaServiceWithRetries::new_fast(MockDaService::new(
+        MockAddress::new([11u8; 32]),
+    )));
 
     let (mut runner, test_node) = initialize_runner(
         da_service,

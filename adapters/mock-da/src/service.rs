@@ -8,7 +8,7 @@ use futures::StreamExt;
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaProof, DaSpec, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::services::da::{DaService, Fee, SlotData};
+use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable, SlotData};
 use tokio::sync::{broadcast, Mutex, RwLock};
 use tokio::time;
 use tracing::debug;
@@ -179,7 +179,7 @@ impl MockDaService {
         for blob in tx_blobs {
             let batch_blob = self.make_blob(blob.to_vec());
             let proof_blob = self.make_blob(Default::default());
-            let _ = self.add_block(batch_blob, vec![proof_blob], &mut blocks)?;
+            let _ = self.add_block(batch_blob, vec![proof_blob], &mut blocks);
         }
 
         Ok(())
@@ -254,7 +254,7 @@ impl MockDaService {
         batch_blob: MockBlob,
         proof_blob: Vec<MockBlob>,
         blocks: &mut VecDeque<MockBlock>,
-    ) -> anyhow::Result<u64> {
+    ) -> u64 {
         let block = self.make_new_block(batch_blob, proof_blob, blocks);
 
         let height = block.header.height;
@@ -271,7 +271,7 @@ impl MockDaService {
                 .unwrap();
         }
 
-        Ok(height)
+        height
     }
 
     /// Executes planned fork if it is planned at given height
@@ -326,9 +326,9 @@ impl DaService for MockDaService {
     type Spec = MockDaSpec;
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
-    type HeaderStream = BoxStream<'static, anyhow::Result<MockBlockHeader>>;
+    type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
     type TransactionId = ();
-    type Error = anyhow::Error;
+    type Error = MaybeRetryable<anyhow::Error>;
     type Fee = MockFee;
 
     /// Gets block at given height
@@ -341,18 +341,23 @@ impl DaService for MockDaService {
         }
 
         // Fork logic
-        self.planned_fork_handler(height).await?;
+        self.planned_fork_handler(height)
+            .await
+            .map_err(MaybeRetryable::Transient)?;
         // Block until there's something
-        self.wait_for_height(height).await?;
+        self.wait_for_height(height)
+            .await
+            .map_err(MaybeRetryable::Transient)?;
         // Locking blocks here, so submissions has to wait
         let blocks = self.blocks.write().await;
         let oldest_available_height = blocks[0].header.height;
-        let index = height
-            .checked_sub(oldest_available_height)
-            .ok_or(anyhow::anyhow!(
-                "Block at height {} is not available anymore",
-                height
-            ))?;
+        let index =
+            height
+                .checked_sub(oldest_available_height)
+                .ok_or(MaybeRetryable::Permanent(anyhow::anyhow!(
+                    "Block at height {} is not available anymore",
+                    height
+                )))?;
 
         Ok(blocks.get(index as usize).unwrap().clone())
     }
@@ -435,7 +440,7 @@ impl DaService for MockDaService {
         let mut blocks = self.blocks.write().await;
         let batch_blob = self.make_blob(blob.to_vec());
 
-        let _ = self.add_block(batch_blob, proof_blobs, &mut blocks)?;
+        let _ = self.add_block(batch_blob, proof_blobs, &mut blocks);
         Ok(())
     }
 
@@ -449,7 +454,9 @@ impl DaService for MockDaService {
         debug!("Proof received. Buffering for later inclusion.");
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(Proof(proof.to_vec()));
-        self.aggregated_proof_sender.send(())?;
+        self.aggregated_proof_sender
+            .send(())
+            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
         Ok(())
     }
 
@@ -559,11 +566,11 @@ mod tests {
             let retrieved_data = blob.full_data().to_vec();
             assert_eq!(published_blob, retrieved_data);
 
-            let last_finalized_block_response = da.get_last_finalized_block_header().await;
+            let last_finalized_block_response = da.get_last_finalized_block_header().await.unwrap();
             validate_get_finalized_header_response(
                 height,
                 finalization,
-                last_finalized_block_response,
+                Ok(last_finalized_block_response),
             );
         }
 
@@ -592,11 +599,11 @@ mod tests {
             // Send transaction should pass
             let fee = da.estimate_fee(blob.len()).await.unwrap();
             da.send_transaction(blob, fee).await.unwrap();
-            let last_finalized_block_response = da.get_last_finalized_block_header().await;
+            let last_finalized_block_response = da.get_last_finalized_block_header().await.unwrap();
             validate_get_finalized_header_response(
                 height,
                 finalization,
-                last_finalized_block_response,
+                Ok(last_finalized_block_response),
             );
 
             let head_block_header = da.get_head_block_header().await.unwrap();
