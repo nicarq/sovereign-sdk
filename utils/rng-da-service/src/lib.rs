@@ -15,7 +15,7 @@ use sov_modules_api::{CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, Sp
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::services::da::{DaService, Fee, SlotData};
+use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable, SlotData};
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
 const CHAIN_ID: u64 = config_value!("CHAIN_ID");
@@ -87,9 +87,9 @@ impl DaService for RngDaService {
     type Spec = RngDaSpec;
     type Verifier = RngDaVerifier;
     type FilteredBlock = MockBlock;
-    type HeaderStream = BoxStream<'static, anyhow::Result<MockBlockHeader>>;
+    type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
     type TransactionId = ();
-    type Error = anyhow::Error;
+    type Error = MaybeRetryable<anyhow::Error>;
     type Fee = RngDaFee;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {

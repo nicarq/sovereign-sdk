@@ -542,6 +542,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "backon"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d67782c3f868daa71d3533538e98a8e13713231969def7536e8039606fc46bf0"
+dependencies = [
+ "fastrand",
+ "futures-core",
+ "pin-project",
+ "tokio",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5456,6 +5468,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "async-trait",
+ "backon",
  "borsh",
  "bytes",
  "digest 0.10.7",
@@ -5468,6 +5481,7 @@ dependencies = [
  "sha2 0.10.8",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

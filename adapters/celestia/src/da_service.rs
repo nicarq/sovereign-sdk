@@ -14,7 +14,7 @@ use futures::StreamExt;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
-use sov_rollup_interface::services::da::{DaService, Fee};
+use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable};
 use tokio::sync::Mutex;
 use tracing::{debug, info, trace};
 
@@ -226,9 +226,9 @@ impl DaService for CelestiaService {
     type Verifier = CelestiaVerifier;
 
     type FilteredBlock = FilteredCelestiaBlock;
-    type HeaderStream = BoxStream<'static, anyhow::Result<CelestiaHeader>>;
+    type HeaderStream = BoxStream<'static, Result<CelestiaHeader, Self::Error>>;
     type TransactionId = TmHash;
-    type Error = BoxError;
+    type Error = MaybeRetryable<BoxError>;
     type Fee = CelestiaFee;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
@@ -236,7 +236,10 @@ impl DaService for CelestiaService {
 
         // Fetch the header and relevant shares via RPC
         debug!(height, "Fetching header at height...");
-        let header = client.header_get_by_height(height).await?;
+        let header = client
+            .header_get_by_height(height)
+            .await
+            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
         trace!(?header, height, "Got the header");
 
         // Fetch the rollup namespace shares, etx data and extended data square
@@ -256,7 +259,8 @@ impl DaService for CelestiaService {
             rollup_proof_rows_future,
             etx_rows_future,
             data_square_future
-        )?;
+        )
+        .map_err(|e| MaybeRetryable::Transient(e.into()))?;
 
         let rollup_batch_shares = NamespaceWithShares {
             namespace: self.rollup_batch_namespace,
@@ -275,6 +279,7 @@ impl DaService for CelestiaService {
             etx_rows,
             data_square,
         )
+        .map_err(MaybeRetryable::Permanent)
     }
 
     async fn get_last_finalized_block_header(
@@ -292,15 +297,25 @@ impl DaService for CelestiaService {
             .lock()
             .await
             .header_subscribe()
-            .await?
-            .map(|res| res.map(CelestiaHeader::from).map_err(Into::into))
+            .await
+            .map_err(|e| MaybeRetryable::Transient(e.into()))?
+            .map(|res| {
+                res.map(CelestiaHeader::from)
+                    .map_err(|e| MaybeRetryable::Permanent(e.into()))
+            })
             .boxed())
     }
 
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
-        let header = self.client.lock().await.header_network_head().await?;
+        let header = self
+            .client
+            .lock()
+            .await
+            .header_network_head()
+            .await
+            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
         Ok(CelestiaHeader::from(header))
     }
 
@@ -364,6 +379,7 @@ impl DaService for CelestiaService {
         debug!("Submitting batch of transactions to Celestia");
         self.submit_blob_to_namespace(blob, fee, self.rollup_batch_namespace)
             .await
+            .map_err(MaybeRetryable::Transient)
     }
 
     async fn send_aggregated_zk_proof(
@@ -374,6 +390,7 @@ impl DaService for CelestiaService {
         debug!("Submitting aggregated proof to Celestia");
         self.submit_blob_to_namespace(aggregated_proof, fee, self.rollup_proof_namespace)
             .await
+            .map_err(MaybeRetryable::Transient)
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {

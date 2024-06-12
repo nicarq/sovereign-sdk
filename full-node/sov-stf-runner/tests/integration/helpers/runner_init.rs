@@ -8,7 +8,7 @@ use sov_mock_da::{
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
@@ -21,15 +21,19 @@ use tokio::sync::watch;
 
 use crate::helpers::hash_stf::HashStf;
 
-type MockInitVariant =
-    InitVariant<HashStf<MockValidityCond>, MockZkVerifier, MockZkVerifier, MockDaService>;
+type MockInitVariant = InitVariant<
+    HashStf<MockValidityCond>,
+    MockZkVerifier,
+    MockZkVerifier,
+    DaServiceWithRetries<MockDaService>,
+>;
 type S = DefaultStorageSpec<sha2::Sha256>;
 type StorageManager = ProverStorageManager<MockDaSpec, S>;
 
 pub type MockProverService = ParallelProverService<
     [u8; 32],
     ArrayWitness,
-    MockDaService,
+    DaServiceWithRetries<MockDaService>,
     MockZkvm,
     MockZkvm,
     HashStf<MockValidityCond>,
@@ -39,7 +43,7 @@ pub type MockProverService = ParallelProverService<
 pub struct TestNode {
     proof_posted_in_da_sub: Receiver<()>,
     agg_proof_saved_in_db_sub: Receiver<AggregatedProofResponse>,
-    da: Arc<MockDaService>,
+    da: Arc<DaServiceWithRetries<MockDaService>>,
     inner_vm: MockZkvm,
     _outer_vm: MockZkvm,
     ledger_db: LedgerDb,
@@ -51,7 +55,7 @@ impl TestNode {
         self.da.send_transaction(&[1, 2, 3], MockFee::zero()).await
     }
 
-    /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.  
+    /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
     pub async fn try_send_aggregated_proof(&self) -> Result<(), anyhow::Error> {
         self.da.send_transaction(&[], MockFee::zero()).await
     }
@@ -83,7 +87,7 @@ impl TestNode {
 
 #[allow(clippy::type_complexity)]
 pub fn initialize_runner(
-    da_service: Arc<MockDaService>,
+    da_service: Arc<DaServiceWithRetries<MockDaService>>,
     path: &std::path::Path,
     init_variant: MockInitVariant,
     aggregated_proof_block_jump: usize,
@@ -92,7 +96,7 @@ pub fn initialize_runner(
     StateTransitionRunner<
         HashStf<MockValidityCond>,
         StorageManager,
-        MockDaService,
+        DaServiceWithRetries<MockDaService>,
         MockZkvm,
         MockZkvm,
         MockProverService,
@@ -115,7 +119,7 @@ pub fn initialize_runner(
                 bind_port: 0,
             },
         },
-        da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
+        da: MockDaConfig::instant_with_sender(da_service.da_service().sequencer_address()),
         proof_manager: ProofManagerConfig {
             aggregated_proof_block_jump,
         },
@@ -153,7 +157,7 @@ pub fn initialize_runner(
         )
     });
 
-    let proof_posted_in_da_sub = da_service.subscribe_proof_posted();
+    let proof_posted_in_da_sub = da_service.da_service().subscribe_proof_posted();
     let agg_proof_saved_in_db_sub = ledger_db.subscribe_proof_saved();
 
     let proof_manager = ProofManager::new(

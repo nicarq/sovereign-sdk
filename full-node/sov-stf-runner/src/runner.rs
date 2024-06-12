@@ -536,7 +536,7 @@ struct ForkPoint<Da: DaService, StateRoot> {
 
 // Returns None if no reorg happened, otherwise returns block at which reorg happened
 // Errors if reorg happened, but it cannot backtrack to the seen block from the current chain.
-// This cab indicate that rollup started from non-finalized block.
+// This can indicate that rollup started from non-finalized block.
 // Also can error if da_service returns error.
 async fn has_reorg_happened<Stf, Da, InnerVm, OuterVm>(
     filtered_block: &Da::FilteredBlock,
@@ -578,18 +578,18 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use sov_mock_da::{
         MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec,
         MockValidityCond,
     };
     use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
     use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
+    use sov_rollup_interface::services::da::DaServiceWithRetries;
 
     use super::*;
     use crate::mock::MockStf;
 
-    type Da = MockDaService;
+    type Da = DaServiceWithRetries<MockDaService>;
     type Vm = MockZkvm;
     type Stf = MockStf<MockValidityCond>;
     type StateRoot = <MockStf<MockValidityCond> as StateTransitionFunction<
@@ -609,7 +609,8 @@ mod tests {
             StateTransitionInfo<StateRoot, StfWitness, MockDaSpec>,
         > = VecDeque::new();
         let filtered_block = MockBlock::default();
-        let da_service = MockDaService::new(MockAddress::new([0; 32]));
+        let da_service =
+            DaServiceWithRetries::new_fast(MockDaService::new(MockAddress::new([0; 32])));
         let result = has_reorg_happened::<Stf, Da, MockZkVerifier, MockZkVerifier>(
             &filtered_block,
             &mut seen_state_transition_info,
@@ -623,7 +624,8 @@ mod tests {
     #[tokio::test]
     async fn test_reorg_happened_correct_block_returned() {
         let sequencer_address = MockAddress::new([0; 32]);
-        let da_service = MockDaService::new(sequencer_address).with_finality(5);
+        let da_service =
+            DaServiceWithRetries::new_fast(MockDaService::new(sequencer_address).with_finality(5));
         // seen blocks are 1, 2, 3, 4, 5
         let mut seen_state_transition_info: VecDeque<
             StateTransitionInfo<StateRoot, StfWitness, MockDaSpec>,
@@ -703,7 +705,8 @@ mod tests {
         // Idea of the test is data in "seen blocks" is completely different from the data in the da service
         // This means, that caller started from non-finalized block, and reorg happened while runner was stopped
         let sequencer_address = MockAddress::new([0; 32]);
-        let da_service = MockDaService::new(sequencer_address).with_finality(5);
+        let da_service =
+            DaServiceWithRetries::new_fast(MockDaService::new(sequencer_address).with_finality(5));
         // seen blocks are 1, 2, 3, 4, 5
         let mut seen_state_transition_info: VecDeque<
             StateTransitionInfo<StateRoot, StfWitness, MockDaSpec>,

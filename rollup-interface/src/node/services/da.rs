@@ -1,9 +1,17 @@
 //! The da module defines traits used by the full node to interact with the DA layer.
 
 use alloc::vec::Vec;
+use core::fmt::{Debug, Display};
 
+#[cfg(feature = "native")]
+use backon::Retryable;
+use backon::{BackoffBuilder, ExponentialBuilder};
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+#[cfg(feature = "native")]
+use tracing::error;
 
 use crate::da::{BlockHeaderTrait, RelevantBlobs, RelevantProofs};
 #[cfg(feature = "native")]
@@ -54,7 +62,7 @@ impl_checked_math_primitive!(i8, i16, i32, i64, i128, isize);
 
 /// The fee on a blockchain. This is usually expressed as a combination of a gas limit
 /// and a fee rate (tokens per gas).
-pub trait Fee {
+pub trait Fee: Copy + Send {
     /// The price per unit of gas.
     type FeeRate: CheckedMath + CheckedMath<u64> + Clone + Send + Sync;
 
@@ -68,6 +76,40 @@ pub trait Fee {
     /// Multiplying this quantity by the fee rate gives the total fee.
     /// for the transaction
     fn gas_estimate(&self) -> u64;
+}
+
+/// The [`MaybeRetryable`] enum can be returned from a fallible function to
+/// determine whether it can re-attempted or not.
+#[derive(Debug, thiserror::Error)]
+pub enum MaybeRetryable<E> {
+    /// This error is a permanent one and thus the function that
+    /// raised it should not be retried.
+    #[error("{0}")]
+    Permanent(E),
+    /// This error is transient and thus the function that raised
+    /// ought to be retried.
+    #[error("{0}")]
+    Transient(E),
+}
+
+impl<E: std::fmt::Display> MaybeRetryable<E> {
+    fn is_retryable(&self) -> bool {
+        matches!(self, Self::Transient(_))
+    }
+
+    fn into_err(self) -> E {
+        match self {
+            Self::Permanent(e) | Self::Transient(e) => e,
+        }
+    }
+}
+
+/// The default error for `MaybeRetryable` is assumed to be permanent
+/// rather than something that can be retried.
+impl<E> From<E> for MaybeRetryable<E> {
+    fn from(e: E) -> MaybeRetryable<E> {
+        Self::Permanent(e)
+    }
 }
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
@@ -98,7 +140,7 @@ pub trait DaService: Send + Sync + 'static {
     type TransactionId: PartialEq + Eq + PartialOrd + Ord + core::hash::Hash;
 
     /// The error type for fallible methods.
-    type Error: core::fmt::Debug + Send + Sync + core::fmt::Display;
+    type Error: Debug + Send + Sync + Display;
 
     /// The fee type for the DA layer.
     type Fee: Fee;
@@ -174,7 +216,7 @@ pub trait DaService: Send + Sync + 'static {
         fee: Self::Fee,
     ) -> Result<Self::TransactionId, Self::Error>;
 
-    /// Sends am aggregated ZK proofs to the DA layer.
+    /// Sends an aggregated ZK proofs to the DA layer.
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof_data: &[u8],
@@ -188,6 +230,171 @@ pub trait DaService: Send + Sync + 'static {
     async fn estimate_fee(&self, blob_size: usize) -> Result<Self::Fee, Self::Error>;
 }
 
+async fn run_maybe_retryable_async_fn_with_retries<F, Fut, T, E>(
+    backoff_policy: &impl BackoffBuilder,
+    fxn: F,
+) -> Result<T, E>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<T, MaybeRetryable<E>>>,
+    E: std::fmt::Display,
+{
+    fxn.retry(backoff_policy)
+        .when(MaybeRetryable::is_retryable)
+        .await
+        .map_err(MaybeRetryable::into_err)
+}
+
+/// A wrapper around a [`DaService`] adding retry logic based on the supplied backoff policy.
+#[cfg(feature = "native")]
+#[derive(Clone)]
+pub struct DaServiceWithRetries<D> {
+    da_service: D,
+    // TODO (@gskapka) Eventually we want this to be generic so that other, non
+    // exponential policies may be used.
+    backoff_policy: ExponentialBuilder,
+}
+
+#[cfg(feature = "native")]
+impl<D: DaService> DaServiceWithRetries<D> {
+    /// Creates a wrapped [`DaService`]` where methods have retry logic enabled using
+    /// the supplied exponential back-off policy.
+    pub fn with_exponential_backoff(da_service: D, backoff_policy: ExponentialBuilder) -> Self {
+        Self {
+            da_service,
+            backoff_policy,
+        }
+    }
+
+    /// Creates a wrapped [`DaService`] with zero retry attempts and a short max delay.
+    /// Useful for tests where the retry wrapper is required for a [`DaService`] but
+    /// we don't want the temporal overhead of the actual retries (eg, testing a fallible
+    /// function's fail path).
+    pub fn new_fast(da_service: D) -> Self {
+        let backoff_policy = ExponentialBuilder::default()
+            .with_max_delay(std::time::Duration::from_secs(5))
+            .with_max_times(0);
+        Self {
+            da_service,
+            backoff_policy,
+        }
+    }
+
+    /// Get a reference to the underlying [`DaService`]
+    pub fn da_service(&self) -> &D {
+        &self.da_service
+    }
+
+    /// Get a mutable reference to the underlying [`DaService`]
+    pub fn da_service_mut(&mut self) -> &mut D {
+        &mut self.da_service
+    }
+}
+
+#[async_trait::async_trait]
+impl<D, E> DaService for DaServiceWithRetries<D>
+where
+    D: DaService<Error = MaybeRetryable<E>>,
+    D::Fee: Sync,
+    E: Debug + Send + Sync + Display,
+{
+    type Error = E;
+    type Spec = D::Spec;
+    type Verifier = D::Verifier;
+    type FilteredBlock = D::FilteredBlock;
+
+    type HeaderStream =
+        BoxStream<'static, Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>>;
+
+    type TransactionId = D::TransactionId;
+    type Fee = D::Fee;
+
+    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
+            D::get_block_at(&self.da_service, height)
+        })
+        .await
+    }
+
+    async fn send_transaction(
+        &self,
+        blob: &[u8],
+        fee: D::Fee,
+    ) -> Result<Self::TransactionId, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
+            D::send_transaction(&self.da_service, blob, fee)
+        })
+        .await
+    }
+
+    async fn send_aggregated_zk_proof(
+        &self,
+        aggregated_proof_data: &[u8],
+        fee: D::Fee,
+    ) -> Result<Self::TransactionId, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
+            D::send_aggregated_zk_proof(&self.da_service, aggregated_proof_data, fee)
+        })
+        .await
+    }
+
+    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
+            D::get_aggregated_proofs_at(&self.da_service, height)
+        })
+        .await
+    }
+
+    async fn estimate_fee(&self, blob_size: usize) -> Result<D::Fee, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
+            D::estimate_fee(&self.da_service, blob_size)
+        })
+        .await
+    }
+
+    async fn get_last_finalized_block_header(
+        &self,
+    ) -> Result<<D::Spec as DaSpec>::BlockHeader, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
+            D::get_last_finalized_block_header(&self.da_service)
+        })
+        .await
+    }
+
+    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
+        Ok(D::subscribe_finalized_header(&self.da_service)
+            .await
+            .map_err(MaybeRetryable::into_err)?
+            .map(|res| res.map_err(MaybeRetryable::into_err))
+            .boxed())
+    }
+
+    async fn get_head_block_header(&self) -> Result<<D::Spec as DaSpec>::BlockHeader, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
+            D::get_head_block_header(&self.da_service)
+        })
+        .await
+    }
+
+    fn extract_relevant_blobs(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction> {
+        D::extract_relevant_blobs(&self.da_service, block)
+    }
+
+    async fn get_extraction_proof(
+        &self,
+        block: &Self::FilteredBlock,
+        blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
+    ) -> RelevantProofs<
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    > {
+        D::get_extraction_proof(&self.da_service, block, blobs).await
+    }
+}
+
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.
 /// At the very least, the rollup needs access to the hashes and headers of all DA layer blocks,
 /// but rollup may choose to store partial (or full) block data as well.
@@ -197,7 +404,7 @@ pub trait SlotData:
     /// The header type for a DA layer block as viewed by the rollup. This need not be identical
     /// to the underlying rollup's header type, but it must be sufficient to reconstruct the block hash.
     ///
-    /// For example, most fields of the a Tendermint-based DA chain like Celestia are irrelevant to the rollup.
+    /// For example, most fields of a Tendermint-based DA chain like Celestia are irrelevant to the rollup.
     /// For these fields, we only ever store their *serialized* representation in memory or on disk. Only a few special
     /// fields like `data_root` are stored in decoded form in the `CelestiaHeader` struct.
     type BlockHeader: BlockHeaderTrait;
@@ -211,4 +418,27 @@ pub trait SlotData:
     fn header(&self) -> &Self::BlockHeader;
     /// Get the validity condition set associated with the slot
     fn validity_condition(&self) -> Self::Cond;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn should_run_async_fn_with_retries() {
+        let error = "some error".to_string();
+        let retry_counter = tokio::sync::Mutex::new(0);
+        let max_retries = 3;
+        let backoff_policy = ExponentialBuilder::default().with_max_times(max_retries);
+
+        let r = run_maybe_retryable_async_fn_with_retries(&backoff_policy, || async {
+            let mut count = retry_counter.lock().await;
+            *count += 1;
+            Result::<(), MaybeRetryable<String>>::Err(MaybeRetryable::Transient(error.clone()))
+        })
+        .await;
+
+        assert_eq!(r, Err(error));
+        assert_eq!(*retry_counter.lock().await, max_retries + 1); // NOTE: Because first attempt is not a retry.
+    }
 }
