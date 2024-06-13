@@ -7,16 +7,16 @@ use proptest::{prop_compose, proptest};
 use reqwest::header::CONTENT_TYPE;
 use serde_json::json;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
+use sov_db::schema::SchemaBatch;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash};
 use sov_modules_api::RuntimeEventResponse;
-use sov_prover_storage_manager::ProverStorageManager;
+use sov_prover_storage_manager::SimpleLedgerStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TransactionReceipt, TxEffect};
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_stf_runner::HttpServerConfig;
-use sov_test_utils::{TestSpec, TestStorageSpec, TestTxReceiptContents};
+use sov_test_utils::{TestSpec, TestTxReceiptContents};
 use tendermint::crypto::Sha256;
 
 struct TestExpect {
@@ -47,10 +47,14 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: HttpServ
 fn populate_ledger(
     ledger_db: &mut LedgerDb,
     slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>>,
-) {
+) -> SchemaBatch {
+    let mut schema_batch = SchemaBatch::new();
     for slot in slots {
-        ledger_db.commit_slot(slot, b"state-root").unwrap();
+        let slot_changes = ledger_db.materialize_slot(slot, b"state-root").unwrap();
+        schema_batch.merge(slot_changes);
     }
+    ledger_db.send_notifications();
+    schema_batch
 }
 
 fn test_helper(
@@ -66,20 +70,13 @@ fn test_helper(
     rt.block_on(async {
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
-        let storage_config = sov_state::config::Config {
-            path: tmpdir.path().to_path_buf(),
-        };
-        let mut storage_manager =
-            ProverStorageManager::<MockDaSpec, TestStorageSpec>::new(storage_config)
-                .expect("ProverStorage initialization failed");
-        let genesis_block_header = MockBlockHeader::from_height(0);
 
-        let (_stf_state, ledger_state) = storage_manager
-            .create_state_for(&genesis_block_header)
-            .expect("Getting genesis storage failed");
+        let mut storage_manager = SimpleLedgerStorageManager::new(tmpdir.path());
+        let ledger_state = storage_manager.create_ledger_storage();
 
         let mut ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
-        populate_ledger(&mut ledger_db, slots);
+        let ledger_changes = populate_ledger(&mut ledger_db, slots);
+        storage_manager.commit(ledger_changes);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")
             .await

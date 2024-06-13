@@ -7,7 +7,7 @@ use rockbound::cache::cache_container::CacheContainer;
 use rockbound::cache::cache_db::CacheDb;
 use rockbound::cache::change_set::ChangeSet;
 use rockbound::cache::SnapshotId;
-use rockbound::ReadOnlyLock;
+use rockbound::{ReadOnlyLock, SchemaBatch};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::state_db::StateDb;
@@ -234,7 +234,7 @@ where
     type StfState = ProverStorage<S>;
     type StfChangeSet = ProverChangeSet;
     type LedgerState = CacheDb;
-    type LedgerChangeSet = ChangeSet;
+    type LedgerChangeSet = SchemaBatch;
 
     fn create_bootstrap_state(&mut self) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
         self.latest_snapshot_id += 1;
@@ -373,15 +373,6 @@ where
             );
         }
 
-        // Ledger change set is our point of reference to actual snapshot id
-        if self.dangled_snapshots.remove(&ledger_change_set.id()) {
-            tracing::debug!(
-                snapshot_id = ledger_change_set.id(),
-                "Discarded reference to '__finalized__' snapshot"
-            );
-            return Ok(());
-        }
-
         tracing::debug!(
             block_header = %block_header.display(),
             "Saving the ProverChangeSet"
@@ -400,20 +391,13 @@ where
                 block_header.display(),
             ))?;
 
-        if snapshot_id != ledger_change_set.id() {
-            anyhow::bail!(
-                "Change set from ledger and state are mismatched: {} {}",
-                snapshot_id,
-                ledger_change_set.id()
-            );
-        }
-
         // Just wrapping in a ChangeSet with id for given block.
         // This is done for compatibility with existing ProverStorageManager.
         // It should be addressed in the future.
         let state_change_set = ChangeSet::new_with_operations(snapshot_id, state_change_set);
         let accessory_change_set =
             ChangeSet::new_with_operations(snapshot_id, accessory_change_set);
+        let ledger_change_set = ChangeSet::new_with_operations(snapshot_id, ledger_change_set);
 
         {
             let mut cache_containers = self.cache_containers.write();
@@ -465,12 +449,7 @@ mod tests {
     use std::time::Duration;
 
     use sov_mock_da::{MockBlockHeader, MockHash};
-    use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::da::Time;
-    use sov_rollup_interface::rpc::LedgerStateProvider;
-    use sov_rollup_interface::zk::aggregated_proof::{
-        AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
-    };
     use sov_state::namespaces::User;
     use sov_state::{ArrayWitness, OrderedReadsAndWrites, StateAccesses, StateUpdate, Storage};
 
@@ -727,14 +706,14 @@ mod tests {
         };
 
         assert!(storage_manager.is_empty());
-        let (storage, ledger_state) = storage_manager.create_state_for(&block_header).unwrap();
+        let (storage, _) = storage_manager.create_state_for(&block_header).unwrap();
         assert!(!storage_manager.is_empty());
 
         let state_change_set = materialize_change_set(&storage, &Default::default(), &[], &[]);
 
         // We can save empty storage as well
         storage_manager
-            .save_change_set(&block_header, state_change_set, ledger_state.into())
+            .save_change_set(&block_header, state_change_set, SchemaBatch::new())
             .unwrap();
 
         assert!(!storage_manager.is_empty());
@@ -752,7 +731,7 @@ mod tests {
             time: Time::now(),
         };
 
-        let (storage_1, ledger_1) = {
+        let (storage_1, _) = {
             let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir_1.path());
             let mut storage_manager_temp =
                 ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
@@ -764,7 +743,7 @@ mod tests {
             ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
 
         let stf_change_set = materialize_change_set(&storage_1, &Default::default(), &[], &[]);
-        let result = storage_manager.save_change_set(&block_a, stf_change_set, ledger_1.into());
+        let result = storage_manager.save_change_set(&block_a, stf_change_set, SchemaBatch::new());
         assert!(result.is_err());
         let expected_error_msg = format!(
             "Attempt to save changeset for unknown block header {:?}",
@@ -791,7 +770,7 @@ mod tests {
         };
 
         assert!(storage_manager.is_empty());
-        let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header).unwrap();
+        let (stf_state, _) = storage_manager.create_state_for(&block_header).unwrap();
         assert!(!storage_manager.is_empty());
 
         let witness = ArrayWitness::default();
@@ -799,11 +778,10 @@ mod tests {
             materialize_change_set(&stf_state, &witness, &[(3, Some(4))], &[(50, Some(60))]);
 
         storage_manager
-            .save_change_set(&block_header, stf_change_set, ledger_state.into())
+            .save_change_set(&block_header, stf_change_set, SchemaBatch::new())
             .unwrap();
         validate_internal_consistency(&storage_manager);
-        let (stf_state_after, _ledger_state) =
-            storage_manager.create_state_after(&block_header).unwrap();
+        let (stf_state_after, _) = storage_manager.create_state_after(&block_header).unwrap();
         validate_internal_consistency(&storage_manager);
         let check_storage_after_values = || {
             assert_eq!(
@@ -848,133 +826,6 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn try_save_bootstrap_storage() {
-        // This test checks the following things:
-        //  - bootstrap state only has access to the finalized data.
-        //  - bootstrap state can be "saved" back without an error and without affecting data
-        let tmpdir = tempfile::tempdir().unwrap();
-
-        let (state_db, accessory_db, ledger_db) = build_dbs(tmpdir.path());
-
-        let mut storage_manager =
-            ProverStorageManager::<Da, S>::with_db_handles(state_db, accessory_db, ledger_db);
-        assert!(storage_manager.is_empty());
-
-        // Save something to the DB, so bootstrap storage can read it
-        let witness = ArrayWitness::default();
-        let genesis_block = MockBlockHeader::from_height(0);
-        let public_data = AggregatedProofPublicData {
-            validity_conditions: vec![],
-            initial_slot_number: 10,
-            final_slot_number: 12,
-            genesis_state_root: vec![2],
-            initial_state_root: vec![3],
-            final_state_root: vec![4],
-            initial_slot_hash: vec![5],
-            final_slot_hash: vec![6],
-            code_commitment: CodeCommitment::default(),
-        };
-
-        {
-            let (stf_genesis, ledger_genesis) =
-                storage_manager.create_state_for(&genesis_block).unwrap();
-            let stf_genesis_changes =
-                materialize_change_set(&stf_genesis, &witness, &[(1, Some(2))], &[(30, Some(40))]);
-
-            let ledger_db = LedgerDb::with_cache_db(ledger_genesis).unwrap();
-
-            let raw_aggregated_proof = MockZkvm::create_serialized_proof(true, public_data.clone());
-            let agg_proof = AggregatedProof::new(
-                SerializedAggregatedProof {
-                    raw_aggregated_proof,
-                },
-                public_data.clone(),
-            );
-
-            ledger_db
-                .save_finalized_aggregated_proof(agg_proof)
-                .unwrap();
-
-            storage_manager
-                .save_change_set(
-                    &genesis_block,
-                    stf_genesis_changes,
-                    ledger_db.clone_change_set(),
-                )
-                .unwrap();
-        }
-        validate_internal_consistency(&storage_manager);
-        let mut block_a = MockBlockHeader::from_height(1);
-        block_a.hash = MockHash::from([11; 32]);
-        let mut block_b = MockBlockHeader::from_height(1);
-        block_b.hash = MockHash::from([111; 32]);
-        // Create regular storage, so we can try to save bootstrap storage
-        {
-            let (_, _) = storage_manager.create_state_for(&block_a).unwrap();
-            let (_, _) = storage_manager.create_state_for(&block_b).unwrap();
-        }
-
-        // Now bootstrap storage does not have anything,
-        {
-            let (bootstrap_stf, bootstrap_ledger) =
-                storage_manager.create_bootstrap_state().unwrap();
-            assert_eq!(
-                None,
-                bootstrap_stf.get::<User>(&key_from(1), None, &witness)
-            );
-            assert_eq!(None, bootstrap_stf.get_accessory(&key_from(30), None));
-
-            let ledger_db = LedgerDb::with_cache_db(bootstrap_ledger).unwrap();
-            let proof = ledger_db.get_latest_aggregated_proof().await.unwrap();
-            assert!(proof.is_none());
-
-            let bootstrap_change_set =
-                materialize_change_set(&bootstrap_stf, &Default::default(), &[], &[]);
-            storage_manager
-                .save_change_set(&block_a, bootstrap_change_set, ledger_db.clone_change_set())
-                .unwrap();
-
-            // We check that data actually wasn't saved, by trying to finalize block
-            // It should not have data available, so
-            assert!(storage_manager.finalize(&block_a).is_err());
-        }
-
-        storage_manager.finalize(&genesis_block).unwrap();
-
-        // Now it is accessible to bootstrap data
-        {
-            let (bootstrap_stf, bootstrap_ledger) =
-                storage_manager.create_bootstrap_state().unwrap();
-
-            assert_eq!(
-                Some(value_from(2)),
-                bootstrap_stf.get::<User>(&key_from(1), None, &witness)
-            );
-            assert_eq!(
-                Some(value_from(40)),
-                bootstrap_stf.get_accessory(&key_from(30), None)
-            );
-
-            let ledger_db = LedgerDb::with_cache_db(bootstrap_ledger).unwrap();
-            let actual_proof = ledger_db
-                .get_latest_aggregated_proof()
-                .await
-                .unwrap()
-                .unwrap()
-                .proof;
-
-            assert_eq!(&public_data, actual_proof.public_data());
-
-            let bootstrap_change_set =
-                materialize_change_set(&bootstrap_stf, &Default::default(), &[], &[]);
-            storage_manager
-                .save_change_set(&block_b, bootstrap_change_set, ledger_db.clone_change_set())
-                .unwrap();
-            assert!(storage_manager.finalize(&block_b).is_err());
-        }
-    }
-
     // ------------
     // More sophisticated tests
     use sov_state::storage::{SlotKey, SlotValue};
@@ -998,11 +849,11 @@ mod tests {
 
         for i in 0u8..4 {
             let block = block_from_i(i);
-            let (stf_state, ledger_state) = storage_manager.create_state_for(&block).unwrap();
+            let (stf_state, _) = storage_manager.create_state_for(&block).unwrap();
             let state_change_set =
                 materialize_change_set(&stf_state, &Default::default(), &[], &[]);
             storage_manager
-                .save_change_set(&block, state_change_set, ledger_state.into())
+                .save_change_set(&block, state_change_set, SchemaBatch::new())
                 .unwrap();
         }
 
@@ -1047,10 +898,10 @@ mod tests {
                 height: height as u64,
                 time: Time::now(),
             };
-            let (stf_state, ledger_state) = storage_manager.create_state_for(&block).unwrap();
+            let (stf_state, _) = storage_manager.create_state_for(&block).unwrap();
             let stf_change_set = materialize_change_set(&stf_state, &Default::default(), &[], &[]);
             storage_manager
-                .save_change_set(&block, stf_change_set, ledger_state.into())
+                .save_change_set(&block, stf_change_set, SchemaBatch::new())
                 .unwrap();
         }
 
@@ -1083,22 +934,22 @@ mod tests {
         let block_b = MockBlockHeader::from_height(2);
         let block_c = MockBlockHeader::from_height(3);
 
-        let (stf_state_a, ledger_state_a) = storage_manager.create_state_for(&block_a).unwrap();
+        let (stf_state_a, _) = storage_manager.create_state_for(&block_a).unwrap();
         let witness = ArrayWitness::default();
         let stf_change_set =
             materialize_change_set(&stf_state_a, &witness, &[(1, Some(2))], &[(30, Some(40))]);
         storage_manager
-            .save_change_set(&block_a, stf_change_set, ledger_state_a.into())
+            .save_change_set(&block_a, stf_change_set, SchemaBatch::new())
             .unwrap();
 
-        let (stf_state_b, ledger_state_b) = storage_manager.create_state_for(&block_b).unwrap();
+        let (stf_state_b, _) = storage_manager.create_state_for(&block_b).unwrap();
         let stf_change_set =
             materialize_change_set(&stf_state_b, &witness, &[(3, Some(4))], &[(50, Some(60))]);
         storage_manager
-            .save_change_set(&block_b, stf_change_set, ledger_state_b.into())
+            .save_change_set(&block_b, stf_change_set, SchemaBatch::new())
             .unwrap();
 
-        let (stf_state_c, ledger_state_c) = storage_manager.create_state_for(&block_c).unwrap();
+        let (stf_state_c, _) = storage_manager.create_state_for(&block_c).unwrap();
         // Then finalize B
         storage_manager.finalize(&block_b).unwrap();
 
@@ -1122,7 +973,7 @@ mod tests {
         // Finalize C now
         let stf_change_set = materialize_change_set(&stf_state_b, &witness, &[], &[]);
         storage_manager
-            .save_change_set(&block_c, stf_change_set, ledger_state_c.into())
+            .save_change_set(&block_c, stf_change_set, SchemaBatch::new())
             .unwrap();
         storage_manager.finalize(&block_c).unwrap();
         assert!(storage_manager.is_empty());
@@ -1235,7 +1086,7 @@ mod tests {
 
         let witness = ArrayWitness::default();
         // A
-        let (stf_state_a, ledger_state_a) = storage_manager.create_state_for(&block_a).unwrap();
+        let (stf_state_a, _) = storage_manager.create_state_for(&block_a).unwrap();
         let stf_change_set = materialize_change_set(
             &stf_state_a,
             &witness,
@@ -1244,17 +1095,17 @@ mod tests {
         );
 
         storage_manager
-            .save_change_set(&block_a, stf_change_set, ledger_state_a.into())
+            .save_change_set(&block_a, stf_change_set, SchemaBatch::new())
             .unwrap();
         // B
-        let (stf_state_b, ledger_state_b) = storage_manager.create_state_for(&block_b).unwrap();
+        let (stf_state_b, _) = storage_manager.create_state_for(&block_b).unwrap();
         let stf_change_set =
             materialize_change_set(&stf_state_b, &witness, &[(3, Some(2))], &[(3, Some(50))]);
         storage_manager
-            .save_change_set(&block_b, stf_change_set, ledger_state_b.into())
+            .save_change_set(&block_b, stf_change_set, SchemaBatch::new())
             .unwrap();
         // C
-        let (stf_state_c, ledger_state_c) = storage_manager.create_state_for(&block_c).unwrap();
+        let (stf_state_c, _) = storage_manager.create_state_for(&block_c).unwrap();
         let stf_change_set = materialize_change_set(
             &stf_state_c,
             &witness,
@@ -1262,16 +1113,16 @@ mod tests {
             &[(1, Some(60))],
         );
         storage_manager
-            .save_change_set(&block_c, stf_change_set, ledger_state_c.into())
+            .save_change_set(&block_c, stf_change_set, SchemaBatch::new())
             .unwrap();
         // D
-        let (stf_state_d, ledger_state_d) = storage_manager.create_state_for(&block_d).unwrap();
+        let (stf_state_d, _) = storage_manager.create_state_for(&block_d).unwrap();
         let stf_change_set = materialize_change_set(&stf_state_d, &witness, &[(3, Some(6))], &[]);
         storage_manager
-            .save_change_set(&block_d, stf_change_set, ledger_state_d.into())
+            .save_change_set(&block_d, stf_change_set, SchemaBatch::new())
             .unwrap();
         // F
-        let (stf_state_f, ledger_state_f) = storage_manager.create_state_for(&block_f).unwrap();
+        let (stf_state_f, _) = storage_manager.create_state_for(&block_f).unwrap();
         let stf_change_set = materialize_change_set(
             &stf_state_f,
             &witness,
@@ -1279,20 +1130,20 @@ mod tests {
             &[(1, None), (3, Some(70))],
         );
         storage_manager
-            .save_change_set(&block_f, stf_change_set, ledger_state_f.into())
+            .save_change_set(&block_f, stf_change_set, SchemaBatch::new())
             .unwrap();
         // G
-        let (stf_state_g, ledger_state_g) = storage_manager.create_state_for(&block_g).unwrap();
+        let (stf_state_g, _) = storage_manager.create_state_for(&block_g).unwrap();
         let stf_change_set =
             materialize_change_set(&stf_state_g, &witness, &[(1, Some(8))], &[(2, Some(9))]);
         storage_manager
-            .save_change_set(&block_g, stf_change_set, ledger_state_g.into())
+            .save_change_set(&block_g, stf_change_set, SchemaBatch::new())
             .unwrap();
         // L
-        let (storage_l, ledger_l) = storage_manager.create_state_for(&block_l).unwrap();
+        let (storage_l, _) = storage_manager.create_state_for(&block_l).unwrap();
         let stf_change_set = materialize_change_set(&storage_l, &witness, &[(1, Some(10))], &[]);
         storage_manager
-            .save_change_set(&block_l, stf_change_set, ledger_l.into())
+            .save_change_set(&block_l, stf_change_set, SchemaBatch::new())
             .unwrap();
 
         // VIEW: Before finalization of A
@@ -1326,10 +1177,10 @@ mod tests {
         // |        K |    aux |   2 |   None |
         // |        K |    aux |   3 |     70 |
 
-        let (stf_state_e, ledger_e) = storage_manager.create_state_for(&block_e).unwrap();
+        let (stf_state_e, _) = storage_manager.create_state_for(&block_e).unwrap();
         let (stf_state_m, _) = storage_manager.create_state_for(&block_m).unwrap();
         let (stf_state_h, _) = storage_manager.create_state_for(&block_h).unwrap();
-        let (stf_state_k, ledger_state_k) = storage_manager.create_state_for(&block_k).unwrap();
+        let (stf_state_k, _) = storage_manager.create_state_for(&block_k).unwrap();
 
         let assert_main_fork = || {
             assert_eq!(None, stf_state_e.get::<User>(&key_from(1), None, &witness));
@@ -1413,7 +1264,7 @@ mod tests {
         validate_internal_consistency(&storage_manager);
         let stf_change_set_k = materialize_change_set(&stf_state_k, &Default::default(), &[], &[]);
         storage_manager
-            .save_change_set(&block_k, stf_change_set_k, ledger_state_k.into())
+            .save_change_set(&block_k, stf_change_set_k, SchemaBatch::new())
             .unwrap();
         storage_manager.finalize(&block_a).unwrap();
         validate_internal_consistency(&storage_manager);
@@ -1433,7 +1284,7 @@ mod tests {
         assert_main_fork();
         let stf_change_set_e = materialize_change_set(&stf_state_e, &Default::default(), &[], &[]);
         storage_manager
-            .save_change_set(&block_e, stf_change_set_e, ledger_e.into())
+            .save_change_set(&block_e, stf_change_set_e, SchemaBatch::new())
             .unwrap();
         storage_manager.finalize(&block_e).unwrap();
         assert!(storage_manager.is_empty());
@@ -1516,10 +1367,10 @@ mod tests {
 
         // Fill the data
         for header in &main_chain_blocks {
-            let (stf_state, ledger_state) = storage_manager.create_state_for(header).unwrap();
+            let (stf_state, _) = storage_manager.create_state_for(header).unwrap();
             let change_set = fill_storage_for_height(header.height(), &stf_state);
             storage_manager
-                .save_change_set(header, change_set, ledger_state.into())
+                .save_change_set(header, change_set, SchemaBatch::new())
                 .unwrap();
         }
 
@@ -1530,7 +1381,7 @@ mod tests {
             height: 2,
             time: Default::default(),
         };
-        let (stf_state, ledger_state) = storage_manager.create_state_for(&block_e).unwrap();
+        let (stf_state, _) = storage_manager.create_state_for(&block_e).unwrap();
         let witness = ArrayWitness::default();
         // Fill some special data for E
         let change_set = materialize_change_set(
@@ -1541,7 +1392,7 @@ mod tests {
         );
 
         storage_manager
-            .save_change_set(&block_e, change_set, ledger_state.into())
+            .save_change_set(&block_e, change_set, SchemaBatch::new())
             .unwrap();
 
         let block_f = MockBlockHeader {
@@ -1550,7 +1401,7 @@ mod tests {
             height: 3,
             time: Default::default(),
         };
-        let (stf_state, _ledger_state) = storage_manager.create_state_for(&block_f).unwrap();
+        let (stf_state, _) = storage_manager.create_state_for(&block_f).unwrap();
 
         let check_f_state = || {
             // check that it has access to height 0 and 1
@@ -1624,11 +1475,11 @@ mod tests {
         let mut headers_to_finalize = vec![];
         for height in 0..=height_to_fork {
             let header = MockBlockHeader::from_height(height);
-            let (stf_state, ledger_state) = storage_manager.create_state_for(&header).unwrap();
+            let (stf_state, _) = storage_manager.create_state_for(&header).unwrap();
 
             let change_set = fill_storage_for_height(height, &stf_state);
             storage_manager
-                .save_change_set(&header, change_set, ledger_state.into())
+                .save_change_set(&header, change_set, SchemaBatch::new())
                 .unwrap();
             headers_to_finalize.push(header);
         }
@@ -1652,8 +1503,7 @@ mod tests {
                 height: height_to_fork + 1,
                 time: Time::now(),
             };
-            let (stf_state, _ledger_state) =
-                storage_manager.create_state_for(&forked_header).unwrap();
+            let (stf_state, _) = storage_manager.create_state_for(&forked_header).unwrap();
             let is_running = is_running.clone();
             let between = duration_between_finalization;
             let handle = std::thread::spawn(move || {

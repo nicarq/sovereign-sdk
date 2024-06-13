@@ -3,6 +3,7 @@ use std::rc::Rc;
 use borsh::ser::BorshSerialize;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Bank, BankConfig, GasTokenConfig, GAS_TOKEN_ID};
+pub use sov_db::schema::SchemaBatch;
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
 pub use sov_mock_zkvm::MockZkVerifier;

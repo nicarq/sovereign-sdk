@@ -1,12 +1,11 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use jsonrpsee::core::client::SubscriptionClientT;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Coins, TokenId};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
-use sov_db::schema::{CacheContainer, CacheDb};
 use sov_ledger_apis::rest::LedgerRoutes;
 use sov_ledger_apis::rpc::client::RpcClient;
 use sov_ledger_apis::rpc::server::rpc_module;
@@ -14,12 +13,13 @@ use sov_mock_da::{MockBlock, MockDaSpec};
 use sov_modules_api::{
     AggregatedProofPublicData, CodeCommitment, ModuleId, RuntimeEventResponse, StoredEvent,
 };
+pub use sov_prover_storage_manager::SimpleLedgerStorageManager;
 use sov_rollup_interface::rpc::{BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use tempfile::{tempdir, TempDir};
 
-use crate::{TestSpec, TestTxReceiptContents};
+use crate::{SchemaBatch, TestSpec, TestTxReceiptContents};
 
 type TestEvent = demo_stf::runtime::RuntimeEvent<TestSpec, MockDaSpec>;
 
@@ -27,7 +27,7 @@ pub extern crate sov_ledger_json_client;
 
 /// Very, very simple utility function: it just persists some dummy data to the
 /// [`LedgerDb`], so that it's not empty when you read it within tests.
-pub async fn add_data_to_ledger_db(ledger_db: &LedgerDb) -> anyhow::Result<()> {
+pub async fn materialize_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Result<SchemaBatch> {
     let block_a = MockBlock::default();
 
     let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents> = SlotCommit::new(block_a);
@@ -47,9 +47,9 @@ pub async fn add_data_to_ledger_db(ledger_db: &LedgerDb) -> anyhow::Result<()> {
         gas_price: vec![0, 1, u64::MAX],
     });
 
-    ledger_db.commit_slot(slot, b"state-root")?;
+    let mut ledger_data = ledger_db.materialize_slot(slot, b"state-root")?;
 
-    ledger_db.save_finalized_aggregated_proof(AggregatedProof::new(
+    let proof_data = ledger_db.materialize_aggregated_proof(AggregatedProof::new(
         SerializedAggregatedProof {
             raw_aggregated_proof: b"aggregated-proof".to_vec(),
         },
@@ -71,7 +71,11 @@ pub async fn add_data_to_ledger_db(ledger_db: &LedgerDb) -> anyhow::Result<()> {
         },
     ))?;
 
-    Ok(())
+    ledger_data.merge(proof_data);
+
+    ledger_db.send_notifications();
+
+    Ok(ledger_data)
 }
 
 fn events() -> Vec<StoredEvent> {
@@ -114,13 +118,12 @@ impl LedgerTestService {
     /// Instantiates a new [`LedgerDb`] and starts serving data over both JSON-RPC and Axum.
     pub async fn new() -> anyhow::Result<LedgerTestService> {
         let dir = tempdir()?;
-        let schema_db = LedgerDb::get_rockbound_options().default_setup_db_in_path(dir.path())?;
-        let cache_container =
-            CacheContainer::new(schema_db, Arc::new(RwLock::new(Default::default())).into());
-        let cache_db = CacheDb::new(0, Arc::new(RwLock::new(cache_container)).into());
+        let mut ledger_storage_manager = SimpleLedgerStorageManager::new(dir.path());
+        let cache_db = ledger_storage_manager.create_ledger_storage();
         let ledger_db = LedgerDb::with_cache_db(cache_db)?;
 
-        add_data_to_ledger_db(&ledger_db).await?;
+        let change_set = materialize_ledger_db_data(&ledger_db).await?;
+        ledger_storage_manager.commit(change_set);
 
         let rpc_module =
             rpc_module::<LedgerDb, u32, TestTxReceiptContents, RuntimeEventResponse<TestEvent>>(

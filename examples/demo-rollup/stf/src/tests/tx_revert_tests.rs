@@ -13,7 +13,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::DefaultStorageSpec;
 use sov_test_utils::bank_data::get_default_token_id;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestHasher, TestSpec};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, SchemaBatch, TestHasher, TestSpec};
 
 use super::{
     create_genesis_config_for_tests, create_storage_manager_for_tests, read_private_keys,
@@ -49,12 +49,12 @@ fn test_tx_revert() -> Result<(), Infallible> {
         let mut storage_manager = create_storage_manager_for_tests(tempdir.path());
         let stf: StfBlueprintTest = StfBlueprint::new();
 
-        let (stf_state, ledger_state) = storage_manager
+        let (stf_state, _) = storage_manager
             .create_state_for(genesis_block.header())
             .unwrap();
         let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
             .unwrap();
 
         let txs = simulate_da_with_revert_msg(admin_key.clone());
@@ -65,7 +65,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
             batch_blobs: vec![blob],
         };
 
-        let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             stf_state,
@@ -97,7 +97,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
             .save_change_set(
                 block_1.header(),
                 apply_block_result.change_set,
-                ledger_state.into(),
+                SchemaBatch::new(),
             )
             .unwrap();
         let (storage, _) = storage_manager
@@ -161,12 +161,12 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
     let storage = {
         let mut storage_manager = create_storage_manager_for_tests(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let (stf_state, ledger_state) = storage_manager
+        let (stf_state, _) = storage_manager
             .create_state_for(genesis_block.header())
             .unwrap();
         let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
             .unwrap();
 
         let txs = simulate_da_with_bad_sig(admin_key.clone());
@@ -178,7 +178,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
             batch_blobs: vec![blob],
         };
 
-        let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             stf_state,
@@ -207,7 +207,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
             .save_change_set(
                 block_1.header(),
                 apply_block_result.change_set,
-                ledger_state.into(),
+                SchemaBatch::new(),
             )
             .unwrap();
         let (storage, _) = storage_manager
@@ -262,12 +262,12 @@ fn test_tx_bad_nonce() {
     {
         let mut storage_manager = create_storage_manager_for_tests(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let (stf_state, ledger_state) = storage_manager
+        let (stf_state, _) = storage_manager
             .create_state_for(genesis_block.header())
             .unwrap();
         let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
             .unwrap();
 
         let txs = simulate_da_with_bad_nonce(admin_key);
@@ -282,7 +282,7 @@ fn test_tx_bad_nonce() {
         let initial_sequencer_stake =
             get_attester_stake_for_block(&block_1, &mut storage_manager, &stf);
 
-        let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
 
         let apply_block_result = stf.apply_slot(
             &genesis_root,
@@ -322,7 +322,7 @@ fn test_tx_bad_nonce() {
             .save_change_set(
                 block_1.header(),
                 apply_block_result.change_set,
-                ledger_state.into(),
+                SchemaBatch::new(),
             )
             .expect("Saving the change set should not fail");
 
@@ -353,12 +353,12 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
     let (genesis_root, sequencer_balance_before) = {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
-        let (stf_state, ledger_state) = storage_manager
+        let (stf_state, _) = storage_manager
             .create_state_for(genesis_block.header())
             .unwrap();
         let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
             .unwrap();
 
         let balance = {
@@ -389,7 +389,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
             batch_blobs: vec![blob],
         };
 
-        let (storage, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let (storage, _) = storage_manager.create_state_for(block_1.header()).unwrap();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             storage,
@@ -416,7 +416,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
             .save_change_set(
                 block_1.header(),
                 apply_block_result.change_set,
-                ledger_state.into(),
+                SchemaBatch::new(),
             )
             .unwrap();
         let (storage, _) = storage_manager

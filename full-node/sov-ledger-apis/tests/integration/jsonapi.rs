@@ -1,5 +1,5 @@
 //! Basic request-response tests based on the ledger data supplied by
-//! [`sov_test_utils::ledger_db::add_data_to_ledger_db`].
+//! [`sov_test_utils::ledger_db::materialize_ledger_db_data`].
 
 use std::str::FromStr;
 
@@ -26,7 +26,7 @@ async fn undefined_path_returns_json_error() {
 }
 
 /// Asserts basic properties about the latest slot based on the data supplied by
-/// [`sov_test_utils::ledger_db::add_data_to_ledger_db`].
+/// [`sov_test_utils::ledger_db::materialize_ledger_db_data`].
 #[tokio::test(flavor = "multi_thread")]
 async fn get_latest_slot_is_ok() {
     let ledger_service = LedgerTestService::new().await.unwrap();

@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 use rockbound::cache::cache_db::CacheDb;
-use rockbound::cache::change_set::ChangeSet;
 use rockbound::{Schema, SchemaBatch, SeekKeyEncoder};
 use serde::Serialize;
 use sov_rollup_interface::rpc::AggregatedProofResponse;
@@ -235,11 +234,6 @@ impl LedgerDb {
         Ok(())
     }
 
-    /// Extract [`ChangeSet`] from underlying [`CacheDb`]
-    pub fn clone_change_set(&self) -> ChangeSet {
-        self.db.clone_change_set()
-    }
-
     /// Get the next slot, block, transaction, and event numbers
     pub fn get_next_items_numbers(&self) -> ItemNumbers {
         self.next_item_numbers.lock().unwrap().clone()
@@ -339,14 +333,14 @@ impl LedgerDb {
         schema_batch.put::<EventByKey>(&(event.key().clone(), tx_number, *event_number), &())
     }
 
-    /// Commits a slot to the database by inserting its events, transactions, and batches before
-    /// inserting the slot metadata.
-    pub fn commit_slot<S: SlotData, B: Serialize, T: TxReceiptContents>(
+    /// Materializes [`SlotCommit`] into [`SchemaBatch`] by inserting its events,
+    /// transactions, and batches before inserting the slot metadata.
+    pub fn materialize_slot<S: SlotData, B: Serialize, T: TxReceiptContents>(
         &self,
         data_to_commit: SlotCommit<S, B, T>,
         state_root: &[u8],
-    ) -> Result<(), anyhow::Error> {
-        // Create a scope to ensure that the lock is released before we commit to the db
+    ) -> anyhow::Result<SchemaBatch> {
+        // Create a scope to ensure that the lock is released before we materialize data
         let mut current_item_numbers = {
             let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
             let item_numbers = next_item_numbers.clone();
@@ -357,7 +351,6 @@ impl LedgerDb {
             item_numbers
             // The lock is released here
         };
-
         let mut schema_batch = SchemaBatch::new();
 
         let first_batch_number = current_item_numbers.batch_number;
@@ -417,12 +410,10 @@ impl LedgerDb {
             &mut schema_batch,
         )?;
 
-        self.db.write_many(schema_batch)?;
-
         self.notification_service
             .register_slot_notification(current_item_numbers.slot_number);
 
-        Ok(())
+        Ok(schema_batch)
     }
 
     /// Sending all previously registered notifications.
@@ -430,14 +421,17 @@ impl LedgerDb {
         self.notification_service.send_notifications();
     }
 
-    /// Set the latest finalized slot in the ledger DB. This implicitly finalizes all earlier slots.
-    pub fn set_latest_finalized_slot(&self, slot_number: u64) -> Result<(), anyhow::Error> {
-        self.db
+    /// Materializes latest finalized slot and registers notification.
+    pub fn materialize_latest_finalize_slot(
+        &self,
+        slot_number: u64,
+    ) -> anyhow::Result<SchemaBatch> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch
             .put::<FinalizedSlots>(&LatestFinalizedSlotSingleton, &SlotNumber(slot_number))?;
-
         self.notification_service
             .register_finalized_slot_notification(slot_number);
-        Ok(())
+        Ok(schema_batch)
     }
 
     fn last_version_written<T: Schema<Key = U>, U: Into<u64>>(
@@ -457,18 +451,17 @@ impl LedgerDb {
         self.db.get_largest::<SlotByNumber>()
     }
 
-    /// Save the aggregated zk proof to the database.
-    pub fn save_finalized_aggregated_proof(
+    /// Materializes aggregated zk proof
+    pub fn materialize_aggregated_proof(
         &self,
         agg_proof: AggregatedProof,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<SchemaBatch, anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
         let unique_id = 0;
         schema_batch.put::<ProofByUniqueId>(&ProofUniqueId(unique_id), &agg_proof)?;
 
-        self.db.write_many(schema_batch)?;
         self.notification_service
             .register_aggregated_proof_notification(AggregatedProofResponse { proof: agg_proof });
-        Ok(())
+        Ok(schema_batch)
     }
 }

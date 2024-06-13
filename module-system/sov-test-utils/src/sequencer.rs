@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use sov_db::schema::SchemaBatch;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockCodeCommitment;
@@ -77,7 +78,7 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
     let mut storage_manager =
         ProverStorageManager::<MockDaSpec, DefaultStorageSpec<TestHasher>>::new(storage_config)?;
     let genesis_block_header = MockBlockHeader::from_height(0);
-    let (stf_state, ledger_storage) = storage_manager.create_state_for(&genesis_block_header)?;
+    let (stf_state, _) = storage_manager.create_state_for(&genesis_block_header)?;
 
     let genesis_config = create_genesis_config(
         (&admin_pkey.pub_key()).into(),
@@ -105,11 +106,7 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
     let blueprint = Blueprint::with_runtime(runtime.clone());
     let (_root_hash, change_set) = blueprint.init_chain(stf_state, params);
 
-    storage_manager.save_change_set(
-        &genesis_block_header,
-        change_set,
-        ledger_storage.clone_change_set(),
-    )?;
+    storage_manager.save_change_set(&genesis_block_header, change_set, SchemaBatch::new())?;
 
     let first_block = MockBlockHeader::from_height(1);
 

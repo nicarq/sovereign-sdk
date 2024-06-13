@@ -4,6 +4,7 @@ use anyhow::Context;
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use risc0::MOCK_DA_ELF;
+use sov_db::schema::SchemaBatch;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockZkVerifier;
@@ -83,12 +84,12 @@ async fn test_proof_generation() {
 
     println!("Starting from empty storage, initialization chain");
     let genesis_block = MockBlock::default();
-    let (stf_state, ledger_state) = storage_manager
+    let (stf_state, _) = storage_manager
         .create_state_for(genesis_block.header())
         .unwrap();
     let (mut prev_state_root, stf_state) = stf.init_chain(stf_state, genesis_config);
     storage_manager
-        .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+        .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
         .unwrap();
     // Write it to the database immediately!
     storage_manager.finalize(&genesis_block.header).unwrap();
@@ -109,7 +110,7 @@ async fn test_proof_generation() {
             .extract_relevant_blobs_with_proof(filtered_block)
             .await;
 
-        let (stf_state, ledger_state) = storage_manager
+        let (stf_state, _) = storage_manager
             .create_state_for(filtered_block.header())
             .unwrap();
 
@@ -147,7 +148,7 @@ async fn test_proof_generation() {
             .save_change_set(
                 filtered_block.header(),
                 result.change_set,
-                ledger_state.into(),
+                SchemaBatch::new(),
             )
             .unwrap();
     }

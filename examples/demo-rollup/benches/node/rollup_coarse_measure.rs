@@ -13,6 +13,7 @@ use humantime::format_duration;
 use prettytable::Table;
 use prometheus::{Histogram, HistogramOpts, Registry};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
+use sov_db::schema::SchemaBatch;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
@@ -138,11 +139,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let (mut current_root, stf_state) = stf.init_chain(stf_state, demo_genesis_config);
 
     storage_manager
-        .save_change_set(
-            &genesis_block_header,
-            stf_state,
-            ledger_db.clone_change_set(),
-        )
+        .save_change_set(&genesis_block_header, stf_state, SchemaBatch::new())
         .expect("Saving genesis storage failed");
     storage_manager.finalize(&genesis_block_header).unwrap();
 
@@ -163,7 +160,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Setup. Block h=1 has a single tx that creates the token. Exclude from timers
     let filtered_block = blocks.remove(0);
-    let (stf_state, ledger_state) = storage_manager
+    let (stf_state, _) = storage_manager
         .create_state_for(filtered_block.header())
         .unwrap();
     let apply_block_result = stf.apply_slot(
@@ -175,20 +172,21 @@ async fn main() -> Result<(), anyhow::Error> {
         blobs.remove(0).as_iters(),
     );
     current_root = apply_block_result.state_root;
+
+    let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+    data_to_commit.add_batch(apply_block_result.batch_receipts[0].clone());
+    let ledger_change_set = ledger_db
+        .materialize_slot(data_to_commit, current_root.as_ref())
+        .unwrap();
+
     storage_manager
         .save_change_set(
             filtered_block.header(),
             apply_block_result.change_set,
-            ledger_state.into(),
+            ledger_change_set,
         )
         .unwrap();
     storage_manager.finalize(filtered_block.header()).unwrap();
-
-    let mut data_to_commit = SlotCommit::new(filtered_block);
-    data_to_commit.add_batch(apply_block_result.batch_receipts[0].clone());
-    ledger_db
-        .commit_slot(data_to_commit, current_root.as_ref())
-        .unwrap();
 
     // 3 blocks to finalization
     let fork_length = 3;
@@ -197,9 +195,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let total = Instant::now();
     let mut apply_block_time = Duration::new(0, 0);
     for (filtered_block, mut relevant_blobs) in blocks.into_iter().zip(blobs.into_iter()) {
-        let (stf_state, ledger_state) = storage_manager
+        let (stf_state, _) = storage_manager
             .create_state_for(filtered_block.header())
             .unwrap();
+        // We don't need to replace ledgerDb database, because data goes immediately to rocksdb on
+        // each finalization, and it reads from there.
         let now = Instant::now();
         let apply_block_result = stf.apply_slot(
             &current_root,
@@ -212,23 +212,8 @@ async fn main() -> Result<(), anyhow::Error> {
         apply_block_time += now.elapsed();
         h_apply_block.observe(now.elapsed().as_secs_f64());
         current_root = apply_block_result.state_root;
-        storage_manager
-            .save_change_set(
-                filtered_block.header(),
-                apply_block_result.change_set,
-                ledger_state.into(),
-            )
-            .unwrap();
 
-        if let Some(height_to_finalize) = filtered_block.header().height().checked_sub(fork_length)
-        {
-            // Blocks 0 & 1 has been finalized before
-            if height_to_finalize > 1 {
-                let header_to_finalize = MockBlockHeader::from_height(height_to_finalize);
-                storage_manager.finalize(&header_to_finalize).unwrap();
-            }
-        }
-
+        let filtered_header = filtered_block.header().clone();
         let mut data_to_commit = SlotCommit::new(filtered_block);
         for receipt in apply_block_result.batch_receipts {
             for t in &receipt.tx_receipts {
@@ -239,9 +224,27 @@ async fn main() -> Result<(), anyhow::Error> {
             data_to_commit.add_batch(receipt);
         }
 
-        ledger_db
-            .commit_slot(data_to_commit, current_root.as_ref())
+        let ledger_changes = ledger_db
+            .materialize_slot(data_to_commit, current_root.as_ref())
             .unwrap();
+
+        storage_manager
+            .save_change_set(
+                &filtered_header,
+                apply_block_result.change_set,
+                ledger_changes,
+            )
+            .unwrap();
+
+        if let Some(height_to_finalize) = filtered_header.height().checked_sub(fork_length) {
+            // Blocks 0 & 1 has been finalized before
+            if height_to_finalize > 1 {
+                let header_to_finalize = MockBlockHeader::from_height(height_to_finalize);
+                storage_manager.finalize(&header_to_finalize).unwrap();
+            }
+        }
+
+        ledger_db.send_notifications();
     }
 
     let total = total.elapsed();

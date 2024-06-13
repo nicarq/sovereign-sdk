@@ -260,6 +260,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 }
 
 /// Changeset extracted from [`ProverStorage`]
+#[derive(Default)]
 pub struct ProverChangeSet {
     /// [`sov_db::schema::SchemaBatch`] associated with provable state updates.
     pub state_change_set: sov_db::schema::SchemaBatch,

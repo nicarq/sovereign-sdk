@@ -8,6 +8,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
+use sov_db::schema::SchemaBatch;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
@@ -79,7 +80,7 @@ fn rollup_bench(_bench: &mut Criterion) {
     let (mut current_root, stf_change_set) = stf.init_chain(stf_state, demo_genesis_config);
 
     storage_manager
-        .save_change_set(&block_0, stf_change_set, ledger_db.clone_change_set())
+        .save_change_set(&block_0, stf_change_set, SchemaBatch::new())
         .unwrap();
 
     // data generation
@@ -118,8 +119,9 @@ fn rollup_bench(_bench: &mut Criterion) {
                 data_to_commit.add_batch(receipts);
             }
 
-            ledger_db
-                .commit_slot(data_to_commit, current_root.as_ref())
+            // Throwing away, the same way as with
+            let _change_set = ledger_db
+                .materialize_slot(data_to_commit, current_root.as_ref())
                 .unwrap();
             height += 1;
         });
