@@ -1,5 +1,9 @@
+use std::convert::Infallible;
+
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Address, Context, CredentialId, Module, PrivateKey, PublicKey};
+use sov_modules_api::{
+    Address, Context, CredentialId, Module, PrivateKey, PublicKey, StateCheckpoint,
+};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
@@ -9,7 +13,7 @@ use crate::{call, Account, AccountConfig, AccountData, Accounts};
 type S = sov_test_utils::TestSpec;
 
 #[test]
-fn test_config_account() {
+fn test_config_account() -> Result<(), Infallible> {
     let priv_key = TestPrivateKey::generate();
     let init_pub_key = &priv_key.pub_key();
     let init_addr = init_pub_key.to_address::<<S as Spec>::Address>();
@@ -24,22 +28,24 @@ fn test_config_account() {
 
     let accounts = &mut Accounts::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = &mut WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut genesis = state.to_genesis_state_accessor::<Accounts<S>>(&account_config);
 
-    accounts.init_module(&account_config, state).unwrap();
+    accounts.init_module(&account_config, &mut genesis).unwrap();
 
     let query_response = accounts
         .accounts
-        .get(&init_credential_id, state)
+        .get(&init_credential_id, &mut genesis)?
         .map(|Account { addr: a }| a);
 
     assert_eq!(query_response, Some(init_addr));
+
+    Ok(())
 }
 
 #[test]
-fn test_update_account() {
+fn test_update_account() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = &mut WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
     let priv_key = TestPrivateKey::generate();
@@ -60,19 +66,25 @@ fn test_update_account() {
         }],
     };
 
-    accounts.init_module(&config, state).unwrap();
+    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut genesis = state.to_genesis_state_accessor::<Accounts<S>>(&config);
+
+    accounts.init_module(&config, &mut genesis).unwrap();
     // Test new account creation
     {
         let query_response = accounts
             .accounts
-            .get(&sender_credential_id, state)
+            .get(&sender_credential_id, &mut genesis)?
             .map(|Account { addr: a }| a);
 
         assert_eq!(query_response, Some(sender_addr));
     }
 
+    let state = genesis.checkpoint();
+
     // Test credentials id update
     {
+        let mut working_set = state.to_working_set_unmetered();
         let priv_key = TestPrivateKey::generate();
         let new_pub_key = priv_key.pub_key();
         let new_credential_id: CredentialId = new_pub_key.credential_id::<TestHasher>();
@@ -80,14 +92,16 @@ fn test_update_account() {
             .call(
                 call::CallMessage::InsertCredentialId(new_credential_id),
                 &sender_context,
-                state,
+                &mut working_set,
             )
             .unwrap();
+
+        let mut state = working_set.checkpoint().0;
 
         // Account corresponding to the old credential still exists.
         let query_response = accounts
             .accounts
-            .get(&sender_credential_id, state)
+            .get(&sender_credential_id, &mut state)?
             .map(|Account { addr: a }| a);
 
         assert_eq!(query_response, Some(sender_addr));
@@ -95,17 +109,19 @@ fn test_update_account() {
         // New account with the new public key and an old address is created.
         let query_response = accounts
             .accounts
-            .get(&new_credential_id, state)
+            .get(&new_credential_id, &mut state)?
             .map(|Account { addr: a }| a);
 
         assert_eq!(query_response, Some(sender_addr));
     }
+
+    Ok(())
 }
 
 #[test]
 fn test_update_account_fails() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = &mut WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
     let sender_1 = TestPrivateKey::generate().pub_key();
@@ -137,22 +153,25 @@ fn test_update_account_fails() {
         ],
     };
 
-    accounts.init_module(&config, state).unwrap();
+    let mut genesis = state.to_genesis_state_accessor::<Accounts<S>>(&config);
+    accounts.init_module(&config, &mut genesis).unwrap();
+    let state = genesis.checkpoint();
 
+    let mut state = state.to_working_set_unmetered();
     // The new credential already exists and the call fails.
     assert!(accounts
         .call(
             call::CallMessage::InsertCredentialId(sender_2_credential_id),
             &sender_context_1,
-            state
+            &mut state
         )
         .is_err());
 }
 
 #[test]
-fn test_get_account_after_pub_key_update() {
+fn test_get_account_after_pub_key_update() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = &mut WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
     let accounts = &mut Accounts::<S>::default();
 
     let sender = TestPrivateKey::generate().pub_key();
@@ -170,7 +189,11 @@ fn test_get_account_after_pub_key_update() {
         }],
     };
 
-    accounts.init_module(&config, state).unwrap();
+    let mut genesis = state.to_genesis_state_accessor::<Accounts<S>>(&config);
+
+    accounts.init_module(&config, &mut genesis).unwrap();
+
+    let mut state = genesis.checkpoint().to_working_set_unmetered();
 
     let priv_key = TestPrivateKey::generate();
     let new_pub_key = priv_key.pub_key();
@@ -179,17 +202,24 @@ fn test_get_account_after_pub_key_update() {
         .call(
             call::CallMessage::InsertCredentialId(new_credential_id),
             &sender_context,
-            state,
+            &mut state,
         )
         .unwrap();
 
-    let acc = accounts.accounts.get(&new_credential_id, state).unwrap();
+    let mut state = state.checkpoint().0;
+
+    let acc = accounts
+        .accounts
+        .get(&new_credential_id, &mut state)?
+        .unwrap();
 
     assert_eq!(acc.addr, sender_addr);
+
+    Ok(())
 }
 
 #[test]
-fn test_resolve_sender_address() {
+fn test_resolve_sender_address() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let state: WorkingSet<S> = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (mut checkpoint, _, _) = state.checkpoint();
@@ -211,13 +241,14 @@ fn test_resolve_sender_address() {
         .resolve_sender_address(&Some(sender_addr), &sender_credential_id, &mut checkpoint)
         .unwrap();
 
-    let mut state = checkpoint.to_working_set_unmetered();
     let acc = accounts
         .accounts
-        .get(&sender_credential_id, &mut state)
+        .get(&sender_credential_id, &mut checkpoint)?
         .unwrap();
 
     assert_eq!(acc.addr, sender_addr);
+
+    Ok(())
 }
 
 #[test]

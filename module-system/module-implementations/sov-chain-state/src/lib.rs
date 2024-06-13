@@ -6,7 +6,9 @@ mod call;
 mod gas;
 #[cfg(test)]
 mod tests;
-use sov_modules_api::{ModuleId, Spec, StateAccessor, StateReaderAndWriter, Zkvm};
+use sov_modules_api::{
+    ModuleId, Spec, StateAccessor, StateReader, StateReaderAndWriter, StateWriter, Zkvm,
+};
 
 mod genesis;
 pub use genesis::*;
@@ -29,7 +31,7 @@ use sov_modules_api::{
 };
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;
-use sov_state::Storage;
+use sov_state::{Storage, User};
 
 /// Type alias that contains the height of a given transition
 pub type VirtualSlotNumber = u64;
@@ -276,82 +278,108 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
 
 impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Returns transition height in the current slot
-    pub fn true_slot_number<T>(&self, state: &mut T) -> TransitionHeight
+    pub fn true_slot_number<T>(
+        &self,
+        state: &mut T,
+    ) -> Result<TransitionHeight, <T as StateReader<Kernel>>::Error>
     where
         T: StateReaderAndWriter<Kernel>,
     {
-        self.true_slot_number.get(state).unwrap_or_default()
+        Ok(self.true_slot_number.get(state)?.unwrap_or_default())
     }
 
     /// Returns transition height for the next slot to start execution
-    pub fn next_visible_slot_number<T>(&self, state: &mut T) -> TransitionHeight
+    pub fn next_visible_slot_number<T>(
+        &self,
+        state: &mut T,
+    ) -> Result<TransitionHeight, <T as StateReader<Kernel>>::Error>
     where
         T: StateReaderAndWriter<Kernel>,
     {
-        self.next_visible_slot_number.get(state).unwrap_or_default()
+        Ok(self
+            .next_visible_slot_number
+            .get(state)?
+            .unwrap_or_default())
     }
 
     /// Returns transition height in the current slot
-    pub fn set_next_visible_slot_number<T>(&self, value: &u64, state: &mut T)
+    pub fn set_next_visible_slot_number<T>(
+        &self,
+        value: &u64,
+        state: &mut T,
+    ) -> Result<(), T::Error>
     where
-        T: StateReaderAndWriter<Kernel>,
+        T: StateWriter<Kernel>,
     {
         tracing::debug!(slot_number = value, "Setting next visible slot number");
-        self.next_visible_slot_number.set(value, state);
+        self.next_visible_slot_number.set(value, state)
     }
 
     /// Returns the current time, as reported by the DA layer
-    pub fn get_time(&self, state: &mut impl VersionReader) -> Time {
-        self.time
-            .get_current(state)
-            .expect("Time must be set at initialization")
+    pub fn get_time<Reader: VersionReader>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Time, <Reader as StateReader<Kernel>>::Error> {
+        Ok(self
+            .time
+            .get_current(state)?
+            .expect("Time must be set at initialization"))
     }
 
     /// Return the genesis hash of the module.
-    pub fn get_genesis_hash(
+    pub fn get_genesis_hash<Accessor: StateAccessor>(
         &self,
-        state: &mut impl StateAccessor,
-    ) -> Option<<S::Storage as Storage>::Root> {
+        state: &mut Accessor,
+    ) -> Result<Option<<S::Storage as Storage>::Root>, <Accessor as StateReader<User>>::Error> {
         self.genesis_root.get(state)
     }
 
     /// Return the code commitment to be used for verifying the rollup's execution
     /// for each state transition.
-    pub fn inner_code_commitment(
+    pub fn inner_code_commitment<Accessor: StateAccessor>(
         &self,
-        state: &mut impl StateAccessor,
-    ) -> Option<<S::InnerZkvm as Zkvm>::CodeCommitment> {
+        state: &mut Accessor,
+    ) -> Result<
+        Option<<S::InnerZkvm as Zkvm>::CodeCommitment>,
+        <Accessor as StateReader<User>>::Error,
+    > {
         self.inner_code_commitment.get(state)
     }
 
     /// Return the code commitment to be used for verifying the rollup's execution from genesis to the current slot
     /// in the aggregated proving circuit.
-    pub fn outer_code_commitment(
+    pub fn outer_code_commitment<Accessor: StateAccessor>(
         &self,
-        state: &mut impl StateAccessor,
-    ) -> Option<<S::OuterZkvm as Zkvm>::CodeCommitment> {
+        state: &mut Accessor,
+    ) -> Result<
+        Option<<S::OuterZkvm as Zkvm>::CodeCommitment>,
+        <Accessor as StateReader<User>>::Error,
+    > {
         self.outer_code_commitment.get(state)
     }
 
     /// Return the initial height of the DA layer.
-    pub fn genesis_da_height(&self, state: &mut impl StateAccessor) -> Option<TransitionHeight> {
+    pub fn genesis_da_height<Accessor: StateAccessor>(
+        &self,
+        state: &mut Accessor,
+    ) -> Result<Option<TransitionHeight>, <Accessor as StateReader<User>>::Error> {
         self.genesis_da_height.get(state)
     }
 
     /// Returns the transition in progress of the module.
-    pub fn get_in_progress_transition(
+    pub fn get_in_progress_transition<Reader: VersionReader>(
         &self,
-        state: &mut impl VersionReader,
-    ) -> Option<TransitionInProgress<S, Da>> {
+        state: &mut Reader,
+    ) -> Result<Option<TransitionInProgress<S, Da>>, <Reader as StateReader<Kernel>>::Error> {
         self.in_progress_transition.get_current(state)
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.
-    pub fn get_historical_transitions(
+    pub fn get_historical_transitions<Accessor: StateAccessor>(
         &self,
         transition_num: TransitionHeight,
-        state: &mut impl StateAccessor,
-    ) -> Option<StateTransition<S, Da>> {
+        state: &mut Accessor,
+    ) -> Result<Option<StateTransition<S, Da>>, <Accessor as StateReader<User>>::Error> {
         self.historical_transitions.get(&transition_num, state)
     }
 }

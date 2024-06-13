@@ -20,9 +20,9 @@ impl<S: Spec> NonFungibleToken<S> {
         config: &<Self as sov_modules_api::Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        self.admin.set(&config.admin, state);
+        self.admin.set(&config.admin, state)?;
         for (id, owner) in config.owners.iter() {
-            if self.owners.get(id, state).is_some() {
+            if self.owners.get(id, state)?.is_some() {
                 bail!("Token id {} already exists", id);
             }
             self.give_nft(owner, *id, state)?;

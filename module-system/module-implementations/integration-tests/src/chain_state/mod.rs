@@ -1,9 +1,11 @@
+use std::convert::Infallible;
+
 use sov_chain_state::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
 use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint, WorkingSet};
-use sov_modules_stf_blueprint::{Batch, BatchSequencerOutcome};
+use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint};
+use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -22,7 +24,7 @@ const INITIAL_USER_BALANCE: u64 = 100_000;
 /// with an associated chain state, and checks that the height, the genesis hash
 /// and the state transitions are correctly stored and updated.
 #[test]
-fn test_simple_value_setter_with_chain_state() {
+fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
     // Build a STF blueprint with the module configurations
     let mut rollup = TestRollup::new();
 
@@ -105,7 +107,7 @@ fn test_simple_value_setter_with_chain_state() {
 
         // Check that the root hash has been stored correctly
         let stored_root = chain_state_ref
-            .get_genesis_hash(&mut state_checkpoint)
+            .get_genesis_hash(&mut state_checkpoint)?
             .unwrap();
 
         assert_eq!(stored_root, init_root_hash, "Root hashes don't match");
@@ -119,7 +121,7 @@ fn test_simple_value_setter_with_chain_state() {
 
         // Check the tx in progress
         let new_tx_in_progress: TransitionInProgress<S, MockDaSpec> = chain_state_ref
-            .get_in_progress_transition(&mut kernel_working_set)
+            .get_in_progress_transition(&mut kernel_working_set)?
             .unwrap();
 
         let base_fee_per_gas =
@@ -163,25 +165,23 @@ fn test_simple_value_setter_with_chain_state() {
         );
 
         // Computes the new working set after slot application
-        let mut state = WorkingSet::new(rollup.storage());
+        let mut state = StateCheckpoint::new(rollup.storage());
 
         let chain_state_ref: &ChainState<S, MockDaSpec> = test_kernel.chain_state();
 
         // Check that the root hash has been stored correctly
-        let stored_root = chain_state_ref.get_genesis_hash(&mut state).unwrap();
+        let stored_root = chain_state_ref.get_genesis_hash(&mut state)?.unwrap();
 
         assert_eq!(stored_root, init_root_hash, "Root hashes don't match");
 
         // Check the slot number
-        let mut state_checkpoint = state.checkpoint().0;
-        let mut kernel_working_set =
-            KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
-        let new_height_storage = chain_state_ref.true_slot_number(&mut kernel_working_set);
+        let mut kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state);
+        let new_height_storage = chain_state_ref.true_slot_number(&mut kernel_working_set)?;
         assert_eq!(new_height_storage, 2, "The new height did not update");
 
         // Check the tx in progress
         let new_tx_in_progress: TransitionInProgress<S, MockDaSpec> = chain_state_ref
-            .get_in_progress_transition(&mut kernel_working_set)
+            .get_in_progress_transition(&mut kernel_working_set)?
             .unwrap();
 
         let new_base_fee_per_gas =
@@ -204,7 +204,7 @@ fn test_simple_value_setter_with_chain_state() {
         );
 
         let last_tx_stored: StateTransition<S, MockDaSpec> = chain_state_ref
-            .get_historical_transitions(1, &mut state_checkpoint)
+            .get_historical_transitions(1, &mut state)?
             .unwrap();
 
         let mut gas_info = BlockGasInfo::new(
@@ -224,4 +224,6 @@ fn test_simple_value_setter_with_chain_state() {
 
         assert_eq!(last_tx_stored, expected_tx_stored);
     }
+
+    Ok(())
 }

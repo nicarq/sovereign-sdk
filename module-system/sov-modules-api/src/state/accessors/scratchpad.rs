@@ -1,4 +1,5 @@
 //! Runtime state machine definitions.
+
 use sov_state::namespaces::User;
 #[cfg(any(feature = "native", feature = "test-utils"))]
 use sov_state::Storage;
@@ -18,7 +19,9 @@ use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
     TransactionConsumption, TxGasMeter,
 };
-use crate::{Gas, GasMeter, GasMeteringError, UnlimitedGasMeter};
+#[cfg(feature = "test-utils")]
+use crate::UnlimitedGasMeter;
+use crate::{Gas, GasMeter, GasMeteringError};
 #[cfg(feature = "native")]
 use crate::{ProvenStateAccessor, StateReaderAndWriter};
 
@@ -31,16 +34,14 @@ use crate::{ProvenStateAccessor, StateReaderAndWriter};
 /// This should only be used in infailible methods.
 pub struct TxScratchpad<S: Spec> {
     delta: RevertableWriter<Delta<S::Storage>>,
-    gas_meter: UnlimitedGasMeter<S::Gas>,
 }
 
 impl<S: Spec> StateCheckpoint<S> {
     /// Transforms this [`StateCheckpoint`] into a [`PreExecWorkingSet`].
     /// This method takes a [`GasMeter`] as an argument, which is used to charge the gas for the pre-execution checks from the sequencer.
-    pub fn to_tx_scratchpad(self, gas_price: &<S::Gas as Gas>::Price) -> TxScratchpad<S> {
+    pub fn to_tx_scratchpad(self) -> TxScratchpad<S> {
         TxScratchpad::<S> {
             delta: RevertableWriter::new(self.delta),
-            gas_meter: UnlimitedGasMeter::new_with_price(gas_price.clone()),
         }
     }
 }
@@ -131,24 +132,6 @@ impl<S: Spec> TxScratchpad<S> {
     }
 }
 
-impl<S: Spec> GasMeter<S::Gas> for TxScratchpad<S> {
-    fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.charge_gas(amount)
-    }
-    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.refund_gas(gas)
-    }
-    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        self.gas_meter.gas_price()
-    }
-    fn gas_used(&self) -> &S::Gas {
-        self.gas_meter.gas_used()
-    }
-    fn remaining_funds(&self) -> u64 {
-        self.gas_meter.remaining_funds()
-    }
-}
-
 /// A working set that can be used to charge gas for pre transaction execution checks.
 pub struct PreExecWorkingSet<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
     inner: TxScratchpad<S>,
@@ -231,7 +214,6 @@ impl<S: Spec> StateCheckpoint<S> {
     pub fn to_working_set_unmetered(self) -> WorkingSet<S> {
         let stashed_working_set = TxScratchpad {
             delta: RevertableWriter::new(self.delta),
-            gas_meter: UnlimitedGasMeter::new(),
         };
 
         WorkingSet {
@@ -252,7 +234,6 @@ impl<S: Spec> StateCheckpoint<S> {
     ) -> WorkingSet<S> {
         let stashed_working_set = TxScratchpad {
             delta: RevertableWriter::new(self.delta),
-            gas_meter: UnlimitedGasMeter::new_with_price(gas_price.clone()),
         };
 
         WorkingSet {
@@ -351,7 +332,7 @@ impl<S: Spec> WorkingSet<S> {
     }
 
     #[cfg(any(feature = "native", feature = "test-utils"))]
-    fn storage(&self) -> &S::Storage {
+    pub(crate) fn storage(&self) -> &S::Storage {
         &self.inner().delta().inner
     }
 }
@@ -366,7 +347,6 @@ impl<S: Spec> WorkingSet<S> {
         let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
         let tx_scratchpad = TxScratchpad {
             delta: RevertableWriter::new(state_checkpoint.delta),
-            gas_meter: UnlimitedGasMeter::new(),
         };
 
         WorkingSet {
@@ -387,7 +367,6 @@ impl<S: Spec> WorkingSet<S> {
         let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
         let tx_scratchpad = TxScratchpad {
             delta: RevertableWriter::new(state_checkpoint.delta),
-            gas_meter: UnlimitedGasMeter::new_with_price(price.clone()),
         };
 
         WorkingSet {
@@ -405,7 +384,6 @@ impl<S: Spec> WorkingSet<S> {
         let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::with_witness(inner, witness);
         let tx_scratchpad = TxScratchpad {
             delta: RevertableWriter::new(state_checkpoint.delta),
-            gas_meter: UnlimitedGasMeter::new(),
         };
 
         WorkingSet {
@@ -447,7 +425,6 @@ impl<S: Spec> WorkingSet<S> {
         let storage = self.storage().clone();
         let tx_scratchpad = TxScratchpad {
             delta: RevertableWriter::new(Delta::new(storage.clone(), Some(version))),
-            gas_meter: UnlimitedGasMeter::new(),
         };
 
         Self {

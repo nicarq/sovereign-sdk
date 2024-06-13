@@ -21,23 +21,34 @@ where
 
 fn main() {
     let storage = ZkStorage::new();
-    let mut working_set = &mut sov_modules_api::WorkingSet::new(storage);
+    let state = sov_modules_api::StateCheckpoint::new(storage);
     let runtime = &mut Runtime::<ZkTestSpec, u32>::default();
     let config = GenesisConfig::new((), (), ());
-    runtime.genesis(&config, working_set).unwrap();
+    let mut genesis_state = state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>>(&config);
+    runtime.genesis(&config, &mut genesis_state).unwrap();
+    let mut working_set = genesis_state.checkpoint().to_working_set_unmetered();
 
     {
-        let response = runtime.first.get_state_value(&mut working_set);
+        let response = runtime
+            .first
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
         assert_eq!(response, 1);
     }
 
     {
-        let response = runtime.second.get_state_value(&mut working_set);
+        let response = runtime
+            .second
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
         assert_eq!(response, 2);
     }
 
     {
-        let response = runtime.third.get_state_value(&mut working_set);
+        let response = runtime
+            .third
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
         assert_eq!(response, Some(0));
     }
 }

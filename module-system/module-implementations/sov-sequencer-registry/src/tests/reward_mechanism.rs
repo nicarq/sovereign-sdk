@@ -1,8 +1,10 @@
+use std::convert::Infallible;
+
 use borsh::BorshSerialize;
 use sov_bank::{IntoPayable, Payable, ReserveGasError};
 use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::capabilities::RawTx;
 use sov_modules_api::hooks::ApplyBatchHooks;
-use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec};
 use sov_test_utils::generate_empty_tx;
@@ -15,16 +17,13 @@ use crate::SequencerOutcome;
 /// - the `GasEnforcer` capability is correctly used (hence the module has enough funds to pay for the reward)
 /// - the `end_batch_hook` is called with a `SequencerOutcome::Rewarded` result
 #[test]
-fn test_reward_sequencer() {
+fn test_reward_sequencer() -> Result<(), Infallible> {
     // Genesis initialization.
     // We need to pass the large balance to make sure we have enough funds to pay for the tip and the sequencer registration
-    let (sequencer_test, mut working_set) =
-        TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false);
-    let balance_after_genesis = sequencer_test
-        .query_sequencer_balance(&mut working_set)
-        .unwrap();
+    let (sequencer_test, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false)?;
+    let balance_after_genesis = sequencer_test.query_sequencer_balance(&mut state)?.unwrap();
     let registry_balance_after_genesis = sequencer_test
-        .query_balance(sequencer_test.registry.id().to_payable(), &mut working_set)
+        .query_balance(sequencer_test.registry.id().to_payable(), &mut state)?
         .unwrap();
 
     let seq_address = &sequencer_test.sequencer_config.seq_rollup_address;
@@ -39,11 +38,10 @@ fn test_reward_sequencer() {
         None,
     );
 
-    let mut checkpoint = working_set.checkpoint().0;
-
     let txs = vec![RawTx {
         data: tx.try_to_vec().unwrap(),
     }];
+
     // Execute the begin batch hook
     let mut batch_test = BatchWithId {
         batch: Batch { txs },
@@ -52,10 +50,10 @@ fn test_reward_sequencer() {
 
     sequencer_test
         .registry
-        .begin_batch_hook(&mut batch_test, &seq_da_address, &mut checkpoint)
+        .begin_batch_hook(&mut batch_test, &seq_da_address, &mut state)
         .expect("The begin batch hook should succeed");
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad(&gas_price);
+    let transaction_scratchpad = state.to_tx_scratchpad();
 
     let pre_exec_ws = sequencer_test
         .registry
@@ -99,7 +97,7 @@ fn test_reward_sequencer() {
     let mut checkpoint = tx_scratchpad.commit();
 
     let registry_balance_after_refund = sequencer_test
-        .query_balance(sequencer_test.registry.id().to_payable(), &mut checkpoint)
+        .query_balance(sequencer_test.registry.id().to_payable(), &mut checkpoint)?
         .unwrap();
 
     assert_ne!(
@@ -117,22 +115,23 @@ fn test_reward_sequencer() {
     // The sequencer balance should be the same as the initial balance after the refunds
     assert_eq!(
         sequencer_test
-            .query_sequencer_balance(&mut checkpoint)
+            .query_sequencer_balance(&mut checkpoint)?
             .unwrap(),
         balance_after_genesis
     );
+
+    Ok(())
 }
 
 /// Tests that the sequencer gets correctly penalized when it incorrectly processes a batch
 #[test]
-fn test_penalize_sequencer() {
+fn test_penalize_sequencer() -> Result<(), Infallible> {
     // Genesis initialization.
-    let (sequencer_test, working_set) = TestSequencer::initialize_test(INITIAL_BALANCE, false);
-    let checkpoint = working_set.checkpoint().0;
+    let (sequencer_test, state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
     let seq_da_address = sequencer_test.sequencer_config.seq_da_address;
 
     let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad(gas_price);
+    let transaction_scratchpad = state.to_tx_scratchpad();
 
     let mut pre_exec_ws = sequencer_test
         .registry
@@ -153,8 +152,10 @@ fn test_penalize_sequencer() {
     // The sequencer stake should be zero
     assert_eq!(
         sequencer_test
-            .query_sender_balance(&seq_da_address, &mut state_checkpoint)
+            .query_sender_balance(&seq_da_address, &mut state_checkpoint)?
             .unwrap(),
         0
     );
+
+    Ok(())
 }

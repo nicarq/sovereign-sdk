@@ -11,6 +11,7 @@
 //!    state items are marked with `include`. See
 //!    [`StateItemRestApiExists`].se std::marker::PhantomData;
 
+use std::convert::Infallible;
 use std::marker::PhantomData;
 
 use axum::extract::State;
@@ -18,6 +19,7 @@ use axum::routing::get;
 use serde::Serialize;
 use sov_rest_utils::{ApiResult, Path, Query};
 use sov_state::{CompileTimeNamespace, StateCodec, StateItemCodec};
+use unwrap_infallible::UnwrapInfallible;
 
 use super::types::StateItemContents;
 use super::{
@@ -67,7 +69,7 @@ impl<N, M, T, Codec> StateItemRestApiImpl<M, NamespacedStateValue<N, T, Codec>>
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    ApiStateAccessor<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize,
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<T>,
@@ -86,7 +88,7 @@ where
             Codec::default(),
         );
 
-        let value = state_value.get(&mut state_accessor);
+        let value = state_value.get(&mut state_accessor).unwrap_infallible();
         Ok(StateItemContents::Value { value }.into())
     }
 }
@@ -95,7 +97,7 @@ impl<N, M, T, Codec> StateItemRestApi for StateItemRestApiImpl<M, NamespacedStat
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    ApiStateAccessor<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize + Send + Sync + 'static,
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<T>,
@@ -111,7 +113,7 @@ impl<N, M, T, Codec> StateItemRestApiImpl<M, NamespacedStateVec<N, T, Codec>>
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    ApiStateAccessor<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize,
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<usize>,
@@ -136,7 +138,7 @@ where
     ) -> ApiResult<StateItemContents<T, T>> {
         let (mut api_state_accessor, state_vec) = Self::checkpoint_and_vec(&state, height_opt);
 
-        let length = state_vec.len(&mut api_state_accessor);
+        let length = state_vec.len(&mut api_state_accessor).unwrap_infallible();
         Ok(StateItemContents::Vec { length }.into())
     }
 
@@ -147,7 +149,9 @@ where
     ) -> ApiResult<StateItemContents<T, T>> {
         let (mut api_state_accessor, state_vec) = Self::checkpoint_and_vec(&state, height_opt);
 
-        let value = state_vec.get(item_index, &mut api_state_accessor);
+        let value = state_vec
+            .get(item_index, &mut api_state_accessor)
+            .unwrap_infallible();
         Ok(StateItemContents::VecElement {
             index: item_index,
             value,
@@ -160,7 +164,7 @@ impl<N, M, T, Codec> StateItemRestApi for StateItemRestApiImpl<M, NamespacedStat
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    ApiStateAccessor<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<usize>,
@@ -178,7 +182,7 @@ impl<N, M, K, V, Codec> StateItemRestApiImpl<M, NamespacedStateMap<N, K, V, Code
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    ApiStateAccessor<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     K: Serialize + serde::de::DeserializeOwned,
     V: Serialize,
     Codec: StateCodec,
@@ -210,7 +214,7 @@ where
             Codec::default(),
         );
 
-        let value = state_map.get(&key, &mut working_set);
+        let value = state_map.get(&key, &mut working_set).unwrap_infallible();
         Ok(StateItemContents::MapElement { key, value }.into())
     }
 }
@@ -220,7 +224,7 @@ impl<N, M, K, V, Codec> StateItemRestApi
 where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
-    ApiStateAccessor<M::Spec>: StateReader<N>,
+    ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     K: Serialize + serde::de::DeserializeOwned + Clone + Send + Sync + 'static,
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,

@@ -5,10 +5,11 @@ use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
 use sov_state::{Prefix, StateCodec, StateItemCodec};
 use thiserror::Error;
+use unwrap_infallible::UnwrapInfallible;
 
 use super::map::NamespacedStateMap;
 use super::value::NamespacedStateValue;
-use crate::{StateReader, StateReaderAndWriter};
+use crate::{InfallibleStateReaderAndWriter, StateReader, StateReaderAndWriter, StateWriter};
 
 /// A growable array of values stored as JMT-backed state.
 #[derive(
@@ -37,6 +38,8 @@ pub enum StateVecError<N> {
     #[error("Value not found for prefix: {0} and index: {1} with namespace {}", std::any::type_name::<N>())]
     MissingValue(Prefix, usize, PhantomData<N>),
 }
+
+type StateVecResult<N, V> = Result<V, StateVecError<N>>;
 
 pub type StateVec<V, Codec = BorshCodec> = NamespacedStateVec<User, V, Codec>;
 pub type AccessoryStateVec<V, Codec = BorshCodec> = NamespacedStateVec<Accessory, V, Codec>;
@@ -81,8 +84,12 @@ where
         &self.prefix
     }
 
-    fn set_len(&self, length: usize, state: &mut impl StateReaderAndWriter<N>) {
-        self.len_value.set(&length, state);
+    fn set_len<Writer: StateWriter<N>>(
+        &self,
+        length: usize,
+        state: &mut Writer,
+    ) -> Result<(), Writer::Error> {
+        self.len_value.set(&length, state)
     }
 
     fn elems(&self) -> &NamespacedStateMap<N, usize, V, Codec> {
@@ -96,105 +103,149 @@ where
     /// Sets a value in the vector.
     /// If the index is out of bounds, returns an error.
     /// To push a value to the end of the StateVec, use [`NamespacedStateVec::push`].
-    pub fn set(
+    pub fn set<ReaderAndWriter: StateReaderAndWriter<N>>(
         &self,
         index: usize,
         value: &V,
-        state: &mut impl StateReaderAndWriter<N>,
-    ) -> Result<(), StateVecError<N>> {
-        let len = self.len(state);
+        state: &mut ReaderAndWriter,
+    ) -> Result<Result<(), StateVecError<N>>, <ReaderAndWriter as StateWriter<N>>::Error> {
+        let len = self.len(state)?;
 
-        if index < len {
-            self.elems().set(&index, value, state);
+        Ok(if index < len {
+            self.elems().set(&index, value, state)?;
             Ok(())
         } else {
             Err(StateVecError::IndexOutOfBounds(index))
-        }
+        })
     }
 
     /// Returns the value for the given index.
-    pub fn get(&self, index: usize, state: &mut impl StateReader<N>) -> Option<V> {
+    pub fn get<Reader: StateReader<N>>(
+        &self,
+        index: usize,
+        state: &mut Reader,
+    ) -> Result<Option<V>, Reader::Error> {
         self.elems().get(&index, state)
     }
 
     /// Returns the value for the given index.
     /// If the index is out of bounds, returns an error.
     /// If the value is absent, returns an error.
-    pub fn get_or_err<Reader: StateReaderAndWriter<N>>(
+    pub fn get_or_err<ReaderAndWriter: StateReaderAndWriter<N>>(
         &self,
         index: usize,
-        state: &mut Reader,
-    ) -> Result<V, StateVecError<N>> {
-        let len = self.len(state);
+        state: &mut ReaderAndWriter,
+    ) -> Result<StateVecResult<N, V>, <ReaderAndWriter as StateWriter<N>>::Error> {
+        let len = self.len(state)?;
 
-        if index < len {
-            self.elems().get(&index, state).ok_or_else(|| {
+        Ok(if index < len {
+            self.elems().get(&index, state)?.ok_or_else(|| {
                 StateVecError::MissingValue(self.prefix().clone(), index, PhantomData)
             })
         } else {
             Err(StateVecError::IndexOutOfBounds(index))
-        }
+        })
     }
 
     /// Returns the length of the vector.
-    pub fn len(&self, state: &mut impl StateReader<N>) -> usize {
-        self.len_value().get(state).unwrap_or_default()
+    pub fn len<Reader: StateReader<N>>(&self, state: &mut Reader) -> Result<usize, Reader::Error> {
+        Ok(self.len_value().get(state)?.unwrap_or_default())
     }
 
     /// Pushes a value to the end of the vector.
-    pub fn push(&self, value: &V, state: &mut impl StateReaderAndWriter<N>) {
-        let len = self.len(state);
+    pub fn push<ReaderAndWriter: StateReaderAndWriter<N>>(
+        &self,
+        value: &V,
+        state: &mut ReaderAndWriter,
+    ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error> {
+        let len = self.len(state)?;
 
-        self.elems().set(&len, value, state);
-        self.set_len(len + 1, state);
+        self.elems().set(&len, value, state)?;
+        self.set_len(len + 1, state)?;
+
+        Ok(())
     }
 
     /// Pops a value from the end of the vector and returns it.
-    pub fn pop(&self, state: &mut impl StateReaderAndWriter<N>) -> Option<V> {
-        let len = self.len(state);
-        let last_i = len.checked_sub(1)?;
-        let elem = self.elems().remove(&last_i, state)?;
+    pub fn pop<ReaderAndWriter: StateReaderAndWriter<N>>(
+        &self,
+        state: &mut ReaderAndWriter,
+    ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
+        let len = self.len(state)?;
+        let last_i = match len.checked_sub(1) {
+            Some(i) => i,
+            None => return Ok(None),
+        };
+
+        let elem = match self.elems().remove(&last_i, state)? {
+            Some(elem) => elem,
+            None => return Ok(None),
+        };
 
         let new_len = last_i;
-        self.set_len(new_len, state);
+        self.set_len(new_len, state)?;
 
-        Some(elem)
+        Ok(Some(elem))
     }
 
     /// Removes all values from this vector.
-    pub fn clear(&self, state: &mut impl StateReaderAndWriter<N>) {
-        let len = self.len_value().remove(state).unwrap_or_default();
+    pub fn clear<ReaderAndWriter: StateReaderAndWriter<N>>(
+        &self,
+        state: &mut ReaderAndWriter,
+    ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error> {
+        let len = self.len_value().remove(state)?.unwrap_or_default();
 
         for i in 0..len {
-            self.elems().delete(&i, state);
+            self.elems().delete(&i, state)?;
         }
+
+        Ok(())
     }
 
     /// Sets all values in the tector.
     ///
     /// If the length of the provided values is less than the length of the
     /// vector, the remaining values will be removed from storage.
-    pub fn set_all(&self, values: Vec<V>, state: &mut impl StateReaderAndWriter<N>) {
-        let old_len = self.len(state);
+    pub fn set_all<ReaderAndWriter: StateReaderAndWriter<N>>(
+        &self,
+        values: Vec<V>,
+        state: &mut ReaderAndWriter,
+    ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error> {
+        let old_len = self.len(state)?;
         let new_len = values.len();
 
         for i in new_len..old_len {
-            self.elems().delete(&i, state);
+            self.elems().delete(&i, state)?;
         }
 
         for (i, value) in values.into_iter().enumerate() {
-            self.elems().set(&i, &value, state);
+            self.elems().set(&i, &value, state)?;
         }
 
-        self.set_len(new_len, state);
+        self.set_len(new_len, state)
+    }
+
+    /// Returns the last value in the vector, or [`None`] if
+    /// empty.
+    pub fn last<ReaderAndWriter: StateReaderAndWriter<N>>(
+        &self,
+        state: &mut ReaderAndWriter,
+    ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
+        let len = self.len(state)?;
+        let i = match len.checked_sub(1) {
+            Some(i) => i,
+            None => return Ok(None),
+        };
+
+        self.elems().get(&i, state)
     }
 
     /// Returns an iterator over all the values in the vector.
     pub fn iter<'a, 'ws, W>(&'a self, state: &'ws mut W) -> StateVecIter<'a, 'ws, N, V, Codec, W>
     where
-        W: StateReaderAndWriter<N>,
+        W: InfallibleStateReaderAndWriter<N>,
     {
-        let len = self.len(state);
+        let len = self.len(state).unwrap_infallible();
         StateVecIter {
             state_vec: self,
             state,
@@ -202,14 +253,6 @@ where
             next_i: 0,
             _phantom: Default::default(),
         }
-    }
-
-    /// Returns the last value in the vector, or [`None`] if
-    /// empty.
-    pub fn last(&self, state: &mut impl StateReaderAndWriter<N>) -> Option<V> {
-        let len = self.len(state);
-        let i = len.checked_sub(1)?;
-        self.elems().get(&i, state)
     }
 }
 
@@ -222,7 +265,7 @@ where
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
-    W: StateReaderAndWriter<N>,
+    W: InfallibleStateReaderAndWriter<N>,
 {
     state_vec: &'a NamespacedStateVec<N, V, Codec>,
     state: &'ws mut W,
@@ -237,12 +280,15 @@ where
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
-    W: StateReaderAndWriter<N>,
+    W: InfallibleStateReaderAndWriter<N>,
 {
     type Item = V;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let elem = self.state_vec.get(self.next_i, self.state);
+        let elem = self
+            .state_vec
+            .get(self.next_i, self.state)
+            .unwrap_infallible();
         if elem.is_some() {
             self.next_i += 1;
         }
@@ -257,7 +303,7 @@ where
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
-    W: StateReaderAndWriter<N>,
+    W: InfallibleStateReaderAndWriter<N>,
 {
     fn len(&self) -> usize {
         self.len - self.next_i
@@ -270,7 +316,7 @@ where
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
-    W: StateReaderAndWriter<N>,
+    W: InfallibleStateReaderAndWriter<N>,
 {
 }
 
@@ -280,7 +326,7 @@ where
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
-    W: StateReaderAndWriter<N>,
+    W: InfallibleStateReaderAndWriter<N>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
@@ -288,7 +334,7 @@ where
         }
 
         self.len -= 1;
-        self.state_vec.get(self.len, self.state)
+        self.state_vec.get(self.len, self.state).unwrap_infallible()
     }
 }
 
@@ -301,9 +347,10 @@ mod test {
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::codec::BorshCodec;
     use sov_state::Prefix;
+    use unwrap_infallible::UnwrapInfallible;
 
     use super::*;
-    use crate::WorkingSet;
+    use crate::StateCheckpoint;
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -311,13 +358,13 @@ mod test {
     fn test_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage);
+        let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = StateVec::<u32>::new(prefix);
 
         for test_case_action in test_cases() {
-            check_test_case_action(&state_vec, test_case_action, &mut working_set);
+            check_test_case_action(&state_vec, test_case_action, &mut state);
         }
     }
 
@@ -375,7 +422,7 @@ mod test {
     ) where
         BorshCodec: StateItemCodec<T>,
         T: Eq + Debug,
-        W: StateReaderAndWriter<N>,
+        W: InfallibleStateReaderAndWriter<N>,
         N: CompileTimeNamespace,
     {
         match action {
@@ -384,31 +431,34 @@ mod test {
                 assert_eq!(expected, contents);
             }
             TestCaseAction::CheckLen(expected) => {
-                let actual = state_vec.len(state);
+                let actual = state_vec.len(state).unwrap_infallible();
                 assert_eq!(actual, expected);
             }
             TestCaseAction::Pop(expected) => {
-                let actual = state_vec.pop(state);
+                let actual = state_vec.pop(state).unwrap_infallible();
                 assert_eq!(actual, Some(expected));
             }
             TestCaseAction::Push(value) => {
-                state_vec.push(&value, state);
+                state_vec.push(&value, state).unwrap_infallible();
             }
             TestCaseAction::Set(index, value) => {
-                state_vec.set(index, &value, state).unwrap();
+                state_vec
+                    .set(index, &value, state)
+                    .unwrap_infallible()
+                    .unwrap();
             }
             TestCaseAction::SetAll(values) => {
-                state_vec.set_all(values, state);
+                state_vec.set_all(values, state).unwrap_infallible();
             }
             TestCaseAction::CheckGet(index, expected) => {
-                let actual = state_vec.get(index, state);
+                let actual = state_vec.get(index, state).unwrap_infallible();
                 assert_eq!(actual, expected);
             }
             TestCaseAction::Clear => {
-                state_vec.clear(state);
+                state_vec.clear(state).unwrap_infallible();
             }
             TestCaseAction::Last(expected) => {
-                let actual = state_vec.last(state);
+                let actual = state_vec.last(state).unwrap_infallible();
                 assert_eq!(actual, Some(expected));
             }
             TestCaseAction::CheckContentsReverse(expected) => {

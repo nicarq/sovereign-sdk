@@ -93,7 +93,7 @@ impl<S: Spec> Nft<S> {
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<Self> {
         if nfts
-            .get(&NftIdentifier(token_id, *collection_id), state)
+            .get(&NftIdentifier(token_id, *collection_id), state)?
             .is_some()
         {
             bail!(
@@ -120,7 +120,7 @@ impl<S: Spec> Nft<S> {
     ) -> anyhow::Result<OwnedNft<S>> {
         let nft_identifier = NftIdentifier(token_id, *collection_id);
         let nft = nfts
-            .get(&nft_identifier, state)
+            .get(&nft_identifier, state)?
             .ok_or_else(|| anyhow!("NFT not found"))
             .with_context(|| {
                 format!(
@@ -142,7 +142,7 @@ impl<S: Spec> Nft<S> {
         let (collection_id, _) =
             Collection::get_owned_collection(collection_name, collections, context, state)?;
         let token_identifier = NftIdentifier(token_id, collection_id);
-        let n = nfts.get(&token_identifier, state);
+        let n = nfts.get(&token_identifier, state)?;
         if let Some(nft) = n {
             if !nft.frozen {
                 Ok((collection_id, MutableNft(nft.clone())))

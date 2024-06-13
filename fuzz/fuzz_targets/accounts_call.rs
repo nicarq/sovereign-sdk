@@ -8,7 +8,9 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
-use sov_modules_api::{Context, CredentialId, Module, PrivateKey, PublicKey, Spec, WorkingSet};
+use sov_modules_api::{
+    Context, CredentialId, Module, PrivateKey, PublicKey, Spec, StateCheckpoint,
+};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
@@ -40,7 +42,7 @@ fuzz_target!(
         let mut seed = [0u8; 32];
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let working_set = &mut WorkingSet::<S>::new(storage);
+        let state = StateCheckpoint::<S>::new(storage);
 
         let sequencer = <S as Spec>::Address::from(sequencer);
         let accounts: Vec<_> = keys
@@ -54,7 +56,10 @@ fuzz_target!(
         let config = AccountConfig { accounts };
 
         let accounts: Accounts<S> = Accounts::default();
-        accounts.genesis(&config, working_set).unwrap();
+        let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
+        accounts.genesis(&config, &mut genesis_state).unwrap();
+
+        let mut working_set = genesis_state.checkpoint().to_working_set_unmetered();
 
         // address list is constant for this test
         let mut used = keys.iter().map(|k| k.as_hex()).collect::<HashSet<_>>();
@@ -90,7 +95,7 @@ fuzz_target!(
             let credential_id: CredentialId = public.credential_id::<TestHasher>();
 
             let msg = CallMessage::InsertCredentialId(credential_id);
-            accounts.call(msg, &context, working_set).unwrap();
+            accounts.call(msg, &context, &mut working_set).unwrap();
         }
 
         Corpus::Keep

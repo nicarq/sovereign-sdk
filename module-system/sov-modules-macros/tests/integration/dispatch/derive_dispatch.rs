@@ -24,9 +24,13 @@ fn main() {
     let runtime = &mut RT::default();
 
     let storage = ZkStorage::new();
-    let mut working_set = &mut sov_modules_api::WorkingSet::new(storage);
+
+    let state = sov_modules_api::StateCheckpoint::new(storage);
     let config = GenesisConfig::new((), (), ());
-    runtime.genesis(&config, working_set).unwrap();
+    let mut genesis_state = state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>>(&config);
+    runtime.genesis(&config, &mut genesis_state).unwrap();
+    let mut working_set = genesis_state.checkpoint().to_working_set_unmetered();
+
     let sender = Address::try_from([0; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
     let context: Context<ZkTestSpec> = Context::new(sender, Default::default(), sequencer, 1);
@@ -41,12 +45,15 @@ fn main() {
 
         assert_eq!(runtime.module_id(&module), runtime.first.id());
         let _ = runtime
-            .dispatch_call(module, working_set, &context)
+            .dispatch_call(module, &mut working_set, &context)
             .unwrap();
     }
 
     {
-        let response = runtime.first.get_state_value(&mut working_set);
+        let response = runtime
+            .first
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
         assert_eq!(response, value);
     }
 
@@ -61,12 +68,15 @@ fn main() {
         assert_eq!(runtime.module_id(&module), runtime.second.id());
 
         let _ = runtime
-            .dispatch_call(module, working_set, &context)
+            .dispatch_call(module, &mut working_set, &context)
             .unwrap();
     }
 
     {
-        let response = runtime.second.get_state_value(&mut working_set);
+        let response = runtime
+            .second
+            .get_state_value(&mut &mut working_set)
+            .expect("The working set should be unmetered");
         assert_eq!(response, value);
     }
 }

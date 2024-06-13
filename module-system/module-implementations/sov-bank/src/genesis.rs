@@ -153,11 +153,11 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                 state,
             )?;
 
-            if self.tokens.get(token_id, state).is_some() {
+            if self.tokens.get(token_id, state)?.is_some() {
                 bail!("token ID {} already exists", token_config.token_id);
             }
 
-            self.tokens.set(token_id, &token, state);
+            self.tokens.set(token_id, &token, state)?;
             tracing::debug!(
                 token_name = %token.name,
                 token_id = %token_id,

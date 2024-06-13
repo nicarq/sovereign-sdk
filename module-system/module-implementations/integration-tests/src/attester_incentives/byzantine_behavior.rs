@@ -1,11 +1,13 @@
+use std::convert::Infallible;
+
 use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{Gas, GasArray, Spec, StateTransitionPublicData, WorkingSet};
-use sov_modules_stf_blueprint::{Batch, TxEffect};
+use sov_modules_api::{Gas, GasArray, Spec, StateCheckpoint, StateTransitionPublicData};
+use sov_modules_stf_blueprint::TxEffect;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
@@ -18,19 +20,21 @@ use crate::attester_incentives::get_first_transaction_receipt;
 use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
 
 impl AttesterIncentivesTestHandler {
-    fn check_attester_bonded(&self, rollup: &mut TestRollup) {
+    fn check_attester_bonded(&self, rollup: &mut TestRollup) -> Result<(), Infallible> {
         assert_eq!(
-            rollup.get_user_bond(Role::Attester, self.attester_addr()),
+            rollup.get_user_bond(Role::Attester, self.attester_addr())?,
             self.attester_stake
         );
 
-        let mut state = WorkingSet::<S>::new(rollup.storage());
+        let mut state = StateCheckpoint::<S>::new(rollup.storage());
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state)?,
             Some(self.attester_balance - self.attester_stake)
         );
+
+        Ok(())
     }
 
     // Attest only one transition
@@ -40,7 +44,7 @@ impl AttesterIncentivesTestHandler {
         init_state_root: StorageRoot<Storage>,
         exec_result: Vec<ExecutionSimulationVars>,
         rollup: &mut TestRollup,
-    ) -> Vec<StorageRoot<Storage>> {
+    ) -> Result<Vec<StorageRoot<Storage>>, Infallible> {
         let ExecutionSimulationVars {
             state_root: fst_state_root,
             state_proof: first_state_proof,
@@ -92,19 +96,19 @@ impl AttesterIncentivesTestHandler {
                 .is_successful(),);
 
             // The attester is slashed
-            assert_eq!(rollup.get_bad_transition_reward(1), self.attester_stake);
+            assert_eq!(rollup.get_bad_transition_reward(1)?, self.attester_stake);
 
             assert_eq!(
                 rollup.get_user_bond(
                     Role::Attester,
                     self.attester_private_key
                         .to_address::<<S as Spec>::Address>()
-                ),
+                )?,
                 0
             );
         }
 
-        vec![fst_state_root, snd_state_root]
+        Ok(vec![fst_state_root, snd_state_root])
     }
 
     fn try_challenge_faulty_attestation(
@@ -112,7 +116,7 @@ impl AttesterIncentivesTestHandler {
         init_state_root: StorageRoot<Storage>,
         transition_roots: Vec<StorageRoot<Storage>>,
         rollup: &mut TestRollup,
-    ) {
+    ) -> Result<(), Infallible> {
         let first_state_root = transition_roots[0];
         let snd_state_root = transition_roots[1];
 
@@ -168,7 +172,7 @@ impl AttesterIncentivesTestHandler {
             assert_eq!(fst_tx_receipt.receipt, TxEffect::Successful(()));
             assert_eq!(snd_tx_receipt.receipt, TxEffect::Successful(()));
 
-            let mut state = WorkingSet::<S>::new(rollup.storage());
+            let mut state = StateCheckpoint::<S>::new(rollup.storage());
 
             // The challenger has bonded
             assert_eq!(
@@ -176,12 +180,12 @@ impl AttesterIncentivesTestHandler {
                     Role::Challenger,
                     self.challenger_private_key
                         .to_address::<<S as Spec>::Address>()
-                ),
+                )?,
                 self.challenger_stake
             );
 
             // The transition has been removed from the bad transition pool
-            assert_eq!(rollup.get_bad_transition_reward(1), 0);
+            assert_eq!(rollup.get_bad_transition_reward(1)?, 0);
 
             // The challenger has been rewarded half of the pool's reward (to avoid a DoS attack)
             let burn_rate = rollup.burn_rate();
@@ -198,12 +202,14 @@ impl AttesterIncentivesTestHandler {
                         .to_address::<<S as Spec>::Address>(),
                     GAS_TOKEN_ID,
                     &mut state
-                ),
+                )?,
                 Some(
                     self.challenger_balance - self.challenger_stake - gas_consumed
                         + burn_rate.apply(self.attester_stake)
                 )
             );
+
+            Ok(())
         }
     }
 }
@@ -211,7 +217,7 @@ impl AttesterIncentivesTestHandler {
 // This test checks that the `attester_incentives` module works correctly with a value setter module
 // for a byzantine attester.
 #[test]
-fn test_byzantine_value_setter_process_attestation() {
+fn test_byzantine_value_setter_process_attestation() -> Result<(), Infallible> {
     // Build a STF blueprint with the module configurations
     let mut rollup = TestRollup::new();
 
@@ -226,7 +232,7 @@ fn test_byzantine_value_setter_process_attestation() {
     );
 
     // Check that the attester is bonded
-    test_handler.check_attester_bonded(&mut rollup);
+    test_handler.check_attester_bonded(&mut rollup)?;
 
     // Tries to execute two value setter transactions in a single block
     let exec_result =
@@ -234,8 +240,14 @@ fn test_byzantine_value_setter_process_attestation() {
 
     // Tries to produce a faulty attestation
     let transition_roots =
-        test_handler.try_produce_faulty_attestation(init_state_root, exec_result, &mut rollup);
+        test_handler.try_produce_faulty_attestation(init_state_root, exec_result, &mut rollup)?;
 
     // Tries to challenge the faulty attestation produced above
-    test_handler.try_challenge_faulty_attestation(init_state_root, transition_roots, &mut rollup);
+    test_handler.try_challenge_faulty_attestation(
+        init_state_root,
+        transition_roots,
+        &mut rollup,
+    )?;
+
+    Ok(())
 }

@@ -1,9 +1,11 @@
+use std::convert::Infallible;
+
 use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::transaction::Credentials;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Context, KernelWorkingSet, Module, StateCheckpoint, VersionedStateReadWriter,
+    Context, KernelWorkingSet, Module, StateAccessor, StateCheckpoint, VersionedStateReadWriter,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
@@ -18,7 +20,7 @@ use crate::{AccountData, EvmConfig};
 type S = sov_test_utils::TestSpec;
 
 #[test]
-fn call_test() {
+fn call_test() -> Result<(), Infallible> {
     let dev_signer: TestSigner = TestSigner::new_random();
     let evm_config = EvmConfig {
         data: vec![AccountData {
@@ -74,11 +76,11 @@ fn call_test() {
 
     let db_account = evm
         .accounts
-        .get(&contract_addr, &mut state_checkpoint)
+        .get(&contract_addr, &mut state_checkpoint)?
         .unwrap();
     let storage_value = db_account
         .storage
-        .get(&U256::ZERO, &mut state_checkpoint)
+        .get(&U256::ZERO, &mut state_checkpoint)?
         .unwrap();
 
     assert_eq!(U256::from(set_arg), storage_value);
@@ -111,10 +113,12 @@ fn call_test() {
             }
         ]
     );
+
+    Ok(())
 }
 
 #[test]
-fn failed_transaction_test() {
+fn failed_transaction_test() -> Result<(), Infallible> {
     let dev_signer: TestSigner = TestSigner::new_random();
     let binding = EvmConfig::default();
     let tmpdir = tempfile::tempdir().unwrap();
@@ -141,7 +145,8 @@ fn failed_transaction_test() {
     }
 
     // assert no pending transaction
-    let pending_txs = evm.pending_transactions.iter(&mut working_set);
+    let mut unmetered_ws = working_set.to_unmetered();
+    let pending_txs = evm.pending_transactions.iter(&mut unmetered_ws);
     assert_eq!(pending_txs.len(), 0);
 
     let state_checkpoint = &mut working_set.checkpoint().0;
@@ -150,10 +155,12 @@ fn failed_transaction_test() {
     // Assert block does not have any transaction
     let block = evm
         .pending_head
-        .get(&mut state_checkpoint.accessory_state())
+        .get(&mut state_checkpoint.accessory_state())?
         .unwrap();
     assert_eq!(block.transactions.start, 0);
     assert_eq!(block.transactions.end, 0);
+
+    Ok(())
 }
 
 fn create_contract_message(dev_signer: &TestSigner, nonce: u64) -> (CallMessage, Address) {

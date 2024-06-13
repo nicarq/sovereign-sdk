@@ -59,7 +59,7 @@ impl<S: Spec> Collection<S> {
     ) -> anyhow::Result<(CollectionId, Collection<S>)> {
         let creator = context.sender();
         let collection_id = get_collection_id::<S>(collection_name, creator.as_ref());
-        let collection = collections.get(&collection_id, state);
+        let collection = collections.get(&collection_id, state)?;
         if collection.is_some() {
             Err(anyhow!(
                 "Collection with name: {} already exists creator {}",
@@ -88,7 +88,7 @@ impl<S: Spec> Collection<S> {
     ) -> anyhow::Result<(CollectionId, CollectionState<S>)> {
         let creator = context.sender();
         let collection_id = get_collection_id::<S>(collection_name, creator.as_ref());
-        let collection = collections.get(&collection_id, state);
+        let collection = collections.get(&collection_id, state)?;
         if let Some(collection) = collection {
             if collection.is_frozen() {
                 Ok((collection_id, CollectionState::Frozen(collection)))

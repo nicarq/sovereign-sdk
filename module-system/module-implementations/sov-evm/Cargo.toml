@@ -16,7 +16,7 @@ publish = false
 workspace = true
 
 [dependencies]
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
+sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["evm"] }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
 anyhow = { workspace = true }

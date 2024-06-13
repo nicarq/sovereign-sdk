@@ -551,7 +551,10 @@ mod test_rt {
         let value_to_set = 18;
         let assertion = Box::new(move |state: &mut WorkingSet<TestSpec>| {
             let value_setter = ValueSetter::<TestSpec>::default();
-            let value = value_setter.value.get(state);
+            let value = value_setter
+                .value
+                .get(state)
+                .expect("We should be able to get a value from the state");
             assert_eq!(value, Some(value_to_set));
         });
 
@@ -567,7 +570,10 @@ mod test_rt {
         let value_to_set = 18;
         let bad_assertion = Box::new(move |state: &mut WorkingSet<TestSpec>| {
             let value_setter = ValueSetter::<TestSpec>::default();
-            let value = value_setter.value.get(state);
+            let value = value_setter
+                .value
+                .get(state)
+                .expect("We should be able to get a value from the state");
             assert_eq!(value, Some(value_to_set + 1)); // This will fail!
         });
 

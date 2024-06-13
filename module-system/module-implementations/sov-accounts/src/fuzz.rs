@@ -1,5 +1,5 @@
 use arbitrary::{Arbitrary, Unstructured};
-use sov_modules_api::{CredentialId, CryptoSpec, Module, Spec, WorkingSet};
+use sov_modules_api::{CredentialId, CryptoSpec, Module, Spec, StateCheckpoint};
 
 use crate::{Account, AccountConfig, AccountData, Accounts, CallMessage};
 
@@ -52,15 +52,22 @@ where
     /// Creates an arbitrary set of accounts and stores it under `state`.
     pub fn arbitrary_workset(
         u: &mut Unstructured<'a>,
-        state: &mut WorkingSet<S>,
-    ) -> arbitrary::Result<Self> {
-        let config: AccountConfig<S> = u.arbitrary()?;
+        state: StateCheckpoint<S>,
+    ) -> (arbitrary::Result<Self>, StateCheckpoint<S>) {
+        let config: AccountConfig<S> = match u.arbitrary() {
+            Ok(config) => config,
+            Err(e) => return (Err(e), state),
+        };
         let accounts = Accounts::default();
+        let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
 
-        accounts
-            .genesis(&config, state)
-            .map_err(|_| arbitrary::Error::IncorrectFormat)?;
+        if accounts.genesis(&config, &mut genesis_state).is_err() {
+            let state = genesis_state.checkpoint();
+            return (Err(arbitrary::Error::IncorrectFormat), state);
+        };
 
-        Ok(accounts)
+        let state = genesis_state.checkpoint();
+
+        (Ok(accounts), state)
     }
 }

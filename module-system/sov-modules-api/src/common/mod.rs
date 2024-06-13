@@ -3,6 +3,7 @@
 mod address;
 
 mod module_id;
+
 pub use module_id::{ModuleId, ModuleIdBech32};
 
 mod error;

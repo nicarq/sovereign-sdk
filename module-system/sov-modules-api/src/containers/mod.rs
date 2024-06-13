@@ -4,9 +4,7 @@ pub(crate) mod map;
 pub(crate) mod value;
 pub(crate) mod vec;
 
-mod traits;
 pub use map::{AccessoryStateMap, KernelStateMap, StateMap, StateMapError};
-pub use traits::StateAccessor;
 pub use value::{AccessoryStateValue, KernelStateValue, StateValue, StateValueError};
 pub use vec::{AccessoryStateVec, KernelStateVec, StateVec};
 pub use versioned_value::VersionedStateValue;
@@ -58,7 +56,7 @@ mod test {
     }
 
     #[test]
-    fn test_jmt_storage() {
+    fn test_jmt_storage() -> Result<(), anyhow::Error> {
         let tmpdir = tempfile::tempdir().unwrap();
         let tests = create_tests();
         {
@@ -67,8 +65,7 @@ mod test {
                 {
                     let storage = storage_manager.create_storage();
                     let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage.clone());
-                    StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone())
-                        .expect("Failed to set value");
+                    StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone())?;
                     let (checkpoint, _gas_meter, _) = working_set.checkpoint();
                     let (cache, _, witness) = checkpoint.freeze();
                     let (_, change_set) = storage
@@ -90,17 +87,17 @@ mod test {
             let storage = storage_manager.create_storage();
             for test in tests {
                 assert_eq!(
-                    test.value,
-                    storage
-                        .get::<User>(&test.key, Some(test.version), &Default::default())
-                        .unwrap()
+                    Some(test.value),
+                    storage.get::<User>(&test.key, Some(test.version), &Default::default())
                 );
             }
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_restart_lifecycle() {
+    fn test_restart_lifecycle() -> Result<(), anyhow::Error> {
         let tempdir = tempfile::tempdir().unwrap();
         let mut storage_manager = SimpleStorageManager::new(tempdir.path());
         {
@@ -115,8 +112,7 @@ mod test {
             let storage = storage_manager.create_storage();
             assert!(storage.is_empty());
             let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage.clone());
-            StateWriter::<User>::set(&mut working_set, &key, value.clone())
-                .expect("Failed to set value");
+            StateWriter::<User>::set(&mut working_set, &key, value.clone())?;
             let (cache, _, witness) = working_set.checkpoint().0.freeze();
             let (_, change_set) = storage
                 .validate_and_materialize(cache, &witness)
@@ -128,11 +124,11 @@ mod test {
         {
             let storage = storage_manager.create_storage();
             assert_eq!(
-                value,
-                storage
-                    .get::<User>(&key, None, &Default::default())
-                    .unwrap()
+                Some(value),
+                storage.get::<User>(&key, None, &Default::default())
             );
         }
+
+        Ok(())
     }
 }

@@ -8,8 +8,9 @@ use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{
     AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec,
-    StateAccessor, TxState, Zkvm,
+    StateAccessor, StateAccessorError, TxState, Zkvm,
 };
+use sov_state::EventContainer;
 use thiserror::Error;
 
 use crate::event::SlashingReason;
@@ -52,6 +53,33 @@ pub enum ProverIncentiveError {
     /// An error when total bond value overflow or underflow
     #[error("Error when trying to top up bonded amount and it overflow or underflow")]
     BondArithmeticsError,
+
+    /// An error when trying to access the state
+    #[error("An error occurred when trying to access the state, error: {0}")]
+    StateAccessorError(String),
+}
+
+impl<GU: Gas> From<StateAccessorError<GU>> for ProverIncentiveError {
+    fn from(value: StateAccessorError<GU>) -> Self {
+        ProverIncentiveError::StateAccessorError(value.to_string())
+    }
+}
+
+enum ErrorOrSlashed {
+    Error(ProverIncentiveError),
+    Slashed(SlashingReason),
+}
+
+impl<GU: Gas> From<StateAccessorError<GU>> for ErrorOrSlashed {
+    fn from(value: StateAccessorError<GU>) -> Self {
+        ErrorOrSlashed::Error(ProverIncentiveError::StateAccessorError(value.to_string()))
+    }
+}
+
+impl From<SlashingReason> for ErrorOrSlashed {
+    fn from(value: SlashingReason) -> Self {
+        ErrorOrSlashed::Slashed(value)
+    }
 }
 
 impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
@@ -68,7 +96,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         bond_amount: u64,
         prover: &S::Address,
-        state: &mut impl TxState<S>,
+        state: &mut (impl StateAccessor + EventContainer),
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Transfer the bond amount from the sender to the module's id.
         // On failure, no state is changed
@@ -81,7 +109,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .map_err(|_| ProverIncentiveError::BondTransferFailure)?;
 
         // Check that total balance does not overflow before doing transfer.
-        let old_balance = self.bonded_provers.get(prover, state).unwrap_or_default();
+        let old_balance = self
+            .bonded_provers
+            .get(prover, state)
+            .map_err(|e| ProverIncentiveError::StateAccessorError(e.to_string()))?
+            .unwrap_or_default();
 
         let total_balance = old_balance
             .checked_add(bond_amount)
@@ -92,7 +124,9 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // Update our record of the total bonded amount for the sender.
         // This update is infallible, so no value can be destroyed.
-        self.bonded_provers.set(prover, &total_balance, state);
+        self.bonded_provers
+            .set(prover, &total_balance, state)
+            .map_err(|e| ProverIncentiveError::StateAccessorError(e.to_string()))?;
 
         // Emit the bonding event
         self.emit_event(
@@ -125,11 +159,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
-        if let Some(old_balance) = self.bonded_provers.get(context.sender(), state) {
+        if let Some(old_balance) = self.bonded_provers.get(context.sender(), state)? {
             self.transfer_to_prover(old_balance, context, state)?;
 
             // Update our internal tracking of the total bonded amount for the sender.
-            self.bonded_provers.set(context.sender(), &0, state);
+            self.bonded_provers.set(context.sender(), &0, state)?;
 
             // Emit the unbonding event
             self.emit_event(
@@ -149,16 +183,16 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     fn check_proof_outputs(
         &self,
         public_outputs: &AggregatedProofPublicData,
-        state: &mut impl StateAccessor,
-    ) -> Result<(), SlashingReason> {
+        state: &mut impl TxState<S>,
+    ) -> Result<(), ErrorOrSlashed> {
         let expected_genesis_hash = self
             .chain_state
-            .get_genesis_hash(state)
+            .get_genesis_hash(state)?
             .expect("The genesis hash should be set at genesis");
 
         // We have to check that the genesis hash is valid
         if expected_genesis_hash.as_ref() != public_outputs.genesis_state_root {
-            return Err(SlashingReason::IncorrectGenesisHash);
+            return Err(SlashingReason::IncorrectGenesisHash.into());
         }
 
         // We start with the initial state values
@@ -166,12 +200,12 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         let initial_transition = self
             .chain_state
-            .get_historical_transitions(initial_slot_num, state)
+            .get_historical_transitions(initial_slot_num, state)?
             .ok_or(SlashingReason::InitialTransitionDoesNotExist)?;
 
         let initial_state_root = if let Some(prev_transition) = self
             .chain_state
-            .get_historical_transitions(initial_slot_num.saturating_sub(1), state)
+            .get_historical_transitions(initial_slot_num.saturating_sub(1), state)?
         {
             prev_transition.post_state_root().clone()
         } else {
@@ -179,28 +213,28 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         };
 
         if initial_state_root.as_ref() != public_outputs.initial_state_root {
-            return Err(SlashingReason::IncorrectInitialStateRoot);
+            return Err(SlashingReason::IncorrectInitialStateRoot.into());
         }
 
         let initial_transition_hash = initial_transition.slot_hash();
 
         if initial_transition_hash.as_ref() != public_outputs.initial_slot_hash {
-            return Err(SlashingReason::IncorrectInitialSlotHash);
+            return Err(SlashingReason::IncorrectInitialSlotHash.into());
         }
 
         // Let's move on to the final state values
         let final_slot_num = public_outputs.final_slot_number;
         let expected_final_transition = self
             .chain_state
-            .get_historical_transitions(final_slot_num, state)
+            .get_historical_transitions(final_slot_num, state)?
             .ok_or(SlashingReason::FinalTransitionDoesNotExist)?;
 
         if expected_final_transition.post_state_root().as_ref() != public_outputs.final_state_root {
-            return Err(SlashingReason::IncorrectFinalStateRoot);
+            return Err(SlashingReason::IncorrectFinalStateRoot.into());
         }
 
         if expected_final_transition.slot_hash().as_ref() != public_outputs.final_slot_hash {
-            return Err(SlashingReason::IncorrectFinalSlotHash);
+            return Err(SlashingReason::IncorrectFinalSlotHash.into());
         }
 
         // We may also want to check the integrity of the validity conditions along the way
@@ -208,14 +242,17 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         if public_outputs.validity_conditions.len()
             != (final_slot_num - initial_slot_num + 1) as usize
         {
-            return Err(SlashingReason::IncorrectValidityConditions);
+            return Err(SlashingReason::IncorrectValidityConditions.into());
         }
 
         // We are checking all the validity conditions up to `final_slot_num` included.
         for (slot_num, output_condition) in
             (initial_slot_num..=final_slot_num).zip(public_outputs.validity_conditions.iter())
         {
-            match self.chain_state.get_historical_transitions(slot_num, state) {
+            match self
+                .chain_state
+                .get_historical_transitions(slot_num, state)?
+            {
                 Some(transition) => {
                     if transition
                         .validity_condition()
@@ -223,10 +260,10 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                         .expect("Should always be able to serialize the validity condition")
                         != output_condition.clone()
                     {
-                        return Err(SlashingReason::IncorrectValidityConditions);
+                        return Err(SlashingReason::IncorrectValidityConditions.into());
                     }
                 }
-                None => return Err(SlashingReason::IncorrectValidityConditions),
+                None => return Err(SlashingReason::IncorrectValidityConditions.into()),
             }
         }
 
@@ -268,7 +305,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         let first_available_reward = self
             .last_claimed_reward
-            .get(state)
+            .get(state)?
             .expect("The last claimed reward should be set at genesis")
             + 1;
 
@@ -282,7 +319,10 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // If not, reward the prover with the block reward
             // `get_historical_transitions` should always return `Some` because we are iterating over the range of `init_slot_num..=final_slot_num`
             // whose integrity was checked beforehand.
-            if let Some(transition) = self.chain_state.get_historical_transitions(slot_num, state) {
+            if let Some(transition) = self
+                .chain_state
+                .get_historical_transitions(slot_num, state)?
+            {
                 let curr_reward = transition.gas_used().value(transition.gas_price());
                 total_reward += curr_reward;
             }
@@ -290,7 +330,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // We need to remove the reward once it is claimed
         self.last_claimed_reward
-            .set(&max(first_available_reward, final_slot_num), state);
+            .set(&max(first_available_reward, final_slot_num), state)?;
 
         if total_reward > 0 {
             // We only reward a portion of the total reward - we burn some of it
@@ -312,12 +352,12 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // We need to fine the prover
             let fine = self
                 .proving_penalty
-                .get(state)
+                .get(state)?
                 .expect("Should be set at genesis");
 
             // Unlock the prover's bond
             self.bonded_provers
-                .set(context.sender(), &(old_balance - fine), state);
+                .set(context.sender(), &(old_balance - fine), state)?;
 
             self.emit_event(
                 state,
@@ -342,7 +382,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
         // Revert if they aren't bonded
-        let old_balance = match self.bonded_provers.get(context.sender(), state) {
+        let old_balance = match self.bonded_provers.get(context.sender(), state)? {
             Some(balance) => balance,
             None => return Err(ProverIncentiveError::ProverNotBonded),
         };
@@ -350,7 +390,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         // Check that the prover has enough balance to process the proof.
         let minimum_bond = self
             .minimum_bond
-            .get(state)
+            .get(state)?
             .expect("The minimum bond should be set at genesis");
 
         if old_balance < minimum_bond {
@@ -361,11 +401,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         );
         // Lock the prover's bond amount.
         self.bonded_provers
-            .set(context.sender(), &new_balance, state);
+            .set(context.sender(), &new_balance, state)?;
 
         let code_commitment = self
             .chain_state
-            .outer_code_commitment(state)
+            .outer_code_commitment(state)?
             .expect("The code commitment should be set at genesis");
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         let verification_result =
@@ -389,16 +429,20 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // Check that the public outputs are valid
         if let Err(err) = self.check_proof_outputs(&public_outputs, state) {
-            self.emit_event(
-                state,
-                "prover_slashed",
-                Event::<S>::ProverSlashed {
-                    prover: context.sender().clone(),
-                    reason: err,
-                },
-            );
-
-            return Ok(CallResponse::default());
+            match err {
+                ErrorOrSlashed::Error(err) => return Err(err),
+                ErrorOrSlashed::Slashed(reason) => {
+                    self.emit_event(
+                        state,
+                        "prover_slashed",
+                        Event::<S>::ProverSlashed {
+                            prover: context.sender().clone(),
+                            reason,
+                        },
+                    );
+                    return Ok(CallResponse::default());
+                }
+            }
         }
 
         // Let's check the initial and final state values
@@ -412,7 +456,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // Unlock the prover's bond
         self.bonded_provers
-            .set(context.sender(), &new_staked_balance, state);
+            .set(context.sender(), &new_staked_balance, state)?;
 
         Ok(CallResponse::default())
     }

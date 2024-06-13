@@ -1,6 +1,8 @@
+use std::convert::Infallible;
+
 use sov_bank::{get_token_id, Bank, CallMessage};
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, WorkingSet};
+use sov_modules_api::{Context, Module, StateCheckpoint};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::helpers::*;
@@ -8,12 +10,15 @@ use crate::helpers::*;
 type S = sov_test_utils::TestSpec;
 
 #[test]
-fn initial_and_deployed_token() {
+fn initial_and_deployed_token() -> Result<(), Infallible> {
     let bank_config = create_bank_config_with_token(1, 100);
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
     let bank = Bank::default();
-    bank.genesis(&bank_config, &mut working_set).unwrap();
+    bank.genesis(&bank_config, &mut genesis_state).unwrap();
+
+    let checkpoint = genesis_state.checkpoint();
 
     let sender_address = generate_address::<S>("sender");
     let sequencer_address = generate_address::<S>("sequencer");
@@ -32,27 +37,30 @@ fn initial_and_deployed_token() {
         authorized_minters: vec![minter],
     };
 
-    bank.call(create_token_message, &sender_context, &mut working_set)
+    let mut state = checkpoint.to_working_set_unmetered();
+    bank.call(create_token_message, &sender_context, &mut state)
         .expect("Failed to create token");
 
     // Create token event should be present
-    assert_eq!(working_set.events().len(), 1);
+    assert_eq!(state.events().len(), 1);
 
-    let sender_balance = bank.get_balance_of(&sender_address, token_id, &mut working_set);
+    let (mut state, _, _) = state.checkpoint();
+
+    let sender_balance = bank.get_balance_of(&sender_address, token_id, &mut state)?;
     assert!(sender_balance.is_none());
 
     let observed_token_name = bank
-        .get_token_name(&token_id, &mut working_set)
+        .get_token_name(&token_id, &mut state)?
         .expect("Token is missing its name");
     assert_eq!(&token_name, &observed_token_name);
 
-    let minter_balance = bank.get_balance_of(&minter, token_id, &mut working_set);
+    let minter_balance = bank.get_balance_of(&minter, token_id, &mut state)?;
     assert_eq!(Some(initial_balance), minter_balance);
 
-    let total_supply = bank
-        .get_total_supply_of(&token_id, &mut working_set)
-        .unwrap();
+    let total_supply = bank.get_total_supply_of(&token_id, &mut state)?.unwrap();
     assert_eq!(initial_balance, total_supply);
+
+    Ok(())
 }
 
 #[test]
@@ -60,11 +68,12 @@ fn initial_and_deployed_token() {
 fn overflow_max_supply() {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let bank_config = create_bank_config_with_token(2, u64::MAX - 2);
 
-    let genesis_result = bank.genesis(&bank_config, &mut working_set);
+    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
+    let genesis_result = bank.genesis(&bank_config, &mut genesis_state);
     assert!(genesis_result.is_err());
 
     assert_eq!(

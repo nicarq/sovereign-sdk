@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::BatchSelector;
 use sov_modules_api::{BlobReaderTrait, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
 use tracing::{error, info, warn};
@@ -31,7 +32,8 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         self.chain_state
-            .set_next_visible_slot_number(&(state.current_slot().saturating_add(1)), state);
+            .set_next_visible_slot_number(&(state.current_slot().saturating_add(1)), state)
+            .unwrap_infallible();
         self.select_blobs_da_ordering(current_blobs, state)
     }
 
@@ -100,14 +102,16 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             Ordering::Greater => {
                 // If the sequence number is greater than the expected one, we defer the blob
                 let sequence_number = preferred_batch.sequence_number;
-                self.deferred_preferred_sequencer_blobs.set(
-                    &sequence_number,
-                    &PreferredBatchWithId {
-                        inner: preferred_batch,
-                        id: blob.hash(),
-                    },
-                    state,
-                );
+                self.deferred_preferred_sequencer_blobs
+                    .set(
+                        &sequence_number,
+                        &PreferredBatchWithId {
+                            inner: preferred_batch,
+                            id: blob.hash(),
+                        },
+                        state,
+                    )
+                    .unwrap_infallible();
                 None
             }
             Ordering::Less => {
@@ -160,7 +164,8 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         }
 
         self.chain_state
-            .set_next_visible_slot_number(&(state.virtual_slot().saturating_add(2)), state);
+            .set_next_visible_slot_number(&(state.virtual_slot().saturating_add(2)), state)
+            .unwrap_infallible();
 
         batches_to_process
     }
@@ -185,12 +190,17 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         let mut new_forced_blobs = Vec::new();
-        let next_sequence_number = self.next_sequence_number.get(state).unwrap_or(0);
+        let next_sequence_number = self
+            .next_sequence_number
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or(0);
 
         // Step 0: Retrieve the next preferred batch from storage, if applicable
         let mut preferred_batch = self
             .deferred_preferred_sequencer_blobs
-            .remove(&next_sequence_number, state.inner);
+            .remove(&next_sequence_number, state.inner)
+            .unwrap_infallible();
 
         for blob in current_blobs.into_iter() {
             // Step 1: Filter any ineligible blobs from current slot.
@@ -243,7 +253,8 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
 
         let num_slots_to_advance = if let Some(preferred_batch) = preferred_batch {
             self.next_sequence_number
-                .set(&next_sequence_number.saturating_add(1), state);
+                .set(&next_sequence_number.saturating_add(1), state)
+                .unwrap_infallible();
 
             let first_batch = BatchWithId {
                 batch: preferred_batch.inner.batch,
@@ -296,7 +307,8 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             self.store_batches(state.current_slot(), &new_forced_blobs, state.inner);
         }
         self.chain_state
-            .set_next_visible_slot_number(&next_virtual_height, state);
+            .set_next_visible_slot_number(&next_virtual_height, state)
+            .unwrap_infallible();
         batches_to_process
     }
 

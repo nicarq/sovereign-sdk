@@ -1,5 +1,6 @@
 use sov_bank::Amount;
 use sov_modules_api::capabilities::AuthorizeSequencerError;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Gas, GasMeter, GasMeteringError, PreExecWorkingSet, Spec, TxScratchpad};
 use thiserror::Error;
 
@@ -126,18 +127,21 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn penalize_sequencer(
         &self,
         sender: &Da::Address,
-        mut pre_exec_working_set: PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>,
+        pre_exec_working_set: PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>,
     ) -> TxScratchpad<S> {
+        let penalty_amount = pre_exec_working_set.gas_used_value();
+        let remaining_stake = pre_exec_working_set.remaining_funds();
+
+        let mut scratchpad = pre_exec_working_set.into();
+
         if let Some(AllowedSequencer {
             address,
             balance: _,
         }) = self
             .allowed_sequencers
-            .get(sender, &mut pre_exec_working_set)
+            .get(sender, &mut scratchpad)
+            .unwrap_infallible()
         {
-            let penalty_amount = pre_exec_working_set.gas_used_value();
-            let remaining_stake = pre_exec_working_set.remaining_funds();
-
             tracing::info!(
                 sequencer = %address,
                 penalty_amount = ?penalty_amount,
@@ -145,17 +149,19 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
                 "The sequencer was penalized"
             );
 
-            self.allowed_sequencers.set(
-                sender,
-                &AllowedSequencer {
-                    address,
-                    balance: remaining_stake,
-                },
-                &mut pre_exec_working_set,
-            );
+            self.allowed_sequencers
+                .set(
+                    sender,
+                    &AllowedSequencer {
+                        address,
+                        balance: remaining_stake,
+                    },
+                    &mut scratchpad,
+                )
+                .unwrap_infallible();
         }
 
-        pre_exec_working_set.into()
+        scratchpad
     }
 }
 

@@ -8,12 +8,14 @@ use sov_state::{EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItem
 #[cfg(feature = "native")]
 use sov_state::{StateItemDecoder, Storage};
 use thiserror::Error;
+#[cfg(feature = "arbitrary")]
+use unwrap_infallible::UnwrapInfallible;
 
 use crate::state::StateReader;
 #[cfg(feature = "native")]
 use crate::ProvenStateAccessor;
 #[cfg(feature = "arbitrary")]
-use crate::WorkingSet;
+use crate::{InfallibleStateReaderAndWriter, StateCheckpoint};
 use crate::{StateReaderAndWriter, StateWriter};
 
 /// A container that maps keys to values.
@@ -45,6 +47,8 @@ pub enum StateMapError<N> {
     #[error("Value not found for prefix: {0} and storage key: {1} in namespace {}", std::any::type_name::<N>())]
     MissingValue(Prefix, SlotKey, PhantomData<N>),
 }
+
+type ValueOrError<V, N> = Result<V, StateMapError<N>>;
 
 /// A container that maps keys to values
 ///
@@ -126,14 +130,17 @@ where
     ///
     /// The key may be any borrowed form of the
     /// map’s key type.
-    pub fn set<Q>(&self, key: &Q, value: &V, state: &mut impl StateWriter<N>)
+    pub fn set<Q, Writer: StateWriter<N>>(
+        &self,
+        key: &Q,
+        value: &V,
+        state: &mut Writer,
+    ) -> Result<(), Writer::Error>
     where
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        state
-            .set(&self.slot_key(key), self.slot_value(value))
-            .unwrap();
+        state.set(&self.slot_key(key), self.slot_value(value))
     }
 
     /// Returns the value corresponding to the key, or [`None`] if the map
@@ -145,9 +152,9 @@ where
     /// using your chosen codec.
     ///
     /// ```
-    /// use sov_modules_api::{ Spec, Context, StateMap, WorkingSet};
+    /// use sov_modules_api::{Spec, Context, StateMap, WorkingSet, StateAccessorError};
     ///
-    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: &[u8], state: &mut WorkingSet<S>) -> Option<u64>
+    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: &[u8], state: &mut WorkingSet<S>) -> Result<Option<u64>, StateAccessorError<S::Gas>>
     /// {
     ///     // We perform the `get` with a slice, and not the `Vec`. it is so because `Vec` borrows
     ///     // `[T]`.
@@ -161,96 +168,104 @@ where
     /// maps:
     ///
     /// ```
-    /// use sov_modules_api::{ Spec, Context, StateMap, WorkingSet};
+    /// use sov_modules_api::{Spec, Context, StateMap, WorkingSet, StateAccessorError};
     ///
-    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], state: &mut WorkingSet<S>) -> Option<u64>
+    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], state: &mut WorkingSet<S>) -> Result<Option<u64>, StateAccessorError<S::Gas>>
     /// {
     ///     map.get(&key[..], state)
     /// }
     /// ```
-    pub fn get<Q, WS: StateReader<N>>(&self, key: &Q, state: &mut WS) -> Option<V>
+    pub fn get<Q, Reader: StateReader<N>>(
+        &self,
+        key: &Q,
+        state: &mut Reader,
+    ) -> Result<Option<V>, Reader::Error>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        state
-            .get_decoded(&self.slot_key(key), self.codec())
-            .unwrap()
+        state.get_decoded(&self.slot_key(key), self.codec())
     }
 
     /// Returns the value corresponding to the key or [`StateMapError`] if key is absent from
     /// the map.
-    pub fn get_or_err<Q, WS: StateReader<N>>(
+    pub fn get_or_err<Q, Reader: StateReader<N>>(
         &self,
         key: &Q,
-        state: &mut WS,
-    ) -> Result<V, StateMapError<N>>
+        state: &mut Reader,
+    ) -> Result<ValueOrError<V, N>, Reader::Error>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        self.get(key, state).ok_or_else(|| {
+        Ok(self.get(key, state)?.ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
                 SlotKey::new(self.prefix(), key, self.codec().key_codec()),
                 PhantomData,
             )
-        })
+        }))
     }
 
     /// Removes a key from the map, returning the corresponding value (or
     /// [`None`] if the key is absent).
-    pub fn remove<Q>(&self, key: &Q, state: &mut impl StateReaderAndWriter<N>) -> Option<V>
+    pub fn remove<Q, ReaderAndWriter: StateReaderAndWriter<N>>(
+        &self,
+        key: &Q,
+        state: &mut ReaderAndWriter,
+    ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        state
-            .remove_decoded(&self.slot_key(key), self.codec())
-            .unwrap()
+        state.remove_decoded(&self.slot_key(key), self.codec())
     }
 
     /// Removes a key from the map, returning the corresponding value (or
     /// [`StateMapError`] if the key is absent).
     ///
     /// Use [`NamespacedStateMap::remove`] if you want an [`Option`] instead of a [`Result`].
-    pub fn remove_or_err<Q>(
+    pub fn remove_or_err<Q, ReaderAndWriter: StateReaderAndWriter<N>>(
         &self,
         key: &Q,
-        state: &mut impl StateReaderAndWriter<N>,
-    ) -> Result<V, StateMapError<N>>
+        state: &mut ReaderAndWriter,
+    ) -> Result<ValueOrError<V, N>, <ReaderAndWriter as StateWriter<N>>::Error>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Codec::ValueCodec: StateItemCodec<V>,
         Q: ?Sized,
     {
-        self.remove(key, state).ok_or_else(|| {
+        Ok(self.remove(key, state)?.ok_or_else(|| {
             StateMapError::MissingValue(
                 self.prefix().clone(),
                 SlotKey::new(self.prefix(), key, self.codec().key_codec()),
                 PhantomData,
             )
-        })
+        }))
     }
 
     /// Deletes a key-value pair from the map.
     ///
     /// This is equivalent to [`NamespacedStateMap::remove`], but doesn't deserialize and
     /// return the value before deletion.
-    pub fn delete<Q>(&self, key: &Q, state: &mut impl StateWriter<N>)
+    pub fn delete<Q, Writer: StateWriter<N>>(
+        &self,
+        key: &Q,
+        state: &mut Writer,
+    ) -> Result<(), Writer::Error>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,
         Q: ?Sized,
     {
-        state.delete(&self.slot_key(key)).unwrap();
+        state.delete(&self.slot_key(key))
     }
 }
 
@@ -323,13 +338,13 @@ where
     /// Returns an arbitrary [`StateMap`] instance.
     ///
     /// See the [`arbitrary`] crate for more information.
-    pub fn arbitrary_working_set<S>(
+    pub fn arbitrary_state_map<S>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut crate::WorkingSet<S>,
+        working_set: &mut crate::StateCheckpoint<S>,
     ) -> arbitrary::Result<Self>
     where
         S: crate::Spec,
-        WorkingSet<S>: StateReaderAndWriter<N>,
+        StateCheckpoint<S>: InfallibleStateReaderAndWriter<N>,
     {
         use arbitrary::Arbitrary;
 
@@ -342,7 +357,7 @@ where
             let key = K::arbitrary(u)?;
             let value = V::arbitrary(u)?;
 
-            map.set(&key, &value, working_set);
+            map.set(&key, &value, working_set).unwrap_infallible();
 
             Ok(map)
         })

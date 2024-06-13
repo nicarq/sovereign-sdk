@@ -1,17 +1,19 @@
+use std::convert::Infallible;
+
 use sov_bank::{
     get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId, GAS_TOKEN_ID,
 };
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Error, Module, Spec, WorkingSet};
+use sov_modules_api::{Context, Error, Module, Spec, StateAccessor, StateCheckpoint, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 type S = sov_test_utils::TestSpec;
 
 #[test]
-fn freeze_token() {
+fn freeze_token() -> Result<(), Infallible> {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut state = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let minter = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");
@@ -30,7 +32,11 @@ fn freeze_token() {
         },
         tokens: vec![],
     };
-    bank.genesis(&bank_config, &mut state).unwrap();
+
+    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
+    bank.genesis(&bank_config, &mut genesis_state).unwrap();
+
+    let mut state = genesis_state.checkpoint().to_working_set_unmetered();
 
     // -----
     // Freeze
@@ -124,9 +130,10 @@ fn freeze_token() {
         mint_to_address: new_holder,
     };
 
-    let query_total_supply = |token_id: TokenId, state: &mut WorkingSet<S>| -> Option<u64> {
-        bank.get_total_supply_of(&token_id, state)
-    };
+    let query_total_supply =
+        |token_id: TokenId, state: &mut WorkingSet<S>| -> Result<Option<u64>, Infallible> {
+            bank.get_total_supply_of(&token_id, &mut state.to_unmetered())
+        };
 
     let minted = bank.call(mint_message, &minter_context, &mut state);
     assert!(minted.is_err());
@@ -164,15 +171,18 @@ fn freeze_token() {
         .expect("Failed to mint token");
     assert_eq!(state.events().len(), 3);
 
-    let total_supply = query_total_supply(token_id_2, &mut state);
+    let total_supply = query_total_supply(token_id_2, &mut state)?;
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
 
-    let query_user_balance =
-        |token_id: TokenId,
-         user_address: <S as Spec>::Address,
-         state: &mut WorkingSet<S>|
-         -> Option<u64> { bank.get_balance_of(&user_address, token_id, state) };
-    let bal = query_user_balance(token_id_2, minter, &mut state);
+    let query_user_balance = |token_id: TokenId,
+                              user_address: <S as Spec>::Address,
+                              state: &mut WorkingSet<S>|
+     -> Result<Option<u64>, Infallible> {
+        bank.get_balance_of(&user_address, token_id, &mut state.to_unmetered())
+    };
+    let bal = query_user_balance(token_id_2, minter, &mut state)?;
 
     assert_eq!(Some(110), bal);
+
+    Ok(())
 }

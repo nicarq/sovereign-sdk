@@ -1,10 +1,10 @@
 use sov_rollup_interface::da::DaSpec;
-use sov_state::namespaces::Accessory;
 
 use crate::batch::BatchWithId;
 use crate::transaction::AuthenticatedTransactionData;
 use crate::{
-    Context, Spec, StateCheckpoint, StateReaderAndWriter, TxState, VersionedStateReadWriter,
+    AccessoryStateReaderAndWriter, Context, Spec, StateCheckpoint, TxState,
+    VersionedStateReadWriter,
 };
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
@@ -100,7 +100,7 @@ pub trait FinalizeHook {
     fn finalize_hook(
         &self,
         _root_hash: <Self::Spec as Spec>::VisibleHash,
-        _state: &mut impl StateReaderAndWriter<Accessory>,
+        _state: &mut impl AccessoryStateReaderAndWriter,
     ) {
     }
 }

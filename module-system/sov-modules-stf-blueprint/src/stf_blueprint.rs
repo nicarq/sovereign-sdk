@@ -179,7 +179,7 @@ where
         );
 
         for raw_tx in raw_txs.iter() {
-            let tx_scratchpad = checkpoint.to_tx_scratchpad(gas_price);
+            let tx_scratchpad = checkpoint.to_tx_scratchpad();
             let process_tx_result = process_tx(
                 &self.runtime,
                 raw_tx,

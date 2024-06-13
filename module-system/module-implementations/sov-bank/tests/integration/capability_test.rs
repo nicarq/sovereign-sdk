@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use sov_bank::{Bank, IntoPayable, ReserveGasError, ReserveGasErrorReason, GAS_TOKEN_ID};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips, Transaction};
 use sov_modules_api::{
@@ -30,7 +32,7 @@ fn reserve_gas_helper(
     let transaction: Transaction<S> =
         generate_empty_tx(max_priority_fee_bips, initial_balance, gas_limit.clone());
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad(gas_price);
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
 
     let mut pre_execution_ws = transaction_scratchpad.pre_exec_ws_unmetered_with_price(gas_price);
     pre_execution_ws
@@ -72,7 +74,7 @@ fn reserve_gas_helper(
 /// The priority fee is zero.
 /// We use half the price for pre-execution checks, the rest for the transaction.
 #[test]
-fn test_honest_reserve_gas_capability_without_priority_fee() {
+fn test_honest_reserve_gas_capability_without_priority_fee() -> Result<(), Infallible> {
     let initial_balance = 100;
     let mut params = reserve_gas_helper(
         initial_balance,
@@ -109,10 +111,12 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
     assert_eq!(
         params
             .bank
-            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)?
             .expect("The sender balance should exist"),
         0
     );
+
+    Ok(())
 }
 
 /// Tests the happy path of the `reserve_gas` method. We try to reserve gas, then consume it and refund it.
@@ -120,7 +124,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
 /// hence the priority fee is not charged.
 /// We use half the price for pre-execution checks, the rest for the transaction.
 #[test]
-fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
+fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() -> Result<(), Infallible> {
     let initial_balance = 100;
     let mut params = reserve_gas_helper(
         initial_balance,
@@ -157,16 +161,18 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
     assert_eq!(
         params
             .bank
-            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)?
             .expect("The sender balance should exist"),
         0
     );
+
+    Ok(())
 }
 
 /// Tests the happy path of the `reserve_gas` method. We try to reserve gas, then consume it and refund it.
 /// The priority fee is non zero and is charged as part of the transaction.
 #[test]
-fn test_honest_reserve_gas_capability_with_priority_fee() {
+fn test_honest_reserve_gas_capability_with_priority_fee() -> anyhow::Result<()> {
     let initial_balance = 100;
     let max_priority_fee_bips = PriorityFeeBips::from_percentage(10);
     let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
@@ -218,7 +224,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
     assert_eq!(
         params
             .bank
-            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)?
             .expect("The sender balance should exist"),
         refund_amount
     );
@@ -227,10 +233,12 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
     assert_eq!(
         params
             .bank
-            .get_balance_of(params.bank.id().to_payable(), GAS_TOKEN_ID, &mut checkpoint)
+            .get_balance_of(params.bank.id().to_payable(), GAS_TOKEN_ID, &mut checkpoint)?
             .expect("The bank balance should exist"),
         initial_balance - refund_amount
     );
+
+    Ok(())
 }
 
 /// Tests that the `reserve_gas` method fails if the sender does not have a bank account for the gas token
@@ -238,8 +246,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
 fn test_reserve_gas_no_account() {
     let (_, bank, checkpoint) = simple_bank_setup(0);
 
-    let transaction_scratchpad =
-        checkpoint.to_tx_scratchpad(&<<S as Spec>::Gas as Gas>::Price::ZEROED);
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
 
     let pre_exec_ws = transaction_scratchpad.pre_exec_ws_unmetered();
 
@@ -270,7 +277,7 @@ fn test_reserve_gas_not_enough_balance() {
 
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad(&gas_price);
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
 
     let pre_exec_ws = transaction_scratchpad.pre_exec_ws_unmetered_with_price(&gas_price);
 
@@ -311,7 +318,7 @@ fn test_reserve_gas_price_too_high() {
     // The gas price is [2; 2] which is higher than the one associated with the gas limit.
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[2; 2]);
 
-    let transaction_scratchpad = checkpoint.to_tx_scratchpad(&gas_price);
+    let transaction_scratchpad = checkpoint.to_tx_scratchpad();
 
     let pre_exec_ws = transaction_scratchpad.pre_exec_ws_unmetered_with_price(&gas_price);
 
@@ -333,7 +340,7 @@ fn test_reserve_gas_price_too_high() {
 
 /// Tests that the `reserve_gas` method does not overflow or panic if the total gas amount to reserve is `u64::MAX`.
 #[test]
-fn test_reserve_gas_should_not_overflow_or_panic_zero_priority() {
+fn test_reserve_gas_should_not_overflow_or_panic_zero_priority() -> anyhow::Result<()> {
     let initial_balance = u64::MAX;
 
     let params = reserve_gas_helper(
@@ -363,15 +370,17 @@ fn test_reserve_gas_should_not_overflow_or_panic_zero_priority() {
     assert_eq!(
         params
             .bank
-            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)?
             .expect("The sender balance should exist"),
         initial_balance
     );
+
+    Ok(())
 }
 
 /// Tests that the `reserve_gas` method does not overflow or panic if the total gas amount to reserve is `u64::MAX` and the priority fee is not zero.
 #[test]
-fn test_reserve_gas_should_not_overflow_or_panic_non_zero_priority() {
+fn test_reserve_gas_should_not_overflow_or_panic_non_zero_priority() -> anyhow::Result<()> {
     let initial_balance = u64::MAX;
     let params = reserve_gas_helper(
         initial_balance,
@@ -400,8 +409,10 @@ fn test_reserve_gas_should_not_overflow_or_panic_non_zero_priority() {
     assert_eq!(
         params
             .bank
-            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)
+            .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)?
             .expect("The sender balance should exist"),
         initial_balance
     );
+
+    Ok(())
 }

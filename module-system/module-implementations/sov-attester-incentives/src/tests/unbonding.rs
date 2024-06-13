@@ -1,6 +1,8 @@
+use std::convert::Infallible;
+
 use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{Context, WorkingSet};
+use sov_modules_api::{Context, StateCheckpoint};
 use sov_prover_storage_manager::SimpleStorageManager;
 
 use crate::call::AttesterIncentiveErrors;
@@ -11,17 +13,17 @@ use crate::tests::helpers::{
 type S = sov_test_utils::TestSpec;
 
 #[test]
-fn test_two_phase_unbonding() {
+fn test_two_phase_unbonding() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let state = WorkingSet::new(storage.clone());
+    let state = StateCheckpoint::new(storage.clone());
     let (module, attester_address, _, sequencer, mut state) = setup(state);
 
     // Assert that the attester has the correct bond amount before processing the proof
     assert_eq!(
         module
-            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)
+            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)?
             .value,
         BOND_AMOUNT
     );
@@ -33,6 +35,7 @@ fn test_two_phase_unbonding() {
         INIT_HEIGHT + 2,
     );
 
+    let mut state = state.to_working_set_unmetered();
     // Try to skip the first phase of the two-phase unbonding. Should fail.
     {
         // Should fail
@@ -134,17 +137,21 @@ fn test_two_phase_unbonding() {
 
     // Now unbond the right way.
     {
+        let mut state = state.checkpoint().0;
         let initial_account_balance = module
             .bank
-            .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut state)
+            .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut state)?
             .unwrap();
+        let mut state = state.to_working_set_unmetered();
 
         // Start unbonding the user: should succeed
         module.begin_unbond_attester(&context, &mut state).unwrap();
 
+        let mut state = state.checkpoint().0;
+
         let unbonding_info = module
             .unbonding_attesters
-            .get(&attester_address, &mut state)
+            .get(&attester_address, &mut state)?
             .unwrap();
 
         assert_eq!(
@@ -155,19 +162,23 @@ fn test_two_phase_unbonding() {
         // Wait for the light client to finalize
         module
             .light_client_finalized_height
-            .set(&(INIT_HEIGHT + DEFAULT_ROLLUP_FINALITY), &mut state);
+            .set(&(INIT_HEIGHT + DEFAULT_ROLLUP_FINALITY), &mut state)?;
 
+        let mut state = state.to_working_set_unmetered();
         // Finish the unbonding: should succeed
         module.end_unbond_attester(&context, &mut state).unwrap();
+        let mut state = state.checkpoint().0;
 
         // Check that the final balance is the same as the initial balance
         assert_eq!(
             initial_account_balance + BOND_AMOUNT,
             module
                 .bank
-                .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut state)
+                .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut state)?
                 .unwrap(),
             "The initial and final account balance don't match"
         );
     }
+
+    Ok(())
 }

@@ -197,7 +197,7 @@ pub mod macros {
     ///
     /// ## Example
     /// ```
-    /// use sov_modules_api::{Spec, StateValue, ModuleId, ModuleInfo, ApiStateAccessor};
+    /// use sov_modules_api::{Spec, StateValue, ModuleId, ModuleInfo, ApiStateAccessor, prelude::UnwrapInfallible};
     /// use sov_modules_api::macros::rpc_gen;
     /// use jsonrpsee::core::RpcResult;
     ///
@@ -214,7 +214,7 @@ pub mod macros {
     /// impl<S: Spec> MyModule<S> {
     ///     #[rpc_method(name = "myMethod")]
     ///     fn my_method(&self, state: &mut ApiStateAccessor<S>, param: u32) -> RpcResult<S::Address> {
-    ///         Ok(self.values.get(state).unwrap())
+    ///         Ok(self.values.get(state).unwrap_infallible().unwrap())
     ///     }
     /// }
     /// ```

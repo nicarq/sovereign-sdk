@@ -1,7 +1,9 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::ErrorCode;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::{ApiStateAccessor, Spec, StateAccessor};
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{ApiStateAccessor, Spec, StateReader};
+use sov_state::User;
 
 use crate::utils::get_collection_id;
 use crate::{CollectionId, CreatorAddress, NftIdentifier, NonFungibleToken, OwnerAddress, TokenId};
@@ -54,20 +56,20 @@ pub struct CollectionIdDetails {
 
 impl<S: Spec> NonFungibleToken<S> {
     /// Get the collection details
-    pub fn collection(
+    pub fn collection<Reader: StateReader<User>>(
         &self,
         collection_id: CollectionId,
-        accessor: &mut impl StateAccessor,
-    ) -> Option<CollectionDetails<S>> {
+        accessor: &mut Reader,
+    ) -> Result<Option<CollectionDetails<S>>, Reader::Error> {
         let c = self.collections.get(&collection_id, accessor)?;
 
-        Some(CollectionDetails {
+        Ok(c.map(|c| CollectionDetails {
             name: c.get_name().to_string(),
             creator: c.get_creator().clone(),
             frozen: c.is_frozen(),
             supply: c.get_supply(),
             collection_uri: c.get_collection_uri().to_string(),
-        })
+        }))
     }
 
     /// Get the collection id
@@ -81,21 +83,22 @@ impl<S: Spec> NonFungibleToken<S> {
     }
 
     /// Get the NFT details
-    pub fn nft(
+    pub fn nft<Reader: StateReader<User>>(
         &self,
         collection_id: CollectionId,
         token_id: TokenId,
-        accessor: &mut impl StateAccessor,
-    ) -> Option<NftDetails<S>> {
+        accessor: &mut Reader,
+    ) -> Result<Option<NftDetails<S>>, Reader::Error> {
         let nft_id = NftIdentifier(token_id, collection_id);
         let n = self.nfts.get(&nft_id, accessor)?;
-        Some(NftDetails {
+
+        Ok(n.map(|n| NftDetails {
             token_id: n.get_token_id(),
             token_uri: n.get_token_uri().to_string(),
             frozen: n.is_frozen(),
             owner: n.get_owner().clone(),
             collection_id: *n.get_collection_id(),
-        })
+        }))
     }
 }
 
@@ -109,6 +112,7 @@ impl<S: Spec> NonFungibleToken<S> {
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<CollectionDetails<S>> {
         self.collection(collection_id, state)
+            .unwrap_infallible()
             .ok_or(ErrorCode::InvalidParams.into())
     }
     #[rpc_method(name = "getCollectionId")]
@@ -129,6 +133,7 @@ impl<S: Spec> NonFungibleToken<S> {
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<NftDetails<S>> {
         self.nft(collection_id, token_id, state)
+            .unwrap_infallible()
             .ok_or(ErrorCode::InvalidParams.into())
     }
 }

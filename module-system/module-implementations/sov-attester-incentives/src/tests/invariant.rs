@@ -1,5 +1,7 @@
+use std::convert::Infallible;
+
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{Context, WorkingSet};
+use sov_modules_api::{Context, StateCheckpoint};
 use sov_prover_storage_manager::SimpleStorageManager;
 
 use crate::call::AttesterIncentiveErrors;
@@ -11,33 +13,31 @@ type S = sov_test_utils::TestSpec;
 
 // Test the transition invariant
 #[test]
-fn test_transition_invariant() {
+fn test_transition_invariant() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let state = WorkingSet::new(storage.clone());
+    let state = StateCheckpoint::new(storage.clone());
     let (module, attester_address, _, sequencer, mut state) = setup(state);
 
     // Assert that the attester has the correct bond amount before processing the proof
     assert_eq!(
         module
-            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)
+            .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)?
             .value,
         BOND_AMOUNT
     );
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
     // Update the chain_state module and the optimistic module accordingly
-    let state_checkpoint = state.checkpoint().0;
-    commit_get_new_storage(storage, state_checkpoint, &mut storage_manager);
-    let (exec_vars, state_checkpoint) = ExecutionSimulationVars::execute(
+    commit_get_new_storage(storage, state, &mut storage_manager);
+    let (exec_vars, mut state) = ExecutionSimulationVars::execute(
         20,
         &module,
         &mut storage_manager,
         &sequencer,
         &attester_address,
     );
-    let mut state = state_checkpoint.to_working_set_unmetered();
 
     let context = Context::<S>::new(
         attester_address,
@@ -51,12 +51,12 @@ fn test_transition_invariant() {
     // Update the finalized height and try to prove the INIT_HEIGHT: should fail
     module
         .light_client_finalized_height
-        .set(&NEW_LIGHT_CLIENT_FINALIZED_HEIGHT, &mut state);
+        .set(&NEW_LIGHT_CLIENT_FINALIZED_HEIGHT, &mut state)?;
 
     // Update the initial height
     module
         .maximum_attested_height
-        .set(&NEW_LIGHT_CLIENT_FINALIZED_HEIGHT, &mut state);
+        .set(&NEW_LIGHT_CLIENT_FINALIZED_HEIGHT, &mut state)?;
 
     // Process a valid attestation for the first transition *should fail*
     {
@@ -71,8 +71,9 @@ fn test_transition_invariant() {
             },
         };
 
+        let mut working_set = state.to_working_set_unmetered();
         let err = module
-            .process_attestation(&context, attestation.into(), &mut state)
+            .process_attestation(&context, attestation.into(), &mut working_set)
             .unwrap_err();
 
         assert_eq!(
@@ -81,10 +82,12 @@ fn test_transition_invariant() {
             "Incorrect error raised"
         );
 
+        state = working_set.checkpoint().0;
+
         // The attester should not be slashed
         assert_eq!(
             module
-                .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)
+                .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)?
                 .value,
             BOND_AMOUNT
         );
@@ -118,7 +121,7 @@ fn test_transition_invariant() {
         // We suppose that these values are always defined, otherwise we panic
         let last_height_attested = module
             .maximum_attested_height
-            .get(&mut state)
+            .get(&mut state)?
             .expect("The maximum attested height should be set at genesis");
 
         // Update the max_attested_height in case the blocks have already been finalized
@@ -141,13 +144,17 @@ fn test_transition_invariant() {
             "The transition number {transition_num} should be below the new max attested height {new_height_to_attest}"
         );
 
+        let mut working_set = state.to_working_set_unmetered();
+
         module
-            .process_attestation(&context, old_attestation.into(), &mut state)
+            .process_attestation(&context, old_attestation.into(), &mut working_set)
             .expect("Should succeed");
 
         module
-            .process_attestation(&context, new_attestation.into(), &mut state)
+            .process_attestation(&context, new_attestation.into(), &mut working_set)
             .expect("Should succeed");
+
+        state = working_set.checkpoint().0;
     }
 
     let finality_usize = usize::try_from(DEFAULT_ROLLUP_FINALITY).unwrap();
@@ -167,7 +174,7 @@ fn test_transition_invariant() {
     // We suppose that these values are always defined, otherwise we panic
     let last_height_attested = module
         .maximum_attested_height
-        .get(&mut state)
+        .get(&mut state)?
         .expect("The maximum attested height should be set at genesis");
 
     // Update the max_attested_height in case the blocks have already been finalized
@@ -182,9 +189,11 @@ fn test_transition_invariant() {
         "The transition number {transition_num} should now be below the minimum height {min_height}"
     );
 
+    let mut state = state.to_working_set_unmetered();
     let err = module
         .process_attestation(&context, old_attestation.into(), &mut state)
         .unwrap_err();
+    let state = state.checkpoint().0;
 
     assert_eq!(
         err,
@@ -212,6 +221,7 @@ fn test_transition_invariant() {
         "The transition number {transition_num} should now be below the new height to attest {new_height_to_attest}"
     );
 
+    let mut state = state.to_working_set_unmetered();
     let err = module
         .process_attestation(&context, attestation.into(), &mut state)
         .unwrap_err();
@@ -221,4 +231,6 @@ fn test_transition_invariant() {
         AttesterIncentiveErrors::InvalidTransitionInvariant,
         "The transition invariant is not respected anymore"
     );
+
+    Ok(())
 }

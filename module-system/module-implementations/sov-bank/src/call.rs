@@ -1,9 +1,7 @@
 use anyhow::{bail, Context as _, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{
-    CallResponse, Context, EventEmitter, StateAccessor, StateReader, TxState, WorkingSet,
-};
+use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, StateReader, TxState};
 use sov_state::User;
 
 use crate::event::Event;
@@ -100,7 +98,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             state,
         )?;
 
-        if self.tokens.get(&token_id, state).is_some() {
+        if self.tokens.get(&token_id, state)?.is_some() {
             bail!(
                 "Token {} at {} address already exists",
                 token_name,
@@ -108,7 +106,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             );
         }
 
-        self.tokens.set(&token_id, &token, state);
+        self.tokens.set(&token_id, &token, state)?;
         self.emit_event(
             state,
             "token_created",
@@ -168,7 +166,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         let context_logger = || format!("Failed to burn coins({}) from owner {}", coins, owner);
         let mut token = self
             .tokens
-            .get_or_err(&coins.token_id, state)
+            .get_or_err(&coins.token_id, state)?
             .with_context(context_logger)?;
         token
             .burn(owner, coins.amount, state)
@@ -182,7 +180,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                     coins.token_id
                 )
             })?;
-        self.tokens.set(&coins.token_id, &token, state);
+        self.tokens.set(&coins.token_id, &token, state)?;
 
         self.emit_event(
             state,
@@ -248,13 +246,13 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         let mut token = self
             .tokens
             .get_or_err(&coins.token_id, state)
-            .with_context(context_logger)?;
+            .with_context(context_logger)??;
 
         let authorizer = authorizer.as_token_holder();
         token
             .mint(authorizer, mint_to_identity, coins.amount, state)
             .with_context(context_logger)?;
-        self.tokens.set(&coins.token_id, &token, state);
+        self.tokens.set(&coins.token_id, &token, state)?;
         self.emit_event(
             state,
             "token_minted",
@@ -287,13 +285,13 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         let mut token = self
             .tokens
             .get_or_err(&token_id, state)
-            .with_context(context_logger)?;
+            .with_context(context_logger)??;
 
         let sender_ref = context.sender();
         let sender = sender_ref.as_token_holder();
         token.freeze(sender).with_context(context_logger)?;
 
-        self.tokens.set(&token_id, &token, state);
+        self.tokens.set(&token_id, &token, state)?;
         self.emit_event(
             state,
             "token_frozen",
@@ -329,7 +327,8 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         let token = self
             .tokens
             .get_or_err(&coins.token_id, state)
-            .with_context(context_logger)?;
+            .map(|token| token.with_context(context_logger))
+            .with_context(context_logger)??;
         token
             .transfer(from, to, coins.amount, state)
             .with_context(context_logger)?;
@@ -339,33 +338,39 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     /// Helper function used by the rpc method [`balance_of`](Bank::balance_of) to return the balance of the token stored at `token_id`
     /// for the user having the address `user_address` from the underlying storage. If the token ID doesn't exist, or
     /// if the user doesn't have tokens of that type, return `None`. Otherwise, wrap the resulting balance in `Some`.
-    pub fn get_balance_of(
+    pub fn get_balance_of<Accessor: StateAccessor>(
         &self,
         user_address: impl Payable<S>,
         token_id: TokenId,
-        state: &mut impl StateAccessor,
-    ) -> Option<u64> {
+        state: &mut Accessor,
+    ) -> Result<Option<u64>, <Accessor as StateReader<User>>::Error> {
         let user_address = user_address.as_token_holder();
         self.tokens
-            .get(&token_id, state)
-            .and_then(|token| token.balances.get(&user_address, state))
+            .get(&token_id, state)?
+            .and_then(|token| token.balances.get(&user_address, state).transpose())
+            .transpose()
     }
 
     /// Get the name of a token by ID
-    pub fn get_token_name(&self, token_id: &TokenId, state: &mut WorkingSet<S>) -> Option<String> {
-        let token = self.tokens.get(token_id, state);
-        token.map(|token| token.name)
+    pub fn get_token_name<Accessor: StateReader<User>>(
+        &self,
+        token_id: &TokenId,
+        state: &mut Accessor,
+    ) -> Result<Option<String>, Accessor::Error> {
+        let token = self.tokens.get(token_id, state)?;
+        Ok(token.map(|token| token.name))
     }
 
     /// Returns the total supply of the token with the given `token_id`.
-    pub fn get_total_supply_of(
+    pub fn get_total_supply_of<Accessor: StateAccessor>(
         &self,
         token_id: &TokenId,
-        state: &mut impl StateReader<User>,
-    ) -> Option<u64> {
-        self.tokens
-            .get(token_id, state)
-            .map(|token| token.total_supply)
+        state: &mut Accessor,
+    ) -> Result<Option<u64>, <Accessor as StateReader<User>>::Error> {
+        Ok(self
+            .tokens
+            .get(token_id, state)?
+            .map(|token| token.total_supply))
     }
 }
 

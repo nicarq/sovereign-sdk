@@ -13,6 +13,9 @@ impl<S: Spec> Accounts<S> {
         let maybe_address = self
             .accounts
             .get(credential_id, state_checkpoint)
+            .map_err(|err| {
+                anyhow::anyhow!("Sender account not found when resolving address: {err:?}")
+            })?
             .map(|a| a.addr);
 
         match maybe_address {
@@ -24,13 +27,13 @@ impl<S: Spec> Accounts<S> {
                     };
 
                     self.accounts
-                        .set(credential_id, &new_account, state_checkpoint);
+                        .set(credential_id, &new_account, state_checkpoint)?;
 
                     self.credential_ids.set(
                         default_address,
                         &vec![*credential_id],
                         state_checkpoint,
-                    );
+                    )?;
 
                     Ok(default_address.clone())
                 }

@@ -1,11 +1,11 @@
+use std::convert::Infallible;
+
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{ApiStateAccessor, PrivateKey, PublicKey, Spec, WorkingSet};
-use sov_modules_stf_blueprint::{
-    Batch, BatchSequencerOutcome, SkippedReason, StfBlueprint, TxEffect,
-};
+use sov_modules_api::{ApiStateAccessor, PrivateKey, PublicKey, Spec, StateCheckpoint};
+use sov_modules_stf_blueprint::{BatchSequencerOutcome, SkippedReason, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
@@ -30,7 +30,7 @@ use crate::tests::StfBlueprintTest;
 const SEQUENCER_DA_ADDRESS: [u8; 32] = [1; 32];
 
 #[test]
-fn test_tx_revert() {
+fn test_tx_revert() -> Result<(), Infallible> {
     // Test checks:
     //  - Batch is successfully applied even with incorrect txs
     //  - Nonce for bad transactions has increased
@@ -141,7 +141,7 @@ fn test_tx_revert() {
             .nonce(
                 &admin_key.pub_key().credential_id::<TestHasher>(),
                 &mut state,
-            )
+            )?
             .unwrap();
 
         // with 3 transactions, the final nonce should be 3
@@ -151,10 +151,12 @@ fn test_tx_revert() {
         // The minter account should have its nonce increased for 3 transactions
         assert_eq!(3, nonce);
     }
+
+    Ok(())
 }
 
 #[test]
-fn test_tx_bad_signature() {
+fn test_tx_bad_signature() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
 
@@ -236,25 +238,28 @@ fn test_tx_bad_signature() {
             .nonce(
                 &admin_key.pub_key().credential_id::<TestHasher>(),
                 &mut state,
-            )
+            )?
             .unwrap_or_default();
 
         assert_eq!(0, nonce);
     }
+
+    Ok(())
 }
 
 fn get_attester_stake_for_block(
     block: &MockBlock,
     storage_manager: &mut ProverStorageManager<MockDaSpec, DefaultStorageSpec<TestHasher>>,
     stf: &StfBlueprintTest,
-) -> u64 {
+) -> Result<u64, Infallible> {
     let (stf_state, _ledger_state) = storage_manager.create_state_for(block.header()).unwrap();
 
-    let mut state: WorkingSet<TestSpec> = WorkingSet::new(stf_state);
-    stf.runtime()
+    let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(stf_state);
+    Ok(stf
+        .runtime()
         .sequencer_registry
-        .get_sender_balance(&(MOCK_SEQUENCER_DA_ADDRESS.into()), &mut state)
-        .expect("The sequencer should be registered")
+        .get_sender_balance(&(MOCK_SEQUENCER_DA_ADDRESS.into()), &mut state)?
+        .expect("The sequencer should be registered"))
 }
 
 /// This test ensures that the sequencer gets penalized for submitting a proof that has a wrong nonce.
@@ -354,7 +359,7 @@ fn test_tx_bad_nonce() {
 }
 
 #[test]
-fn test_tx_bad_serialization() {
+fn test_tx_bad_serialization() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
 
@@ -382,13 +387,13 @@ fn test_tx_bad_serialization() {
                 .create_state_after(genesis_block.header())
                 .unwrap();
             let runtime: RuntimeTest = Runtime::default();
-            let mut state = WorkingSet::<TestSpec>::new(stf_state.clone());
+            let mut state = StateCheckpoint::<TestSpec>::new(stf_state.clone());
 
-            let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state);
+            let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state)?;
 
             runtime
                 .bank
-                .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut state)
+                .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut state)?
                 .unwrap()
         };
         (genesis_root, balance)
@@ -461,11 +466,13 @@ fn test_tx_bad_serialization() {
         assert!(allowed_sequencer.address.is_none());
 
         // Balance of sequencer is not increased
-        let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state);
+        let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state)?;
         let sequencer_balance_after = runtime
             .bank
-            .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut state)
+            .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut state)?
             .unwrap();
         assert_eq!(sequencer_balance_before, sequencer_balance_after);
     }
+
+    Ok(())
 }

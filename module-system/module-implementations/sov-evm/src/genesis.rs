@@ -136,7 +136,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             base_fee_params: config.base_fee_params,
         };
 
-        self.cfg.set(&chain_cfg, state);
+        self.cfg.set(&chain_cfg, state)?;
 
         let header = reth_primitives::Header {
             parent_hash: B256::default(),
@@ -170,10 +170,10 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             transactions: 0u64..0u64,
         };
 
-        self.head.set(&block, state);
+        self.head.set(&block, state)?;
         #[cfg(feature = "native")]
         {
-            self.pending_head.set(&block, state);
+            self.pending_head.set(&block, state)?;
         }
 
         Ok(())

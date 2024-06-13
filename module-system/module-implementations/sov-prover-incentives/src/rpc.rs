@@ -2,6 +2,7 @@
 use jsonrpsee::core::RpcResult;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, DaSpec};
 
 use super::ProverIncentives;
@@ -25,7 +26,11 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Response> {
         Ok(Response {
-            value: self.bonded_provers.get(&address, state).unwrap_or_default(), // self.value.get(api_state_accessor),
+            value: self
+                .bonded_provers
+                .get(&address, state)
+                .unwrap_infallible()
+                .unwrap_or_default(), // self.value.get(api_state_accessor),
         })
     }
 }

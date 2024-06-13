@@ -22,7 +22,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         admin_config: &<Self as sov_modules_api::Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        self.admin.set(&admin_config.admin, state);
+        self.admin.set(&admin_config.admin, state)?;
         Ok(())
     }
 }

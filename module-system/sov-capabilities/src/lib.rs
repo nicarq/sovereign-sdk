@@ -128,7 +128,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         // This should be resolved by the sequencer registry during blob selection
         let sequencer = self
             .sequencer_registry
-            .resolve_da_address(sequencer, state)
+            .resolve_da_address(sequencer, state)?
             .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,

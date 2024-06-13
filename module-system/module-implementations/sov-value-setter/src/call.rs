@@ -49,7 +49,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         // If admin is not then early return:
-        let admin = self.admin.get_or_err(state)?;
+        let admin = self.admin.get_or_err(state)??;
 
         if &admin != context.sender() {
             // Here we use a custom error type.
@@ -57,7 +57,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         }
 
         // This is how we set a new value:
-        self.value.set(&new_value, state);
+        self.value.set(&new_value, state)?;
 
         self.emit_event(state, "set_value", Event::NewValue(new_value));
 
@@ -70,7 +70,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let admin = self.admin.get_or_err(state)?;
+        let admin = self.admin.get_or_err(state)??;
 
         if &admin != context.sender() {
             // Here we use a custom error type.
@@ -78,7 +78,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         }
 
         // This is how we set a new value:
-        self.many_values.set_all(new_value, state);
+        self.many_values.set_all(new_value, state)?;
         Ok(CallResponse::default())
     }
 }

@@ -41,9 +41,9 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
             "At least one prover must be set at genesis!"
         );
 
-        self.minimum_bond.set(&config.minimum_bond, state);
-        self.proving_penalty.set(&config.proving_penalty, state);
-        self.last_claimed_reward.set(&0, state);
+        self.minimum_bond.set(&config.minimum_bond, state)?;
+        self.proving_penalty.set(&config.proving_penalty, state)?;
+        self.last_claimed_reward.set(&0, state)?;
 
         for (prover, bond) in config.initial_provers.iter() {
             self.bond_prover_helper(*bond, prover, state)?;

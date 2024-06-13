@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use lazy_static::lazy_static;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
 use reth_primitives::hex_literal::hex;
@@ -49,7 +51,7 @@ pub(crate) const GENESIS_STATE_ROOT: B256 = B256::new(hex!(
 pub(crate) static BENEFICIARY: Address = Address::new([3u8; 20]);
 
 #[test]
-fn genesis_data() {
+fn genesis_data() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
 
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
@@ -59,7 +61,7 @@ fn genesis_data() {
 
     let db_account = evm
         .accounts
-        .get(&account.address, &mut state_checkpoint)
+        .get(&account.address, &mut state_checkpoint)?
         .unwrap();
 
     let mut working_set = state_checkpoint.to_working_set_unmetered();
@@ -78,15 +80,17 @@ fn genesis_data() {
             }
         ),
     );
+
+    Ok(())
 }
 
 #[test]
-fn genesis_cfg() {
+fn genesis_cfg() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
 
-    let cfg = evm.cfg.get(&mut state_checkpoint).unwrap();
+    let cfg = evm.cfg.get(&mut state_checkpoint)?.unwrap();
     assert_eq!(
         cfg,
         EvmChainConfig {
@@ -99,6 +103,8 @@ fn genesis_cfg() {
             base_fee_params: BaseFeeParams::ethereum(),
         }
     );
+
+    Ok(())
 }
 
 #[test]
@@ -116,15 +122,17 @@ fn genesis_cfg_missing_specs() {
 }
 
 #[test]
-fn genesis_empty_spec_defaults_to_shanghai() {
+fn genesis_empty_spec_defaults_to_shanghai() -> Result<(), Infallible> {
     let mut config = TEST_CONFIG.clone();
     config.spec.clear();
     let tmpdir = tempfile::tempdir().unwrap();
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&config, state_checkpoint);
 
-    let cfg = evm.cfg.get(&mut state_checkpoint).unwrap();
+    let cfg = evm.cfg.get(&mut state_checkpoint)?.unwrap();
     assert_eq!(cfg.spec, vec![(0, SpecId::SHANGHAI)]);
+
+    Ok(())
 }
 
 #[test]
@@ -142,7 +150,7 @@ fn genesis_cfg_cancun() {
 }
 
 #[test]
-fn genesis_block() {
+fn genesis_block() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
 
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
@@ -151,12 +159,12 @@ fn genesis_block() {
 
     let block_number = evm
         .block_hashes
-        .get(&GENESIS_HASH, &mut accessory_state)
+        .get(&GENESIS_HASH, &mut accessory_state)?
         .unwrap();
 
     let block = evm
         .blocks
-        .get(block_number as usize, &mut accessory_state)
+        .get(block_number as usize, &mut accessory_state)?
         .unwrap();
 
     assert_eq!(block_number, 0);
@@ -192,14 +200,16 @@ fn genesis_block() {
     };
 
     assert_eq!(expected_block, block);
+
+    Ok(())
 }
 
 #[test]
-fn genesis_head() {
+fn genesis_head() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
-    let head = evm.head.get(&mut state_checkpoint).unwrap();
+    let head = evm.head.get(&mut state_checkpoint)?.unwrap();
 
     assert_eq!(
         head,
@@ -229,6 +239,8 @@ fn genesis_head() {
             transactions: 0u64..0u64,
         }
     );
+
+    Ok(())
 }
 
 pub(crate) fn setup(

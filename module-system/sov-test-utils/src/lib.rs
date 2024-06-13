@@ -9,13 +9,12 @@ pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{
-    CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint, WorkingSet,
-};
+use sov_modules_api::{CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::BatchReceipt;
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::stf::TxReceiptContents;
@@ -80,7 +79,7 @@ pub fn simple_bank_setup(
 ) {
     let bank = Bank::<TestSpec>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let sender_address = generate_address::<TestSpec>("just_sender");
 
@@ -95,12 +94,16 @@ pub fn simple_bank_setup(
         },
         tokens: vec![],
     };
-    bank.genesis(&bank_config, &mut working_set).unwrap();
+    let mut genesis_state_accessor =
+        state_checkpoint.to_genesis_state_accessor::<Bank<TestSpec>>(&bank_config);
+    bank.genesis(&bank_config, &mut genesis_state_accessor)
+        .unwrap();
 
-    let (mut checkpoint, _, _) = working_set.checkpoint();
+    let mut checkpoint = genesis_state_accessor.checkpoint();
 
     assert_eq!(
-        bank.get_balance_of(&sender_address, token_id, &mut checkpoint),
+        bank.get_balance_of(&sender_address, token_id, &mut checkpoint)
+            .unwrap_infallible(),
         Some(initial_balance),
         "Invalid initial balance"
     );

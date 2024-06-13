@@ -50,7 +50,7 @@ impl TestRollup {
         }
 
         let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(&[0; 2]);
-        let transaction_scratchpad = state_checkpoint.to_tx_scratchpad(gas_price);
+        let transaction_scratchpad = state_checkpoint.to_tx_scratchpad();
 
         let mut pre_exec_ws = match self.stf().runtime().authorize_sequencer(
             &seq_da_addr,

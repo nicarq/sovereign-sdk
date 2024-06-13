@@ -28,8 +28,12 @@ pub use authenticate::authenticate;
 use revm::primitives::Address;
 pub use revm::primitives::SpecId;
 use revm_primitives::BlockEnv;
-use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
+use sov_modules_api::{
+    Context, Error, GenesisState, ModuleId, ModuleInfo, StateAccessor, TxState,
+    UnmeteredStateWrapper,
+};
 use sov_state::codec::BcsCodec;
+use sov_state::User;
 
 use crate::event::Event;
 use crate::evm::db::EvmDb;
@@ -144,7 +148,15 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
 }
 
 impl<S: sov_modules_api::Spec> Evm<S> {
-    pub(crate) fn get_db<'a, Ws>(&self, state: &'a mut Ws) -> EvmDb<'a, Ws> {
-        EvmDb::new(self.accounts.clone(), self.code.clone(), state)
+    pub(crate) fn get_db<'a, Ws: StateAccessor>(
+        &self,
+        state: &'a mut Ws,
+    ) -> EvmDb<UnmeteredStateWrapper<'a, Ws, User>> {
+        let infallible_state_accessor = state.to_unmetered();
+        EvmDb::new(
+            self.accounts.clone(),
+            self.code.clone(),
+            infallible_state_accessor,
+        )
     }
 }

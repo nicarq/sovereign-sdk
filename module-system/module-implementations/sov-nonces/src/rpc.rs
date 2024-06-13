@@ -1,5 +1,6 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, Spec};
 
 use crate::{CredentialId, Nonces};
@@ -20,7 +21,10 @@ impl<S: Spec> Nonces<S> {
         credential_id: CredentialId,
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Response> {
-        let nonce = self.nonce(&credential_id, state).unwrap_or_default();
+        let nonce = self
+            .nonce(&credential_id, state)
+            .unwrap_infallible()
+            .unwrap_or_default();
 
         Ok(Response { nonce })
     }

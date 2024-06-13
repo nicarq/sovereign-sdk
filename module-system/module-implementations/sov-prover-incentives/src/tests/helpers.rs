@@ -6,14 +6,15 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::execution_mode::Native;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Address, CryptoSpec, GasMeter, KernelModule, KernelWorkingSet, Module, ModuleInfo, PrivateKey,
-    Spec, StateCheckpoint, WorkingSet,
+    Address, CryptoSpec, GasMeter, InfallibleStateAccessor, KernelModule, KernelWorkingSet, Module,
+    ModuleInfo, PrivateKey, Spec, StateAccessor, StateCheckpoint, StateReader,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
-use sov_state::{DefaultStorageSpec, StorageRoot};
+use sov_state::{DefaultStorageSpec, StorageRoot, User};
 
 use crate::ProverIncentives;
 
@@ -29,14 +30,15 @@ pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([
 pub const MAX_TX_GAS_AMOUNT: u64 = 10_000;
 
 impl ProverIncentives<S, Da> {
-    pub fn get_bond_amount(
+    pub fn get_bond_amount<Accessor: StateAccessor>(
         &self,
         address: <S as Spec>::Address,
-        working_set: &mut WorkingSet<S>,
-    ) -> u64 {
-        self.bonded_provers
-            .get(&address, working_set)
-            .unwrap_or_default()
+        working_set: &mut Accessor,
+    ) -> Result<u64, <Accessor as StateReader<User>>::Error> {
+        Ok(self
+            .bonded_provers
+            .get(&address, working_set)?
+            .unwrap_or_default())
     }
 }
 
@@ -114,7 +116,7 @@ pub(crate) fn simulate_chain_state_execution(
             &mut kernel_working_set,
         );
 
-        let tx_scratchpad = state_checkpoint.to_tx_scratchpad(&price);
+        let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
         let pre_exec_working_set = tx_scratchpad.pre_exec_ws_unmetered_with_price(&price);
 
         // We first need to reserve gas for the transaction
@@ -168,17 +170,19 @@ pub(crate) fn simulate_chain_state_execution(
 }
 
 fn setup_helper(
-    mut working_set: WorkingSet<S>,
+    state: StateCheckpoint<S>,
 ) -> (
     ProverIncentives<S, Da>,
     <S as Spec>::Address,
     <S as Spec>::Address,
-    WorkingSet<S>,
+    StateCheckpoint<S>,
 ) {
     // Initialize bank
+
     let (bank_config, prover_address, sequencer) = create_bank_config();
     let bank = sov_bank::Bank::<S>::default();
-    bank.genesis(&bank_config, &mut working_set)
+    let mut state = state.to_genesis_state_accessor::<sov_bank::Bank<S>>(&bank_config);
+    bank.genesis(&bank_config, &mut state)
         .expect("bank genesis must succeed");
 
     // Initialize chain state
@@ -191,7 +195,7 @@ fn setup_helper(
 
     let chain_state = sov_chain_state::ChainState::<S, Da>::default();
 
-    let (mut checkpoint, _meter, _) = working_set.checkpoint();
+    let mut checkpoint = state.checkpoint();
 
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut checkpoint);
     chain_state
@@ -206,43 +210,45 @@ fn setup_helper(
         initial_provers: vec![(prover_address, BOND_AMOUNT)],
     };
 
-    let mut working_set = checkpoint.to_working_set_unmetered();
+    let mut state = checkpoint.to_genesis_state_accessor::<ProverIncentives<S, Da>>(&config);
 
     module
-        .genesis(&config, &mut working_set)
+        .genesis(&config, &mut state)
         .expect("prover incentives genesis must succeed");
-    (module, prover_address, sequencer, working_set)
+
+    let checkpoint = state.checkpoint();
+    (module, prover_address, sequencer, checkpoint)
 }
 
 pub(crate) fn setup() -> (
     crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     <S as Spec>::Address,
     <S as Spec>::Address,
-    WorkingSet<S>,
+    StateCheckpoint<S>,
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let (module, prover_address, sequencer, mut working_set) = setup_helper(working_set);
+    let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let (module, prover_address, sequencer, mut state) = setup_helper(state);
 
     // Assert that the prover has the correct bond amount before processing the proof
     assert_eq!(
-        module.get_bond_amount(prover_address, &mut working_set),
+        module
+            .get_bond_amount(prover_address, &mut state)
+            .expect("The working set should not run out of gas during setup"),
         BOND_AMOUNT
     );
 
-    // We clear the events before processing the proof
-    working_set.take_events();
-
-    (module, prover_address, sequencer, working_set)
+    (module, prover_address, sequencer, state)
 }
 
 pub(crate) fn get_transition_unwrap(
     transition_num: u64,
     module: &ProverIncentives<S, Da>,
-    state: &mut WorkingSet<S>,
+    state: &mut impl InfallibleStateAccessor,
 ) -> StateTransition<S, Da> {
     module
         .chain_state
         .get_historical_transitions(transition_num, state)
+        .unwrap_infallible()
         .expect("transition must exist")
 }

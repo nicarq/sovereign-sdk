@@ -4,6 +4,8 @@ mod traits;
 
 #[cfg(feature = "native")]
 pub use accessors::ApiStateAccessor;
+#[cfg(any(feature = "test-utils", feature = "evm"))]
+pub use accessors::UnmeteredStateWrapper;
 pub use accessors::{
     AccessoryDelta, AccessoryStateCheckpoint, AuthorizeTransactionError, BootstrapWorkingSet,
     GenesisStateAccessor, KernelWorkingSet, PreExecWorkingSet, StateCheckpoint, TxScratchpad,
@@ -13,6 +15,7 @@ pub use events::TypedEvent;
 #[cfg(feature = "native")]
 pub use traits::ProvenStateAccessor;
 pub use traits::{
-    AccessoryStateReader, AccessoryStateWriter, GenesisState, StateReader, StateReaderAndWriter,
-    StateWriter, TxState, VersionReader,
+    AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateWriter, GenesisState,
+    InfallibleStateAccessor, InfallibleStateReaderAndWriter, StateAccessor, StateAccessorError,
+    StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
 };

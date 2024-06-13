@@ -30,6 +30,8 @@ pub enum StateValueError<N: CompileTimeNamespace> {
     MissingValue(Prefix, PhantomData<N>),
 }
 
+type ValueOrError<V, N> = Result<V, StateValueError<N>>;
+
 /// A container for a single user-space value.
 pub type StateValue<V, Codec = BorshCodec> = NamespacedStateValue<User, V, Codec>;
 /// A Container for a single value which is only accesible in the kernel.
@@ -90,40 +92,53 @@ where
     }
 
     /// Sets the value.
-    pub fn set(&self, value: &V, state: &mut impl StateWriter<N>) {
-        state.set(&self.slot_key(), self.slot_value(value)).unwrap();
+    pub fn set<Writer: StateWriter<N>>(
+        &self,
+        value: &V,
+        state: &mut Writer,
+    ) -> Result<(), Writer::Error> {
+        state.set(&self.slot_key(), self.slot_value(value))
     }
 
     /// Gets the value from state or returns None if the value is absent.
-    pub fn get(&self, state: &mut impl StateReader<N>) -> Option<V> {
-        state.get_decoded(&self.slot_key(), self.codec()).unwrap()
+    pub fn get<Reader: StateReader<N>>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Option<V>, Reader::Error> {
+        state.get_decoded(&self.slot_key(), self.codec())
     }
 
     /// Gets the value from state or Error if the value is absent.
-    pub fn get_or_err(&self, state: &mut impl StateReader<N>) -> Result<V, StateValueError<N>> {
-        self.get(state)
-            .ok_or_else(|| StateValueError::<N>::MissingValue(self.prefix().clone(), PhantomData))
+    pub fn get_or_err<Reader: StateReader<N>>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<ValueOrError<V, N>, Reader::Error> {
+        Ok(self
+            .get(state)?
+            .ok_or_else(|| StateValueError::<N>::MissingValue(self.prefix().clone(), PhantomData)))
     }
 
     /// Removes the value from state, returning the value (or None if the key is absent).
-    pub fn remove(&self, state: &mut impl StateReaderAndWriter<N>) -> Option<V> {
-        state
-            .remove_decoded(&self.slot_key(), self.codec())
-            .unwrap()
+    pub fn remove<ReaderAndWriter: StateReaderAndWriter<N>>(
+        &self,
+        state: &mut ReaderAndWriter,
+    ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
+        state.remove_decoded(&self.slot_key(), self.codec())
     }
 
     /// Removes a value from state, returning the value (or Error if the key is absent).
-    pub fn remove_or_err(
+    pub fn remove_or_err<ReaderAndWriter: StateReaderAndWriter<N>>(
         &self,
-        state: &mut impl StateReaderAndWriter<N>,
-    ) -> Result<V, StateValueError<N>> {
-        self.remove(state)
-            .ok_or_else(|| StateValueError::<N>::MissingValue(self.prefix().clone(), PhantomData))
+        state: &mut ReaderAndWriter,
+    ) -> Result<ValueOrError<V, N>, <ReaderAndWriter as StateWriter<N>>::Error> {
+        Ok(self
+            .remove(state)?
+            .ok_or_else(|| StateValueError::<N>::MissingValue(self.prefix().clone(), PhantomData)))
     }
 
     /// Deletes a value from state.
-    pub fn delete(&self, state: &mut impl StateWriter<N>) {
-        state.delete(&self.slot_key()).unwrap();
+    pub fn delete<Writer: StateWriter<N>>(&self, state: &mut Writer) -> Result<(), Writer::Error> {
+        state.delete(&self.slot_key())
     }
 }
 

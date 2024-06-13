@@ -171,15 +171,15 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
         let to_balance = self
             .balances
-            .get(&to, state)
+            .get(&to, state)?
             .unwrap_or_default()
             .checked_add(amount)
             .with_context(|| {
                 format!("Account balance overflow on={} for token={}", to, self.name)
             })?;
 
-        self.balances.set(&from, &from_balance, state);
-        self.balances.set(&to, &to_balance, state);
+        self.balances.set(&from, &from_balance, state)?;
+        self.balances.set(&to, &to_balance, state)?;
         Ok(())
     }
     /// Burns a specified `amount` of token from the address `from`. First check that the address has enough token to burn,
@@ -191,7 +191,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         let new_balance = self.decrease_balance_checked(from, amount, state)?;
-        self.balances.set(&from, &new_balance, state);
+        self.balances.set(&from, &new_balance, state)?;
 
         Ok(())
     }
@@ -228,14 +228,14 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
         let to_balance: Amount = self
             .balances
-            .get(&mint_to_identity, state)
+            .get(&mint_to_identity, state)?
             .unwrap_or_default()
             .checked_add(amount)
             .ok_or(anyhow::Error::msg(
                 "Account balance overflow in the mint method of bank module",
             ))?;
 
-        self.balances.set(&mint_to_identity, &to_balance, state);
+        self.balances.set(&mint_to_identity, &to_balance, state)?;
         self.total_supply = self
             .total_supply
             .checked_add(amount)
@@ -267,7 +267,9 @@ impl<S: sov_modules_api::Spec> Token<S> {
         amount: Amount,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<Amount> {
-        let balance = self.balances.get_or_err(&from, state)?;
+        let try_balance = self.balances.get_or_err(&from, state)?;
+        let balance = try_balance?;
+
         let new_balance = match balance.checked_sub(amount) {
             Some(from_balance) => from_balance,
             None => bail!("Insufficient funds for {}", from),
@@ -315,7 +317,7 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
         let mut total_supply: Option<u64> = Some(0);
         for (address, balance) in identities_and_balances.iter() {
-            balances.set(address, balance, state);
+            balances.set(address, balance, state)?;
             total_supply = total_supply.and_then(|ts| ts.checked_add(*balance));
         }
 
