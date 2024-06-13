@@ -1,6 +1,8 @@
 use sov_bank::{Amount, Bank, CallMessage, Coins, TokenId};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    ApiStateAccessor, Context, Module, Spec, StateReader, StateWriter, WorkingSet,
+    ApiStateAccessor, Context, InfallibleStateAccessor, Module, Spec, StateAccessor,
+    StateCheckpoint, StateReader, StateWriter, WorkingSet,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::namespaces::Accessory;
@@ -19,9 +21,11 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let prover_storage = storage_manager.create_storage();
-    let mut state = WorkingSet::new(prover_storage.clone());
+    let state = StateCheckpoint::new(prover_storage.clone());
     let bank = Bank::default();
-    bank.genesis(&bank_config, &mut state).unwrap();
+    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
+    bank.genesis(&bank_config, &mut genesis_state).unwrap();
+    let mut state = genesis_state.checkpoint();
 
     let token_id = sov_bank::GAS_TOKEN_ID;
     let sender_address = bank_config.gas_token_config.address_and_balances[0].0;
@@ -49,6 +53,8 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         10,
         &mut state,
     );
+    let mut state = state.checkpoint().0;
+
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_id,
@@ -71,6 +77,8 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         10,
         &mut state,
     );
+
+    let mut state = state.checkpoint().0;
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_id,
@@ -92,7 +100,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         token_id,
         sender_address,
         receiver_address,
-        &mut archival,
+        &mut archival.to_unmetered(),
     );
     assert_eq!((sender_balance, receiver_balance), (90, 110));
 
@@ -106,6 +114,8 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         5,
         &mut archival,
     );
+
+    let mut archival = archival.checkpoint().0;
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
@@ -124,7 +134,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         token_id,
         sender_address,
         receiver_address,
-        &mut archival,
+        &mut archival.to_unmetered(),
     );
     assert_eq!((sender_balance, receiver_balance), (100, 100));
 
@@ -143,7 +153,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         token_id,
         sender_address,
         receiver_address,
-        &mut archival,
+        &mut archival.to_unmetered(),
     );
     assert_eq!((sender_balance, receiver_balance), (55, 145));
 
@@ -152,7 +162,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         token_id,
         sender_address,
         receiver_address,
-        &mut state,
+        &mut state.to_unmetered(),
     );
     assert_eq!((sender_balance, receiver_balance), (80, 120));
 
@@ -167,6 +177,8 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         10,
         &mut state,
     );
+
+    let mut state = state.checkpoint().0;
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_id,
@@ -181,7 +193,9 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         &SlotKey::from_slice(b"k"),
         SlotValue::from(b"v1".to_vec()),
     )?;
-    let val = StateReader::<Accessory>::get(&mut state, &SlotKey::from_slice(b"k"))?.unwrap();
+    let val =
+        StateReader::<Accessory>::get(&mut state.accessory_state(), &SlotKey::from_slice(b"k"))?
+            .unwrap();
     assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
@@ -198,6 +212,8 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         10,
         &mut state,
     );
+    let (mut state, _, _) = state.checkpoint();
+
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_id,
@@ -211,7 +227,9 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         &SlotKey::from_slice(b"k"),
         SlotValue::from(b"v2".to_vec()),
     )?;
-    let val = StateReader::<Accessory>::get(&mut state, &SlotKey::from_slice(b"k"))?.unwrap();
+    let val =
+        StateReader::<Accessory>::get(&mut state.accessory_state(), &SlotKey::from_slice(b"k"))?
+            .unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
@@ -246,13 +264,15 @@ fn query_sender_receiver_balances(
     token_id: TokenId,
     sender_address: <S as Spec>::Address,
     receiver_address: <S as Spec>::Address,
-    state: &mut WorkingSet<S>,
+    state: &mut impl InfallibleStateAccessor,
 ) -> (u64, u64) {
     let sender_balance = bank
         .get_balance_of(&sender_address, token_id, state)
+        .unwrap_infallible()
         .unwrap();
     let receiver_balance = bank
         .get_balance_of(&receiver_address, token_id, state)
+        .unwrap_infallible()
         .unwrap();
     (sender_balance, receiver_balance)
 }
@@ -282,14 +302,12 @@ fn transfer(
 }
 
 fn commit(
-    state: WorkingSet<S>,
+    state: StateCheckpoint<S>,
     storage: ProverStorage<StorageSpec>,
     storage_manager: &mut SimpleStorageManager<StorageSpec>,
 ) -> ProverStorage<StorageSpec> {
     // Save checkpoint
-    let checkpoint = state.checkpoint();
-
-    let (cache_log, accessory_delta, witness) = checkpoint.0.freeze();
+    let (cache_log, accessory_delta, witness) = state.freeze();
 
     let (_, mut state_update) = storage
         .compute_state_update(cache_log, &witness)

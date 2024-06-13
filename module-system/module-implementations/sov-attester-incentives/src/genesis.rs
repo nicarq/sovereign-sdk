@@ -51,22 +51,22 @@ where
         );
 
         self.minimum_attester_bond
-            .set(&config.minimum_attester_bond, state);
+            .set(&config.minimum_attester_bond, state)?;
         self.minimum_challenger_bond
-            .set(&config.minimum_challenger_bond, state);
+            .set(&config.minimum_challenger_bond, state)?;
 
         self.rollup_finality_period
-            .set(&config.rollup_finality_period, state);
+            .set(&config.rollup_finality_period, state)?;
 
         for (attester, bond) in config.initial_attesters.iter() {
             self.bond_user_helper(*bond, attester, Role::Attester, state)?;
         }
 
         self.maximum_attested_height
-            .set(&config.maximum_attested_height, state);
+            .set(&config.maximum_attested_height, state)?;
 
         self.light_client_finalized_height
-            .set(&config.light_client_finalized_height, state);
+            .set(&config.light_client_finalized_height, state)?;
 
         Ok(())
     }

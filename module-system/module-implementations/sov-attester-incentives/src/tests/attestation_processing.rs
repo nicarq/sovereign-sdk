@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
@@ -5,7 +6,8 @@ use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{CryptoSpec, GasMeter, Module, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{CryptoSpec, GasMeter, Module, PrivateKey, Spec, StateAccessor, WorkingSet};
 use sov_state::jmt::RootHash;
 use sov_state::{BorshCodec, SlotValue, Storage, StorageProof, StorageRoot};
 use sov_test_utils::generate_optimistic_runtime;
@@ -26,34 +28,40 @@ fn create_attestation(
     slot_to_attest: u64,
     attester_address: &<S as Spec>::Address,
     state: &mut WorkingSet<S>,
-) -> Attestation<
-    MockDaSpec,
-    StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
-    <<S as Spec>::Storage as Storage>::Root,
+) -> Result<
+    Attestation<
+        MockDaSpec,
+        StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+        <<S as Spec>::Storage as Storage>::Root,
+    >,
+    Infallible,
 > {
     let chain_state = ChainState::<S, MockDaSpec>::default();
+    let mut unmetered_state = state.to_unmetered();
 
     // Get the values for the transition being attested
     let current_transition = chain_state
-        .get_historical_transitions(slot_to_attest, state)
+        .get_historical_transitions(slot_to_attest, &mut unmetered_state)?
         .unwrap();
 
     let prev_root = if slot_to_attest == 1 {
-        chain_state.get_genesis_hash(state)
+        chain_state.get_genesis_hash(&mut unmetered_state)?
     } else {
         chain_state
-            .get_historical_transitions(slot_to_attest - 1, state)
+            .get_historical_transitions(slot_to_attest - 1, &mut unmetered_state)?
             .map(|t| *t.post_state_root())
     }
     .unwrap();
+
+    let mut archival_state = state.get_archival_at(1);
 
     // Recall that the attester must be bonded *at a height that light clients consider finalized*
     // Since finalization takes a long time (24 hours), we know that it will never advance past slot 1 in tests.
     let proof_of_bond = AttesterIncentives::<S, MockDaSpec>::default()
         .bonded_attesters
-        .get_with_proof(attester_address, &mut state.get_archival_at(1));
+        .get_with_proof(attester_address, &mut archival_state.to_unmetered());
 
-    Attestation {
+    Ok(Attestation {
         initial_state_root: prev_root,
         slot_hash: *current_transition.slot_hash(),
         post_state_root: *current_transition.post_state_root(),
@@ -61,7 +69,7 @@ fn create_attestation(
             claimed_transition_num: slot_to_attest,
             proof: proof_of_bond,
         },
-    }
+    })
 }
 
 /// Start by testing the positive case where the attestations are valid. We check that...
@@ -94,7 +102,8 @@ fn test_process_valid_attestation() {
               state: &mut <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState| {
             if message == &DUMMY_CALL_MESSAGE {
                 let next_slot = last_attested_slot + 1;
-                let attestation = create_attestation(next_slot, &attester_address, state);
+                let attestation =
+                    create_attestation(next_slot, &attester_address, state).unwrap_infallible();
                 *message =
                     CallMessage::ProcessAttestation(WrappedAttestation { inner: attestation });
                 last_attested_slot = next_slot;
@@ -125,7 +134,8 @@ fn test_process_valid_attestation() {
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
                             .bonded_attesters
-                            .get(&attester_address, ws)
+                            .get(&attester_address, &mut ws.to_unmetered())
+                            .unwrap_infallible()
                             .unwrap_or_default(),
                         initial_balance,
                     );
@@ -196,16 +206,19 @@ fn test_process_valid_attestation() {
                 }],
                 post_hook: Box::new(move |ws| {
                     // Check the attester's non-bonded balance
+                    let mut ws = ws.to_unmetered();
                     assert_eq!(
                         sov_bank::Bank::<S>::default()
-                            .get_balance_of(&attester_address, sov_bank::GAS_TOKEN_ID, ws)
+                            .get_balance_of(&attester_address, sov_bank::GAS_TOKEN_ID, &mut ws)
+                            .unwrap_infallible()
                             .unwrap(),
                         expected_balance_ref_3.load(std::sync::atomic::Ordering::SeqCst)
                     );
                     // Check that the attester still has their full bond
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
-                            .get_bond_amount(attester_address, Role::Attester, ws)
+                            .get_bond_amount(attester_address, Role::Attester, &mut ws)
+                            .unwrap_infallible()
                             .value,
                         initial_balance
                     );
@@ -243,7 +256,8 @@ fn test_burn_on_invalid_attestation() {
               state: &mut <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState| {
             if message == &DUMMY_CALL_MESSAGE {
                 let next_slot = last_attested_slot + 1;
-                let mut attestation = create_attestation(next_slot, &attester_address, state);
+                let mut attestation =
+                    create_attestation(next_slot, &attester_address, state).unwrap_infallible();
 
                 match round {
                     0 => {
@@ -285,7 +299,8 @@ fn test_burn_on_invalid_attestation() {
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
                             .bonded_attesters
-                            .get(&attester_address, ws)
+                            .get(&attester_address, &mut ws.to_unmetered())
+                            .unwrap_infallible()
                             .unwrap_or_default(),
                         BOND_AMOUNT,
                     );
@@ -302,7 +317,12 @@ fn test_burn_on_invalid_attestation() {
                     // Assert that the attester was not slashed
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
-                            .get_bond_amount(attester_address, Role::Attester, state)
+                            .get_bond_amount(
+                                attester_address,
+                                Role::Attester,
+                                &mut state.to_unmetered()
+                            )
+                            .unwrap_infallible()
                             .value,
                         BOND_AMOUNT,
                     );
@@ -329,7 +349,12 @@ fn test_burn_on_invalid_attestation() {
                         // Assert that the attester was slashed
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(attester_address, Role::Attester, state)
+                                .get_bond_amount(
+                                    attester_address,
+                                    Role::Attester,
+                                    &mut state.to_unmetered()
+                                )
+                                .unwrap_infallible()
                                 .value,
                             0,
                         );
@@ -338,7 +363,8 @@ fn test_burn_on_invalid_attestation() {
                         assert!(
                             AttesterIncentives::<S, MockDaSpec>::default()
                                 .bad_transition_pool
-                                .get(&2, state)
+                                .get(&2, &mut state.to_unmetered())
+                                .unwrap_infallible()
                                 .is_none(),
                             "The transition should not exist in the pool"
                         );
@@ -355,7 +381,12 @@ fn test_burn_on_invalid_attestation() {
                         )));
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(attester_address, Role::Attester, state)
+                                .get_bond_amount(
+                                    attester_address,
+                                    Role::Attester,
+                                    &mut state.to_unmetered()
+                                )
+                                .unwrap_infallible()
                                 .value,
                             BOND_AMOUNT,
                         );
@@ -375,7 +406,12 @@ fn test_burn_on_invalid_attestation() {
                         // Assert that the attester was slashed
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(attester_address, Role::Attester, state)
+                                .get_bond_amount(
+                                    attester_address,
+                                    Role::Attester,
+                                    &mut state.to_unmetered()
+                                )
+                                .unwrap_infallible()
                                 .value,
                             0,
                         );
@@ -383,7 +419,8 @@ fn test_burn_on_invalid_attestation() {
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
                                 .bad_transition_pool
-                                .get(&2, state),
+                                .get(&2, &mut state.to_unmetered())
+                                .unwrap_infallible(),
                             Some(BOND_AMOUNT),
                             "The transition should not exist in the pool"
                         );

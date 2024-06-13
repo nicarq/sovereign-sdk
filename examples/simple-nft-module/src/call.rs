@@ -42,7 +42,7 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        if self.owners.get(&id, state).is_some() {
+        if self.owners.get(&id, state)?.is_some() {
             bail!("Token with id {} already exists", id);
         }
 
@@ -59,7 +59,7 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let Some(token_owner) = self.owners.get(&id, state) else {
+        let Some(token_owner) = self.owners.get(&id, state)? else {
             bail!("Token with id {} does not exist", id);
         };
         if &token_owner != context.sender() {
@@ -79,7 +79,7 @@ impl<S: Spec> NonFungibleToken<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
-        let Some(token_owner) = self.owners.get(&id, state) else {
+        let Some(token_owner) = self.owners.get(&id, state)? else {
             bail!("Token with id {} does not exist", id);
         };
         if &token_owner != context.sender() {
@@ -98,12 +98,12 @@ impl<S: Spec> NonFungibleToken<S> {
         nft_id: u64,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
-        self.owners.set(&nft_id, owner, state);
+        self.owners.set(&nft_id, owner, state)?;
         Ok(())
     }
 
     fn remove_nft(&self, nft_id: u64, state: &mut impl StateAccessor) -> anyhow::Result<()> {
-        self.owners.remove(&nft_id, state);
+        self.owners.remove(&nft_id, state)?;
         Ok(())
     }
 }

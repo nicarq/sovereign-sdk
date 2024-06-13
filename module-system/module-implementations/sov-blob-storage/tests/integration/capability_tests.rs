@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::convert::Infallible;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::GasTokenConfig;
@@ -14,7 +15,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks, RawTx};
 use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, KernelWorkingSet, MessageCodec,
-    Module, Spec, StateCheckpoint, WorkingSet,
+    Module, Spec, StateCheckpoint,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_sequencer_registry::SequencerConfig;
@@ -423,7 +424,7 @@ fn test_virtual_slot_stays_in_range() {
 }
 
 #[test]
-fn test_recovery_mode() {
+fn test_recovery_mode() -> Result<(), Infallible> {
     // Initialize the rollup
     let (current_storage, runtime, genesis_root) = TestRuntime::pre_initialized(true);
 
@@ -516,7 +517,7 @@ fn test_recovery_mode() {
             .unwrap();
         let next_height = test_kernel
             .get_chain_state()
-            .next_visible_slot_number(&mut kernel_working_set);
+            .next_visible_slot_number(&mut kernel_working_set)?;
         if next_height <= DEFERRED_SLOTS_COUNT + 1 {
             assert_eq!(blobs_to_execute.len(), 4);
         } else if next_height == DEFERRED_SLOTS_COUNT + 2 {
@@ -537,6 +538,8 @@ fn test_recovery_mode() {
             }
         }
     }
+
+    Ok(())
 }
 
 #[test]
@@ -607,7 +610,7 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
 }
 
 #[test]
-fn test_based_sequencing() {
+fn test_based_sequencing() -> Result<(), Infallible> {
     let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(false);
     let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
 
@@ -631,13 +634,13 @@ fn test_based_sequencing() {
     assert_eq!(
         test_kernel
             .chain_state()
-            .next_visible_slot_number(&mut kernel_working_set),
+            .next_visible_slot_number(&mut kernel_working_set)?,
         1
     );
     assert_eq!(
         test_kernel
             .chain_state()
-            .true_slot_number(&mut kernel_working_set),
+            .true_slot_number(&mut kernel_working_set)?,
         0
     );
 
@@ -675,7 +678,7 @@ fn test_based_sequencing() {
     assert_eq!(
         test_kernel
             .chain_state()
-            .true_slot_number(&mut kernel_working_set),
+            .true_slot_number(&mut kernel_working_set)?,
         1
     );
     assert_eq!(kernel_working_set.virtual_slot(), 1);
@@ -704,11 +707,13 @@ fn test_based_sequencing() {
     assert_eq!(
         test_kernel
             .chain_state()
-            .true_slot_number(&mut kernel_working_set),
+            .true_slot_number(&mut kernel_working_set)?,
         2
     );
     assert_eq!(kernel_working_set.virtual_slot(), 2);
     assert!(execute_in_slot_2.is_empty());
+
+    Ok(())
 }
 
 /// Check hashes and data of two blobs.
@@ -785,8 +790,13 @@ impl TestRuntime<S, MockDaSpec> {
         let genesis_config = Self::build_genesis_config(with_preferred_sequencer);
         let runtime: Self = Default::default();
 
-        let mut working_set = WorkingSet::<S>::new(storage.clone());
-        runtime.genesis(&genesis_config, &mut working_set).unwrap();
+        let state = StateCheckpoint::<S>::new(storage.clone());
+        let mut genesis_state =
+            state.to_genesis_state_accessor::<TestRuntime<S, MockDaSpec>>(&genesis_config);
+        runtime
+            .genesis(&genesis_config, &mut genesis_state)
+            .unwrap();
+        let mut state = genesis_state.checkpoint().to_working_set_unmetered();
 
         // In addition to "genesis", register one non-preferred sequencer
         let register_message = sov_sequencer_registry::CallMessage::Register {
@@ -803,11 +813,11 @@ impl TestRuntime<S, MockDaSpec> {
                     REGULAR_REWARD_ROLLUP,
                     1,
                 ),
-                &mut working_set,
+                &mut state,
             )
             .unwrap();
 
-        let (reads_writes, _, witness) = working_set.checkpoint().0.freeze();
+        let (reads_writes, _, witness) = state.checkpoint().0.freeze();
         let (genesis_root, change_set) = storage
             .validate_and_materialize(reads_writes, &witness)
             .unwrap();

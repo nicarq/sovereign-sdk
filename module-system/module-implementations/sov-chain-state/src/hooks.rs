@@ -1,4 +1,5 @@
 use sov_modules_api::da::BlockHeaderTrait;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Gas, KernelWorkingSet, Spec};
 use sov_state::Storage;
 
@@ -13,10 +14,17 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelWorkingSet<S>,
     ) -> <S::Gas as Gas>::Price {
-        let gas_info = if self.genesis_root.get(state.inner).is_none() {
+        let gas_info = if self
+            .genesis_root
+            .get(state.inner)
+            .unwrap_infallible()
+            .is_none()
+        {
             // The genesis hash is not set, hence this is the
             // first transition right after the genesis block
-            self.genesis_root.set(pre_state_root, state.inner);
+            self.genesis_root
+                .set(pre_state_root, state.inner)
+                .unwrap_infallible();
 
             BlockGasInfo::new(Self::initial_gas_limit(), Self::initial_base_fee_per_gas())
         } else {
@@ -28,6 +36,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
                 } = self
                     .in_progress_transition
                     .get_current(state)
+                    .unwrap_infallible()
                     .expect("There should always be a transition in progress");
 
                 StateTransition {
@@ -38,9 +47,10 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
                 }
             };
 
-            let slot_number = self.true_slot_number(state);
+            let slot_number = self.true_slot_number(state).unwrap_infallible();
             self.historical_transitions
-                .set(&slot_number, &transition, state.inner);
+                .set(&slot_number, &transition, state.inner)
+                .unwrap_infallible();
 
             // The base fee per gas is updated according to the EIP-1559 specification
             let computed_base_fee = Self::compute_base_fee_per_gas(&transition.gas_info);
@@ -76,6 +86,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         let mut in_progress_transition = self
             .in_progress_transition
             .get_current(state)
+            .unwrap_infallible()
             .expect("There should always be a transition in progress");
 
         in_progress_transition

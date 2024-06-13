@@ -92,7 +92,7 @@ impl<S: Spec> NonFungibleToken<S> {
             context,
             state,
         )?;
-        self.collections.set(&collection_id, &collection, state);
+        self.collections.set(&collection_id, &collection, state)?;
         update_collection(&collection);
         Ok(CallResponse::default())
     }
@@ -109,7 +109,7 @@ impl<S: Spec> NonFungibleToken<S> {
         let mut collection = collection_state.get_mutable_or_bail()?;
         collection.set_collection_uri(collection_uri);
         self.collections
-            .set(&collection_id, collection.inner(), state);
+            .set(&collection_id, collection.inner(), state)?;
         update_collection(collection.inner());
         Ok(CallResponse::default())
     }
@@ -125,7 +125,7 @@ impl<S: Spec> NonFungibleToken<S> {
         let mut collection = collection_state.get_mutable_or_bail()?;
         collection.freeze();
         self.collections
-            .set(&collection_id, collection.inner(), state);
+            .set(&collection_id, collection.inner(), state)?;
         update_collection(collection.inner());
         Ok(CallResponse::default())
     }
@@ -154,10 +154,10 @@ impl<S: Spec> NonFungibleToken<S> {
             state,
         )?;
         self.nfts
-            .set(&NftIdentifier(token_id, collection_id), &new_nft, state);
+            .set(&NftIdentifier(token_id, collection_id), &new_nft, state)?;
         collection.increment_supply();
         self.collections
-            .set(&collection_id, collection.inner(), state);
+            .set(&collection_id, collection.inner(), state)?;
 
         update_collection(collection.inner());
         update_nft(&new_nft, None);
@@ -180,7 +180,7 @@ impl<S: Spec> NonFungibleToken<S> {
             &NftIdentifier(nft_id, *collection_id),
             owned_nft.inner(),
             state,
-        );
+        )?;
         update_nft(owned_nft.inner(), Some(original_owner.clone()));
         Ok(CallResponse::default())
     }
@@ -212,7 +212,7 @@ impl<S: Spec> NonFungibleToken<S> {
             &NftIdentifier(token_id, collection_id),
             mutable_nft.inner(),
             state,
-        );
+        )?;
         update_nft(mutable_nft.inner(), None);
         Ok(CallResponse::default())
     }

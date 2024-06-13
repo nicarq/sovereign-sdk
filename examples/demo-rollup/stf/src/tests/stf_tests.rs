@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::vec;
 
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
@@ -20,7 +21,7 @@ use crate::tests::{
 };
 
 #[test]
-fn test_demo_values_in_db() {
+fn test_demo_values_in_db() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
     let mut storage_manager = create_storage_manager_for_tests(path);
@@ -101,12 +102,14 @@ fn test_demo_values_in_db() {
             .unwrap();
         assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
-        assert_eq!(runtime.value_setter.value.get(&mut state), Some(33));
+        assert_eq!(runtime.value_setter.value.get(&mut state)?, Some(33));
     }
+
+    Ok(())
 }
 
 #[test]
-fn test_demo_values_in_cache() {
+fn test_demo_values_in_cache() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
     let path = tempdir.path();
     let mut storage_manager = create_storage_manager_for_tests(path);
@@ -189,7 +192,9 @@ fn test_demo_values_in_cache() {
         .unwrap();
     assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
-    assert_eq!(runtime.value_setter.value.get(&mut state), Some(33));
+    assert_eq!(runtime.value_setter.value.get(&mut state)?, Some(33));
+
+    Ok(())
 }
 
 #[test]

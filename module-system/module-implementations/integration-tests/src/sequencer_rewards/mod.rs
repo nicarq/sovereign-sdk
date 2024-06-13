@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use sov_bank::{IntoPayable, GAS_TOKEN_ID};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::batch::BatchWithId;
@@ -24,12 +26,12 @@ fn check_sequencer_and_registry_balances(
     seq_rollup_addr: &<S as Spec>::Address,
     expected_sequencer_balance: u64,
     expected_registry_balance: u64,
-) {
+) -> Result<(), Infallible> {
     let mut checkpoint = rollup.new_state_checkpoint();
 
     let initial_sequencer_balance = rollup
         .bank()
-        .get_balance_of(seq_rollup_addr, GAS_TOKEN_ID, &mut checkpoint)
+        .get_balance_of(seq_rollup_addr, GAS_TOKEN_ID, &mut checkpoint)?
         .unwrap();
 
     assert_eq!(initial_sequencer_balance, expected_sequencer_balance);
@@ -41,13 +43,18 @@ fn check_sequencer_and_registry_balances(
             rollup.sequencer_registry().id().to_payable(),
             GAS_TOKEN_ID,
             &mut checkpoint,
-        )
+        )?
         .unwrap();
 
     assert_eq!(seq_registry_balance, expected_registry_balance);
+    Ok(())
 }
 
-fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_reward: u64) {
+fn test_sequencer_reward_in_stf(
+    rollup: &mut TestRollup,
+    max_fee: u64,
+    expected_reward: u64,
+) -> Result<(), Infallible> {
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages
         .create_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>(
@@ -81,7 +88,7 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_
         &seq_rollup_addr,
         post_genesis_sequencer_balance,
         post_genesis_registry_balance,
-    );
+    )?;
 
     let blob = new_test_blob_from_batch(
         BatchWithId {
@@ -122,14 +129,16 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64, expected_
         &seq_rollup_addr,
         post_genesis_sequencer_balance + expected_reward,
         post_genesis_registry_balance,
-    );
+    )?;
+
+    Ok(())
 }
 
 /// Checks that the sequencer gets rewarded the maximum priority fee if the base fee per gas is low enough.
 /// This test checks the extreme case where the difference between the max fee and the base fee is strictly greater than the maximum priority fee.
 /// Hence the sequencer should get rewarded the maximum priority fee.
 #[test]
-fn test_sequencer_rewarded_max_priority_fee() {
+fn test_sequencer_rewarded_max_priority_fee() -> Result<(), Infallible> {
     // Build a STF blueprint with the module configurations
     let mut rollup = TestRollup::new();
 
@@ -143,7 +152,7 @@ fn test_sequencer_rewarded_max_priority_fee() {
 
     let max_fee = base_fee + 5 * max_tip;
 
-    test_sequencer_reward_in_stf(&mut rollup, max_fee, NUM_TXS_PER_BATCH * max_tip);
+    test_sequencer_reward_in_stf(&mut rollup, max_fee, NUM_TXS_PER_BATCH * max_tip)
 }
 
 /// Checks the EIP-1559 specification for the maximum priority fee. The sequencer should get rewarded the minimum
@@ -151,12 +160,12 @@ fn test_sequencer_rewarded_max_priority_fee() {
 /// very close to the max fee, the sequencer should then get rewarded less than the maximum priority fee.
 /// This test checks the extreme case where the consumed base fee is the same as the max fee, hence the sequencer doesn't get rewarded at all.
 #[test]
-fn test_sequencer_not_rewarded_max_priority_fee() {
+fn test_sequencer_not_rewarded_max_priority_fee() -> Result<(), Infallible> {
     // Build a STF blueprint with the module configurations
     let mut rollup = TestRollup::new();
     // The max fee is the same as the base fee so the sequencer should not get rewarded
     let max_fee =
         <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(&rollup.initial_base_fee_per_gas());
 
-    test_sequencer_reward_in_stf(&mut rollup, max_fee, 0);
+    test_sequencer_reward_in_stf(&mut rollup, max_fee, 0)
 }

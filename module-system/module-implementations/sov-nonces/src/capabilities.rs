@@ -1,3 +1,4 @@
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{CredentialId, Spec, StateAccessor, TxScratchpad};
 
 use crate::Nonces;
@@ -12,7 +13,7 @@ impl<S: Spec> Nonces<S> {
     ) -> Result<(), anyhow::Error> {
         let sender_nonce = self
             .nonces
-            .get(credential_id, state_checkpoint)
+            .get(credential_id, state_checkpoint)?
             .unwrap_or_default();
 
         anyhow::ensure!(
@@ -33,10 +34,13 @@ impl<S: Spec> Nonces<S> {
         let nonce = self
             .nonces
             .get(credential_id, tx_scratchpad)
+            .unwrap_infallible()
             .unwrap_or_default();
 
         let nonce = nonce + 1;
 
-        self.nonces.set(credential_id, &nonce, tx_scratchpad);
+        self.nonces
+            .set(credential_id, &nonce, tx_scratchpad)
+            .unwrap_infallible();
     }
 }

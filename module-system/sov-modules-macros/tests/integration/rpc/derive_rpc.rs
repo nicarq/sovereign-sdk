@@ -45,7 +45,7 @@ where
     }
 
     #[rpc_method(name = "b")]
-    // Test: unused `WorkingSet`.
+    // Test: unused `ApiStateAccessor`.
     pub fn b(&self, _state: &mut ApiStateAccessor<S>) -> RpcResult<u32> {
         // Test: reference to `self` field.
         let _ = &self.data;

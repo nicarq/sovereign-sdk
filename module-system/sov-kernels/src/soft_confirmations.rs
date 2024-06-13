@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelWorkingSet, Spec};
 use sov_state::Storage;
@@ -43,10 +44,12 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
     type GenesisPaths = SoftConfirmationsKernelGenesisPaths;
 
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
-        self.chain_state.true_slot_number(state)
+        self.chain_state.true_slot_number(state).unwrap_infallible()
     }
     fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
-        self.chain_state.next_visible_slot_number(state)
+        self.chain_state
+            .next_visible_slot_number(state)
+            .unwrap_infallible()
     }
 
     fn genesis(

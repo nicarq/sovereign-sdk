@@ -60,7 +60,7 @@ fn main() {
 
     catch_unwind(|| {
         let mut working_set: WorkingSet<ZkTestSpec> = WorkingSet::new(storage);
-        module.state_value.set(&0u32, &mut working_set);
+        module.state_value.set(&0u32, &mut working_set).unwrap();
     })
     .unwrap_err();
 }

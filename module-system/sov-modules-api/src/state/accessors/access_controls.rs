@@ -90,11 +90,11 @@ mod http_api {
 impl<S: Storage> AccessoryStateReader for AccessoryDelta<S> {}
 impl<S: Storage> AccessoryStateWriter for AccessoryDelta<S> {}
 
-impl<S: Spec> ProvableStateReader<User> for GenesisStateAccessor<S> {
-    type GU = S::Gas;
+impl<S: Spec> StateReader<User> for GenesisStateAccessor<S> {
+    inner_impl_unmetered_state_reader!(User);
 }
-impl<S: Spec> ProvableStateWriter<User> for GenesisStateAccessor<S> {
-    type GU = S::Gas;
+impl<S: Spec> StateWriter<User> for GenesisStateAccessor<S> {
+    inner_impl_unmetered_state_writer!(User);
 }
 impl<S: Spec> AccessoryStateWriter for GenesisStateAccessor<S> {}
 
@@ -107,11 +107,11 @@ impl<S: Spec> StateWriter<User> for StateCheckpoint<S> {
 
 impl<S: Spec> AccessoryStateWriter for StateCheckpoint<S> {}
 
-impl<S: Spec> ProvableStateReader<User> for TxScratchpad<S> {
-    type GU = S::Gas;
+impl<S: Spec> StateReader<User> for TxScratchpad<S> {
+    inner_impl_unmetered_state_reader!(User);
 }
-impl<S: Spec> ProvableStateWriter<User> for TxScratchpad<S> {
-    type GU = S::Gas;
+impl<S: Spec> StateWriter<User> for TxScratchpad<S> {
+    inner_impl_unmetered_state_writer!(User);
 }
 
 impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> ProvableStateReader<User>

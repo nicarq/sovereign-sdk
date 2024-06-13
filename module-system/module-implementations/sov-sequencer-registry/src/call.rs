@@ -1,10 +1,12 @@
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor, StateCheckpoint,
-    TxState,
+    CallResponse, Context, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor,
+    StateAccessorError, StateCheckpoint, StateWriter, TxState,
 };
+use sov_state::User;
 use thiserror::Error;
 
 use crate::event::Event;
@@ -121,6 +123,16 @@ pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
         // The amount of gas tokens to stake
         u64,
     ),
+
+    /// An error occurred when accessing the state
+    #[error("An error occurred when accessing the state, error: {0}")]
+    StateAccessorError(String),
+}
+
+impl<S: Spec, Da: DaSpec> From<StateAccessorError<S::Gas>> for SequencerRegistryError<S, Da> {
+    fn from(value: StateAccessorError<S::Gas>) -> Self {
+        SequencerRegistryError::StateAccessorError(value.to_string())
+    }
 }
 
 impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
@@ -166,7 +178,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
 
         let belongs_to = self
             .allowed_sequencers
-            .get_or_err(da_address, state)
+            .get_or_err(da_address, state)?
             .map_err(|_| SequencerRegistryError::IsNotRegisteredSequencer(da_address.clone()))?
             .address;
 
@@ -185,7 +197,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             );
         }
 
-        let sender_balance = self.get_sender_balance(da_address, state).unwrap_or(0);
+        let sender_balance = self.get_sender_balance(da_address, state)?.unwrap_or(0);
 
         self.bank
             .transfer_from(
@@ -202,7 +214,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             })?;
 
         // we remove the sequencer from the registry *once the sequencer has received its staked amount*
-        self.delete(da_address, state);
+        self.delete(da_address, state)?;
 
         self.emit_event(
             state,
@@ -215,14 +227,20 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         Ok(CallResponse::default())
     }
 
-    pub(crate) fn delete(&self, da_address: &Da::Address, state: &mut impl StateAccessor) {
-        self.allowed_sequencers.delete(da_address, state);
+    pub(crate) fn delete<Accessor: StateAccessor>(
+        &self,
+        da_address: &Da::Address,
+        state: &mut Accessor,
+    ) -> Result<(), <Accessor as StateWriter<User>>::Error> {
+        self.allowed_sequencers.delete(da_address, state)?;
 
-        if let Some(preferred_sequencer) = self.preferred_sequencer.get(state) {
+        if let Some(preferred_sequencer) = self.preferred_sequencer.get(state)? {
             if da_address == &preferred_sequencer {
-                self.preferred_sequencer.delete(state);
+                self.preferred_sequencer.delete(state)?;
             }
         }
+
+        Ok(())
     }
 
     /// Increases the balance of the provided sender, updating the state of the registry.
@@ -241,7 +259,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
         let AllowedSequencer { address, balance } =
-            self.allowed_sequencers.get(sender, state).ok_or(
+            self.allowed_sequencers.get(sender, state)?.ok_or(
                 SequencerRegistryError::IsNotRegisteredSequencer(sender.clone()),
             )?;
 
@@ -274,7 +292,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
                 balance,
             },
             state,
-        );
+        )?;
 
         self.emit_event(
             state,
@@ -304,7 +322,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         let AllowedSequencer {
             address: rollup_address,
             balance: _,
-        } = self.allowed_sequencers.get(sequencer, state).expect("Sequencer must be allowed. This should have been checked in the `begin_batch_hook`. This is a bug");
+        } = self.allowed_sequencers.get(sequencer, state).unwrap_infallible().expect("Sequencer must be allowed. This should have been checked in the `begin_batch_hook`. This is a bug");
 
         self.bank
             .transfer_from(

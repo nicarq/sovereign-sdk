@@ -54,11 +54,17 @@ pub mod module_a {
     }
 
     impl<S: Spec> ModuleA<S> {
-        pub fn update(&mut self, key: &str, value: &str, state: &mut WorkingSet<S>) {
+        pub fn update(
+            &mut self,
+            key: &str,
+            value: &str,
+            state: &mut WorkingSet<S>,
+        ) -> Result<(), anyhow::Error> {
             self.emit_event(state, "modulea_update", Event::Update);
             self.state_1_a
-                .set(&key.to_owned(), &value.to_owned(), state);
-            self.state_2_a.set(&value.to_owned(), state);
+                .set(&key.to_owned(), &value.to_owned(), state)?;
+            self.state_2_a.set(&value.to_owned(), state)?;
+            Ok(())
         }
     }
 }
@@ -100,11 +106,17 @@ pub mod module_b {
     }
 
     impl<S: Spec> ModuleB<S> {
-        pub fn update(&mut self, key: &str, value: &str, state: &mut WorkingSet<S>) {
+        pub fn update(
+            &mut self,
+            key: &str,
+            value: &str,
+            state: &mut WorkingSet<S>,
+        ) -> Result<(), anyhow::Error> {
             self.emit_event(state, "moduleb_update", Event::Update);
             self.state_1_b
-                .set(&key.to_owned(), &value.to_owned(), state);
-            self.mod_1_a.update("key_from_b", value, state);
+                .set(&key.to_owned(), &value.to_owned(), state)?;
+            self.mod_1_a.update("key_from_b", value, state)?;
+            Ok(())
         }
     }
 }
@@ -146,11 +158,17 @@ pub(crate) mod module_c {
     }
 
     impl<S: Spec> ModuleC<S> {
-        pub fn execute(&mut self, key: &str, value: &str, state: &mut WorkingSet<S>) {
+        pub fn execute(
+            &mut self,
+            key: &str,
+            value: &str,
+            state: &mut WorkingSet<S>,
+        ) -> Result<(), anyhow::Error> {
             self.emit_event(state, "modulec_execute", Event::Execute);
-            self.mod_1_a.update(key, value, state);
-            self.mod_1_b.update(key, value, state);
-            self.mod_1_a.update(key, value, state);
+            self.mod_1_a.update(key, value, state)?;
+            self.mod_1_b.update(key, value, state)?;
+            self.mod_1_a.update(key, value, state)?;
+            Ok(())
         }
     }
 }

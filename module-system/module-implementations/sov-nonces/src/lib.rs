@@ -30,11 +30,11 @@ pub struct Nonces<S: Spec> {
 
 impl<S: Spec> Nonces<S> {
     /// Retrieves the nonce for a given credential id.
-    pub fn nonce(
+    pub fn nonce<Reader: StateReader<User>>(
         &self,
         credential_id: &CredentialId,
-        state: &mut impl StateReader<User>,
-    ) -> Option<u64> {
+        state: &mut Reader,
+    ) -> Result<Option<u64>, Reader::Error> {
         self.nonces.get(credential_id, state)
     }
 }

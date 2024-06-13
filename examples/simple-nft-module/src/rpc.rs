@@ -1,5 +1,6 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, Spec, StateReader};
 use sov_state::User;
 
@@ -21,10 +22,14 @@ pub struct NftsCountResponse {
 
 impl<S: Spec> NonFungibleToken<S> {
     /// Get the owner of a token
-    pub fn get_owner(&self, token_id: u64, state: &mut impl StateReader<User>) -> OwnerResponse<S> {
-        OwnerResponse {
-            owner: self.owners.get(&token_id, state),
-        }
+    pub fn get_owner<Reader: StateReader<User>>(
+        &self,
+        token_id: u64,
+        state: &mut Reader,
+    ) -> Result<OwnerResponse<S>, Reader::Error> {
+        Ok(OwnerResponse {
+            owner: self.owners.get(&token_id, state)?,
+        })
     }
 }
 
@@ -37,6 +42,6 @@ impl<S: Spec> NonFungibleToken<S> {
         token_id: u64,
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<OwnerResponse<S>> {
-        Ok(self.get_owner(token_id, state))
+        Ok(self.get_owner(token_id, state).unwrap_infallible())
     }
 }

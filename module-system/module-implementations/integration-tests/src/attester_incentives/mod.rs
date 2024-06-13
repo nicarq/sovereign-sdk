@@ -1,13 +1,14 @@
+use std::convert::Infallible;
 use std::rc::Rc;
 
 use sov_attester_incentives::Role;
 use sov_bank::BurnRate;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, WorkingSet};
-use sov_modules_stf_blueprint::{Batch, TransactionReceipt};
+use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, StateCheckpoint};
+use sov_modules_stf_blueprint::TransactionReceipt;
 use sov_state::{Storage, StorageRoot};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
@@ -52,17 +53,15 @@ impl TestRollup {
     pub(crate) fn increase_and_commit_light_client_attested_height(
         &mut self,
         height: u64,
-    ) -> StorageRoot<StorageSpec> {
-        let mut state = WorkingSet::<S>::new(self.storage());
+    ) -> Result<StorageRoot<StorageSpec>, Infallible> {
+        let mut state = StateCheckpoint::<S>::new(self.storage());
         let attester_incentives = &self.attester_incentives();
 
         attester_incentives
             .light_client_finalized_height
-            .set(&(height), &mut state);
+            .set(&(height), &mut state)?;
 
-        let (checkpoint, _, _) = state.checkpoint();
-
-        let (reads_writes, _, _) = checkpoint.freeze();
+        let (reads_writes, _, _) = state.freeze();
 
         let storage = self.storage();
 
@@ -72,51 +71,61 @@ impl TestRollup {
 
         self.storage_manager().commit(change_set);
 
-        new_state_root
+        Ok(new_state_root)
     }
 
-    pub(crate) fn get_user_bond(&mut self, role: Role, user_addr: <S as Spec>::Address) -> u64 {
-        let mut state = WorkingSet::<S>::new(self.storage());
+    pub(crate) fn get_user_bond(
+        &mut self,
+        role: Role,
+        user_addr: <S as Spec>::Address,
+    ) -> Result<u64, Infallible> {
+        let mut state = StateCheckpoint::<S>::new(self.storage());
 
-        match role {
+        Ok(match role {
             Role::Attester => self
                 .attester_incentives()
                 .bonded_attesters
-                .get(&user_addr, &mut state)
+                .get(&user_addr, &mut state)?
                 .unwrap_or_default(),
             Role::Challenger => self
                 .attester_incentives()
                 .bonded_challengers
-                .get(&user_addr, &mut state)
+                .get(&user_addr, &mut state)?
                 .unwrap_or_default(),
-        }
+        })
     }
 
-    pub(crate) fn get_bad_transition_reward(&mut self, height: u64) -> u64 {
-        let mut state = WorkingSet::<S>::new(self.storage());
+    pub(crate) fn get_bad_transition_reward(&mut self, height: u64) -> Result<u64, Infallible> {
+        let mut state = StateCheckpoint::<S>::new(self.storage());
 
-        self.attester_incentives()
+        Ok(self
+            .attester_incentives()
             .bad_transition_pool
-            .get(&height, &mut state)
-            .unwrap_or_default()
+            .get(&height, &mut state)?
+            .unwrap_or_default())
     }
 
-    pub(crate) fn is_attester_unbonding(&mut self, user_addr: <S as Spec>::Address) -> bool {
-        let mut state = WorkingSet::<S>::new(self.storage());
+    pub(crate) fn is_attester_unbonding(
+        &mut self,
+        user_addr: <S as Spec>::Address,
+    ) -> Result<bool, Infallible> {
+        let mut state = StateCheckpoint::<S>::new(self.storage());
 
-        self.attester_incentives()
+        Ok(self
+            .attester_incentives()
             .unbonding_attesters
-            .get(&user_addr, &mut state)
-            .is_some()
+            .get(&user_addr, &mut state)?
+            .is_some())
     }
 
-    pub fn get_maximum_attested_height(&mut self) -> u64 {
-        let mut state = WorkingSet::<S>::new(self.storage());
+    pub fn get_maximum_attested_height(&mut self) -> Result<u64, Infallible> {
+        let mut state = StateCheckpoint::<S>::new(self.storage());
 
-        self.attester_incentives()
+        Ok(self
+            .attester_incentives()
             .maximum_attested_height
-            .get(&mut state)
-            .unwrap_or_default()
+            .get(&mut state)?
+            .unwrap_or_default())
     }
 }
 

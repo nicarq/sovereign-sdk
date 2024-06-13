@@ -1,3 +1,12 @@
+- #783 enables gas metering for storage accesses inside the module system. In particular, it makes all the state accessors fallible, and the module code now have to handle the case where the state accessor runs out of gas.
+Meaningful changes
+  - Making all the state accessors fallible: for instance `state_value.get(&mut state_reader)` now returns `Result<Option<StateValue>, StateReader::Error>`. Depending on the type of the state reader, the error type may be `Infallible` (for unmetered state accessors) or `StateAccessorError` (for metered state accessors)
+  - The metered state accessors are: `WorkingSet` and `PreExecWorkingSet` when accessing the provable state; the unmetered state accessors are `TxScratchpad`, `StateCheckpoint`, `KernelWorkingSet`, ... 
+  - A summary of all the access control patterns can be found in `sov-modules-api/src/state/accessors/access_controls.rs`
+  - A new cargo dependency has been added: `unwrap_infallible`. This allows us to safely unwrap the type `Error<T, Infallible>` which has become ubiquitous because the `Infallible` error type is raised whenever an unmetered state accessor tries to access the state (416 occurrences in our codebase after this PR is merged).
+  - The `WorkingSet` use, specially its instantiation with the `WorkingSet::new` pattern has been *significantly* reduced in favor of using the `StateCheckpoint` in the tests. Since the `StateCheckpoint` is an unmetered state accessor, this makes the tests more manageable and maintainable - we can use `unwrap_infallible`. Besides, one now needs to use a special `GenesisStateAccessor` to instantiate the modules at genesis, which needs to be built from the `StateCheckpoint`.
+  - temporary `evm` feature that allows converting the `WorkingSet` to an `UnmeteredStateWrapper`. **This is a temporary solution and that feature will be removed once we find a way to connect the EVM and module gas metering**. This is the final task of https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/734.
+
 - #796 Reuse Batch struct in BatchWithId & PreferredBatch.
 - #789 Changes the Transaction receipt type to include the reason a transaction was skipped or reverted. Consumers of the API should now use the `sov_stf_blueprint::TxEffect` as the `TxReceipt` return type for ledger RPC queries.
 - #790 Simplify `BlobSelector` code.
@@ -277,7 +286,7 @@ while the first VM continues Ato be used for block production. The signature of 
   enough funds to pay for the gas.
 
 - #385 makes the `reward_burn_rate` constant in the `ProverIncentives` module and transforms the associated getters to
-  be infaillible. In the future, the reward burn rate will have to be set in the `constants.json` and
+  be infallible. In the future, the reward burn rate will have to be set in the `constants.json` and
   the `constants.test.json` files and need to be a value in the range [0, 99].
 
 - #340 moves the Kernels' implementation (currently the `BasicKernel` and the `SoftConfirmationsKernel`) to a

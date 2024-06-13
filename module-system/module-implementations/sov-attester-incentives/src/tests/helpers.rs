@@ -1,11 +1,11 @@
-use sov_bank::{BankConfig, GasTokenConfig, IntoPayable, ReserveGasError};
+use sov_bank::{Bank, BankConfig, GasTokenConfig, IntoPayable, ReserveGasError};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     CryptoSpec, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
-    PrivateKey, Spec, StateCheckpoint, UnlimitedGasMeter, WorkingSet,
+    PrivateKey, Spec, StateCheckpoint, UnlimitedGasMeter,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::Time;
@@ -82,13 +82,13 @@ pub(crate) fn create_bank_config_with_token(
 /// Returns the prover incentives module and the attester and challenger's addresses.
 #[allow(clippy::type_complexity)]
 pub(crate) fn setup(
-    mut state: WorkingSet<S>,
+    state: StateCheckpoint<S>,
 ) -> (
     AttesterIncentives<S, MockDaSpec>,
     <S as Spec>::Address,
     <S as Spec>::Address,
     <S as Spec>::Address,
-    WorkingSet<S>,
+    StateCheckpoint<S>,
 ) {
     // Initialize bank
     let (bank_config, mut addresses) = create_bank_config_with_token(
@@ -97,8 +97,10 @@ pub(crate) fn setup(
         INITIAL_USER_BALANCE,
     );
     let bank = sov_bank::Bank::<S>::default();
-    bank.genesis(&bank_config, &mut state)
+    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
+    bank.genesis(&bank_config, &mut genesis_state)
         .expect("bank genesis must succeed");
+    let mut state = genesis_state.checkpoint();
 
     let attester_address = addresses.pop().unwrap();
     let challenger_address = addresses.pop().unwrap();
@@ -112,16 +114,14 @@ pub(crate) fn setup(
         outer_code_commitment: Default::default(),
     };
 
-    let mut state_checkpoint = state.checkpoint().0;
     let chain_state = sov_chain_state::ChainState::<S, MockDaSpec>::default();
     chain_state
         .genesis_unchecked(
             &chain_state_config,
-            &mut KernelWorkingSet::uninitialized(&mut state_checkpoint),
+            &mut KernelWorkingSet::uninitialized(&mut state),
         )
         .expect("Chain state genesis must succeed");
 
-    let mut state = state_checkpoint.to_working_set_unmetered();
     // initialize prover incentives
     let module = AttesterIncentives::<S, MockDaSpec>::default();
     let config = crate::AttesterIncentivesConfig {
@@ -133,10 +133,13 @@ pub(crate) fn setup(
         light_client_finalized_height: INIT_HEIGHT,
         phantom_data: Default::default(),
     };
+    let mut genesis_state =
+        state.to_genesis_state_accessor::<AttesterIncentives<S, MockDaSpec>>(&config);
 
     module
-        .genesis(&config, &mut state)
+        .genesis(&config, &mut genesis_state)
         .expect("prover incentives genesis must succeed");
+    let state = genesis_state.checkpoint();
 
     (
         module,
@@ -216,15 +219,14 @@ impl ExecutionSimulationVars {
                 KernelWorkingSet::from_kernel(&kernel, &mut state_checkpoint);
 
             // We execute the chain state to make sure the transition data is persisted
-            let current_base_fee_per_gas = module.chain_state.begin_slot_hook(
+            let _current_base_fee_per_gas = module.chain_state.begin_slot_hook(
                 &slot_data.header,
                 &slot_data.validity_cond,
                 &root_hash,
                 &mut kernel_working_set,
             );
 
-            let transaction_scratchpad =
-                state_checkpoint.to_tx_scratchpad(&current_base_fee_per_gas);
+            let transaction_scratchpad = state_checkpoint.to_tx_scratchpad();
 
             let pre_exec_working_set = transaction_scratchpad.pre_exec_ws_unmetered();
 

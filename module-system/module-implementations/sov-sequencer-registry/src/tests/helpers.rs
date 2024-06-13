@@ -1,8 +1,14 @@
-use sov_bank::{Amount, Payable, GAS_TOKEN_ID};
+use std::convert::Infallible;
+
+use sov_bank::{Amount, Bank, Payable, GAS_TOKEN_ID};
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::digest::Digest;
-use sov_modules_api::{Address, CryptoSpec, DaSpec, Module, Spec, StateAccessor, WorkingSet};
+use sov_modules_api::{
+    Address, CryptoSpec, DaSpec, InfallibleStateAccessor, Module, Spec, StateAccessor,
+    StateCheckpoint, StateReader,
+};
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_state::User;
 
 use crate::{SequencerConfig, SequencerRegistry};
 
@@ -40,41 +46,49 @@ impl TestSequencer {
     pub fn initialize_test(
         initial_balance: u64,
         with_preferred_sequencer: bool,
-    ) -> (TestSequencer, WorkingSet<S>) {
+    ) -> Result<(TestSequencer, StateCheckpoint<S>), Infallible> {
         let test_sequencer = create_test_sequencer(initial_balance, with_preferred_sequencer);
         let tmpdir = tempfile::tempdir().unwrap();
-        let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-        test_sequencer.genesis(&mut working_set);
+        let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+        let mut state = test_sequencer.genesis(state);
 
         // Check that genesis has been performed correctly
         let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
 
         // The genesis sequencer address should be registered
-        let registry_response = test_sequencer.registry.get_sequencer_address(
-            MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
-            &mut working_set,
-        );
+        let registry_response = test_sequencer
+            .registry
+            .get_sequencer_address(MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS), &mut state)?;
         assert_eq!(Some(sequencer_address), registry_response);
 
         // The genesis sequencer balance should be the initial balance minus the locked amount
-        let balance_after_genesis = test_sequencer
-            .query_sequencer_balance(&mut working_set)
-            .unwrap();
+        let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
 
         assert_eq!(initial_balance - LOCKED_AMOUNT, balance_after_genesis);
 
-        (test_sequencer, working_set)
+        Ok((test_sequencer, state))
     }
 
-    pub fn genesis(&self, state: &mut WorkingSet<S>) {
-        self.bank.genesis(&self.bank_config, state).unwrap();
-
-        self.registry
-            .genesis(&self.sequencer_config, state)
+    pub fn genesis(&self, state: StateCheckpoint<S>) -> StateCheckpoint<S> {
+        let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&self.bank_config);
+        self.bank
+            .genesis(&self.bank_config, &mut genesis_state)
             .unwrap();
+        let state = genesis_state.checkpoint();
+
+        let mut genesis_state = state
+            .to_genesis_state_accessor::<SequencerRegistry<S, MockDaSpec>>(&self.sequencer_config);
+        self.registry
+            .genesis(&self.sequencer_config, &mut genesis_state)
+            .unwrap();
+
+        genesis_state.checkpoint()
     }
 
-    pub fn query_sequencer_balance(&self, state: &mut impl StateAccessor) -> Option<Amount> {
+    pub fn query_sequencer_balance<Reader: StateAccessor>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Option<Amount>, <Reader as StateReader<User>>::Error> {
         self.bank.get_balance_of(
             &self.sequencer_config.seq_rollup_address,
             GAS_TOKEN_ID,
@@ -82,32 +96,36 @@ impl TestSequencer {
         )
     }
 
-    pub fn query_balance(
+    pub fn query_balance<Reader: StateAccessor>(
         &self,
         user_address: impl Payable<S>,
-        state: &mut impl StateAccessor,
-    ) -> Option<Amount> {
+        state: &mut Reader,
+    ) -> Result<Option<Amount>, <Reader as StateReader<User>>::Error> {
         self.bank.get_balance_of(user_address, GAS_TOKEN_ID, state)
     }
 
-    pub fn query_sender_balance(
+    pub fn query_sender_balance<Reader: StateAccessor>(
         &self,
         user_address: &<Da as DaSpec>::Address,
-        state: &mut impl StateAccessor,
-    ) -> Option<sov_bank::Amount> {
+        state: &mut Reader,
+    ) -> Result<Option<sov_bank::Amount>, <Reader as StateReader<User>>::Error> {
         self.registry.get_sender_balance(user_address, state)
     }
 
-    pub fn query_if_sequencer_is_allowed(
+    pub fn query_if_sequencer_is_allowed<Reader: InfallibleStateAccessor>(
         &self,
         user_address: &<Da as DaSpec>::Address,
-        state: &mut impl StateAccessor,
+        state: &mut Reader,
     ) -> bool {
         self.registry.is_sender_allowed(user_address, state).is_ok()
     }
 
-    pub fn set_coins_amount_to_lock(&self, amount: sov_bank::Amount, state: &mut WorkingSet<S>) {
-        self.registry.minimum_bond.set(&amount, state);
+    pub fn set_coins_amount_to_lock(
+        &self,
+        amount: sov_bank::Amount,
+        state: &mut StateCheckpoint<S>,
+    ) -> Result<(), Infallible> {
+        self.registry.minimum_bond.set(&amount, state)
     }
 }
 

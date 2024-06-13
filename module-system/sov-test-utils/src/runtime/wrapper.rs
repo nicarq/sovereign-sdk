@@ -493,7 +493,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         let sender = auth_tx.default_address.clone().unwrap();
         let sequencer = self
             .sequencer_registry()
-            .resolve_da_address(sequencer, state)
+            .resolve_da_address(sequencer, state)?
             .expect("Sequencer is no longer registered by the time of context resolution. This is a bug");
         Ok(Context::new(
             sender,

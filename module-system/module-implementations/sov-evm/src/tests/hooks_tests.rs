@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
     Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
@@ -17,7 +19,7 @@ use crate::PendingTransaction;
 pub(crate) const DA_ROOT_HASH: B256 = B256::new([10u8; 32]);
 
 #[test]
-fn begin_slot_hook_creates_pending_block() {
+fn begin_slot_hook_creates_pending_block() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
@@ -25,7 +27,7 @@ fn begin_slot_hook_creates_pending_block() {
     temp_kernel.update_virtual_height(1);
     let mut versioned_ws = VersionedStateReadWriter::from_kernel_ws_virtual(temp_kernel);
     evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
-    let pending_block = evm.block_env.get(&mut state_checkpoint).unwrap();
+    let pending_block = evm.block_env.get(&mut state_checkpoint)?.unwrap();
     assert_eq!(
         pending_block,
         BlockEnv {
@@ -41,10 +43,11 @@ fn begin_slot_hook_creates_pending_block() {
             blob_excess_gas_and_price: None,
         }
     );
+    Ok(())
 }
 
 #[test]
-fn end_slot_hook_sets_head() {
+fn end_slot_hook_sets_head() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
@@ -56,18 +59,18 @@ fn end_slot_hook_sets_head() {
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut state_checkpoint,
-    );
+    )?;
 
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([2u8; 32]), 2),
         &mut state_checkpoint,
-    );
+    )?;
 
     evm.end_slot_hook(&mut state_checkpoint);
-    let head = evm.head.get(&mut state_checkpoint).unwrap();
+    let head = evm.head.get(&mut state_checkpoint)?.unwrap();
     let pending_head = evm
         .pending_head
-        .get(&mut state_checkpoint.accessory_state())
+        .get(&mut state_checkpoint.accessory_state())?
         .unwrap();
 
     assert_eq!(head, pending_head);
@@ -105,10 +108,11 @@ fn end_slot_hook_sets_head() {
             transactions: 0..2
         }
     );
+    Ok(())
 }
 
 #[test]
-fn end_slot_hook_moves_transactions_and_receipts() {
+fn end_slot_hook_moves_transactions_and_receipts() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
@@ -118,10 +122,10 @@ fn end_slot_hook_moves_transactions_and_receipts() {
     evm.begin_slot_hook(VisibleHash::new([10u8; 32]), &mut versioned_ws);
 
     let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
-    evm.pending_transactions.push(&tx1, &mut state_checkpoint);
+    evm.pending_transactions.push(&tx1, &mut state_checkpoint)?;
 
     let tx2 = create_pending_transaction(B256::from([2u8; 32]), 2);
-    evm.pending_transactions.push(&tx2, &mut state_checkpoint);
+    evm.pending_transactions.push(&tx2, &mut state_checkpoint)?;
 
     evm.end_slot_hook(&mut state_checkpoint);
 
@@ -144,19 +148,21 @@ fn end_slot_hook_moves_transactions_and_receipts() {
 
     assert_eq!(
         evm.transaction_hashes
-            .get(&tx1_hash, &mut state_checkpoint.accessory_state())
+            .get(&tx1_hash, &mut state_checkpoint.accessory_state())?
             .unwrap(),
         0
     );
 
     assert_eq!(
         evm.transaction_hashes
-            .get(&tx2_hash, &mut state_checkpoint.accessory_state())
+            .get(&tx2_hash, &mut state_checkpoint.accessory_state())?
             .unwrap(),
         1
     );
 
-    assert_eq!(evm.pending_transactions.len(&mut state_checkpoint), 0);
+    assert_eq!(evm.pending_transactions.len(&mut state_checkpoint)?, 0);
+
+    Ok(())
 }
 
 fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
@@ -195,7 +201,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
 }
 
 #[test]
-fn finalize_hook_creates_final_block() {
+fn finalize_hook_creates_final_block() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
@@ -207,18 +213,18 @@ fn finalize_hook_creates_final_block() {
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut state_checkpoint,
-    );
+    )?;
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([2u8; 32]), 2),
         &mut state_checkpoint,
-    );
+    )?;
     evm.end_slot_hook(&mut state_checkpoint);
 
     let root_hash = [99u8; 32];
 
     let mut accessory_state = state_checkpoint.accessory_state();
     evm.finalize_hook(VisibleHash::new(root_hash), &mut accessory_state);
-    assert_eq!(evm.blocks.len(&mut accessory_state), 2);
+    assert_eq!(evm.blocks.len(&mut accessory_state)?, 2);
 
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1); // Because we haven't invoked the chain-state hooks, re-use the block number
@@ -228,9 +234,9 @@ fn finalize_hook_creates_final_block() {
 
     let mut accessory_state = state_checkpoint.accessory_state();
 
-    let parent_block = evm.blocks.get(0usize, &mut accessory_state).unwrap();
+    let parent_block = evm.blocks.get(0usize, &mut accessory_state)?.unwrap();
     let parent_hash = parent_block.header.hash();
-    let block = evm.blocks.get(1usize, &mut accessory_state).unwrap();
+    let block = evm.blocks.get(1usize, &mut accessory_state)?.unwrap();
 
     assert_eq!(
         block,
@@ -273,10 +279,12 @@ fn finalize_hook_creates_final_block() {
 
     assert_eq!(
         evm.block_hashes
-            .get(&block.header.hash(), &mut accessory_state)
+            .get(&block.header.hash(), &mut accessory_state)?
             .unwrap(),
         1u64
     );
 
-    assert_eq!(evm.pending_head.get(&mut accessory_state), None);
+    assert_eq!(evm.pending_head.get(&mut accessory_state)?, None);
+
+    Ok(())
 }

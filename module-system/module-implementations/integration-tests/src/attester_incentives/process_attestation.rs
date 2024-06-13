@@ -1,11 +1,12 @@
+use std::convert::Infallible;
 use std::vec;
 
 use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
-use sov_modules_api::batch::BatchWithId;
+use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
-use sov_modules_stf_blueprint::{Batch, TxEffect};
+use sov_modules_api::{Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_stf_blueprint::TxEffect;
 use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::auth::TestAuth;
@@ -17,21 +18,26 @@ use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
 
 impl AttesterIncentivesTestHandler {
     // The current maximum attested height is 0 and the attester is bonded
-    fn check_initial_attestation_conditions(&self, rollup: &mut TestRollup) {
-        assert_eq!(rollup.get_maximum_attested_height(), 0);
+    fn check_initial_attestation_conditions(
+        &self,
+        rollup: &mut TestRollup,
+    ) -> Result<(), Infallible> {
+        assert_eq!(rollup.get_maximum_attested_height()?, 0);
 
         assert_eq!(
-            rollup.get_user_bond(Role::Attester, self.attester_addr()),
+            rollup.get_user_bond(Role::Attester, self.attester_addr())?,
             self.attester_stake
         );
 
-        let mut state = WorkingSet::<S>::new(rollup.storage());
+        let mut state = StateCheckpoint::<S>::new(rollup.storage());
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state)?,
             Some(self.attester_balance - self.attester_stake)
         );
+
+        Ok(())
     }
 
     // Checks that the first attestation was processed correctly
@@ -40,7 +46,7 @@ impl AttesterIncentivesTestHandler {
         attestation_tx: &ExecutionSimulationVars,
         honest_attester_new_balance: u64,
         rollup: &mut TestRollup,
-    ) {
+    ) -> Result<(), Infallible> {
         assert_eq!(attestation_tx.batch_receipts.len(), 1);
         let batch_receipt = attestation_tx.batch_receipts.first().unwrap();
         assert_eq!(batch_receipt.tx_receipts.len(), 1);
@@ -48,13 +54,15 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(tx_receipt.receipt, TxEffect::Successful(()));
 
         // We have to check that the attester was rewarded with its stake.
-        let mut state = WorkingSet::<S>::new(rollup.storage());
+        let mut state = StateCheckpoint::<S>::new(rollup.storage());
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state)?,
             Some(honest_attester_new_balance)
         );
+
+        Ok(())
     }
 
     // Attest only the first transition and check that the attestation was processed correctly
@@ -64,7 +72,7 @@ impl AttesterIncentivesTestHandler {
         execution_vars: Vec<ExecutionSimulationVars>,
         honest_attester_balance: u64,
         rollup: &mut TestRollup,
-    ) -> (u64, ExecutionSimulationVars) {
+    ) -> Result<(u64, ExecutionSimulationVars), Infallible> {
         assert!(execution_vars.len() >= 2);
 
         let ExecutionSimulationVars {
@@ -137,9 +145,9 @@ impl AttesterIncentivesTestHandler {
         let new_attester_balance = honest_attester_balance - rollup.tx_cost(attestation_gas_price)
             + burn_rate.apply(gas_proved);
 
-        self.check_first_attestation_processing(attestation_tx, new_attester_balance, rollup);
+        self.check_first_attestation_processing(attestation_tx, new_attester_balance, rollup)?;
 
-        (new_attester_balance, attestation_tx.clone())
+        Ok((new_attester_balance, attestation_tx.clone()))
     }
 
     // Checks that the second and third attestations were processed correctly
@@ -148,7 +156,7 @@ impl AttesterIncentivesTestHandler {
         attestation_exec_res: &ExecutionSimulationVars,
         expected_attester_balance: u64,
         rollup: &mut TestRollup,
-    ) {
+    ) -> Result<(), Infallible> {
         assert_eq!(attestation_exec_res.batch_receipts.len(), 1);
         let mut tx_receipts = attestation_exec_res
             .batch_receipts
@@ -163,17 +171,18 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(snd_tx_receipt.receipt, TxEffect::Successful(()));
 
         // The current maximum attested height is 3
-        assert_eq!(rollup.get_maximum_attested_height(), 3);
+        assert_eq!(rollup.get_maximum_attested_height()?, 3);
 
         // We have to check that the attester was rewarded correctly.
-        let mut state = WorkingSet::<S>::new(rollup.storage());
+        let mut state = StateCheckpoint::<S>::new(rollup.storage());
 
         assert_eq!(
             rollup
                 .bank()
-                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state),
+                .get_balance_of(&self.attester_addr(), GAS_TOKEN_ID, &mut state)?,
             Some(expected_attester_balance)
         );
+        Ok(())
     }
 
     // Attest multiple transitions within one block
@@ -183,7 +192,7 @@ impl AttesterIncentivesTestHandler {
         execution_vars: Vec<ExecutionSimulationVars>,
         honest_attester_balance: u64,
         rollup: &mut TestRollup,
-    ) {
+    ) -> Result<(), Infallible> {
         assert!(execution_vars.len() >= 3);
         let ExecutionSimulationVars {
             state_root: first_state_root,
@@ -285,7 +294,9 @@ impl AttesterIncentivesTestHandler {
             attestation_transition,
             expected_attester_balance,
             rollup,
-        );
+        )?;
+
+        Ok(())
     }
 }
 
@@ -293,7 +304,7 @@ impl AttesterIncentivesTestHandler {
 // The transactions of the value setter execute correcly and the state transitions are correctly stored and updated.
 // This checks that the module correctly processes the attestations, rewards the attesters and updates the maximum attested height.
 #[test]
-fn test_honest_value_setter_process_attestation() {
+fn test_honest_value_setter_process_attestation() -> Result<(), Infallible> {
     // Build a STF blueprint with the module configurations
     let mut rollup = TestRollup::new();
 
@@ -307,7 +318,7 @@ fn test_honest_value_setter_process_attestation() {
         test_handler.attester_incentives_params(),
     );
 
-    test_handler.check_initial_attestation_conditions(&mut rollup);
+    test_handler.check_initial_attestation_conditions(&mut rollup)?;
 
     let mut exec_vars =
         test_handler.try_execute_two_value_setter_transactions(init_state_root, &mut rollup);
@@ -318,7 +329,7 @@ fn test_honest_value_setter_process_attestation() {
             exec_vars.clone(),
             USER_BALANCE - test_handler.attester_stake,
             &mut rollup,
-        );
+        )?;
 
     exec_vars.push(first_attestation_exec_vars);
 
@@ -326,5 +337,7 @@ fn test_honest_value_setter_process_attestation() {
         exec_vars,
         new_attester_balance,
         &mut rollup,
-    );
+    )?;
+
+    Ok(())
 }

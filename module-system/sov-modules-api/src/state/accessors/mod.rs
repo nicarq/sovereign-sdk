@@ -6,6 +6,11 @@ mod checkpoints;
 mod genesis;
 mod internals;
 mod kernel;
+#[cfg(any(feature = "test-utils", feature = "evm"))]
+mod unmetered_state_wrapper;
+
+#[cfg(any(feature = "test-utils", feature = "evm"))]
+pub use unmetered_state_wrapper::UnmeteredStateWrapper;
 
 #[cfg(feature = "native")]
 mod http_api;

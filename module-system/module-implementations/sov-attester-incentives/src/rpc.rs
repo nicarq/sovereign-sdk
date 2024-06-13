@@ -1,7 +1,8 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateAccessor, WorkingSet};
+use sov_modules_api::{StateReader, WorkingSet};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
+use sov_state::User;
 
 use super::AttesterIncentives;
 use crate::call::Role;
@@ -20,26 +21,26 @@ where
     Da: sov_modules_api::DaSpec,
 {
     /// Queries the state of the module.
-    pub fn get_bond_amount(
+    pub fn get_bond_amount<Reader: StateReader<User>>(
         &self,
         address: S::Address,
         role: Role,
-        state: &mut impl StateAccessor,
-    ) -> BondAmountResponse {
-        match role {
+        state: &mut Reader,
+    ) -> Result<BondAmountResponse, Reader::Error> {
+        Ok(match role {
             Role::Attester => BondAmountResponse {
                 value: self
                     .bonded_attesters
-                    .get(&address, state)
+                    .get(&address, state)?
                     .unwrap_or_default(),
             },
             Role::Challenger => BondAmountResponse {
                 value: self
                     .bonded_challengers
-                    .get(&address, state)
+                    .get(&address, state)?
                     .unwrap_or_default(),
             },
-        }
+        })
     }
 
     /// Gives storage key for given address

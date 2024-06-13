@@ -1,6 +1,7 @@
 //! Defines rpc queries exposed by the bank module, along with the relevant types
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::ApiStateAccessor;
 
 use crate::{get_token_id, Amount, Bank, TokenId};
@@ -35,7 +36,8 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             self.get_balance_of(&user_address, token_id, &mut state.get_archival_at(v))
         } else {
             self.get_balance_of(&user_address, token_id, state)
-        };
+        }
+        .unwrap_infallible();
         Ok(BalanceResponse { amount })
     }
 
@@ -51,7 +53,8 @@ impl<S: sov_modules_api::Spec> Bank<S> {
             self.get_total_supply_of(&token_id, &mut state.get_archival_at(v))
         } else {
             self.get_total_supply_of(&token_id, state)
-        };
+        }
+        .unwrap_infallible();
         Ok(TotalSupplyResponse { amount })
     }
 

@@ -10,7 +10,8 @@ use thiserror::Error;
 
 /// A multi-dimensional gas unit represented as an array of `u64`.`
 pub trait GasArray:
-    fmt::Debug
+    'static
+    + fmt::Debug
     + Display
     + Clone
     + Send

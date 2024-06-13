@@ -1,7 +1,7 @@
 use reth_primitives::{Bloom, Bytes};
 use revm::primitives::{B256, U256};
-use sov_modules_api::{StateCheckpoint, StateReaderAndWriter};
-use sov_state::namespaces::Accessory;
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{AccessoryStateReaderAndWriter, StateCheckpoint};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::Block;
@@ -20,6 +20,7 @@ where
         let mut parent_block = self
             .head
             .get(state.get_ws_mut())
+            .unwrap_infallible()
             .expect("Head block should always be set");
 
         let pre_state_user_root: [u8; 32] = pre_state_user_root.into();
@@ -27,9 +28,15 @@ where
         parent_block.header.state_root =
             // We have to force the conversion to [u8;32] to prevent the `from_slice` method from panicking
             B256::from_slice(&pre_state_user_root);
-        self.head.set(&parent_block, state.get_ws_mut());
+        self.head
+            .set(&parent_block, state.get_ws_mut())
+            .unwrap_infallible();
 
-        let cfg = self.cfg.get(state.get_ws_mut()).unwrap_or_default();
+        let cfg = self
+            .cfg
+            .get(state.get_ws_mut())
+            .unwrap_infallible()
+            .unwrap_or_default();
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block.header.number.wrapping_add(1)),
@@ -54,22 +61,26 @@ where
             difficulty: Default::default(),
             blob_excess_gas_and_price: None,
         };
-        self.block_env.set(&new_pending_env, state.get_ws_mut());
+        self.block_env
+            .set(&new_pending_env, state.get_ws_mut())
+            .unwrap_infallible();
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
     pub fn end_slot_hook(&self, state: &mut StateCheckpoint<S>) {
-        let cfg = self.cfg.get(state).unwrap_or_default();
+        let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
 
         let block_env = self
             .block_env
             .get(state)
+            .unwrap_infallible()
             .expect("Pending block should always be set");
 
         let parent_block = self
             .head
             .get(state)
+            .unwrap_infallible()
             .expect("Head block should always be set")
             .seal();
 
@@ -85,7 +96,7 @@ where
         let pending_transactions: Vec<PendingTransaction> =
             self.pending_transactions.iter(state).collect();
 
-        self.pending_transactions.clear(state);
+        self.pending_transactions.clear(state).unwrap_infallible();
 
         let start_tx_index = parent_block.transactions.end;
 
@@ -140,12 +151,14 @@ where
                 ..start_tx_index.saturating_add(pending_transactions.len() as u64),
         };
 
-        self.head.set(&block, state);
+        self.head.set(&block, state).unwrap_infallible();
 
         #[cfg(feature = "native")]
         {
             let mut accessory_state = state.accessory_state();
-            self.pending_head.set(&block, &mut accessory_state);
+            self.pending_head
+                .set(&block, &mut accessory_state)
+                .unwrap_infallible();
 
             let mut tx_index = start_tx_index;
             for PendingTransaction {
@@ -153,20 +166,26 @@ where
                 receipt,
             } in &pending_transactions
             {
-                self.transactions.push(transaction, &mut accessory_state);
-                self.receipts.push(receipt, &mut accessory_state);
+                self.transactions
+                    .push(transaction, &mut accessory_state)
+                    .unwrap_infallible();
+                self.receipts
+                    .push(receipt, &mut accessory_state)
+                    .unwrap_infallible();
 
-                self.transaction_hashes.set(
-                    &transaction.signed_transaction.hash,
-                    &tx_index,
-                    &mut accessory_state,
-                );
+                self.transaction_hashes
+                    .set(
+                        &transaction.signed_transaction.hash,
+                        &tx_index,
+                        &mut accessory_state,
+                    )
+                    .unwrap_infallible();
 
                 tx_index += 1;
             }
         }
 
-        self.pending_transactions.clear(state);
+        self.pending_transactions.clear(state).unwrap_infallible();
     }
 
     /// This logic is executed after calculating the root hash.
@@ -177,16 +196,20 @@ where
     pub fn finalize_hook(
         &self,
         root_hash: S::VisibleHash,
-        state: &mut impl StateReaderAndWriter<Accessory>,
+        state: &mut impl AccessoryStateReaderAndWriter,
     ) {
-        let expected_block_number = self.blocks.len(state) as u64;
+        let expected_block_number = self.blocks.len(state).unwrap_infallible() as u64;
 
-        let mut block = self.pending_head.get(state).unwrap_or_else(|| {
-            panic!(
-                "Pending head must be set to block {}, but was empty",
-                expected_block_number
-            )
-        });
+        let mut block = self
+            .pending_head
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Pending head must be set to block {}, but was empty",
+                    expected_block_number
+                )
+            });
 
         assert_eq!(
             block.header.number, expected_block_number,
@@ -199,12 +222,14 @@ where
 
         let sealed_block = block.seal();
 
-        self.blocks.push(&sealed_block, state);
-        self.block_hashes.set(
-            &sealed_block.header.hash(),
-            &sealed_block.header.number,
-            state,
-        );
-        self.pending_head.delete(state);
+        self.blocks.push(&sealed_block, state).unwrap_infallible();
+        self.block_hashes
+            .set(
+                &sealed_block.header.hash(),
+                &sealed_block.header.number,
+                state,
+            )
+            .unwrap_infallible();
+        self.pending_head.delete(state).unwrap_infallible();
     }
 }

@@ -7,8 +7,8 @@ use crate::ProverIncentiveError;
 
 #[test]
 /// Tests that the prover can unbond correctly
-fn test_unbonding() {
-    let (module, prover_address, sequencer, mut working_set) = setup();
+fn test_unbonding() -> anyhow::Result<()> {
+    let (module, prover_address, sequencer, mut state) = setup();
     let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
     let token_id = GAS_TOKEN_ID;
 
@@ -16,41 +16,44 @@ fn test_unbonding() {
     let initial_unlocked_balance = {
         module
             .bank
-            .get_balance_of(&prover_address, token_id, &mut working_set)
+            .get_balance_of(&prover_address, token_id, &mut state)?
             .unwrap_or_default()
     };
 
+    let mut working_set = state.to_working_set_unmetered();
+
     // Unbond the prover
-    module
-        .unbond_prover(&context, &mut working_set)
-        .expect("Unbonding should succeed");
+    module.unbond_prover(&context, &mut working_set)?;
 
     // Assert that the prover no longer has bonded tokens
-    assert_eq!(module.get_bond_amount(prover_address, &mut working_set), 0);
+    assert_eq!(module.get_bond_amount(prover_address, &mut working_set)?, 0);
 
     // Assert that the prover's unlocked balance has increased by the amount they unbonded
-    let unlocked_balance = module
-        .bank
-        .get_balance_of(&prover_address, token_id, &mut working_set);
+    let unlocked_balance =
+        module
+            .bank
+            .get_balance_of(&prover_address, token_id, &mut working_set)?;
     assert_eq!(
         unlocked_balance,
         Some(BOND_AMOUNT + initial_unlocked_balance)
     );
+
+    Ok(())
 }
 
 #[test]
 /// Tests that the prover cannot submit proofs if unbonded
-fn test_prover_not_bonded() {
-    let (module, prover_address, sequencer, mut working_set) = setup();
+fn test_prover_not_bonded() -> Result<(), anyhow::Error> {
+    let (module, prover_address, sequencer, state) = setup();
     let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
 
+    let mut working_set = state.to_working_set_unmetered();
+
     // Unbond the prover
-    module
-        .unbond_prover(&context, &mut working_set)
-        .expect("Unbonding should succeed");
+    module.unbond_prover(&context, &mut working_set)?;
 
     // Assert that the prover no longer has bonded tokens
-    assert_eq!(module.get_bond_amount(prover_address, &mut working_set), 0);
+    assert_eq!(module.get_bond_amount(prover_address, &mut working_set)?, 0);
 
     // Process a valid proof
     {
@@ -63,4 +66,6 @@ fn test_prover_not_bonded() {
             ProverIncentiveError::BondNotHighEnough
         );
     }
+
+    Ok(())
 }

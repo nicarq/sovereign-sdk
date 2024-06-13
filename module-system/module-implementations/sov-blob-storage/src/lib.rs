@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
 use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::macros::config_value;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, ModuleId, StateCheckpoint,
     StateMap,
@@ -55,7 +56,9 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
         batches: &Vec<(BatchWithId, Da::Address)>,
         state: &mut StateCheckpoint<S>,
     ) {
-        self.deferred_blobs.set(&slot_number, batches, state);
+        self.deferred_blobs
+            .set(&slot_number, batches, state)
+            .unwrap_infallible();
     }
 
     /// Take all blobs for given block number, return empty vector if not exists
@@ -67,6 +70,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
     ) -> Vec<(BatchWithId, Da::Address)> {
         self.deferred_blobs
             .remove(&slot_height, state)
+            .unwrap_infallible()
             .unwrap_or_default()
     }
 
@@ -74,7 +78,9 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
         &self,
         state: &mut StateCheckpoint<S>,
     ) -> Option<Da::Address> {
-        self.sequencer_registry.get_preferred_sequencer(state)
+        self.sequencer_registry
+            .get_preferred_sequencer(state)
+            .unwrap_infallible()
     }
 }
 

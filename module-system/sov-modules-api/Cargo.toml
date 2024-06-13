@@ -44,6 +44,7 @@ schemars = { workspace = true, features = [], optional = true }
 derivative = { workspace = true }
 utoipa = { workspace = true, optional = true }
 utoipa-swagger-ui = { workspace = true, optional = true }
+unwrap-infallible = { workspace = true }
 
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
@@ -101,3 +102,4 @@ native = [
 ]
 mocks = []
 test-utils = []
+evm = []

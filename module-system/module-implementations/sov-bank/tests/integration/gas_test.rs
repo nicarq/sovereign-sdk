@@ -1,8 +1,11 @@
 use sov_bank::{Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, GAS_TOKEN_ID};
 use sov_modules_api::macros::config_value;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Gas, GasArray, GasPrice, Module, Spec, WorkingSet};
+use sov_modules_api::{
+    Context, Gas, GasArray, GasPrice, Module, Spec, StateCheckpoint, WorkingSet,
+};
 use sov_prover_storage_manager::new_orphan_storage;
 use tempfile::TempDir;
 
@@ -139,14 +142,17 @@ impl BankGasTestCase {
         // create a bank instance
         let bank = Bank::default();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let mut ws = WorkingSet::new(storage);
-        bank.genesis(&bank_config, &mut ws).unwrap();
+        let state = StateCheckpoint::new(storage);
+        let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
+        bank.genesis(&bank_config, &mut genesis_state).unwrap();
+
+        let mut state = genesis_state.checkpoint();
 
         // sanity test the sender balance
-        let balance = bank.get_balance_of(&sender_address, base_token_id, &mut ws);
+        let balance = bank
+            .get_balance_of(&sender_address, base_token_id, &mut state)
+            .unwrap_infallible();
         assert_eq!(balance, Some(sender_balance));
-
-        let checkpoint = ws.checkpoint().0;
 
         // generate a create dummy token message
         let token_name = "dummy".to_string();
@@ -167,7 +173,7 @@ impl BankGasTestCase {
             gas_limit: None,
         };
 
-        let state = checkpoint.to_working_set(&tx, &gas_price);
+        let state = state.to_working_set(&tx, &gas_price);
 
         Self {
             state,

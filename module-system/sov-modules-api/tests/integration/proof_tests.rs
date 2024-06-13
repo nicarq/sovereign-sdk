@@ -3,6 +3,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::*;
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::{Prefix, Storage, StorageProof};
+use unwrap_infallible::UnwrapInfallible;
 
 type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -18,11 +19,11 @@ fn make_user_map_proof(
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let mut working_set = WorkingSet::<S>::new(storage.clone());
+    let mut state = StateCheckpoint::<S>::new(storage.clone());
     let map = StateMap::new(Prefix::new(vec![0]));
-    map.set(&key, &value, &mut working_set);
+    map.set(&key, &value, &mut state).unwrap_infallible();
 
-    let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
+    let (cache_log, _, witness) = state.freeze();
 
     let (root, change_set) = storage
         .validate_and_materialize(cache_log, &witness)
@@ -47,11 +48,11 @@ fn make_user_value_proof(
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let mut working_set = WorkingSet::<S>::new(storage.clone());
+    let mut working_set = StateCheckpoint::<S>::new(storage.clone());
     let state_val = StateValue::new(Prefix::new(vec![0]));
-    state_val.set(&value, &mut working_set);
+    state_val.set(&value, &mut working_set).unwrap_infallible();
 
-    let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
+    let (cache_log, _, witness) = working_set.freeze();
 
     let (root, change_set) = storage
         .validate_and_materialize(cache_log, &witness)
@@ -158,14 +159,14 @@ fn test_archival_proof_gen() {
     let mut roots = vec![];
     for iter in 0..10 {
         let storage = storage_manager.create_storage();
-        let mut working_set = WorkingSet::<S>::new(storage.clone());
+        let mut state = StateCheckpoint::<S>::new(storage.clone());
         if iter % 2 == 0 {
-            state_val.set(&iter, &mut working_set);
+            state_val.set(&iter, &mut state).unwrap_infallible();
         } else {
-            state_val.delete(&mut working_set);
+            state_val.delete(&mut state).unwrap_infallible();
         }
 
-        let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
+        let (cache_log, _, witness) = state.freeze();
 
         let (root, change_set) = storage
             .validate_and_materialize(cache_log, &witness)

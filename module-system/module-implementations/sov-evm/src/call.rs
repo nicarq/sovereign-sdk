@@ -43,16 +43,16 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let block_env = self
             .block_env
-            .get(state)
+            .get(state)?
             .expect("Pending block must be set");
 
-        let cfg = self.cfg.get(state).expect("Evm config must be set");
+        let cfg = self.cfg.get(state)?.expect("Evm config must be set");
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
-        let evm_db: EvmDb<'_, _> = self.get_db(state);
+        let evm_db: EvmDb<_> = self.get_db(state);
         let result = executor::execute_tx(evm_db, &block_env, &evm_tx, signer, cfg_env);
 
-        let previous_transaction = self.pending_transactions.last(state);
+        let previous_transaction = self.pending_transactions.last(state)?;
         let previous_transaction_cumulative_gas_used = previous_transaction
             .as_ref()
             .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
@@ -114,7 +114,8 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             receipt,
         };
 
-        self.pending_transactions.push(&pending_transaction, state);
+        self.pending_transactions
+            .push(&pending_transaction, state)?;
 
         Ok(CallResponse::default())
     }

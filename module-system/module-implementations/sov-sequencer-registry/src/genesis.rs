@@ -49,7 +49,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             minimum_bond = config.minimum_bond,
             "Starting sequencer registry genesis..."
         );
-        self.minimum_bond.set(&config.minimum_bond, state);
+        self.minimum_bond.set(&config.minimum_bond, state)?;
 
         self.register_sequencer(
             &config.seq_da_address,
@@ -59,7 +59,8 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         )?;
 
         if config.is_preferred_sequencer {
-            self.preferred_sequencer.set(&config.seq_da_address, state);
+            self.preferred_sequencer
+                .set(&config.seq_da_address, state)?;
         }
 
         Ok(())

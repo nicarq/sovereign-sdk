@@ -125,6 +125,8 @@ pub mod prelude {
     pub extern crate utoipa;
     #[cfg(feature = "native")]
     pub extern crate utoipa_swagger_ui;
+
+    pub use unwrap_infallible::UnwrapInfallible;
 }
 
 struct ModuleVisitor<'a, S: Spec> {

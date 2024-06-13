@@ -93,7 +93,7 @@ where
 
         // TODO(`<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/625>`). Hack: we need to temporarily take ownership of the `StateCheckpoint` to be able to call [`sov_modules_api::runtime::capabilities::SequencerAuthorization::authorize_sequencer`].
         let state_checkpoint = ctx.state_checkpoint.take().unwrap();
-        let tx_scratchpad = state_checkpoint.to_tx_scratchpad(&ctx.gas_price);
+        let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
         let res = process_tx(
             &self.runtime,
             &RawTx {
@@ -310,7 +310,7 @@ mod tests {
     use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-    use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey, WorkingSet};
+    use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey};
     use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
     use sov_state::{ProverStorage, Storage};
     use sov_test_utils::auth::TestAuth;
@@ -441,7 +441,7 @@ mod tests {
     ) -> ProverStorage<StorageSpec> {
         let runtime = TestRuntime::<S, MockDaSpec>::default();
         let storage = storage_manager.create_storage();
-        let mut state = WorkingSet::<S>::new(storage.clone());
+        let state = StateCheckpoint::<S>::new(storage.clone());
 
         let admin = admin.unwrap_or_else(|| {
             let admin_private_key = TestPrivateKey::generate();
@@ -465,8 +465,11 @@ mod tests {
             "BatchBuilderTestToken".to_string(),
             100_000,
         );
-        runtime.genesis(&config, &mut state).unwrap();
-        let (log, _, witness) = state.checkpoint().0.freeze();
+
+        let mut genesis_state =
+            state.to_genesis_state_accessor::<TestRuntime<S, MockDaSpec>>(&config);
+        runtime.genesis(&config, &mut genesis_state).unwrap();
+        let (log, _, witness) = genesis_state.checkpoint().freeze();
         let (_root_hash, change_set) = storage.validate_and_materialize(log, &witness).unwrap();
         storage_manager.commit(change_set);
         storage_manager.create_storage()

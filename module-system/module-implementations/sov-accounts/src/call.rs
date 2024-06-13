@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use sov_modules_api::{CallResponse, Context, CredentialId, Spec, StateReader, TxState};
 use sov_state::namespaces::User;
 
@@ -41,13 +41,16 @@ impl<S: Spec> Accounts<S> {
             addr: context.sender().clone(),
         };
 
-        self.accounts.set(&new_credential_id, &account, state);
+        self.accounts.set(&new_credential_id, &account, state)?;
 
-        let mut credential_ids = self.credential_ids.get_or_err(context.sender(), state)?;
+        let mut credential_ids = self
+            .credential_ids
+            .get_or_err(context.sender(), state)
+            .map_err(|e| anyhow::anyhow!("Error raised while getting credential ids: {e:?}"))??;
 
         credential_ids.push(new_credential_id);
         self.credential_ids
-            .set(context.sender(), &credential_ids, state);
+            .set(context.sender(), &credential_ids, state)?;
 
         Ok(CallResponse::default())
     }
@@ -58,7 +61,10 @@ impl<S: Spec> Accounts<S> {
         state: &mut impl StateReader<User>,
     ) -> Result<()> {
         anyhow::ensure!(
-            self.accounts.get(new_credential_id, state).is_none(),
+            self.accounts
+                .get(new_credential_id, state)
+                .map_err(|err| anyhow!("Error raised while getting account: {err:?}"))?
+                .is_none(),
             "New CredentialId already exists"
         );
         Ok(())

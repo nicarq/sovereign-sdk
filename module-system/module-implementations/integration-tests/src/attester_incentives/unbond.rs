@@ -1,10 +1,11 @@
+use std::convert::Infallible;
+
 use sov_attester_incentives::{CallMessage, Role, UnbondingInfo};
 use sov_bank::GAS_TOKEN_ID;
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::batch::BatchWithId;
-use sov_modules_api::{Gas, GasArray, Spec, WorkingSet};
-use sov_modules_stf_blueprint::Batch;
+use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::{Gas, GasArray, Spec, StateCheckpoint};
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
@@ -15,7 +16,7 @@ use crate::attester_incentives::{ROLLUP_FINALITY_PERIOD, USER_BALANCE};
 use crate::helpers::{Da, TestRollup, S};
 
 #[test]
-fn test_honest_unbonding() {
+fn test_honest_unbonding() -> Result<(), Infallible> {
     // Let's do the two phase unbonding
     let mut rollup = TestRollup::new();
 
@@ -31,7 +32,7 @@ fn test_honest_unbonding() {
 
     // Let's check that the attester is bonded
     assert_eq!(
-        rollup.get_user_bond(Role::Attester, test_handler.attester_addr()),
+        rollup.get_user_bond(Role::Attester, test_handler.attester_addr())?,
         test_handler.attester_stake
     );
 
@@ -65,7 +66,7 @@ fn test_honest_unbonding() {
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
         assert!(tx_receipt.receipt.is_successful());
 
-        assert!(rollup.is_attester_unbonding(test_handler.attester_addr()));
+        assert!(rollup.is_attester_unbonding(test_handler.attester_addr())?);
     }
 
     // We now need to wait for the finality period to pass. Let's simulate it by running a few value setter transactions.
@@ -99,7 +100,7 @@ fn test_honest_unbonding() {
     // TODO: We need a way to sync the light clients with the current state height. Since the light clients are not implemented yet
     // we do this by hand by setting the height manually.
     let new_state_root =
-        rollup.increase_and_commit_light_client_attested_height(ROLLUP_FINALITY_PERIOD);
+        rollup.increase_and_commit_light_client_attested_height(ROLLUP_FINALITY_PERIOD)?;
 
     let txs = AttesterIncentivesMessageGenerator::from(vec![(
         test_handler.attester_private_key.clone(),
@@ -133,12 +134,12 @@ fn test_honest_unbonding() {
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
         assert!(tx_receipt.receipt.is_successful());
 
-        let mut state = WorkingSet::<S>::new(rollup.storage());
+        let mut state = StateCheckpoint::<S>::new(rollup.storage());
 
-        assert!(!rollup.is_attester_unbonding(test_handler.attester_addr()));
+        assert!(!rollup.is_attester_unbonding(test_handler.attester_addr())?);
 
         assert_eq!(
-            rollup.get_user_bond(Role::Attester, test_handler.attester_addr()),
+            rollup.get_user_bond(Role::Attester, test_handler.attester_addr())?,
             0
         );
 
@@ -146,9 +147,11 @@ fn test_honest_unbonding() {
         // We have to substract 2 * gas_per_transaction because the attester has to pay for the gas
         // for both the start and end unbonding messages
         assert_eq!(
-            rollup
-                .bank()
-                .get_balance_of(&test_handler.attester_addr(), GAS_TOKEN_ID, &mut state),
+            rollup.bank().get_balance_of(
+                &test_handler.attester_addr(),
+                GAS_TOKEN_ID,
+                &mut state
+            )?,
             Some(
                 USER_BALANCE
                     - rollup.tx_cost(&ChainState::<S, MockDaSpec>::initial_base_fee_per_gas())
@@ -158,6 +161,7 @@ fn test_honest_unbonding() {
             )
         );
     }
+    Ok(())
 }
 
 // We cannot unbond an attester that has not been bonded.
@@ -208,7 +212,7 @@ fn test_unbonding_without_bonded() {
 
 // We cannot unbond an attester before the finality period has passed.
 #[test]
-fn test_premature_unbonding() {
+fn test_premature_unbonding() -> Result<(), Infallible> {
     // Let's do the two phase unbonding
     let mut rollup = TestRollup::new();
 
@@ -224,7 +228,7 @@ fn test_premature_unbonding() {
 
     // Let's check that the attester is bonded
     assert_eq!(
-        rollup.get_user_bond(Role::Attester, test_handle.attester_addr()),
+        rollup.get_user_bond(Role::Attester, test_handle.attester_addr())?,
         test_handle.attester_stake
     );
 
@@ -258,12 +262,12 @@ fn test_premature_unbonding() {
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
         assert!(tx_receipt.receipt.is_successful());
 
-        let mut state = WorkingSet::<S>::new(rollup.storage());
+        let mut state = StateCheckpoint::<S>::new(rollup.storage());
 
         let unbonding_info = rollup
             .attester_incentives()
             .unbonding_attesters
-            .get(&test_handle.attester_addr(), &mut state)
+            .get(&test_handle.attester_addr(), &mut state)?
             .expect("The attester should be unbonding");
 
         assert_eq!(
@@ -303,4 +307,6 @@ fn test_premature_unbonding() {
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
         assert!(tx_receipt.receipt.is_reverted());
     }
+
+    Ok(())
 }

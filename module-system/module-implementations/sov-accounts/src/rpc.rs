@@ -1,6 +1,7 @@
 //! Defines rpc queries exposed by the accounts module, along with the relevant types
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, CredentialId, Spec};
 
 use crate::{Account, Accounts};
@@ -27,7 +28,7 @@ impl<S: Spec> Accounts<S> {
         credential_id: CredentialId,
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Response<S::Address>> {
-        let response = match self.accounts.get(&credential_id, state) {
+        let response = match self.accounts.get(&credential_id, state).unwrap_infallible() {
             Some(Account { addr }) => Response::AccountExists { addr },
             None => Response::AccountEmpty,
         };

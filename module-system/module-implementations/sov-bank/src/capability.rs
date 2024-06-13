@@ -1,7 +1,8 @@
 use sov_modules_api::capabilities::TryReserveGasError;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    AuthorizeTransactionError, Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
+    AuthorizeTransactionError, Gas, GasMeter, PreExecWorkingSet, Spec, StateAccessorError,
+    TxScratchpad, WorkingSet,
 };
 use thiserror::Error;
 
@@ -10,7 +11,7 @@ use crate::{Bank, Coins, Payable, GAS_TOKEN_ID};
 
 /// Error types that can be raised by the `reserve_gas` method
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
-pub enum ReserveGasErrorReason {
+pub enum ReserveGasErrorReason<S: Spec> {
     #[error("The payer does not have an account in the `Bank` module for the gas token")]
     /// The payer does not have an account in the `Bank` module for the gas token
     AccountDoesNotExist,
@@ -24,12 +25,15 @@ pub enum ReserveGasErrorReason {
     /// Insufficient gas locked in the transaction to cover pre-execution checks such as signature checks or transaction
     /// deserialization
     InsufficientGasForPreExecutionChecks(String),
+    /// Error occurred while accessing the state
+    #[error("An error occurred while accessing the state: {0}")]
+    StateAccessError(StateAccessorError<S::Gas>),
 }
 
 /// Error type that can be raised by the `reserve_gas` method
 pub struct ReserveGasError<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
     /// The reason for the error.
-    pub reason: ReserveGasErrorReason,
+    pub reason: ReserveGasErrorReason<S>,
     /// The pre execution working set at the time of the error.
     pub pre_exec_working_set: PreExecWorkingSet<S, PreExecChecksMeter>,
 }
@@ -59,11 +63,17 @@ impl<S: Spec> Bank<S> {
         // We need to do the explicit check (outside of a closure) because otherwise `state_checkpoint` would be captured.
         let balance =
             match self.get_balance_of(&payer.clone(), GAS_TOKEN_ID, &mut pre_exec_working_set) {
-                Some(balance) => balance,
-                None => {
+                Ok(Some(balance)) => balance,
+                Ok(None) => {
                     return Err(ReserveGasError::<S, PreExecChecksMeter> {
                         pre_exec_working_set,
                         reason: ReserveGasErrorReason::AccountDoesNotExist,
+                    })
+                }
+                Err(err) => {
+                    return Err(ReserveGasError {
+                        reason: ReserveGasErrorReason::StateAccessError(err),
+                        pre_exec_working_set,
                     })
                 }
             };

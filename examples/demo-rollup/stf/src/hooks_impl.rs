@@ -1,10 +1,9 @@
 use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::{Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet};
+use sov_modules_api::{AccessoryStateReaderAndWriter, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerRegistry;
-use sov_state::namespaces::Accessory;
 use tracing::info;
 
 use crate::runtime::Runtime;
@@ -84,7 +83,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
     fn finalize_hook(
         &self,
         #[allow(unused_variables)] root_hash: S::VisibleHash,
-        #[allow(unused_variables)] state: &mut impl StateReaderAndWriter<Accessory>,
+        #[allow(unused_variables)] state: &mut impl AccessoryStateReaderAndWriter,
     ) {
         #[cfg(feature = "native")]
         self.evm.finalize_hook(root_hash, state);

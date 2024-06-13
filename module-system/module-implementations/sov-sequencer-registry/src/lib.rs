@@ -4,7 +4,6 @@
 //! during the rollup deployment.
 //!
 //! The module implements the [`sov_modules_api::hooks::ApplyBatchHooks`] trait.
-
 #![deny(missing_docs)]
 mod call;
 mod capabilities;
@@ -15,6 +14,7 @@ mod hooks;
 #[cfg(test)]
 mod tests;
 
+use sov_modules_api::prelude::UnwrapInfallible;
 #[cfg(feature = "native")]
 mod rpc;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -26,11 +26,11 @@ pub use rpc::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
-    CallResponse, Context, Error, EventEmitter, GenesisState, ModuleId, ModuleInfo, Spec,
-    StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue, TxState,
+    CallResponse, Context, Error, EventEmitter, GenesisState, InfallibleStateAccessor, ModuleId,
+    ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::codec::BcsCodec;
-use sov_state::User;
+use sov_state::{EventContainer, User};
 use thiserror::Error;
 
 use crate::event::Event;
@@ -159,15 +159,18 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// Returns the minimum amount of tokens that the sequencer must lock.
-    pub fn get_coins_to_lock(&self, state: &mut impl StateReader<User>) -> Coins {
+    pub fn get_coins_to_lock<Reader: StateReader<User>>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Coins, Reader::Error> {
         let amount = self
             .minimum_bond
-            .get(state)
+            .get(state)?
             .expect("The minimum bond should be set at genesis");
-        Coins {
+        Ok(Coins {
             amount,
             token_id: GAS_TOKEN_ID,
-        }
+        })
     }
 
     /// Tries to register a sequencer by staking the provided amount of gas tokens.
@@ -183,9 +186,14 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         da_address: &Da::Address,
         address: &S::Address,
         amount: Amount,
-        state: &mut impl TxState<S>,
+        state: &mut (impl StateAccessor + EventContainer),
     ) -> Result<(), SequencerRegistryError<S, Da>> {
-        if self.allowed_sequencers.get(da_address, state).is_some() {
+        if self
+            .allowed_sequencers
+            .get(da_address, state)
+            .map_err(|e| SequencerRegistryError::StateAccessorError(e.to_string()))?
+            .is_some()
+        {
             return Err(SequencerRegistryError::SequencerAlreadyRegistered(
                 address.clone(),
             ));
@@ -194,6 +202,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         let minimum_bond = self
             .minimum_bond
             .get(state)
+            .map_err(|e| SequencerRegistryError::StateAccessorError(e.to_string()))?
             .ok_or(SequencerRegistryError::NoMinimumBondSet)?;
 
         if amount < minimum_bond {
@@ -214,14 +223,16 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
             .transfer_from(address, locker.to_payable(), coins, state)
             .map_err(|_| SequencerRegistryError::<S, Da>::InsufficientFundsToRegister(amount))?;
 
-        self.allowed_sequencers.set(
-            da_address,
-            &AllowedSequencer {
-                address: address.clone(),
-                balance: amount,
-            },
-            state,
-        );
+        self.allowed_sequencers
+            .set(
+                da_address,
+                &AllowedSequencer {
+                    address: address.clone(),
+                    balance: amount,
+                },
+                state,
+            )
+            .map_err(|e| SequencerRegistryError::StateAccessorError(e.to_string()))?;
 
         self.emit_event(
             state,
@@ -239,34 +250,40 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     ///
     /// Read about [`SequencerConfig::is_preferred_sequencer`] to learn about
     /// preferred sequencers.
-    pub fn get_preferred_sequencer(&self, state: &mut impl StateAccessor) -> Option<Da::Address> {
+    pub fn get_preferred_sequencer<Reader: StateReader<User>>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Option<Da::Address>, Reader::Error> {
         self.preferred_sequencer.get(state)
     }
 
     /// Resolve a DA address to a rollup address.
-    pub fn resolve_da_address(
+    pub fn resolve_da_address<Reader: StateReader<User>>(
         &self,
         address: &Da::Address,
-        state: &mut impl StateAccessor,
-    ) -> Option<S::Address> {
+        state: &mut Reader,
+    ) -> Result<Option<S::Address>, Reader::Error> {
         self.allowed_sequencers
             .get(address, state)
-            .map(|s| s.address)
+            .map(|s| s.map(|s| s.address))
     }
 
     /// Returns the rollup address of the preferred sequencer, or [`None`] it wasn't set.
     ///
     /// Read about [`SequencerConfig::is_preferred_sequencer`] to learn about
     /// preferred sequencers.
-    pub fn get_preferred_sequencer_rollup_address(
+    pub fn get_preferred_sequencer_rollup_address<Reader: StateReader<User>>(
         &self,
-        state: &mut impl StateAccessor,
-    ) -> Option<S::Address> {
-        self.preferred_sequencer.get(state).map(|da_addr| {
-            self.allowed_sequencers
-                .get(&da_addr, state)
-                .expect("Preferred Sequencer must have known address on rollup")
-                .address
+        state: &mut Reader,
+    ) -> Result<Option<S::Address>, Reader::Error> {
+        Ok(match self.preferred_sequencer.get(state)? {
+            Some(da_addr) => Some(
+                self.allowed_sequencers
+                    .get(&da_addr, state)?
+                    .expect("Preferred Sequencer must have known address on rollup")
+                    .address,
+            ),
+            None => None,
         })
     }
 
@@ -276,12 +293,17 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn is_sender_allowed(
         &self,
         sender: &Da::Address,
-        state: &mut impl StateReader<User>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AllowedSequencerError> {
-        if let Some(sequencer) = self.allowed_sequencers.get(sender, state) {
+        if let Some(sequencer) = self
+            .allowed_sequencers
+            .get(sender, state)
+            .unwrap_infallible()
+        {
             let min_bond = self
                 .minimum_bond
                 .get(state)
+                .unwrap_infallible()
                 .expect("The minimum bond should be set at genesis");
 
             if sequencer.balance < min_bond {
@@ -298,29 +320,31 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     }
 
     /// Returns the balance of the provided sender, if present.
-    pub fn get_sender_balance(
+    pub fn get_sender_balance<Reader: StateReader<User>>(
         &self,
         sender: &Da::Address,
-        state: &mut impl StateAccessor,
-    ) -> Option<Amount> {
-        self.allowed_sequencers
-            .get(sender, state)
-            .map(|s| s.balance)
+        state: &mut Reader,
+    ) -> Result<Option<Amount>, Reader::Error> {
+        Ok(self
+            .allowed_sequencers
+            .get(sender, state)?
+            .map(|s| s.balance))
     }
 
     /// Returns the rollup address of the sequencer with the given DA address.
-    pub fn get_sequencer_address(
+    pub fn get_sequencer_address<Reader: StateReader<User>>(
         &self,
         da_address: Da::Address,
-        state_accessor: &mut impl StateAccessor,
-    ) -> Option<S::Address> {
-        self.allowed_sequencers
-            .get(&da_address, state_accessor)
-            .map(|s| s.address)
+        state_accessor: &mut Reader,
+    ) -> Result<Option<S::Address>, Reader::Error> {
+        Ok(self
+            .allowed_sequencers
+            .get(&da_address, state_accessor)?
+            .map(|s| s.address))
     }
 
     /// Slash the sequencer with the given address.
     pub fn slash_sequencer(&self, da_address: &Da::Address, state: &mut StateCheckpoint<S>) {
-        self.delete(da_address, state);
+        self.delete(da_address, state).unwrap_infallible();
     }
 }

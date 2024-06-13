@@ -4,6 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_state::{
     BorshCodec, Kernel, Namespace, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec,
 };
+use unwrap_infallible::UnwrapInfallible;
 
 use crate::{KernelWorkingSet, Spec, StateReader, StateWriter, VersionReader};
 
@@ -67,15 +68,16 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
-    pub fn get_current(&self, state: &mut impl VersionReader) -> Option<V>
+    pub fn get_current<Reader: VersionReader>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Option<V>, <Reader as StateReader<Kernel>>::Error>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        state
-            .get_decoded(&self.encode_key(&state.current_version()), &self.codec)
-            .unwrap()
+        state.get_decoded(&self.encode_key(&state.current_version()), &self.codec)
     }
 
     /// Only the kernel working set can write to versioned values
@@ -90,7 +92,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
             &self.encode_key(&state.current_version()),
             SlotValue::new(value, self.codec.value_codec()),
         )
-        .unwrap();
+        .unwrap_infallible();
     }
 
     /// Only the kernel working set can write to versioned values
@@ -105,7 +107,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
             &self.encode_key(key),
             SlotValue::new(value, self.codec.value_codec()),
         )
-        .unwrap();
+        .unwrap_infallible();
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
@@ -115,7 +117,8 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateReader::<Kernel>::get_decoded(state, &self.encode_key(key), &self.codec).unwrap()
+        StateReader::<Kernel>::get_decoded(state, &self.encode_key(key), &self.codec)
+            .unwrap_infallible()
     }
 }
 
@@ -126,6 +129,7 @@ mod tests {
     use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::Prefix;
+    use unwrap_infallible::UnwrapInfallible;
 
     use crate::capabilities::mocks::MockKernel;
     use crate::{Address, Context, KernelWorkingSet, StateCheckpoint, VersionedStateValue};
@@ -146,7 +150,10 @@ mod tests {
             let kernel = MockKernel::<TestSpec, MockDaSpec>::new(4, 1);
             let mut kernel_state = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
             value.set_true_current(&100, &mut kernel_state);
-            assert_eq!(value.get_current(&mut kernel_state), Some(100));
+            assert_eq!(
+                value.get_current(&mut kernel_state).unwrap_infallible(),
+                Some(100)
+            );
         }
 
         let signer = Address::from([1; 32]);
@@ -161,7 +168,10 @@ mod tests {
                     1,
                 ));
                 // Try to read the value from user space with the slot number set to 1. Should fail.
-                assert_eq!(value.get_current(&mut versioned_state), None);
+                assert_eq!(
+                    value.get_current(&mut versioned_state).unwrap_infallible(),
+                    None
+                );
             }
             let mut versioned_state = working_set.versioned_state(&Context::<TestSpec>::new(
                 signer,
@@ -170,7 +180,10 @@ mod tests {
                 4,
             ));
             // Try to read the value from user space with the slot number set to 4. Should succeed.
-            assert_eq!(value.get_current(&mut versioned_state), Some(100));
+            assert_eq!(
+                value.get_current(&mut versioned_state).unwrap_infallible(),
+                Some(100)
+            );
         }
     }
 
@@ -204,7 +217,10 @@ mod tests {
                     1,
                 ));
                 // Try to read the value from user space with the slot number set to 1. Should fail.
-                assert_eq!(value.get_current(&mut versioned_state), None);
+                assert_eq!(
+                    value.get_current(&mut versioned_state).unwrap_infallible(),
+                    None
+                );
             }
             {
                 // Try to read the value from user space with the slot number set to 2. Should succeed.
@@ -215,7 +231,10 @@ mod tests {
                     2,
                 ));
 
-                assert_eq!(value.get_current(&mut versioned_state), Some(100));
+                assert_eq!(
+                    value.get_current(&mut versioned_state).unwrap_infallible(),
+                    Some(100)
+                );
             }
 
             // Try to read the value from user space with the slot number set to 4. Should succeed.
@@ -225,7 +244,10 @@ mod tests {
                 sequencer,
                 4,
             ));
-            assert_eq!(value.get_current(&mut versioned_state), Some(17));
+            assert_eq!(
+                value.get_current(&mut versioned_state).unwrap_infallible(),
+                Some(17)
+            );
         }
     }
 }

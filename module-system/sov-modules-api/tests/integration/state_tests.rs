@@ -1,8 +1,11 @@
+use std::convert::Infallible;
+
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::*;
 use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
 use sov_rollup_interface::execution_mode::{self, Native};
 use sov_state::{ArrayWitness, Prefix, ProvableNamespace, ProverStorage, Storage, ZkStorage};
+use unwrap_infallible::UnwrapInfallible;
 
 type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 type Zk =
@@ -93,18 +96,25 @@ impl StateThing for StateValueSet {
 
     fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self {
         let state_value = StateValue::new(Prefix::new(vec![0]));
-        state_value.set(&10, state);
+        state_value
+            .set(&10, &mut state.to_unmetered())
+            .unwrap_infallible();
         StateValueSet(state_value)
     }
 
     fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
-        self.0.get(state).expect("Value wasn't set")
+        self.0
+            .get(&mut state.to_unmetered())
+            .unwrap_infallible()
+            .expect("Value wasn't set")
     }
 
     fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
         let mut value = self.value(state);
         value += 1;
-        self.0.set(&value, state);
+        self.0
+            .set(&value, &mut state.to_unmetered())
+            .unwrap_infallible();
     }
 }
 
@@ -115,12 +125,14 @@ impl StateThing for StateVecSet {
 
     fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self {
         let state_vec = StateVec::new(Prefix::new(vec![0]));
-        state_vec.set_all(vec![10, 20, 30, 40, 50, 60], state);
+        state_vec
+            .set_all(vec![10, 20, 30, 40, 50, 60], &mut state.to_unmetered())
+            .unwrap_infallible();
         StateVecSet(state_vec)
     }
 
     fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
-        self.0.iter(state).collect()
+        self.0.iter(&mut state.to_unmetered()).collect()
     }
 
     fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
@@ -129,7 +141,9 @@ impl StateThing for StateVecSet {
             // TODO: More sophisticated ways of updating it
             *v += 1;
         }
-        self.0.set_all(value, state);
+        self.0
+            .set_all(value, &mut state.to_unmetered())
+            .unwrap_infallible();
     }
 }
 
@@ -140,17 +154,25 @@ impl StateThing for StateVecPush {
 
     fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self {
         let state_vec = StateVec::new(Prefix::new(vec![0]));
-        state_vec.set_all(vec![10], state);
+        state_vec
+            .set_all(vec![10], &mut state.to_unmetered())
+            .unwrap_infallible();
         StateVecPush(state_vec)
     }
 
     fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
-        self.0.iter(state).collect()
+        self.0.iter(&mut state.to_unmetered()).collect()
     }
 
     fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
-        let value = self.0.get(0, state).expect("Value wasn't set");
-        self.0.push(&(value + 1), state);
+        let value = self
+            .0
+            .get(0, &mut state.to_unmetered())
+            .unwrap_infallible()
+            .expect("Value wasn't set");
+        self.0
+            .push(&(value + 1), &mut state.to_unmetered())
+            .unwrap_infallible();
     }
 }
 
@@ -161,16 +183,19 @@ impl StateThing for StateVecRemove {
 
     fn create<S: Spec>(state: &mut WorkingSet<S>) -> Self {
         let state_vec = StateVec::new(Prefix::new(vec![0]));
-        state_vec.set_all(vec![3u32; 100], state);
+        state_vec
+            .set_all(vec![3u32; 100], &mut state.to_unmetered())
+            .unwrap_infallible();
         StateVecRemove(state_vec)
     }
 
     fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
-        self.0.iter(state).collect()
+        let mut unmetered_ws = state.to_unmetered();
+        self.0.iter(&mut unmetered_ws).collect()
     }
 
     fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
-        self.0.pop(state);
+        self.0.pop(&mut state.to_unmetered()).unwrap_infallible();
     }
 }
 
@@ -206,18 +231,18 @@ fn test_state_vec_remove() {
 }
 
 #[test]
-fn test_witness_round_trip() {
+fn test_witness_round_trip() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
     // Native execution
     let witness: ArrayWitness = {
         let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
-        let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
-        state_value.set(&11, &mut working_set);
-        let _ = state_value.get(&mut working_set);
-        state_value.set(&22, &mut working_set);
-        let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
+        let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone());
+        state_value.set(&11, &mut state)?;
+        let _ = state_value.get(&mut state);
+        state_value.set(&22, &mut state)?;
+        let (cache_log, _, witness) = state.freeze();
 
         let _ = storage
             .validate_and_materialize(cache_log, &witness)
@@ -229,20 +254,22 @@ fn test_witness_round_trip() {
         let storage = ZkStorage::<StorageSpec>::new();
         let mut state_checkpoint: StateCheckpoint<Zk> =
             StateCheckpoint::with_witness(storage.clone(), witness);
-        state_value.set(&11, &mut state_checkpoint);
+        state_value.set(&11, &mut state_checkpoint)?;
         let _ = state_value.get(&mut state_checkpoint);
-        state_value.set(&22, &mut state_checkpoint);
+        state_value.set(&22, &mut state_checkpoint)?;
         let (cache_log, _, witness) = state_checkpoint.freeze();
 
         let _ = storage
             .validate_and_materialize(cache_log, &witness)
             .expect("ZK validation should succeed");
     };
+
+    Ok(())
 }
 
 /// Test that the state values with a standard working set get written to the user space
 #[test]
-fn test_state_value_user_namespace() {
+fn test_state_value_user_namespace() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
@@ -250,11 +277,11 @@ fn test_state_value_user_namespace() {
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
-    state_value.set(&11, &mut working_set);
-    let _ = state_value.get(&mut working_set);
-    state_value.set(&22, &mut working_set);
-    let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone());
+    state_value.set(&11, &mut state)?;
+    let _ = state_value.get(&mut state);
+    state_value.set(&22, &mut state)?;
+    let (cache_log, _, witness) = state.freeze();
 
     let (_, change_set) = storage
         .validate_and_materialize(cache_log, &witness)
@@ -280,11 +307,13 @@ fn test_state_value_user_namespace() {
         .unwrap();
     assert_eq!(kernel_root_hash, new_kernel_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
+
+    Ok(())
 }
 
 /// Test that the state values with a kernel working set get written to the kernel space
 #[test]
-fn test_state_value_kernel_namespace() {
+fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
@@ -292,15 +321,14 @@ fn test_state_value_kernel_namespace() {
     let state_value = KernelStateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone());
 
-    let mut state_checkpoint = working_set.checkpoint().0;
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
-    state_value.set(&11, &mut kernel_working_set);
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state);
+    state_value.set(&11, &mut kernel_working_set)?;
     let _ = state_value.get(&mut kernel_working_set);
-    state_value.set(&22, &mut kernel_working_set);
+    state_value.set(&22, &mut kernel_working_set)?;
 
-    let (cache_log, _, witness) = state_checkpoint.freeze();
+    let (cache_log, _, witness) = state.freeze();
 
     let (_, change_set) = storage
         .validate_and_materialize(cache_log, &witness)
@@ -326,11 +354,13 @@ fn test_state_value_kernel_namespace() {
         .unwrap();
     assert_eq!(user_root_hash, new_user_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
+
+    Ok(())
 }
 
 /// Test that the state maps with a standard working set get written to the user space
 #[test]
-fn test_state_map_user_namespace() {
+fn test_state_map_user_namespace() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
@@ -338,11 +368,11 @@ fn test_state_map_user_namespace() {
     let state_value = StateMap::new(Prefix::new(vec![0]));
 
     // Native execution
-    let mut working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
-    state_value.set(&11, &0, &mut working_set);
-    let _ = state_value.get(&0, &mut working_set);
-    state_value.set(&22, &0, &mut working_set);
-    let (cache_log, _, witness) = working_set.checkpoint().0.freeze();
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone());
+    state_value.set(&11, &0, &mut state)?;
+    let _ = state_value.get(&0, &mut state);
+    state_value.set(&22, &0, &mut state)?;
+    let (cache_log, _, witness) = state.freeze();
 
     let (_, change_set) = storage
         .validate_and_materialize(cache_log, &witness)
@@ -368,11 +398,13 @@ fn test_state_map_user_namespace() {
         .unwrap();
     assert_eq!(kernel_root_hash, new_kernel_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
+
+    Ok(())
 }
 
 /// Test that the kernel state maps with a kernel working set get written to the kernel space
 #[test]
-fn test_versioned_state_value_kernel_namespace() {
+fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
@@ -421,8 +453,10 @@ fn test_versioned_state_value_kernel_namespace() {
     let kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     let mut versioned_reader = VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);
     let val = state_value
-        .get_current(&mut versioned_reader)
+        .get_current(&mut versioned_reader)?
         .expect("We should be able to retrieve the state value");
 
     assert_eq!(val, 22);
+
+    Ok(())
 }

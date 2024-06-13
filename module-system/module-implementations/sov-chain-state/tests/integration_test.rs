@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use sov_chain_state::{
     BlockGasInfo, ChainState, ChainStateConfig, StateTransition, TransitionInProgress,
 };
@@ -33,13 +35,15 @@ struct ChainStateExecutionValues {
     pub prev_gas_used: Option<<TestSpec as Spec>::Gas>,
 }
 
-/// Helper function that initializes the hooks test. It creates and configures a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
-/// Then it runs and commits the genesis state and returns a [`ChainState`] object,  the `genesis_root` (as a [`StorageRoot`]) and the `storage` (which is a [`ProverStorage`]).
-fn init_test() -> (
+type InitVars = (
     ChainState<TestSpec, MockDaSpec>,
     StorageRoot<StorageSpec>,
     SimpleStorageManager<StorageSpec>,
-) {
+);
+
+/// Helper function that initializes the hooks test. It creates and configures a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
+/// Then it runs and commits the genesis state and returns a [`ChainState`] object,  the `genesis_root` (as a [`StorageRoot`]) and the `storage` (which is a [`ProverStorage`]).
+fn init_test() -> Result<InitVars, Infallible> {
     // The initial height can be any value.
     // Initialize the module.
     let tmpdir = tempfile::tempdir().unwrap();
@@ -78,19 +82,19 @@ fn init_test() -> (
     let initial_height = chain_state.true_slot_number(&mut KernelWorkingSet::from_kernel(
         &mock_kernel,
         &mut base_checkpoint,
-    ));
+    ))?;
 
     let mut working_set = KernelWorkingSet::from_kernel(&mock_kernel, &mut base_checkpoint);
 
     // Check that the genesis state variables are correctly initialized.
     assert_eq!(initial_height, 0, "The initial height was not computed");
     assert_eq!(
-        chain_state.get_time(&mut working_set),
+        chain_state.get_time(&mut working_set)?,
         Default::default(),
         "The time was not initialized to default value"
     );
 
-    (chain_state, genesis_root, storage_manager)
+    Ok((chain_state, genesis_root, storage_manager))
 }
 
 // Check that the state transition in progress has been stored
@@ -99,9 +103,9 @@ fn check_transition_in_progress(
     computed_base_fee_per_gas: &<<TestSpec as Spec>::Gas as Gas>::Price,
     chain_state: &ChainState<TestSpec, MockDaSpec>,
     kernel_working_set: &mut KernelWorkingSet<TestSpec>,
-) {
+) -> Result<(), Infallible> {
     let new_tx_in_progress: TransitionInProgress<TestSpec, MockDaSpec> = chain_state
-        .get_in_progress_transition(kernel_working_set)
+        .get_in_progress_transition(kernel_working_set)?
         .unwrap();
 
     let expected_gas_info = BlockGasInfo::new(
@@ -118,6 +122,8 @@ fn check_transition_in_progress(
         ),
         "The new transition has not been correctly stored"
     );
+
+    Ok(())
 }
 
 /// Simulates one round of [`ChainState`] execution.
@@ -132,7 +138,7 @@ fn simulate_chain_state_execution(
     gas_used: &<TestSpec as Spec>::Gas,
     chain_state: &ChainState<TestSpec, MockDaSpec>,
     kernel_working_set: &mut KernelWorkingSet<TestSpec>,
-) -> (Time, <<TestSpec as Spec>::Gas as Gas>::Price) {
+) -> Result<(Time, <<TestSpec as Spec>::Gas as Gas>::Price), Infallible> {
     // Sanity test: the round number matches the next height of the chain and so cannot be zero.
     assert!(round_num > 0);
 
@@ -160,11 +166,11 @@ fn simulate_chain_state_execution(
         &computed_base_fee_per_gas,
         chain_state,
         kernel_working_set,
-    );
+    )?;
 
     chain_state.end_slot_hook(gas_used, kernel_working_set);
 
-    (slot_data.header.time, computed_base_fee_per_gas)
+    Ok((slot_data.header.time, computed_base_fee_per_gas))
 }
 
 /// Checks that the [`ChainState`] time state variable is correctly updated after each round of execution.
@@ -172,18 +178,20 @@ fn check_time_updates(
     time: Time,
     chain_state: &ChainState<TestSpec, MockDaSpec>,
     kernel_working_set: &mut KernelWorkingSet<TestSpec>,
-) {
+) -> Result<(), Infallible> {
     assert_ne!(
-        chain_state.get_time(kernel_working_set),
+        chain_state.get_time(kernel_working_set)?,
         Default::default(),
         "The time must be updated"
     );
 
     assert_eq!(
-        chain_state.get_time(kernel_working_set),
+        chain_state.get_time(kernel_working_set)?,
         time,
         "The time was not updated in the hook"
     );
+
+    Ok(())
 }
 
 /// Checks that the [`ChainState`] state transitions are correctly stored after each round of execution.
@@ -194,19 +202,19 @@ fn check_transitions_stored(
     prev_base_fee_per_gas: &<<TestSpec as Spec>::Gas as Gas>::Price,
     chain_state: &ChainState<TestSpec, MockDaSpec>,
     kernel_working_set: &mut KernelWorkingSet<TestSpec>,
-) {
+) -> Result<(), Infallible> {
     // Sanity test: the round number matches the next height of the chain and so cannot be zero.
     assert!(round_num > 0);
 
     if round_num == 1 {
         // Check that the genesis root hash has been stored correctly
-        let stored_root = chain_state.get_genesis_hash(kernel_working_set).unwrap();
+        let stored_root = chain_state.get_genesis_hash(kernel_working_set)?.unwrap();
 
         assert_eq!(stored_root, pre_state_root, "Genesis hashes don't match");
     } else {
         // Check that the last state transition has been stored in the `historical_transitions` map.
         let last_tx_stored: StateTransition<TestSpec, MockDaSpec> = chain_state
-            .get_historical_transitions((round_num - 1) as u64, kernel_working_set.inner)
+            .get_historical_transitions((round_num - 1) as u64, kernel_working_set.inner)?
             .unwrap();
 
         let mut expected_gas_info = BlockGasInfo::new(
@@ -232,6 +240,8 @@ fn check_transitions_stored(
             "The stored transition data must match"
         );
     }
+
+    Ok(())
 }
 
 /// Checks that the [`ChainState`] has correctly been updated after each round of execution.
@@ -240,9 +250,9 @@ fn post_simulation_state_checks(
     exec_values: &ChainStateExecutionValues,
     chain_state: &ChainState<TestSpec, MockDaSpec>,
     kernel_working_set: &mut KernelWorkingSet<TestSpec>,
-) {
+) -> Result<(), Infallible> {
     // Check that the slot number has been updated
-    let new_height_storage = chain_state.true_slot_number(kernel_working_set);
+    let new_height_storage = chain_state.true_slot_number(kernel_working_set)?;
 
     assert_eq!(
         new_height_storage, round_num as u64,
@@ -250,7 +260,7 @@ fn post_simulation_state_checks(
     );
 
     // Check that the time state variable has been updated
-    check_time_updates(exec_values.time.clone(), chain_state, kernel_working_set);
+    check_time_updates(exec_values.time.clone(), chain_state, kernel_working_set)?;
 
     // Check that the state transitions have been correctly stored
     check_transitions_stored(
@@ -260,7 +270,7 @@ fn post_simulation_state_checks(
         &exec_values.prev_base_fee_per_gas,
         chain_state,
         kernel_working_set,
-    );
+    )?;
 
     // Check that the base fee per gas has been updated and correctly computed
     if round_num > 1 {
@@ -280,6 +290,8 @@ fn post_simulation_state_checks(
             "The base fee per gas has not been updated correctly"
         );
     }
+
+    Ok(())
 }
 
 /// Builds a new [`KernelWorkingSet`] that has `round_num` as the true and visible slot number.
@@ -302,7 +314,7 @@ fn simulate_chain_state_execution_n_rounds(
     test_batch_infos: Vec<TestBatchInfo>,
     chain_state: &ChainState<TestSpec, MockDaSpec>,
     mut storage_manager: SimpleStorageManager<StorageSpec>,
-) {
+) -> Result<(), Infallible> {
     assert!(!test_batch_infos.is_empty());
 
     let mut pre_state_root = genesis_root;
@@ -326,7 +338,7 @@ fn simulate_chain_state_execution_n_rounds(
             &test_batch_info.gas_to_use,
             chain_state,
             &mut kernel_working_set,
-        );
+        )?;
 
         post_simulation_state_checks(
             round_num as u8,
@@ -339,7 +351,7 @@ fn simulate_chain_state_execution_n_rounds(
             },
             chain_state,
             &mut kernel_working_set,
-        );
+        )?;
 
         // Materialize the new state (which produces a new root hash)
         let (reads_writes, _, witness) = state_checkpoint.freeze();
@@ -352,6 +364,8 @@ fn simulate_chain_state_execution_n_rounds(
         prev_base_fee_per_gas = computed_base_fee_per_gas;
         pre_state_root = post_state_root;
     }
+
+    Ok(())
 }
 
 /// This test simulates the execution of the chain state for genesis and one slot after. It checks that the
@@ -361,10 +375,10 @@ fn simulate_chain_state_execution_n_rounds(
 ///
 /// For more complete integration tests, feel free to have a look at the integration tests folder.
 #[test]
-fn test_simple_chain_state_one_round_at_gas_target() {
+fn test_simple_chain_state_one_round_at_gas_target() -> Result<(), Infallible> {
     // Initialize the test: create and configure a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
     // Then run and commit the genesis state and return the `storage_manager` and `genesis_root`.
-    let (chain_state, genesis_root, storage_manager) = init_test();
+    let (chain_state, genesis_root, storage_manager) = init_test()?;
 
     // Then simulate a transaction execution: call the begin_slot hook on a mock slot_data.
     simulate_chain_state_execution_n_rounds(
@@ -375,7 +389,7 @@ fn test_simple_chain_state_one_round_at_gas_target() {
         }],
         &chain_state,
         storage_manager,
-    );
+    )
 }
 
 /// This test simulates the execution of the chain state for genesis and one slot after. It checks that the
@@ -385,12 +399,12 @@ fn test_simple_chain_state_one_round_at_gas_target() {
 ///
 /// For more complete integration tests, feel free to have a look at the integration tests folder.
 #[test]
-fn test_simple_chain_state_one_round() {
+fn test_simple_chain_state_one_round() -> Result<(), Infallible> {
     const GAS_OFFSET: u64 = 100;
 
     // Initialize the test: create and configure a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
     // Then run and commit the genesis state and returns the `storage` and `genesis_root`.
-    let (chain_state, genesis_root, storage_manager) = init_test();
+    let (chain_state, genesis_root, storage_manager) = init_test()?;
 
     // Then simulate a transaction execution: call the begin_slot hook on a mock slot_data.
     simulate_chain_state_execution_n_rounds(
@@ -403,7 +417,7 @@ fn test_simple_chain_state_one_round() {
         }],
         &chain_state,
         storage_manager,
-    );
+    )
 }
 
 /// This test simulates the execution of the chain state for genesis and [`NUM_ROUNDS`] slots after. It checks that the
@@ -413,10 +427,10 @@ fn test_simple_chain_state_one_round() {
 ///
 /// For more complete integration tests, feel free to have a look at the integration tests folder.
 #[test]
-fn test_simple_chain_state_at_gas_target() {
+fn test_simple_chain_state_at_gas_target() -> Result<(), Infallible> {
     // Initialize the test: create and configure a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
     // Then run and commit the genesis state and returns the `storage` and `genesis_root`.
-    let (chain_state, genesis_root, storage_manager) = init_test();
+    let (chain_state, genesis_root, storage_manager) = init_test()?;
 
     let test_batch_info = vec![
         TestBatchInfo {
@@ -432,7 +446,7 @@ fn test_simple_chain_state_at_gas_target() {
         test_batch_info,
         &chain_state,
         storage_manager,
-    );
+    )
 }
 
 /// This test simulates the execution of the chain state for genesis and [`NUM_ROUNDS`] slots after. It checks that the
@@ -442,10 +456,10 @@ fn test_simple_chain_state_at_gas_target() {
 ///
 /// For more complete integration tests, feel free to have a look at the integration tests folder.
 #[test]
-fn test_simple_chain_state() {
+fn test_simple_chain_state() -> Result<(), Infallible> {
     // Initialize the test: create and configure a simple chain state with [`INITIAL_BASE_FEE_PER_GAS`] base fee per gas.
     // Then run and commit the genesis state and returns the `storage` and `genesis_root`.
-    let (chain_state, genesis_root, storage_manager) = init_test();
+    let (chain_state, genesis_root, storage_manager) = init_test()?;
 
     let mut test_batch_info = vec![
         TestBatchInfo {
@@ -473,5 +487,5 @@ fn test_simple_chain_state() {
         test_batch_info,
         &chain_state,
         storage_manager,
-    );
+    )
 }

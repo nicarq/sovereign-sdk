@@ -1,4 +1,5 @@
-use sov_modules_api::WorkingSet;
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::ApiStateAccessor;
 
 use super::ExampleModule;
 
@@ -9,9 +10,9 @@ pub struct Response {
 
 impl<S: sov_modules_api::Spec> ExampleModule<S> {
     /// Queries the state of the module.
-    pub fn query_value(&self, state: &mut WorkingSet<S>) -> Response {
+    pub fn query_value(&self, state: &mut ApiStateAccessor<S>) -> Response {
         Response {
-            value: self.value.get(state),
+            value: self.value.get(state).unwrap_infallible(),
         }
     }
 }

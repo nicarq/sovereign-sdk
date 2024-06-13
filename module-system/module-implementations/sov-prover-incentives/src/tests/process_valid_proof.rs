@@ -1,8 +1,12 @@
+use std::convert::Infallible;
+
 use borsh::BorshSerialize;
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, Context, Spec, WorkingSet};
+use sov_modules_api::{
+    AggregatedProofPublicData, CodeCommitment, Context, Spec, StateCheckpoint, TypedEvent,
+};
 
 use super::helpers::get_transition_unwrap;
 use crate::event::Event;
@@ -16,17 +20,18 @@ const LAST_SLOT_NUM: u64 = 2;
 /// Builds a valid proof log that proves the transitions between [`FIRST_SLOT_NUM`] and [`LAST_SLOT_NUM`]
 fn build_proof_log(
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
-    state: &mut WorkingSet<S>,
-) -> AggregatedProofPublicData {
+    state: &mut StateCheckpoint<S>,
+) -> Result<AggregatedProofPublicData, Infallible> {
     let genesis_hash = module
         .chain_state
-        .get_genesis_hash(state)
+        .get_genesis_hash(state)?
         .expect("Genesis hash must be set at genesis");
+
     let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, module, state);
     let last_transition = get_transition_unwrap(LAST_SLOT_NUM, module, state);
 
     let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
-    AggregatedProofPublicData {
+    Ok(AggregatedProofPublicData {
         validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
         initial_slot_number: FIRST_SLOT_NUM,
         final_slot_number: LAST_SLOT_NUM,
@@ -36,7 +41,7 @@ fn build_proof_log(
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
-    }
+    })
 }
 
 /// Simulates the execution of the chain state and processes a valid proof of the transitions between
@@ -47,28 +52,24 @@ fn execute_txs_and_process_valid_proof(
     sequencer: <S as Spec>::Address,
     gas_used_per_step: &<S as Spec>::Gas,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
-    state: WorkingSet<S>,
-) -> (u64, WorkingSet<S>) {
-    let (state_checkpoint, _, _) = state.checkpoint();
+    state: StateCheckpoint<S>,
+) -> Result<(u64, StateCheckpoint<S>, Vec<TypedEvent>), Infallible> {
     // The first transition is the genesis transition
     // Then we have two more transitions
-    let (state_checkpoint, total_gas_used) = simulate_chain_state_execution(
+    let (mut state, total_gas_used) = simulate_chain_state_execution(
         module,
         sequencer,
         ((LAST_SLOT_NUM - FIRST_SLOT_NUM + 1) + 1)
             .try_into()
             .unwrap(),
         gas_used_per_step,
-        state_checkpoint,
+        state,
     );
 
     // We remove the last element because we don't want to include the gas used for the last transition
     let total_gas_used: u64 = total_gas_used[..total_gas_used.len() - 1].iter().sum();
 
-    // We use the unmetered working set, because we don't want to charge for the gas used in the last transition (this makes the test simpler)
-    let mut state = state_checkpoint.to_working_set_unmetered();
-
-    let aggregated_proof = &build_proof_log(module, &mut state);
+    let aggregated_proof = &build_proof_log(module, &mut state)?;
 
     let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
     let context = Context::<S>::new(
@@ -78,11 +79,16 @@ fn execute_txs_and_process_valid_proof(
         LAST_SLOT_NUM + 1,
     );
 
+    // We use the unmetered working set, because we don't want to charge for the gas used in the last transition (this makes the test simpler)
+    let mut state = state.to_working_set_unmetered();
+
     module
         .process_proof(&proof, &context, &mut state)
         .expect("There should be no error processing a valid proof");
 
-    (total_gas_used, state)
+    let (state, _, events) = state.checkpoint();
+
+    Ok((total_gas_used, state, events))
 }
 
 // Performs a sequence of checks to ensure that the prover has been rewarded correctly
@@ -90,15 +96,16 @@ fn check_reward(
     prover_address: <S as Spec>::Address,
     total_gas_used: u64,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
-    state: &mut WorkingSet<S>,
-) -> u64 {
+    state: &mut StateCheckpoint<S>,
+    events: &mut Vec<TypedEvent>,
+) -> Result<u64, Infallible> {
     // Compute the proof reward
     // Reward = total_gas_used * gas_price * (1-burn_rate)%
     let reward = module.burn_rate().apply(total_gas_used);
 
     // Assert that the working set contains a rewarded event
-    assert_eq!(state.events().len(), 1);
-    let event: Event<S> = state.take_event(0).unwrap().downcast().unwrap();
+    assert_eq!(events.len(), 1);
+    let event: Event<S> = events.pop().unwrap().downcast().unwrap();
 
     assert_eq!(
         event,
@@ -115,15 +122,15 @@ fn check_reward(
     assert_eq!(
         module
             .bank
-            .get_balance_of(&prover_address, token_addr, state)
+            .get_balance_of(&prover_address, token_addr, state)?
             .unwrap_or_default(),
         reward + INITIAL_PROVER_BALANCE - BOND_AMOUNT
     );
 
     // Assert that the prover's bond amount has not been burned
-    assert_eq!(module.get_bond_amount(prover_address, state), BOND_AMOUNT);
+    assert_eq!(module.get_bond_amount(prover_address, state)?, BOND_AMOUNT);
 
-    reward
+    Ok(reward)
 }
 
 /// Checks that the prover gets penalized if he tries to prove the same transitions again
@@ -132,19 +139,19 @@ fn check_penalization_if_proven_again(
     sequencer: <S as Spec>::Address,
     proving_penalty: u64,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
-    state: &mut WorkingSet<S>,
-) {
+    mut state: StateCheckpoint<S>,
+) -> Result<StateCheckpoint<S>, Infallible> {
     assert_eq!(
         module
             .last_claimed_reward
-            .get(state)
+            .get(&mut state)?
             .expect("This slot height should be present in the claimed_rewards map"),
         LAST_SLOT_NUM,
         "The reward for the slot height {} should be claimed",
         LAST_SLOT_NUM
     );
 
-    let proof_log = build_proof_log(module, state);
+    let proof_log = build_proof_log(module, &mut state)?;
     let proof = MockZkvm::create_serialized_proof(true, proof_log);
 
     let context = Context::<S>::new(
@@ -153,8 +160,10 @@ fn check_penalization_if_proven_again(
         sequencer,
         LAST_SLOT_NUM + 2,
     );
+
+    let mut state = state.to_working_set_unmetered();
     module
-        .process_proof(&proof, &context, state)
+        .process_proof(&proof, &context, &mut state)
         .expect("The proof should not be rejected");
 
     // Assert that the working set contains a penalized event
@@ -169,11 +178,15 @@ fn check_penalization_if_proven_again(
         }
     );
 
+    let (mut checkpoint, _, _) = state.checkpoint();
+
     // Assert that the prover's bond amount has been penalized
     assert_eq!(
-        module.get_bond_amount(prover_address, state),
+        module.get_bond_amount(prover_address, &mut checkpoint)?,
         BOND_AMOUNT - proving_penalty
     );
+
+    Ok(checkpoint)
 }
 
 fn check_unbonding(
@@ -182,20 +195,24 @@ fn check_unbonding(
     expected_amount_withdrawn: u64,
     old_balance: u64,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
-    state: &mut WorkingSet<S>,
-) {
+    state: StateCheckpoint<S>,
+) -> Result<StateCheckpoint<S>, Infallible> {
     let context = Context::<S>::new(
         prover_address,
         Default::default(),
         sequencer,
         LAST_SLOT_NUM + 2,
     );
+
+    let mut state = state.to_working_set_unmetered();
     module
-        .unbond_prover(&context, state)
+        .unbond_prover(&context, &mut state)
         .expect("The proof should not be rejected");
 
-    assert_eq!(state.events().len(), 1);
-    let event: Event<S> = state.take_event(0).unwrap().downcast().unwrap();
+    let (mut checkpoint, _, mut events) = state.checkpoint();
+
+    assert_eq!(events.len(), 1);
+    let event: Event<S> = events.pop().unwrap().downcast().unwrap();
     assert_eq!(
         event,
         Event::UnBondedProver {
@@ -205,35 +222,43 @@ fn check_unbonding(
     );
 
     // Check that the prover has been unbonded
-    assert_eq!(module.get_bond_amount(prover_address, state), 0);
+    assert_eq!(module.get_bond_amount(prover_address, &mut checkpoint)?, 0);
 
     // Check the amount on the prover's balance
     assert_eq!(
         module
             .bank
-            .get_balance_of(&prover_address, GAS_TOKEN_ID, state)
+            .get_balance_of(&prover_address, GAS_TOKEN_ID, &mut checkpoint)?
             .unwrap(),
         old_balance + expected_amount_withdrawn
     );
+
+    Ok(checkpoint)
 }
 
 #[test]
 /// Macro-test for the happy path of processing a valid proof.
-fn test_valid_proof() {
+fn test_valid_proof() -> Result<(), Infallible> {
     let (module, prover_address, sequencer, state) = setup();
 
     let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
 
     // Process a valid proof
-    let (gas_token_used, mut state) = execute_txs_and_process_valid_proof(
+    let (gas_token_used, mut state, mut events) = execute_txs_and_process_valid_proof(
         prover_address,
         sequencer,
         &gas_used_per_step,
         &module,
         state,
-    );
+    )?;
 
-    let reward = check_reward(prover_address, gas_token_used, &module, &mut state);
+    let reward = check_reward(
+        prover_address,
+        gas_token_used,
+        &module,
+        &mut state,
+        &mut events,
+    )?;
 
     // Now we have to check we can unbond
     check_unbonding(
@@ -242,41 +267,48 @@ fn test_valid_proof() {
         BOND_AMOUNT,
         INITIAL_PROVER_BALANCE - BOND_AMOUNT + reward,
         &module,
-        &mut state,
-    );
+        state,
+    )?;
+    Ok(())
 }
 
 #[test]
 /// Macro-test for the happy path of processing a valid proof with penalization.
-fn test_valid_proof_with_penalization() {
+fn test_valid_proof_with_penalization() -> Result<(), Infallible> {
     let (module, prover_address, sequencer, state) = setup();
 
     let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
 
     // Process a valid proof
-    let (total_gas_used, mut state) = execute_txs_and_process_valid_proof(
+    let (total_gas_used, mut state, mut events) = execute_txs_and_process_valid_proof(
         prover_address,
         sequencer,
         &gas_used_per_step,
         &module,
         state,
-    );
+    )?;
 
-    let reward = check_reward(prover_address, total_gas_used, &module, &mut state);
+    let reward = check_reward(
+        prover_address,
+        total_gas_used,
+        &module,
+        &mut state,
+        &mut events,
+    )?;
 
     let proving_penalty = module
         .proving_penalty
-        .get(&mut state)
+        .get(&mut state)?
         .expect("The proving penalty should be set at genesis");
 
     // Now we have to check that we cannot prove the same transitions again
-    check_penalization_if_proven_again(
+    let state = check_penalization_if_proven_again(
         prover_address,
         sequencer,
         proving_penalty,
         &module,
-        &mut state,
-    );
+        state,
+    )?;
 
     // Now we have to check we can unbond
     check_unbonding(
@@ -285,6 +317,8 @@ fn test_valid_proof_with_penalization() {
         BOND_AMOUNT - proving_penalty,
         INITIAL_PROVER_BALANCE - BOND_AMOUNT + reward,
         &module,
-        &mut state,
-    );
+        state,
+    )?;
+
+    Ok(())
 }

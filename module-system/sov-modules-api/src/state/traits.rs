@@ -1,5 +1,7 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
+#[cfg(any(feature = "test-utils", feature = "evm"))]
+use std::marker::PhantomData;
 
 use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
@@ -12,12 +14,54 @@ use sov_state::{
 use thiserror::Error;
 
 use super::accessors::seal::CachedAccessor;
+#[cfg(any(feature = "test-utils", feature = "evm"))]
+use crate::UnmeteredStateWrapper;
 use crate::{Gas, GasMeter, GasMeteringError, Spec};
+
+/// A type that can both read and write the normal "user-space" state of the rollup.
+///
+/// ```
+/// fn delete_state_string<Accessor: sov_modules_api::StateAccessor>(value: sov_modules_api::StateValue<String>, state: &mut Accessor)
+///  -> Result<(), <Accessor as sov_modules_api::StateWriter<sov_state::User>>::Error> {
+///     if let Some(original) = value.get(state)? {
+///         println!("original: {}", original);
+///     }
+///     value.delete(state)?;
+///     Ok(())
+/// }
+///
+///
+/// ```
+pub trait StateAccessor: StateReaderAndWriter<User> {
+    #[cfg(any(feature = "test-utils", feature = "evm"))]
+    fn to_unmetered(&mut self) -> UnmeteredStateWrapper<Self, User>
+    where
+        Self: Sized,
+    {
+        UnmeteredStateWrapper {
+            inner: self,
+            phantom: PhantomData,
+        }
+    }
+}
+
+pub trait InfallibleStateAccessor:
+    StateReader<User, Error = Infallible> + StateWriter<User, Error = Infallible>
+{
+}
+
+impl<T> StateAccessor for T where T: StateReaderAndWriter<User> {}
+
+impl<T> InfallibleStateAccessor for T where
+    T: StateReader<User, Error = Infallible> + StateWriter<User, Error = Infallible>
+{
+}
 
 /// The state accessor used during transaction execution. It provides unrestricted
 /// access to [`User`]-space state, as well as limited visibility into the `Kernel` state.
 pub trait TxState<S: Spec>:
-    StateReaderAndWriter<User>
+    StateReader<User, Error = StateAccessorError<S::Gas>>
+    + StateWriter<User, Error = StateAccessorError<S::Gas>>
     // + StateReader<Kernel> TODO: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/596>
     + StateWriter<Accessory>
     + EventContainer
@@ -26,14 +70,19 @@ pub trait TxState<S: Spec>:
 }
 
 impl<S: Spec, T> TxState<S> for T where
-    T: StateReaderAndWriter<User> + StateWriter<Accessory> + EventContainer + GasMeter<S::Gas>
+    T: StateReader<User, Error = StateAccessorError<S::Gas>>
+        + StateWriter<User, Error = StateAccessorError<S::Gas>>
+        + StateWriter<Accessory>
+        + EventContainer
+        + GasMeter<S::Gas>
 {
 }
 
 /// The state accessor used during genesis. It provides unrestricted
 /// access to [`User`] and `Kernel` state, as well as limited visibility into [`Accessory`] state.  
 pub trait GenesisState<S: Spec>:
-    StateReaderAndWriter<User>
+    StateReader<User, Error = Infallible>
+    + StateWriter<User, Error = Infallible>
     // + StateReader<Kernel> TODO: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/596>
     + AccessoryStateWriter
     + EventContainer
@@ -41,7 +90,8 @@ pub trait GenesisState<S: Spec>:
 {}
 
 impl<S: Spec, T> GenesisState<S> for T where
-    T: StateReaderAndWriter<User>
+    T: StateReader<User, Error = Infallible>
+        + StateWriter<User, Error = Infallible>
         // + StateReaderAndWriter<sov_state::Kernel>
         + AccessoryStateWriter
         + EventContainer
@@ -165,6 +215,21 @@ fn gas_to_refund_for_hot_delete<GU: Gas>() -> GU {
     GU::from_slice(&GAS_TO_REFUND_FOR_HOT_WRITE)
 }
 
+pub trait InfallibleStateReaderAndWriter<N: CompileTimeNamespace>:
+    StateReader<N, Error = Infallible> + StateWriter<N, Error = Infallible>
+{
+}
+
+impl<
+        T: StateReader<N, Error = Infallible> + StateWriter<N, Error = Infallible>,
+        N: CompileTimeNamespace,
+    > InfallibleStateReaderAndWriter<N> for T
+{
+}
+
+pub trait AccessoryStateReaderAndWriter: InfallibleStateReaderAndWriter<Accessory> {}
+impl<T: InfallibleStateReaderAndWriter<Accessory>> AccessoryStateReaderAndWriter for T {}
+
 /// A wrapper trait for storage reader and writer that can be used to charge gas
 /// for the read/write operations.
 pub trait StateReaderAndWriter<N: CompileTimeNamespace>:
@@ -206,8 +271,8 @@ where
 }
 
 /// A storage reader which can access a particular namespace.
-pub trait StateReader<N: CompileTimeNamespace> {
-    type Error: std::error::Error + Send + Sync;
+pub trait StateReader<N: CompileTimeNamespace>: CachedAccessor<N> {
+    type Error: std::error::Error + Send + Sync + 'static;
 
     /// Get a value from the storage. Basically a wrapper around [`StateReader::get`].
     ///
@@ -322,7 +387,7 @@ impl<T: AccessoryStateReader> StateReader<Accessory> for T {
 
 /// Provides write-only access to a particular namespace
 pub trait StateWriter<N: CompileTimeNamespace> {
-    type Error: std::error::Error + Send + Sync;
+    type Error: std::error::Error + Send + Sync + 'static;
 
     /// Sets a value in the storage. Basically a wrapper around [`StateWriter::set`].
     ///

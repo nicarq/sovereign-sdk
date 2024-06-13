@@ -123,6 +123,7 @@ tower-http = "0.5"
 tower-request-id = "0.3"
 utoipa = "4.2"
 utoipa-swagger-ui = { version = "6", features = ["axum"] }
+unwrap-infallible = "0.1.5"
 
 tiny-keccak = "2.0.2"
 tracing = { version = "0.1.40", default-features = false }
