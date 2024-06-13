@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
-use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::batch::Batch;
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{ApiStateAccessor, PrivateKey, PublicKey, Spec, StateCheckpoint};
@@ -58,14 +58,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
             .unwrap();
 
         let txs = simulate_da_with_revert_msg(admin_key.clone());
-        let blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [0; 32],
-            },
-            &MOCK_SEQUENCER_DA_ADDRESS,
-            [0; 32],
-        );
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -178,14 +171,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 
         let txs = simulate_da_with_bad_sig(admin_key.clone());
 
-        let blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [0; 32],
-            },
-            &MOCK_SEQUENCER_DA_ADDRESS,
-            [0; 32],
-        );
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -286,14 +272,7 @@ fn test_tx_bad_nonce() {
 
         let txs = simulate_da_with_bad_nonce(admin_key);
 
-        let blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [0; 32],
-            },
-            &MOCK_SEQUENCER_DA_ADDRESS,
-            [0; 32],
-        );
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -403,14 +382,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
         let txs = simulate_da_with_bad_serialization(admin_key.clone());
-        let blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [0; 32],
-            },
-            &MOCK_SEQUENCER_DA_ADDRESS,
-            [0; 32],
-        );
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),

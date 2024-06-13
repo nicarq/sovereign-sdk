@@ -4,7 +4,7 @@ use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::batch::Batch;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Gas, GasArray, Spec, StateCheckpoint, StateTransitionPublicData};
 use sov_modules_stf_blueprint::TxEffect;
@@ -68,14 +68,8 @@ impl AttesterIncentivesTestHandler {
         )])
         .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
-        let fake_attestation_blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [1; 32],
-            },
-            self.seq_da_addr.as_ref(),
-            [2; 32],
-        );
+        let fake_attestation_blob =
+            new_test_blob_from_batch(Batch { txs }, self.seq_da_addr.as_ref(), [2; 32]);
 
         let exec_vars =
             rollup.execution_simulation(1, fst_state_root, vec![fake_attestation_blob], 1, None);
@@ -144,14 +138,8 @@ impl AttesterIncentivesTestHandler {
         .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
         // The challenger has to bond first, then he can send the attestation.
-        let challenger_bond_blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [2; 32],
-            },
-            self.seq_da_addr.as_ref(),
-            [3; 32],
-        );
+        let challenger_bond_blob =
+            new_test_blob_from_batch(Batch { txs }, self.seq_da_addr.as_ref(), [3; 32]);
 
         let exec_vars =
             rollup.execution_simulation(1, snd_state_root, vec![challenger_bond_blob], 3, None);

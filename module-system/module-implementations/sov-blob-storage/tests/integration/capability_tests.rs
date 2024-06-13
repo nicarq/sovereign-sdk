@@ -730,7 +730,8 @@ fn assert_blob_matches_batch<B: BlobReaderTrait>(
         let expected = PreferredBatch::try_from_slice(expected.full_data()).unwrap();
         assert_eq!(expected.batch, actual.0.batch);
     } else {
-        let mut actual_inner = new_test_blob_from_batch(actual.0, actual.1.as_ref(), actual_id);
+        let mut actual_inner =
+            new_test_blob_from_batch(actual.0.batch, actual.1.as_ref(), actual_id);
         assert_eq!(
             expected.hash(),
             actual_inner.hash(),

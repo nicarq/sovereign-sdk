@@ -6,7 +6,6 @@ use sov_bank::{Bank, BankConfig, GasTokenConfig, GAS_TOKEN_ID};
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
 pub use sov_mock_zkvm::MockZkVerifier;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -15,7 +14,7 @@ use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransac
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint};
-use sov_modules_stf_blueprint::BatchReceipt;
+use sov_modules_stf_blueprint::{Batch, BatchReceipt};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::stf::TxReceiptContents;
 
@@ -112,12 +111,12 @@ pub fn simple_bank_setup(
 }
 
 pub fn new_test_blob_from_batch(
-    batch_with_id: BatchWithId,
+    batch: Batch,
     address: &[u8],
     hash: [u8; 32],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
     let address = MockAddress::try_from(address).unwrap();
-    let data = batch_with_id.batch.try_to_vec().unwrap();
+    let data = batch.try_to_vec().unwrap();
     MockBlob::new(data, address, hash)
 }
 

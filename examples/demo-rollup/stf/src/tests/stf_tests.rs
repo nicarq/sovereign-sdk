@@ -2,7 +2,6 @@ use std::convert::Infallible;
 use std::vec;
 
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{ApiStateAccessor, Spec};
 use sov_modules_stf_blueprint::{Batch, BatchSequencerOutcome, StfBlueprint};
@@ -45,14 +44,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             .unwrap();
 
         let txs = simulate_da(admin_private_key);
-        let blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [0; 32],
-            },
-            &MOCK_SEQUENCER_DA_ADDRESS,
-            [0; 32],
-        );
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -133,14 +125,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 
     let txs = simulate_da(admin_private_key);
 
-    let blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs },
-            id: [0; 32],
-        },
-        &MOCK_SEQUENCER_DA_ADDRESS,
-        [0; 32],
-    );
+    let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -222,14 +207,7 @@ fn test_sequencer_unknown_sequencer() {
 
     let private_key = read_private_keys::<TestSpec>().tx_signer.private_key;
     let txs = simulate_da(private_key);
-    let blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs },
-            id: [0; 32],
-        },
-        &some_sequencer,
-        [0; 32],
-    );
+    let blob = new_test_blob_from_batch(Batch { txs }, &some_sequencer, [0; 32]);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),

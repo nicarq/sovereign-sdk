@@ -4,7 +4,7 @@ use sov_attester_incentives::{CallMessage, Role, UnbondingInfo};
 use sov_bank::GAS_TOKEN_ID;
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::batch::Batch;
 use sov_modules_api::{Gas, GasArray, Spec, StateCheckpoint};
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::auth::TestAuth;
@@ -43,14 +43,8 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's unbond the attester.
-    let attestation_blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs },
-            id: [1; 32],
-        },
-        test_handler.seq_da_addr.as_ref(),
-        [3; 32],
-    );
+    let attestation_blob =
+        new_test_blob_from_batch(Batch { txs }, test_handler.seq_da_addr.as_ref(), [3; 32]);
 
     let exec_simulation =
         rollup.execution_simulation(1, init_state_root, vec![attestation_blob.clone()], 0, None);
@@ -72,11 +66,8 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
     // We now need to wait for the finality period to pass. Let's simulate it by running a few value setter transactions.
     // Then we can finish the two phase unbonding process.
     let blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch {
-                txs: test_handler.value_setter.clone(),
-            },
-            id: [0; 32],
+        Batch {
+            txs: test_handler.value_setter.clone(),
         },
         test_handler.seq_da_addr.as_ref(),
         [2; 32],
@@ -109,14 +100,8 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process
-    let attestation_blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs },
-            id: [1; 32],
-        },
-        test_handler.seq_da_addr.as_ref(),
-        [3; 32],
-    );
+    let attestation_blob =
+        new_test_blob_from_batch(Batch { txs }, test_handler.seq_da_addr.as_ref(), [3; 32]);
 
     let exec_simulation = rollup.execution_simulation(
         1,
@@ -187,14 +172,8 @@ fn test_unbonding_without_bonded() {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process
-    let attestation_blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs },
-            id: [1; 32],
-        },
-        test_handle.seq_da_addr.as_ref(),
-        [3; 32],
-    );
+    let attestation_blob =
+        new_test_blob_from_batch(Batch { txs }, test_handle.seq_da_addr.as_ref(), [3; 32]);
 
     let exec_simulation =
         rollup.execution_simulation(1, init_state_root, vec![attestation_blob.clone()], 1, None);
@@ -239,14 +218,8 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's unbond the attester.
-    let attestation_blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs },
-            id: [1; 32],
-        },
-        test_handle.seq_da_addr.as_ref(),
-        [3; 32],
-    );
+    let attestation_blob =
+        new_test_blob_from_batch(Batch { txs }, test_handle.seq_da_addr.as_ref(), [3; 32]);
 
     let exec_simulation =
         rollup.execution_simulation(1, init_state_root, vec![attestation_blob.clone()], 0, None);
@@ -286,14 +259,8 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process without waiting for the finality period to pass.
-    let attestation_blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs },
-            id: [1; 32],
-        },
-        test_handle.seq_da_addr.as_ref(),
-        [3; 32],
-    );
+    let attestation_blob =
+        new_test_blob_from_batch(Batch { txs }, test_handle.seq_da_addr.as_ref(), [3; 32]);
 
     let exec_simulation =
         rollup.execution_simulation(1, new_state_root, vec![attestation_blob.clone()], 1, None);

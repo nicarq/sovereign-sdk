@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use sov_chain_state::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
 use sov_mock_da::{MockDaSpec, MockHash, MockValidityCond};
-use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::batch::Batch;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
@@ -52,14 +52,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
     // Genesis
     let init_root_hash = rollup.genesis(admin_pub_key, seq_params, bank_params, attester_params);
 
-    let blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs: value_setter },
-            id: [0; 32],
-        },
-        seq_da_addr.as_ref(),
-        [2; 32],
-    );
+    let blob = new_test_blob_from_batch(Batch { txs: value_setter }, seq_da_addr.as_ref(), [2; 32]);
 
     {
         let mut init_working_set = StateCheckpoint::<S>::new(rollup.storage());

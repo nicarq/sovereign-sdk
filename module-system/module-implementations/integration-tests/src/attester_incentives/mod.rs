@@ -5,7 +5,7 @@ use sov_attester_incentives::Role;
 use sov_bank::BurnRate;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::batch::Batch;
 use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::TransactionReceipt;
@@ -252,11 +252,8 @@ impl AttesterIncentivesTestHandler {
         rollup: &mut TestRollup,
     ) -> Vec<ExecutionSimulationVars> {
         let blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch {
-                    txs: self.value_setter.clone(),
-                },
-                id: [0; 32],
+            Batch {
+                txs: self.value_setter.clone(),
             },
             self.seq_da_addr.as_ref(),
             [2; 32],

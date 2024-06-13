@@ -3,7 +3,7 @@ use std::vec;
 
 use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
-use sov_modules_api::batch::{Batch, BatchWithId};
+use sov_modules_api::batch::Batch;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Gas, GasArray, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::TxEffect;
@@ -103,14 +103,8 @@ impl AttesterIncentivesTestHandler {
         )])
         .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
-        let attestation_blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [1; 32],
-            },
-            self.seq_da_addr.as_ref(),
-            [3; 32],
-        );
+        let attestation_blob =
+            new_test_blob_from_batch(Batch { txs }, self.seq_da_addr.as_ref(), [3; 32]);
 
         let exec_vars = rollup.execution_simulation(
             1,
@@ -244,14 +238,8 @@ impl AttesterIncentivesTestHandler {
         ])
         .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
-        let attestation_blob = new_test_blob_from_batch(
-            BatchWithId {
-                batch: Batch { txs },
-                id: [2; 32],
-            },
-            self.seq_da_addr.as_ref(),
-            [4; 32],
-        );
+        let attestation_blob =
+            new_test_blob_from_batch(Batch { txs }, self.seq_da_addr.as_ref(), [4; 32]);
 
         let exec_vars =
             rollup.execution_simulation(1, attestation_state_root, vec![attestation_blob], 3, None);

@@ -1,5 +1,4 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
     AuthorizationData, AuthorizeSequencerError, SequencerAuthorization,
 };
@@ -144,14 +143,7 @@ fn test_stf_internal_updates() {
         seq_rollup_addr,
     );
 
-    let blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs: value_setter },
-            id: [0; 32],
-        },
-        seq_da_addr.as_ref(),
-        [0; 32],
-    );
+    let blob = new_test_blob_from_batch(Batch { txs: value_setter }, seq_da_addr.as_ref(), [0; 32]);
 
     let exec_simulation =
         rollup.execution_simulation(5, init_root_hash, vec![blob.clone()], 0, None);
