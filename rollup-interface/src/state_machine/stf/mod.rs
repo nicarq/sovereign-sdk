@@ -4,10 +4,12 @@
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
 use std::fmt::Debug;
-
-use borsh::{BorshDeserialize, BorshSerialize};
+mod events;
+pub use events::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+mod transaction;
+pub use transaction::*;
 
 use crate::da::{DaSpec, RelevantBlobIters};
 use crate::zk::aggregated_proof::AggregatedProofPublicData;
@@ -39,27 +41,6 @@ mod sealed {
     impl Sealed for ProverConfig {}
     impl Sealed for ZkConfig {}
     impl Sealed for StandardConfig {}
-}
-
-/// A receipt for a single transaction. These receipts are stored in the rollup's database
-/// and may be queried via RPC. Receipts are generic over a type `R` which the rollup can use to
-/// store additional data, such as the status code of the transaction or the amount of gas used.s
-#[derive(Debug, Clone, Serialize, Deserialize)]
-/// A receipt showing the result of a transaction
-#[serde(bound = "T: TxReceiptContents")]
-pub struct TransactionReceipt<T: TxReceiptContents> {
-    /// The canonical hash of this transaction
-    pub tx_hash: [u8; 32],
-    /// The canonically serialized body of the transaction, if it should be persisted
-    /// in the database
-    pub body_to_save: Option<Vec<u8>>,
-    /// The events output by this transaction
-    pub events: Vec<StoredEvent>,
-    /// Any additional structured data to be saved in the database and served over RPC
-    /// For example, this might contain a status code.
-    pub receipt: TxEffect<T>,
-    /// Total gas incurred for this transaction.
-    pub gas_used: Vec<u64>,
 }
 
 /// A receipt for a batch of transactions. These receipts are stored in the rollup's database
@@ -204,142 +185,4 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
-}
-
-/// A key-value pair representing a change to the rollup state
-#[derive(Debug, Clone, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
-pub struct StoredEvent {
-    key: EventKey,
-    value: EventValue,
-}
-
-impl StoredEvent {
-    /// Create a new event with the given key and value
-    pub fn new(key: &[u8], value: &[u8]) -> Self {
-        Self {
-            key: EventKey(key.to_vec()),
-            value: EventValue(value.to_vec()),
-        }
-    }
-
-    /// Get the event key
-    pub fn key(&self) -> &EventKey {
-        &self.key
-    }
-
-    /// Get the event value
-    pub fn value(&self) -> &EventValue {
-        &self.value
-    }
-}
-
-/// The key of an event. This is a wrapper around a `Vec<u8>`.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    BorshSerialize,
-    BorshDeserialize,
-    Serialize,
-    Deserialize,
-)]
-#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
-pub struct EventKey(Vec<u8>);
-
-impl EventKey {
-    /// Create a new event serialized from Typed Event
-    pub fn new(value: &[u8]) -> Self {
-        Self(value.to_vec())
-    }
-
-    /// Return the inner bytes of the event key.
-    pub fn inner(&self) -> &Vec<u8> {
-        &self.0
-    }
-}
-
-/// The value of an event. This is a wrapper around a `Vec<u8>`.
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
-pub struct EventValue(Vec<u8>);
-
-impl EventValue {
-    /// Return the inner bytes of the event value.
-    /// Return the inner bytes of the event key.
-    pub fn inner(&self) -> &Vec<u8> {
-        &self.0
-    }
-}
-
-/// The outcome of a transaction.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
-pub enum TxEffect<T: TxReceiptContents> {
-    /// The transaction was skipped.
-    Skipped(T::Skipped),
-    /// The transaction was reverted during execution.
-    Reverted(T::Reverted),
-    /// The transaction was processed successfully.
-    Successful(T::Successful),
-}
-
-/// A (typically zero-sized) struct which marks the contents of a [`TxEffect`].
-// We require a bunch of bounds on the marker struct to work around issues with rust's type inference
-// even though they aren't strictly needed.
-pub trait TxReceiptContents:
-    Debug + Clone + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'static
-{
-    /// The receipt contents for a skipped transaction.
-    type Skipped: Debug
-        + Clone
-        + PartialEq
-        + Eq
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static;
-    /// The receipt contents for a reverted transaction.
-    type Reverted: Debug
-        + Clone
-        + PartialEq
-        + Eq
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static;
-    /// The receipt contents for a successful transaction.
-    type Successful: Debug
-        + Clone
-        + PartialEq
-        + Eq
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static;
-}
-
-impl TxReceiptContents for () {
-    type Skipped = ();
-    type Reverted = ();
-    type Successful = ();
-}
-
-impl<T: TxReceiptContents> TxEffect<T> {
-    /// Returns true if and only if the effect is the [`TxEffect::Successful`] variant.
-    pub fn is_successful(&self) -> bool {
-        matches!(self, TxEffect::Successful(_))
-    }
-
-    /// Returns true if and only if the effect is the [`TxEffect::Reverted`] variant.
-    pub fn is_reverted(&self) -> bool {
-        matches!(self, TxEffect::Reverted(_))
-    }
 }
