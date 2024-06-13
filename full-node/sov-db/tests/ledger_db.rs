@@ -1,7 +1,3 @@
-use std::sync::{Arc, RwLock};
-
-use rockbound::cache::cache_container::CacheContainer;
-use rockbound::cache::cache_db::CacheDb;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_mock_da::{MockBlob, MockBlock};
 use sov_mock_zkvm::MockZkvm;
@@ -10,19 +6,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
 use sov_test_utils::ledger_db::sov_ledger_json_client::types::IntOrHash;
-use sov_test_utils::ledger_db::LedgerTestService;
-
-fn create_ledger(path: &std::path::Path) -> LedgerDb {
-    let db = LedgerDb::get_rockbound_options()
-        .default_setup_db_in_path(path)
-        .unwrap();
-    let cache_container = Arc::new(RwLock::new(CacheContainer::new(
-        db,
-        Arc::new(RwLock::new(Default::default())).into(),
-    )));
-    let cache_db = CacheDb::new(0, cache_container.into());
-    LedgerDb::with_cache_db(cache_db).unwrap()
-}
+use sov_test_utils::ledger_db::{LedgerTestService, SimpleLedgerStorageManager};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_filtered_slot_events() {
@@ -61,11 +45,13 @@ async fn get_filtered_slot_events() {
 #[test]
 fn test_slot_subscription() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let ledger_db = create_ledger(temp_dir.path());
+    let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
+    let ledger_storage = storage_manager.create_ledger_storage();
+    let ledger_db = LedgerDb::with_cache_db(ledger_storage).unwrap();
 
     let mut rx = ledger_db.subscribe_slots();
-    ledger_db
-        .commit_slot(
+    let _ = ledger_db
+        .materialize_slot(
             SlotCommit::<_, MockBlob, ()>::new(MockBlock::default()),
             b"state-root",
         )
@@ -78,7 +64,9 @@ fn test_slot_subscription() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_save_aggregated_proof() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let ledger_db = create_ledger(temp_dir.path());
+    let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
+    let ledger_storage = storage_manager.create_ledger_storage();
+    let ledger_db = LedgerDb::with_cache_db(ledger_storage).unwrap();
     let _rx = ledger_db.subscribe_proof_saved();
 
     let proof_from_db = ledger_db.get_latest_aggregated_proof().await.unwrap();
@@ -106,9 +94,8 @@ async fn test_save_aggregated_proof() {
             public_data.clone(),
         );
 
-        ledger_db
-            .save_finalized_aggregated_proof(agg_proof)
-            .unwrap();
+        let proof_change_set = ledger_db.materialize_aggregated_proof(agg_proof).unwrap();
+        storage_manager.commit(proof_change_set);
 
         let proof_from_db = ledger_db
             .get_latest_aggregated_proof()

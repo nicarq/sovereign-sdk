@@ -9,6 +9,7 @@ pub use sov_attester_incentives::{
 };
 pub use sov_bank::{Bank, BankConfig, Coins, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
+use sov_db::schema::SchemaBatch;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::batch::Batch;
@@ -389,13 +390,13 @@ pub fn run_test_with_setup_fn<RT, S, M>(
         .expect("ProverStorageManager initialization has failed");
 
     let genesis_block = MockBlock::default();
-    let (stf_state, ledger_state) = storage_manager
+    let (stf_state, _) = storage_manager
         .create_state_for(genesis_block.header())
         .unwrap();
     let (state_root, change_set) = stf.init_chain(stf_state, genesis_config);
 
     storage_manager
-        .save_change_set(genesis_block.header(), change_set, ledger_state.into())
+        .save_change_set(genesis_block.header(), change_set, SchemaBatch::new())
         .unwrap();
     // Write it to the database immediately
     storage_manager.finalize(&genesis_block.header).unwrap();
@@ -405,7 +406,7 @@ pub fn run_test_with_setup_fn<RT, S, M>(
     let mut expect_success = tx_successful.into_iter();
     for (prev_slot_number, msgs_and_priv_keys) in messages_by_slot.into_iter().enumerate() {
         let block_header = MockBlockHeader::from_height(prev_slot_number as u64 + 1);
-        let (stf_state, ledger_state) = storage_manager
+        let (stf_state, _) = storage_manager
             .create_state_for(&block_header)
             .expect("Block builds on height zero");
         // Setup call messages
@@ -453,7 +454,7 @@ pub fn run_test_with_setup_fn<RT, S, M>(
         }
 
         storage_manager
-            .save_change_set(&block_header, result.change_set, ledger_state.into())
+            .save_change_set(&block_header, result.change_set, SchemaBatch::new())
             .unwrap();
         prev_state_root = result.state_root;
     }

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
-use sov_db::schema::{CacheDb, ChangeSet};
+use sov_db::schema::{CacheDb, SchemaBatch};
 use sov_metrics::{
     inc_rollup_batches_processed, inc_rollup_transactions_processed, set_current_da_height,
 };
@@ -145,7 +145,7 @@ where
     Da: DaService<Error = anyhow::Error> + Clone,
     InnerVm: ZkvmHost,
     OuterVm: ZkvmHost,
-    Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = ChangeSet, LedgerState = CacheDb>,
+    Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = SchemaBatch, LedgerState = CacheDb>,
     Stf: StateTransitionFunction<
         <InnerVm::Guest as ZkvmGuest>::Verifier,
         <OuterVm::Guest as ZkvmGuest>::Verifier,
@@ -202,8 +202,8 @@ where
                     Stf::BatchReceiptContents,
                     Stf::TxReceiptContents,
                 > = SlotCommit::new(block);
-                ledger_db.commit_slot(data_to_commit, genesis_root.as_ref())?;
-                let ledger_change_set = ledger_db.clone_change_set();
+                let ledger_change_set =
+                    ledger_db.materialize_slot(data_to_commit, genesis_root.as_ref())?;
                 storage_manager.save_change_set(
                     &block_header,
                     initialized_storage,
@@ -419,14 +419,16 @@ where
             let next_state_root = slot_result.state_root;
             self.state_root = next_state_root.clone();
 
-            self.ledger_db
-                .commit_slot(data_to_commit, next_state_root.as_ref())?;
-            self.proof_manager
-                .save_aggregated_proof(next_da_height)
+            let mut ledger_change_set = self
+                .ledger_db
+                .materialize_slot(data_to_commit, next_state_root.as_ref())?;
+            let proof_change_set = self
+                .proof_manager
+                .materialize_aggregated_proofs(next_da_height)
                 .await?;
+            ledger_change_set.merge(proof_change_set);
 
             // Save data back to StorageManager
-            let ledger_change_set = self.ledger_db.clone_change_set();
             self.storage_manager.save_change_set(
                 filtered_block_header,
                 slot_result.change_set,
@@ -485,8 +487,10 @@ where
                     .finalize(earliest_seen_state_transition_info.da_block_header())?;
                 // TODO: Here is storage bug, as ledger_db changes are dropped on next height,
                 //     probably described here https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/746
-                self.ledger_db
-                    .set_latest_finalized_slot(earliest_seen_state_transition_info.slot_number)?;
+                // _ledger_change_set should be written directly to the underlying DB.
+                let _ledger_change_set = self.ledger_db.materialize_latest_finalize_slot(
+                    earliest_seen_state_transition_info.slot_number,
+                )?;
 
                 let transition_data = seen_state_transition.pop_front().unwrap();
 

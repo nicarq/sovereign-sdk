@@ -10,7 +10,7 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::bank_data::get_default_token_id;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, TestSpec};
+use sov_test_utils::{has_tx_events, new_test_blob_from_batch, SchemaBatch, TestSpec};
 
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::simulate_da;
@@ -35,12 +35,12 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
 
     let last_block = {
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let (stf_state, ledger_state) = storage_manager
+        let (stf_state, _) = storage_manager
             .create_state_for(genesis_block.header())
             .unwrap();
         let (genesis_root, stf_change_set) = stf.init_chain(stf_state, config);
         storage_manager
-            .save_change_set(genesis_block.header(), stf_change_set, ledger_state.into())
+            .save_change_set(genesis_block.header(), stf_change_set, SchemaBatch::new())
             .unwrap();
 
         let txs = simulate_da(admin_private_key);
@@ -51,7 +51,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             batch_blobs: vec![blob],
         };
 
-        let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
 
         let result = stf.apply_slot(
             &genesis_root,
@@ -75,7 +75,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
 
         assert!(has_tx_events(&apply_blob_outcome),);
         storage_manager
-            .save_change_set(block_1.header(), result.change_set, ledger_state.into())
+            .save_change_set(block_1.header(), result.change_set, SchemaBatch::new())
             .unwrap();
         block_1
     };
@@ -111,12 +111,12 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
     let config = create_genesis_config_for_tests();
 
     let genesis_block = MockBlock::default();
-    let (stf_state, ledger_state) = storage_manager
+    let (stf_state, _) = storage_manager
         .create_state_for(genesis_block.header())
         .unwrap();
     let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
     storage_manager
-        .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+        .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
         .unwrap();
 
     let admin_private_key_and_address = read_private_keys::<TestSpec>().tx_signer;
@@ -133,7 +133,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
     };
 
     let block_1 = genesis_block.next_mock();
-    let (stf_state, ledger_state) = storage_manager.create_state_for(block_1.header()).unwrap();
+    let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
 
     let apply_block_result = stf.apply_slot(
         &genesis_root,
@@ -161,7 +161,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
         .save_change_set(
             block_1.header(),
             apply_block_result.change_set,
-            ledger_state.into(),
+            SchemaBatch::new(),
         )
         .unwrap();
 
@@ -195,12 +195,12 @@ fn test_sequencer_unknown_sequencer() {
 
     let mut storage_manager = create_storage_manager_for_tests(path);
     let stf: StfBlueprintTest = StfBlueprint::new();
-    let (stf_state, ledger_state) = storage_manager
+    let (stf_state, _) = storage_manager
         .create_state_for(genesis_block.header())
         .unwrap();
     let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
     storage_manager
-        .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
+        .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
         .unwrap();
 
     let some_sequencer: [u8; 32] = [121; 32];

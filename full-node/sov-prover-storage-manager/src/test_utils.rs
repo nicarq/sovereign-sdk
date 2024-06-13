@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 use rockbound::cache::cache_container::CacheContainer;
 use rockbound::cache::cache_db::CacheDb;
 use rockbound::cache::change_set::ChangeSet;
-use rockbound::ReadOnlyLock;
+use rockbound::{ReadOnlyLock, SchemaBatch};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::state_db::StateDb;
@@ -109,5 +109,39 @@ impl<S: MerkleProofSpec> SimpleStorageManager<S> {
             .add_snapshot(state_change_set, accessory_change_set, ledger.into())
             .unwrap();
         cache_containers.commit_snapshot(&0).unwrap();
+    }
+}
+
+/// Simplified storage manager only for [`LedgerDb`]
+pub struct SimpleLedgerStorageManager {
+    ledger_cache_container: Arc<RwLock<CacheContainer>>,
+}
+
+impl SimpleLedgerStorageManager {
+    pub fn new(path: impl AsRef<std::path::Path>) -> Self {
+        let ledger_rocksdb = LedgerDb::get_rockbound_options()
+            .default_setup_db_in_path(path.as_ref())
+            .unwrap();
+        let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
+
+        let read_only_snapshot_id_to_parent = ReadOnlyLock::new(snapshot_id_to_parent.clone());
+        let ledger_cache_container =
+            CacheContainer::new(ledger_rocksdb, read_only_snapshot_id_to_parent.clone());
+        Self {
+            ledger_cache_container: Arc::new(RwLock::new(ledger_cache_container)),
+        }
+    }
+
+    pub fn create_ledger_storage(&mut self) -> CacheDb {
+        CacheDb::new(0, self.ledger_cache_container.clone().into())
+    }
+
+    pub fn commit(&mut self, ledger_change_set: SchemaBatch) {
+        let ledger_change_set = ChangeSet::new_with_operations(0, ledger_change_set);
+        let mut ledger_cache_container = self.ledger_cache_container.write().unwrap();
+        ledger_cache_container
+            .add_snapshot(ledger_change_set)
+            .unwrap();
+        ledger_cache_container.commit_snapshot(&0).unwrap();
     }
 }

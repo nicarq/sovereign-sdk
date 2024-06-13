@@ -8,6 +8,7 @@ Meaningful changes
   - The `WorkingSet` use, specially its instantiation with the `WorkingSet::new` pattern has been *significantly* reduced in favor of using the `StateCheckpoint` in the tests. Since the `StateCheckpoint` is an unmetered state accessor, this makes the tests more manageable and maintainable - we can use `unwrap_infallible`. Besides, one now needs to use a special `GenesisStateAccessor` to instantiate the modules at genesis, which needs to be built from the `StateCheckpoint`.
   - temporary `evm` feature that allows converting the `WorkingSet` to an `UnmeteredStateWrapper`. **This is a temporary solution and that feature will be removed once we find a way to connect the EVM and module gas metering**. This is the final task of https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/734.
 
+- #800 `LedgerDb` explicitly returns changes instead of saving them in local cache of underlying `CacheDb`.
 - #796 Reuse Batch struct in BatchWithId & PreferredBatch.
 - #789 Changes the Transaction receipt type to include the reason a transaction was skipped or reverted. Consumers of the API should now use the `sov_stf_blueprint::TxEffect` as the `TxReceipt` return type for ledger RPC queries.
 - #790 Simplify `BlobSelector` code.

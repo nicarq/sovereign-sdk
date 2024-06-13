@@ -7,6 +7,7 @@ use criterion::{
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use rockbound::SchemaBatch;
 use sov_mock_da::MockBlockHeader;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -63,7 +64,7 @@ fn setup_storage(
 
     for h in 1..=rollup_height {
         let block_header = MockBlockHeader::from_height(h);
-        let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header).unwrap();
+        let (stf_state, _) = storage_manager.create_state_for(&block_header).unwrap();
 
         let new_keys = generate_random_bytes(&mut rng, num_new_writes, &old_writes);
         let new_values = generate_random_bytes(&mut rng, num_new_writes, &[]);
@@ -112,7 +113,7 @@ fn setup_storage(
         let change_set = stf_state.materialize_changes(&state_update);
 
         storage_manager
-            .save_change_set(&block_header, change_set, ledger_state.into())
+            .save_change_set(&block_header, change_set, SchemaBatch::new())
             .unwrap();
 
         if h > fork_len {

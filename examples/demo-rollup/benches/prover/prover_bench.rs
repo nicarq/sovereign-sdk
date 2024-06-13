@@ -4,15 +4,14 @@ use std::collections::HashMap;
 use std::env;
 use std::fs::{remove_file, File, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
+use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 
 #[macro_use]
 extern crate prettytable;
 
-use anyhow::Context;
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use log4rs::config::{Appender, Config, Root};
@@ -23,7 +22,7 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::SlotData;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_prover_storage_manager::ProverStorageManager;
+use sov_prover_storage_manager::SimpleStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 #[cfg(feature = "bench")]
 use sov_risc0_adapter::metrics::GLOBAL_HASHMAP;
@@ -31,10 +30,8 @@ use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionWitness, ZkvmHost};
-use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
-use sov_test_utils::TestStorageSpec;
+use sov_stf_runner::read_json_file;
 use tempfile::TempDir;
 
 use crate::datagen::{generate_genesis_config, get_bench_blocks};
@@ -166,18 +163,10 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    let genesis_conf_dir = match env::var("GENESIS_CONFIG_DIR") {
-        Ok(dir) => dir,
-        Err(_) => {
-            println!("GENESIS_CONFIG_DIR not set, using default");
-            String::from(DEFAULT_GENESIS_CONFIG_DIR)
-        }
-    };
-
-    let rollup_config_path = "benches/prover/rollup_config.toml".to_string();
-    let mut rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
-        .context("Failed to read rollup configuration")
-        .unwrap();
+    let genesis_conf_dir = env::var("GENESIS_CONFIG_DIR").unwrap_or_else(|_| {
+        println!("GENESIS_CONFIG_DIR not set, using default");
+        String::from(DEFAULT_GENESIS_CONFIG_DIR)
+    });
 
     let mut num_blocks = 0;
     let mut num_blobs = 0;
@@ -185,15 +174,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut num_total_transactions = 0;
 
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
-    rollup_config.storage.path = PathBuf::from(temp_dir.path());
     let da_service = MockDaService::new(MockAddress::default());
-    let storage_config = sov_state::config::Config {
-        path: rollup_config.storage.path,
-    };
 
-    let mut storage_manager =
-        ProverStorageManager::<MockDaSpec, TestStorageSpec>::new(storage_config)
-            .expect("ProverStorageManager initialization has failed");
+    let mut storage_manager = SimpleStorageManager::new(temp_dir.path());
     let stf = BenchSTF::new();
 
     generate_genesis_config(genesis_conf_dir.as_str())?;
@@ -214,16 +197,9 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     println!("Starting from empty storage, initialization chain");
-    let genesis_block = MockBlock::default();
-    let (stf_state, ledger_state) = storage_manager
-        .create_state_for(genesis_block.header())
-        .unwrap();
-    let (mut prev_state_root, stf_state) = stf.init_chain(stf_state, genesis_config);
-    storage_manager
-        .save_change_set(genesis_block.header(), stf_state, ledger_state.into())
-        .unwrap();
-    // Write it to the database immediately!
-    storage_manager.finalize(&genesis_block.header).unwrap();
+    let stf_state = storage_manager.create_storage();
+    let (mut prev_state_root, stf_changes) = stf.init_chain(stf_state, genesis_config);
+    storage_manager.commit(stf_changes);
 
     // TODO: Fix this with genesis logic.
     let blocks = get_bench_blocks().await?;
@@ -246,9 +222,7 @@ async fn main() -> Result<(), anyhow::Error> {
             num_blobs += relevant_blobs.batch_blobs.len();
         }
 
-        let (stf_state, ledger_state) = storage_manager
-            .create_state_for(filtered_block.header())
-            .unwrap();
+        let stf_state = storage_manager.create_storage();
 
         let result = stf.apply_slot(
             &prev_state_root,
@@ -287,14 +261,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .expect("Prover should run successfully");
         println!("==================================================\n");
         prev_state_root = result.state_root;
-        storage_manager
-            .save_change_set(
-                filtered_block.header(),
-                result.change_set,
-                ledger_state.into(),
-            )
-            .unwrap();
-        // TODO: Do we want to finalize some older blocks
+        storage_manager.commit(result.change_set);
     }
 
     #[cfg(feature = "bench")]

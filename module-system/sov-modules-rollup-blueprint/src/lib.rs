@@ -46,7 +46,7 @@ mod blueprint {
 
     use async_trait::async_trait;
     use sov_db::ledger_db::LedgerDb;
-    use sov_db::schema::{CacheDb, ChangeSet};
+    use sov_db::schema::{CacheDb, SchemaBatch};
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::runtime::capabilities::Kernel;
     use sov_modules_api::{Spec, Zkvm};
@@ -93,7 +93,7 @@ mod blueprint {
             StfState = <Self::Spec as Spec>::Storage,
             StfChangeSet = <<Self::Spec as Spec>::Storage as Storage>::ChangeSet,
             LedgerState = CacheDb,
-            LedgerChangeSet = ChangeSet,
+            LedgerChangeSet = SchemaBatch,
         >;
 
         /// Prover service.

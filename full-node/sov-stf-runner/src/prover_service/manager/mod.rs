@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use sov_db::ledger_db::LedgerDb;
+use sov_db::schema::SchemaBatch;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
@@ -47,10 +48,15 @@ where
         }
     }
 
-    /// Stores the `AggregatedProof` posted on DA into the database.
-    pub(crate) async fn save_aggregated_proof(&self, height: u64) -> Result<(), anyhow::Error> {
+    /// Materializes all [`AggregatedProof`] posted on DA
+    /// into [`SchemaBatch`] that can be saved to the database.
+    pub(crate) async fn materialize_aggregated_proofs(
+        &self,
+        height: u64,
+    ) -> Result<SchemaBatch, anyhow::Error> {
         let aggregated_proofs = self.da_service.get_aggregated_proofs_at(height).await?;
         info!(%height, num_proofs=aggregated_proofs.len(), "Saving available aggregated proofs");
+        let mut aggregated_proofs_data = SchemaBatch::new();
         for raw_aggregated_proof in aggregated_proofs {
             // Verify aggregated proof before storing it into the database.
             let public_data: AggregatedProofPublicData = match <Ps::Verifier as Zkvm>::verify(
@@ -60,20 +66,22 @@ where
                 Ok(public_data) => public_data,
                 Err(err) => {
                     debug!(?err, "Received invalid aggregated proof for the DA");
-                    return Ok(());
+                    return Ok(aggregated_proofs_data);
                 }
             };
 
-            self.ledger_db
-                .save_finalized_aggregated_proof(AggregatedProof::new(
-                    SerializedAggregatedProof {
-                        raw_aggregated_proof,
-                    },
-                    public_data,
-                ))?;
+            let this_height_data =
+                self.ledger_db
+                    .materialize_aggregated_proof(AggregatedProof::new(
+                        SerializedAggregatedProof {
+                            raw_aggregated_proof,
+                        },
+                        public_data,
+                    ))?;
+            aggregated_proofs_data.merge(this_height_data);
         }
 
-        Ok(())
+        Ok(aggregated_proofs_data)
     }
 
     /// Attempts to generate an `AggregatedProof` and then posts it to DA.
