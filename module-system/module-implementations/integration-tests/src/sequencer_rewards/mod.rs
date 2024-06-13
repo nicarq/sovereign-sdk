@@ -2,7 +2,6 @@ use std::convert::Infallible;
 
 use sov_bank::{IntoPayable, GAS_TOKEN_ID};
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, ModuleInfo, Spec};
@@ -90,14 +89,7 @@ fn test_sequencer_reward_in_stf(
         post_genesis_registry_balance,
     )?;
 
-    let blob = new_test_blob_from_batch(
-        BatchWithId {
-            batch: Batch { txs: value_setter },
-            id: [0; 32],
-        },
-        seq_da_addr.as_ref(),
-        [0; 32],
-    );
+    let blob = new_test_blob_from_batch(Batch { txs: value_setter }, seq_da_addr.as_ref(), [0; 32]);
 
     let exec_simulation =
         rollup.execution_simulation(1, init_root_hash, vec![blob.clone()], 0, None);
