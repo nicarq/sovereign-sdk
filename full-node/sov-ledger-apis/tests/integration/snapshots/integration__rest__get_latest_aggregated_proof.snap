@@ -1,0 +1,26 @@
+---
+source: full-node/sov-ledger-apis/tests/integration/rest.rs
+expression: "ledger_response_body(|client|\n            async move\n                {\n                client.get_latest_aggregated_proof().await.unwrap().into_inner()\n            }).await"
+---
+{
+  "data": {
+    "proof": "YWdncmVnYXRlZC1wcm9vZg==",
+    "publicData": {
+      "codeCommitment": "Y29kZS1jb21taXRtZW50",
+      "finalSlotHash": "ZmluYWwtc2xvdC1oYXNo",
+      "finalSlotNumber": {
+        "$serde_json::private::Number": "18446744073709551615"
+      },
+      "finalStateRoot": "ZmluYWwtc3RhdGUtcm9vdA==",
+      "genesisStateRoot": "Z2VuZXNpcy1zdGF0ZS1yb290",
+      "initialSlotHash": "aW5pdGlhbC1zbG90LWhhc2g=",
+      "initialSlotNumber": {
+        "$serde_json::private::Number": "18446744073709551615"
+      },
+      "initialStateRoot": "aW5pdGlhbC1zdGF0ZS1yb290",
+      "validityConditions": []
+    },
+    "type": "aggregatedProof"
+  },
+  "meta": {}
+}

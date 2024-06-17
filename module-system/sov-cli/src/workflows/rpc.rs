@@ -259,7 +259,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                     while start_wait.elapsed() < max_waiting_time {
                         jsonrpsee::tokio::select! {
                             _ = interval.tick() => {
-                                let latest_slot_response = client.get_latest_slot().await.unwrap();
+                                let latest_slot_response = client.get_latest_slot(None).await.unwrap();
                                 let latest_slot_number = latest_slot_response.data.number;
                                 if latest_slot_number >= target_da_height {
                                     println!(

@@ -1480,6 +1480,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.15.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e1f83fc076bd6dd27517eacdf25fef6c4dfe5f1d7448bafaaf3a26f13b5e4eb"
+dependencies = [
+ "encode_unicode 0.3.6",
+ "lazy_static",
+ "libc",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "console_error_panic_hook"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2274,6 +2286,12 @@ name = "embedded-io"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef1a6892d9eef45c8fa6b9e0086428a2cca8491aca8f787c534a3d6d0bcb3ced"
+
+[[package]]
+name = "encode_unicode"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 
 [[package]]
 name = "encode_unicode"
@@ -3565,6 +3583,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "insta"
+version = "1.39.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "810ae6042d48e2c9e9215043563a58a80b877bc863228a74cf10c49d4620a6f5"
+dependencies = [
+ "console",
+ "lazy_static",
+ "linked-hash-map",
+ "serde",
+ "similar",
+]
+
+[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4120,6 +4151,12 @@ dependencies = [
  "pkg-config",
  "vcpkg",
 ]
+
+[[package]]
+name = "linked-hash-map"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "linux-raw-sys"
@@ -5089,7 +5126,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eea25e07510aa6ab6547308ebe3c036016d162b8da920dbb079e3ba8acf3d95a"
 dependencies = [
  "csv",
- "encode_unicode",
+ "encode_unicode 1.0.0",
  "is-terminal",
  "lazy_static",
  "term",
@@ -7051,6 +7088,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "similar"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa42c91313f1d05da9b26f267f931cf178d4aba455b4c4622dd7355eb80c6640"
+
+[[package]]
 name = "simple-nft-module"
 version = "0.3.0"
 dependencies = [
@@ -7508,6 +7551,7 @@ name = "sov-ledger-apis"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "assert-json-diff",
  "axum",
  "axum-server",
  "base64 0.22.1",
@@ -7515,6 +7559,7 @@ dependencies = [
  "demo-stf",
  "futures",
  "hex",
+ "insta",
  "jsonrpsee 0.22.5",
  "reqwest 0.12.4",
  "serde",
@@ -8083,6 +8128,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
  "sov-attester-incentives",
  "sov-bank",
  "sov-capabilities",
@@ -8102,6 +8148,7 @@ dependencies = [
  "sov-state",
  "sov-value-setter",
  "tempfile",
+ "tendermint 0.32.2",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",

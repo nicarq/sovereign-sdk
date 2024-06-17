@@ -653,35 +653,24 @@ struct EventFilter {
     prefix: String,
 }
 
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-struct IncludeChildren(bool);
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct IncludeChildren {
+    children: u8,
+}
+
+impl IncludeChildren {
+    fn includes_children(&self) -> bool {
+        self.children != 0
+    }
+}
 
 impl From<IncludeChildren> for QueryMode {
     fn from(value: IncludeChildren) -> Self {
-        if value.0 {
+        if value.includes_children() {
             QueryMode::Full
         } else {
             QueryMode::Compact
         }
-    }
-}
-
-impl serde::Serialize for IncludeChildren {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_i8(self.0 as i8)
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for IncludeChildren {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = <i8 as serde::Deserialize>::deserialize(deserializer)?;
-        Ok(Self(value != 0))
     }
 }
 
