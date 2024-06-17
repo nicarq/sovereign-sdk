@@ -273,8 +273,8 @@ fn syn_lit_to_expr(lit: syn::Lit) -> syn::Expr {
 ///
 /// Nulls and objects are not supported because they don't map naturally to any
 /// [`std`] Rust type.
-pub fn json_value_to_expr(value: &serde_json::Value, span: Span) -> syn::Result<syn::Expr> {
-    use serde_json::Value;
+pub fn json_value_to_expr(value: &serde_jsonc::Value, span: Span) -> syn::Result<syn::Expr> {
+    use serde_jsonc::Value;
 
     let error = |json_type: &str| {
         syn::Error::new(span, format!("failed to convert JSON value into Rust expression; its JSON value type ({}) is not supported: `{:?}`", json_type, value))

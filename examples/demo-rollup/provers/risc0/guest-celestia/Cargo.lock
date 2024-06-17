@@ -3093,6 +3093,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_jsonc"
+version = "1.0.115"
+source = "git+https://github.com/nathanhammond/serde_jsonc.git?rev=ebcbf97064fed7d034798bd0e7c5b2090f2def38#ebcbf97064fed7d034798bd0e7c5b2090f2def38"
+dependencies = [
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
 name = "serde_repr"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3410,7 +3420,7 @@ dependencies = [
  "prettier-please",
  "proc-macro2",
  "quote",
- "serde_json",
+ "serde_jsonc",
  "syn 1.0.109",
 ]
 

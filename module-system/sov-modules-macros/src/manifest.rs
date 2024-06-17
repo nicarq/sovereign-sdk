@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::{env, fmt, fs, process};
 
 use proc_macro2::{Ident, TokenStream};
-use serde_json::{Map, Value};
+use serde_jsonc::{Map, Value};
 use syn::{PathArguments, Type, TypePath};
 
 use crate::common::json_value_to_expr;
@@ -24,7 +24,7 @@ impl<'a> Manifest<'a> {
     where
         S: AsRef<str>,
     {
-        let value = serde_json::from_str(manifest.as_ref())
+        let value = serde_jsonc::from_str(manifest.as_ref())
             .map_err(|e| Self::err(&path, parent, format!("failed to parse manifest: {e}")))?;
 
         Ok(Self {
@@ -86,7 +86,7 @@ impl<'a> Manifest<'a> {
                 )
             })?;
 
-        let metadata: Value = serde_json::from_slice::<Value>(&output.stdout).map_err(|e| {
+        let metadata: Value = serde_jsonc::from_slice::<Value>(&output.stdout).map_err(|e| {
             Self::err(
                 &constants_dir,
                 parent,
