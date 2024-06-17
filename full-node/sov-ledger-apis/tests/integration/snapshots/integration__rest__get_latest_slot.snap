@@ -1,0 +1,24 @@
+---
+source: full-node/sov-ledger-apis/tests/integration/rest.rs
+expression: "&slot"
+---
+{
+  "data": {
+    "batchRange": {
+      "end": {
+        "$serde_json::private::Number": "2"
+      },
+      "start": {
+        "$serde_json::private::Number": "0"
+      }
+    },
+    "finalityStatus": "finalized",
+    "hash": "0xd1231a38586e68d0405dc55ae6775e219f29fff1f7e0c6410d0ac069201e550b",
+    "number": {
+      "$serde_json::private::Number": "0"
+    },
+    "stateRoot": "0x73746174652d726f6f742d30",
+    "type": "slot"
+  },
+  "meta": {}
+}

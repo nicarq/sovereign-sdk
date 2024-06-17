@@ -6,11 +6,15 @@ use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
 use sov_test_utils::ledger_db::sov_ledger_json_client::types::IntOrHash;
-use sov_test_utils::ledger_db::{LedgerTestService, SimpleLedgerStorageManager};
+use sov_test_utils::ledger_db::{
+    LedgerTestService, LedgerTestServiceData, SimpleLedgerStorageManager,
+};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_filtered_slot_events() {
-    let ledger_service = LedgerTestService::new().await.unwrap();
+    let ledger_service = LedgerTestService::new(LedgerTestServiceData::Simple)
+        .await
+        .unwrap();
     let client = ledger_service.axum_client;
 
     let events = &client

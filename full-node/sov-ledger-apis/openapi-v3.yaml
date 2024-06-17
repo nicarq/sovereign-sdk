@@ -24,6 +24,8 @@ paths:
         - ledger
       summary: Get the latest slot.
       operationId: get_latest_slot
+      parameters:
+        - $ref: "#/components/parameters/children"
       responses:
         "200":
           $ref: "#/components/responses/Slot"
@@ -37,6 +39,7 @@ paths:
       operationId: get_slot_by_id
       parameters:
         - $ref: "#/components/parameters/slotId"
+        - $ref: "#/components/parameters/children"
       responses:
         "200":
           $ref: "#/components/responses/Slot"
@@ -68,6 +71,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/slotId"
         - $ref: "#/components/parameters/batchOffset"
+        - $ref: "#/components/parameters/children"
       responses:
         "200":
           $ref: "#/components/responses/Batch"
@@ -83,6 +87,7 @@ paths:
         - $ref: "#/components/parameters/slotId"
         - $ref: "#/components/parameters/batchOffset"
         - $ref: "#/components/parameters/txOffset"
+        - $ref: "#/components/parameters/children"
       responses:
         "200":
           $ref: "#/components/responses/Tx"
@@ -116,6 +121,7 @@ paths:
       operationId: get_batch_by_id
       parameters:
         - $ref: "#/components/parameters/batchId"
+        - $ref: "#/components/parameters/children"
       responses:
         "200":
           $ref: "#/components/responses/Batch"
@@ -130,6 +136,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/batchId"
         - $ref: "#/components/parameters/txOffset"
+        - $ref: "#/components/parameters/children"
       responses:
         "200":
           $ref: "#/components/responses/Tx"
@@ -162,6 +169,7 @@ paths:
       operationId: get_tx_by_id
       parameters:
         - $ref: "#/components/parameters/txId"
+        - $ref: "#/components/parameters/children"
       responses:
         "200":
           $ref: "#/components/responses/Tx"
@@ -264,7 +272,7 @@ components:
       schema:
         type: integer
         format: uint64
-    include:
+    children:
       name: children
       in: query
       description: |
@@ -273,9 +281,10 @@ components:
       required: false
       schema:
         type: string
+        default: "0"
         enum:
-          - Compact
-          - Full
+          - "0"
+          - "1"
   responses:
     AggregatedProof:
       description: Success

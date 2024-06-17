@@ -11,9 +11,6 @@ use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::debug;
 
-#[cfg(test)]
-mod test_rpc;
-
 /// Main demo runner. Initializes a DA chain, and starts a demo-rollup using the provided.
 /// If you're trying to sign or submit transactions to the rollup, the `sov-cli` binary
 /// is the one you want. You can run it `cargo run --bin sov-cli`.

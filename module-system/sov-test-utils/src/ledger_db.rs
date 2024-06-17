@@ -1,3 +1,5 @@
+//! Utilities for writing integration tests against ledger APIs (both Rust API and REST APIs).
+
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -6,10 +8,12 @@ use jsonrpsee::core::client::SubscriptionClientT;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Coins, TokenId};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
+use sov_db::schema::SchemaBatch;
 use sov_ledger_apis::rest::LedgerRoutes;
 use sov_ledger_apis::rpc::client::RpcClient;
 use sov_ledger_apis::rpc::server::rpc_module;
-use sov_mock_da::{MockBlock, MockDaSpec};
+use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
+use sov_modules_api::da::Time;
 use sov_modules_api::{
     AggregatedProofPublicData, CodeCommitment, ModuleId, RuntimeEventResponse, StoredEvent,
 };
@@ -18,16 +22,19 @@ use sov_rollup_interface::rpc::{BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use tempfile::{tempdir, TempDir};
+use tendermint::crypto::Sha256 as _;
 
-use crate::{SchemaBatch, TestSpec, TestTxReceiptContents};
+use crate::{TestSpec, TestTxReceiptContents};
 
 type TestEvent = demo_stf::runtime::RuntimeEvent<TestSpec, MockDaSpec>;
 
 pub extern crate sov_ledger_json_client;
 
-/// Very, very simple utility function: it just persists some dummy data to the
+/// Very simple utility function: it just persists some dummy data to the
 /// [`LedgerDb`], so that it's not empty when you read it within tests.
-pub async fn materialize_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Result<SchemaBatch> {
+pub async fn materialize_simple_ledger_db_data(
+    ledger_db: &LedgerDb,
+) -> anyhow::Result<SchemaBatch> {
     let block_a = MockBlock::default();
 
     let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents> = SlotCommit::new(block_a);
@@ -49,7 +56,7 @@ pub async fn materialize_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Result<
 
     let mut ledger_data = ledger_db.materialize_slot(slot, b"state-root")?;
 
-    let proof_data = ledger_db.materialize_aggregated_proof(AggregatedProof::new(
+    ledger_data.merge(ledger_db.materialize_aggregated_proof(AggregatedProof::new(
         SerializedAggregatedProof {
             raw_aggregated_proof: b"aggregated-proof".to_vec(),
         },
@@ -69,11 +76,7 @@ pub async fn materialize_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Result<
             final_slot_hash: b"final-slot-hash".to_vec(),
             code_commitment: CodeCommitment(b"code-commitment".to_vec()),
         },
-    ))?;
-
-    ledger_data.merge(proof_data);
-
-    ledger_db.send_notifications();
+    ))?);
 
     Ok(ledger_data)
 }
@@ -104,6 +107,105 @@ fn events() -> Vec<StoredEvent> {
     ]
 }
 
+pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Result<SchemaBatch> {
+    let mut slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>> =
+        vec![SlotCommit::new(MockBlock {
+            header: MockBlockHeader {
+                prev_hash: sha2::Sha256::digest(b"prev_header").into(),
+                hash: sha2::Sha256::digest(b"slot_data").into(),
+                height: 0,
+                time: Time::now(),
+            },
+            validity_cond: Default::default(),
+            batch_blobs: Default::default(),
+            proof_blobs: Default::default(),
+        })];
+
+    let batches = vec![
+        BatchReceipt {
+            batch_hash: ::sha2::Sha256::digest(b"batch_receipt"),
+            tx_receipts: vec![
+                TransactionReceipt::<TestTxReceiptContents> {
+                    tx_hash: ::sha2::Sha256::digest(b"tx1"),
+                    body_to_save: Some(b"tx1 body".to_vec()),
+                    events: vec![],
+                    receipt: TxEffect::Successful(0),
+                    gas_used: vec![0, 0],
+                },
+                TransactionReceipt::<TestTxReceiptContents> {
+                    tx_hash: ::sha2::Sha256::digest(b"tx2"),
+                    body_to_save: Some(b"tx2 body".to_vec()),
+                    events: vec![
+                        StoredEvent::new("event1_key".as_bytes(), "event1_value".as_bytes()),
+                        StoredEvent::new("event2_key".as_bytes(), "event2_value".as_bytes()),
+                    ],
+                    receipt: TxEffect::Successful(1),
+                    gas_used: vec![2, 3],
+                },
+            ],
+            inner: 0,
+            gas_price: vec![0, 0],
+        },
+        BatchReceipt {
+            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2"),
+            tx_receipts: batch2_tx_receipts(),
+            inner: 1,
+            gas_price: vec![0, 0],
+        },
+    ];
+
+    for batch in batches {
+        slots.get_mut(0).unwrap().add_batch(batch);
+    }
+
+    let mut ledger_data = SchemaBatch::new();
+    for slot in slots {
+        let state_root = format!("state-root-{}", slot.slot_data().header.height);
+        ledger_data.merge(ledger_db.materialize_slot(slot, state_root.as_bytes())?);
+    }
+
+    ledger_data.merge(ledger_db.materialize_aggregated_proof(AggregatedProof::new(
+        SerializedAggregatedProof {
+            raw_aggregated_proof: b"aggregated-proof".to_vec(),
+        },
+        // By filling all the fields, clients can more thoroughly test
+        // (de)serialization logic.
+        //
+        // This data doesn't make any sense (they're not even hashes...), but
+        // it's just for testing.
+        AggregatedProofPublicData {
+            validity_conditions: vec![],
+            initial_slot_number: u64::MAX,
+            final_slot_number: u64::MAX,
+            genesis_state_root: b"genesis-state-root".to_vec(),
+            initial_state_root: b"initial-state-root".to_vec(),
+            final_state_root: b"final-state-root".to_vec(),
+            initial_slot_hash: b"initial-slot-hash".to_vec(),
+            final_slot_hash: b"final-slot-hash".to_vec(),
+            code_commitment: CodeCommitment(b"code-commitment".to_vec()),
+        },
+    ))?);
+
+    Ok(ledger_data)
+}
+
+fn batch2_tx_receipts() -> Vec<TransactionReceipt<TestTxReceiptContents>> {
+    (0..260u64)
+        .map(|i| TransactionReceipt::<TestTxReceiptContents> {
+            tx_hash: ::sha2::Sha256::digest(i.to_string()),
+            body_to_save: Some(b"tx body".to_vec()),
+            events: vec![],
+            receipt: TxEffect::Skipped(0),
+            gas_used: vec![0, 0],
+        })
+        .collect()
+}
+
+pub enum LedgerTestServiceData {
+    Simple,
+    Complex,
+}
+
 /// Everything that one needs to run tests against the ledger APIs.
 pub struct LedgerTestService {
     // Must be kept in scope during the test to avoid directory deletion.
@@ -116,14 +218,20 @@ pub struct LedgerTestService {
 
 impl LedgerTestService {
     /// Instantiates a new [`LedgerDb`] and starts serving data over both JSON-RPC and Axum.
-    pub async fn new() -> anyhow::Result<LedgerTestService> {
+    pub async fn new(data: LedgerTestServiceData) -> anyhow::Result<LedgerTestService> {
         let dir = tempdir()?;
-        let mut ledger_storage_manager = SimpleLedgerStorageManager::new(dir.path());
-        let cache_db = ledger_storage_manager.create_ledger_storage();
+
+        let mut storage_manager = SimpleLedgerStorageManager::new(dir.path());
+        let cache_db = storage_manager.create_ledger_storage();
         let ledger_db = LedgerDb::with_cache_db(cache_db)?;
 
-        let change_set = materialize_ledger_db_data(&ledger_db).await?;
-        ledger_storage_manager.commit(change_set);
+        let ledger_data = match data {
+            LedgerTestServiceData::Simple => materialize_simple_ledger_db_data(&ledger_db).await?,
+            LedgerTestServiceData::Complex => materialize_complex_ledger_db_data(&ledger_db)?,
+        };
+
+        ledger_db.send_notifications();
+        storage_manager.commit(ledger_data);
 
         let rpc_module =
             rpc_module::<LedgerDb, u32, TestTxReceiptContents, RuntimeEventResponse<TestEvent>>(

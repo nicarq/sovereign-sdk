@@ -29,6 +29,7 @@ ethers-core = { workspace = true }
 ethers-contract = { workspace = true }
 
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"], optional = true }
+sha2 = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-modules-api = { path = "../sov-modules-api", features = ["native", "test-utils"] }
 sov-modules-stf-blueprint = { path = "../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
@@ -47,6 +48,7 @@ sov-db = { path = "../../full-node/sov-db" }
 sov-state = { path = "../sov-state" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
+tendermint = "0.32"
 tempfile = { workspace = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 jsonrpsee = { workspace = true }

@@ -1,0 +1,25 @@
+---
+source: full-node/sov-ledger-apis/tests/integration/rest.rs
+expression: "&batch"
+---
+{
+  "data": {
+    "hash": "0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f",
+    "number": {
+      "$serde_json::private::Number": "0"
+    },
+    "receipt": {
+      "$serde_json::private::Number": "0.0"
+    },
+    "txRange": {
+      "end": {
+        "$serde_json::private::Number": "2"
+      },
+      "start": {
+        "$serde_json::private::Number": "0"
+      }
+    },
+    "type": "batch"
+  },
+  "meta": {}
+}

@@ -1,2 +1,1 @@
-mod jsonapi;
-mod rpc;
+mod rest;

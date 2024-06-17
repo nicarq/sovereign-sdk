@@ -1,0 +1,18 @@
+---
+source: full-node/sov-ledger-apis/tests/integration/rest.rs
+expression: "serde_json::from_str::<serde_json::Value>(&response_body).unwrap()"
+---
+{
+  "errors": [
+    {
+      "details": {
+        "url": "/foobar-not-found"
+      },
+      "status": {
+        "$serde_json::private::Number": "404"
+      },
+      "title": "Not Found"
+    }
+  ],
+  "meta": {}
+}
