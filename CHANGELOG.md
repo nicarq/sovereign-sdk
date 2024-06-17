@@ -1,3 +1,4 @@
+- #814 mandates `0x` prefixes for hashes in RPC and REST APIs, whereas before it was optional.
 - #806 simplify new_test_blob_from_batch
 - #783 enables gas metering for storage accesses inside the module system. In particular, it makes all the state accessors fallible, and the module code now have to handle the case where the state accessor runs out of gas.
 Meaningful changes

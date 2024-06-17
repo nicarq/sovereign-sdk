@@ -3,9 +3,6 @@
 #![allow(clippy::redundant_allocation)]
 #![doc = include_str!("../README.md")]
 
-use std::fmt::Display;
-use std::hash::Hash;
-
 mod batch_builder;
 mod db;
 mod mempool;
@@ -17,6 +14,7 @@ pub use batch_builder::{FairBatchBuilder, FairBatchBuilderConfig};
 pub use db::{MempoolTx, SequencerDb};
 pub use sequencer::Sequencer;
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::services::batch_builder::TxHash;
 
 pub use crate::tx_status::TxStatus;
@@ -45,19 +43,8 @@ pub struct PublishBatchResponse {
 pub struct AcceptTxResponse {
     /// Raw transaction contents as originally passed by the client, as a
     /// hex-encoded string.
-    #[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")]
+    #[serde(with = "sov_rollup_interface::common::hex_string_serde")]
     pub tx: Vec<u8>,
     /// The transaction hash of the transaction that was accepted.
     pub tx_hash: HexHash,
-}
-
-/// A 32-byte hash [`serde`]-encoded as a hex string optionally prefixed with
-/// `0x`. See [`sov_rollup_interface::rpc::utils::rpc_hex`].
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct HexHash(#[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")] pub TxHash);
-
-impl Display for HexHash {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
-    }
 }

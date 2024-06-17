@@ -7,14 +7,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::LedgerStateProviderExt;
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdentifier, EventIdentifier, LedgerStateProvider,
     ProofInfoResponse, QueryMode, SlotIdentifier, TxIdentifier,
 };
 use sov_rollup_interface::stf::{StoredEvent, TxReceiptContents};
 use tokio::sync::broadcast::Receiver;
-
-use crate::HexHash;
 
 const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 

@@ -5514,6 +5514,7 @@ dependencies = [
  "backon",
  "borsh",
  "bytes",
+ "derive_more",
  "digest 0.10.7",
  "futures",
  "hex",

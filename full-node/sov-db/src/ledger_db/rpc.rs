@@ -28,10 +28,10 @@ impl LedgerStateProvider for LedgerDb {
     type Error = anyhow::Error;
 
     async fn get_head_slot_number(&self) -> Result<Option<u64>, Self::Error> {
-        let next_ids = self.get_next_items_numbers();
-        let next_slot = next_ids.slot_number;
-
-        Ok(Some(next_slot.saturating_sub(1)))
+        self.db
+            .get_largest_async::<SlotByNumber>()
+            .await
+            .map(|opt| opt.map(|(slot_num, _)| slot_num.0))
     }
 
     async fn get_latest_finalized_slot_number(&self) -> Result<u64, Self::Error> {

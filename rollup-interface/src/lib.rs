@@ -7,6 +7,7 @@
 
 extern crate alloc;
 
+pub mod common;
 mod state_machine;
 #[cfg(all(feature = "native", feature = "schemars"))]
 pub use schemars;

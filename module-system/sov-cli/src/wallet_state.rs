@@ -271,7 +271,7 @@ pub struct AddressEntry<S: sov_modules_api::Spec> {
     /// The location of the private key on disk
     pub location: PathBuf,
     /// The public key associated with the address
-    #[serde(with = "pubkey_hex")]
+    #[serde(with = "pubkey_serde")]
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
 }
 
@@ -314,15 +314,13 @@ impl<S: sov_modules_api::Spec> std::fmt::Display for KeyIdentifier<S> {
     }
 }
 
-mod pubkey_hex {
-    use core::fmt;
-    use std::marker::PhantomData;
-
+mod pubkey_serde {
     use borsh::{BorshDeserialize, BorshSerialize};
-    use hex::{FromHex, ToHex};
-    use serde::de::{Error, Visitor};
-    use serde::{Deserializer, Serializer};
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use sov_modules_api::PublicKey;
+    use sov_rollup_interface::common::HexString;
+
     pub fn serialize<P: PublicKey + BorshSerialize, S>(
         data: &P,
         serializer: S,
@@ -333,48 +331,20 @@ mod pubkey_hex {
         let bytes = data
             .try_to_vec()
             .expect("serialization to vec is infallible");
-        let formatted_string = format!("0x{}", bytes.encode_hex::<String>());
-        serializer.serialize_str(&formatted_string)
+        HexString::new(bytes).serialize(serializer)
     }
 
     /// Deserializes a hex string into raw bytes.
     ///
     /// Both upper and lower case characters are valid in the input string and can
     /// even be mixed (e.g. `f9b4ca`, `F9B4CA` and `f9B4Ca` are all valid strings).
-    pub fn deserialize<'de, D, C>(deserializer: D) -> Result<C, D::Error>
+    pub fn deserialize<'de, C, D>(deserializer: D) -> Result<C, D::Error>
     where
-        D: Deserializer<'de>,
         C: PublicKey + BorshDeserialize,
+        D: Deserializer<'de>,
     {
-        struct HexPubkeyVisitor<S>(PhantomData<S>);
-
-        impl<'de, C: PublicKey + BorshDeserialize> Visitor<'de> for HexPubkeyVisitor<C> {
-            type Value = C;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "a hex encoded string")
-            }
-
-            fn visit_str<E>(self, data: &str) -> Result<Self::Value, E>
-            where
-                E: Error,
-            {
-                let data = data.trim_start_matches("0x");
-                let bytes: Vec<u8> = FromHex::from_hex(data).map_err(Error::custom)?;
-                C::try_from_slice(&bytes).map_err(Error::custom)
-            }
-
-            fn visit_borrowed_str<E>(self, data: &'de str) -> Result<Self::Value, E>
-            where
-                E: Error,
-            {
-                let data = data.trim_start_matches("0x");
-                let bytes: Vec<u8> = FromHex::from_hex(data).map_err(Error::custom)?;
-                C::try_from_slice(&bytes).map_err(Error::custom)
-            }
-        }
-
-        deserializer.deserialize_str(HexPubkeyVisitor(PhantomData::<C>))
+        let hex_s = HexString::<Vec<u8>>::deserialize(deserializer)?;
+        C::try_from_slice(&hex_s.0).map_err(Error::custom)
     }
 }
 
