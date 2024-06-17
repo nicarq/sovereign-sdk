@@ -30,7 +30,7 @@ pub mod errors;
 #[doc(hidden)]
 pub mod test_utils;
 
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 
 use axum::body::Body;
 use axum::extract::Request;
@@ -140,43 +140,6 @@ mod serde_status_code {
     }
 }
 
-/// A newtype wrapper around [`Vec<u8>`] which is serialized as a
-/// 0x-prefixed hex string.
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::AsRef)]
-#[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
-pub struct HexString(pub Vec<u8>);
-
-impl Display for HexString {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0x{}", hex::encode(&self.0))
-    }
-}
-
-impl serde::Serialize for HexString {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.to_string().serialize(serializer)
-    }
-}
-
-impl<'a> serde::Deserialize<'a> for HexString {
-    fn deserialize<D>(deserializer: D) -> Result<HexString, D::Error>
-    where
-        D: serde::Deserializer<'a>,
-    {
-        let string = String::deserialize(deserializer)?;
-        // We ignore the 0x prefix if it exists.
-        let s = string.strip_prefix("0x").unwrap_or(&string);
-
-        hex::decode(s)
-            .map_err(|e| anyhow::anyhow!("failed to decode hex: {}", e))
-            .map(HexString)
-            .map_err(serde::de::Error::custom)
-    }
-}
-
 /// Exactly like [`serde_json::Value`], but returns a JSON object instead of a
 /// JSON value.
 #[macro_export]
@@ -236,15 +199,9 @@ where
 mod tests {
     use proptest::proptest;
 
-    use super::*;
-    use crate::test_utils::{test_serialization_roundtrip_equality_json, uri_with_query_params};
+    use crate::test_utils::uri_with_query_params;
 
     proptest! {
-        #[test]
-        fn hex_string_serialization_roundtrip(item: HexString) {
-            test_serialization_roundtrip_equality_json(item);
-        }
-
         // Ideally we'd also test with types other than strings. E.g. integers?
         #[test]
         fn any_query_param_can_be_serialized(key: String, value: String) {

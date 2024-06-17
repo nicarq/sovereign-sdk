@@ -9,13 +9,14 @@ use serde::Serialize;
 use sov_modules_api::batch::Batch;
 use sov_modules_api::capabilities::{Authenticator, RawTx};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::Mutex;
 
 use super::tx_status::{TxStatus, TxStatusNotifier};
-use super::{AcceptTxResponse, HexHash, SubmittedBatchInfo};
+use super::{AcceptTxResponse, SubmittedBatchInfo};
 
 const SEQUENCER_RPC_ERROR: &str = "SEQUENCER_RPC_ERROR";
 
@@ -73,7 +74,7 @@ where
                         .notify(tx_hash, TxStatus::Submitted);
                     AcceptTxResponse {
                         tx,
-                        tx_hash: HexHash(tx_hash),
+                        tx_hash: HexHash::new(tx_hash),
                     }
                 })
                 .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR));
@@ -213,7 +214,7 @@ mod jsonrpc {
                     .await
                     .map(|tx_hash| AcceptTxResponse {
                         tx,
-                        tx_hash: HexHash(tx_hash),
+                        tx_hash: HexHash::new(tx_hash),
                     })
                     .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))
             })?;
@@ -399,7 +400,11 @@ mod axum_router {
                 }
             };
 
-            Ok(tx_attributes(HexHash(tx_hash), TxStatus::<Da::TransactionId>::Submitted).into())
+            Ok(tx_attributes(
+                HexHash::new(tx_hash),
+                TxStatus::<Da::TransactionId>::Submitted,
+            )
+            .into())
         }
 
         async fn axum_submit_batch(

@@ -7,11 +7,11 @@ use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use serde::de::DeserializeOwned;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::Spec;
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::services::batch_builder::TxHash;
 use tracing::info;
 
 use crate::tx_status::TxStatus;
-use crate::HexHash;
 
 /// A simple client for the sequencer RPC.
 pub struct SimpleClient {
@@ -94,7 +94,7 @@ impl SimpleClient {
             .ws_client
             .subscribe(
                 "sequencer_subscribeToTxStatusUpdates",
-                &[HexHash(tx_hash)] as &[_],
+                &[HexHash::new(tx_hash)] as &[_],
                 "sequencer_unsubscribeToTxStatusUpdates",
             )
             .await?;

@@ -20,6 +20,7 @@ use sov_rest_utils::errors::{
     self, database_error_response_500, internal_server_error_response_500, not_found_404,
 };
 use sov_rest_utils::{json_obj, preconfigured_router_layers, ApiResult, ErrorObject, Path, Query};
+use sov_rollup_interface::common::{HexHash, HexString};
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
     FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
@@ -28,8 +29,6 @@ use sov_rollup_interface::rpc::{
 use sov_rollup_interface::stf::{TxEffect, TxReceiptContents};
 use tracing::warn;
 use utoipa_swagger_ui::{Config, SwaggerUi};
-
-use crate::{HexBytes, HexHash};
 
 type PathMap = Path<HashMap<String, NumberOrHash>>;
 
@@ -710,7 +709,7 @@ impl Display for NumberOrHash {
 struct Slot<B, TxReceipt: TxReceiptContents, E> {
     pub number: u64,
     pub hash: HexHash,
-    pub state_root: HexBytes,
+    pub state_root: HexString,
     pub batch_range: Range<u64>,
     pub batches: Vec<Batch<B, TxReceipt, E>>,
     pub finality_status: FinalityStatus,
@@ -728,8 +727,8 @@ impl<B, TxReceipt: TxReceiptContents, E> Slot<B, TxReceipt, E> {
 
         Self {
             number: slot.number,
-            hash: HexHash(slot.hash),
-            state_root: HexBytes(slot.state_root),
+            hash: HexHash::new(slot.hash),
+            state_root: HexString(slot.state_root),
             batch_range: slot.batch_range,
             batches,
             finality_status: slot.finality_status,
@@ -764,7 +763,7 @@ impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
 
         Self {
             number,
-            hash: HexHash(batch.hash),
+            hash: HexHash::new(batch.hash),
             tx_range: batch.tx_range,
             receipt: batch.receipt,
             txs,
@@ -794,7 +793,7 @@ impl<TxReceipt: TxReceiptContents, E> Transaction<TxReceipt, E> {
     fn new(tx: TxResponse<TxReceipt>, number: u64) -> Self {
         Self {
             number,
-            hash: HexHash(tx.hash),
+            hash: HexHash::new(tx.hash),
             event_range: tx.event_range,
             body: tx.body.unwrap_or_default(),
             receipt: tx.receipt,

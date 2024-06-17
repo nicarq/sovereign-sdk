@@ -31,14 +31,3 @@ where
     let deserialized: T = serde_urlencoded::from_str(&serialized).unwrap();
     assert_eq!(item, deserialized);
 }
-
-/// Serializes, then deserializes a value with [`serde_json`], then asserts
-/// equality.
-pub fn test_serialization_roundtrip_equality_json<T>(item: T)
-where
-    T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + Debug,
-{
-    let serialized = serde_json::to_string(&item).unwrap();
-    let deserialized: T = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(item, deserialized);
-}
