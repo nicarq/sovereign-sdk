@@ -15,7 +15,10 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_modules_macros::config_value;
-use sov_rollup_interface::rpc::{AggregatedProofResponse, BatchResponse, SlotResponse, TxResponse};
+use sov_rollup_interface::rpc::{
+    AggregatedProofResponse, BatchResponse, FinalityStatus, QueryMode, SlotIdentifier,
+    SlotResponse, TxResponse,
+};
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
 };
@@ -34,6 +37,19 @@ struct TestCase {
     finalization_blocks: u32,
 }
 
+impl TestCase {
+    fn expected_head_finality(&self) -> FinalityStatus {
+        match self.finalization_blocks {
+            0 => FinalityStatus::Finalized,
+            _ => FinalityStatus::Pending,
+        }
+    }
+
+    fn get_latest_finalized_slot_after(&self, slot_number: u64) -> Option<u64> {
+        slot_number.checked_sub(self.finalization_blocks as u64)
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_instant_finality() -> Result<(), anyhow::Error> {
     let test_case = TestCase {
@@ -48,7 +64,7 @@ async fn bank_tx_tests_instant_finality() -> Result<(), anyhow::Error> {
 async fn bank_tx_tests_non_instant_finality() -> Result<(), anyhow::Error> {
     let test_case = TestCase {
         wait_for_aggregated_proof: false,
-        finalization_blocks: 3,
+        finalization_blocks: 2,
     };
     bank_tx_tests(test_case, RollupProverConfig::Skip).await
 }
@@ -165,7 +181,7 @@ fn build_multiple_transfers(
 async fn send_transactions_and_wait_slot(
     client: &SimpleClient,
     transactions: &[Transaction<TestSpec>],
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<u64> {
     let mut slot_subscription: Subscription<u64> = client
         .ws()
         .subscribe(
@@ -177,9 +193,13 @@ async fn send_transactions_and_wait_slot(
 
     client.send_transactions(transactions).await?;
 
-    let _ = slot_subscription.next().await;
+    let slot_number = slot_subscription
+        .next()
+        .await
+        .transpose()?
+        .unwrap_or_default();
 
-    Ok(())
+    Ok(slot_number)
 }
 
 async fn subscribe_proof(
@@ -249,12 +269,37 @@ async fn assert_aggregated_proof(
 }
 
 fn assert_aggregated_proof_public_data(
-    initial_slot: u64,
-    final_slot: u64,
+    expected_initial_slot_number: u64,
+    expected_final_slot_number: u64,
     pub_data: &AggregatedProofPublicData,
 ) {
-    assert_eq!(initial_slot, pub_data.initial_slot_number);
-    assert_eq!(final_slot, pub_data.final_slot_number);
+    assert_eq!(expected_initial_slot_number, pub_data.initial_slot_number);
+    assert_eq!(expected_final_slot_number, pub_data.final_slot_number);
+}
+
+async fn assert_slot_finality(
+    client: &SimpleClient,
+    slot_number: u64,
+    expected_finality: FinalityStatus,
+) {
+    let slots: Vec<Option<SlotResponse<(), ()>>> =
+        RpcClient::<SlotResponse<(), ()>, BatchResponse<(), ()>, TxResponse<()>>::get_slots(
+            client.http(),
+            vec![SlotIdentifier::Number(slot_number)],
+            QueryMode::Compact,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        1,
+        slots.len(),
+        "More than 1 slot is returned for slot number {slot_number}"
+    );
+    assert_eq!(
+        expected_finality,
+        slots[0].as_ref().unwrap().finality_status,
+        "Wrong finality status for slot number {slot_number}"
+    );
 }
 
 async fn assert_bank_event<S: Spec>(
@@ -309,17 +354,23 @@ async fn send_test_bank_txs(
 
     // create token. height 2
     let tx = build_create_token_tx(&key, 0);
-    send_transactions_and_wait_slot(&client, &[tx]).await?;
+    let slot_number = send_transactions_and_wait_slot(&client, &[tx]).await?;
+    assert_eq!(1, slot_number);
+    assert_slot_finality(&client, slot_number, test_case.expected_head_finality()).await;
     assert_balance(&client, 1000, token_id, user_address, None).await?;
 
     // transfer 100 tokens. assert sender balance. height 3
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
-    send_transactions_and_wait_slot(&client, &[tx]).await?;
+    let slot_number = send_transactions_and_wait_slot(&client, &[tx]).await?;
+    assert_eq!(2, slot_number);
+    assert_slot_finality(&client, slot_number, test_case.expected_head_finality()).await;
     assert_balance(&client, 900, token_id, user_address, None).await?;
 
     // transfer 200 tokens. assert sender balance. height 4
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
-    send_transactions_and_wait_slot(&client, &[tx]).await?;
+    let slot_number = send_transactions_and_wait_slot(&client, &[tx]).await?;
+    assert_eq!(3, slot_number);
+    assert_slot_finality(&client, slot_number, test_case.expected_head_finality()).await;
     assert_balance(&client, 700, token_id, user_address, None).await?;
 
     // assert sender balance at height 2.
@@ -334,7 +385,9 @@ async fn send_test_bank_txs(
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();
     let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
-    send_transactions_and_wait_slot(&client, &txs).await?;
+    let slot_number = send_transactions_and_wait_slot(&client, &txs).await?;
+    assert_eq!(4, slot_number);
+    assert_slot_finality(&client, slot_number, test_case.expected_head_finality()).await;
 
     assert_bank_event::<TestSpec>(
         &client,
@@ -382,6 +435,10 @@ async fn send_test_bank_txs(
         let pub_data = aggregated_proof_resp.proof.public_data();
         assert_aggregated_proof_public_data(1, 1, pub_data);
         assert_aggregated_proof(1, 1, &client).await?;
+    }
+
+    if let Some(finalized_slot_number) = test_case.get_latest_finalized_slot_after(slot_number) {
+        assert_slot_finality(&client, finalized_slot_number, FinalityStatus::Finalized).await;
     }
 
     Ok(())

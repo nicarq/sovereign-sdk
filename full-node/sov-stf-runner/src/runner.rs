@@ -7,9 +7,6 @@ use std::time::Duration;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{CacheDb, SchemaBatch};
-use sov_metrics::{
-    inc_rollup_batches_processed, inc_rollup_transactions_processed, set_current_da_height,
-};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -146,6 +143,7 @@ where
     InnerVm: ZkvmHost,
     OuterVm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = SchemaBatch, LedgerState = CacheDb>,
+    Sm::StfState: Clone,
     Stf: StateTransitionFunction<
         <InnerVm::Guest as ZkvmGuest>::Verifier,
         <OuterVm::Guest as ZkvmGuest>::Verifier,
@@ -202,13 +200,16 @@ where
                     Stf::BatchReceiptContents,
                     Stf::TxReceiptContents,
                 > = SlotCommit::new(block);
-                let ledger_change_set =
+                let mut ledger_change_set =
                     ledger_db.materialize_slot(data_to_commit, genesis_root.as_ref())?;
+                let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(0)?;
+                ledger_change_set.merge(finalized_slot_changes);
                 storage_manager.save_change_set(
                     &block_header,
                     initialized_storage,
                     ledger_change_set,
                 )?;
+
                 storage_manager.finalize(&block_header)?;
                 ledger_db.send_notifications();
                 info!(
@@ -241,7 +242,7 @@ where
             stf,
             storage_manager,
             rpc_storage_sender,
-            ledger_db: ledger_db.clone(),
+            ledger_db,
             state_root: prev_state_root,
             listen_address_rpc,
             listen_address_axum,
@@ -287,7 +288,7 @@ where
         Ok(rest_address)
     }
 
-    /// Spawn a [`tokio::task`] that updates the sync status every 10 seconds.
+    /// Spawn a [`tokio::task`] that updates the sync status every `polling_interval`.
     pub fn spawn_sync_status_updater(&self, polling_interval: Duration) {
         let sync_state = self.sync_state.clone();
         let da_service = self.da_service.clone();
@@ -331,13 +332,14 @@ where
 
         loop {
             debug!(next_da_height, "Requesting DA block");
-            set_current_da_height(next_da_height);
+            sov_metrics::set_current_da_height(next_da_height);
             let mut transaction_count = 0;
             let mut batch_count = 0;
             let mut filtered_block = self.da_service.get_block_at(next_da_height).await?;
+            debug!(header = %filtered_block.header().display(), "fetched block header");
 
-            // Checking if reorg happened or not.
-            if let Some(ForkPoint {
+            // ----------------  Checking if reorg happened or not.
+            let reorg_happened = if let Some(ForkPoint {
                 height: new_height,
                 block: new_block,
                 pre_state_root,
@@ -356,10 +358,30 @@ where
                 next_da_height = new_height;
                 filtered_block = new_block;
                 self.state_root = pre_state_root;
-                info!(next_da_height, "Resuming execution at fork point's height");
                 // TODO: Prune stale entries from ledger here <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/746>!
+                info!(
+                    next_da_height,
+                    header = %filtered_block.header().display(),
+                    "Resuming execution at fork point's height"
+                );
+                true
+            } else {
+                false
+            };
+
+            // Prepare storage
+            let filtered_block_header = filtered_block.header().clone();
+            let (stf_pre_state, ledger_state) = self
+                .storage_manager
+                .create_state_for(&filtered_block_header)?;
+            if reorg_happened {
+                // In case if reorg happened, we want to keep ledger and RPC storages in sync.
+                // Otherwise, the RPC storage and LedgerDb have been updated in [`StfRunner::update_rpc_and_ledger_storage`]
+                self.rpc_storage_sender.send_replace(stf_pre_state.clone());
+                self.ledger_db.replace_db(ledger_state)?;
             }
 
+            // STF execution
             let mut relevant_blobs = self.da_service.extract_relevant_blobs(&filtered_block);
             let batch_blobs = &mut relevant_blobs.batch_blobs;
             info!(
@@ -376,35 +398,29 @@ where
                 "Extracted relevant blobs"
             );
 
-            let mut data_to_commit = SlotCommit::new(filtered_block.clone());
-            let filtered_block_header = filtered_block.header();
-
-            let (stf_pre_state, ledger_state) = self
-                .storage_manager
-                .create_state_for(filtered_block_header)?;
-
-            self.ledger_db.replace_db(ledger_state)?;
-
             let slot_result = self.stf.apply_slot(
                 &self.state_root,
                 stf_pre_state,
                 Default::default(),
-                filtered_block_header,
+                &filtered_block_header,
                 &filtered_block.validity_condition(),
                 relevant_blobs.as_iters(),
             );
+            let next_state_root = slot_result.state_root.clone();
 
-            for receipt in slot_result.batch_receipts {
-                batch_count += 1;
-                transaction_count += receipt.tx_receipts.len();
-                data_to_commit.add_batch(receipt);
-            }
-
+            // Getting relevant proofs
             let relevant_proofs = self
                 .da_service
                 .get_extraction_proof(&filtered_block, &relevant_blobs)
                 .await;
 
+            // Handling executed data
+            let mut data_to_commit = SlotCommit::new(filtered_block);
+            for receipt in slot_result.batch_receipts {
+                batch_count += 1;
+                transaction_count += receipt.tx_receipts.len();
+                data_to_commit.add_batch(receipt);
+            }
             let transition_data: StateTransitionWitness<Stf::StateRoot, Stf::Witness, Da::Spec> =
                 StateTransitionWitness {
                     initial_state_root: self.state_root.clone(),
@@ -415,84 +431,84 @@ where
                     witness: slot_result.witness,
                 };
 
-            // Post apply slot machinery
-            let next_state_root = slot_result.state_root;
-            self.state_root = next_state_root.clone();
-
-            let mut ledger_change_set = self
-                .ledger_db
-                .materialize_slot(data_to_commit, next_state_root.as_ref())?;
-            let proof_change_set = self
-                .proof_manager
-                .materialize_aggregated_proofs(next_da_height)
-                .await?;
-            ledger_change_set.merge(proof_change_set);
-
-            // Save data back to StorageManager
-            self.storage_manager.save_change_set(
-                filtered_block_header,
-                slot_result.change_set,
-                ledger_change_set,
-            )?;
-
-            self.update_rpc_storage(filtered_block_header)?;
-            self.sync_state
-                .synced_da_height
-                .store(next_da_height, std::sync::atomic::Ordering::Release);
-
-            // We could've sent notifications now, as RPC storage and sync status has been updated,
-            // But prover might add notifications,
-            // so instead of calling send now, we call it once after finalize.
-            // But this could be changed if lower latency is needed.
-            next_da_height += 1;
-
-            // ----------------
-            // Finalization. Done after seen block for proper handling of instant finality
-            // Can be moved to another thread to improve throughput
+            // Processing finalized header
             let last_finalized = self.da_service.get_last_finalized_block_header().await?;
-
+            debug!(header = %last_finalized.display(), "Got last finalized header");
             let last_finalized_height = last_finalized.height();
-
-            let slot_number = self.ledger_db.get_next_items_numbers().slot_number - 1;
+            let slot_number = self.ledger_db.get_next_items_numbers().slot_number;
+            debug!(slot_number, "Last slot number");
             seen_state_transition.push_back(StateTransitionInfo {
                 data: transition_data,
                 slot_number,
             });
 
-            self.finalize(&mut seen_state_transition, last_finalized_height)
+            let (finalization_ledger_changes, finalized_headers) = self
+                .process_finalized_state_transitions(
+                    &mut seen_state_transition,
+                    last_finalized_height,
+                )
                 .await?;
 
+            // Handling change sets and storage updates.
+            let mut ledger_change_set = self
+                .ledger_db
+                .materialize_slot(data_to_commit, slot_result.state_root.as_ref())?;
+            let proof_change_set = self
+                .proof_manager
+                .materialize_aggregated_proofs(next_da_height)
+                .await?;
+            ledger_change_set.merge(proof_change_set);
+            ledger_change_set.merge(finalization_ledger_changes);
+
+            self.storage_manager.save_change_set(
+                &filtered_block_header,
+                slot_result.change_set,
+                ledger_change_set,
+            )?;
+            self.update_rpc_and_ledger_storage(&filtered_block_header)?;
+            for finalized_header in finalized_headers {
+                self.storage_manager.finalize(&finalized_header)?;
+            }
+            // RPC storage and Ledger have all data from this iteration,
+            // now it is safe to submit notifications.
             self.ledger_db.send_notifications();
 
-            inc_rollup_batches_processed(batch_count);
-            inc_rollup_transactions_processed(transaction_count);
+            // Updating counters and metrics
+            self.sync_state
+                .synced_da_height
+                .store(next_da_height, std::sync::atomic::Ordering::Release);
+            next_da_height += 1;
+            self.state_root = next_state_root;
+
+            sov_metrics::inc_rollup_batches_processed(batch_count);
+            sov_metrics::inc_rollup_transactions_processed(transaction_count);
         }
     }
 
-    async fn finalize(
+    // Processes `seen_state_transitions`, removes finalized and posts aggregates DA proofs.
+    async fn process_finalized_state_transitions(
         &mut self,
         seen_state_transition: &mut VecDeque<
             StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>,
         >,
         last_finalized_height: u64,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<(SchemaBatch, Vec<<Da::Spec as DaSpec>::BlockHeader>)> {
+        let mut ledger_change_set = SchemaBatch::new();
+        let mut finalized_headers = Vec::new();
         // Checking all seen blocks, in case if there was delay in getting last finalized header.
         while let Some(earliest_seen_state_transition_info) = seen_state_transition.front() {
             let earliest_header = earliest_seen_state_transition_info.da_block_header();
-            debug!(header = %earliest_header.display(), "Checking seen header");
+            debug!(header = %earliest_header.display(), last_finalized_height, "Checking seen header");
             let height = earliest_header.height();
 
             if height <= last_finalized_height {
-                self.storage_manager
-                    .finalize(earliest_seen_state_transition_info.da_block_header())?;
-                // TODO: Here is storage bug, as ledger_db changes are dropped on next height,
-                //     probably described here https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/746
-                // _ledger_change_set should be written directly to the underlying DB.
-                let _ledger_change_set = self.ledger_db.materialize_latest_finalize_slot(
+                ledger_change_set = self.ledger_db.materialize_latest_finalize_slot(
                     earliest_seen_state_transition_info.slot_number,
                 )?;
 
                 let transition_data = seen_state_transition.pop_front().unwrap();
+
+                finalized_headers.push(transition_data.da_block_header().clone());
 
                 // Post ZK proof to DA.
                 self.proof_manager
@@ -503,23 +519,24 @@ where
 
             break;
         }
-        Ok(())
+        Ok((ledger_change_set, finalized_headers))
     }
 
-    fn update_rpc_storage(
+    fn update_rpc_and_ledger_storage(
         &mut self,
         filtered_block_header: &<<Da as DaService>::Spec as DaSpec>::BlockHeader,
     ) -> Result<(), anyhow::Error> {
-        let (new_rpc_storage, _) = self
+        let (new_rpc_storage, ledger_state) = self
             .storage_manager
             .create_state_after(filtered_block_header)?;
+
         // `send_replace` is superior to `send` for our use case. It never fails
         // because it doesn't need to notify all receivers, unlike `send`, which
         // we don't need. It will also keep working even if there are no
         // receivers currently alive, which makes it easier to reason about the
         // code.
         self.rpc_storage_sender.send_replace(new_rpc_storage);
-
+        self.ledger_db.replace_db(ledger_state)?;
         Ok(())
     }
 
@@ -558,13 +575,19 @@ where
     if let Some(state_transition) = seen_state_transition.back() {
         if state_transition.da_block_header().hash() != filtered_block.header().prev_hash() {
             tracing::warn!(
-                block_header = %filtered_block.header().display(),
+                current_header = %filtered_block.header().display(),
+                prev_seen_header = %state_transition.da_block_header().display(),
                 "Block does not belong in current chain. Chain has forked. Traversing seen headers backwards"
             );
             while let Some(state_transition) = seen_state_transition.pop_back() {
                 let block = da_service
                     .get_block_at(state_transition.da_block_header().height())
                     .await?;
+                debug!(
+                    fetched = %block.header().display(),
+                    seen = %state_transition.da_block_header().display(),
+                    "Checking seen header vs fetched from DA"
+                );
                 if block.header().prev_hash() == state_transition.da_block_header().prev_hash() {
                     return Ok(Some(ForkPoint {
                         height: state_transition.da_block_header().height(),
@@ -664,7 +687,7 @@ mod tests {
                 } else {
                     header_from_height(height - 1)
                 };
-                // Just double it from "canonical" chain
+                // Double it from "canonical" chain
                 let raw_blob = vec![height as u8; 64];
                 let blob = MockBlob::new_with_hash(raw_blob, sequencer_address);
                 let mut header = header_from_height(height);
@@ -731,7 +754,7 @@ mod tests {
             da_service.send_transaction(&raw_blob, fee).await.unwrap();
 
             let prev_header = header_from_height(height - 1);
-            // Just double it from "canonical" chain
+            // Double it from "canonical" chain
             let raw_blob = vec![height as u8; 64];
             let blob = MockBlob::new_with_hash(raw_blob, sequencer_address);
             let mut header = header_from_height(height);

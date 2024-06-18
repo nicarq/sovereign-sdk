@@ -165,7 +165,7 @@ impl TestCase {
         // Generate 7 aggregate-proofs worth of blocks
         let nb_of_batches = 7 * jump;
         // The initial slot number of the final proof.
-        // The first proof covers blocks 1..=jump, the second jump+1..=(2*jump), etc.
+        // The first proof covers slots 1..=jump, the second jump+1..=(2*jump), etc.
         let initial_slot_number = (6 * jump + 1) as u64;
         Self {
             input: Input {

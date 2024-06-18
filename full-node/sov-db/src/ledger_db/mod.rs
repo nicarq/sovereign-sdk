@@ -226,6 +226,7 @@ impl LedgerDb {
     pub fn replace_db(&mut self, db: CacheDb) -> anyhow::Result<()> {
         self.db.overwrite_change_set(db);
         let loaded_item_numbers = Self::load_next_item_numbers(&self.db)?;
+
         let mut next_item_numbers = self
             .next_item_numbers
             .lock()
@@ -344,6 +345,7 @@ impl LedgerDb {
         let mut current_item_numbers = {
             let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
             let item_numbers = next_item_numbers.clone();
+            // TODO: Remove this, when ledger will also listen for storage upgrade
             next_item_numbers.slot_number += 1;
             next_item_numbers.batch_number += data_to_commit.batch_receipts.len() as u64;
             next_item_numbers.tx_number += data_to_commit.num_txs as u64;
