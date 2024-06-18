@@ -3,10 +3,11 @@ use std::path::PathBuf;
 
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
-use sov_modules_api::{BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelWorkingSet, Spec};
+use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
+use sov_modules_api::{
+    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelWorkingSet, Spec,
+};
 use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
@@ -74,16 +75,16 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for BasicKernel<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> BatchSelector<Da> for BasicKernel<S, Da> {
+impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BasicKernel<S, Da> {
     type Spec = S;
 
-    type Batch = BatchWithId;
+    type BlobType = BlobDataWithId;
 
-    fn get_batches_for_this_slot<'a, 'k, I>(
+    fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut sov_modules_api::KernelWorkingSet<'k, Self::Spec>,
-    ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
+    ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {

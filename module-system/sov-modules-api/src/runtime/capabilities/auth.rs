@@ -20,11 +20,12 @@
 //! Notice that in the above example, the concept of the nonce is entirely internal to the implementation of the two traits. We can have other
 //! authentication/authorization mechanisms where authentication means something other than a signature check, and the nonce is not used.
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::stf::RawTx;
 use thiserror::Error;
 
 use crate::digest::Digest;
@@ -84,13 +85,6 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         sequencer: &Da::Address,
         tx_scratchpad: &mut TxScratchpad<S>,
     );
-}
-
-/// RawTx represents a serialized rollup transaction received from the DA.
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct RawTx {
-    /// Serialized transaction.
-    pub data: Vec<u8>,
 }
 
 /// Result of the authentication.

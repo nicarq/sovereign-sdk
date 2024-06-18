@@ -3,12 +3,11 @@
 
 use sov_attester_incentives::AttesterIncentives;
 use sov_bank::Bank;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, TxHooks};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Genesis, RuntimeEventProcessor, Spec, StateCheckpoint,
-    WorkingSet,
+    BatchWithId, Context, DaSpec, DispatchCall, Genesis, RuntimeEventProcessor, Spec,
+    StateCheckpoint, WorkingSet,
 };
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_sequencer_registry::SequencerRegistry;
@@ -106,7 +105,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
 
     fn begin_batch_hook_override(
         &self,
-        batch: &mut BatchWithId,
+        batch: &BatchWithId,
         sender: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {

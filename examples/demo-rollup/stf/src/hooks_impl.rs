@@ -1,6 +1,7 @@
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::{AccessoryStateReaderAndWriter, Spec, StateCheckpoint, WorkingSet};
+use sov_modules_api::{
+    AccessoryStateReaderAndWriter, BatchWithId, Spec, StateCheckpoint, WorkingSet,
+};
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerRegistry;
@@ -19,7 +20,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
 
     fn begin_batch_hook(
         &self,
-        batch: &mut BatchWithId,
+        batch: &BatchWithId,
         sender: &Da::Address,
         state: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {

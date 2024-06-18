@@ -5,9 +5,9 @@ use sov_attester_incentives::Role;
 use sov_bank::BurnRate;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::batch::Batch;
-use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::{CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, Spec, StateCheckpoint};
+use sov_modules_api::{
+    Batch, CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, RawTx, Spec, StateCheckpoint,
+};
 use sov_modules_stf_blueprint::TransactionReceipt;
 use sov_state::{Storage, StorageRoot};
 use sov_test_utils::auth::TestAuth;

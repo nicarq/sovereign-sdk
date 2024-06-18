@@ -1,14 +1,14 @@
 use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
 
-use super::BatchSelector;
+use super::BlobSelector;
 use crate::{BootstrapWorkingSet, Gas, KernelWorkingSet, Spec, StateCheckpoint};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
 /// while a second will support a "preferred sequencer" with some limited power to reorder blobs
 /// in order to give out soft confirmations.
-pub trait Kernel<S: Spec, Da: DaSpec>: BatchSelector<Da, Spec = S> + Default + Sync + Send {
+pub trait Kernel<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Default + Sync + Send {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
 

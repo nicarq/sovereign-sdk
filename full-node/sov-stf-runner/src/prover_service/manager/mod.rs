@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::stf::BlobData;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use sov_rollup_interface::zk::Zkvm;
 use tracing::{debug, info};
@@ -59,6 +61,26 @@ where
         let mut aggregated_proofs_data = SchemaBatch::new();
         for raw_aggregated_proof in aggregated_proofs {
             // Verify aggregated proof before storing it into the database.
+
+            let proof: BlobData = match BorshDeserialize::try_from_slice(&raw_aggregated_proof) {
+                Ok(proof) => proof,
+                Err(_) => {
+                    // TODO #815
+                    debug!("Error: BlobData deserialization failed");
+                    continue;
+                }
+            };
+
+            let raw_aggregated_proof = match proof {
+                BlobData::Batch(_) => {
+                    // TODO #815
+                    debug!("Error: received `Batch` on the proof namespace");
+
+                    return Ok(aggregated_proofs_data);
+                }
+                BlobData::Proof(proof) => proof,
+            };
+
             let public_data: AggregatedProofPublicData = match <Ps::Verifier as Zkvm>::verify(
                 &raw_aggregated_proof,
                 &self.outer_code_commitment,
@@ -78,6 +100,7 @@ where
                         },
                         public_data,
                     ))?;
+
             aggregated_proofs_data.merge(this_height_data);
         }
 
@@ -125,12 +148,14 @@ where
                     bytes = agg_proof.raw_aggregated_proof.len(),
                     "Sending aggregated proof to DA"
                 );
-                let fee = self
-                    .da_service
-                    .estimate_fee(agg_proof.raw_aggregated_proof.len())
-                    .await?;
+
+                let proof = BlobData::Proof(agg_proof.raw_aggregated_proof);
+                let serialized_proof = proof.try_to_vec()?;
+
+                let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
+
                 self.da_service
-                    .send_aggregated_zk_proof(&agg_proof.raw_aggregated_proof, fee)
+                    .send_aggregated_zk_proof(&serialized_proof, fee)
                     .await?;
             }
         }

@@ -23,6 +23,7 @@ type MockInitVariant = InitVariant<
     MockZkVerifier,
     DaServiceWithRetries<MockDaService>,
 >;
+
 #[tokio::test]
 async fn test_simple_reorg_case() {
     let tmp_dir = tempfile::tempdir().unwrap();
@@ -71,6 +72,7 @@ async fn test_simple_reorg_case() {
 
     let (expected_state_root, _expected_final_root_hash) =
         get_expected_execution_hash_from(&genesis_params, expected_final_blobs);
+
     let (_expected_committed_state_root, expected_committed_root_hash) =
         get_expected_execution_hash_from(&genesis_params, vec![vec![1, 1, 1, 1]]);
 

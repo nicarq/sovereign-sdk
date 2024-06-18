@@ -3,10 +3,11 @@ use std::path::PathBuf;
 
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks};
-use sov_modules_api::{BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelWorkingSet, Spec};
+use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
+use sov_modules_api::{
+    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelWorkingSet, Spec,
+};
 use sov_state::Storage;
 
 /// A kernel supporting based sequencing with soft confirmations
@@ -63,20 +64,20 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> BatchSelector<Da> for SoftConfirmationsKernel<S, Da> {
+impl<S: Spec, Da: DaSpec> BlobSelector<Da> for SoftConfirmationsKernel<S, Da> {
     type Spec = S;
-    type Batch = BatchWithId;
+    type BlobType = BlobDataWithId;
 
-    fn get_batches_for_this_slot<'a, 'k, I>(
+    fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelWorkingSet<'k, Self::Spec>,
-    ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
+    ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         self.blob_storage
-            .get_batches_for_this_slot(current_blobs, state)
+            .get_blobs_for_this_slot(current_blobs, state)
     }
 }
 

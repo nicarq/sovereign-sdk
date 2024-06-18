@@ -3,9 +3,8 @@ use std::vec;
 
 use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
-use sov_modules_api::batch::Batch;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_api::{Batch, Gas, GasArray, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;

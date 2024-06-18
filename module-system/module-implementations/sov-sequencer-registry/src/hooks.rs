@@ -2,9 +2,8 @@
 use risc0_cycle_macros::cycle_tracker;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_utils::print_cycle_count;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::hooks::ApplyBatchHooks;
-use sov_modules_api::{Spec, StateCheckpoint};
+use sov_modules_api::{BatchWithId, Spec, StateCheckpoint};
 
 use crate::{SequencerOutcome, SequencerRegistry};
 
@@ -15,7 +14,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegi
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_batch_hook(
         &self,
-        _batch: &mut BatchWithId,
+        _batch: &BatchWithId,
         sender: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {

@@ -2,11 +2,11 @@ use std::convert::Infallible;
 
 use borsh::BorshSerialize;
 use sov_bank::{IntoPayable, Payable, ReserveGasError};
-use sov_modules_api::batch::{Batch, BatchWithId};
-use sov_modules_api::capabilities::RawTx;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec};
+use sov_modules_api::{
+    Batch, BatchWithId, Gas, GasArray, GasMeter, GasUnit, ModuleInfo, RawTx, Spec,
+};
 use sov_test_utils::generate_empty_tx;
 
 use super::helpers::{TestSequencer, S};
@@ -43,14 +43,14 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
     }];
 
     // Execute the begin batch hook
-    let mut batch_test = BatchWithId {
+    let test_batch = BatchWithId {
         batch: Batch { txs },
-        id: [0; 32],
+        id: [0u8; 32],
     };
 
     sequencer_test
         .registry
-        .begin_batch_hook(&mut batch_test, &seq_da_address, &mut state)
+        .begin_batch_hook(&test_batch, &seq_da_address, &mut state)
         .expect("The begin batch hook should succeed");
 
     let transaction_scratchpad = state.to_tx_scratchpad();

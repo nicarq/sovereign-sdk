@@ -8,27 +8,24 @@ mod utils;
 
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-pub use sov_modules_api::batch::Batch;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
     AuthenticationError, FatalError, HasCapabilities, RuntimeAuthenticator,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::SequencerReward;
+pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
-    BlobReaderTrait, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
+    BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
-use sov_rollup_interface::stf::{
-    ApplySlotOutput, ProofOutcome, ProofReceipt, StateTransitionFunction,
-};
+use sov_rollup_interface::stf::{ApplySlotOutput, ProofOutcome, StateTransitionFunction};
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
 pub use stf_blueprint::{process_tx, BatchReceipt, StfBlueprint, TransactionReceipt};
 use thiserror::Error;
-use tracing::{debug, info};
+use tracing::info;
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
@@ -273,7 +270,7 @@ where
     S: Spec,
     Da: DaSpec,
     RT: Runtime<S, Da>,
-    K: KernelSlotHooks<S, Da, Batch = BatchWithId>,
+    K: KernelSlotHooks<S, Da, BlobType = BlobDataWithId>,
 {
     type StateRoot = <S::Storage as Storage>::Root;
 
@@ -353,62 +350,53 @@ where
             pre_state_root,
         );
 
-        let proof_blobs = relevant_blobs.proof_blobs;
-        let mut proof_receipts = Vec::new();
-        for proof in proof_blobs.into_iter() {
-            // Since we're not currently processing receipts, we just mark that in the DB for now
-            proof_receipts.push(ProofReceipt {
-                blob_hash: proof.hash(),
-                outcome: ProofOutcome::<Da, Self::StateRoot>::Ignored,
-                extra_data: (),
-            });
-            checkpoint = self.apply_proof(checkpoint, proof, &gas_price);
-        }
-
         let mut kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut checkpoint);
         let visible_height = kernel_working_set.virtual_slot();
 
-        let batch_blobs = relevant_blobs.batch_blobs;
+        let all_blobs = relevant_blobs
+            .batch_blobs
+            .into_iter()
+            .chain(relevant_blobs.proof_blobs);
 
-        let selected_batches = self
+        let selected_blobs = self
             .kernel
-            .get_batches_for_this_slot(batch_blobs, &mut kernel_working_set)
+            .get_blobs_for_this_slot(all_blobs, &mut kernel_working_set)
             .expect("blob selection must succeed, probably serialization failed");
 
         info!(
-            batches_count = selected_batches.len(),
+            blob_count = selected_blobs.len(),
             virtual_slot = visible_height,
             true_slot = kernel_working_set.current_slot(),
             "Selected batch(es) for execution in current slot"
         );
 
+        let mut proof_receipts = Vec::new();
         let mut batch_receipts = vec![];
 
         let mut total_gas = S::Gas::zero();
-        for (blob_idx, (batch, sender)) in selected_batches.into_iter().enumerate() {
-            let (apply_blob_result, next_checkpoint, gas_used) =
-                self.apply_batch(checkpoint, batch, &sender, &gas_price, visible_height);
-            checkpoint = next_checkpoint;
-            let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
-            info!(
-                blob_idx,
-                blob_hash = hex::encode(batch_receipt.batch_hash),
-                %sender,
-                num_txs = batch_receipt.tx_receipts.len(),
-                sequencer_outcome = ?batch_receipt.inner,
-                ?gas_used,
-                "Applied blob and got the sequencer outcome"
-            );
-            for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-                debug!(
-                    tx_idx = i,
-                    tx_hash = hex::encode(tx_receipt.tx_hash),
-                    receipt = ?tx_receipt.receipt,
-                    "Tx receipt"
-                );
+        for (blob_idx, (blob, sender)) in selected_blobs.into_iter().enumerate() {
+            match blob.data {
+                BlobData::Batch(batch) => {
+                    let batch_with_id = BatchWithId { batch, id: blob.id };
+
+                    let (next_checkpoint, batch_receipt, gas_used) = self.process_batch(
+                        batch_with_id,
+                        checkpoint,
+                        blob_idx,
+                        &sender,
+                        &gas_price,
+                        visible_height,
+                    );
+
+                    checkpoint = next_checkpoint;
+                    batch_receipts.push(batch_receipt);
+                    total_gas.combine(&gas_used);
+                }
+                BlobData::Proof(_proof) => {
+                    let receipt = self.process_proof();
+                    proof_receipts.push(receipt);
+                }
             }
-            batch_receipts.push(batch_receipt);
-            total_gas.combine(&gas_used);
         }
 
         let (state_root, witness, change_set) = self.end_slot(pre_state, &total_gas, checkpoint);
