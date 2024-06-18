@@ -11,7 +11,9 @@ use sov_mock_da::{
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{
+    Batch, BlobData, CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, RawTx, Spec,
+};
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
@@ -139,7 +141,7 @@ impl DaService for RngDaService {
                 .expect("TXNS_PER_BLOCK var should be a +ve number");
         }
 
-        let data = if block.header().height() == 1 {
+        let txs = if block.header().height() == 1 {
             // creating the token
             generate_create_token_payload(0)
         } else {
@@ -155,8 +157,10 @@ impl DaService for RngDaService {
             )
         };
 
+        let blob = BlobData::Batch(Batch { txs }).try_to_vec().unwrap();
+
         let address = MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS);
-        let blob = MockBlob::new(data, address, [0u8; 32]);
+        let blob = MockBlob::new(blob, address, [0u8; 32]);
 
         RelevantBlobs {
             proof_blobs: vec![],
@@ -220,7 +224,7 @@ impl DaVerifier for RngDaVerifier {
     }
 }
 
-pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
+pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<RawTx> {
     let token_name = "sov-test-token";
     let (sa, pk) = sender_address_with_pkey::<TestSpec>();
     let token_id = sov_bank::get_token_id::<TestSpec>(token_name, &sa, 11);
@@ -251,10 +255,14 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
         let ser_tx = tx.try_to_vec().unwrap();
         message_vec.push(ser_tx);
     }
-    message_vec.try_to_vec().unwrap()
+
+    message_vec
+        .into_iter()
+        .map(|tx| RawTx { data: tx })
+        .collect()
 }
 
-pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
+pub fn generate_create_token_payload(start_nonce: u64) -> Vec<RawTx> {
     let mut message_vec = vec![];
 
     let (minter, pk) = sender_address_with_pkey::<TestSpec>();
@@ -279,5 +287,9 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
     );
     let ser_tx = tx.try_to_vec().unwrap();
     message_vec.push(ser_tx);
-    message_vec.try_to_vec().unwrap()
+
+    message_vec
+        .into_iter()
+        .map(|tx| RawTx { data: tx })
+        .collect()
 }

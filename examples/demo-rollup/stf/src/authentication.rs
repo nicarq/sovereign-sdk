@@ -5,9 +5,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::{Authenticator, AuthorizationData};
 use sov_modules_api::runtime::capabilities::{
-    AuthenticationError, AuthenticationResult, FatalError, RawTx, RuntimeAuthenticator,
+    AuthenticationError, AuthenticationResult, FatalError, RuntimeAuthenticator,
 };
-use sov_modules_api::{DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, Spec};
+use sov_modules_api::{DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, RawTx, Spec};
 use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::{Runtime, RuntimeCall};

@@ -12,14 +12,12 @@ pub use sov_chain_state::ChainStateConfig;
 use sov_db::schema::SchemaBatch;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_api::batch::Batch;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    CryptoSpec, DaSpec, EncodeCall, Genesis, Module, PrivateKey, SlotData, Spec, StateCheckpoint,
-    WorkingSet,
+    Batch, BlobData, CryptoSpec, DaSpec, EncodeCall, Genesis, Module, PrivateKey, RawTx, SlotData,
+    Spec, StateCheckpoint, WorkingSet,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
@@ -424,7 +422,7 @@ pub fn run_test_with_setup_fn<RT, S, M>(
             signed_txs
         };
 
-        let batch = Batch { txs };
+        let batch = BlobData::Batch(Batch { txs });
         let blob = batch.try_to_vec().unwrap();
         let mut blob = MockBlob::new_with_hash(blob, sequencer_da_address);
 

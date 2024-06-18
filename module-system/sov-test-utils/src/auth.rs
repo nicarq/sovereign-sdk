@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use sov_modules_api::runtime::capabilities::{
-    AuthenticationResult, Authenticator, AuthorizationData, RawTx,
+    AuthenticationResult, Authenticator, AuthorizationData,
 };
-use sov_modules_api::{DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, Spec};
+use sov_modules_api::{DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, RawTx, Spec};
 
 use crate::runtime::TestRuntime;
 
@@ -31,7 +31,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for TestAuth<S, Da> {
         )
     }
 
-    fn encode(tx: Vec<u8>) -> Result<sov_modules_api::runtime::capabilities::RawTx, anyhow::Error> {
+    fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {
         Ok(RawTx { data: tx })
     }
 }

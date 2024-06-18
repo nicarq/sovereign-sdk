@@ -4,12 +4,11 @@ mod capabilities;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
-use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet, ModuleId, StateCheckpoint,
-    StateMap,
+    BlobData, BlobDataWithId, KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet,
+    ModuleId, StateCheckpoint, StateMap,
 };
 use sov_state::codec::BcsCodec;
 
@@ -30,11 +29,12 @@ pub struct BlobStorage<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> {
     /// DA block number => vector of blobs
     /// Caller controls the order of blobs in the vector
     #[state]
-    pub(crate) deferred_blobs: StateMap<u64, Vec<(BatchWithId, Da::Address)>, BcsCodec>,
+    pub(crate) deferred_blobs: StateMap<u64, Vec<(BlobDataWithId, Da::Address)>, BcsCodec>,
 
     /// Any preferred sequencer blobs which were received out of order. Mapped from sequence number to batch.
     #[state]
-    pub(crate) deferred_preferred_sequencer_blobs: StateMap<SequenceNumber, PreferredBatchWithId>,
+    pub(crate) deferred_preferred_sequencer_blobs:
+        StateMap<SequenceNumber, PreferredBlobDataWithId>,
 
     /// The next sequence number for the preferred sequencer. This is used to determine if a batch is out of order.
     #[state]
@@ -53,7 +53,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
     pub fn store_batches(
         &self,
         slot_number: TransitionHeight,
-        batches: &Vec<(BatchWithId, Da::Address)>,
+        batches: &Vec<(BlobDataWithId, Da::Address)>,
         state: &mut StateCheckpoint<S>,
     ) {
         self.deferred_blobs
@@ -67,7 +67,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
         &self,
         slot_height: TransitionHeight,
         state: &mut StateCheckpoint<S>,
-    ) -> Vec<(BatchWithId, Da::Address)> {
+    ) -> Vec<(BlobDataWithId, Da::Address)> {
         self.deferred_blobs
             .remove(&slot_height, state)
             .unwrap_infallible()
@@ -98,23 +98,23 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> KernelModule for Blo
     }
 }
 
-/// Contains raw transactions obtained from the DA blob, plus metadata required for blobs
+/// Contains data obtained from the DA blob, plus metadata required for blobs
 /// from the preferred sequencer.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct PreferredBatch {
+pub struct PreferredBlobData {
     /// The sequence number of the batch. The rollup attempts to process batches in order by sequence number.
     pub sequence_number: u64,
-    /// The actual transactions of the batch
-    pub batch: Batch,
+    /// The actual data of the blob.
+    pub data: BlobData,
     /// The number of virtual slots to advance after processing the batch. Minimum 1.
     pub virtual_slots_to_advance: u8,
 }
 
-/// A preferred batch and the ID (hash) of the blob that it was deserialized from
+/// A preferred blob and the ID (hash) of the blob that it was deserialized from
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct PreferredBatchWithId {
+pub struct PreferredBlobDataWithId {
     /// Raw transactions.
-    pub inner: PreferredBatch,
+    pub inner: PreferredBlobData,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
 }

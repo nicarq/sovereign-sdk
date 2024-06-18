@@ -3,19 +3,18 @@ use std::convert::Infallible;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::GasTokenConfig;
-use sov_blob_storage::{PreferredBatch, DEFERRED_SLOTS_COUNT};
+use sov_blob_storage::{PreferredBlobData, DEFERRED_SLOTS_COUNT};
 use sov_chain_state::ChainStateConfig;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_kernels::soft_confirmations::{
     SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
 };
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::da::Time;
-use sov_modules_api::runtime::capabilities::{BatchSelector, Kernel, KernelSlotHooks, RawTx};
+use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    Address, BlobReaderTrait, Context, DaSpec, DispatchCall, KernelWorkingSet, MessageCodec,
-    Module, Spec, StateCheckpoint,
+    Address, Batch, BlobData, BlobDataWithId, BlobReaderTrait, Context, DaSpec, DispatchCall,
+    KernelWorkingSet, MessageCodec, Module, RawTx, Spec, StateCheckpoint,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_sequencer_registry::SequencerConfig;
@@ -83,8 +82,8 @@ fn make_blobs(
                     }];
 
                     MockBlob::new(
-                        PreferredBatch {
-                            batch: Batch { txs },
+                        PreferredBlobData {
+                            data: BlobData::Batch(Batch { txs }),
                             sequence_number,
                             virtual_slots_to_advance: slots_to_advance as u8,
                         }
@@ -129,9 +128,9 @@ fn make_blobs_by_slot(
 
 fn make_blob(tx_data: Vec<u8>, sender: MockAddress, id: [u8; 32]) -> MockBlob {
     MockBlob::new(
-        Batch {
+        BlobData::Batch(Batch {
             txs: vec![RawTx { data: tx_data }],
-        }
+        })
         .try_to_vec()
         .unwrap(),
         sender,
@@ -269,7 +268,7 @@ fn do_deferred_blob_test(
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
 
         let batches_to_execute = test_kernel
-            .get_batches_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
+            .get_blobs_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
             .unwrap();
 
         assert_eq!(kernel_working_set.current_slot(), slot_number);
@@ -479,7 +478,7 @@ fn test_recovery_mode() -> Result<(), Infallible> {
         );
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
-            .get_batches_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
+            .get_blobs_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
             .unwrap();
         assert_eq!(kernel_working_set.virtual_slot(), 1);
         assert_eq!(blobs_to_execute.len(), 0);
@@ -513,7 +512,7 @@ fn test_recovery_mode() -> Result<(), Infallible> {
         );
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
-            .get_batches_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
+            .get_blobs_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
             .unwrap();
         let next_height = test_kernel
             .get_chain_state()
@@ -598,7 +597,7 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
 
         kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
         let blobs_to_execute = test_kernel
-            .get_batches_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
+            .get_blobs_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
             .unwrap();
 
         for batch in blobs_to_execute {
@@ -669,7 +668,7 @@ fn test_based_sequencing() -> Result<(), Infallible> {
     );
     kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
     let mut execute_in_slot_1 = test_kernel
-        .get_batches_for_this_slot(&mut slot_1_data.batch_blobs, &mut kernel_working_set)
+        .get_blobs_for_this_slot(&mut slot_1_data.batch_blobs, &mut kernel_working_set)
         .unwrap();
     assert_eq!(3, execute_in_slot_1.len());
     assert_blob_matches_batch(blob_1, execute_in_slot_1.remove(0), "slot 1", false);
@@ -702,7 +701,7 @@ fn test_based_sequencing() -> Result<(), Infallible> {
     );
     kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
     let execute_in_slot_2 = test_kernel
-        .get_batches_for_this_slot(&mut slot_2_data.batch_blobs, &mut kernel_working_set)
+        .get_blobs_for_this_slot(&mut slot_2_data.batch_blobs, &mut kernel_working_set)
         .unwrap();
     assert_eq!(
         test_kernel
@@ -719,7 +718,7 @@ fn test_based_sequencing() -> Result<(), Infallible> {
 /// Check hashes and data of two blobs.
 fn assert_blob_matches_batch<B: BlobReaderTrait>(
     mut expected: B,
-    actual: (BatchWithId, B::Address),
+    actual: (BlobDataWithId, B::Address),
     slot_hint: &str,
     is_preferred: bool,
 ) {
@@ -727,11 +726,15 @@ fn assert_blob_matches_batch<B: BlobReaderTrait>(
     let actual_id = actual.0.id;
     if is_preferred {
         assert_eq!(expected.hash(), actual.0.id);
-        let expected = PreferredBatch::try_from_slice(expected.full_data()).unwrap();
-        assert_eq!(expected.batch, actual.0.batch);
+        let expected = PreferredBlobData::try_from_slice(expected.full_data()).unwrap();
+        assert_eq!(expected.data, actual.0.data);
     } else {
-        let mut actual_inner =
-            new_test_blob_from_batch(actual.0.batch, actual.1.as_ref(), actual_id);
+        let batch = match actual.0.data {
+            BlobData::Batch(batch) => batch,
+            BlobData::Proof(_) => panic!("Expected a batch, but got a proof"),
+        };
+
+        let mut actual_inner = new_test_blob_from_batch(batch, actual.1.as_ref(), actual_id);
         assert_eq!(
             expected.hash(),
             actual_inner.hash(),

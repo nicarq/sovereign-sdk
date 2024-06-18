@@ -6,9 +6,9 @@ use jsonrpsee::core::StringError;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use serde::Serialize;
-use sov_modules_api::batch::Batch;
-use sov_modules_api::capabilities::{Authenticator, RawTx};
+use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
+use sov_modules_api::{Batch, BlobData, RawTx};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
@@ -99,11 +99,10 @@ where
 
         for tx in blob_txs {
             txs.push(RawTx { data: tx.raw_tx });
-
             tx_hashes.push(tx.hash);
         }
 
-        let batch = Batch { txs };
+        let batch = BlobData::Batch(Batch { txs });
         let serialized_batch = batch.try_to_vec()?;
 
         let fee = match self.0.da_service.estimate_fee(serialized_batch.len()).await {
@@ -439,6 +438,7 @@ mod axum_router {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
+    use borsh::BorshDeserialize;
     use jsonrpsee::MethodsError;
     use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
     use sov_rollup_interface::da::BlobReaderTrait;
@@ -481,12 +481,9 @@ mod tests {
             }
             let txs = std::mem::take(&mut self.mempool)
                 .into_iter()
-                .filter_map(|tx| {
-                    let first_byte = *tx.first()?;
-                    Some(TxWithHash {
-                        raw_tx: vec![first_byte],
-                        hash: [0; 32],
-                    })
+                .map(|raw_tx| TxWithHash {
+                    raw_tx,
+                    hash: [0; 32],
                 })
                 .collect();
             Ok(txs)
@@ -519,12 +516,9 @@ mod tests {
     async fn test_submit_happy_path() {
         let tx1 = vec![1, 2, 3];
         let tx2 = vec![3, 4, 5];
-        // First bytes of each tx, flattened
-        let blob: Vec<Vec<u8>> = vec![vec![tx1[0]], vec![tx2[0]]];
-        let expected: Vec<u8> = borsh::to_vec(&blob).unwrap();
 
         let batch_builder = MockBatchBuilder {
-            mempool: vec![tx1, tx2],
+            mempool: vec![tx1.clone(), tx2.clone()],
         };
         let da_service = MockDaService::new(MockAddress::default());
         let rpc = sequencer_rpc(batch_builder, da_service.clone());
@@ -535,7 +529,16 @@ mod tests {
         let mut submitted_block = da_service.get_block_at(1).await.unwrap();
         let block_data = submitted_block.batch_blobs[0].full_data();
 
-        assert_eq!(expected, block_data);
+        let proof_or_batch = BlobData::try_from_slice(block_data).unwrap();
+
+        match proof_or_batch {
+            BlobData::Batch(batch) => {
+                assert_eq!(batch.txs.len(), 2);
+                assert_eq!(tx1, batch.txs[0].data);
+                assert_eq!(tx2, batch.txs[1].data);
+            }
+            BlobData::Proof(_) => panic!("Expected a batch, but got a proof"),
+        }
     }
 
     #[tokio::test]
@@ -546,11 +549,8 @@ mod tests {
         let rpc = sequencer_rpc(batch_builder, da_service.clone());
 
         let tx: Vec<u8> = vec![1, 2, 3, 4, 5];
-        // First bytes of each tx, flattened
-        let blob: Vec<Vec<u8>> = vec![vec![tx[0]]];
-        let expected_block_data: Vec<u8> = borsh::to_vec(&blob).unwrap();
 
-        let request = super::jsonrpc::SubmitTransaction { body: tx };
+        let request = super::jsonrpc::SubmitTransaction { body: tx.clone() };
         rpc.call::<_, AcceptTxResponse>("sequencer_acceptTx", [request])
             .await
             .unwrap();
@@ -561,6 +561,13 @@ mod tests {
         let mut submitted_block = da_service.get_block_at(1).await.unwrap();
         let block_data = submitted_block.batch_blobs[0].full_data();
 
-        assert_eq!(expected_block_data, block_data);
+        let proof_or_batch = BlobData::try_from_slice(block_data).unwrap();
+
+        match proof_or_batch {
+            BlobData::Batch(batch) => {
+                assert_eq!(tx, batch.txs[0].data);
+            }
+            BlobData::Proof(_) => panic!("Expected a batch, but got a proof"),
+        }
     }
 }

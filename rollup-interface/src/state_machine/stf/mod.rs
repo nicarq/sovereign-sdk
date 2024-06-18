@@ -4,11 +4,13 @@
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
 use std::fmt::Debug;
+mod batch;
 mod events;
 pub use events::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 mod transaction;
+pub use batch::*;
 pub use transaction::*;
 
 use crate::da::{DaSpec, RelevantBlobIters};

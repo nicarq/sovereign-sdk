@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::hooks::ApplyBatchHooks;
+use sov_modules_api::{Batch, BatchWithId};
 
 use crate::tests::helpers::{
     Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, INITIAL_BALANCE, LOCKED_AMOUNT,
@@ -23,14 +23,14 @@ fn begin_batch_hook_known_sequencer() -> Result<(), Infallible> {
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
-    let mut test_batch = BatchWithId {
+    let test_batch = BatchWithId {
         batch: Batch { txs: vec![] },
         id: [0u8; 32],
     };
 
     test_sequencer
         .registry
-        .begin_batch_hook(&mut test_batch, &genesis_sequencer_da_address, &mut state)
+        .begin_batch_hook(&test_batch, &genesis_sequencer_da_address, &mut state)
         .unwrap();
 
     let resp = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
@@ -47,13 +47,13 @@ fn begin_batch_hook_known_sequencer() -> Result<(), Infallible> {
 fn begin_batch_hook_unknown_sequencer() -> Result<(), Infallible> {
     let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
 
-    let mut test_batch = BatchWithId {
+    let test_batch = BatchWithId {
         batch: Batch { txs: vec![] },
         id: [0u8; 32],
     };
 
     let result = test_sequencer.registry.begin_batch_hook(
-        &mut test_batch,
+        &test_batch,
         &MockAddress::from(UNKNOWN_SEQUENCER_DA_ADDRESS),
         &mut state,
     );
@@ -74,14 +74,14 @@ fn end_batch_hook_success() -> Result<(), Infallible> {
     let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
-    let mut test_batch = BatchWithId {
+    let test_batch = BatchWithId {
         batch: Batch { txs: Vec::new() },
         id: [0u8; 32],
     };
 
     test_sequencer
         .registry
-        .begin_batch_hook(&mut test_batch, &genesis_sequencer_da_address, &mut state)
+        .begin_batch_hook(&test_batch, &genesis_sequencer_da_address, &mut state)
         .unwrap();
 
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(

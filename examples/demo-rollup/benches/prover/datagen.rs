@@ -100,6 +100,7 @@ pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
         .create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<
         Native,
     >>::Runtime, ModAuth<S, MockDaSpec>>();
+
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
     da_service.send_transaction(&blob, fee).await.unwrap();
     let block1 = da_service.get_block_at(1).await.unwrap();

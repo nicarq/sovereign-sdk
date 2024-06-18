@@ -1,9 +1,9 @@
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::batch::{Batch, BatchWithId};
-use sov_modules_api::runtime::capabilities::RawTx;
-use sov_modules_api::{KernelModule, KernelWorkingSet, StateCheckpoint};
+use sov_modules_api::{
+    Batch, BlobData, BlobDataWithId, KernelModule, KernelWorkingSet, RawTx, StateCheckpoint,
+};
 use sov_prover_storage_manager::new_orphan_storage;
 
 type S = sov_test_utils::TestSpec;
@@ -78,8 +78,8 @@ fn store_and_retrieve_standard() {
             data: vec![i * 3 + 1, i * 3 + 2, i * 3 + 3],
         }];
 
-        let batch = BatchWithId {
-            batch: Batch { txs },
+        let batch = BlobDataWithId {
+            data: BlobData::Batch(Batch { txs }),
             id: [i; 32],
         };
         batches.push((batch, sender));

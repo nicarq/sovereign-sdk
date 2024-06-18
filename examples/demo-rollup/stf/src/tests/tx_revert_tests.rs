@@ -1,10 +1,9 @@
 use std::convert::Infallible;
 
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
-use sov_modules_api::batch::Batch;
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{ApiStateAccessor, PrivateKey, PublicKey, Spec, StateCheckpoint};
+use sov_modules_api::{ApiStateAccessor, Batch, PrivateKey, PublicKey, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, SkippedReason, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;

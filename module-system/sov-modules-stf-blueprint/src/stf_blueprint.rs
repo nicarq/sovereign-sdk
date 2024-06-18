@@ -4,24 +4,23 @@ use std::marker::PhantomData;
 use borsh::BorshSerialize;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
     AuthenticationError, AuthenticationResult, AuthorizeSequencerError, FatalError, GasEnforcer,
-    HasCapabilities, RawTx, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
+    HasCapabilities, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
     TryReserveGasError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Error, Gas, GasArray, PreExecWorkingSet, Spec, StateCheckpoint,
-    TxScratchpad, WorkingSet,
+    BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray, PreExecWorkingSet,
+    ProofReceipt, RawTx, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::stf::StoredEvent;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ApplyTxResult, BatchSequencerOutcome, Runtime, SkippedReason, TxEffect, TxProcessingError,
-    TxProcessingErrorReason, TxReceiptContents,
+    ApplyTxResult, BatchSequencerOutcome, ProofOutcome, Runtime, SkippedReason, Storage, TxEffect,
+    TxProcessingError, TxProcessingErrorReason, TxReceiptContents,
 };
 
 type ApplyBatchResult<T> = Result<T, ApplyBatchError>;
@@ -120,15 +119,48 @@ where
         }
     }
 
-    #[tracing::instrument(skip_all, name = "StfBlueprint::apply_proof")]
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    pub(crate) fn apply_proof(
+    pub(crate) fn process_proof(&self) -> ProofReceipt<Da, <S::Storage as Storage>::Root, ()> {
+        // TODO #815
+
+        ProofReceipt {
+            blob_hash: [0; 32],
+            outcome: ProofOutcome::<Da, <S::Storage as Storage>::Root>::Ignored,
+            extra_data: (),
+        }
+    }
+
+    pub(crate) fn process_batch(
         &self,
+        batch: BatchWithId,
         checkpoint: StateCheckpoint<S>,
-        _batch: &mut <Da as DaSpec>::BlobTransaction,
-        _gas_price: &<S::Gas as Gas>::Price,
-    ) -> StateCheckpoint<S> {
-        checkpoint
+        blob_idx: usize,
+        sender: &Da::Address,
+        gas_price: &<S::Gas as Gas>::Price,
+        visible_height: u64,
+    ) -> (StateCheckpoint<S>, BatchReceipt, S::Gas) {
+        let (apply_blob_result, next_checkpoint, gas_used) =
+            self.apply_batch(checkpoint, batch, sender, gas_price, visible_height);
+
+        let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
+        info!(
+            blob_idx,
+            blob_hash = hex::encode(batch_receipt.batch_hash),
+            %sender,
+            num_txs = batch_receipt.tx_receipts.len(),
+            sequencer_outcome = ?batch_receipt.inner,
+            ?gas_used,
+            "Applied blob and got the sequencer outcome"
+        );
+        for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+            debug!(
+                tx_idx = i,
+                tx_hash = hex::encode(tx_receipt.tx_hash),
+                receipt = ?tx_receipt.receipt,
+                "Tx receipt"
+            );
+        }
+
+        (next_checkpoint, batch_receipt, gas_used)
     }
 
     #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
@@ -136,7 +168,7 @@ where
     pub(crate) fn apply_batch(
         &self,
         mut checkpoint: StateCheckpoint<S>,
-        mut batch_with_id: BatchWithId,
+        batch_with_id: BatchWithId,
         sequencer_da_address: &Da::Address,
         gas_price: &<S::Gas as Gas>::Price,
         height: u64,
@@ -151,7 +183,7 @@ where
         // ApplyBlobHook: begin
         if let Err(e) =
             self.runtime
-                .begin_batch_hook(&mut batch_with_id, sequencer_da_address, &mut checkpoint)
+                .begin_batch_hook(&batch_with_id, sequencer_da_address, &mut checkpoint)
         {
             error!(
                 error = %e,

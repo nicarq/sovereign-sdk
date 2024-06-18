@@ -10,12 +10,13 @@ pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::runtime::capabilities::RawTx;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{CryptoSpec, DaSpec, GasArray, GasUnit, Module, Spec, StateCheckpoint};
-use sov_modules_stf_blueprint::{Batch, BatchReceipt};
+use sov_modules_api::{
+    Batch, CryptoSpec, DaSpec, GasArray, GasUnit, Module, RawTx, Spec, StateCheckpoint,
+};
+use sov_modules_stf_blueprint::{BatchReceipt, BlobData};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::stf::TxReceiptContents;
 
@@ -116,6 +117,7 @@ pub fn new_test_blob_from_batch(
     address: &[u8],
     hash: [u8; 32],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
+    let batch = BlobData::Batch(batch);
     let address = MockAddress::try_from(address).unwrap();
     let data = batch.try_to_vec().unwrap();
     MockBlob::new(data, address, hash)
@@ -280,12 +282,13 @@ pub trait MessageGenerator {
     }
 
     fn create_blobs<Encoder: EncodeCall<Self::Module>, Auth: Authenticator>(&self) -> Vec<u8> {
-        let txs: Vec<Vec<u8>> = self
+        let txs: Vec<RawTx> = self
             .create_default_raw_txs::<Encoder, Auth>()
             .into_iter()
-            .map(|tx| tx.data)
             .collect();
 
-        txs.try_to_vec().unwrap()
+        let batch = BlobData::Batch(Batch { txs });
+
+        batch.try_to_vec().unwrap()
     }
 }

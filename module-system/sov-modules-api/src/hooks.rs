@@ -1,6 +1,6 @@
 use sov_rollup_interface::da::DaSpec;
 
-use crate::batch::BatchWithId;
+use super::BatchWithId;
 use crate::transaction::AuthenticatedTransactionData;
 use crate::{
     AccessoryStateReaderAndWriter, Context, Spec, StateCheckpoint, TxState,
@@ -59,7 +59,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_batch_hook(
         &self,
-        _batch: &mut BatchWithId,
+        _batch: &BatchWithId,
         _sender: &Da::Address,
         _state_checkpoint: &mut StateCheckpoint<Self::Spec>,
     ) -> anyhow::Result<()> {

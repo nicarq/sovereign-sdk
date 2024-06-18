@@ -1,14 +1,15 @@
 use std::cmp::Ordering;
 
 use borsh::BorshDeserialize;
-use sov_modules_api::batch::{Batch, BatchWithId};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::runtime::capabilities::BatchSelector;
-use sov_modules_api::{BlobReaderTrait, DaSpec, KernelWorkingSet, Spec, StateCheckpoint};
+use sov_modules_api::runtime::capabilities::BlobSelector;
+use sov_modules_api::{
+    BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, KernelWorkingSet, Spec, StateCheckpoint,
+};
 use tracing::{error, info, warn};
 
 use crate::{
-    BlobStorage, PreferredBatch, PreferredBatchWithId, SequenceNumber, DEFERRED_SLOTS_COUNT,
+    BlobStorage, PreferredBlobData, PreferredBlobDataWithId, SequenceNumber, DEFERRED_SLOTS_COUNT,
 };
 
 /// Why blob can be discarded
@@ -27,7 +28,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelWorkingSet<'k, S>,
-    ) -> Vec<(BatchWithId, Da::Address)>
+    ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
@@ -41,7 +42,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelWorkingSet<'k, S>,
-    ) -> Vec<(BatchWithId, Da::Address)>
+    ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
@@ -52,10 +53,10 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                 continue;
             }
 
-            if let Some(batch) = self.deserialize_or_slash_sender::<Batch>(blob, state.inner) {
+            if let Some(batch) = self.deserialize_or_slash_sender::<BlobData>(blob, state.inner) {
                 batches.push((
-                    BatchWithId {
-                        batch,
+                    BlobDataWithId {
+                        data: batch,
                         id: blob.hash(),
                     },
                     blob.sender(),
@@ -82,31 +83,31 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             .is_ok()
     }
 
-    /// Enforce the ordering constraints on preferred batches by discarding or deferring blobs that arrive
+    /// Enforce the ordering constraints on preferred blobs by discarding or deferring blobs that arrive
     /// out of sequence.
-    fn enforce_preferred_batch_ordering(
+    fn enforce_preferred_blob_ordering(
         &self,
-        preferred_batch: PreferredBatch,
+        preferred_blob: PreferredBlobData,
         next_sequence_number: SequenceNumber,
         blob: &Da::BlobTransaction,
         state: &mut StateCheckpoint<S>,
-    ) -> Option<PreferredBatchWithId> {
-        match preferred_batch.sequence_number.cmp(&next_sequence_number) {
+    ) -> Option<PreferredBlobDataWithId> {
+        match preferred_blob.sequence_number.cmp(&next_sequence_number) {
             Ordering::Equal => {
                 // If the blob has the next sequence number, we'll process it.
-                Some(PreferredBatchWithId {
-                    inner: preferred_batch,
+                Some(PreferredBlobDataWithId {
+                    inner: preferred_blob,
                     id: blob.hash(),
                 })
             }
             Ordering::Greater => {
                 // If the sequence number is greater than the expected one, we defer the blob
-                let sequence_number = preferred_batch.sequence_number;
+                let sequence_number = preferred_blob.sequence_number;
                 self.deferred_preferred_sequencer_blobs
                     .set(
                         &sequence_number,
-                        &PreferredBatchWithId {
-                            inner: preferred_batch,
+                        &PreferredBlobDataWithId {
+                            inner: preferred_blob,
                             id: blob.hash(),
                         },
                         state,
@@ -130,7 +131,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelWorkingSet<'k, S>,
-    ) -> Vec<(BatchWithId, Da::Address)>
+    ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
@@ -185,7 +186,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         current_blobs: I,
         state: &mut KernelWorkingSet<'k, S>,
         preferred_sender: &Da::Address,
-    ) -> Vec<(BatchWithId, Da::Address)>
+    ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
@@ -197,7 +198,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             .unwrap_or(0);
 
         // Step 0: Retrieve the next preferred batch from storage, if applicable
-        let mut preferred_batch = self
+        let mut preferred_blob = self
             .deferred_preferred_sequencer_blobs
             .remove(&next_sequence_number, state.inner)
             .unwrap_infallible();
@@ -212,9 +213,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             // Check if the blob is from the preferred sequencer
             if &blob.sender() == preferred_sender {
                 let maybe_batch = self
-                    .deserialize_or_slash_sender::<PreferredBatch>(blob, state.inner)
+                    .deserialize_or_slash_sender::<PreferredBlobData>(blob, state.inner)
                     .and_then(|batch| {
-                        self.enforce_preferred_batch_ordering(
+                        self.enforce_preferred_blob_ordering(
                             batch,
                             next_sequence_number,
                             blob,
@@ -222,18 +223,18 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                         )
                     });
 
-                // Even if we retrieved `preferred_batch`` in `step0``, we override it because it has the same `sequence_number`.
-                if let Some(next_preferred_batch) = maybe_batch {
-                    preferred_batch = Some(next_preferred_batch);
+                // Even if we retrieved `preferred_blob`` in `step0``, we override it because it has the same `sequence_number`.
+                if let Some(next_preferred_blob) = maybe_batch {
+                    preferred_blob = Some(next_preferred_blob);
                 }
             } else {
                 // Otherwise, the batch is from a valid sender (checked in step 1) but not the preferred sender
                 // Deserialize it as a normal batch and store it in memory
-                let batch = self.deserialize_or_slash_sender::<Batch>(blob, state.inner);
-                if let Some(batch) = batch {
+                let data = self.deserialize_or_slash_sender::<BlobData>(blob, state.inner);
+                if let Some(data) = data {
                     new_forced_blobs.push((
-                        BatchWithId {
-                            batch,
+                        BlobDataWithId {
+                            data,
                             id: blob.hash(),
                         },
                         blob.sender(),
@@ -251,31 +252,31 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             .saturating_add(1);
         let mut batches_to_process = Vec::new();
 
-        let num_slots_to_advance = if let Some(preferred_batch) = preferred_batch {
+        let num_slots_to_advance = if let Some(preferred_blob) = preferred_blob {
             self.next_sequence_number
                 .set(&next_sequence_number.saturating_add(1), state)
                 .unwrap_infallible();
 
-            let first_batch = BatchWithId {
-                batch: preferred_batch.inner.batch,
-                id: preferred_batch.id,
+            let first_batch = BlobDataWithId {
+                data: preferred_blob.inner.data,
+                id: preferred_blob.id,
             };
 
             batches_to_process.push((first_batch, preferred_sender.clone()));
             tracing::debug!(
-                seq_number = preferred_batch.inner.sequence_number,
-                slots_to_advance = preferred_batch.inner.virtual_slots_to_advance,
+                seq_number = preferred_blob.inner.sequence_number,
+                slots_to_advance = preferred_blob.inner.virtual_slots_to_advance,
                 "Requested to advance slots"
             );
 
-            if preferred_batch.inner.virtual_slots_to_advance as u64 > max_slots_to_advance {
+            if preferred_blob.inner.virtual_slots_to_advance as u64 > max_slots_to_advance {
                 warn!(
                     "Preferred sequencer requested {} slots, but we can only advance {} slots",
-                    preferred_batch.inner.virtual_slots_to_advance, max_slots_to_advance
+                    preferred_blob.inner.virtual_slots_to_advance, max_slots_to_advance
                 );
                 max_slots_to_advance
             } else {
-                std::cmp::max(preferred_batch.inner.virtual_slots_to_advance as u64, 1)
+                std::cmp::max(preferred_blob.inner.virtual_slots_to_advance as u64, 1)
             }
         } else {
             // If there's no preferred blob, advance only if the we would otherwise exceed the maximum deferred slots count
@@ -339,20 +340,20 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> BatchSelector<Da> for BlobStorage<S, Da> {
+impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BlobStorage<S, Da> {
     type Spec = S;
 
-    type Batch = BatchWithId;
+    type BlobType = BlobDataWithId;
 
     // This implementation returns three categories of blobs:
     // 1. Any blobs sent by the preferred sequencer ("prority blobs")
     // 2. Any non-priority blobs which were sent `DEFERRED_SLOTS_COUNT` slots ago ("expiring deferred blobs")
     // 3. Some additional deferred blobs needed to fill the total requested by the sequencer, if applicable. ("bonus blobs")
-    fn get_batches_for_this_slot<'a, 'k, I>(
+    fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelWorkingSet<'k, S>,
-    ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
+    ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {

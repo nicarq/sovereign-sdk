@@ -6,10 +6,9 @@ mod wallet;
 #[cfg(feature = "native")]
 pub use endpoints::*;
 use pluggable_traits::PluggableSpec;
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::KernelSlotHooks;
 use sov_modules_api::execution_mode::ExecutionMode;
-use sov_modules_api::{DaSpec, Spec};
+use sov_modules_api::{BlobDataWithId, DaSpec, Spec};
 #[cfg(feature = "native")]
 mod endpoints;
 
@@ -30,7 +29,7 @@ pub trait RollupBlueprint<M: ExecutionMode>: Sized + Send + Sync {
     type Runtime: Runtime<Self::Spec, Self::DaSpec> + Send + Sync + 'static;
 
     /// The kernel for the rollup.
-    type Kernel: KernelSlotHooks<Self::Spec, Self::DaSpec, Batch = BatchWithId>
+    type Kernel: KernelSlotHooks<Self::Spec, Self::DaSpec, BlobType = BlobDataWithId>
         + Send
         + Sync
         + 'static;

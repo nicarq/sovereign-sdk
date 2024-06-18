@@ -53,7 +53,7 @@ pub mod mocks {
 
     use sov_rollup_interface::da::DaSpec;
 
-    use super::{BatchSelector, Kernel, Spec};
+    use super::{BlobSelector, Kernel, Spec};
     use crate::{BootstrapWorkingSet, KernelWorkingSet, StateCheckpoint};
 
     /// A mock kernel for use in tests
@@ -105,16 +105,16 @@ pub mod mocks {
         }
     }
 
-    impl<S: Spec, Da: DaSpec> BatchSelector<Da> for MockKernel<S, Da> {
+    impl<S: Spec, Da: DaSpec> BlobSelector<Da> for MockKernel<S, Da> {
         type Spec = S;
 
-        type Batch = Da::BlobTransaction;
+        type BlobType = Da::BlobTransaction;
 
-        fn get_batches_for_this_slot<'a, 'k, I>(
+        fn get_blobs_for_this_slot<'a, 'k, I>(
             &self,
             _current_blobs: I,
             _state: &mut crate::KernelWorkingSet<'k, Self::Spec>,
-        ) -> anyhow::Result<Vec<(Self::Batch, Da::Address)>>
+        ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
         where
             I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
         {

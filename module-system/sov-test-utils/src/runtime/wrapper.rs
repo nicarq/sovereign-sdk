@@ -4,17 +4,16 @@ use std::sync::{Arc, Mutex};
 
 use sov_attester_incentives::AttesterIncentives;
 use sov_bank::{Bank, IntoPayable};
-use sov_modules_api::batch::BatchWithId;
 use sov_modules_api::capabilities::{
     AuthenticationResult, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
-    RawTx, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
+    RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    Context, DispatchCall, EncodeCall, Gas, Genesis, GenesisState, Module, ModuleInfo,
-    PreExecWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad, TypedEvent,
-    WorkingSet,
+    BatchWithId, Context, DispatchCall, EncodeCall, Gas, Genesis, GenesisState, Module, ModuleInfo,
+    PreExecWorkingSet, RawTx, RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad,
+    TypedEvent, WorkingSet,
 };
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;
@@ -220,7 +219,7 @@ where
 
     fn begin_batch_hook(
         &self,
-        batch: &mut BatchWithId,
+        batch: &BatchWithId,
         sender: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {

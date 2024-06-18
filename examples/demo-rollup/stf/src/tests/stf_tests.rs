@@ -3,8 +3,8 @@ use std::vec;
 
 use sov_mock_da::{MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{ApiStateAccessor, Spec};
-use sov_modules_stf_blueprint::{Batch, BatchSequencerOutcome, StfBlueprint};
+use sov_modules_api::{ApiStateAccessor, Batch, Spec};
+use sov_modules_stf_blueprint::{BatchSequencerOutcome, StfBlueprint};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
