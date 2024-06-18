@@ -99,10 +99,18 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        tracing::debug!("Getting the root hash...");
         let batch_blobs = relevant_blobs.batch_blobs;
 
+        // Note: Uses native code, so won't work in ZK
         let storage_root_hash = pre_state.get_root_hash(slot_header.height()).unwrap();
+
+        tracing::debug!(
+            header = %slot_header.display(),
+            passed = hex::encode(pre_state_root),
+            from_storage = hex::encode(storage_root_hash.root_hash().0),
+            "HashStf, starting apply slot",
+        );
+
         assert_eq!(
             pre_state_root,
             &storage_root_hash.root_hash().0,
@@ -113,7 +121,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
 
         let hash_key = HashStf::<Cond>::hash_key();
         let existing_cache = pre_state.get::<User>(&hash_key, None, &witness).unwrap();
-        tracing::trace!(
+        tracing::debug!(
             pre_state_root = hex::encode(pre_state_root),
             existing_cache = hex::encode(existing_cache.value()),
             "Fetched existing cache value from pre_state"
@@ -125,10 +133,18 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
             hasher.update(data);
         }
 
-        let (state_root, storage) = HashStf::<Cond>::save_from_hasher(hasher, pre_state, &witness);
+        let (state_root, change_set) =
+            HashStf::<Cond>::save_from_hasher(hasher, pre_state, &witness);
+
+        tracing::debug!(
+            from = hex::encode(pre_state_root),
+            to = hex::encode(state_root),
+            "Post apply slot root hashes",
+        );
+
         ApplySlotOutput {
             state_root,
-            change_set: storage,
+            change_set,
             proof_receipts: vec![],
             // TODO: Add batch receipts to inspection
             batch_receipts: vec![],
