@@ -13,6 +13,7 @@ members = [
     "examples/demo-simple-stf",
     "examples/demo-rollup",
     "examples/simple-nft-module",
+    "utils/testing-harness",
     # Full Node
     "full-node/sov-rest-utils",
     "full-node/sov-db",

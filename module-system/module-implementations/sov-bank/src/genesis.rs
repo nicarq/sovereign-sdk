@@ -125,6 +125,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     ) -> Result<()> {
         let parent_prefix = self.tokens.prefix();
         let gas_token_config: TokenConfig<S> = config.gas_token_config.clone().into();
+        tracing::debug!(token_id = %GAS_TOKEN_ID, token_name = %gas_token_config.token_name, "Gas token");
         for token_config in std::iter::once(&gas_token_config).chain(config.tokens.iter()) {
             let token_id = &token_config.token_id;
             tracing::debug!(

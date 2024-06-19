@@ -209,7 +209,7 @@ pub trait DaService: Send + Sync + 'static {
 
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.
-    /// Returns nothing if the transaction was successfully sent.
+    /// Returns transaction id if it was successfully sent.
     async fn send_transaction(
         &self,
         blob: &[u8],

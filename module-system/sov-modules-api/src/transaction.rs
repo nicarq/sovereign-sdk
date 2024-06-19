@@ -213,7 +213,7 @@ pub struct UnsignedTransaction<S: Spec> {
     /// The maximum priority fee that can be paid for this transaction expressed in bips.
     /// This priority fee is computed as a percentage of the total gas consumed by the transaction
     pub max_priority_fee_bips: PriorityFeeBips,
-    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
+    /// The maximum fee that can be paid for this transaction expressed as the gas token amount
     pub max_fee: u64,
     /// The nonce
     pub nonce: u64,

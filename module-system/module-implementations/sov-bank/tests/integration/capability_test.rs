@@ -253,19 +253,22 @@ fn test_reserve_gas_no_account() {
     // This transaction has a maximum fee of twice the initial balance.
     let transaction: Transaction<S> = generate_empty_tx(PriorityFeeBips::ZERO, 0, None);
 
+    let payer = Address::new([0u8; 32]);
+
     // We try to reserve gas, this should fail because we have not enough balance.
-    let reserve_gas_result =
-        match bank.reserve_gas(&transaction.into(), &Address::new([0u8; 32]), pre_exec_ws) {
-            Ok(_) => panic!("The reserve gas operation should fail"),
-            Err(ReserveGasError::<S, UnlimitedGasMeter<<S as Spec>::Gas>> {
-                pre_exec_working_set: _,
-                reason,
-            }) => reason,
-        };
+    let reserve_gas_result = match bank.reserve_gas(&transaction.into(), &payer, pre_exec_ws) {
+        Ok(_) => panic!("The reserve gas operation should fail"),
+        Err(ReserveGasError::<S, UnlimitedGasMeter<<S as Spec>::Gas>> {
+            pre_exec_working_set: _,
+            reason,
+        }) => reason,
+    };
 
     assert_eq!(
         reserve_gas_result,
-        ReserveGasErrorReason::AccountDoesNotExist
+        ReserveGasErrorReason::AccountDoesNotExist {
+            account: payer.to_string(),
+        }
     );
 }
 

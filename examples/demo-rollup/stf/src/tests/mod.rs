@@ -52,20 +52,7 @@ pub(crate) fn create_genesis_config_for_tests<Da: DaSpec>(
 const PRIVATE_KEYS_DIR: &str = "../../test-data/keys";
 
 fn read_and_parse_private_key<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
-    let data = std::fs::read_to_string(Path::new(PRIVATE_KEYS_DIR).join(suffix))
-        .expect("Unable to read file to string");
-
-    let key_and_address: PrivateKeyAndAddress<S> =
-        serde_json::from_str(&data).unwrap_or_else(|_| {
-            panic!("Unable to convert data {} to PrivateKeyAndAddress", &data);
-        });
-
-    assert!(
-        key_and_address.is_matching_to_default(),
-        "Inconsistent key data"
-    );
-
-    key_and_address
+    PrivateKeyAndAddress::from_json_file(Path::new(PRIVATE_KEYS_DIR).join(suffix)).unwrap()
 }
 
 pub(crate) fn read_private_keys<S: Spec>() -> TestPrivateKeys<S> {

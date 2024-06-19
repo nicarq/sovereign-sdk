@@ -7,7 +7,7 @@ use crate::{CredentialId, Nonces};
 
 /// This is the response returned from the nonces_getNonce endpoint.
 #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
-pub struct Response {
+pub struct NonceResponse {
     /// Nonce
     pub nonce: u64,
 }
@@ -20,12 +20,12 @@ impl<S: Spec> Nonces<S> {
         &self,
         credential_id: CredentialId,
         state: &mut ApiStateAccessor<S>,
-    ) -> RpcResult<Response> {
+    ) -> RpcResult<NonceResponse> {
         let nonce = self
             .nonce(&credential_id, state)
             .unwrap_infallible()
             .unwrap_or_default();
 
-        Ok(Response { nonce })
+        Ok(NonceResponse { nonce })
     }
 }

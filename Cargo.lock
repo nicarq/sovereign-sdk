@@ -8538,6 +8538,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "testing-harness"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh 0.10.3",
+ "clap",
+ "demo-stf",
+ "hex",
+ "jsonrpsee 0.22.5",
+ "serde",
+ "serde_json",
+ "sov-bank",
+ "sov-celestia-adapter",
+ "sov-cli",
+ "sov-ledger-apis",
+ "sov-mock-zkvm",
+ "sov-modules-api",
+ "sov-modules-macros",
+ "sov-modules-stf-blueprint",
+ "sov-nonces",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "tokio",
+ "toml 0.8.12",
+ "tracing",
+ "tracing-subscriber 0.3.18",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
