@@ -46,6 +46,7 @@ add_trusted_genesis() {
   # and make it trusted in the node's config
   echo "Trusting a genesis: $genesis_hash"
   sed -i'.bak' "s/TrustedHash = .*/TrustedHash = $genesis_hash/" "$CONFIG_DIR/config.toml"
+  sed -i'.bak' "s/Address = \"localhost\"/Address = \"0.0.0.0\"/" "$CONFIG_DIR/config.toml"
 }
 
 write_jwt_token() {
@@ -71,7 +72,8 @@ main() {
   celestia bridge start \
     --core.ip validator \
     --keyring.accname "$NODE_NAME" \
-    --p2p.network "$P2P_NETWORK"
+    --p2p.network "$P2P_NETWORK" \
+    --gateway.addr "0.0.0.0"
 }
 
 main
