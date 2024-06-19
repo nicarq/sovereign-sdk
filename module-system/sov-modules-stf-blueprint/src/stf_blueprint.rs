@@ -156,6 +156,7 @@ where
                 tx_idx = i,
                 tx_hash = hex::encode(tx_receipt.tx_hash),
                 receipt = ?tx_receipt.receipt,
+                gas_used = ?tx_receipt.gas_used,
                 "Tx receipt"
             );
         }
@@ -210,7 +211,7 @@ where
             "Verifying & executing transactions"
         );
 
-        for raw_tx in raw_txs.iter() {
+        for (idx, raw_tx) in raw_txs.iter().enumerate() {
             let tx_scratchpad = checkpoint.to_tx_scratchpad();
             let process_tx_result = process_tx(
                 &self.runtime,
@@ -229,9 +230,12 @@ where
                     checkpoint = tx_scratchpad.commit();
                     match reason {
                         TxProcessingErrorReason::SequencerUnauthorized(reason) => {
+                            let remaining = raw_txs.len() - idx - 1;
                             error!(
                                 reason = %reason,
                                 sequencer_da_address = %sequencer_da_address,
+                                tx_idx = %idx,
+                                remaining = remaining,
                                 "Error: The transaction was rejected by the 'authorize_sequencer' capability. Dropping the remaining transactions in that batch",
                             );
                             break;
@@ -271,6 +275,7 @@ where
                                 warn!(
                                     error = %reason,
                                     raw_tx_hash = hex::encode(raw_tx_hash),
+                                    tx_idx = %idx,
                                     "An error occurred while processing a transaction. The transaction was not executed. The sequencer was penalized.",
                                 );
 

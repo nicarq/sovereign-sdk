@@ -12,9 +12,12 @@ use crate::{Bank, Coins, Payable, GAS_TOKEN_ID};
 /// Error types that can be raised by the `reserve_gas` method
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum ReserveGasErrorReason<S: Spec> {
-    #[error("The payer does not have an account in the `Bank` module for the gas token")]
+    #[error("The payer {account} does not have an account in the `Bank` module for the gas token")]
     /// The payer does not have an account in the `Bank` module for the gas token
-    AccountDoesNotExist,
+    AccountDoesNotExist {
+        /// String representation of rollup address
+        account: String,
+    },
     #[error("Insufficient balance to pay for the transaction gas")]
     /// The sender balance is not high enough to pay for the gas.
     InsufficientBalanceToReserveGas,
@@ -52,7 +55,7 @@ impl<S: Spec, Meter: GasMeter<S::Gas>> From<ReserveGasError<S, Meter>>
 /// The [`Bank::reserve_gas`] and [`Bank::refund_remaining_gas`] are used to reserve and then lock transaction base gas and tip
 impl<S: Spec> Bank<S> {
     /// Reserve the gas necessary to execute a transaction. The gas is locked at the bank's address
-    /// This method loosely follow the-EIP 1559 gas price calculation.
+    /// This method loosely follows the-EIP 1559 gas price calculation.
     #[allow(clippy::result_large_err)]
     pub fn reserve_gas<PreExecChecksMeter: GasMeter<S::Gas>>(
         &self,
@@ -67,7 +70,9 @@ impl<S: Spec> Bank<S> {
                 Ok(None) => {
                     return Err(ReserveGasError::<S, PreExecChecksMeter> {
                         pre_exec_working_set,
-                        reason: ReserveGasErrorReason::AccountDoesNotExist,
+                        reason: ReserveGasErrorReason::AccountDoesNotExist {
+                            account: payer.to_string(),
+                        },
                     })
                 }
                 Err(err) => {

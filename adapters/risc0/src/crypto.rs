@@ -72,7 +72,6 @@ pub mod private_key {
         }
 
         /// Returns the address associated with the public key derived from this private key.
-        /// Returns the address associated with the public key derived from this private key.
         pub fn to_address<A: From<<Self as PrivateKey>::PublicKey>>(&self) -> A {
             self.pub_key().into()
         }
