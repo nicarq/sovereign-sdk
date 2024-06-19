@@ -30,7 +30,7 @@ use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_key
 
 const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
-const MAX_TX_FEE: u64 = 10_000;
+const MAX_TX_FEE: u64 = 1_000_000;
 
 struct TestCase {
     wait_for_aggregated_proof: bool,

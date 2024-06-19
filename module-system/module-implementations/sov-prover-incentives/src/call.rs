@@ -46,9 +46,9 @@ pub enum ProverIncentiveError {
     BondTransferFailure,
 
     #[error("Error occurred when transferring funds to unbond or reward the prover. This module's account may not have enough funds.
-    This is a bug")]
+    This is a bug. Error: {0}")]
     /// An error occurred when trying to mint the reward token
-    TransferFailure,
+    TransferFailure(String),
 
     /// An error when total bond value overflow or underflow
     #[error("Error when trying to top up bonded amount and it overflow or underflow")]
@@ -285,7 +285,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         // We can transfer the reward from the `ProverIncentives` module to the prover's account.
         self.bank
             .transfer_from(self.id.to_payable(), context.sender(), coins, state)
-            .map_err(|_| ProverIncentiveError::TransferFailure)?;
+            .map_err(|err| ProverIncentiveError::TransferFailure(err.to_string()))?;
 
         Ok(())
     }

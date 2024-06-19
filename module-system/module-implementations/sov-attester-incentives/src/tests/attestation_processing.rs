@@ -86,8 +86,8 @@ fn test_process_valid_attestation() {
     let attester_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
     attester.address = <S as Spec>::Address::from(&attester_key.pub_key());
     let attester_address = attester.address;
-    let initial_balance = attester.additional_balance.unwrap_or_default();
-    let expected_balance = initial_balance;
+    let initial_balance = attester.bond;
+    let expected_balance = attester.additional_balance.unwrap_or_default();
 
     // Run genesis registering the attester and sequencer we've generated.
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
@@ -130,11 +130,11 @@ fn test_process_valid_attestation() {
             // Run any empty slot, and check that the attester has the correct bond amount from genesis
             SlotTestCase::<_, AttesterIncentives<S, MockDaSpec>, _> {
                 transaction_test_cases: vec![],
-                post_hook: Box::new(move |ws| {
+                post_hook: Box::new(move |state_checkpoint| {
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
                             .bonded_attesters
-                            .get(&attester_address, &mut ws.to_unmetered())
+                            .get(&attester_address, state_checkpoint)
                             .unwrap_infallible()
                             .unwrap_or_default(),
                         initial_balance,
@@ -204,20 +204,23 @@ fn test_process_valid_attestation() {
                     })),
                     message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
                 }],
-                post_hook: Box::new(move |ws| {
-                    // Check the attester's non-bonded balance
-                    let mut ws = ws.to_unmetered();
+                post_hook: Box::new(move |state_checkpoint| {
                     assert_eq!(
                         sov_bank::Bank::<S>::default()
-                            .get_balance_of(&attester_address, sov_bank::GAS_TOKEN_ID, &mut ws)
+                            .get_balance_of(
+                                &attester_address,
+                                sov_bank::GAS_TOKEN_ID,
+                                state_checkpoint
+                            )
                             .unwrap_infallible()
                             .unwrap(),
                         expected_balance_ref_3.load(std::sync::atomic::Ordering::SeqCst)
                     );
+
                     // Check that the attester still has their full bond
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
-                            .get_bond_amount(attester_address, Role::Attester, &mut ws)
+                            .get_bond_amount(attester_address, Role::Attester, state_checkpoint)
                             .unwrap_infallible()
                             .value,
                         initial_balance

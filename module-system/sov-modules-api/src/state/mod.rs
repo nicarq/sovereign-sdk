@@ -2,6 +2,9 @@ mod accessors;
 mod events;
 mod traits;
 
+#[cfg(test)]
+mod tests;
+
 #[cfg(feature = "native")]
 pub use accessors::ApiStateAccessor;
 #[cfg(any(feature = "test-utils", feature = "evm"))]

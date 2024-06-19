@@ -9,8 +9,9 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Address, CryptoSpec, GasMeter, InfallibleStateAccessor, KernelModule, KernelWorkingSet, Module,
-    ModuleInfo, PrivateKey, Spec, StateAccessor, StateCheckpoint, StateReader,
+    Address, CryptoSpec, GasArray, GasMeter, InfallibleStateAccessor, KernelModule,
+    KernelWorkingSet, Module, ModuleInfo, PrivateKey, Spec, StateAccessor, StateCheckpoint,
+    StateReader,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
@@ -22,12 +23,12 @@ pub(crate) type S =
     sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 pub(crate) type Da = MockDaSpec;
 
-pub(crate) const BOND_AMOUNT: u64 = 10_000;
-pub(crate) const INITIAL_PROVER_BALANCE: u64 = 5 * BOND_AMOUNT;
+pub(crate) const BOND_AMOUNT: u64 = 100_000;
+pub(crate) const INITIAL_PROVER_BALANCE: u64 = 10 * BOND_AMOUNT;
 pub(crate) const INITIAL_SEQUENCER_BALANCE: u64 = 20 * BOND_AMOUNT;
 pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
 
-pub const MAX_TX_GAS_AMOUNT: u64 = 10_000;
+pub const MAX_TX_GAS_AMOUNT: u64 = 10 * BOND_AMOUNT;
 
 impl ProverIncentives<S, Da> {
     pub fn get_bond_amount<Accessor: StateAccessor>(
@@ -81,7 +82,7 @@ pub(crate) fn simulate_chain_state_execution(
     module: &ProverIncentives<S, Da>,
     sequencer: <S as Spec>::Address,
     steps: u8,
-    gas_used_per_step: &<S as Spec>::Gas,
+    max_gas_used_per_step: &<S as Spec>::Gas,
     mut state_checkpoint: StateCheckpoint<S>,
 ) -> (StateCheckpoint<S>, Vec<u64>) {
     let mut total_gas_used = vec![];
@@ -102,7 +103,7 @@ pub(crate) fn simulate_chain_state_execution(
             0,
             0.into(),
             MAX_TX_GAS_AMOUNT,
-            Some(gas_used_per_step.clone()),
+            Some(max_gas_used_per_step.clone()),
             i.into(),
         )
         .into();
@@ -135,8 +136,11 @@ pub(crate) fn simulate_chain_state_execution(
         };
 
         // We charge some gas to the sequencer to make sure the gas meter is updated
+        let mut gas_to_charge = max_gas_used_per_step.clone();
+        gas_to_charge.scalar_division(2);
+
         working_set
-            .charge_gas(gas_used_per_step)
+            .charge_gas(&gas_to_charge)
             .expect("Gas charge failed");
 
         let (mut tx_scratchpad, tx_consumption, _) = working_set.finalize();
@@ -161,7 +165,7 @@ pub(crate) fn simulate_chain_state_execution(
         let mut kernel_working_set = KernelWorkingSet::from_kernel(&kernel, &mut checkpoint);
         module
             .chain_state
-            .end_slot_hook(gas_used_per_step, &mut kernel_working_set);
+            .end_slot_hook(tx_consumption.base_fee(), &mut kernel_working_set);
 
         state_checkpoint = checkpoint;
     }

@@ -14,7 +14,7 @@ pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{
     Batch, BlobData, CryptoSpec, DaSpec, EncodeCall, Genesis, Module, PrivateKey, RawTx, SlotData,
     Spec, StateCheckpoint, WorkingSet,
@@ -36,7 +36,7 @@ use traits::{MinimalGenesis, PostTxHookRegistry};
 pub use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
 
 // Constants used in the genesis configuration of the test runtime
-const MIN_USER_BOND: u64 = 10;
+const MIN_USER_BOND: u64 = 100_000;
 const MAX_ATTESTED_HEIGHT: u64 = 0;
 const LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
 const ROLLUP_FINALITY_PERIOD: u64 = 1;
@@ -271,8 +271,8 @@ impl<M: Module, S: Spec> MessageType<M, S> {
             UnsignedTransaction::new(
                 msg,
                 config_value!("CHAIN_ID"),
-                1.into(),
-                100_000,
+                PriorityFeeBips::ZERO,
+                10_000_000,
                 nonce,
                 None,
             ),

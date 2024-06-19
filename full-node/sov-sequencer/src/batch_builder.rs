@@ -347,7 +347,7 @@ mod tests {
         let msg = <TestRuntime<_, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
         let chain_id = config_value!("CHAIN_ID");
         let max_priority_fee_bips = PriorityFeeBips::ZERO;
-        let max_fee = 10_000;
+        let max_fee = 1_000_000;
         let gas_limit = None;
         let nonce = 1;
 
@@ -384,7 +384,7 @@ mod tests {
         let msg = generate_random_bytes();
         let chain_id = config_value!("CHAIN_ID");
         let max_priority_fee_bips = PriorityFeeBips::ZERO;
-        let max_fee = 10_000;
+        let max_fee = 1_000_000;
         let gas_limit = None;
         let nonce = 1;
 
@@ -461,9 +461,9 @@ mod tests {
             &additional_accounts,
             seq_rollup_address,
             seq_da_address,
-            100,
-            "BatchBuilderTestToken".to_string(),
             100_000,
+            "BatchBuilderTestToken".to_string(),
+            1_000_000_000,
         );
 
         let mut genesis_state =
@@ -701,7 +701,7 @@ mod tests {
             let storage = setup_runtime(
                 &mut storage_manager,
                 Some(value_setter_admin.pub_key()),
-                vec![(additional_account.pub_key(), 100_000)],
+                vec![(additional_account.pub_key(), 1_000_000_000)],
                 DEFAULT_SEQUENCER_DA_ADDRESS,
                 DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
             );

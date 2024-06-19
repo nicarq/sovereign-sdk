@@ -2,9 +2,7 @@ use std::convert::Infallible;
 
 use sov_attester_incentives::{CallMessage, Role, UnbondingInfo};
 use sov_bank::GAS_TOKEN_ID;
-use sov_chain_state::ChainState;
-use sov_mock_da::MockDaSpec;
-use sov_modules_api::{Batch, Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_api::{Batch, StateCheckpoint};
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
@@ -45,11 +43,15 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
     let attestation_blob =
         new_test_blob_from_batch(Batch { txs }, test_handler.seq_da_addr.as_ref(), [3; 32]);
 
-    let exec_simulation =
+    let begin_unbond_result =
         rollup.execution_simulation(1, init_state_root, vec![attestation_blob.clone()], 0, None);
 
-    assert_eq!(exec_simulation.len(), 1, "The execution simulation failed");
-    let res = exec_simulation.first().unwrap();
+    assert_eq!(
+        begin_unbond_result.len(),
+        1,
+        "The execution simulation failed"
+    );
+    let res = begin_unbond_result.first().unwrap();
     let new_state_root = res.state_root;
 
     // Let's check that the unbonding process has been initiated
@@ -72,7 +74,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
         [2; 32],
     );
 
-    let exec_simulation = rollup.execution_simulation(
+    let value_setter_txs = rollup.execution_simulation(
         (ROLLUP_FINALITY_PERIOD).try_into().unwrap(),
         new_state_root,
         vec![blob.clone()],
@@ -80,7 +82,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
         None,
     );
 
-    for res in exec_simulation.iter() {
+    for res in value_setter_txs.iter() {
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
@@ -102,7 +104,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
     let attestation_blob =
         new_test_blob_from_batch(Batch { txs }, test_handler.seq_da_addr.as_ref(), [3; 32]);
 
-    let exec_simulation = rollup.execution_simulation(
+    let end_unbonding_result = rollup.execution_simulation(
         1,
         new_state_root,
         vec![attestation_blob.clone()],
@@ -111,8 +113,12 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
     );
 
     {
-        assert_eq!(exec_simulation.len(), 1, "The execution simulation failed");
-        let res = exec_simulation.first().unwrap();
+        assert_eq!(
+            end_unbonding_result.len(),
+            1,
+            "The execution simulation failed"
+        );
+        let res = end_unbonding_result.first().unwrap();
         assert_eq!(res.batch_receipts.len(), 1);
         let batch_receipt = res.batch_receipts.first().unwrap();
         let tx_receipt = batch_receipt.tx_receipts.first().unwrap();
@@ -138,10 +144,8 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
             )?,
             Some(
                 USER_BALANCE
-                    - rollup.tx_cost(&ChainState::<S, MockDaSpec>::initial_base_fee_per_gas())
-                    - rollup.tx_cost(&<<S as Spec>::Gas as Gas>::Price::from_slice(
-                        batch_receipt.gas_price.as_slice()
-                    ))
+                    - begin_unbond_result[0].gas_consumed_value()
+                    - end_unbonding_result[0].gas_consumed_value()
             )
         );
     }
