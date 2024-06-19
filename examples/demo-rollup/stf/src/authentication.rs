@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::capabilities::{Authenticator, AuthorizationData};
+use sov_modules_api::capabilities::{
+    Authenticator, AuthorizationData, UnregisteredAuthenticationError,
+};
 use sov_modules_api::runtime::capabilities::{
     AuthenticationError, AuthenticationResult, FatalError, RuntimeAuthenticator,
 };
@@ -31,6 +33,28 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
         match auth {
             Auth::Mod(tx) => ModAuth::<S, Da>::authenticate(&tx, pre_exec_ws),
             Auth::Evm(tx) => EvmAuth::<S, Da>::authenticate(&tx, pre_exec_ws),
+        }
+    }
+
+    fn authenticate_unregistered(
+        &self,
+        raw_tx: &RawTx,
+    ) -> AuthenticationResult<
+        S,
+        Self::Decodable,
+        Self::AuthorizationData,
+        UnregisteredAuthenticationError,
+    > {
+        let (tx_and_raw_hash, auth_data, runtime_call) =
+            sov_modules_api::capabilities::unregistered_authenticate::<S, Runtime<S, Da>>(
+                &raw_tx.data,
+            )?;
+
+        match &runtime_call {
+            RuntimeCall::sequencer_registry(sov_sequencer_registry::CallMessage::Register {
+                ..
+            }) => Ok((tx_and_raw_hash, auth_data, runtime_call)),
+            _ => Err(UnregisteredAuthenticationError::RuntimeCall)?,
         }
     }
 }

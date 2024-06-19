@@ -296,6 +296,18 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> RuntimeAuthenticator<S>
             pre_exec_ws,
         )
     }
+
+    fn authenticate_unregistered(
+        &self,
+        raw_tx: &RawTx,
+    ) -> AuthenticationResult<
+        S,
+        Self::Decodable,
+        Self::AuthorizationData,
+        sov_modules_api::capabilities::UnregisteredAuthenticationError,
+    > {
+        sov_modules_api::capabilities::unregistered_authenticate::<S, Self>(&raw_tx.data)
+    }
 }
 
 impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> MinimalRuntime<S, Da>

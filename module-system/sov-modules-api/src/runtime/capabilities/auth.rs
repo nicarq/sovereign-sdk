@@ -19,6 +19,14 @@
 //!
 //! Notice that in the above example, the concept of the nonce is entirely internal to the implementation of the two traits. We can have other
 //! authentication/authorization mechanisms where authentication means something other than a signature check, and the nonce is not used.
+//!
+//! 3. The [`RuntimeAuthenticator::authenticate_unregistered`] method accepts bytes and parses them
+//!    into a structure relevant for registering unregistered sequencers without going through a
+//!    registered sequencer. In the normal case the raw bytes will be a Sovereign Rollup
+//!    transaction containing a `Register` call message. This method will also not charge sequencer gas for
+//!    the operations it performs as there isn't a staked sequencer in this context. The
+//!    implication of this is that misbehaving transaction submissions can't be penalized, thus
+//!    there is a need to limit the amount of unregistered transactions we process.
 
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
@@ -50,6 +58,22 @@ pub trait RuntimeAuthenticator<S: Spec> {
         tx: &RawTx,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData>;
+    /// Authenticates raw transactions that are submitted from unregistered sequencers for the
+    /// purpose of forced registration (circumventing censorship of currently registered sequencers).
+    ///
+    /// This function differs to it's registered counterpart in that it doesn't accept a state
+    /// access parameter that charges gas to a sequencer (because there isn't one) as well as other
+    /// checks that are not relevant to tx authentication in the context of unregistered
+    /// sequencers.
+    fn authenticate_unregistered(
+        &self,
+        tx: &RawTx,
+    ) -> AuthenticationResult<
+        S,
+        Self::Decodable,
+        Self::AuthorizationData,
+        UnregisteredAuthenticationError,
+    >;
 }
 
 /// Authorizes transactions to be executed.
@@ -88,8 +112,8 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
 }
 
 /// Result of the authentication.
-pub type AuthenticationResult<S, Decodable, Auth> =
-    Result<(AuthenticatedTransactionAndRawHash<S>, Auth, Decodable), AuthenticationError>;
+pub type AuthenticationResult<S, Decodable, Auth, Err = AuthenticationError> =
+    Result<(AuthenticatedTransactionAndRawHash<S>, Auth, Decodable), Err>;
 
 /// Error variants that can be raised as a [`AuthenticationError::FatalError`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Error)]
@@ -128,6 +152,19 @@ pub enum AuthenticationError {
         /// The reason for the penalization.       
         String,
     ),
+}
+
+/// Authentication error relating to transactions submitted by an unregistered sequencer for the
+/// purpose of direct sequencer registration.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Error)]
+pub enum UnregisteredAuthenticationError {
+    /// The transaction authentication failed in a way that is unrecoverable.
+    #[error("Transaction authentication raised a fatal error, error: {0}")]
+    FatalError(FatalError),
+    /// The runtime call included in the transaction wasn't a sequencer registry "Register"
+    /// message.
+    #[error("The runtime call included in the transaction was invalid.")]
+    RuntimeCall,
 }
 
 /// Authenticates the transaction.
@@ -180,45 +217,22 @@ pub struct AuthorizationData<S: Spec> {
     pub default_address: Option<S::Address>,
 }
 
-/// Authenticate raw sov-transaction.
-pub fn authenticate<S: Spec, D: DispatchCall, Meter: GasMeter<S::Gas>>(
-    mut raw_tx: &[u8],
-    stake_meter: &mut PreExecWorkingSet<S, Meter>,
-) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>> {
-    let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
-
-    // TODO(@theochap): Charge gas for deserialization.
-
-    let tx = <Transaction<S> as BorshDeserialize>::deserialize(&mut raw_tx).map_err(|e| {
-        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
-    })?;
-
-    stake_meter.charge_gas(&tx.gas_fixed_cost()).map_err(|e| {
-        AuthenticationError::Invalid(format!(
-            "Failed to reserve gas for signature checks from the sequencer's stake: {:?}",
-            e
-        ))
-    })?;
-
+fn verify_and_decode_tx<S: Spec, D: DispatchCall>(
+    raw_tx_hash: [u8; 32],
+    tx: Transaction<S>,
+) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, FatalError> {
     if tx.chain_id != CHAIN_ID {
-        return Err(AuthenticationError::FatalError(
-            FatalError::InvalidChainId {
-                expected: CHAIN_ID,
-                got: tx.chain_id,
-            },
-        ));
+        return Err(FatalError::InvalidChainId {
+            expected: CHAIN_ID,
+            got: tx.chain_id,
+        });
     }
 
-    tx.verify().map_err(|e| {
-        AuthenticationError::FatalError(FatalError::SigVerificationFailed(e.to_string()))
-    })?;
+    tx.verify()
+        .map_err(|e| FatalError::SigVerificationFailed(e.to_string()))?;
 
-    let runtime_call = D::decode_call(tx.runtime_msg()).map_err(|e| {
-        AuthenticationError::FatalError(FatalError::MessageDecodingFailed(
-            e.to_string(),
-            raw_tx_hash,
-        ))
-    })?;
+    let runtime_call = D::decode_call(tx.runtime_msg())
+        .map_err(|e| FatalError::MessageDecodingFailed(e.to_string(), raw_tx_hash))?;
 
     let pub_key = tx.pub_key().clone();
     let default_address = (&pub_key).into();
@@ -241,4 +255,42 @@ pub fn authenticate<S: Spec, D: DispatchCall, Meter: GasMeter<S::Gas>>(
         },
         runtime_call,
     ))
+}
+
+/// Authenticate raw sov-transaction.
+pub fn authenticate<S: Spec, D: DispatchCall, Meter: GasMeter<S::Gas>>(
+    mut raw_tx: &[u8],
+    stake_meter: &mut PreExecWorkingSet<S, Meter>,
+) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>> {
+    let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
+
+    // TODO(@theochap): Charge gas for deserialization.
+
+    let tx = <Transaction<S> as BorshDeserialize>::deserialize(&mut raw_tx).map_err(|e| {
+        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+    })?;
+
+    stake_meter.charge_gas(&tx.gas_fixed_cost()).map_err(|e| {
+        AuthenticationError::Invalid(format!(
+            "Failed to reserve gas for signature checks from the sequencer's stake: {:?}",
+            e
+        ))
+    })?;
+
+    verify_and_decode_tx::<S, D>(raw_tx_hash, tx).map_err(AuthenticationError::FatalError)
+}
+
+/// Authenticate raw sov-transaction in the context of an unregistered sequencer.
+pub fn unregistered_authenticate<S: Spec, D: DispatchCall>(
+    mut raw_tx: &[u8],
+) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, UnregisteredAuthenticationError> {
+    let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
+    let tx = <Transaction<S> as BorshDeserialize>::deserialize(&mut raw_tx).map_err(|e| {
+        UnregisteredAuthenticationError::FatalError(FatalError::DeserializationFailed(
+            e.to_string(),
+        ))
+    })?;
+
+    verify_and_decode_tx::<S, D>(raw_tx_hash, tx)
+        .map_err(UnregisteredAuthenticationError::FatalError)
 }
