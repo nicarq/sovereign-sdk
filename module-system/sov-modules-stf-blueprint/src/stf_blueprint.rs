@@ -7,7 +7,7 @@ use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     AuthenticationError, AuthenticationResult, AuthorizeSequencerError, FatalError, GasEnforcer,
     HasCapabilities, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
-    TryReserveGasError,
+    TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
@@ -476,6 +476,19 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     <R as RuntimeAuthenticator<S>>::AuthorizationData,
 > {
     runtime.authenticate(raw_tx, pre_exec_working_set)
+}
+
+#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+fn _authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
+    runtime: &R,
+    raw_tx: &RawTx,
+) -> AuthenticationResult<
+    S,
+    <R as RuntimeAuthenticator<S>>::Decodable,
+    <R as RuntimeAuthenticator<S>>::AuthorizationData,
+    UnregisteredAuthenticationError,
+> {
+    runtime.authenticate_unregistered(raw_tx)
 }
 
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
