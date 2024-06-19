@@ -48,6 +48,7 @@ impl AttesterIncentivesTestHandler {
             state_root: fst_state_root,
             state_proof: first_state_proof,
             batch_receipts: _first_batch_receipts,
+            ..
         } = exec_result[0].clone();
 
         // We produce a fake attestation that has the wrong post state root
@@ -154,6 +155,15 @@ impl AttesterIncentivesTestHandler {
 
             let mut tx_receipts = batch_receipt.tx_receipts.clone();
             assert_eq!(tx_receipts.len(), 2);
+
+            let total_gas_consumed =
+                tx_receipts
+                    .iter()
+                    .fold(<S as Spec>::Gas::zero(), |mut acc, receipt| {
+                        acc.combine(&<S as Spec>::Gas::from_slice(&receipt.gas_used));
+                        acc
+                    });
+
             let snd_tx_receipt = tx_receipts.pop().unwrap();
             let fst_tx_receipt = tx_receipts.pop().unwrap();
             assert_eq!(fst_tx_receipt.receipt, TxEffect::Successful(()));
@@ -181,7 +191,7 @@ impl AttesterIncentivesTestHandler {
             let gas_price =
                 &<<S as Spec>::Gas as Gas>::Price::from_slice(batch_receipt.gas_price.as_slice());
 
-            let gas_consumed = 2 * rollup.tx_cost(gas_price);
+            let gas_consumed = total_gas_consumed.value(gas_price);
             assert_eq!(
                 rollup.bank().get_balance_of(
                     &self

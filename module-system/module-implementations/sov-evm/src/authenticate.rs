@@ -34,7 +34,7 @@ pub fn authenticate<S: Spec, Meter: GasMeter<S::Gas>>(
 
     let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = 10_000;
+    let max_fee = 1_000_000;
     let gas_limit = None;
 
     let nonce = signed_tx.nonce();

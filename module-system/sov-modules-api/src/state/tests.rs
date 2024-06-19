@@ -1,6 +1,3 @@
-//! TODO(@theochap): These tests are not included in the module tree for now because they require to have a non-zero
-//! gas price for state accesses. We will add them back once we set the gas price for storage accesses to a non-zero value.
-
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_macros::config_value;
 use sov_prover_storage_manager::new_orphan_storage;

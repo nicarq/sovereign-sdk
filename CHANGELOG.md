@@ -1,3 +1,7 @@
+- #813 is a follow-up of #783, it sets the constants that define the costs for gas access to non-zero values. That way, we charge some gas when trying to access the storage and the metered accessors (like the `WorkingSet`) can now run out of gas because of state accesses.
+Meaningful changes:
+  - We had to change the blessed values for the transaction fee, the initial account balances and the attester/prover stakes. The new values are: `MAX_FEE = 1_000_000`, `INITIAL_BALANCE = 1_000_000_000` and `DEFAULT_STAKE = 100_000`.
+  - We had to replace the gas computation of some tests that made strong assumptions about the gas consumed by transaction execution.
 - #814 mandates `0x` prefixes for hashes in RPC and REST APIs, whereas before it was optional.
 - #809 extend blob-storage to support proof DA namespace.
 - #806 simplify new_test_blob_from_batch

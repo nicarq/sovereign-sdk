@@ -26,10 +26,10 @@ pub const REWARD_SEQUENCER_KEY: &str = "sequencer_4";
 
 pub const UNKNOWN_SEQUENCER_DA_ADDRESS: [u8; 32] = [3; 32];
 pub const LOW_FUND_KEY: &str = "zero_funds";
-pub const INITIAL_BALANCE: u64 = 210;
+pub const INITIAL_BALANCE: u64 = 100_000;
 
-pub const INITIAL_BALANCE_LARGE: u64 = 2100;
-pub const LOCKED_AMOUNT: u64 = 200;
+pub const INITIAL_BALANCE_LARGE: u64 = 1_000_000;
+pub const LOCKED_AMOUNT: u64 = 10_000;
 
 pub const GENESIS_TOKEN_NAME: &str = "initial_token";
 

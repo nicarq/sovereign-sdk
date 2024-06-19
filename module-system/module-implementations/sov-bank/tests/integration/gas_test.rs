@@ -12,10 +12,12 @@ use tempfile::TempDir;
 const CREATE_TOKEN_NATIVE_COST: u64 = 2;
 const CREATE_TOKEN_ZK_COST: u64 = 3;
 
+const INIT_BALANCE: u64 = 10_000;
+
 type S = sov_test_utils::TestSpec;
 #[test]
 fn zeroed_price_wont_deduct_working_set() {
-    let sender_balance = 100;
+    let sender_balance = INIT_BALANCE;
     let remaining_funds = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[0, 0]))
         .execute()
         .unwrap();
@@ -28,7 +30,7 @@ fn zeroed_price_wont_deduct_working_set() {
 
 #[test]
 fn normal_price_will_deduct_working_set() {
-    let sender_balance = 100;
+    let sender_balance = INIT_BALANCE;
 
     let native_price = 2;
     let zk_price = 3;
@@ -41,18 +43,18 @@ fn normal_price_will_deduct_working_set() {
     .unwrap();
 
     // compute the expected gas cost, based on the test constants
-    let gas_used = native_price * CREATE_TOKEN_NATIVE_COST + zk_price * CREATE_TOKEN_ZK_COST;
+    let gas_used_for_call =
+        native_price * CREATE_TOKEN_NATIVE_COST + zk_price * CREATE_TOKEN_ZK_COST;
 
-    assert_eq!(
-        remaining_funds,
-        sender_balance - gas_used,
-        "the sender balance is enough for this call"
+    assert!(
+        remaining_funds <= sender_balance - gas_used_for_call,
+        "this operation should consume at least the gas cost of the call"
     );
 }
 
 #[test]
 fn constants_price_is_charged_correctly() {
-    let sender_balance = 100;
+    let sender_balance = INIT_BALANCE;
 
     let remaining_funds = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[2, 3]))
         .execute()
@@ -64,16 +66,15 @@ fn constants_price_is_charged_correctly() {
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[2, 3]);
     let gas_used = config.create_token.value(&gas_price);
 
-    assert_eq!(
-        remaining_funds,
-        sender_balance - gas_used,
-        "the sender balance is enough for this call"
+    assert!(
+        remaining_funds <= sender_balance - gas_used,
+        "this operation should consume at least the gas cost of the call"
     );
 }
 
 #[test]
 fn not_enough_gas_wont_panic() {
-    let sender_balance = 100;
+    let sender_balance = INIT_BALANCE;
 
     let result = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[2000, 3000]))
         .override_gas_config()
@@ -87,7 +88,7 @@ fn not_enough_gas_wont_panic() {
 
 #[test]
 fn very_high_gas_price_wont_panic_or_overflow() {
-    let sender_balance = 100;
+    let sender_balance = INIT_BALANCE;
 
     let result = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[u64::MAX; 2]))
         .override_gas_config()

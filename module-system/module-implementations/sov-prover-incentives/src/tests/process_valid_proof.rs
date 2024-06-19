@@ -8,7 +8,7 @@ use sov_modules_api::{
     AggregatedProofPublicData, CodeCommitment, Context, Spec, StateCheckpoint, TypedEvent,
 };
 
-use super::helpers::get_transition_unwrap;
+use super::helpers::{get_transition_unwrap, MAX_TX_GAS_AMOUNT};
 use crate::event::Event;
 use crate::tests::helpers::{
     setup, simulate_chain_state_execution, BOND_AMOUNT, INITIAL_PROVER_BALANCE,
@@ -50,7 +50,7 @@ fn build_proof_log(
 fn execute_txs_and_process_valid_proof(
     prover_address: <S as Spec>::Address,
     sequencer: <S as Spec>::Address,
-    gas_used_per_step: &<S as Spec>::Gas,
+    max_gas_used_per_step: &<S as Spec>::Gas,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     state: StateCheckpoint<S>,
 ) -> Result<(u64, StateCheckpoint<S>, Vec<TypedEvent>), Infallible> {
@@ -62,7 +62,7 @@ fn execute_txs_and_process_valid_proof(
         ((LAST_SLOT_NUM - FIRST_SLOT_NUM + 1) + 1)
             .try_into()
             .unwrap(),
-        gas_used_per_step,
+        max_gas_used_per_step,
         state,
     );
 
@@ -82,9 +82,9 @@ fn execute_txs_and_process_valid_proof(
     // We use the unmetered working set, because we don't want to charge for the gas used in the last transition (this makes the test simpler)
     let mut state = state.to_working_set_unmetered();
 
-    module
-        .process_proof(&proof, &context, &mut state)
-        .expect("There should be no error processing a valid proof");
+    if let Err(err) = module.process_proof(&proof, &context, &mut state) {
+        panic!("Error when processing proof: {:?}", err);
+    }
 
     let (state, _, events) = state.checkpoint();
 
@@ -100,7 +100,7 @@ fn check_reward(
     events: &mut Vec<TypedEvent>,
 ) -> Result<u64, Infallible> {
     // Compute the proof reward
-    // Reward = total_gas_used * gas_price * (1-burn_rate)%
+    // Reward = total_gas_used * (1-burn_rate)%
     let reward = module.burn_rate().apply(total_gas_used);
 
     // Assert that the working set contains a rewarded event
@@ -241,13 +241,13 @@ fn check_unbonding(
 fn test_valid_proof() -> Result<(), Infallible> {
     let (module, prover_address, sequencer, state) = setup();
 
-    let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
+    let max_gas_used_per_step = <S as Spec>::Gas::from([MAX_TX_GAS_AMOUNT / 100; 2]);
 
     // Process a valid proof
     let (gas_token_used, mut state, mut events) = execute_txs_and_process_valid_proof(
         prover_address,
         sequencer,
-        &gas_used_per_step,
+        &max_gas_used_per_step,
         &module,
         state,
     )?;
@@ -277,13 +277,13 @@ fn test_valid_proof() -> Result<(), Infallible> {
 fn test_valid_proof_with_penalization() -> Result<(), Infallible> {
     let (module, prover_address, sequencer, state) = setup();
 
-    let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
+    let max_gas_used_per_step = <S as Spec>::Gas::from([MAX_TX_GAS_AMOUNT / 100; 2]);
 
     // Process a valid proof
     let (total_gas_used, mut state, mut events) = execute_txs_and_process_valid_proof(
         prover_address,
         sequencer,
-        &gas_used_per_step,
+        &max_gas_used_per_step,
         &module,
         state,
     )?;

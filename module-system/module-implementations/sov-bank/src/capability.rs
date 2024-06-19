@@ -28,6 +28,9 @@ pub enum ReserveGasErrorReason<S: Spec> {
     /// Insufficient gas locked in the transaction to cover pre-execution checks such as signature checks or transaction
     /// deserialization
     InsufficientGasForPreExecutionChecks(String),
+    /// Impossible to transfer the gas from the payer to the bank
+    #[error("Impossible to transfer the gas from the payer to the bank")]
+    ImpossibleToTransferGas(String),
     /// Error occurred while accessing the state
     #[error("An error occurred while accessing the state: {0}")]
     StateAccessError(StateAccessorError<S::Gas>),
@@ -100,7 +103,7 @@ impl<S: Spec> Bank<S> {
 
         // We lock the `max_fee` amount into the `Bank` module.
         // We actually **need** to do that transfer because the payer account balance may change during the execution of the transaction.
-        self.transfer_from(
+        if let Err(err) = self.transfer_from(
             payer,
             self.id.to_payable(),
             Coins {
@@ -108,8 +111,12 @@ impl<S: Spec> Bank<S> {
                 token_id: GAS_TOKEN_ID,
             },
             &mut pre_exec_working_set,
-        )
-        .expect("Since the balance is checked above, this should be infallible. This is a bug");
+        ) {
+            return Err(ReserveGasError {
+                reason: ReserveGasErrorReason::ImpossibleToTransferGas(err.to_string()),
+                pre_exec_working_set,
+            });
+        }
 
         if let Some(gas_limit) = &tx.gas_limit {
             // We need to check the gas price in case the user has provided a gas limit.

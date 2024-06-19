@@ -5,7 +5,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Batch, Gas, GasArray, ModuleInfo, Spec};
-use sov_modules_stf_blueprint::BatchSequencerOutcome;
+use sov_modules_stf_blueprint::{BatchSequencerOutcome, TxEffect};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::value_setter_data::ValueSetterMessages;
@@ -13,11 +13,10 @@ use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, SequencerParams, TestRollup, DEFAULT_STAKE_AMOUNT,
-    GAS_TX_FIXED_COST, S,
+    DEFAULT_USER_BALANCE, S,
 };
 
 const TEST_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(10);
-const INITIAL_USER_BALANCE: u64 = 10_000;
 const NUM_TXS_PER_BATCH: u64 = 2;
 
 fn check_sequencer_and_registry_balances(
@@ -49,11 +48,7 @@ fn check_sequencer_and_registry_balances(
     Ok(())
 }
 
-fn test_sequencer_reward_in_stf(
-    rollup: &mut TestRollup,
-    max_fee: u64,
-    expected_reward: u64,
-) -> Result<(), Infallible> {
+fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64) -> Result<(), Infallible> {
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages
         .create_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>(
@@ -71,15 +66,15 @@ fn test_sequencer_reward_in_stf(
     let seq_rollup_addr = seq_params.rollup_address;
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::with_addresses_and_balances(vec![
-        (seq_params.rollup_address, INITIAL_USER_BALANCE),
-        (admin_pub_key, INITIAL_USER_BALANCE),
+        (seq_params.rollup_address, DEFAULT_USER_BALANCE),
+        (admin_pub_key, DEFAULT_USER_BALANCE),
     ]);
     let attester_params = AttesterIncentivesParams::default();
 
     // Genesis
     let init_root_hash = rollup.genesis(admin_pub_key, seq_params, bank_params, attester_params);
 
-    let post_genesis_sequencer_balance = INITIAL_USER_BALANCE - DEFAULT_STAKE_AMOUNT;
+    let post_genesis_sequencer_balance = DEFAULT_USER_BALANCE - DEFAULT_STAKE_AMOUNT;
     let post_genesis_registry_balance = DEFAULT_STAKE_AMOUNT;
 
     check_sequencer_and_registry_balances(
@@ -102,6 +97,26 @@ fn test_sequencer_reward_in_stf(
     );
 
     let batch_receipt = &exec_simulation[0].batch_receipts[0];
+
+    for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+        assert!(
+            matches!(tx_receipt.receipt, TxEffect::Successful(..)),
+            "The tx receipt {i} was not successful"
+        );
+    }
+
+    let total_gas_used =
+        batch_receipt
+            .tx_receipts
+            .iter()
+            .fold(<S as Spec>::Gas::zero(), |mut acc, tx_receipt| {
+                acc.combine(&<S as Spec>::Gas::from_slice(&tx_receipt.gas_used));
+                acc
+            });
+
+    let expected_reward = TEST_PRIORITY_FEE
+        .apply(total_gas_used.value(&rollup.initial_base_fee_per_gas()))
+        .expect("Should not overflow");
 
     match batch_receipt.inner.clone() {
         BatchSequencerOutcome::Rewarded(amount) => {
@@ -135,29 +150,27 @@ fn test_sequencer_rewarded_max_priority_fee() -> Result<(), Infallible> {
     let mut rollup = TestRollup::new();
 
     // The max fee is the same as the base fee so the sequencer should not get rewarded
-    let base_fee =
-        <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(&rollup.initial_base_fee_per_gas());
-
-    let max_tip = TEST_PRIORITY_FEE
-        .apply(base_fee)
-        .expect("Should not overflow");
-
-    let max_fee = base_fee + 5 * max_tip;
-
-    test_sequencer_reward_in_stf(&mut rollup, max_fee, NUM_TXS_PER_BATCH * max_tip)
-}
-
-/// Checks the EIP-1559 specification for the maximum priority fee. The sequencer should get rewarded the minimum
-/// of (the difference between the max fee and the base fee) and (the maximum priority fee). If the base fee is
-/// very close to the max fee, the sequencer should then get rewarded less than the maximum priority fee.
-/// This test checks the extreme case where the consumed base fee is the same as the max fee, hence the sequencer doesn't get rewarded at all.
-#[test]
-fn test_sequencer_not_rewarded_max_priority_fee() -> Result<(), Infallible> {
-    // Build a STF blueprint with the module configurations
-    let mut rollup = TestRollup::new();
-    // The max fee is the same as the base fee so the sequencer should not get rewarded
     let max_fee =
-        <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(&rollup.initial_base_fee_per_gas());
+        <S as Spec>::Gas::from_slice(&[10_000, 10_000]).value(&rollup.initial_base_fee_per_gas());
 
-    test_sequencer_reward_in_stf(&mut rollup, max_fee, 0)
+    test_sequencer_reward_in_stf(&mut rollup, max_fee)
 }
+
+// Checks the EIP-1559 specification for the maximum priority fee. The sequencer should get rewarded the minimum
+// of (the difference between the max fee and the base fee) and (the maximum priority fee). If the base fee is
+// very close to the max fee, the sequencer should then get rewarded less than the maximum priority fee.
+// This test checks the extreme case where the consumed base fee is the same as the max fee, hence the sequencer doesn't get rewarded at all.
+//
+// TODO(@theochap): the gas costs are now quite unpredictable, so this test is disabled for now. It will be re-enabled
+// once we have a way to simulate transaction execution and compute the gas costs ahead of time.
+//
+// #[test]
+// fn test_sequencer_not_rewarded_max_priority_fee() -> Result<(), Infallible> {
+//     // Build a STF blueprint with the module configurations
+//     let mut rollup = TestRollup::new();
+//     // The max fee is the same as the base fee so the sequencer should not get rewarded
+//     let max_fee =
+//         <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(&rollup.initial_base_fee_per_gas());
+
+//     test_sequencer_reward_in_stf(&mut rollup, max_fee, 0)
+// }

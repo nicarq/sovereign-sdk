@@ -12,12 +12,10 @@ use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, SequencerParams, TestKernel, TestRollup,
-    GAS_TX_FIXED_COST,
+    DEFAULT_USER_BALANCE,
 };
 
 type S = sov_test_utils::TestSpec;
-
-const INITIAL_USER_BALANCE: u64 = 100_000;
 
 /// This test generates a new mock rollup having a simple value setter module
 /// with an associated chain state, and checks that the height, the genesis hash
@@ -30,10 +28,6 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages
         .create_default_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>();
-    let num_value_setter_txs = value_setter.len();
-
-    // We need to multiply each component of the gas used by 2 because there are 2 messages
-    let gas_used_per_slot = GAS_TX_FIXED_COST.map(|g| num_value_setter_txs as u64 * g);
 
     let admin_pub_key = value_setter_messages.messages[0]
         .admin
@@ -43,8 +37,8 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
     let seq_params = SequencerParams::default();
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::with_addresses_and_balances(vec![
-        (admin_pub_key, INITIAL_USER_BALANCE),
-        (seq_params.rollup_address, INITIAL_USER_BALANCE),
+        (admin_pub_key, DEFAULT_USER_BALANCE),
+        (seq_params.rollup_address, DEFAULT_USER_BALANCE),
     ]);
     let attester_params = AttesterIncentivesParams::default();
 
@@ -71,7 +65,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
         rollup.execution_simulation(1, init_root_hash, vec![blob.clone()], 0, None);
     let first_root = exec_simulation[0].state_root;
 
-    let current_base_fee_per_gas = {
+    let (current_base_fee_per_gas, total_gas_used) = {
         assert_eq!(exec_simulation.len(), 1, "The execution simulation failed");
 
         let batch_receipts = exec_simulation[0].batch_receipts.clone();
@@ -79,11 +73,15 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
 
         let apply_blob_outcome = batch_receipts[0].clone();
 
+        let mut total_gas_used = <S as Spec>::Gas::zero();
+
         for tx_receipt in apply_blob_outcome.tx_receipts.iter() {
             assert!(
                 tx_receipt.receipt.is_successful(),
                 "The transaction should have been successfully executed"
             );
+
+            total_gas_used.combine(&<S as Spec>::Gas::from_slice(&tx_receipt.gas_used));
         }
 
         assert_eq!(
@@ -124,7 +122,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
             base_fee_per_gas.clone(),
         );
 
-        gas_info.update_gas_used(GasArray::from_slice(&gas_used_per_slot));
+        gas_info.update_gas_used(total_gas_used.clone());
 
         assert_eq!(
             new_tx_in_progress,
@@ -138,12 +136,11 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
 
         assert!(has_tx_events(&apply_blob_outcome),);
 
-        base_fee_per_gas
+        (base_fee_per_gas, total_gas_used)
     };
 
     let exec_simulation = rollup.execution_simulation(1, first_root, vec![blob], 1, None);
 
-    #[cfg(test)]
     {
         assert_eq!(exec_simulation.len(), 1, "The execution simulation failed");
 
@@ -154,6 +151,14 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
             BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
             apply_blob_outcome.inner,
             "Sequencer execution should have succeeded but failed "
+        );
+
+        let new_total_gas_used = apply_blob_outcome.tx_receipts.iter().fold(
+            <S as Spec>::Gas::zero(),
+            |mut acc, tx_receipt| {
+                acc.combine(&<S as Spec>::Gas::from_slice(&tx_receipt.gas_used));
+                acc
+            },
         );
 
         // Computes the new working set after slot application
@@ -183,7 +188,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
             new_base_fee_per_gas,
         );
 
-        gas_info.update_gas_used(GasArray::from_slice(&gas_used_per_slot));
+        gas_info.update_gas_used(new_total_gas_used);
 
         assert_eq!(
             new_tx_in_progress,
@@ -204,7 +209,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
             current_base_fee_per_gas,
         );
 
-        gas_info.update_gas_used(GasArray::from_slice(&gas_used_per_slot));
+        gas_info.update_gas_used(total_gas_used);
 
         let expected_tx_stored: StateTransition<S, MockDaSpec> =
             StateTransition::<S, MockDaSpec>::new(

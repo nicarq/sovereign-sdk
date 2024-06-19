@@ -24,7 +24,7 @@ use sov_test_utils::{
 use sov_value_setter::{CallMessage, ValueSetter};
 
 use crate::helpers::{
-    AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, DEFAULT_STAKE_AMOUNT, S,
+    AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, DEFAULT_USER_BALANCE, S,
 };
 
 impl TestRollup {
@@ -128,8 +128,8 @@ fn test_stf_internal_updates() {
     let seq_rollup_addr = seq_params.rollup_address;
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::with_addresses_and_balances(vec![
-        (seq_params.rollup_address, DEFAULT_STAKE_AMOUNT),
-        (admin_pub_key, 100_000),
+        (seq_params.rollup_address, DEFAULT_USER_BALANCE),
+        (admin_pub_key, DEFAULT_USER_BALANCE),
     ]);
     let attester_params = AttesterIncentivesParams::default();
 
@@ -193,7 +193,7 @@ fn test_enforces_chain_id() {
         let mut genesis = HighLevelOptimisticGenesisConfig::generate();
         genesis
             .additional_accounts
-            .push((test_address, 1_000_000_000));
+            .push((test_address, DEFAULT_USER_BALANCE));
         let genesis = GenesisConfig::from_minimal_config(
             genesis.into(),
             sov_value_setter::ValueSetterConfig {
@@ -206,7 +206,8 @@ fn test_enforces_chain_id() {
                 CallMessage::SetValue(8),
             );
 
-        let utx = UnsignedTransaction::new(encoded_message, chain_id, 100.into(), 100_000, 0, None);
+        let utx =
+            UnsignedTransaction::new(encoded_message, chain_id, 100.into(), 1_000_000, 0, None);
         run_test(
             genesis.into_genesis_params(),
             vec![SlotTestCase::from_txs(vec![TxTestCase {

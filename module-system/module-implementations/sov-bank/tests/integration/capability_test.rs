@@ -17,6 +17,8 @@ struct CapabilityTestParams {
     pub sender_address: <S as Spec>::Address,
 }
 
+const INITIAL_BALANCE: u64 = 10_000;
+
 /// Helper function that creates a simple bank setup (one account with `initial_balance`), generates a transaction
 /// with the given gas parameters, reserves some gas, checks the resulting gas meter, and returns useful test parameters.
 fn reserve_gas_helper(
@@ -56,10 +58,10 @@ fn reserve_gas_helper(
 
     let gas_used = working_set.gas_used();
 
-    assert_eq!(
-        gas_used,
+    assert!(
+        gas_used >=
         gas_for_pre_execution_checks,
-        "The gas used {gas_used} should be equal to the gas for pre-execution checks {gas_for_pre_execution_checks}"
+        "The gas used {gas_used} should be at least equal to the gas for pre-execution checks {gas_for_pre_execution_checks} (more gas may be used for state accesses)"
     );
 
     CapabilityTestParams {
@@ -75,7 +77,7 @@ fn reserve_gas_helper(
 /// We use half the price for pre-execution checks, the rest for the transaction.
 #[test]
 fn test_honest_reserve_gas_capability_without_priority_fee() -> Result<(), Infallible> {
-    let initial_balance = 100;
+    let initial_balance = INITIAL_BALANCE;
     let mut params = reserve_gas_helper(
         initial_balance,
         PriorityFeeBips::ZERO,
@@ -85,9 +87,10 @@ fn test_honest_reserve_gas_capability_without_priority_fee() -> Result<(), Infal
     );
 
     // Let's consume all the gas, this should succeed because there is enough gas left in the meter.
+    let remaining_gas = params.working_set.remaining_funds();
     params
         .working_set
-        .charge_gas(&GasUnit::from_slice(&[initial_balance / 4; 2]))
+        .charge_gas(&GasUnit::from_slice(&[remaining_gas / 2; 2]))
         .expect("The charge gas operation should not fail");
 
     let _auth_tx: AuthenticatedTransactionData<S> = params.transaction.into();
@@ -125,7 +128,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() -> Result<(), Infal
 /// We use half the price for pre-execution checks, the rest for the transaction.
 #[test]
 fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() -> Result<(), Infallible> {
-    let initial_balance = 100;
+    let initial_balance = INITIAL_BALANCE;
     let mut params = reserve_gas_helper(
         initial_balance,
         PriorityFeeBips::from_percentage(10),
@@ -135,9 +138,10 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() -> Result<(
     );
 
     // Let's consume all the gas, this should succeed because there is enough gas left in the meter.
+    let remaining_gas = params.working_set.remaining_funds();
     params
         .working_set
-        .charge_gas(&GasUnit::from_slice(&[initial_balance / 4; 2]))
+        .charge_gas(&GasUnit::from_slice(&[remaining_gas / 2; 2]))
         .expect("The charge gas operation should not fail");
 
     let (mut tx_scratchpad, tx_consumption, _) = params.working_set.finalize();
@@ -173,9 +177,8 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() -> Result<(
 /// The priority fee is non zero and is charged as part of the transaction.
 #[test]
 fn test_honest_reserve_gas_capability_with_priority_fee() -> anyhow::Result<()> {
-    let initial_balance = 100;
+    let initial_balance = INITIAL_BALANCE;
     let max_priority_fee_bips = PriorityFeeBips::from_percentage(10);
-    let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
 
     let mut params = reserve_gas_helper(
         initial_balance,
@@ -212,13 +215,13 @@ fn test_honest_reserve_gas_capability_with_priority_fee() -> anyhow::Result<()> 
     let _auth_tx: AuthenticatedTransactionData<S> = params.transaction.into();
 
     // The sender should have been refunded:
-    // initial_balance - gas_to_charge_value * (1 + max_priority_fee_percentage)
-    let gas_to_charge_value = gas_to_charge.value(gas_price);
+    // initial_balance - base_fee * (1 + max_priority_fee_percentage)
+    let base_fee_value = tx_consumption.base_fee_value();
 
     let refund_amount = initial_balance
-        - gas_to_charge_value
+        - base_fee_value
         - max_priority_fee_bips
-            .apply(gas_to_charge_value)
+            .apply(base_fee_value)
             .expect("This should not overflow");
 
     assert_eq!(
@@ -275,7 +278,7 @@ fn test_reserve_gas_no_account() {
 /// Tests that the `reserve_gas` method fails if the sender balance is not high enough to pay for the gas.
 #[test]
 fn test_reserve_gas_not_enough_balance() {
-    let initial_balance = 100;
+    let initial_balance = INITIAL_BALANCE;
     let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
 
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
@@ -308,14 +311,14 @@ fn test_reserve_gas_not_enough_balance() {
 /// This check is only performed if the `gas_limit` is set.
 #[test]
 fn test_reserve_gas_price_too_high() {
-    let initial_balance = 100;
+    let initial_balance = INITIAL_BALANCE;
     let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
 
     // This transaction has gas limit set to [50; 2], which means the associated gas price is [1; 2].
     let transaction: Transaction<S> = generate_empty_tx(
         PriorityFeeBips::ZERO,
         initial_balance,
-        Some(GasUnit::from_slice(&[50; 2])),
+        Some(GasUnit::from_slice(&[initial_balance / 2; 2])),
     );
 
     // The gas price is [2; 2] which is higher than the one associated with the gas limit.
@@ -375,7 +378,7 @@ fn test_reserve_gas_should_not_overflow_or_panic_zero_priority() -> anyhow::Resu
             .bank
             .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)?
             .expect("The sender balance should exist"),
-        initial_balance
+        initial_balance - tx_consumption.total_consumption()
     );
 
     Ok(())
@@ -414,7 +417,7 @@ fn test_reserve_gas_should_not_overflow_or_panic_non_zero_priority() -> anyhow::
             .bank
             .get_balance_of(&params.sender_address, GAS_TOKEN_ID, &mut checkpoint)?
             .expect("The sender balance should exist"),
-        initial_balance
+        initial_balance - tx_consumption.total_consumption()
     );
 
     Ok(())

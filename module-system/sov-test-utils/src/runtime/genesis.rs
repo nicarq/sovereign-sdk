@@ -10,12 +10,12 @@ use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use crate::TestSpec;
 
 // Constants used in the genesis configuration of the test runtime
-const DEFAULT_MIN_USER_BOND: u64 = 1000;
+const DEFAULT_MIN_USER_BOND: u64 = 100_000;
 const DEFAULT_MAX_ATTESTED_HEIGHT: u64 = 0;
 const DEFAULT_LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
 const DEFAULT_ROLLUP_FINALITY_PERIOD: u64 = 1;
 const DEFAULT_GAS_TOKEN_NAME: &str = "TestGasToken";
-const DEFAULT_BONDED_BALANCE: u64 = 1_000_000_000;
+const DEFAULT_BONDED_BALANCE: u64 = 100_000;
 const DEFAULT_ADDITIONAL_BALANCE: u64 = 1_000_000_000;
 
 /// A genesis config for a minimal optimsitic runtime

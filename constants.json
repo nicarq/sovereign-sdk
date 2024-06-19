@@ -25,17 +25,17 @@
     "GAS_TX_FIXED_COST": [10, 10],
     // The cost per byte of transaction data.
     "GAS_TX_COST_PER_BYTE": [0, 0],
-    "GAS_TO_CHARGE_FOR_ACCESS": [0, 0],
-    "GAS_TO_REFUND_FOR_HOT_ACCESS": [0, 0],
-    "GAS_TO_CHARGE_FOR_WRITE": [0, 0],
-    "GAS_TO_REFUND_FOR_HOT_WRITE": [0, 0],
-    "GAS_TO_CHARGE_FOR_DECODING": [0, 0],
+    "GAS_TO_CHARGE_FOR_ACCESS": [5, 5],
+    "GAS_TO_REFUND_FOR_HOT_ACCESS": [4, 4],
+    "GAS_TO_CHARGE_FOR_WRITE": [10, 10],
+    "GAS_TO_REFUND_FOR_HOT_WRITE": [8, 8],
+    "GAS_TO_CHARGE_FOR_DECODING": [2, 2],
     // The percentage of the "base fee" that is burned when a transaction is processed.
     // The portion that is not burned is awarded to provers and/or attesters on the network.
     "PERCENT_BASE_FEE_TO_BURN": 10,
     // --- Gas fee adjustment parameters: See https://eips.ethereum.org/EIPS/eip-1559 for a detailed description ---
     "INITIAL_GAS_LIMIT": [100000000, 100000000],
-    "INITIAL_BASE_FEE_PER_GAS": [100, 100],
+    "INITIAL_BASE_FEE_PER_GAS": [10, 10],
     "BASE_FEE_MAX_CHANGE_DENOMINATOR": 8,
     "ELASTICITY_MULTIPLIER": 2
     // --- End Gas fee adjustment parameters ---

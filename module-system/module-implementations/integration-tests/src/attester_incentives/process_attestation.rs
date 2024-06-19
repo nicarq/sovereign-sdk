@@ -4,7 +4,7 @@ use std::vec;
 use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{Batch, Gas, GasArray, Spec, StateCheckpoint};
+use sov_modules_api::{Batch, StateCheckpoint};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::StorageRoot;
 use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
@@ -77,13 +77,12 @@ impl AttesterIncentivesTestHandler {
         let ExecutionSimulationVars {
             state_root: first_state_root,
             state_proof: first_state_proof,
-            batch_receipts: first_batch_receipts,
+            ..
         } = execution_vars[0].clone();
 
         let ExecutionSimulationVars {
             state_root: snd_state_root,
-            state_proof: _snd_state_proof,
-            batch_receipts: _snd_batch_receipts,
+            ..
         } = execution_vars[1].clone();
 
         let attestation = Attestation {
@@ -113,30 +112,24 @@ impl AttesterIncentivesTestHandler {
             Some(self.attester_addr()),
         );
 
+        assert_eq!(exec_vars.len(), 1, "There should be one slot processed");
+
         let attestation_tx = exec_vars
             .first()
             .expect("The attestation execution simulation failed");
 
         // The new attester balance is the initial attester balance minus the gas cost of the transaction
         // plus the burn rate applied to the amount of gas proved in the attestation
-        let proved_gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(
-            first_batch_receipts.first().unwrap().gas_price.as_slice(),
-        );
-        let gas_proved = (self.num_value_setter_txs() as u64) * rollup.tx_cost(proved_gas_price);
+        let gas_proved_value = execution_vars[0].gas_consumed_value();
+
         let burn_rate = rollup.burn_rate();
 
         // The new attester balance is the initial attester balance minus the gas cost of the transaction
         // plus the burn rate applied to the amount of gas proved in the attestation
-        let attestation_gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(
-            attestation_tx
-                .batch_receipts
-                .first()
-                .unwrap()
-                .gas_price
-                .as_slice(),
-        );
-        let new_attester_balance = honest_attester_balance - rollup.tx_cost(attestation_gas_price)
-            + burn_rate.apply(gas_proved);
+        let gas_consumed_attestation_value: u64 = attestation_tx.gas_consumed_value();
+
+        let new_attester_balance = honest_attester_balance - gas_consumed_attestation_value
+            + burn_rate.apply(gas_proved_value);
 
         self.check_first_attestation_processing(attestation_tx, new_attester_balance, rollup)?;
 
@@ -182,28 +175,27 @@ impl AttesterIncentivesTestHandler {
     // Let's try to attest the second transition and the first attestation
     fn try_attest_second_transition_and_first_attestation(
         &self,
-        execution_vars: Vec<ExecutionSimulationVars>,
+        prev_exec_vars: Vec<ExecutionSimulationVars>,
         honest_attester_balance: u64,
         rollup: &mut TestRollup,
     ) -> Result<(), Infallible> {
-        assert!(execution_vars.len() >= 3);
+        assert!(prev_exec_vars.len() >= 3);
         let ExecutionSimulationVars {
             state_root: first_state_root,
-            state_proof: _first_state_proof,
-            batch_receipts: _first_batch_receipts,
-        } = execution_vars[0].clone();
+            ..
+        } = prev_exec_vars[0].clone();
 
         let ExecutionSimulationVars {
             state_root: snd_state_root,
             state_proof: snd_state_proof,
-            batch_receipts: second_batch_receipts,
-        } = execution_vars[1].clone();
+            ..
+        } = prev_exec_vars[1].clone();
 
         let ExecutionSimulationVars {
             state_root: attestation_state_root,
             state_proof: attestation_state_proof,
-            batch_receipts: attestation_batch_receipts,
-        } = execution_vars[2].clone();
+            ..
+        } = prev_exec_vars[2].clone();
 
         let fst_attestation = Attestation {
             initial_state_root: first_state_root,
@@ -247,35 +239,18 @@ impl AttesterIncentivesTestHandler {
             .first()
             .expect("The rollup panicked while processing the second attestation");
 
+        let gas_consumed_attestations_value = exec_vars[0].gas_consumed_value();
+
+        let gas_proved_first_attestation_value = prev_exec_vars[1].gas_consumed_value();
+
+        let gas_proved_second_attestation_value = prev_exec_vars[2].gas_consumed_value();
+
         // Formula: new_balance = old_balance + burn_rate * (gas_proved_first_attestation + gas_proved_second_attestation) - tx_cost
-        let gas_price_first_attestation = &<<S as Spec>::Gas as Gas>::Price::from_slice(
-            second_batch_receipts.first().unwrap().gas_price.as_slice(),
-        );
-        let gas_proved_first_attestation =
-            self.num_value_setter_txs() as u64 * rollup.tx_cost(gas_price_first_attestation);
-
-        let gas_price_second_attestation = &<<S as Spec>::Gas as Gas>::Price::from_slice(
-            attestation_batch_receipts
-                .first()
-                .unwrap()
-                .gas_price
-                .as_slice(),
-        );
-        let gas_proved_second_attestation = rollup.tx_cost(gas_price_second_attestation);
-
-        let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(
-            attestation_transition
-                .batch_receipts
-                .first()
-                .unwrap()
-                .gas_price
-                .as_slice(),
-        );
         let burn_rate = rollup.burn_rate();
         let expected_attester_balance = honest_attester_balance
-            + burn_rate.apply(gas_proved_first_attestation)
-            + burn_rate.apply(gas_proved_second_attestation)
-            - 2 * rollup.tx_cost(gas_price);
+            + burn_rate.apply(gas_proved_first_attestation_value)
+            + burn_rate.apply(gas_proved_second_attestation_value)
+            - gas_consumed_attestations_value;
 
         self.check_second_and_third_attestation_processing(
             attestation_transition,

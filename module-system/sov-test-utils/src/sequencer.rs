@@ -85,9 +85,9 @@ pub async fn new_sequencer(dir: &TempDir) -> anyhow::Result<TestSequencerSetup> 
         &[],
         sequencer_rollup_addr,
         SEQUENCER_ADDR.into(),
-        100,
+        100_000,
         "SovereignToken".to_string(),
-        10_000_000,
+        1_000_000_000,
     );
 
     let kernel_genesis = BasicKernelGenesisConfig {

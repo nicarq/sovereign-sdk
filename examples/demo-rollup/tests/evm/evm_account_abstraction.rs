@@ -56,7 +56,7 @@ fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<T
     );
 
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = 10_000;
+    let max_fee = 1_000_000;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         &key,

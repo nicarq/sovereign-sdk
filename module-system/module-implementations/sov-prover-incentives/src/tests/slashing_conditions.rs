@@ -10,7 +10,7 @@ use sov_modules_api::{
     WorkingSet,
 };
 
-use super::helpers::{get_transition_unwrap, simulate_chain_state_execution};
+use super::helpers::{get_transition_unwrap, simulate_chain_state_execution, MAX_TX_GAS_AMOUNT};
 use crate::event::SlashingReason;
 use crate::tests::helpers::{setup, MOCK_CODE_COMMITMENT, S};
 use crate::Event;
@@ -29,7 +29,7 @@ fn slashing_setup() -> (
 
     // Simulate execution of the chain-state
 
-    let gas_used_per_step = <S as Spec>::Gas::from([1_u64; 2]);
+    let gas_used_per_step = <S as Spec>::Gas::from([MAX_TX_GAS_AMOUNT / 100; 2]);
     // The first transition is the genesis transition
     // Then we have two more transitions
     let (state_checkpoint, _) = simulate_chain_state_execution(

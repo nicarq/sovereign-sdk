@@ -5,9 +5,7 @@ use sov_attester_incentives::Role;
 use sov_bank::BurnRate;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::{
-    Batch, CryptoSpec, DaSpec, Gas, GasArray, PrivateKey, RawTx, Spec, StateCheckpoint,
-};
+use sov_modules_api::{Batch, CryptoSpec, DaSpec, PrivateKey, RawTx, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::TransactionReceipt;
 use sov_state::{Storage, StorageRoot};
 use sov_test_utils::auth::TestAuth;
@@ -19,7 +17,7 @@ use sov_test_utils::{
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, Da, ExecutionSimulationVars, SequencerParams, TestRollup,
-    GAS_TX_FIXED_COST, S,
+    S,
 };
 
 mod byzantine_behavior;
@@ -27,9 +25,9 @@ mod process_attestation;
 
 mod unbond;
 
-const USER_STAKE: u64 = 2_000;
+const USER_STAKE: u64 = 100_000;
 const ROLLUP_FINALITY_PERIOD: u64 = 2;
-const USER_BALANCE: u64 = 100_000;
+const USER_BALANCE: u64 = 1_000_000_000;
 
 fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionReceipt {
     env.batch_receipts
@@ -43,11 +41,6 @@ fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionR
 impl TestRollup {
     pub(crate) fn burn_rate(&self) -> BurnRate {
         self.attester_incentives().burn_rate()
-    }
-
-    /// We charge a fixed gas price for each transaction to simplify the tests.
-    pub(crate) fn tx_cost(&mut self, gas_price: &<<S as Spec>::Gas as Gas>::Price) -> u64 {
-        <S as Spec>::Gas::from_slice(&GAS_TX_FIXED_COST).value(gas_price)
     }
 
     pub(crate) fn increase_and_commit_light_client_attested_height(
@@ -147,10 +140,6 @@ struct AttesterIncentivesTestHandler {
 }
 
 impl AttesterIncentivesTestHandler {
-    pub fn num_value_setter_txs(&self) -> usize {
-        self.value_setter.len()
-    }
-
     pub fn attester_addr(&self) -> <S as Spec>::Address {
         self.attester_private_key.to_address::<_>()
     }
