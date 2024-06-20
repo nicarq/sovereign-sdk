@@ -5,6 +5,14 @@ use anyhow::Context;
 use borsh::{BorshDeserialize, BorshSerialize};
 use celestia_proto::celestia::blob::v1::MsgPayForBlobs;
 use celestia_proto::cosmos::tx::v1beta1::Tx;
+pub use celestia_tendermint::block::Header as TendermintHeader;
+use celestia_tendermint::block::Height;
+use celestia_tendermint::crypto::default::Sha256;
+use celestia_tendermint::merkle::simple_hash_from_byte_vectors;
+use celestia_tendermint::Hash;
+pub use celestia_tendermint_proto::v0_34 as celestia_tm_version;
+use celestia_tendermint_proto::v0_34::types::IndexWrapper;
+use celestia_tendermint_proto::Protobuf;
 use celestia_types::{DataAvailabilityHeader, ExtendedHeader};
 use prost::bytes::Buf;
 use prost::Message;
@@ -12,14 +20,6 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, Time};
 #[cfg(feature = "native")]
 use sov_rollup_interface::services::da::SlotData;
-pub use tendermint::block::Header as TendermintHeader;
-use tendermint::block::Height;
-use tendermint::crypto::default::Sha256;
-use tendermint::merkle::simple_hash_from_byte_vectors;
-use tendermint::Hash;
-pub use tendermint_proto::v0_34 as celestia_tm_version;
-use tendermint_proto::v0_34::types::IndexWrapper;
-use tendermint_proto::Protobuf;
 use tracing::debug;
 
 use crate::shares::{BlobRefIterator, NamespaceGroup};
@@ -183,11 +183,11 @@ impl CelestiaHeader {
     }
 
     pub fn square_size(&self) -> usize {
-        self.dah.row_roots.len()
+        self.dah.row_roots().len()
     }
 }
 
-impl From<celestia_types::ExtendedHeader> for CelestiaHeader {
+impl From<ExtendedHeader> for CelestiaHeader {
     fn from(extended_header: ExtendedHeader) -> Self {
         CelestiaHeader::new(extended_header.dah, extended_header.header.into())
     }
@@ -210,18 +210,17 @@ impl BlockHeader for CelestiaHeader {
             .value()
             == 1
         {
-            let prev_hash = TmHash(tendermint::Hash::Sha256(*GENESIS_PLACEHOLDER_HASH));
+            let prev_hash = TmHash(Hash::Sha256(*GENESIS_PLACEHOLDER_HASH));
             *cached_hash = Some(prev_hash.clone());
             return prev_hash;
         }
 
         // In all other cases, we simply return the previous block hash parsed from the header
-        let hash =
-            <tendermint::block::Id as Protobuf<celestia_tm_version::types::BlockId>>::decode(
-                self.header.last_block_id.as_ref(),
-            )
-            .expect("must not call prev_hash on block with no predecessor")
-            .hash;
+        let hash = <celestia_tendermint::block::Id as Protobuf<
+            celestia_tm_version::types::BlockId,
+        >>::decode(self.header.last_block_id.as_ref())
+        .expect("must not call prev_hash on block with no predecessor")
+        .hash;
         *cached_hash = Some(TmHash(hash));
         TmHash(hash)
     }
@@ -231,13 +230,13 @@ impl BlockHeader for CelestiaHeader {
     }
 
     fn height(&self) -> u64 {
-        let height = tendermint::block::Height::decode(self.header.height.as_slice())
+        let height = celestia_tendermint::block::Height::decode(self.header.height.as_slice())
             .expect("Height must be valid");
         height.value()
     }
 
     fn time(&self) -> Time {
-        let protobuf_time = tendermint::time::Time::decode(self.header.time.as_slice())
+        let protobuf_time = celestia_tendermint::time::Time::decode(self.header.time.as_slice())
             .expect("Timestamp must be valid");
 
         Time::from_secs(protobuf_time.unix_timestamp())
@@ -253,8 +252,8 @@ impl SlotData for CelestiaHeader {
 
     fn hash(&self) -> [u8; 32] {
         match self.header.hash() {
-            tendermint::Hash::Sha256(h) => h,
-            tendermint::Hash::None => unreachable!("tendermint::Hash::None should not be possible"),
+            Hash::Sha256(h) => h,
+            Hash::None => unreachable!("tendermint::Hash::None should not be possible"),
         }
     }
 
@@ -421,7 +420,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "risc0")]
     fn test_zkvm_serde_celestia_header() {
         // regression https://github.com/eigerco/celestia-tendermint-rs/pull/12
         for header_json in HEADER_JSON_RESPONSES {

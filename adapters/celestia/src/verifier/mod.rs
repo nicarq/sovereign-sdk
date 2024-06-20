@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use celestia_types::nmt::Namespace;
+use celestia_types::nmt::{Namespace, NS_SIZE};
 use celestia_types::{Commitment, DataAvailabilityHeader, NamespacedShares};
+use nmt_rs::NamespacedSha2Hasher;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
     self, BlobReaderTrait, BlockHashTrait as BlockHash, BlockHeaderTrait, DaSpec, RelevantBlobs,
@@ -32,7 +33,7 @@ pub struct CelestiaVerifier {
 }
 
 pub const PFB_NAMESPACE: Namespace = Namespace::const_v0([0, 0, 0, 0, 0, 0, 0, 0, 0, 4]);
-pub const PARITY_SHARES_NAMESPACE: Namespace = Namespace::MAX;
+pub const PARITY_SHARES_NAMESPACE: Namespace = Namespace::PARITY_SHARE;
 
 impl BlobReaderTrait for BlobWithSender {
     type Address = CelestiaAddress;
@@ -64,7 +65,7 @@ impl BlobReaderTrait for BlobWithSender {
 // Important: #[repr(transparent)] is required for safety as long as we're using
 // std::mem::transmute to implement AsRef<TmHash> for tendermint::Hash
 #[repr(transparent)]
-pub struct TmHash(pub tendermint::Hash);
+pub struct TmHash(pub celestia_tendermint::Hash);
 
 impl AsRef<[u8]> for TmHash {
     fn as_ref(&self) -> &[u8] {
@@ -81,15 +82,15 @@ impl core::fmt::Display for TmHash {
 impl TmHash {
     pub fn inner(&self) -> &[u8; 32] {
         match self.0 {
-            tendermint::Hash::Sha256(ref h) => h,
+            celestia_tendermint::Hash::Sha256(ref h) => h,
             // Hack: when the hash is None, we return a hash of all 255s as a placeholder.
             // TODO: add special casing for the genesis block at a higher level
-            tendermint::Hash::None => unreachable!("Only the genesis block has a None hash, and we use a placeholder in that corner case")
+            celestia_tendermint::Hash::None => unreachable!("Only the genesis block has a None hash, and we use a placeholder in that corner case")
         }
     }
 }
 
-impl AsRef<TmHash> for tendermint::Hash {
+impl AsRef<TmHash> for celestia_tendermint::Hash {
     fn as_ref(&self) -> &TmHash {
         // Safety: #[repr(transparent)] guarantees that the memory layout of TmHash is
         // the same as tendermint::Hash, so this `transmute` is sound.
@@ -273,7 +274,7 @@ impl CelestiaVerifier {
         // TODO(@preston-evans98): Remove this logic if Celestia adds blob.sender metadata directly into blob
         let mut tx_iter = txs.iter();
         let mut tx_proofs = inclusion_proof.into_iter();
-        let square_size = block_header.dah.row_roots.len();
+        let square_size = block_header.dah.row_roots().len();
         for blob in verified_shares.blobs() {
             if blob.is_padding() {
                 debug!("Ignoring namespace padding blob. Sequence length 0.");
@@ -304,7 +305,7 @@ impl CelestiaVerifier {
                     .start_share_idx
                     .checked_div(square_size)
                     .expect("the square size is invalid");
-                let root = &block_header.dah.row_roots[row_num];
+                let root = &block_header.dah.row_roots()[row_num];
                 sub_proof
                     .proof
                     .verify_range(root, &sub_proof.shares, PFB_NAMESPACE.into())
@@ -371,9 +372,9 @@ impl CelestiaVerifier {
 
                 // Link blob commitment to e-tx commitment
                 let expected_commitment =
-                    Commitment::from_shares(namespace, blob_ref.0).map_err(|_| {
-                        ValidationError::InvalidEtxProof("failed to recreate commitment")
-                    })?;
+                    Commitment::from_shares(namespace, &blob_ref.celestia_shares()).map_err(
+                        |_| ValidationError::InvalidEtxProof("failed to recreate commitment"),
+                    )?;
 
                 assert_eq!(&pfb.share_commitments[blob_idx][..], &expected_commitment.0);
             }
@@ -394,9 +395,9 @@ impl CelestiaVerifier {
         let mut row_proofs = row_proofs.rows.into_iter();
         // Check the validity and completeness of the rollup share proofs
         let mut verified_shares = Vec::new();
-        for row_root in dah.row_roots.iter() {
+        for row_root in dah.row_roots().iter() {
             // TODO: short circuit this loop at the first row after the rollup namespace
-            if row_root.contains(namespace.into()) {
+            if row_root.contains::<NamespacedSha2Hasher<NS_SIZE>>(namespace.into()) {
                 let row_proof = row_proofs.next().ok_or(ValidationError::InvalidRowProof)?;
                 row_proof
                     .proof

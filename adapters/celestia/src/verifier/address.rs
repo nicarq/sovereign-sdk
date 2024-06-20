@@ -30,7 +30,7 @@ impl<'a> TryFrom<&'a [u8]> for CelestiaAddress {
             s.parse().context("failed parsing celestia address")
         } else {
             let array = value.try_into().context("invalid slice length")?;
-            let id = tendermint::account::Id::new(array);
+            let id = celestia_tendermint::account::Id::new(array);
             Ok(Self(AccAddress::new(id)))
         }
     }

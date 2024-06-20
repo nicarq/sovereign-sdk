@@ -33,7 +33,7 @@ const DEFAULT_GAS_PER_BLOB_BYTE: usize = 8;
 // https://github.com/cosmos/cosmos-sdk/blob/d0f6cc6d405fbce4332b5654e60bd6514ee79649/x/auth/types/params.go#L11
 const DEFAULT_TX_SIZE_COST_PER_BYTE: usize = 10;
 
-// BytesPerBlobInfo is a rough estimation for the amount of extra bytes in
+// BytesPerBlobInfo is a rough estimation for the number of extra bytes in
 // information a blob adds to the size of the underlying transaction.
 // https://github.com/celestiaorg/celestia-app/blob/a92de7236e7568aa1e9032a29a68c64ef751ce0a/x/blob/types/payforblob.go#L41
 const BYTES_PER_BLOB_INFO: usize = 70;
@@ -103,7 +103,7 @@ impl CelestiaService {
             .await?;
 
         let tx_hash = TmHash(
-            tendermint::Hash::from_str(&tx_response.txhash)
+            celestia_tendermint::Hash::from_str(&tx_response.txhash)
                 .expect("Failed to decode hash from `TxResponse`"),
         );
 
@@ -620,7 +620,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_blob_application_level_error() -> anyhow::Result<()> {
-        // Our calculation of gas is off and gas limit exceeded, for example
+        // Our calculation of gas is off and the gas limit exceeded, for example
         let (mock_server, _config, da_service, _namespace) = setup_test_service(None).await;
 
         let blob: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
