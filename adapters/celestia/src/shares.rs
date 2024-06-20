@@ -114,7 +114,7 @@ impl Share {
         if let Self::Start(_) = self {
             offset += SEQUENCE_LENGTH_BYTES;
         }
-        if self.namespace().is_reserved() {
+        if self.namespace().is_reserved_on_celestia() {
             // Compact shares (shares in reserved namespaces) are prefixed with 4 reserved bytes
             offset += RESERVED_BYTES_LEN;
         }
@@ -228,7 +228,7 @@ impl FromIterator<Share> for NamespaceGroup {
             return NamespaceGroup::Sparse(vec![]);
         }
 
-        if shares[0].namespace().is_reserved() {
+        if shares[0].namespace().is_reserved_on_celestia() {
             NamespaceGroup::Compact(shares)
         } else {
             NamespaceGroup::Sparse(shares)
@@ -303,6 +303,13 @@ impl<'a> BlobRef<'a> {
             .expect("blob must contain start share at idx 0")
             == 0
             && self.0[0].data().iter().all(|&byte| byte == 0)
+    }
+
+    pub fn celestia_shares(&self) -> Vec<celestia_types::Share> {
+        self.0
+            .iter()
+            .map(|s| celestia_types::Share::from_raw(s.as_ref()).expect("Cannot convert share"))
+            .collect()
     }
 }
 

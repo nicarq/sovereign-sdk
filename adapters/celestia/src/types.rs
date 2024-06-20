@@ -7,11 +7,12 @@ use celestia_proto::celestia::blob::v1::MsgPayForBlobs;
 use celestia_types::consts::appconsts::SHARE_SIZE;
 /// Reexport the [`Namespace`] from `celestia-types`
 pub use celestia_types::nmt::Namespace;
-use celestia_types::nmt::{NamespacedHash, Nmt, NS_SIZE};
+use celestia_types::nmt::{NamespacedHash, Nmt, NmtExt, NS_SIZE};
 use celestia_types::{
     Commitment, DataAvailabilityHeader, ExtendedDataSquare, ExtendedHeader, NamespacedShares,
     ValidateBasic,
 };
+use nmt_rs::NamespacedSha2Hasher;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -107,8 +108,8 @@ impl NamespaceData {
                 continue;
             }
 
-            let commitment =
-                Commitment::from_shares(self.namespace, blob_ref.0).expect("blob must be valid");
+            let commitment = Commitment::from_shares(self.namespace, &blob_ref.celestia_shares())
+                .expect("blob must be valid");
             info!(commitment = hex::encode(commitment.0), "Extracting blob");
             let sender = self
                 .relevant_pfbs
@@ -152,8 +153,10 @@ impl SlotData for FilteredCelestiaBlock {
 
     fn hash(&self) -> [u8; 32] {
         match self.header.header.hash() {
-            tendermint::Hash::Sha256(h) => h,
-            tendermint::Hash::None => unreachable!("tendermint::Hash::None should not be possible"),
+            celestia_tendermint::Hash::Sha256(h) => h,
+            celestia_tendermint::Hash::None => {
+                unreachable!("tendermint::Hash::None should not be possible")
+            }
         }
     }
 
@@ -213,11 +216,11 @@ impl FilteredCelestiaBlock {
     }
 
     pub fn row_root_for_share(&self, share_idx: usize) -> &NamespacedHash {
-        &self.header.dah.row_roots[self.get_row_number(share_idx)]
+        &self.header.dah.row_roots()[self.get_row_number(share_idx)]
     }
 
     pub fn col_root_for_share(&self, share_idx: usize) -> &NamespacedHash {
-        &self.header.dah.column_roots[self.get_col_number(share_idx)]
+        &self.header.dah.column_roots()[self.get_col_number(share_idx)]
     }
 }
 
@@ -273,7 +276,7 @@ pub trait ExtendedDataSquareExt {
 
 impl ExtendedDataSquareExt for ExtendedDataSquare {
     fn square_size(&self) -> Result<usize, BoxError> {
-        let len = self.data_square.len();
+        let len = self.data_square().len();
         let square_size = (len as f64).sqrt() as usize;
         ensure!(
             square_size * square_size == len,
@@ -285,12 +288,12 @@ impl ExtendedDataSquareExt for ExtendedDataSquare {
 
     fn rows(&self) -> Result<Chunks<'_, Vec<u8>>, BoxError> {
         let square_size = self.square_size()?;
-        Ok(self.data_square.chunks(square_size))
+        Ok(self.data_square().chunks(square_size))
     }
 
     fn validate(&self) -> Result<(), BoxError> {
         let len = self.square_size()?;
-        ensure!(len * len == self.data_square.len(), "Invalid square size");
+        ensure!(len * len == self.data_square().len(), "Invalid square size");
 
         if let Some(share) = self
             .rows()
@@ -313,7 +316,7 @@ pub struct Row {
 
 impl Row {
     pub fn merklized(&self) -> Nmt {
-        let mut nmt = Nmt::new();
+        let mut nmt = Nmt::default();
         for (idx, share) in self.shares.iter().enumerate() {
             // Shares in the two left-hand quadrants are prefixed with their namespace, while parity
             // shares (in the right-hand) quadrants should always be treated as PARITY_SHARES_NAMESPACE
@@ -347,8 +350,8 @@ fn get_rows_containing_namespace<'a>(
 ) -> Result<Vec<Row>, BoxError> {
     let mut output = vec![];
 
-    for (row, root) in data_square_rows.zip(dah.row_roots.iter()) {
-        if root.contains(*nid) {
+    for (row, root) in data_square_rows.zip(dah.row_roots().iter()) {
+        if root.contains::<NamespacedSha2Hasher<NS_SIZE>>(*nid) {
             output.push(Row {
                 shares: row.to_vec(),
                 root: root.clone(),

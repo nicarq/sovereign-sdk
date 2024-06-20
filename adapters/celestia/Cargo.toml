@@ -17,12 +17,12 @@ prost = "0.12"
 # I keep this commented as a reminder to opportunity to optimze this crate for non native compilation
 #tendermint = { version = "0.32", default-features = false, features = ["std"] }
 
-celestia-proto = { git = "https://github.com/eigerco/celestia-node-rs.git", rev = "66b7c6c" }
-celestia-rpc = { git = "https://github.com/eigerco/celestia-node-rs.git", rev = "66b7c6c", default-features = false, optional = true }
-celestia-types = { git = "https://github.com/eigerco/celestia-node-rs.git", rev = "66b7c6c", default-features = false }
-tendermint = { git = "https://github.com/eigerco/celestia-tendermint-rs.git", rev = "ef58b85", default-features = false }
-tendermint-proto = { git = "https://github.com/eigerco/celestia-tendermint-rs.git", rev = "ef58b85" }
-nmt-rs = { git = "https://github.com/Sovereign-Labs/nmt-rs.git", rev = "d821332", features = [
+celestia-proto = { version = "0.2.0" }
+celestia-rpc = { version = "0.2.0", default-features = false, optional = true }
+celestia-types = { version = "0.2.0", default-features = false }
+celestia-tendermint = { version = "0.32.1", default-features = false }
+celestia-tendermint-proto = { version = "0.32.1" }
+nmt-rs = { version = "0.1.0", features = [
     "serde",
     "borsh",
 ] }
@@ -42,7 +42,6 @@ tracing = { workspace = true }
 risc0-cycle-macros = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
-
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 
 
@@ -51,11 +50,15 @@ postcard = { version = "1", features = ["use-std"] }
 proptest = { workspace = true, features = ["std"] }
 sov-celestia-adapter = { path = ".", features = ["native"] }
 wiremock = "0.5"
-tokio = { workspace = true,  features = ["test-util", "macros"] }
+tokio = { workspace = true, features = ["test-util", "macros"] }
+# For serialization testing
+risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
+risc0-zkvm-platform = { workspace = true }
 
 [features]
 default = []
 native = [
+	"celestia-tendermint/default",
 	"dep:celestia-rpc",
 	"dep:futures",
 	"dep:jsonrpsee",
@@ -63,12 +66,13 @@ native = [
 	"dep:tokio",
 	"sov-celestia-adapter/native",
 	"sov-rollup-interface/native",
-	"tendermint/default",
 ]
-risc0 = [
+risc0 = [ "sov-celestia-adapter/risc0" ]
+bench = [
 	"dep:risc0-cycle-macros",
 	"dep:risc0-zkvm",
 	"dep:risc0-zkvm-platform",
+	"risc0-cycle-macros?/bench",
+	"sov-celestia-adapter/bench",
 	"sov-celestia-adapter/risc0",
 ]
-bench = [ "risc0", "risc0-cycle-macros?/bench", "sov-celestia-adapter/bench" ]
