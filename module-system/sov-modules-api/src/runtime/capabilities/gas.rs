@@ -13,10 +13,6 @@ pub struct TryReserveGasError<S: Spec, Meter: GasMeter<S::Gas>> {
 
 /// Enforces gas limits and penalties for transactions.
 pub trait GasEnforcer<S: Spec, Da: DaSpec> {
-    /// A gas meter that is used to measure and track the gas used by the pre-execution checks (such as signature checks,
-    /// deserialization, and decoding of the transaction).
-    type PreExecChecksMeter: GasMeter<S::Gas>;
-
     /// Checks that the transaction has enough gas to be processed.
     ///
     /// ## Note
@@ -26,13 +22,17 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     /// ## Behavior
     /// This function **should** charge the transaction sender for the gas locked in the transaction because his balance
     /// may change during the transaction execution.
+    ///
+    /// ## Type-safety note
+    /// TODO(@ross-weir) Make the gas meter type stricter so devs can't pass an unlimited meter
+    /// while processing transactions in the normal case: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/833>
     #[allow(clippy::result_large_err)]
-    fn try_reserve_gas(
+    fn try_reserve_gas<Meter: GasMeter<S::Gas>>(
         &self,
         tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        pre_exec_working_set: PreExecWorkingSet<S, Self::PreExecChecksMeter>,
-    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Self::PreExecChecksMeter>>;
+        pre_exec_working_set: PreExecWorkingSet<S, Meter>,
+    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Meter>>;
 
     /// Allocates the gas consumed by the transaction to the base fee and the tip recipients.
     /// This method should not fail.

@@ -13,7 +13,7 @@ use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
     BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray, PreExecWorkingSet, RawTx,
-    Spec, StateCheckpoint, TxScratchpad, WorkingSet,
+    Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::stf::StoredEvent;
 use tracing::{debug, error, info, warn};
@@ -46,7 +46,12 @@ pub struct StfBlueprint<S: Spec, Da: DaSpec, RT: Runtime<S, Da>, K: KernelSlotHo
 
 pub(crate) enum ApplyBatchError {
     // Contains batch hash
-    Ignored([u8; 32]),
+    Ignored {
+        /// The hash of the batch
+        hash: [u8; 32],
+        /// The reason the batch was ignored
+        reason: String,
+    },
     Slashed {
         // Contains batch hash
         hash: [u8; 32],
@@ -60,10 +65,10 @@ pub(crate) enum ApplyBatchError {
 impl From<ApplyBatchError> for BatchReceipt {
     fn from(value: ApplyBatchError) -> Self {
         match value {
-            ApplyBatchError::Ignored(hash) => BatchReceipt {
+            ApplyBatchError::Ignored { hash, reason } => BatchReceipt {
                 batch_hash: hash,
                 tx_receipts: Vec::new(),
-                inner: BatchSequencerOutcome::Ignored,
+                inner: BatchSequencerOutcome::Ignored(reason),
                 gas_price: Vec::new(),
             },
             ApplyBatchError::Slashed {
@@ -183,7 +188,10 @@ where
             );
 
             return (
-                Err(ApplyBatchError::Ignored(batch_with_id.id)),
+                Err(ApplyBatchError::Ignored {
+                    hash: batch_with_id.id,
+                    reason: "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer".to_string(),
+                }),
                 checkpoint,
                 S::Gas::zero(),
             );
@@ -251,6 +259,26 @@ where
                                     reason: err,
                                     tx_receipts,
                                     gas_price: gas_price.to_vec(),
+                                }),
+                                checkpoint,
+                                gas_used,
+                            );
+                        }
+                        TxProcessingErrorReason::InvalidUnregisteredTx(reason) => {
+                            warn!(
+                                sequencer_da_address = %sequencer_da_address,
+                                reason = %reason,
+                                "Processing of unregistered sequencer transaction raised error, skipping"
+                            );
+                            self.runtime.end_batch_hook(
+                                BatchSequencerOutcome::Ignored(reason.clone()),
+                                sequencer_da_address,
+                                &mut checkpoint,
+                            );
+                            return (
+                                Err(ApplyBatchError::Ignored {
+                                    hash: batch_with_id.id,
+                                    reason,
                                 }),
                                 checkpoint,
                                 gas_used,
@@ -471,6 +499,96 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     <R as RuntimeAuthenticator<S>>::AuthorizationData,
 > {
     runtime.authenticate(raw_tx, pre_exec_working_set)
+}
+
+#[allow(clippy::result_large_err)]
+pub fn _process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
+    runtime: &R,
+    raw_tx: &RawTx,
+    sequencer_da_address: &D::Address,
+    height: u64,
+    mut tx_scratchpad: TxScratchpad<S>,
+) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
+    let (tx, auth_data, message) =
+        match _authenticate_unregistered_with_cycle_count(runtime, raw_tx) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(TxProcessingError {
+                    reason: TxProcessingErrorReason::InvalidUnregisteredTx(e.to_string()),
+                    tx_scratchpad,
+                });
+            }
+        };
+
+    let raw_tx_hash = &tx.raw_tx_hash;
+    let tx = &tx.authenticated_tx;
+
+    let ctx = match runtime.capabilities().resolve_unregistered_context(
+        &auth_data,
+        height,
+        &mut tx_scratchpad,
+    ) {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            return Err(TxProcessingError {
+                tx_scratchpad,
+                reason: TxProcessingErrorReason::CannotResolveContext {
+                    reason: e.to_string(),
+                    raw_tx_hash: *raw_tx_hash,
+                },
+            });
+        }
+    };
+
+    // We don't do any pre execution checks that need to be metered.
+    // The transaction is coming from a user not a registered sequencer
+    let mut pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(UnlimitedGasMeter::new());
+
+    // Check that the transaction isn't a duplicate
+    if let Err(e) =
+        runtime
+            .capabilities()
+            .check_uniqueness(&auth_data, &ctx, &mut pre_exec_working_set)
+    {
+        return Err(TxProcessingError {
+            tx_scratchpad: pre_exec_working_set.into(),
+            reason: TxProcessingErrorReason::Nonce {
+                reason: e.to_string(),
+                raw_tx_hash: *raw_tx_hash,
+            },
+        });
+    }
+
+    let working_set = match runtime
+        .capabilities()
+        .try_reserve_gas(tx, &ctx, pre_exec_working_set)
+    {
+        Ok(working_set) => working_set,
+        Err(TryReserveGasError {
+            reason,
+            pre_exec_working_set,
+        }) => {
+            return Err(TxProcessingError {
+                tx_scratchpad: pre_exec_working_set.into(),
+                reason: TxProcessingErrorReason::CannotReserveGas {
+                    reason: reason.to_string(),
+                    raw_tx_hash: *raw_tx_hash,
+                },
+            });
+        }
+    };
+
+    // If the transaction is valid, execute it and apply the changes to the state.
+    Ok(apply_tx(
+        runtime,
+        ctx,
+        tx,
+        &auth_data,
+        raw_tx_hash,
+        message,
+        working_set,
+        sequencer_da_address,
+    ))
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]

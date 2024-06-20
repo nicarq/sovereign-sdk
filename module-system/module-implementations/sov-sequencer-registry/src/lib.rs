@@ -112,6 +112,10 @@ pub enum SequencerOutcome {
     Slashed,
     /// Batch was ignored, sequencer deposit left untouched.
     Ignored,
+    /// The sequencer is not rewardable for the submitted batch.
+    /// This occurs when the batch that was processed came from an unregistered sequencer.
+    /// The batch might be applied but there is nobody to reward.
+    NotRewardable,
 }
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for SequencerRegistry<S, Da> {

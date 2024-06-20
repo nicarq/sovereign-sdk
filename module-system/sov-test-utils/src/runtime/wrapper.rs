@@ -12,9 +12,9 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    BatchWithId, Context, DispatchCall, EncodeCall, Gas, Genesis, GenesisState, Module, ModuleInfo,
-    PreExecWorkingSet, RawTx, RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad,
-    TypedEvent, WorkingSet,
+    BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis, GenesisState, Module,
+    ModuleInfo, PreExecWorkingSet, RawTx, RuntimeEventProcessor, Spec, StateCheckpoint,
+    TxScratchpad, TypedEvent, WorkingSet,
 };
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;
@@ -413,16 +413,13 @@ impl<S: Spec, Da: DaSpec, T: Genesis<Spec = S> + TxHooks<Spec = S>> Genesis
 impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> GasEnforcer<S, Da>
     for TestRuntimeWrapper<S, Da, T>
 {
-    /// A type that tracks the gas consumed by pre-execution checks
-    type PreExecChecksMeter = SequencerStakeMeter<S::Gas>;
-
     /// Reserves enough gas for the transaction to be processed, if possible.
-    fn try_reserve_gas(
+    fn try_reserve_gas<Meter: GasMeter<S::Gas>>(
         &self,
         tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        pre_exec_working_set: PreExecWorkingSet<S, Self::PreExecChecksMeter>,
-    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Self::PreExecChecksMeter>> {
+        pre_exec_working_set: PreExecWorkingSet<S, Meter>,
+    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Meter>> {
         self.bank()
             .reserve_gas(tx, context.sender(), pre_exec_working_set)
             .map_err(Into::into)
@@ -485,11 +482,11 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
     type AuthorizationData = AuthorizationData<S>;
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
-    fn check_uniqueness(
+    fn check_uniqueness<Meter: GasMeter<S::Gas>>(
         &self,
         _auth_tx: &Self::AuthorizationData,
         _context: &Context<S>,
-        _state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        _state: &mut PreExecWorkingSet<S, Meter>,
     ) -> Result<(), anyhow::Error> {
         Ok(())
     }
@@ -511,6 +508,22 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
             sender,
             auth_tx.credentials.clone(),
             sequencer,
+            height,
+        ))
+    }
+
+    fn resolve_unregistered_context(
+        &self,
+        auth_tx: &Self::AuthorizationData,
+        height: u64,
+        _state: &mut TxScratchpad<S>,
+    ) -> Result<Context<S>, anyhow::Error> {
+        let sender = auth_tx.default_address.clone().unwrap();
+        // The tx sender & sequencer are the same entity
+        Ok(Context::new(
+            sender.clone(),
+            auth_tx.credentials.clone(),
+            sender,
             height,
         ))
     }

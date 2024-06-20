@@ -47,7 +47,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                     state,
                 );
             }
-            BatchSequencerOutcome::Ignored => {}
+            BatchSequencerOutcome::Ignored(_) | BatchSequencerOutcome::NotRewardable => {}
             BatchSequencerOutcome::Slashed(reason) => {
                 info!(%sender, ?reason, "Slashing sequencer");
                 <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
