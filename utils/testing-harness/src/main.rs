@@ -262,7 +262,7 @@ async fn main() -> anyhow::Result<()> {
         RollupParams {
             rollup_batch_namespace: batch_namespace,
             // We don't need proof namespace for this iteration
-            rollup_proof_namespace: Namespace::MAX,
+            rollup_proof_namespace: Namespace::MAX_PRIMARY_RESERVED,
         },
     )
     .await;
