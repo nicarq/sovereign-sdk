@@ -74,7 +74,6 @@ native = [
 	"sov-bank/native",
 	"sov-celestia-adapter/native",
 	"sov-db",
-	"sov-metrics/native",
 	"sov-mock-da/native",
 	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
