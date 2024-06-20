@@ -332,7 +332,10 @@ where
 
         loop {
             debug!(next_da_height, "Requesting DA block");
-            sov_metrics::set_current_da_height(next_da_height);
+            sov_metrics::update_metrics(|metrics| {
+                metrics.current_da_height.set(next_da_height as i64);
+            });
+
             let mut transaction_count = 0;
             let mut batch_count = 0;
             let mut filtered_block = self.da_service.get_block_at(next_da_height).await?;
@@ -480,8 +483,10 @@ where
             next_da_height += 1;
             self.state_root = next_state_root;
 
-            sov_metrics::inc_rollup_batches_processed(batch_count);
-            sov_metrics::inc_rollup_transactions_processed(transaction_count);
+            sov_metrics::update_metrics(|metrics| {
+                metrics.rollup_batches_processed.inc_by(batch_count);
+                metrics.rollup_txns_processed.inc_by(transaction_count as _);
+            });
         }
     }
 

@@ -1,13 +1,18 @@
 [package]
 name = "sov-metrics"
-version = { workspace = true }
+authors = { workspace = true }
+description = "Prometheus metrics for Sovereign rollups"
 edition = { workspace = true }
+homepage = { workspace = true }
 license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+readme = "README.md"
+resolver = "2"
+
+[lints]
+workspace = true
 
 [dependencies]
-prometheus = { version = "0.13.3", default-features = false, optional = true }
-once_cell = { version = "1.10.0", optional = true }
-
-[features]
-default = []
-native = [ "dep:once_cell", "dep:prometheus" ]
+prometheus = { version = "0.13.3", default-features = false }

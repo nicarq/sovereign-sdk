@@ -7649,7 +7649,6 @@ dependencies = [
 name = "sov-metrics"
 version = "0.3.0"
 dependencies = [
- "once_cell",
  "prometheus 0.13.4",
 ]
 
