@@ -9,7 +9,7 @@ mod utils;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    AuthenticationError, FatalError, HasCapabilities, RuntimeAuthenticator,
+    AuthenticationError, FatalError, HasCapabilities, ProofProcessor, RuntimeAuthenticator,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
@@ -17,7 +17,8 @@ use sov_modules_api::transaction::SequencerReward;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
     BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
-    RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
+    ProofReceipt, RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
+    WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, ProofOutcome, StateTransitionFunction};
@@ -392,9 +393,15 @@ where
                     batch_receipts.push(batch_receipt);
                     total_gas.combine(&gas_used);
                 }
-                BlobData::Proof(_proof) => {
-                    let receipt = self.process_proof();
-                    proof_receipts.push(receipt);
+                BlobData::Proof(proof) => {
+                    checkpoint = self.runtime.capabilities().process_proof(proof, checkpoint);
+
+                    // TODO #815
+                    proof_receipts.push(ProofReceipt {
+                        blob_hash: [0; 32],
+                        outcome: ProofOutcome::<Da, <S::Storage as Storage>::Root>::Ignored,
+                        extra_data: (),
+                    });
                 }
             }
         }

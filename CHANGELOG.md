@@ -1,3 +1,4 @@
+- #828 add `ProofProcessor` capability.
 - #813 is a follow-up of #783, it sets the constants that define the costs for gas access to non-zero values. That way, we charge some gas when trying to access the storage and the metered accessors (like the `WorkingSet`) can now run out of gas because of state accesses.
 Meaningful changes:
   - We had to change the blessed values for the transaction fee, the initial account balances and the attester/prover stakes. The new values are: `MAX_FEE = 1_000_000`, `INITIAL_BALANCE = 1_000_000_000` and `DEFAULT_STAKE = 100_000`.

@@ -6,7 +6,8 @@ use sov_attester_incentives::AttesterIncentives;
 use sov_bank::{Bank, IntoPayable};
 use sov_modules_api::capabilities::{
     AuthenticationResult, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
-    RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization, TryReserveGasError,
+    ProofProcessor, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
+    TryReserveGasError,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
@@ -521,5 +522,17 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         _sequencer: &Da::Address,
         _tx_scratchpad: &mut TxScratchpad<S>,
     ) {
+    }
+}
+
+impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
+    for TestRuntimeWrapper<S, Da, T>
+{
+    fn process_proof(
+        &self,
+        _proof_batch: Vec<u8>,
+        state: StateCheckpoint<S>,
+    ) -> StateCheckpoint<S> {
+        state
     }
 }

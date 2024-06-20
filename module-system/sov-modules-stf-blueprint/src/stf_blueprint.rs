@@ -12,15 +12,15 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
-    BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray, PreExecWorkingSet,
-    ProofReceipt, RawTx, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
+    BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray, PreExecWorkingSet, RawTx,
+    Spec, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::stf::StoredEvent;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ApplyTxResult, BatchSequencerOutcome, ProofOutcome, Runtime, SkippedReason, Storage, TxEffect,
-    TxProcessingError, TxProcessingErrorReason, TxReceiptContents,
+    ApplyTxResult, BatchSequencerOutcome, Runtime, SkippedReason, TxEffect, TxProcessingError,
+    TxProcessingErrorReason, TxReceiptContents,
 };
 
 type ApplyBatchResult<T> = Result<T, ApplyBatchError>;
@@ -116,16 +116,6 @@ where
         Self {
             runtime,
             ..Default::default()
-        }
-    }
-
-    pub(crate) fn process_proof(&self) -> ProofReceipt<Da, <S::Storage as Storage>::Root, ()> {
-        // TODO #815
-
-        ProofReceipt {
-            blob_hash: [0; 32],
-            outcome: ProofOutcome::<Da, <S::Storage as Storage>::Root>::Ignored,
-            extra_data: (),
         }
     }
 
