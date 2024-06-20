@@ -15,8 +15,6 @@ resolver = "2"
 workspace = true
 
 [dev-dependencies]
-integration-tests = { path = ".", features = ["native"] }
-
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 derive_more = { workspace = true }
@@ -38,27 +36,9 @@ sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
 sov-kernels = { path = "../../sov-kernels", features = ["native"] }
 
-sov-attester-incentives = { path = "../sov-attester-incentives" }
+sov-attester-incentives = { path = "../sov-attester-incentives", features = ["native"] }
 sov-chain-state = { path = "../sov-chain-state", features = ["native"] }
 sov-value-setter = { path = "../sov-value-setter", features = ["native"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-sequencer-registry = { path = "../sov-sequencer-registry" }
-sov-bank = { path = "../sov-bank" }
-
-[features]
-default = []
-native = [
-	"integration-tests/native",
-	"sov-attester-incentives/native",
-	"sov-bank/native",
-	"sov-chain-state/native",
-	"sov-kernels/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
-	"sov-rollup-interface/native",
-	"sov-sequencer-registry/native",
-	"sov-state/native",
-	"sov-value-setter/native",
-]
+sov-sequencer-registry = { path = "../sov-sequencer-registry", features = ["native"] }
+sov-bank = { path = "../sov-bank", features = ["native"] }

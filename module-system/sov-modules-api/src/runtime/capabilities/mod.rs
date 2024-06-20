@@ -49,7 +49,7 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     fn capabilities(&self) -> Self::Capabilities<'_>;
 }
 
-#[cfg(feature = "mocks")]
+#[cfg(feature = "test-utils")]
 pub mod mocks {
     //! Mocks for the rollup capabilities module
 

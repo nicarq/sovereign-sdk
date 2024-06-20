@@ -43,4 +43,3 @@ native = [
 	"sov-nft-module/native",
 	"sov-state/native",
 ]
-test = [ "native" ]
