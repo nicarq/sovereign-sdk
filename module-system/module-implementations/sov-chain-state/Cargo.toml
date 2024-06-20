@@ -32,7 +32,7 @@ tempfile = { workspace = true }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-mock-da = { path = "../../../adapters/mock-da" }
 sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["mocks"] }
+sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["test-utils"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 
