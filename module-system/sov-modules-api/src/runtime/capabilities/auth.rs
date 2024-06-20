@@ -59,7 +59,7 @@ pub trait RuntimeAuthenticator<S: Spec> {
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData>;
     /// Authenticates raw transactions that are submitted from unregistered sequencers for the
-    /// purpose of forced registration (circumventing censorship of currently registered sequencers).
+    /// purpose of forced registration (circumventing censorship by currently registered sequencers).
     ///
     /// This function differs to it's registered counterpart in that it doesn't accept a state
     /// access parameter that charges gas to a sequencer (because there isn't one) as well as other
@@ -94,12 +94,20 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> Result<Context<S>, anyhow::Error>;
 
+    /// Resolves the context for an unregistered transaction.
+    fn resolve_unregistered_context(
+        &self,
+        auth_data: &Self::AuthorizationData,
+        height: u64,
+        state: &mut TxScratchpad<S>,
+    ) -> Result<Context<S>, anyhow::Error>;
+
     /// Prevents duplicate transactions from running.
-    fn check_uniqueness(
+    fn check_uniqueness<Meter: GasMeter<S::Gas>>(
         &self,
         auth_data: &Self::AuthorizationData,
         context: &Context<S>,
-        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        pre_exec_ws: &mut PreExecWorkingSet<S, Meter>,
     ) -> Result<(), anyhow::Error>;
 
     /// Marks a transaction as having been executed, preventing it from executing again.

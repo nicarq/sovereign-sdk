@@ -24,7 +24,7 @@ use crate::{GasMeter, Spec};
 /// Indicates that a type provides the necessary capabilities for a runtime.
 pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// The concrete implementation of the capabilities.
-    type Capabilities<'a>: GasEnforcer<S, Da, PreExecChecksMeter = Self::SequencerStakeMeter>
+    type Capabilities<'a>: GasEnforcer<S, Da>
         + SequencerAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter>
         + RuntimeAuthorization<
             S,

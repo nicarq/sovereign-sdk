@@ -5,8 +5,8 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    Context, DaSpec, Gas, ModuleInfo, PreExecWorkingSet, Spec, StateCheckpoint, TxScratchpad,
-    WorkingSet,
+    Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, Spec, StateCheckpoint,
+    TxScratchpad, WorkingSet,
 };
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 
@@ -20,16 +20,13 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec, Da: DaSpec> {
 }
 
 impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabilities<'a, S, Da> {
-    /// A gas meter that tracks pre-execution costs.
-    type PreExecChecksMeter = SequencerStakeMeter<S::Gas>;
-
     /// Reserves enough gas for the transaction to be processed, if possible.
-    fn try_reserve_gas(
+    fn try_reserve_gas<Meter: GasMeter<S::Gas>>(
         &self,
         tx: &AuthenticatedTransactionData<S>,
         context: &Context<S>,
-        pre_exec_working_set: PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>,
-    ) -> Result<WorkingSet<S>, TryReserveGasError<S, SequencerStakeMeter<S::Gas>>> {
+        pre_exec_working_set: PreExecWorkingSet<S, Meter>,
+    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Meter>> {
         self.bank
             .reserve_gas(tx, context.sender(), pre_exec_working_set)
             .map_err(Into::into)
@@ -93,11 +90,11 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
 
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
-    fn check_uniqueness(
+    fn check_uniqueness<Meter: GasMeter<S::Gas>>(
         &self,
         auth_data: &Self::AuthorizationData,
         _context: &Context<S>,
-        pre_exec_working_set: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
     ) -> Result<(), anyhow::Error> {
         self.nonces.check_nonce(
             &auth_data.credential_id,
@@ -140,6 +137,26 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
             sender,
             auth_data.credentials.clone(),
             sequencer,
+            height,
+        ))
+    }
+
+    fn resolve_unregistered_context(
+        &self,
+        auth_data: &Self::AuthorizationData,
+        height: u64,
+        state: &mut TxScratchpad<S>,
+    ) -> Result<Context<S>, anyhow::Error> {
+        let sender = self.accounts.resolve_sender_address(
+            &auth_data.default_address,
+            &auth_data.credential_id,
+            state,
+        )?;
+        // The tx sender & sequencer are the same entity
+        Ok(Context::new(
+            sender.clone(),
+            auth_data.credentials.clone(),
+            sender,
             height,
         ))
     }

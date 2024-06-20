@@ -102,7 +102,14 @@ pub enum BatchSequencerOutcome {
         FatalError,
     ),
     /// Batch was ignored, sequencer deposit left untouched.
-    Ignored,
+    Ignored(
+        /// Reason why the batch was ignored.
+        String,
+    ),
+    /// The sequencer is not rewardable for the submitted batch.
+    /// This occurs when an unregistered sequencer submits a batch directly to the DA.
+    /// The batch might be applied but there is nobody to reward.
+    NotRewardable,
 }
 
 /// The result of applying a transaction to the state.
@@ -153,6 +160,10 @@ pub enum TxProcessingErrorReason {
         /// The raw hash of the transaction that was skipped.
         raw_tx_hash: [u8; 32],
     },
+    /// Transaction from unregistered sequencer was rejected.
+    /// These transactions can be processed in the case of direct sequencer registration.
+    #[error("The unregistered senders transaction was rejected from processing, reason: {0}")]
+    InvalidUnregisteredTx(String),
 }
 
 impl TryInto<(SkippedReason, [u8; 32])> for TxProcessingErrorReason {

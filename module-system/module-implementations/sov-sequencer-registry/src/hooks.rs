@@ -37,7 +37,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegi
             SequencerOutcome::Slashed => {
                 self.slash_sequencer(sender, state_checkpoint);
             }
-            SequencerOutcome::Ignored => {}
+            SequencerOutcome::Ignored | SequencerOutcome::NotRewardable => {}
         };
     }
 }

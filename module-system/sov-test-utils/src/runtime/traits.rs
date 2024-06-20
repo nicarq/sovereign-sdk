@@ -125,9 +125,12 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
             BatchSequencerOutcome::Rewarded(amount) => {
                 sov_sequencer_registry::SequencerOutcome::Rewarded(amount.into())
             }
-            BatchSequencerOutcome::Ignored => sov_sequencer_registry::SequencerOutcome::Ignored,
+            BatchSequencerOutcome::Ignored(_) => sov_sequencer_registry::SequencerOutcome::Ignored,
             BatchSequencerOutcome::Slashed(_reason) => {
                 sov_sequencer_registry::SequencerOutcome::Slashed
+            }
+            BatchSequencerOutcome::NotRewardable => {
+                sov_sequencer_registry::SequencerOutcome::NotRewardable
             }
         };
 
