@@ -1,11 +1,12 @@
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
-    AuthorizationData, AuthorizeSequencerError, GasEnforcer, RuntimeAuthorization,
+    AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor, RuntimeAuthorization,
     SequencerAuthorization, TryReserveGasError,
 };
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    Context, DaSpec, Gas, ModuleInfo, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
+    Context, DaSpec, Gas, ModuleInfo, PreExecWorkingSet, Spec, StateCheckpoint, TxScratchpad,
+    WorkingSet,
 };
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 
@@ -141,5 +142,14 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
             sequencer,
             height,
         ))
+    }
+}
+
+impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
+    for StandardProvenRollupCapabilities<'a, S, Da>
+{
+    fn process_proof(&self, _proof_blob: Vec<u8>, state: StateCheckpoint<S>) -> StateCheckpoint<S> {
+        // TODO #815
+        state
     }
 }

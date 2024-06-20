@@ -8,11 +8,13 @@
 pub mod auth;
 mod batch_selector;
 mod kernel;
+mod proof;
 pub use auth::*;
 pub use batch_selector::*;
 pub use kernel::*;
 mod gas;
 pub use gas::*;
+pub use proof::ProofProcessor;
 use sov_rollup_interface::da::DaSpec;
 mod sequencer;
 pub use sequencer::*;
@@ -29,7 +31,7 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
             Da,
             SequencerStakeMeter = Self::SequencerStakeMeter,
             AuthorizationData = Self::AuthorizationData,
-        >
+        > + ProofProcessor<S, Da>
     where
         Self: 'a;
 
