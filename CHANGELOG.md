@@ -1,3 +1,4 @@
+- 835 adds a new `MeteredHasher` struct that charges gas for every hash computation. This structure is meant to be used in the module system to charge gas when hashing data.
 - #828 add `ProofProcessor` capability.
 - #813 is a follow-up of #783, it sets the constants that define the costs for gas access to non-zero values. That way, we charge some gas when trying to access the storage and the metered accessors (like the `WorkingSet`) can now run out of gas because of state accesses.
 Meaningful changes:

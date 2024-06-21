@@ -3488,6 +3488,7 @@ dependencies = [
  "borsh 0.10.3",
  "derivative",
  "derive_more",
+ "digest 0.10.7",
  "hex",
  "serde",
  "sha2 0.10.8",

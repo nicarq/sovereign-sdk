@@ -4,10 +4,12 @@ mod address;
 
 mod module_id;
 
+pub use hash::MeteredHasher;
 pub use module_id::{ModuleId, ModuleIdBech32};
 
 mod error;
 mod gas;
+mod hash;
 mod key;
 
 pub use address::*;

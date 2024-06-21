@@ -30,6 +30,7 @@ sov-db = { path = "../../full-node/sov-db", optional = true }
 risc0-cycle-macros = { workspace = true, optional = true }
 serde = { workspace = true }
 borsh = { workspace = true }
+digest = { workspace = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 thiserror = { workspace = true }
