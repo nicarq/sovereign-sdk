@@ -141,6 +141,10 @@ jobs:
         # A dirty working tree likely means that `sov-modules-schemas` was
         # out of date.
         run: git diff --exit-code
+      - name: Check exit code and print custom message
+        if: ${{ failure() }}
+        run: |
+          echo "Dirty working tree means that some of the Cargo.lock haven't been update. Run `make extra-check` to update that"
 
   prover_bench_check:
     name: prover_bench_check

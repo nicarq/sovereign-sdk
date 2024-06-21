@@ -1,5 +1,7 @@
 .PHONY: help
 
+EXTRA_DIRS := fuzz examples/demo-rollup/provers/risc0/guest-mock examples/demo-rollup/provers/risc0/guest-celestia
+
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
@@ -8,7 +10,17 @@ build: ## Build the project
 
 clean: ## Cleans compiled
 	@cargo clean
-	$(MAKE) -C fuzz clean
+
+total-clean: clean
+total-clean:
+	$(MAKE) -C examples/demo-rollup clean;
+	$(MAKE) -C examples/demo-rollup clean-wallet;
+	@for dir in $(EXTRA_DIRS); do \
+    	echo "Running cargo clean in $$dir"; \
+    	(cd $$dir && cargo clean); \
+    done;
+	rm -rf "examples/demo-rollup/tests/evm/uniswap/node_modules"
+
 
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
@@ -50,6 +62,13 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	zepter
 	$(MAKE) check-fuzz
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
+
+extra-check:   ## cargo check in non attached crates
+	cargo check
+	@for dir in $(EXTRA_DIRS); do \
+		echo "Running cargo check in $$dir"; \
+		(cd $$dir && cargo check); \
+	done
 
 lint-fix:  ## cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
 	cargo +nightly fmt --all
