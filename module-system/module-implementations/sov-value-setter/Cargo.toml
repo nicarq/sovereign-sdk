@@ -31,12 +31,10 @@ schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 
 [features]
 default = []
 native = [
-	"jsonrpsee",
 	"schemars",
 	"sov-modules-api/native",
 	"sov-state/native",

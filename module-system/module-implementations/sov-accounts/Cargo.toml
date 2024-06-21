@@ -26,8 +26,6 @@ sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
 arbitrary = { workspace = true, optional = true }
-proptest = { workspace = true, optional = true }
-proptest-derive = { workspace = true, optional = true }
 
 
 [dev-dependencies]
@@ -41,8 +39,6 @@ sov-test-utils = { path = "../../sov-test-utils" }
 default = []
 arbitrary = [
 	"dep:arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
 	"sov-accounts/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-state/arbitrary",

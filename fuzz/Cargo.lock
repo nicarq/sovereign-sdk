@@ -5180,8 +5180,6 @@ dependencies = [
  "arbitrary",
  "borsh",
  "jsonrpsee 0.22.5",
- "proptest",
- "proptest-derive",
  "schemars",
  "serde",
  "serde_with",
@@ -5234,21 +5232,6 @@ dependencies = [
  "sov-modules-api",
  "sov-sequencer-registry",
  "sov-state",
- "tracing",
-]
-
-[[package]]
-name = "sov-capabilities"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "sov-accounts",
- "sov-bank",
- "sov-modules-api",
- "sov-nonces",
- "sov-prover-incentives",
- "sov-rollup-interface",
- "sov-sequencer-registry",
  "tracing",
 ]
 
@@ -5474,36 +5457,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-nonces"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "jsonrpsee 0.22.5",
- "schemars",
- "serde",
- "serde_with",
- "sov-modules-api",
- "sov-state",
-]
-
-[[package]]
-name = "sov-prover-incentives"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "jsonrpsee 0.22.5",
- "schemars",
- "serde",
- "sov-bank",
- "sov-chain-state",
- "sov-modules-api",
- "sov-state",
- "thiserror",
-]
-
-[[package]]
 name = "sov-prover-storage-manager"
 version = "0.3.0"
 dependencies = [
@@ -5522,13 +5475,11 @@ dependencies = [
  "anyhow",
  "axum",
  "derive_more",
- "hex",
  "proptest",
  "proptest-derive",
  "serde",
  "serde_json",
  "serde_urlencoded",
- "serde_with",
  "tower",
  "tower-http",
  "tower-request-id",
@@ -5566,7 +5517,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
- "axum-server",
  "base64 0.22.0",
  "bincode",
  "borsh",
@@ -5648,7 +5598,6 @@ dependencies = [
  "sha2 0.10.8",
  "sov-attester-incentives",
  "sov-bank",
- "sov-capabilities",
  "sov-chain-state",
  "sov-db",
  "sov-kernels",
@@ -5667,7 +5616,6 @@ dependencies = [
  "tempfile",
  "tendermint",
  "tokio",
- "tracing",
  "tracing-subscriber 0.3.18",
 ]
 
@@ -5677,7 +5625,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "jsonrpsee 0.22.5",
  "schemars",
  "serde",
  "sov-modules-api",
@@ -5698,7 +5645,6 @@ dependencies = [
  "sov-celestia-adapter",
  "sov-modules-api",
  "sov-prover-storage-manager",
- "sov-state",
  "sov-test-utils",
  "tempfile",
 ]

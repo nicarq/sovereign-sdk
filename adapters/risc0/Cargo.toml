@@ -19,8 +19,6 @@ borsh = { workspace = true }
 digest = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 risc0-zkvm-platform = { workspace = true }
-risc0-zkp = { workspace = true, optional = true }
-risc0-circuit-rv32im = { workspace = true, optional = true }
 serde = { workspace = true }
 bytemuck = "1.15.0"
 once_cell = { workspace = true, optional = true }
@@ -28,13 +26,11 @@ parking_lot = { version = "0.12.1", optional = true }
 risc0-cycle-utils = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 hex = { workspace = true }
-tracing = { workspace = true }
 thiserror = { workspace = true }
 rand = { workspace = true, optional = true }
 
 sha2 = { version = "0.10.6" }
 ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.0-risczero.1", features = ["serde"] }
-crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.2-risc0"}
 
 arbitrary = { workspace = true, optional = true }
 
@@ -47,8 +43,6 @@ anyhow = { workspace = true }
 [features]
 default = []
 native = [
-	"dep:risc0-circuit-rv32im",
-	"dep:risc0-zkp",
 	"ed25519-dalek/default",
 	"ed25519-dalek/rand_core",
 	"rand",
