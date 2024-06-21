@@ -7708,6 +7708,7 @@ dependencies = [
  "clap",
  "derivative",
  "derive_more",
+ "digest 0.10.7",
  "hex",
  "jsonrpsee 0.22.5",
  "proptest",
