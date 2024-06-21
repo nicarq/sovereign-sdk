@@ -19,7 +19,6 @@ get_token_1 := $(DOCKER_COMPOSE) exec -it sequencer-1 celestia bridge auth admin
 
 
 clean: check-docker
-clean: check-sov-cli
 clean:
 	@echo "Stopping local celestia network setup"
 	$(DOCKER_COMPOSE) down --volumes --rmi local
@@ -42,8 +41,9 @@ clean:
 	@echo "removing mock rollup database ${path}"
 	rm -rf "${path}"
 	@echo "removing unsent transactions from local storage"
-	$(SOV_CLI_REL_PATH) transactions clean
-
+	@if [ -f "$(SOV_CLI_REL_PATH)" ]; then \
+		$(SOV_CLI_REL_PATH) transactions clean; \
+	fi
 
 clean-wallet:
 	@echo "Going to remove wallet from~/.sov_cli_wallet/"
@@ -138,7 +138,7 @@ check-docker:
 	@command -v docker > /dev/null 2>&1 || { echo "Docker is not installed"; exit 1; }
 
 check-sov-cli:
-	@command -v $(SOV_CLI_REL_PATH) > /dev/null 2>&1 || { echo "sov-cli is not build, run `make build`"; exit 1; }
+	@command -v $(SOV_CLI_REL_PATH) > /dev/null 2>&1 || { echo "sov-cli has not been build, run `make build`"; exit 1; }
 
 celestia-logs: check-docker
 celestia-logs:
