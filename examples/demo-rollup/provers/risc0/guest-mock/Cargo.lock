@@ -2829,9 +2829,7 @@ dependencies = [
  "sov-modules-api",
  "sov-nonces",
  "sov-prover-incentives",
- "sov-rollup-interface",
  "sov-sequencer-registry",
- "tracing",
 ]
 
 [[package]]
@@ -2852,7 +2850,6 @@ dependencies = [
 name = "sov-demo-prover-guest-mock"
 version = "0.3.0"
 dependencies = [
- "anyhow",
  "demo-stf",
  "risc0-zkvm",
  "risc0-zkvm-platform",
@@ -3013,7 +3010,6 @@ dependencies = [
  "anyhow",
  "borsh 0.10.3",
  "serde",
- "serde_with",
  "sov-modules-api",
  "sov-state",
 ]
@@ -3040,7 +3036,6 @@ dependencies = [
  "bincode",
  "borsh 0.10.3",
  "bytemuck",
- "crypto-bigint",
  "digest 0.10.7",
  "ed25519-dalek",
  "hex",
@@ -3051,7 +3046,6 @@ dependencies = [
  "sha2",
  "sov-rollup-interface",
  "thiserror",
- "tracing",
 ]
 
 [[package]]

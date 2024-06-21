@@ -3350,9 +3350,7 @@ dependencies = [
  "sov-modules-api",
  "sov-nonces",
  "sov-prover-incentives",
- "sov-rollup-interface",
  "sov-sequencer-registry",
- "tracing",
 ]
 
 [[package]]
@@ -3398,7 +3396,6 @@ dependencies = [
 name = "sov-demo-prover-guest-celestia"
 version = "0.3.0"
 dependencies = [
- "anyhow",
  "const-rollup-config",
  "demo-stf",
  "risc0-zkvm",
@@ -3554,7 +3551,6 @@ dependencies = [
  "anyhow",
  "borsh 0.10.3",
  "serde",
- "serde_with",
  "sov-modules-api",
  "sov-state",
 ]
@@ -3581,7 +3577,6 @@ dependencies = [
  "bincode",
  "borsh 0.10.3",
  "bytemuck",
- "crypto-bigint",
  "digest 0.10.7",
  "ed25519-dalek",
  "hex",
@@ -3592,7 +3587,6 @@ dependencies = [
  "sha2 0.10.8",
  "sov-rollup-interface",
  "thiserror",
- "tracing",
 ]
 
 [[package]]

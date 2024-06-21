@@ -12,9 +12,7 @@ repository.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-tracing = { workspace = true }
 
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
 sov-bank = { path = "../module-implementations/sov-bank" }
 sov-accounts = { path = "../module-implementations/sov-accounts" }
@@ -34,6 +32,5 @@ native = [
 	"sov-modules-api/native",
 	"sov-nonces/native",
 	"sov-prover-incentives/native",
-	"sov-rollup-interface/native",
 	"sov-sequencer-registry/native",
 ]

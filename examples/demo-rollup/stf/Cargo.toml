@@ -15,8 +15,7 @@ workspace = true
 anyhow = { workspace = true }
 borsh = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
-jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
+jsonrpsee = { workspace = true, features = ["jsonrpsee-http-client", "server-core", "tokio"], optional = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
 tracing = { workspace = true }
 
@@ -57,7 +56,6 @@ offchain = [ "demo-stf/offchain", "sov-nft-module/offchain" ]
 native = [
 	"demo-stf/native",
 	"jsonrpsee",
-	"serde_json",
 	"sov-accounts/native",
 	"sov-bank/native",
 	"sov-capabilities/native",
