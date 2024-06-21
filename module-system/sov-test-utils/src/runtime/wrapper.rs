@@ -13,12 +13,14 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
     BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis, GenesisState, Module,
-    ModuleInfo, PreExecWorkingSet, RawTx, RuntimeEventProcessor, Spec, StateCheckpoint,
-    TxScratchpad, TypedEvent, WorkingSet,
+    ModuleInfo, PreExecWorkingSet, ProofReceipt, RawTx, RuntimeEventProcessor, Spec,
+    StateCheckpoint, TxScratchpad, TypedEvent, WorkingSet,
 };
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::stf::ProofOutcome;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
+use sov_state::Storage;
 
 use super::traits::{
     EndSlotHookRegistry, MinimalGenesis, MinimalRuntime, PostTxHookRegistry, StandardRuntime,
@@ -545,7 +547,17 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         &self,
         _proof_batch: Vec<u8>,
         state: StateCheckpoint<S>,
-    ) -> StateCheckpoint<S> {
-        state
+    ) -> (
+        ProofReceipt<Da, <S::Storage as Storage>::Root, ()>,
+        StateCheckpoint<S>,
+    ) {
+        (
+            ProofReceipt {
+                blob_hash: [0; 32],
+                outcome: ProofOutcome::Ignored,
+                extra_data: (),
+            },
+            state,
+        )
     }
 }
