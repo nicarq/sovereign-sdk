@@ -9,23 +9,26 @@ repository.workspace = true
 publish = false
 resolver = "2"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lints]
 workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+derive_more = { workspace = true }
 borsh = { workspace = true }
 clap = { workspace = true }
-demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["client"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = ["native"] }
+toml = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+
+demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
 sov-celestia-adapter = { path = "../../adapters/celestia", features = ["native"] }
-# For address/key
+sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = ["native"] }
 sov-cli = { path = "../../module-system/sov-cli" }
 sov-ledger-apis = { path = "../../full-node/sov-ledger-apis", default-features = false, features = ["client"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
@@ -35,7 +38,3 @@ sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-bluepr
 sov-nonces = { path = "../../module-system/module-implementations/sov-nonces", features = ["native"] }
 sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
-tokio = { workspace = true }
-toml = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }

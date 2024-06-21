@@ -8525,6 +8525,7 @@ dependencies = [
  "borsh 0.10.3",
  "clap",
  "demo-stf",
+ "derive_more",
  "hex",
  "jsonrpsee 0.22.5",
  "serde",

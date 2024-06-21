@@ -26,5 +26,6 @@ cargo run --bin testing-harness -- \
     --max-batch-size-tx=100 \
     --max-batch-size-bytes=100000 \
     --new-users-count=1000 \
-    --bank-transactions-count=1000
+    --bank-transactions-count=1000 \
+    --token-contracts-count=1000
 ```

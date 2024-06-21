@@ -9,11 +9,11 @@ use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::zk::CryptoSpec;
 
 use crate::account_pool::AccountPool;
-use crate::PreparedCallMessage;
+use crate::types::PreparedCallMessage;
 
-const DEFAULT_MAX_FEE: u64 = 1000;
+const DEFAULT_MAX_FEE: u64 = 100_000;
 // How much funds account should have to be considered a "whale".
-const MINIMAL_WHALE_BALANCE: u64 = 500_000;
+const MINIMAL_WHALE_BALANCE: u64 = 5_000_000;
 const MAX_MINT_BATCH_SIZE: usize = 10;
 
 fn get_bank_config<S: Spec>(
@@ -87,11 +87,11 @@ pub async fn setup<S: Spec>(
                 },
                 mint_to_address: whale_address.clone(),
             };
-            mint_batch.push(PreparedCallMessage::<S, Bank<S>> {
+            mint_batch.push(PreparedCallMessage::<S, Bank<S>>::new(
                 call_message,
-                from: gas_token_minter.clone(),
-                max_fee: DEFAULT_MAX_FEE * 3,
-            });
+                gas_token_minter.clone(),
+                DEFAULT_MAX_FEE * 3,
+            ));
             if mint_batch.len() == max_mint_batch_size {
                 prepared_batches.push(mint_batch);
                 mint_batch = Vec::new();
@@ -113,7 +113,8 @@ pub async fn setup<S: Spec>(
         let whale = &gas_whales[whale_idx];
 
         // TODO: Better calculation on how much gas will be needed for account.
-        let amount = 100_000;
+        let amount = 1_000_000;
+
         let call_message = CallMessage::<S>::Transfer {
             to: account.clone(),
             coins: sov_bank::Coins {
@@ -122,11 +123,11 @@ pub async fn setup<S: Spec>(
             },
         };
 
-        fill_batch.push(PreparedCallMessage::<S, Bank<S>> {
+        fill_batch.push(PreparedCallMessage::<S, Bank<S>>::new(
             call_message,
-            from: whale.clone(),
-            max_fee: DEFAULT_MAX_FEE,
-        });
+            whale.clone(),
+            DEFAULT_MAX_FEE,
+        ));
         if fill_batch.len() == max_batch_size {
             prepared_batches.push(fill_batch);
             fill_batch = Vec::new();
@@ -141,7 +142,7 @@ pub async fn setup<S: Spec>(
 }
 
 /// Generate "regular" testing call messages
-pub fn generate_messages<S: Spec>(
+pub fn generate_bank_transfer_messages<S: Spec>(
     account_pool: &AccountPool<S>,
     total_txs: u64,
 ) -> anyhow::Result<Vec<PreparedCallMessage<S, Bank<S>>>> {
@@ -157,14 +158,38 @@ pub fn generate_messages<S: Spec>(
                 token_id: GAS_TOKEN_ID,
             },
         };
-        prepared_call_messages.push(PreparedCallMessage {
+        prepared_call_messages.push(PreparedCallMessage::new(
             call_message,
-            from: from.clone(),
-            max_fee: DEFAULT_MAX_FEE,
-        });
+            from.clone(),
+            DEFAULT_MAX_FEE,
+        ));
     }
 
     // TODO: More scenarios, where each user creates token and mints some, and sends to some existing users
 
     Ok(prepared_call_messages)
+}
+
+pub fn generate_token_contract_creation_messages<S: Spec>(
+    account_pool: &AccountPool<S>,
+    num_contracts: u64,
+) -> anyhow::Result<Vec<PreparedCallMessage<S, Bank<S>>>> {
+    tracing::info!("Generating {num_contracts} token contract creation transactions");
+
+    Ok((0..num_contracts)
+        .zip(account_pool.cycle_over_all())
+        .map(|(i, token_creator_address)| {
+            PreparedCallMessage::new(
+                CallMessage::<S>::CreateToken {
+                    salt: i,
+                    initial_balance: u64::MAX,
+                    token_name: format!("token_{i}"),
+                    mint_to_address: token_creator_address.clone(),
+                    authorized_minters: vec![token_creator_address.clone()],
+                },
+                token_creator_address.clone(),
+                DEFAULT_MAX_FEE,
+            )
+        })
+        .collect::<Vec<_>>())
 }
