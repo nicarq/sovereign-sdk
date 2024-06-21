@@ -49,6 +49,7 @@ pub use sov_rollup_interface::zk::{
     CryptoSpec, StateTransitionPublicData, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
 pub use sov_rollup_interface::{digest, execution_mode, BasicAddress, RollupAddress};
+pub use sov_state::Storage;
 
 pub use crate::common::ModuleError as Error;
 pub use crate::state::StateReaderAndWriter;

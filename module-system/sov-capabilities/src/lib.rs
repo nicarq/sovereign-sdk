@@ -5,8 +5,8 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, Spec, StateCheckpoint,
-    TxScratchpad, WorkingSet,
+    Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome, ProofReceipt,
+    Spec, StateCheckpoint, Storage, TxScratchpad, WorkingSet,
 };
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 
@@ -165,8 +165,22 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
 impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
     for StandardProvenRollupCapabilities<'a, S, Da>
 {
-    fn process_proof(&self, _proof_blob: Vec<u8>, state: StateCheckpoint<S>) -> StateCheckpoint<S> {
+    fn process_proof(
+        &self,
+        _proof_blob: Vec<u8>,
+        state: StateCheckpoint<S>,
+    ) -> (
+        ProofReceipt<Da, <S::Storage as Storage>::Root, ()>,
+        StateCheckpoint<S>,
+    ) {
         // TODO #815
-        state
+        (
+            ProofReceipt {
+                blob_hash: [0; 32],
+                outcome: ProofOutcome::Ignored,
+                extra_data: (),
+            },
+            state,
+        )
     }
 }

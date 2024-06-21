@@ -17,11 +17,10 @@ use sov_modules_api::transaction::SequencerReward;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
     BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
-    ProofReceipt, RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
-    WorkingSet,
+    RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
-use sov_rollup_interface::stf::{ApplySlotOutput, ProofOutcome, StateTransitionFunction};
+use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
 pub use stf_blueprint::{process_tx, BatchReceipt, StfBlueprint, TransactionReceipt};
@@ -405,14 +404,11 @@ where
                     total_gas.combine(&gas_used);
                 }
                 BlobData::Proof(proof) => {
-                    checkpoint = self.runtime.capabilities().process_proof(proof, checkpoint);
+                    let (receipt, next_checkpoint) =
+                        self.runtime.capabilities().process_proof(proof, checkpoint);
 
-                    // TODO #815
-                    proof_receipts.push(ProofReceipt {
-                        blob_hash: [0; 32],
-                        outcome: ProofOutcome::<Da, <S::Storage as Storage>::Root>::Ignored,
-                        extra_data: (),
-                    });
+                    checkpoint = next_checkpoint;
+                    proof_receipts.push(receipt);
                 }
             }
         }
