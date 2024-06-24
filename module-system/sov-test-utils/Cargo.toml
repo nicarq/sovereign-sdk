@@ -46,7 +46,6 @@ sov-db = { path = "../../full-node/sov-db" }
 sov-state = { path = "../sov-state" }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
-tendermint = "0.32"
 tempfile = { workspace = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 jsonrpsee = { workspace = true }

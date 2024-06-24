@@ -8,9 +8,7 @@ expression: "serde_json::from_str::<serde_json::Value>(&response_body).unwrap()"
       "details": {
         "url": "/foobar-not-found"
       },
-      "status": {
-        "$serde_json::private::Number": "404"
-      },
+      "status": 404,
       "title": "Not Found"
     }
   ],

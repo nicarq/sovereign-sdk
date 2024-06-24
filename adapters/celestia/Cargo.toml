@@ -14,8 +14,6 @@ workspace = true
 borsh = { workspace = true, features = ["bytes"] }
 bech32 = "0.9.1"
 prost = "0.12"
-# I keep this commented as a reminder to opportunity to optimze this crate for non native compilation
-#tendermint = { version = "0.32", default-features = false, features = ["std"] }
 
 celestia-proto = { version = "0.2.0" }
 celestia-rpc = { version = "0.2.0", default-features = false, optional = true }

@@ -30,7 +30,6 @@ proptest = { workspace = true, optional = true, features = ["std"] }
 proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, default-features = true, features = ["rc"] }
 tempfile = { workspace = true, optional = true }
-rocksdb = { workspace = true }
 bincode = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 hex = { workspace = true }
