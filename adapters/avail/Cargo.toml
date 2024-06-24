@@ -32,22 +32,22 @@ async-trait = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-reqwest = { version = "0.12", features = ["rustls-tls", "http2", "json"], default-features = false, optional = true }
+reqwest = { workspace = true, features = ["rustls-tls", "json"], default-features = false, optional = true }
 thiserror = { workspace = true }
 sp-keyring = { version = "24", optional = true }
 sp-core = { version = "21", optional = true }
 hex = { workspace = true }
 
 [features]
-default = [ "native" ]
+default = ["native"]
 native = [
-	"dep:avail-subxt",
-	"dep:codec",
-	"dep:futures",
-	"dep:reqwest",
-	"dep:sp-core",
-	"dep:sp-keyring",
-	"dep:subxt",
-	"dep:tokio",
-	"sov-rollup-interface/native",
+    "dep:avail-subxt",
+    "dep:codec",
+    "dep:futures",
+    "dep:reqwest",
+    "dep:sp-core",
+    "dep:sp-keyring",
+    "dep:subxt",
+    "dep:tokio",
+    "sov-rollup-interface/native",
 ]

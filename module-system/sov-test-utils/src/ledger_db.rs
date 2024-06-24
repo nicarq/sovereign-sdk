@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use jsonrpsee::core::client::SubscriptionClientT;
+use sha2::Digest;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Coins, TokenId};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
@@ -12,7 +13,7 @@ use sov_db::schema::SchemaBatch;
 use sov_ledger_apis::rest::LedgerRoutes;
 use sov_ledger_apis::rpc::client::RpcClient;
 use sov_ledger_apis::rpc::server::rpc_module;
-use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
+use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash};
 use sov_modules_api::da::Time;
 use sov_modules_api::{
     AggregatedProofPublicData, CodeCommitment, ModuleId, RuntimeEventResponse, StoredEvent,
@@ -22,7 +23,6 @@ use sov_rollup_interface::rpc::{BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use tempfile::{tempdir, TempDir};
-use tendermint::crypto::Sha256 as _;
 
 use crate::{TestSpec, TestTxReceiptContents};
 
@@ -111,8 +111,8 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
     let mut slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>> =
         vec![SlotCommit::new(MockBlock {
             header: MockBlockHeader {
-                prev_hash: sha2::Sha256::digest(b"prev_header").into(),
-                hash: sha2::Sha256::digest(b"slot_data").into(),
+                prev_hash: MockHash(sha2::Sha256::digest(b"prev_header").into()),
+                hash: MockHash(sha2::Sha256::digest(b"slot_data").into()),
                 height: 0,
                 time: Time::now(),
             },
@@ -123,17 +123,17 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
 
     let batches = vec![
         BatchReceipt {
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt"),
+            batch_hash: sha2::Sha256::digest(b"batch_receipt").into(),
             tx_receipts: vec![
                 TransactionReceipt::<TestTxReceiptContents> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx1"),
+                    tx_hash: sha2::Sha256::digest(b"tx1").into(),
                     body_to_save: Some(b"tx1 body".to_vec()),
                     events: vec![],
                     receipt: TxEffect::Successful(0),
                     gas_used: vec![0, 0],
                 },
                 TransactionReceipt::<TestTxReceiptContents> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx2"),
+                    tx_hash: sha2::Sha256::digest(b"tx2").into(),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
                         StoredEvent::new("event1_key".as_bytes(), "event1_value".as_bytes()),
@@ -147,7 +147,7 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
             gas_price: vec![0, 0],
         },
         BatchReceipt {
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2"),
+            batch_hash: sha2::Sha256::digest(b"batch_receipt2").into(),
             tx_receipts: batch2_tx_receipts(),
             inner: 1,
             gas_price: vec![0, 0],
@@ -192,7 +192,7 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
 fn batch2_tx_receipts() -> Vec<TransactionReceipt<TestTxReceiptContents>> {
     (0..260u64)
         .map(|i| TransactionReceipt::<TestTxReceiptContents> {
-            tx_hash: ::sha2::Sha256::digest(i.to_string()),
+            tx_hash: ::sha2::Sha256::digest(i.to_string()).into(),
             body_to_save: Some(b"tx body".to_vec()),
             events: vec![],
             receipt: TxEffect::Skipped(0),

@@ -85,7 +85,7 @@ semicolon_if_nothing_returned = "deny"
 # Dependencies maintained by Sovereign
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6" }
 reltester = { git = "https://github.com/sovereign-labs/reltester.git", branch = "main" }
-rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "677fa2fb325e1adbd7c72405aff9ebdaf1101add" }
+rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "e9aa4ae6a21ba623c68a76533af1470c44381c25" }
 
 # External dependencies
 async-trait = "0.1.71"
@@ -113,7 +113,7 @@ proptest = { version = "1.3", default-features = false, features = ["alloc"] }
 proptest-derive = "0.4.0"
 rand = "0.8"
 rayon = "1.9.0"
-rocksdb = { version = "0.21.0", features = ["lz4"] }
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
 serde = { version = "1.0.196", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_yaml = { version = "0.9", default-features = false }
@@ -150,11 +150,11 @@ risc0-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macro
 
 # EVM dependencies
 ethereum-types = "0.14.1"
-ethers-core = { version = "=2.0.10", default-features = false }
-ethers-contract = { version = "=2.0.10", default-features = false }
-ethers-providers = { version = "=2.0.10", default-features = false }
-ethers-signers = { version = "=2.0.10", default-features = false }
-ethers-middleware = { version = "=2.0.10", default-features = false }
+ethers-core = { version = "=2.0.14", default-features = false }
+ethers-contract = { version = "=2.0.14", default-features = false }
+ethers-providers = { version = "=2.0.14", default-features = false }
+ethers-signers = { version = "=2.0.14", default-features = false }
+ethers-middleware = { version = "=2.0.14", default-features = false }
 
 # https://github.com/paradigmxyz/reth/tree/66c9403ea1d3d03938eafc099e64e789aadc3616
 reth-primitives = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d", default-features = false }
