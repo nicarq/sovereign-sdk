@@ -456,10 +456,17 @@ where
             let mut ledger_change_set = self
                 .ledger_db
                 .materialize_slot(data_to_commit, slot_result.state_root.as_ref())?;
+
+            let zk_proofs_from_stf = slot_result
+                .proof_receipts
+                .into_iter()
+                .map(|proof_receipt| proof_receipt.raw_proof);
+
             let proof_change_set = self
                 .proof_manager
-                .materialize_aggregated_proofs(next_da_height)
+                .materialize_aggregated_proofs(zk_proofs_from_stf)
                 .await?;
+
             ledger_change_set.merge(proof_change_set);
             ledger_change_set.merge(finalization_ledger_changes);
 

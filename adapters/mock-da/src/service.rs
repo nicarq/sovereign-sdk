@@ -175,6 +175,7 @@ impl MockDaService {
                 last_finalized_height
             );
         }
+
         blocks.retain(|b| b.header().height <= height);
         for blob in tx_blobs {
             let batch_blob = self.make_blob(blob.to_vec());

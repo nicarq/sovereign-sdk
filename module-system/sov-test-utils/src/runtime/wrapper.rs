@@ -553,6 +553,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
     ) {
         (
             ProofReceipt {
+                raw_proof: vec![],
                 blob_hash: [0; 32],
                 outcome: ProofOutcome::Ignored,
                 extra_data: (),

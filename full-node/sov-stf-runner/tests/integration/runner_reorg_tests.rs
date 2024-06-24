@@ -1,20 +1,22 @@
 use std::sync::Arc;
 
+use borsh::BorshSerialize;
 use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockValidityCond,
     PlannedFork,
 };
 use sov_mock_zkvm::MockZkVerifier;
-use sov_prover_storage_manager::ProverStorageManager;
+use sov_modules_api::{Batch, BlobData, RawTx, StateTransitionFunction};
+use sov_prover_storage_manager::{ProverStorageManager, SimpleStorageManager};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
-use sov_state::{ProverStorage, Storage};
+use sov_state::{ArrayWitness, ProverStorage, Storage};
 use sov_stf_runner::InitVariant;
 use tempfile::TempDir;
 
-use crate::helpers::hash_stf::{get_result_from_blocks, HashStf, S};
+use crate::helpers::hash_stf::{HashStf, S};
 use crate::helpers::runner_init::initialize_runner;
 
 type MockInitVariant = InitVariant<
@@ -31,22 +33,22 @@ async fn test_simple_reorg_case() {
     let genesis_params = vec![1, 2, 3, 4, 5];
 
     let main_chain_blobs = vec![
-        vec![1, 1, 1, 1],
-        vec![2, 2, 2, 2],
-        vec![3, 3, 3, 3],
-        vec![4, 4, 4, 4],
+        batch(vec![1, 1, 1, 1]),
+        batch(vec![2, 2, 2, 2]),
+        batch(vec![3, 3, 3, 3]),
+        batch(vec![4, 4, 4, 4]),
     ];
     let fork_blobs = vec![
-        vec![13, 13, 13, 13],
-        vec![14, 14, 14, 14],
-        vec![15, 15, 15, 15],
+        batch(vec![13, 13, 13, 13]),
+        batch(vec![14, 14, 14, 14]),
+        batch(vec![15, 15, 15, 15]),
     ];
     let expected_final_blobs = vec![
-        vec![1, 1, 1, 1],
-        vec![2, 2, 2, 2],
-        vec![13, 13, 13, 13],
-        vec![14, 14, 14, 14],
-        vec![15, 15, 15, 15],
+        batch(vec![1, 1, 1, 1]),
+        batch(vec![2, 2, 2, 2]),
+        batch(vec![13, 13, 13, 13]),
+        batch(vec![14, 14, 14, 14]),
+        batch(vec![15, 15, 15, 15]),
     ];
 
     let mut da_service = DaServiceWithRetries::new_fast(
@@ -65,16 +67,16 @@ async fn test_simple_reorg_case() {
         .unwrap();
 
     let da_service = Arc::new(da_service);
-    for b in &main_chain_blobs {
-        let fee = da_service.estimate_fee(b.len()).await.unwrap();
-        da_service.send_transaction(b, fee).await.unwrap();
+    for data in main_chain_blobs {
+        let fee = da_service.estimate_fee(data.len()).await.unwrap();
+        da_service.send_transaction(&data, fee).await.unwrap();
     }
 
     let (expected_state_root, _expected_final_root_hash) =
         get_expected_execution_hash_from(&genesis_params, expected_final_blobs);
 
     let (_expected_committed_state_root, expected_committed_root_hash) =
-        get_expected_execution_hash_from(&genesis_params, vec![vec![1, 1, 1, 1]]);
+        get_expected_execution_hash_from(&genesis_params, vec![batch(vec![1, 1, 1, 1])]);
 
     let init_variant: MockInitVariant = InitVariant::Genesis {
         block: genesis_block,
@@ -104,22 +106,30 @@ async fn test_instant_finality_data_stored() {
     let genesis_block = da_service.get_block_at(0).await.unwrap();
     let fee = da_service.estimate_fee(4).await.unwrap();
 
+    let serialized_blob_1 = batch(vec![1, 1, 1, 1]);
+
     da_service
-        .send_transaction(&[1, 1, 1, 1], fee)
+        .send_transaction(&serialized_blob_1, fee)
         .await
         .unwrap();
+
+    let serialized_blob_2 = batch(vec![2, 2, 2, 2]);
+
     da_service
-        .send_transaction(&[2, 2, 2, 2], fee)
+        .send_transaction(&serialized_blob_2, fee)
         .await
         .unwrap();
+
+    let serialized_blob_3 = batch(vec![3, 3, 3, 3]);
+
     da_service
-        .send_transaction(&[3, 3, 3, 3], fee)
+        .send_transaction(&serialized_blob_3, fee)
         .await
         .unwrap();
 
     let (expected_state_root, expected_root_hash) = get_expected_execution_hash_from(
         &genesis_params,
-        vec![vec![1, 1, 1, 1], vec![2, 2, 2, 2], vec![3, 3, 3, 3]],
+        vec![serialized_blob_1, serialized_blob_2, serialized_blob_3],
     );
 
     let init_variant: MockInitVariant = InitVariant::Genesis {
@@ -187,4 +197,63 @@ fn get_expected_execution_hash_from(
         .collect();
 
     get_result_from_blocks(genesis_params, &blocks[..])
+}
+
+// Returns final data hash and root hash
+fn get_result_from_blocks(
+    genesis_params: &[u8],
+    blocks: &[MockBlock],
+) -> ([u8; 32], Option<<ProverStorage<S> as Storage>::Root>) {
+    let tmpdir = tempfile::tempdir().unwrap();
+
+    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let storage = storage_manager.create_storage();
+
+    let stf = HashStf::<MockValidityCond>::new();
+
+    let (genesis_state_root, change_set) =
+        <HashStf<MockValidityCond> as StateTransitionFunction<
+            MockZkVerifier,
+            MockZkVerifier,
+            MockDaSpec,
+        >>::init_chain(&stf, storage, genesis_params.to_vec());
+    storage_manager.commit(change_set);
+
+    let mut state_root = genesis_state_root;
+
+    let l = blocks.len();
+
+    for block in blocks {
+        let mut relevant_blobs = block.as_relevant_blobs();
+
+        let storage = storage_manager.create_storage();
+        let result = <HashStf<MockValidityCond> as StateTransitionFunction<
+            MockZkVerifier,
+            MockZkVerifier,
+            MockDaSpec,
+        >>::apply_slot::<&mut [MockBlob]>(
+            &stf,
+            &state_root,
+            storage,
+            ArrayWitness::default(),
+            &block.header,
+            &block.validity_cond,
+            relevant_blobs.as_iters(),
+        );
+
+        state_root = result.state_root;
+        storage_manager.commit(result.change_set);
+    }
+
+    let storage = storage_manager.create_storage();
+    let root_hash = storage.get_root_hash(l as u64).ok();
+    (state_root, root_hash)
+}
+
+fn batch(data: Vec<u8>) -> Vec<u8> {
+    BlobData::Batch(Batch {
+        txs: vec![RawTx { data }],
+    })
+    .try_to_vec()
+    .unwrap()
 }
