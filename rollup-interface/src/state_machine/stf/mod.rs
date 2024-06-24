@@ -64,6 +64,8 @@ pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents> {
 
 /// A receipt for data posted into the proof namespace
 pub struct ProofReceipt<Da: DaSpec, Root, Extra> {
+    /// The serialized zk-proof.
+    pub raw_proof: Vec<u8>,
     /// The hash of the blob which contained the proof
     pub blob_hash: [u8; 32],
     /// The outcome of the proof

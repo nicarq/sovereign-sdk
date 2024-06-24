@@ -1,9 +1,6 @@
+use borsh::BorshDeserialize;
 use sha2::Digest;
-use sov_mock_da::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
-};
-use sov_mock_zkvm::MockZkVerifier;
-use sov_prover_storage_manager::SimpleStorageManager;
+use sov_modules_api::{BlobData, ProofOutcome, ProofReceipt};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
@@ -99,7 +96,10 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        let batch_blobs = relevant_blobs.batch_blobs;
+        let all_blobs = relevant_blobs
+            .batch_blobs
+            .into_iter()
+            .chain(relevant_blobs.proof_blobs);
 
         // Note: Uses native code, so won't work in ZK
         let storage_root_hash = pre_state.get_root_hash(slot_header.height()).unwrap();
@@ -128,9 +128,21 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         );
         hasher.update(existing_cache.value());
 
-        for blob in batch_blobs {
-            let data = blob.verified_data();
-            hasher.update(data);
+        let mut proof_receipts = Vec::new();
+        for blob in all_blobs {
+            let data = blob.full_data();
+
+            if !data.is_empty() {
+                match BlobData::try_from_slice(data).unwrap() {
+                    BlobData::Batch(_) => hasher.update(data),
+                    BlobData::Proof(raw_proof) => proof_receipts.push(ProofReceipt {
+                        raw_proof,
+                        blob_hash: [0u8; 32],
+                        outcome: ProofOutcome::<Da, Self::StateRoot>::Ignored,
+                        extra_data: (),
+                    }),
+                };
+            }
         }
 
         let (state_root, change_set) =
@@ -145,110 +157,10 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         ApplySlotOutput {
             state_root,
             change_set,
-            proof_receipts: vec![],
+            proof_receipts,
             // TODO: Add batch receipts to inspection
             batch_receipts: vec![],
             witness,
         }
     }
-}
-
-#[test]
-fn compare_output() {
-    let genesis_params: Vec<u8> = vec![1, 2, 3, 4, 5];
-
-    let raw_blobs: Vec<Vec<Vec<u8>>> = vec![
-        // Block A
-        vec![vec![1, 1, 1], vec![2, 2, 2]],
-        // Block B
-        vec![vec![3, 3, 3], vec![4, 4, 4], vec![5, 5, 5]],
-        // Block C
-        vec![vec![6, 6, 6]],
-        // Block D
-        vec![vec![7, 7, 7], vec![8, 8, 8]],
-    ];
-
-    let mut blocks = Vec::new();
-
-    for (idx, raw_block) in raw_blobs.iter().enumerate() {
-        let mut blobs = Vec::new();
-        for raw_blob in raw_block.iter() {
-            let blob = MockBlob::new(
-                raw_blob.clone(),
-                MockAddress::new([11u8; 32]),
-                [idx as u8; 32],
-            );
-            blobs.push(blob);
-        }
-
-        let block = MockBlock {
-            header: MockBlockHeader::from_height(idx as u64 + 1),
-            validity_cond: MockValidityCond::default(),
-            batch_blobs: blobs,
-            proof_blobs: Default::default(),
-        };
-        blocks.push(block);
-    }
-
-    let (state_root, root_hash) = get_result_from_blocks(&genesis_params, &blocks);
-
-    assert!(root_hash.is_some());
-
-    let recorded_state_root: [u8; 32] = [
-        187, 159, 56, 140, 156, 64, 1, 22, 185, 241, 95, 11, 247, 87, 147, 191, 133, 14, 225, 235,
-        94, 135, 23, 253, 145, 74, 94, 23, 128, 233, 18, 32,
-    ];
-
-    assert_eq!(recorded_state_root, state_root);
-}
-
-// Returns final data hash and root hash
-pub fn get_result_from_blocks(
-    genesis_params: &[u8],
-    blocks: &[MockBlock],
-) -> ([u8; 32], Option<<ProverStorage<S> as Storage>::Root>) {
-    let tmpdir = tempfile::tempdir().unwrap();
-
-    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-    let storage = storage_manager.create_storage();
-
-    let stf = HashStf::<MockValidityCond>::new();
-
-    let (genesis_state_root, change_set) =
-        <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkVerifier,
-            MockZkVerifier,
-            MockDaSpec,
-        >>::init_chain(&stf, storage, genesis_params.to_vec());
-    storage_manager.commit(change_set);
-
-    let mut state_root = genesis_state_root;
-
-    let l = blocks.len();
-
-    for block in blocks {
-        let mut relevant_blobs = block.as_relevant_blobs();
-
-        let storage = storage_manager.create_storage();
-        let result = <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkVerifier,
-            MockZkVerifier,
-            MockDaSpec,
-        >>::apply_slot::<&mut [MockBlob]>(
-            &stf,
-            &state_root,
-            storage,
-            ArrayWitness::default(),
-            &block.header,
-            &block.validity_cond,
-            relevant_blobs.as_iters(),
-        );
-
-        state_root = result.state_root;
-        storage_manager.commit(result.change_set);
-    }
-
-    let storage = storage_manager.create_storage();
-    let root_hash = storage.get_root_hash(l as u64).ok();
-    (state_root, root_hash)
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -8,7 +8,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::BlobData;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use sov_rollup_interface::zk::Zkvm;
-use tracing::{debug, info};
+use tracing::debug;
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
@@ -54,33 +54,12 @@ where
     /// into [`SchemaBatch`] that can be saved to the database.
     pub(crate) async fn materialize_aggregated_proofs(
         &self,
-        height: u64,
+        raw_proofs: impl Iterator<Item = Vec<u8>>,
     ) -> Result<SchemaBatch, anyhow::Error> {
-        let aggregated_proofs = self.da_service.get_aggregated_proofs_at(height).await?;
-        info!(%height, num_proofs=aggregated_proofs.len(), "Saving available aggregated proofs");
         let mut aggregated_proofs_data = SchemaBatch::new();
-        for raw_aggregated_proof in aggregated_proofs {
+        for raw_aggregated_proof in raw_proofs {
             // Verify aggregated proof before storing it into the database.
-
-            let proof: BlobData = match BorshDeserialize::try_from_slice(&raw_aggregated_proof) {
-                Ok(proof) => proof,
-                Err(_) => {
-                    // TODO #815
-                    debug!("Error: BlobData deserialization failed");
-                    continue;
-                }
-            };
-
-            let raw_aggregated_proof = match proof {
-                BlobData::Batch(_) => {
-                    // TODO #815
-                    debug!("Error: received `Batch` on the proof namespace");
-
-                    return Ok(aggregated_proofs_data);
-                }
-                BlobData::Proof(proof) => proof,
-            };
-
+            // TODO #815
             let public_data: AggregatedProofPublicData = match <Ps::Verifier as Zkvm>::verify(
                 &raw_aggregated_proof,
                 &self.outer_code_commitment,

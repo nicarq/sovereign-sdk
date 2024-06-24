@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
+use borsh::BorshSerialize;
 use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::{
     MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
+use sov_modules_api::{Batch, BlobData, RawTx};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
@@ -52,12 +54,27 @@ pub struct TestNode {
 impl TestNode {
     /// Creates a DA block containing a transaction blob, optionally including an aggregated proof.
     pub async fn send_transaction(&self) -> Result<(), anyhow::Error> {
-        self.da.send_transaction(&[1, 2, 3], MockFee::zero()).await
+        let batch = BlobData::Batch(Batch {
+            txs: vec![RawTx {
+                data: vec![1, 2, 3],
+            }],
+        });
+
+        let serialized_batch = batch.try_to_vec().unwrap();
+        self.da
+            .send_transaction(&serialized_batch, MockFee::zero())
+            .await
     }
 
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
     pub async fn try_send_aggregated_proof(&self) -> Result<(), anyhow::Error> {
-        self.da.send_transaction(&[], MockFee::zero()).await
+        let batch = BlobData::Batch(Batch {
+            txs: vec![RawTx { data: vec![] }],
+        });
+        let serialized_batch = batch.try_to_vec().unwrap();
+        self.da
+            .send_transaction(&serialized_batch, MockFee::zero())
+            .await
     }
 
     /// Unlocks the prover service worker thread and completes the block proof.

@@ -167,7 +167,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
 {
     fn process_proof(
         &self,
-        _proof_blob: Vec<u8>,
+        raw_proof: Vec<u8>,
         state: StateCheckpoint<S>,
     ) -> (
         ProofReceipt<Da, <S::Storage as Storage>::Root, ()>,
@@ -176,6 +176,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         // TODO #815
         (
             ProofReceipt {
+                raw_proof,
                 blob_hash: [0; 32],
                 outcome: ProofOutcome::Ignored,
                 extra_data: (),
