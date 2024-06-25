@@ -287,7 +287,7 @@ pub trait MessageGenerator {
             .into_iter()
             .collect();
 
-        let batch = BlobData::Batch(Batch { txs });
+        let batch = BlobData::new_batch(txs);
 
         batch.try_to_vec().unwrap()
     }

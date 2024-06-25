@@ -13,7 +13,7 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec}
 use sov_modules_api::da::Time;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    Address, Batch, BlobData, BlobDataWithId, BlobReaderTrait, Context, DaSpec, DispatchCall,
+    Address, BlobData, BlobDataWithId, BlobReaderTrait, Context, DaSpec, DispatchCall,
     KernelWorkingSet, MessageCodec, Module, RawTx, Spec, StateCheckpoint,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
@@ -83,7 +83,7 @@ fn make_blobs(
 
                     MockBlob::new(
                         PreferredBlobData {
-                            data: BlobData::Batch(Batch { txs }),
+                            data: BlobData::new_batch(txs),
                             sequence_number,
                             virtual_slots_to_advance: slots_to_advance as u8,
                         }
@@ -128,11 +128,9 @@ fn make_blobs_by_slot(
 
 fn make_blob(tx_data: Vec<u8>, sender: MockAddress, id: [u8; 32]) -> MockBlob {
     MockBlob::new(
-        BlobData::Batch(Batch {
-            txs: vec![RawTx { data: tx_data }],
-        })
-        .try_to_vec()
-        .unwrap(),
+        BlobData::new_batch(vec![RawTx { data: tx_data }])
+            .try_to_vec()
+            .unwrap(),
         sender,
         id,
     )

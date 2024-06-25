@@ -128,7 +128,7 @@ where
                     "Sending aggregated proof to DA"
                 );
 
-                let proof = BlobData::Proof(agg_proof.raw_aggregated_proof);
+                let proof = BlobData::new_proof(agg_proof.raw_aggregated_proof);
                 let serialized_proof = proof.try_to_vec()?;
 
                 let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;

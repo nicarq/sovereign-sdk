@@ -5,7 +5,7 @@ use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_celestia_adapter::CelestiaService;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{Batch, BlobData, EncodeCall, RawTx};
+use sov_modules_api::{BlobData, EncodeCall, RawTx};
 use sov_rollup_interface::services::da::DaService;
 
 use crate::types::{Auth, PreparedCallMessage, ThisSpec};
@@ -15,7 +15,7 @@ pub async fn submit_transactions(
     da_service: &CelestiaService,
     txs: Vec<RawTx>,
 ) -> anyhow::Result<()> {
-    let batch = BlobData::Batch(Batch { txs });
+    let batch = BlobData::new_batch(txs);
     let batch_bytes = batch.try_to_vec().expect("Failed to serialize batch");
     let fee = da_service.estimate_fee(batch_bytes.len()).await.unwrap();
     let tx_hash = da_service.send_transaction(&batch_bytes, fee).await?;
