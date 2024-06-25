@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::rest::LedgerRoutes;
 use sov_modules_api::capabilities::Authenticator;
@@ -74,11 +73,6 @@ where
             )?;
 
         let sequencer = Sequencer::<_, _, Auth>::new(batch_builder, da_service.clone());
-
-        endpoints
-            .jsonrpsee_module
-            .merge(sequencer.rpc())
-            .context("Failed to merge Transactions RPC modules")?;
 
         endpoints.axum_router = endpoints.axum_router.nest(
             "/sequencer",

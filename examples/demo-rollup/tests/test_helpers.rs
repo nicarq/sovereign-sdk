@@ -38,6 +38,7 @@ pub fn read_private_keys<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
 
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
+    rest_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: RollupProverConfig,
@@ -89,7 +90,7 @@ pub async fn start_rollup(
         .unwrap();
 
     rollup
-        .run_and_report_addr(Some(rpc_reporting_channel), None)
+        .run_and_report_addr(Some(rpc_reporting_channel), Some(rest_reporting_channel))
         .await
         .unwrap();
 }

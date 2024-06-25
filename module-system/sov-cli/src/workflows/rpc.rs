@@ -4,6 +4,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
+use base64::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::HttpClientBuilder;
@@ -16,6 +17,7 @@ use sov_modules_api::{clap, CryptoSpec, PublicKey};
 use sov_nonces::NoncesRpcClient;
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::digest::Digest;
+use sov_sequencer_json_client::types;
 
 use crate::wallet_state::{AddressEntry, KeyIdentifier, WalletState};
 use crate::workflows::keys::load_key;
@@ -143,6 +145,16 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
             ))?
             .clone();
         let client = HttpClientBuilder::default().build(&rpc_url)?;
+        let sequencer_client = sov_sequencer_json_client::Client::new(&format!(
+            "{}/sequencer",
+            wallet_state
+                .rest_api_url
+                .as_ref()
+                .ok_or(anyhow::format_err!(
+                    "No REST API URL set. Use the `rpc set-url` subcommand to set one"
+                ))?
+        ));
+
         let rest_api_url = wallet_state
             .rest_api_url
             .as_ref()
@@ -220,31 +232,40 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                 for (i, tx) in txs.iter().enumerate() {
                     let tx_hash = HexString::new(<S::CryptoSpec as CryptoSpec>::Hasher::digest(tx));
                     println!("Submitting tx: {}: {}", i, tx_hash);
-                    let request = serde_json::json!({ "body": tx });
-                    let response: serde_json::Value = client
-                        .request("sequencer_acceptTx", [request])
+                    let response = sequencer_client
+                        .accept_tx(&types::AcceptTxBody {
+                            body: BASE64_STANDARD.encode(tx),
+                        })
                         .await
                         .context("Unable to submit transaction")?;
                     println!("Transaction {} has been submitted: {:?}", tx_hash, response);
                 }
                 println!("Triggering batch publishing");
 
-                let response: serde_json::Value = client
-                    .request("sequencer_publishBatch", txs.clone())
+                let response = sequencer_client
+                    .publish_batch(&types::PublishBatchBody {
+                        transactions: txs
+                            .into_iter()
+                            .map(|tx| BASE64_STANDARD.encode(tx))
+                            .collect(),
+                    })
                     .await
                     .context("Unable to publish batch")?;
+                let response_data = response
+                    .data
+                    .as_ref()
+                    .ok_or(anyhow::anyhow!("No data in response"))?;
 
                 // Print the result
                 println!(
                     "Your batch was submitted to the sequencer for publication. Response: {:?}",
-                    response
+                    response_data
                 );
                 if *wait_for_processing {
-                    let target_da_height = response
-                        .get("da_height")
-                        .expect("'da_height' should be set")
-                        .as_u64()
-                        .expect("'da_height' must be a number");
+                    let target_da_height: u64 = response_data
+                        .da_height
+                        .try_into()
+                        .expect("da_height is out of range");
 
                     let start_wait = Instant::now();
                     let max_waiting_time = Duration::from_secs(300);

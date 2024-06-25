@@ -32,12 +32,15 @@ sha2 = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-modules-api = { path = "../sov-modules-api", features = ["native", "test-utils"] }
 sov-modules-stf-blueprint = { path = "../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
+sov-stf-runner = { path = "../../full-node/sov-stf-runner" }
 sov-value-setter = { path = "../module-implementations/sov-value-setter", features = ["native"] }
 sov-attester-incentives = { path = "../module-implementations/sov-attester-incentives", features = ["native"] }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
 sov-kernels = { path = "../sov-kernels", features = ["native"] }
 sov-ledger-apis = { path = "../../full-node/sov-ledger-apis", features = ["server"] }
 sov-ledger-json-client = { path = "../../full-node/sov-ledger-json-client" }
+sov-sequencer-json-client = { path = "../../full-node/sov-sequencer-json-client" }
+sov-capabilities = { path = "../sov-capabilities", features = ["native"] }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-sequencer-registry = { path = "../module-implementations/sov-sequencer-registry", features = ["native"] }

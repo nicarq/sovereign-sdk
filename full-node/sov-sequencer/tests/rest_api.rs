@@ -1,17 +1,16 @@
 use base64::prelude::*;
 use borsh::BorshSerialize;
+use futures::stream::StreamExt;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::services::batch_builder::TxHash;
-use sov_sequencer::utils::SimpleClient;
-use sov_sequencer::TxStatus;
-use sov_sequencer_json_client::types::PublishBatchBody;
+use sov_sequencer_json_client::types::{PublishBatchBody, TxStatus};
 use sov_test_utils::bank_data::BankMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
+use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{MessageGenerator, TestPrivateKey, TestSpec};
-use tempfile::TempDir;
 
 /// Generates a hanful of transactions and returns the hash of the first one.
 fn generate_txs(admin_private_key: TestPrivateKey) -> (TxHash, Vec<Transaction<TestSpec>>) {
@@ -33,68 +32,61 @@ fn generate_txs(admin_private_key: TestPrivateKey) -> (TxHash, Vec<Transaction<T
 
 #[tokio::test]
 async fn rpc_subscribe() {
-    let temp_dir = TempDir::new().unwrap();
-    let setup = sov_test_utils::sequencer::new_sequencer(&temp_dir)
-        .await
-        .unwrap();
-    let client = SimpleClient::new("127.0.0.1", setup.rpc_addr.port())
-        .await
-        .unwrap();
+    let sequencer = TestSequencerSetup::with_real_batch_builder().await.unwrap();
+    let client = sequencer.client();
 
-    let (tx_hash, txs) = generate_txs(setup.admin_private_key.clone());
+    let (tx_hash, txs) = generate_txs(sequencer.admin_private_key.clone());
 
     let mut subscription = client
-        .subscribe_to_tx_status_updates::<()>(tx_hash)
+        .subscribe_to_tx_status_updates(tx_hash)
         .await
         .unwrap();
 
     // Before submitting a transaction, its status is unknown.
     assert_eq!(
-        subscription.next().await.unwrap().unwrap(),
+        subscription.next().await.unwrap().unwrap().status,
         TxStatus::Unknown
     );
 
-    client.send_transactions(&txs).await.unwrap();
+    for tx in txs {
+        client
+            .publish_batch_with_serialized_txs(&[tx])
+            .await
+            .unwrap();
+    }
 
     // The transaction status should change once it enters the mempool...
     assert_eq!(
-        subscription.next().await.unwrap().unwrap(),
+        subscription.next().await.unwrap().unwrap().status,
         TxStatus::Submitted
     );
 
     // ...and then change again shortly after, once it gets included in a block.
     assert_eq!(
-        subscription.next().await.unwrap().unwrap(),
-        TxStatus::Published {
-            da_transaction_id: ()
-        }
+        subscription.next().await.unwrap().unwrap().status,
+        TxStatus::Published,
     );
-
-    subscription.unsubscribe().await.unwrap();
 }
+
 #[tokio::test]
 async fn axum_submit_batch_ok() {
-    let temp_dir = TempDir::new().unwrap();
-    let setup = sov_test_utils::sequencer::new_sequencer(&temp_dir)
-        .await
-        .unwrap();
-    let client = sov_sequencer_json_client::Client::new(&format!(
-        "http://127.0.0.1:{}",
-        setup.axum_addr.port()
-    ));
+    let sequencer = TestSequencerSetup::with_real_batch_builder().await.unwrap();
+    let client = sequencer.client();
 
-    let txs = generate_txs(setup.admin_private_key.clone()).1;
+    let txs = generate_txs(sequencer.admin_private_key.clone()).1;
 
-    let response = client
+    let response_result = client
         .publish_batch(&PublishBatchBody {
             transactions: txs
                 .iter()
                 .map(|tx| BASE64_STANDARD.encode(tx.try_to_vec().unwrap()))
                 .collect(),
         })
-        .await
-        .unwrap();
+        .await;
 
-    assert_eq!(response.data.da_height, 0);
-    assert_eq!(response.data.num_txs, txs.len() as i32);
+    let response = response_result.unwrap();
+    let response_data = response.data.as_ref().unwrap();
+
+    assert_eq!(response_data.da_height, 0);
+    assert_eq!(response_data.num_txs, txs.len() as i32);
 }

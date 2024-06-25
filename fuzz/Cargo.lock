@@ -490,7 +490,7 @@ dependencies = [
  "sha1",
  "sync_wrapper 1.0.1",
  "tokio",
- "tokio-tungstenite",
+ "tokio-tungstenite 0.21.0",
  "tower",
  "tower-layer",
  "tower-service",
@@ -5196,6 +5196,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-capabilities"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "sov-accounts",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-nonces",
+ "sov-prover-incentives",
+ "sov-sequencer-registry",
+]
+
+[[package]]
 name = "sov-celestia-adapter"
 version = "0.3.0"
 dependencies = [
@@ -5308,6 +5321,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-metrics"
+version = "0.3.0"
+dependencies = [
+ "prometheus",
+]
+
+[[package]]
 name = "sov-mock-da"
 version = "0.3.0"
 dependencies = [
@@ -5417,6 +5437,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-nonces"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "jsonrpsee 0.22.5",
+ "schemars",
+ "serde",
+ "sov-modules-api",
+ "sov-state",
+]
+
+[[package]]
+name = "sov-prover-incentives"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "jsonrpsee 0.22.5",
+ "schemars",
+ "serde",
+ "sov-bank",
+ "sov-chain-state",
+ "sov-modules-api",
+ "sov-state",
+ "thiserror",
+]
+
+[[package]]
 name = "sov-prover-storage-manager"
 version = "0.3.0"
 dependencies = [
@@ -5501,6 +5550,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-sequencer-json-client"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.0",
+ "borsh",
+ "chrono",
+ "futures",
+ "progenitor",
+ "rand",
+ "regress 0.4.1",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sov-rollup-interface",
+ "tokio",
+ "tokio-tungstenite 0.23.1",
+]
+
+[[package]]
 name = "sov-sequencer-registry"
 version = "0.3.0"
 dependencies = [
@@ -5542,6 +5611,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-stf-runner"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "hex",
+ "num_cpus",
+ "serde",
+ "serde_json",
+ "sov-metrics",
+ "sov-rollup-interface",
+]
+
+[[package]]
 name = "sov-test-utils"
 version = "0.3.0"
 dependencies = [
@@ -5558,6 +5641,7 @@ dependencies = [
  "sha2 0.10.8",
  "sov-attester-incentives",
  "sov-bank",
+ "sov-capabilities",
  "sov-chain-state",
  "sov-db",
  "sov-kernels",
@@ -5570,8 +5654,10 @@ dependencies = [
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-sequencer",
+ "sov-sequencer-json-client",
  "sov-sequencer-registry",
  "sov-state",
+ "sov-stf-runner",
  "sov-value-setter",
  "tempfile",
  "tokio",
@@ -5935,7 +6021,19 @@ dependencies = [
  "futures-util",
  "log",
  "tokio",
- "tungstenite",
+ "tungstenite 0.21.0",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6989540ced10490aaf14e6bad2e3d33728a2813310a0c71d1574304c49631cd"
+dependencies = [
+ "futures-util",
+ "log",
+ "tokio",
+ "tungstenite 0.23.0",
 ]
 
 [[package]]
@@ -6150,6 +6248,24 @@ dependencies = [
  "sha1",
  "thiserror",
  "url",
+ "utf-8",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e2e2ce1e47ed2994fd43b04c8f618008d4cabdd5ee34027cf14f9d918edd9c8"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "data-encoding",
+ "http 1.1.0",
+ "httparse",
+ "log",
+ "rand",
+ "sha1",
+ "thiserror",
  "utf-8",
 ]
 

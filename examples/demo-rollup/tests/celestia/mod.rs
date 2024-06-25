@@ -16,7 +16,7 @@ use sov_modules_api::Spec;
 use sov_modules_macros::config_value;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::DaSpec;
-use sov_sequencer::utils::SimpleClient;
+use sov_test_utils::ApiClient;
 
 fn generate_dynamic_random_vectors(len_range: Range<usize>) -> Vec<Vec<u8>> {
     let mut rng = rand::thread_rng();
@@ -81,10 +81,12 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
     );
     println!("Generate {} messages", messages.len());
 
-    let client = SimpleClient::new("localhost", 12345).await?;
+    let rpc_port = 12345;
+    let rest_port = 12346;
+    let client = ApiClient::new(rpc_port, rest_port).await?;
 
     let mut slot_subscription: Subscription<u64> = client
-        .ws()
+        .rpc
         .subscribe(
             "ledger_subscribeSlots",
             rpc_params![],
@@ -106,7 +108,12 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
                 None,
             ),
         );
-        client.send_transactions(&[tx]).await.unwrap();
+
+        client
+            .sequencer
+            .publish_batch_with_serialized_txs(&[tx])
+            .await
+            .unwrap();
         let slot = slot_subscription.next().await.unwrap().unwrap();
         println!("SLOT: {} received", slot);
         tokio::time::sleep(Duration::from_millis(1000)).await;

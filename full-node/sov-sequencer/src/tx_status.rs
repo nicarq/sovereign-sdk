@@ -10,6 +10,7 @@ use tracing::warn;
 
 /// A rollup transaction status.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
 pub enum TxStatus<DaTxId> {
     /// The sequencer has no knowledge of this transaction's status.
     Unknown,

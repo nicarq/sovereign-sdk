@@ -2,14 +2,9 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use borsh::BorshSerialize;
-use jsonrpsee::core::StringError;
-use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
-use serde::Serialize;
 use sov_modules_api::capabilities::Authenticator;
-use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{BlobData, RawTx};
-use sov_rollup_interface::common::HexHash;
+use sov_rollup_interface::common::{HexHash, HexString};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
 use sov_rollup_interface::services::da::DaService;
@@ -17,8 +12,6 @@ use tokio::sync::Mutex;
 
 use super::tx_status::{TxStatus, TxStatusNotifier};
 use super::{AcceptTxResponse, SubmittedBatchInfo};
-
-const SEQUENCER_RPC_ERROR: &str = "SEQUENCER_RPC_ERROR";
 
 /// Single data structure that manages mempool and batch producing.
 pub struct Sequencer<B: BatchBuilder, Da: DaService, Auth: Authenticator>(Arc<Inner<B, Da, Auth>>);
@@ -65,19 +58,15 @@ where
 
         let mut accept_tx_results = vec![];
         for tx in txs {
-            let result = batch_builder
-                .accept_tx(tx.clone())
-                .await
-                .map(|tx_hash| {
-                    self.0
-                        .tx_status_notifier
-                        .notify(tx_hash, TxStatus::Submitted);
-                    AcceptTxResponse {
-                        tx,
-                        tx_hash: HexHash::new(tx_hash),
-                    }
-                })
-                .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR));
+            let result = batch_builder.accept_tx(tx.clone()).await.map(|tx_hash| {
+                self.0
+                    .tx_status_notifier
+                    .notify(tx_hash, TxStatus::Submitted);
+                AcceptTxResponse {
+                    tx,
+                    tx_hash: HexHash::new(tx_hash),
+                }
+            });
             accept_tx_results.push(result);
         }
 
@@ -160,116 +149,10 @@ where
     }
 }
 
-mod jsonrpc {
-    use super::*;
-
-    #[derive(serde::Serialize, serde::Deserialize)]
-    pub struct SubmitTransaction {
-        pub body: Vec<u8>,
-    }
-
-    impl<B, Da, Auth> Sequencer<B, Da, Auth>
-    where
-        B: BatchBuilder + Send + Sync + 'static,
-        Da: DaService,
-        Da::TransactionId: Clone + Send + Sync + serde::Serialize,
-        Auth: Authenticator + Send + Sync + 'static,
-    {
-        /// Returns the [`jsonrpsee::RpcModule`] for the sequencer-related RPC
-        /// methods.
-        pub fn rpc(&self) -> RpcModule<Self> {
-            let mut rpc = RpcModule::new(self.clone());
-            Self::register_txs_rpc_methods(&mut rpc)
-                .expect("Failed to register sequencer RPC methods");
-            rpc
-        }
-
-        fn register_txs_rpc_methods(rpc: &mut RpcModule<Self>) -> anyhow::Result<()> {
-            rpc.register_async_method(
-                "sequencer_publishBatch",
-                |params, batch_builder| async move {
-                    let mut params_iter = params.sequence();
-                    let mut txs = vec![];
-                    while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
-                        let authed_tx = Auth::encode(tx.clone())
-                            .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
-                        txs.push(authed_tx.data);
-                    }
-                    let submitted_batch_info = batch_builder
-                        .submit_batch(txs)
-                        .await
-                        .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
-
-                    Ok::<SubmittedBatchInfo, ErrorObjectOwned>(submitted_batch_info)
-                },
-            )?;
-            rpc.register_async_method("sequencer_acceptTx", |params, sequencer| async move {
-                let tx = params.one::<SubmitTransaction>()?.body;
-                let authed_tx = Auth::encode(tx.clone())
-                    .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
-
-                sequencer
-                    .accept_tx(authed_tx.data)
-                    .await
-                    .map(|tx_hash| AcceptTxResponse {
-                        tx,
-                        tx_hash: HexHash::new(tx_hash),
-                    })
-                    .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))
-            })?;
-
-            rpc.register_async_method("sequencer_txStatus", |params, sequencer| async move {
-                let tx_hash: HexHash = params.one()?;
-
-                let status = sequencer
-                    .tx_status(&tx_hash.0)
-                    .await
-                    .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
-                Ok::<_, ErrorObjectOwned>(status)
-            })?;
-            rpc.register_subscription(
-                "sequencer_subscribeToTxStatusUpdates",
-                "sequencer_newTxStatus",
-                "sequencer_unsubscribeToTxStatusUpdates",
-                |params, pending, sequencer| async move {
-                    Self::handle_tx_status_update_subscription(&sequencer, params, pending).await
-                },
-            )?;
-
-            Ok(())
-        }
-
-        async fn handle_tx_status_update_subscription(
-            &self,
-            params: jsonrpsee::types::Params<'_>,
-            sink: PendingSubscriptionSink,
-        ) -> Result<(), StringError> {
-            let tx_hash: HexHash = params.one()?;
-            let mut receiver = self.0.tx_status_notifier.clone().subscribe(tx_hash.0);
-
-            let subscription = sink.accept().await?;
-
-            let initial_status = self
-                .tx_status(&tx_hash.0)
-                .await?
-                .unwrap_or(TxStatus::Unknown);
-            subscription
-                .send(SubscriptionMessage::from_json(&initial_status)?)
-                .await?;
-
-            while let Ok(new_status) = receiver.recv.recv().await {
-                let notification = SubscriptionMessage::from_json(&new_status)?;
-                subscription.send(notification).await?;
-            }
-
-            Ok(())
-        }
-    }
-}
-
 mod axum_router {
     use std::sync::OnceLock;
 
+    use axum::extract::ws::WebSocket;
     use axum::extract::{ws, State};
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
@@ -277,7 +160,7 @@ mod axum_router {
     use serde_with::base64::Base64;
     use serde_with::serde_as;
     use sov_rest_utils::{
-        errors, json_obj, preconfigured_router_layers, ApiResult, ErrorObject, JsonObject, Path,
+        errors, json_obj, preconfigured_router_layers, ApiResult, ErrorObject, Path,
     };
     use tracing::debug;
     use utoipa_swagger_ui::{Config, SwaggerUi};
@@ -306,15 +189,20 @@ mod axum_router {
     }
 
     #[derive(serde::Serialize, serde::Deserialize)]
+    pub struct AcceptTx {
+        pub body: Base64Blob,
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
     pub struct SubmitBatch {
         pub transactions: Vec<Base64Blob>,
     }
 
-    fn tx_attributes<DaTxId: Serialize>(hash: HexHash, status: TxStatus<DaTxId>) -> JsonObject {
-        json_obj!({
-            "id": hash.to_string(),
-            "status": status,
-        })
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct TxInfo<DaTxId> {
+        id: HexString<TxHash>,
+        #[serde(flatten)]
+        status: TxStatus<DaTxId>,
     }
 
     // Web server and Axum-related methods.
@@ -344,19 +232,45 @@ mod axum_router {
             )
         }
 
+        async fn send_initial_status_to_ws(
+            &self,
+            tx_hash: TxHash,
+            socket: &mut WebSocket,
+        ) -> anyhow::Result<()> {
+            // Send a messge with the initial status of the transaction,
+            // without waiting for it to change for the first time.
+            let initial_status = self.tx_status(&tx_hash).await?.unwrap_or(TxStatus::Unknown);
+            let ws_msg = ws::Message::Text(serde_json::to_string(&TxInfo {
+                id: HexString(tx_hash),
+                status: initial_status,
+            })?);
+            dbg!(&ws_msg);
+            socket.send(ws_msg).await?;
+
+            Ok(())
+        }
+
         async fn axum_get_tx_ws(
             sequencer: State<Self>,
-            tx_hash: Path<HexHash>,
+            tx_hash: Path<HexString<TxHash>>,
             ws: ws::WebSocketUpgrade,
         ) -> impl IntoResponse {
             let notifier = sequencer.0 .0.tx_status_notifier.clone();
+            let mut tx_status_recv = notifier.subscribe(tx_hash.0 .0);
 
             ws.on_upgrade(move |mut socket| async move {
-                let mut tx_status_recv = notifier.subscribe(tx_hash.0 .0);
+                sequencer
+                    .send_initial_status_to_ws(tx_hash.0 .0, &mut socket)
+                    .await
+                    .ok();
 
                 while let Ok(tx_status) = tx_status_recv.recv.recv().await {
-                    let resource_obj = tx_attributes(tx_hash.0, tx_status);
+                    let resource_obj = TxInfo {
+                        id: HexString(tx_hash.0 .0),
+                        status: tx_status,
+                    };
                     let ws_msg = ws::Message::Text(serde_json::to_string(&resource_obj).unwrap());
+                    dbg!(&ws_msg);
 
                     if let Err(error) = socket.send(ws_msg).await {
                         debug!(?error, "WebSocket connection closed (or errored)");
@@ -368,12 +282,16 @@ mod axum_router {
 
         async fn axum_get_tx(
             sequencer: State<Self>,
-            tx_hash: Path<HexHash>,
-        ) -> ApiResult<JsonObject> {
+            tx_hash: Path<HexString<TxHash>>,
+        ) -> ApiResult<TxInfo<Da::TransactionId>> {
             let tx_status = sequencer.0 .0.tx_status_notifier.get_cached(&tx_hash.0 .0);
 
             if let Some(tx_status) = tx_status {
-                Ok(tx_attributes(tx_hash.0, tx_status).into())
+                Ok(TxInfo {
+                    id: HexString(tx_hash.0 .0),
+                    status: tx_status,
+                }
+                .into())
             } else {
                 Err(errors::not_found_404("Transaction", tx_hash.0))
             }
@@ -381,11 +299,13 @@ mod axum_router {
 
         async fn axum_accept_tx(
             sequencer: State<Self>,
-            tx: Json<Base64Blob>,
-        ) -> ApiResult<JsonObject> {
-            let tx = tx.0.blob;
+            tx: Json<AcceptTx>,
+        ) -> ApiResult<TxInfo<Da::TransactionId>> {
+            let tx = tx.0.body.blob;
+            let authed_tx = Auth::encode(tx)
+                .map_err(|e| errors::bad_request_400("Failed to encode transaction", e))?;
 
-            let tx_hash = match sequencer.accept_tx(tx.clone()).await {
+            let tx_hash = match sequencer.accept_tx(authed_tx.data).await {
                 Ok(tx_hash) => tx_hash,
                 Err(err) => {
                     return Err(ErrorObject {
@@ -399,38 +319,36 @@ mod axum_router {
                 }
             };
 
-            Ok(tx_attributes(
-                HexHash::new(tx_hash),
-                TxStatus::<Da::TransactionId>::Submitted,
-            )
+            Ok(TxInfo {
+                id: HexString(tx_hash),
+                status: TxStatus::Submitted,
+            }
             .into())
         }
 
         async fn axum_submit_batch(
             sequencer: State<Self>,
             batch: Json<SubmitBatch>,
-        ) -> ApiResult<JsonObject> {
-            let batch = batch.0.transactions.into_iter().map(|tx| tx.blob).collect();
+        ) -> ApiResult<SubmittedBatchInfo> {
+            let batch = batch
+                .0
+                .transactions
+                .into_iter()
+                .map(|tx| Ok(Auth::encode(tx.blob)?.data))
+                .collect::<anyhow::Result<Vec<_>>>()
+                .map_err(|e| errors::bad_request_400("Failed to encode transaction(s)", e))?;
 
-            let submitted_batch_info = match sequencer.submit_batch(batch).await {
-                Ok(info) => info,
-                Err(err) => {
-                    return Err(ErrorObject {
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                        title: "Failed to submit batch".to_string(),
-                        details: json_obj!({
-                            "message": err.to_string(),
-                        }),
-                    }
-                    .into_response());
+            match sequencer.submit_batch(batch).await {
+                Ok(info) => Ok(info.into()),
+                Err(err) => Err(ErrorObject {
+                    status: StatusCode::CONFLICT,
+                    title: "Failed to submit batch".to_string(),
+                    details: json_obj!({
+                        "message": err.to_string(),
+                    }),
                 }
-            };
-
-            Ok(json_obj!({
-                "daHeight": submitted_batch_info.da_height,
-                "numTxs": submitted_batch_info.num_txs,
-            })
-            .into())
+                .into_response()),
+            }
         }
     }
 }
@@ -438,25 +356,30 @@ mod axum_router {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
+    use base64::prelude::*;
     use borsh::BorshDeserialize;
-    use jsonrpsee::MethodsError;
-    use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
+    use sov_mock_da::{MockAddress, MockDaService};
     use sov_rollup_interface::da::BlobReaderTrait;
     use sov_rollup_interface::services::batch_builder::TxWithHash;
-    use sov_test_utils::auth::TestAuth;
-    use sov_test_utils::TestSpec;
+    use sov_sequencer_json_client::types;
+    use sov_test_utils::sequencer::TestSequencerSetup;
 
     use self::axum_router::openapi_spec;
     use super::*;
 
-    fn sequencer_rpc(
+    async fn new_sequencer(
         batch_builder: MockBatchBuilder,
-        da_service: MockDaService,
-    ) -> RpcModule<Sequencer<MockBatchBuilder, MockDaService, TestAuth<TestSpec, MockDaSpec>>> {
-        Sequencer::new(batch_builder, da_service).rpc()
+    ) -> TestSequencerSetup<MockBatchBuilder> {
+        let dir = tempfile::tempdir().unwrap();
+        let da_service = MockDaService::new(MockAddress::default());
+
+        TestSequencerSetup::new(dir, da_service, batch_builder)
+            .await
+            .unwrap()
     }
 
     /// BatchBuilder used in tests.
+    #[derive(Default)]
     pub struct MockBatchBuilder {
         /// Mempool with transactions.
         pub mempool: Vec<Vec<u8>>,
@@ -497,19 +420,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_on_empty_mempool() {
-        let batch_builder = MockBatchBuilder { mempool: vec![] };
-        let da_service = MockDaService::new(MockAddress::default());
-        let rpc = sequencer_rpc(batch_builder, da_service);
+        let sequencer = new_sequencer(MockBatchBuilder::default()).await;
+        let client = sequencer.client();
 
-        let arg: &[u8] = &[];
-        let result: Result<String, MethodsError> = rpc.call("sequencer_publishBatch", arg).await;
+        let error_response = client
+            .publish_batch(&types::PublishBatchBody {
+                transactions: vec![],
+            })
+            .await
+            .unwrap_err();
 
-        assert!(result.is_err());
-        let error = result.err().unwrap();
-        assert_eq!(
-            "ErrorObject { code: ServerError(-32001), message: \"SEQUENCER_RPC_ERROR\", data: Some(RawValue(\"Mock mempool is empty\")) }",
-            error.to_string()
-        );
+        dbg!(&error_response);
+        assert_eq!(error_response.status().map(|s| s.as_u16()), Some(409));
     }
 
     #[tokio::test]
@@ -520,13 +442,17 @@ mod tests {
         let batch_builder = MockBatchBuilder {
             mempool: vec![tx1.clone(), tx2.clone()],
         };
-        let da_service = MockDaService::new(MockAddress::default());
-        let rpc = sequencer_rpc(batch_builder, da_service.clone());
+        let sequencer = new_sequencer(batch_builder).await;
 
-        let arg: &[u8] = &[];
-        let _: serde_json::Value = rpc.call("sequencer_publishBatch", arg).await.unwrap();
+        sequencer
+            .client()
+            .publish_batch(&types::PublishBatchBody {
+                transactions: vec![],
+            })
+            .await
+            .unwrap();
 
-        let mut submitted_block = da_service.get_block_at(1).await.unwrap();
+        let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
         let block_data = submitted_block.batch_blobs[0].full_data();
 
         let proof_or_batch = BlobData::try_from_slice(block_data).unwrap();
@@ -546,17 +472,31 @@ mod tests {
         let batch_builder = MockBatchBuilder { mempool: vec![] };
         let da_service = MockDaService::new(MockAddress::default());
 
-        let rpc = sequencer_rpc(batch_builder, da_service.clone());
+        let sequencer = TestSequencerSetup::new(
+            tempfile::tempdir().unwrap(),
+            da_service.clone(),
+            batch_builder,
+        )
+        .await
+        .unwrap();
+
+        let client = sequencer.client();
 
         let tx: Vec<u8> = vec![1, 2, 3, 4, 5];
 
-        let request = super::jsonrpc::SubmitTransaction { body: tx.clone() };
-        rpc.call::<_, AcceptTxResponse>("sequencer_acceptTx", [request])
+        client
+            .accept_tx(&types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
             .await
             .unwrap();
 
-        let arg: &[u8] = &[];
-        let _: serde_json::Value = rpc.call("sequencer_publishBatch", arg).await.unwrap();
+        client
+            .publish_batch(&types::PublishBatchBody {
+                transactions: vec![],
+            })
+            .await
+            .unwrap();
 
         let mut submitted_block = da_service.get_block_at(1).await.unwrap();
         let block_data = submitted_block.batch_blobs[0].full_data();
