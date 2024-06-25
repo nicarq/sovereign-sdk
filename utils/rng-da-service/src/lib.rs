@@ -12,7 +12,7 @@ use sov_mock_da::{
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    Batch, BlobData, CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, RawTx, Spec,
+    BlobData, CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, RawTx, Spec,
 };
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
@@ -157,7 +157,7 @@ impl DaService for RngDaService {
             )
         };
 
-        let blob = BlobData::Batch(Batch { txs }).try_to_vec().unwrap();
+        let blob = BlobData::new_batch(txs).try_to_vec().unwrap();
 
         let address = MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS);
         let blob = MockBlob::new(blob, address, [0u8; 32]);

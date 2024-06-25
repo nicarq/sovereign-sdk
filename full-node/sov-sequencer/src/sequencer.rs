@@ -8,7 +8,7 @@ use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use serde::Serialize;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{Batch, BlobData, RawTx};
+use sov_modules_api::{BlobData, RawTx};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
@@ -102,7 +102,7 @@ where
             tx_hashes.push(tx.hash);
         }
 
-        let batch = BlobData::Batch(Batch { txs });
+        let batch = BlobData::new_batch(txs);
         let serialized_batch = batch.try_to_vec()?;
 
         let fee = match self.0.da_service.estimate_fee(serialized_batch.len()).await {

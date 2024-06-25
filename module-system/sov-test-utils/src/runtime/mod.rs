@@ -16,8 +16,8 @@ use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    Batch, BlobData, CryptoSpec, DaSpec, EncodeCall, Genesis, Module, PrivateKey, RawTx, SlotData,
-    Spec, StateCheckpoint, WorkingSet,
+    BlobData, CryptoSpec, DaSpec, EncodeCall, Genesis, Module, PrivateKey, RawTx, SlotData, Spec,
+    StateCheckpoint, WorkingSet,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
@@ -422,7 +422,7 @@ pub fn run_test_with_setup_fn<RT, S, M>(
             signed_txs
         };
 
-        let batch = BlobData::Batch(Batch { txs });
+        let batch = BlobData::new_batch(txs);
         let blob = batch.try_to_vec().unwrap();
         let mut blob = MockBlob::new_with_hash(blob, sequencer_da_address);
 

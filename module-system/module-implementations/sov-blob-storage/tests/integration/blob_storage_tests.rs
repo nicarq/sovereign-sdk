@@ -2,7 +2,7 @@ use sov_blob_storage::BlobStorage;
 use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{
-    Batch, BlobData, BlobDataWithId, KernelModule, KernelWorkingSet, RawTx, StateCheckpoint,
+    BlobData, BlobDataWithId, KernelModule, KernelWorkingSet, RawTx, StateCheckpoint,
 };
 use sov_prover_storage_manager::new_orphan_storage;
 
@@ -79,7 +79,7 @@ fn store_and_retrieve_standard() {
         }];
 
         let batch = BlobDataWithId {
-            data: BlobData::Batch(Batch { txs }),
+            data: BlobData::new_batch(txs),
             id: [i; 32],
             from_registered_sequencer: true,
         };

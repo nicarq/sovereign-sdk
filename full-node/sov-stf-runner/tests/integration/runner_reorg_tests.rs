@@ -7,7 +7,7 @@ use sov_mock_da::{
     PlannedFork,
 };
 use sov_mock_zkvm::MockZkVerifier;
-use sov_modules_api::{Batch, BlobData, RawTx, StateTransitionFunction};
+use sov_modules_api::{BlobData, RawTx, StateTransitionFunction};
 use sov_prover_storage_manager::{ProverStorageManager, SimpleStorageManager};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -251,9 +251,7 @@ fn get_result_from_blocks(
 }
 
 fn batch(data: Vec<u8>) -> Vec<u8> {
-    BlobData::Batch(Batch {
-        txs: vec![RawTx { data }],
-    })
-    .try_to_vec()
-    .unwrap()
+    BlobData::new_batch(vec![RawTx { data }])
+        .try_to_vec()
+        .unwrap()
 }

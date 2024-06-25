@@ -32,6 +32,18 @@ pub enum BlobData {
     Proof(Vec<u8>),
 }
 
+impl BlobData {
+    /// Batch variant constructor.
+    pub fn new_batch(txs: Vec<RawTx>) -> BlobData {
+        BlobData::Batch(Batch { txs })
+    }
+
+    /// Proof variant constructor.
+    pub fn new_proof(proof: Vec<u8>) -> BlobData {
+        BlobData::Proof(proof)
+    }
+}
+
 /// Contains blob data obtained from the DA blob together with the ID of the blob.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct BlobDataWithId {

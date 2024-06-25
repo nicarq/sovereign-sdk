@@ -1,4 +1,5 @@
-- `ProofManager` saves zk-proofs received from the `STF` in the db. 
+- #851 Add BlobData constructors. 
+- #842 `ProofManager` saves zk-proofs received from the `STF` in the db. 
 - #839 Refine "ProofProcessor" capability.
 - 835 adds a new `MeteredHasher` struct that charges gas for every hash computation. This structure is meant to be used in the module system to charge gas when hashing data.
 - #828 add `ProofProcessor` capability.
