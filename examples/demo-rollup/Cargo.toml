@@ -32,8 +32,10 @@ risc0 = { path = "./provers/risc0" }
 borsh = { workspace = true, features = ["bytes"] }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
+axum = { workspace = true }
 backon = { workspace = true }
-jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+jsonrpsee = { workspace = true, features = ["http-client", "server", "ws-client"] }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true, optional = true }
@@ -46,11 +48,13 @@ sov-ethereum = { path = "../../full-node/sov-ethereum", features = ["local"] }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }
 sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"] }
-sov-test-utils = { path = "../../module-system/sov-test-utils", optional = true } # Only needed for nft script
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 sov-cli = { path = "../../module-system/sov-cli" }
 clap = { workspace = true }
 secp256k1 = { workspace = true }
+
+# Only needed for NFT script.
+sov-test-utils = { path = "../../module-system/sov-test-utils", optional = true }
 
 [dev-dependencies]
 sov-rng-da-service = { path = "../../utils/rng-da-service" }

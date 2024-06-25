@@ -2,8 +2,8 @@ use borsh::BorshSerialize;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
 use jsonrpsee::core::client::{Subscription, SubscriptionClientT};
-use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::rpc_params;
+use jsonrpsee::ws_client::WsClient;
 use serde_json::{from_value, Value};
 use sov_bank::event::Event as BankEvent;
 use sov_bank::utils::TokenHolder;
@@ -22,9 +22,8 @@ use sov_rollup_interface::rpc::{
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
 };
-use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
-use sov_test_utils::{TestPrivateKey, TestSpec, TestTxReceiptContents};
+use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec, TestTxReceiptContents};
 
 use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys, start_rollup};
 
@@ -73,11 +72,13 @@ async fn bank_tx_tests(
     test_case: TestCase,
     rollup_prover_config: RollupProverConfig,
 ) -> anyhow::Result<()> {
-    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
+    let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async move {
         start_rollup(
-            port_tx,
+            rpc_port_tx,
+            rest_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
@@ -93,13 +94,15 @@ async fn bank_tx_tests(
         )
         .await;
     });
-    let port = port_rx.await.unwrap().port();
-    let client = SimpleClient::new("localhost", port).await?;
+
+    let rpc_port = rpc_port_rx.await.unwrap().port();
+    let rest_port = rest_port_rx.await.unwrap().port();
+    let client = ApiClient::new(rpc_port, rest_port).await?;
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = rollup_task => err?,
-        res = send_test_bank_txs(test_case, client) => res?,
+        res = send_test_bank_txs(test_case, &client) => res?,
     };
     Ok(())
 }
@@ -179,11 +182,11 @@ fn build_multiple_transfers(
 }
 
 async fn send_transactions_and_wait_slot(
-    client: &SimpleClient,
+    client: &ApiClient,
     transactions: &[Transaction<TestSpec>],
 ) -> anyhow::Result<u64> {
     let mut slot_subscription: Subscription<u64> = client
-        .ws()
+        .rpc
         .subscribe(
             "ledger_subscribeSlots",
             rpc_params![],
@@ -191,7 +194,10 @@ async fn send_transactions_and_wait_slot(
         )
         .await?;
 
-    client.send_transactions(transactions).await?;
+    client
+        .sequencer
+        .publish_batch_with_serialized_txs(transactions)
+        .await?;
 
     let slot_number = slot_subscription
         .next()
@@ -203,10 +209,10 @@ async fn send_transactions_and_wait_slot(
 }
 
 async fn subscribe_proof(
-    client: &SimpleClient,
-) -> Result<Subscription<AggregatedProofResponse>, anyhow::Error> {
+    client: &ApiClient,
+) -> anyhow::Result<Subscription<AggregatedProofResponse>> {
     Ok(client
-        .ws()
+        .rpc
         .subscribe(
             "ledger_subscribeAggregatedProof",
             rpc_params![],
@@ -216,14 +222,14 @@ async fn subscribe_proof(
 }
 
 async fn assert_balance(
-    client: &SimpleClient,
+    client: &ApiClient,
     assert_amount: u64,
     token_id: TokenId,
     user_address: <TestSpec as Spec>::Address,
     version: Option<u64>,
 ) -> Result<(), anyhow::Error> {
     let balance_response = sov_bank::BankRpcClient::<TestSpec>::balance_of(
-        client.http(),
+        &client.rpc,
         version,
         user_address,
         token_id,
@@ -236,13 +242,13 @@ async fn assert_balance(
 async fn assert_aggregated_proof(
     initial_slot: u64,
     final_slot: u64,
-    client: &SimpleClient,
-) -> Result<(), anyhow::Error> {
+    client: &ApiClient,
+) -> anyhow::Result<()> {
     let proof_resp = RpcClient::<
         SlotResponse<u32, TestTxReceiptContents>,
         BatchResponse<u32, TestTxReceiptContents>,
         TxResponse<TestTxReceiptContents>,
-    >::get_aggregated_proof(client.http())
+    >::get_aggregated_proof(&client.rpc)
     .await?
     .expect("Proof missing in the ledger db");
 
@@ -258,7 +264,7 @@ async fn assert_aggregated_proof(
         SlotResponse<u32, TestTxReceiptContents>,
         BatchResponse<u32, TestTxReceiptContents>,
         TxResponse<TestTxReceiptContents>,
-    >::get_aggregated_proof_info(client.http())
+    >::get_aggregated_proof_info(&client.rpc)
     .await?
     .expect("Proof missing in the ledger db");
 
@@ -278,13 +284,13 @@ fn assert_aggregated_proof_public_data(
 }
 
 async fn assert_slot_finality(
-    client: &SimpleClient,
+    client: &ApiClient,
     slot_number: u64,
     expected_finality: FinalityStatus,
 ) {
     let slots: Vec<Option<SlotResponse<(), ()>>> =
         RpcClient::<SlotResponse<(), ()>, BatchResponse<(), ()>, TxResponse<()>>::get_slots(
-            client.http(),
+            &client.rpc,
             vec![SlotIdentifier::Number(slot_number)],
             QueryMode::Compact,
         )
@@ -303,12 +309,12 @@ async fn assert_slot_finality(
 }
 
 async fn assert_bank_event<S: Spec>(
-    client: &SimpleClient,
+    client: &ApiClient,
     event_number: u64,
     expected_event: BankEvent<S>,
 ) -> Result<(), anyhow::Error> {
-    let response_event = <HttpClient as RpcClient<String, String, String>>::get_event_by_number(
-        client.http(),
+    let response_event = <WsClient as RpcClient<String, String, String>>::get_event_by_number(
+        &client.rpc,
         event_number,
     )
     .await?
@@ -328,10 +334,7 @@ async fn assert_bank_event<S: Spec>(
     Ok(())
 }
 
-async fn send_test_bank_txs(
-    test_case: TestCase,
-    client: SimpleClient,
-) -> Result<(), anyhow::Error> {
+async fn send_test_bank_txs(test_case: TestCase, client: &ApiClient) -> Result<(), anyhow::Error> {
     let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
     let user_address: <TestSpec as Spec>::Address = key_and_address.address;
@@ -342,55 +345,55 @@ async fn send_test_bank_txs(
     let recipient_address: <TestSpec as Spec>::Address = recipient_key.to_address();
 
     let token_id_response = sov_bank::BankRpcClient::<TestSpec>::token_id(
-        client.http(),
+        &client.rpc,
         TOKEN_NAME.to_owned(),
         user_address,
         TOKEN_SALT,
     )
     .await?;
 
-    let mut aggregated_proof_subscription = subscribe_proof(&client).await?;
+    let mut aggregated_proof_subscription = subscribe_proof(client).await?;
     assert_eq!(token_id, token_id_response);
 
     // create token. height 2
     let tx = build_create_token_tx(&key, 0);
-    let slot_number = send_transactions_and_wait_slot(&client, &[tx]).await?;
+    let slot_number = send_transactions_and_wait_slot(client, &[tx]).await?;
     assert_eq!(1, slot_number);
-    assert_slot_finality(&client, slot_number, test_case.expected_head_finality()).await;
-    assert_balance(&client, 1000, token_id, user_address, None).await?;
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    assert_balance(client, 1000, token_id, user_address, None).await?;
 
     // transfer 100 tokens. assert sender balance. height 3
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
-    let slot_number = send_transactions_and_wait_slot(&client, &[tx]).await?;
+    let slot_number = send_transactions_and_wait_slot(client, &[tx]).await?;
     assert_eq!(2, slot_number);
-    assert_slot_finality(&client, slot_number, test_case.expected_head_finality()).await;
-    assert_balance(&client, 900, token_id, user_address, None).await?;
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    assert_balance(client, 900, token_id, user_address, None).await?;
 
     // transfer 200 tokens. assert sender balance. height 4
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
-    let slot_number = send_transactions_and_wait_slot(&client, &[tx]).await?;
+    let slot_number = send_transactions_and_wait_slot(client, &[tx]).await?;
     assert_eq!(3, slot_number);
-    assert_slot_finality(&client, slot_number, test_case.expected_head_finality()).await;
-    assert_balance(&client, 700, token_id, user_address, None).await?;
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    assert_balance(client, 700, token_id, user_address, None).await?;
 
     // assert sender balance at height 2.
-    assert_balance(&client, 1000, token_id, user_address, Some(2)).await?;
+    assert_balance(client, 1000, token_id, user_address, Some(2)).await?;
 
     // assert sender balance at height 3.
-    assert_balance(&client, 900, token_id, user_address, Some(3)).await?;
+    assert_balance(client, 900, token_id, user_address, Some(3)).await?;
 
     // assert sender balance at height 4.
-    assert_balance(&client, 700, token_id, user_address, Some(4)).await?;
+    assert_balance(client, 700, token_id, user_address, Some(4)).await?;
 
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();
     let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
-    let slot_number = send_transactions_and_wait_slot(&client, &txs).await?;
+    let slot_number = send_transactions_and_wait_slot(client, &txs).await?;
     assert_eq!(4, slot_number);
-    assert_slot_finality(&client, slot_number, test_case.expected_head_finality()).await;
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
 
     assert_bank_event::<TestSpec>(
-        &client,
+        client,
         0,
         BankEvent::TokenCreated {
             token_name: TOKEN_NAME.to_owned(),
@@ -404,7 +407,7 @@ async fn send_test_bank_txs(
     )
     .await?;
     assert_bank_event::<TestSpec>(
-        &client,
+        client,
         1,
         BankEvent::TokenTransferred {
             from: TokenHolder::User(user_address),
@@ -417,7 +420,7 @@ async fn send_test_bank_txs(
     )
     .await?;
     assert_bank_event::<TestSpec>(
-        &client,
+        client,
         2,
         BankEvent::TokenTransferred {
             from: TokenHolder::User(user_address),
@@ -434,11 +437,11 @@ async fn send_test_bank_txs(
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
         let pub_data = aggregated_proof_resp.proof.public_data();
         assert_aggregated_proof_public_data(1, 1, pub_data);
-        assert_aggregated_proof(1, 1, &client).await?;
+        assert_aggregated_proof(1, 1, client).await?;
     }
 
     if let Some(finalized_slot_number) = test_case.get_latest_finalized_slot_after(slot_number) {
-        assert_slot_finality(&client, finalized_slot_number, FinalityStatus::Finalized).await;
+        assert_slot_finality(client, finalized_slot_number, FinalityStatus::Finalized).await;
     }
 
     Ok(())

@@ -9,11 +9,9 @@ use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
 use ethers_signers::Wallet;
 use jsonrpsee::core::client::{ClientT, Subscription, SubscriptionClientT};
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::Bytes;
-use sov_sequencer::utils::SimpleClient;
-use sov_test_utils::{SimpleStorageContract, TestSpec};
+use sov_test_utils::{ApiClient, SimpleStorageContract, TestSpec};
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
 const GAS: u64 = 900000u64;
@@ -23,8 +21,7 @@ pub(crate) struct TestClient {
     pub(crate) from_addr: Address,
     contract: SimpleStorageContract,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-    http_client: HttpClient,
-    simple_client: SimpleClient,
+    node_client: ApiClient,
 }
 
 impl TestClient {
@@ -35,16 +32,15 @@ impl TestClient {
         from_addr: Address,
         contract: SimpleStorageContract,
         rpc_addr: std::net::SocketAddr,
+        rest_addr: std::net::SocketAddr,
     ) -> Self {
-        let host = format!("http://localhost:{}", rpc_addr.port());
-
-        let provider = Provider::try_from(&host).unwrap();
+        let provider =
+            Provider::try_from(&format!("http://localhost:{}", rpc_addr.port())).unwrap();
         let client = SignerMiddleware::new_with_provider_chain(provider, key)
             .await
             .unwrap();
 
-        let http_client = HttpClientBuilder::default().build(host).unwrap();
-        let simple_client = SimpleClient::new("localhost", rpc_addr.port())
+        let node_client = ApiClient::new(rpc_addr.port(), rest_addr.port())
             .await
             .unwrap();
 
@@ -53,14 +49,14 @@ impl TestClient {
             from_addr,
             contract,
             client,
-            http_client,
-            simple_client,
+            node_client,
         }
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
         let _: String = self
-            .http_client
+            .node_client
+            .rpc
             .request("eth_publishBatch", rpc_params![])
             .await
             .unwrap();
@@ -266,7 +262,8 @@ impl TestClient {
     }
 
     pub(crate) async fn eth_accounts(&self) -> Vec<Address> {
-        self.http_client
+        self.node_client
+            .rpc
             .request("eth_accounts", rpc_params![])
             .await
             .unwrap()
@@ -285,7 +282,8 @@ impl TestClient {
 
     pub(crate) async fn eth_chain_id(&self) -> u64 {
         let chain_id: ethereum_types::U64 = self
-            .http_client
+            .node_client
+            .rpc
             .request("eth_chainId", rpc_params![])
             .await
             .unwrap();
@@ -294,7 +292,8 @@ impl TestClient {
     }
 
     pub(crate) async fn eth_get_balance(&self, address: Address) -> ethereum_types::U256 {
-        self.http_client
+        self.node_client
+            .rpc
             .request("eth_getBalance", rpc_params![address, "latest"])
             .await
             .unwrap()
@@ -305,14 +304,16 @@ impl TestClient {
         address: Address,
         index: ethereum_types::U256,
     ) -> ethereum_types::U256 {
-        self.http_client
+        self.node_client
+            .rpc
             .request("eth_getStorageAt", rpc_params![address, index, "latest"])
             .await
             .unwrap()
     }
 
     pub(crate) async fn eth_get_code(&self, address: Address) -> Bytes {
-        self.http_client
+        self.node_client
+            .rpc
             .request("eth_getCode", rpc_params![address, "latest"])
             .await
             .unwrap()
@@ -320,7 +321,8 @@ impl TestClient {
 
     pub(crate) async fn eth_get_transaction_count(&self, address: Address) -> u64 {
         let count: ethereum_types::U64 = self
-            .http_client
+            .node_client
+            .rpc
             .request("eth_getTransactionCount", rpc_params![address, "latest"])
             .await
             .unwrap();
@@ -329,7 +331,8 @@ impl TestClient {
     }
 
     pub(crate) async fn eth_gas_price(&self) -> ethereum_types::U256 {
-        self.http_client
+        self.node_client
+            .rpc
             .request("eth_gasPrice", rpc_params![])
             .await
             .unwrap()
@@ -339,7 +342,8 @@ impl TestClient {
         &self,
         block_number: Option<String>,
     ) -> Block<TxHash> {
-        self.http_client
+        self.node_client
+            .rpc
             .request("eth_getBlockByNumber", rpc_params![block_number, false])
             .await
             .unwrap()
@@ -349,7 +353,8 @@ impl TestClient {
         &self,
         block_number: Option<String>,
     ) -> Block<Transaction> {
-        self.http_client
+        self.node_client
+            .rpc
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
             .await
             .unwrap()
@@ -360,7 +365,8 @@ impl TestClient {
         tx: TypedTransaction,
         block_number: Option<String>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
-        self.http_client
+        self.node_client
+            .rpc
             .request("eth_call", rpc_params![tx, block_number])
             .await
             .map_err(|e| e.into())
@@ -372,7 +378,8 @@ impl TestClient {
         block_number: Option<String>,
     ) -> u64 {
         let gas: ethereum_types::U64 = self
-            .http_client
+            .node_client
+            .rpc
             .request("eth_estimateGas", rpc_params![tx, block_number])
             .await
             .unwrap();
@@ -381,8 +388,8 @@ impl TestClient {
     }
 
     pub(crate) async fn subscribe_for_slots(&self) -> Subscription<u64> {
-        self.simple_client
-            .ws()
+        self.node_client
+            .rpc
             .subscribe(
                 "ledger_subscribeSlots",
                 rpc_params![],
@@ -397,8 +404,8 @@ impl TestClient {
         transactions: &[sov_modules_api::transaction::Transaction<TestSpec>],
     ) -> Result<(), anyhow::Error> {
         let mut slot_subscription: Subscription<u64> = self
-            .simple_client
-            .ws()
+            .node_client
+            .rpc
             .subscribe(
                 "ledger_subscribeSlots",
                 rpc_params![],
@@ -406,7 +413,10 @@ impl TestClient {
             )
             .await?;
 
-        self.simple_client.send_transactions(transactions).await?;
+        self.node_client
+            .sequencer
+            .publish_batch_with_serialized_txs(transactions)
+            .await?;
 
         let _ = slot_subscription.next().await;
 

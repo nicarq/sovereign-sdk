@@ -45,6 +45,18 @@ pub fn not_found_404(resource_name_capitalized: &str, resource_id: impl ToString
     .into_response()
 }
 
+/// Returns a custom 400 error.
+pub fn bad_request_400(message: &str, err: impl ToString) -> Response {
+    ErrorObject {
+        status: StatusCode::BAD_REQUEST,
+        title: message.to_string(),
+        details: json_obj!({
+            "message": err.to_string(),
+        }),
+    }
+    .into_response()
+}
+
 /// Returns a 500 error to be used when a database error occurred.
 pub fn database_error_response_500(err: impl ToString) -> Response {
     // We don't include the database error in the response, because it may

@@ -8,7 +8,6 @@ mod db;
 mod mempool;
 mod sequencer;
 mod tx_status;
-pub mod utils;
 
 pub use batch_builder::{FairBatchBuilder, FairBatchBuilderConfig};
 pub use db::{MempoolTx, SequencerDb};
@@ -19,23 +18,14 @@ use sov_rollup_interface::services::batch_builder::TxHash;
 
 pub use crate::tx_status::TxStatus;
 
-/// The return type of `sequencer_publishBatch`.
+/// The response type to REST API calls that successfully publish a batch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SubmittedBatchInfo {
     /// The DA height for which the batch was submitted.
     pub da_height: u64,
     /// The number of transactions that were successfully included in the batch.
     pub num_txs: usize,
-}
-
-/// The response type to the RPC method `sequencer_publishBatch`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PublishBatchResponse {
-    /// Summary information about the batch submission result.
-    batch: Result<SubmittedBatchInfo, String>,
-    /// Detailed information about the contents of the batch that was submitted
-    /// (or attempted to be submitted, if case of an error).
-    accept_tx_results: Vec<AcceptTxResponse>,
 }
 
 /// The response type to the RPC method `sequencer_acceptTx`.

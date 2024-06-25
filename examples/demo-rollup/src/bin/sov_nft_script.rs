@@ -11,8 +11,7 @@ use sov_nft_module::utils::{
     get_transfer_nft_message,
 };
 use sov_nft_module::{CallMessage, CollectionId};
-use sov_sequencer::utils::SimpleClient;
-use sov_test_utils::{TestPrivateKey, TestSpec};
+use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec};
 
 const COLLECTION_1: &str = "Sovereign Squirrel Syndicate";
 const COLLECTION_2: &str = "Celestial Dolphins";
@@ -120,18 +119,24 @@ pub fn build_transfer_transactions(
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let creator_pk = TestPrivateKey::generate();
     let owner_1_pk = TestPrivateKey::generate();
     let owner_2_pk = TestPrivateKey::generate();
 
-    let client = SimpleClient::new("localhost", 12345).await.unwrap();
+    let rpc_port = 12345;
+    let rest_port = 12346;
+    let client = ApiClient::new(rpc_port, rest_port).await?;
 
     let mut nonce = 0;
     let collections = [COLLECTION_1, COLLECTION_2, COLLECTION_3];
     let transactions =
         build_create_collection_transactions(&creator_pk, &mut nonce, DUMMY_URL, &collections);
-    client.send_transactions(&transactions).await.unwrap();
+
+    client
+        .sequencer
+        .publish_batch_with_serialized_txs(&transactions)
+        .await?;
 
     // sleep is necessary because of how the sequencer currently works
     // without the sleep, there is a concurrency issue and some transactions would be ignored
@@ -169,7 +174,11 @@ async fn main() {
         &owner_1_pk,
     ));
 
-    client.send_transactions(&transactions).await.unwrap();
+    client
+        .sequencer
+        .publish_batch_with_serialized_txs(&transactions)
+        .await?;
+
     // TODO: remove after https://github.com/Sovereign-Labs/sovereign-sdk/issues/949 is fixed
     tokio::time::sleep(Duration::from_millis(3000)).await;
 
@@ -188,5 +197,11 @@ async fn main() {
         &collection_1_address,
         nft_ids_to_transfer,
     );
-    client.send_transactions(&transactions).await.unwrap();
+
+    client
+        .sequencer
+        .publish_batch_with_serialized_txs(&transactions)
+        .await?;
+
+    Ok(())
 }

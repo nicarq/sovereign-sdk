@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+pub use api_client::ApiClient;
 use borsh::ser::BorshSerialize;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Bank, BankConfig, GasTokenConfig, GAS_TOKEN_ID};
@@ -20,6 +21,7 @@ use sov_modules_stf_blueprint::{BatchReceipt, BlobData};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::stf::TxReceiptContents;
 
+mod api_client;
 pub mod attester_incentive_data;
 pub mod auth;
 pub mod bank_data;

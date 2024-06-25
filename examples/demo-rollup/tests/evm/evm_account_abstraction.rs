@@ -16,11 +16,12 @@ async fn test_evm_account_abstraction() {
     let chain_id = config_value!("CHAIN_ID");
     let finalization_blocks = 0;
     let rollup_prover_config = get_appropriate_rollup_prover_config();
-    let (rollup_task, port) =
+    let (rollup_task, rpc_port, rest_port) =
         evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 
     let (test_client, from_addr) = evm_test_helper::create_test_client(
-        port,
+        rpc_port,
+        rest_port,
         chain_id,
         // This will produce an evm key that doesn't exist in rollup accounts-genesis so we have to register the credentials in the rollup.
         "0x90cb5be9e2c125d84af44f19a4e6e36af359bd47b41577aedbe8aa24313bbd40",

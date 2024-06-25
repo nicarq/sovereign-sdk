@@ -19,13 +19,15 @@ use crate::test_helpers::start_rollup;
 pub(crate) async fn start_node(
     rollup_prover_config: RollupProverConfig,
     finalization_blocks: u32,
-) -> (JoinHandle<()>, SocketAddr) {
-    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+) -> (JoinHandle<()>, SocketAddr, SocketAddr) {
+    let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
+    let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async move {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
-            port_tx,
+            rpc_port_tx,
+            rest_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
@@ -42,14 +44,16 @@ pub(crate) async fn start_node(
         .await;
     });
 
-    let port = port_rx.await.unwrap();
+    let rpc_port = rpc_port_rx.await.unwrap();
+    let rest_port = rest_port_rx.await.unwrap();
 
-    (rollup_task, port)
+    (rollup_task, rpc_port, rest_port)
 }
 
 /// Creates a test client to communicate with the rollup node.
 pub(crate) async fn create_test_client(
-    port: SocketAddr,
+    rpc_port: SocketAddr,
+    rest_port: SocketAddr,
     chain_id: u64,
     private_key: &str,
 ) -> (TestClient, Address) {
@@ -61,7 +65,8 @@ pub(crate) async fn create_test_client(
     let contract = SimpleStorageContract::default();
     let from_addr = key.address();
 
-    let test_client = TestClient::new(chain_id, key, from_addr, contract, port).await;
+    let test_client =
+        TestClient::new(chain_id, key, from_addr, contract, rpc_port, rest_port).await;
 
     let eth_chain_id = test_client.eth_chain_id().await;
     assert_eq!(chain_id, eth_chain_id);
