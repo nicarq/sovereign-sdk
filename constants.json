@@ -19,6 +19,10 @@
     // on the speed of inclusion for forced transactions, since they will always be included ASAP.)
     // Setting this parameter to 0 disables soft-confirmations entirely.
     "DEFERRED_SLOTS_COUNT": 2,
+    /// How many blobs from unregistered sequencers we will accept per slot
+    /// We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
+    /// this serves as protection against spam.
+    "UNREGISTERED_BLOBS_PER_SLOT": 5,
     // The ID of the "native token" of the rollup, which is used to pay gas fees.
     "GAS_TOKEN_ID": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
     // The fixed gas price of a transaction. Transactions also incur some variable cost.

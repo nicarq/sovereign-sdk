@@ -124,6 +124,7 @@ where
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn process_batch(
         &self,
         batch: BatchWithId,
@@ -132,9 +133,16 @@ where
         sender: &Da::Address,
         gas_price: &<S::Gas as Gas>::Price,
         visible_height: u64,
+        is_registered_sequencer: bool,
     ) -> (StateCheckpoint<S>, BatchReceipt, S::Gas) {
-        let (apply_blob_result, next_checkpoint, gas_used) =
-            self.apply_batch(checkpoint, batch, sender, gas_price, visible_height);
+        let (apply_blob_result, next_checkpoint, gas_used) = self.apply_batch(
+            checkpoint,
+            batch,
+            sender,
+            gas_price,
+            visible_height,
+            is_registered_sequencer,
+        );
 
         let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
         info!(
@@ -168,6 +176,7 @@ where
         sequencer_da_address: &Da::Address,
         gas_price: &<S::Gas as Gas>::Price,
         height: u64,
+        is_registered_sequencer: bool,
     ) -> (ApplyBatch, StateCheckpoint<S>, S::Gas) {
         debug!(
             batch_id = hex::encode(batch_with_id.id),
@@ -211,14 +220,24 @@ where
 
         for (idx, raw_tx) in raw_txs.iter().enumerate() {
             let tx_scratchpad = checkpoint.to_tx_scratchpad();
-            let process_tx_result = process_tx(
-                &self.runtime,
-                raw_tx,
-                sequencer_da_address,
-                gas_price,
-                height,
-                tx_scratchpad,
-            );
+            let process_tx_result = if is_registered_sequencer {
+                process_tx(
+                    &self.runtime,
+                    raw_tx,
+                    sequencer_da_address,
+                    gas_price,
+                    height,
+                    tx_scratchpad,
+                )
+            } else {
+                process_unauthorized_tx(
+                    &self.runtime,
+                    raw_tx,
+                    sequencer_da_address,
+                    height,
+                    tx_scratchpad,
+                )
+            };
 
             match process_tx_result {
                 Err(TxProcessingError {
@@ -502,7 +521,7 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
 }
 
 #[allow(clippy::result_large_err)]
-pub fn _process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
+pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     runtime: &R,
     raw_tx: &RawTx,
     sequencer_da_address: &D::Address,
