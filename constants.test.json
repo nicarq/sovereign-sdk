@@ -3,6 +3,7 @@
   "constants": {
     "CHAIN_ID": 4321,
     "DEFERRED_SLOTS_COUNT": 2,
+    "UNREGISTERED_BLOBS_PER_SLOT": 5,
     "GAS_TOKEN_ID": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
     "TEST_TOKEN_ID": "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm",
     "TEST_TOKEN_ID_INVALID_CHECKSUM": "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqabcdef",

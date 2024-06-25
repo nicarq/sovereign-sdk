@@ -81,6 +81,7 @@ fn store_and_retrieve_standard() {
         let batch = BlobDataWithId {
             data: BlobData::Batch(Batch { txs }),
             id: [i; 32],
+            from_registered_sequencer: true,
         };
         batches.push((batch, sender));
     }

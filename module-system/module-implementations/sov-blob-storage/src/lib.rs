@@ -15,6 +15,11 @@ use sov_state::codec::BcsCodec;
 /// For how many slots deferred blobs are stored before being executed
 pub const DEFERRED_SLOTS_COUNT: u64 = config_value!("DEFERRED_SLOTS_COUNT");
 
+/// How many blobs from unregistered sequencers we will accept per slot
+/// We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
+/// this serves as protection against spam.
+pub const UNREGISTERED_BLOBS_PER_SLOT: u64 = config_value!("UNREGISTERED_BLOBS_PER_SLOT");
+
 /// The sequence number for a batch from the preferred sequencer.   
 pub type SequenceNumber = u64;
 

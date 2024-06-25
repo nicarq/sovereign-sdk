@@ -397,6 +397,7 @@ where
                         &sender,
                         &gas_price,
                         visible_height,
+                        blob.from_registered_sequencer,
                     );
 
                     checkpoint = next_checkpoint;

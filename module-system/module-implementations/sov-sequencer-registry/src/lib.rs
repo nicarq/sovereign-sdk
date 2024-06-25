@@ -351,4 +351,13 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn slash_sequencer(&self, da_address: &Da::Address, state: &mut StateCheckpoint<S>) {
         self.delete(da_address, state).unwrap_infallible();
     }
+
+    /// Check if the provided `Da::Address` belongs to a registered sequencer.
+    pub fn is_registered_sequencer<Reader: StateReader<User>>(
+        &self,
+        da_address: &Da::Address,
+        state: &mut Reader,
+    ) -> Result<bool, Reader::Error> {
+        Ok(self.allowed_sequencers.get(da_address, state)?.is_some())
+    }
 }

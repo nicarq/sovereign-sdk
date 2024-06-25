@@ -37,6 +37,8 @@ pub enum BlobData {
 pub struct BlobDataWithId {
     /// Raw transactions.
     pub data: BlobData,
+    /// The blob came from a registered sequencer
+    pub from_registered_sequencer: bool,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
 }

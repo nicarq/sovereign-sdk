@@ -4,21 +4,36 @@ use borsh::BorshDeserialize;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::BlobSelector;
 use sov_modules_api::{
-    BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, KernelWorkingSet, Spec, StateCheckpoint,
+    Batch, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, KernelWorkingSet, Spec,
+    StateCheckpoint,
 };
+use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{error, info, warn};
 
 use crate::{
     BlobStorage, PreferredBlobData, PreferredBlobDataWithId, SequenceNumber, DEFERRED_SLOTS_COUNT,
+    UNREGISTERED_BLOBS_PER_SLOT,
 };
 
 /// Why blob can be discarded
 #[derive(Debug)]
 enum BlobDiscardReason {
-    /// Sender simply not registered in the registry
-    SenderNotAllowed,
     /// More complicated case for preferred sequencer. Ping @prestonevans__ at Twitter for more info
     SequenceNumberTooLow,
+    /// Sender doesn't have enough staked sequencer funds
+    SenderInsufficientStake,
+    /// The max amount of unregistered blobs allowed to be processed per slot
+    MaxAllowedUnregisteredBlobs,
+}
+
+enum SequencerStatus {
+    Registered,
+    Unregistered,
+}
+
+enum ValidateBlobOutcome {
+    Discard(BlobDiscardReason),
+    Accept(SequencerStatus),
 }
 
 impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
@@ -47,23 +62,81 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         let mut batches = Vec::new();
+        let mut unregistered_blobs = 0;
         for blob in current_blobs.into_iter() {
-            if !self.blob_is_allowed(blob, state.inner) {
-                self.log_discarded_blob(blob, BlobDiscardReason::SenderNotAllowed);
-                continue;
-            }
+            match self.validate_blob_and_sender(blob, unregistered_blobs, state) {
+                ValidateBlobOutcome::Discard(reason) => self.log_discarded_blob(blob, reason),
+                ValidateBlobOutcome::Accept(sequencer_status) => {
+                    let from_registered_sequencer =
+                        matches!(sequencer_status, SequencerStatus::Registered);
 
-            if let Some(batch) = self.deserialize_or_slash_sender::<BlobData>(blob, state.inner) {
-                batches.push((
-                    BlobDataWithId {
-                        data: batch,
-                        id: blob.hash(),
-                    },
-                    blob.sender(),
-                ));
-            }
+                    if !from_registered_sequencer {
+                        unregistered_blobs += 1;
+                    }
+
+                    if let Some(mut data) = self.deserialize_or_try_slash_sender::<BlobData>(
+                        blob,
+                        from_registered_sequencer,
+                        state.inner,
+                    ) {
+                        if !from_registered_sequencer {
+                            if let BlobData::Batch(ref mut batch) = data {
+                                self.process_unregistered_batch(blob, batch);
+                            }
+                        }
+
+                        batches.push((
+                            BlobDataWithId {
+                                data,
+                                id: blob.hash(),
+                                from_registered_sequencer,
+                            },
+                            blob.sender(),
+                        ));
+                    }
+                }
+            };
         }
         batches
+    }
+
+    fn validate_blob_and_sender(
+        &self,
+        blob: &Da::BlobTransaction,
+        unregistered_blobs_processed: u64,
+        state: &mut KernelWorkingSet<S>,
+    ) -> ValidateBlobOutcome {
+        match self
+            .sequencer_registry
+            .is_sender_allowed(&blob.sender(), state)
+        {
+            Ok(_) => ValidateBlobOutcome::Accept(SequencerStatus::Registered),
+            Err(e) => match e {
+                AllowedSequencerError::InsufficientStakeAmount { .. } => {
+                    ValidateBlobOutcome::Discard(BlobDiscardReason::SenderInsufficientStake)
+                }
+                AllowedSequencerError::NotRegistered => {
+                    if unregistered_blobs_processed >= UNREGISTERED_BLOBS_PER_SLOT {
+                        ValidateBlobOutcome::Discard(BlobDiscardReason::MaxAllowedUnregisteredBlobs)
+                    } else {
+                        ValidateBlobOutcome::Accept(SequencerStatus::Unregistered)
+                    }
+                }
+            },
+        }
+    }
+
+    fn process_unregistered_batch(&self, b: &Da::BlobTransaction, batch: &mut Batch) {
+        let txs_count = batch.txs.len();
+        if txs_count > 1 {
+            batch.txs.truncate(1);
+            info!(
+                blob_hash = hex::encode(b.hash()),
+                sender = hex::encode(b.sender()),
+                dropped_count = txs_count - 1,
+                "Dropped txs from batch, only 1 unregistered tx allowed"
+            );
+        }
     }
 
     fn log_discarded_blob(&self, b: &Da::BlobTransaction, reason: BlobDiscardReason) {
@@ -73,14 +146,6 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             ?reason,
             "Discarding blob"
         );
-    }
-
-    /// Check if a blob is allowed to be processed. (Meaning that its sender is appropriately bonded/registered)
-    fn blob_is_allowed(&self, b: &Da::BlobTransaction, state: &mut StateCheckpoint<S>) -> bool {
-        // TODO(@vlopes11): Add gas check
-        self.sequencer_registry
-            .is_sender_allowed(&b.sender(), state)
-            .is_ok()
     }
 
     /// Enforce the ordering constraints on preferred blobs by discarding or deferring blobs that arrive
@@ -190,6 +255,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
+        let mut unregistered_blobs = 0;
         let mut new_forced_blobs = Vec::new();
         let next_sequence_number = self
             .next_sequence_number
@@ -204,41 +270,62 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             .unwrap_infallible();
 
         for blob in current_blobs.into_iter() {
-            // Step 1: Filter any ineligible blobs from current slot.
-            if !self.blob_is_allowed(blob, state.inner) {
-                self.log_discarded_blob(blob, BlobDiscardReason::SenderNotAllowed);
-                continue;
-            }
+            match self.validate_blob_and_sender(blob, unregistered_blobs, state) {
+                ValidateBlobOutcome::Discard(reason) => self.log_discarded_blob(blob, reason),
+                ValidateBlobOutcome::Accept(sequencer_status) => {
+                    let from_registered_sequencer =
+                        matches!(sequencer_status, SequencerStatus::Registered);
 
-            // Check if the blob is from the preferred sequencer
-            if &blob.sender() == preferred_sender {
-                let maybe_batch = self
-                    .deserialize_or_slash_sender::<PreferredBlobData>(blob, state.inner)
-                    .and_then(|batch| {
-                        self.enforce_preferred_blob_ordering(
-                            batch,
-                            next_sequence_number,
+                    if !from_registered_sequencer {
+                        unregistered_blobs += 1;
+                    }
+
+                    // Check if the blob is from the preferred sequencer
+                    if &blob.sender() == preferred_sender {
+                        let maybe_batch = self
+                            .deserialize_or_try_slash_sender::<PreferredBlobData>(
+                                blob,
+                                from_registered_sequencer,
+                                state.inner,
+                            )
+                            .and_then(|batch| {
+                                self.enforce_preferred_blob_ordering(
+                                    batch,
+                                    next_sequence_number,
+                                    blob,
+                                    state.inner,
+                                )
+                            });
+
+                        // Even if we retrieved `preferred_blob`` in `step0``, we override it because it has the same `sequence_number`.
+                        if let Some(next_preferred_blob) = maybe_batch {
+                            preferred_blob = Some(next_preferred_blob);
+                        }
+                    } else {
+                        // Otherwise, the batch is from a valid sender (checked in step 1) but not the preferred sender
+                        // Deserialize it as a normal batch and store it in memory
+                        let data = self.deserialize_or_try_slash_sender::<BlobData>(
                             blob,
+                            from_registered_sequencer,
                             state.inner,
-                        )
-                    });
+                        );
+                        if let Some(mut data) = data {
+                            if !from_registered_sequencer {
+                                if let BlobData::Batch(ref mut batch) = data {
+                                    self.process_unregistered_batch(blob, batch);
+                                }
+                            }
 
-                // Even if we retrieved `preferred_blob`` in `step0``, we override it because it has the same `sequence_number`.
-                if let Some(next_preferred_blob) = maybe_batch {
-                    preferred_blob = Some(next_preferred_blob);
-                }
-            } else {
-                // Otherwise, the batch is from a valid sender (checked in step 1) but not the preferred sender
-                // Deserialize it as a normal batch and store it in memory
-                let data = self.deserialize_or_slash_sender::<BlobData>(blob, state.inner);
-                if let Some(data) = data {
-                    new_forced_blobs.push((
-                        BlobDataWithId {
-                            data,
-                            id: blob.hash(),
-                        },
-                        blob.sender(),
-                    ));
+                            new_forced_blobs.push((
+                                BlobDataWithId {
+                                    data,
+                                    id: blob.hash(),
+                                    from_registered_sequencer,
+                                },
+                                blob.sender(),
+                            ));
+                        }
+                    }
                 }
             }
         }
@@ -260,6 +347,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             let first_batch = BlobDataWithId {
                 data: preferred_blob.inner.data,
                 id: preferred_blob.id,
+                // This is a preferred blob so it is from the preferred sequencer
+                // hence the sequencer is a registered one
+                from_registered_sequencer: true,
             };
 
             batches_to_process.push((first_batch, preferred_sender.clone()));
@@ -314,9 +404,12 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     }
 
     /// Deserialize a blob into a `Batch` or slash the sender if it's malformed.
-    fn deserialize_or_slash_sender<B: BorshDeserialize>(
+    /// The sequencer might not exist if we're processing a blob submitted by an unregistered
+    /// sequencer - in the case of direct sequencer registration via DA.
+    fn deserialize_or_try_slash_sender<B: BorshDeserialize>(
         &self,
         blob: &mut Da::BlobTransaction,
+        registered_sender: bool,
         state: &mut StateCheckpoint<S>,
     ) -> Option<B> {
         match B::try_from_slice(data_for_deserialization(blob)) {
@@ -328,11 +421,15 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                     blob_hash = hex::encode(blob.hash()),
                     slashed_sender = %blob.sender(),
                     error = ?e,
-                    "Unable to deserialize blob. slashing sender"
+                    "Unable to deserialize blob. slashing sender if they are registered"
                 );
 
-                self.sequencer_registry
-                    .slash_sequencer(&blob.sender(), state);
+                if registered_sender {
+                    self.sequencer_registry
+                        .slash_sequencer(&blob.sender(), state);
+                } else {
+                    info!("Unable to slash sequencer, they were not registered");
+                }
 
                 None
             }
