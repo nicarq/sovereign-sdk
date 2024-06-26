@@ -6,8 +6,8 @@ use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{Batch, Gas, GasArray, KernelWorkingSet, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_test_utils::auth::TestAuth;
+use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::TestRuntime;
-use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
 
 use crate::helpers::{

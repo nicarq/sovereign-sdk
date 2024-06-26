@@ -1,7 +1,7 @@
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_value_setter::ValueSetter;
 
-use super::*;
+use crate::*;
 
 pub struct ValueSetterMessage<S: Spec> {
     pub admin: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,

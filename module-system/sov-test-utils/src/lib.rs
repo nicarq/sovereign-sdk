@@ -22,16 +22,14 @@ use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::stf::TxReceiptContents;
 
 mod api_client;
-pub mod attester_incentive_data;
 pub mod auth;
-pub mod bank_data;
 mod evm;
+pub mod generators;
 #[cfg(feature = "demo-stf")]
 pub mod ledger_db;
 pub mod logging;
 pub mod runtime;
 pub mod sequencer;
-pub mod value_setter_data;
 
 pub use evm::simple_smart_contract::SimpleStorageContract;
 use sov_modules_api::PrivateKey;

@@ -7,7 +7,7 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::services::batch_builder::TxHash;
 use sov_sequencer_json_client::types::{PublishBatchBody, TxStatus};
-use sov_test_utils::bank_data::BankMessageGenerator;
+use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{MessageGenerator, TestPrivateKey, TestSpec};

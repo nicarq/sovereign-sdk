@@ -9,8 +9,8 @@ use sov_modules_api::{Batch, CryptoSpec, DaSpec, PrivateKey, RawTx, Spec, StateC
 use sov_modules_stf_blueprint::TransactionReceipt;
 use sov_state::{Storage, StorageRoot};
 use sov_test_utils::auth::TestAuth;
+use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::TestRuntime;
-use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{
     new_test_blob_from_batch, MessageGenerator, TestPrivateKey, TestStorageSpec as StorageSpec,
 };
