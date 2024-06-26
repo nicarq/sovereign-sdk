@@ -12,11 +12,11 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_test_utils::auth::TestAuth;
+use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{
     run_test, MessageType, SlotTestCase, TestRuntime, TxOutcome, TxTestCase,
 };
-use sov_test_utils::value_setter_data::ValueSetterMessages;
 use sov_test_utils::{
     generate_optimistic_runtime, new_test_blob_from_batch, MessageGenerator, TestAddress,
     TestHasher, TestPrivateKey,

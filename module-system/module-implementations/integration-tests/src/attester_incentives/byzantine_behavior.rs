@@ -9,8 +9,8 @@ use sov_modules_api::{Batch, Gas, GasArray, Spec, StateCheckpoint, StateTransiti
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
-use sov_test_utils::attester_incentive_data::AttesterIncentivesMessageGenerator;
 use sov_test_utils::auth::TestAuth;
+use sov_test_utils::generators::attester_incentive::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestStorageSpec as Storage};
 

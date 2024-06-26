@@ -126,23 +126,23 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         }
     }
 
-    fn process_unregistered_batch(&self, b: &Da::BlobTransaction, batch: &mut Batch) {
+    fn process_unregistered_batch(&self, blob: &Da::BlobTransaction, batch: &mut Batch) {
         let txs_count = batch.txs.len();
         if txs_count > 1 {
             batch.txs.truncate(1);
             info!(
-                blob_hash = hex::encode(b.hash()),
-                sender = hex::encode(b.sender()),
+                blob_hash = hex::encode(blob.hash()),
+                sender = hex::encode(blob.sender()),
                 dropped_count = txs_count - 1,
                 "Dropped txs from batch, only 1 unregistered tx allowed"
             );
         }
     }
 
-    fn log_discarded_blob(&self, b: &Da::BlobTransaction, reason: BlobDiscardReason) {
+    fn log_discarded_blob(&self, blob: &Da::BlobTransaction, reason: BlobDiscardReason) {
         info!(
-            blob_hash = hex::encode(b.hash()),
-            sender = hex::encode(b.sender()),
+            blob_hash = hex::encode(blob.hash()),
+            sender = hex::encode(blob.sender()),
             ?reason,
             "Discarding blob"
         );

@@ -9,7 +9,7 @@ use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_test_utils::bank_data::get_default_token_id;
+use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, SchemaBatch, TestSpec};
 
 use crate::runtime::Runtime;

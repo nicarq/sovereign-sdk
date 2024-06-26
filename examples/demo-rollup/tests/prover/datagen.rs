@@ -6,7 +6,7 @@ use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_modules_api::execution_mode::{Native, WitnessGeneration};
 use sov_rollup_interface::services::da::DaService;
-use sov_test_utils::bank_data::BankMessageGenerator;
+use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::MessageGenerator;
 
 use crate::prover::MockDaSpec;

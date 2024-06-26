@@ -11,7 +11,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{CredentialId, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::services::da::DaService;
-use sov_test_utils::bank_data::BankMessageGenerator;
+use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::{MessageGenerator, TestHasher, TestPrivateKey, TestSpec};
 
 type S = <MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Spec;

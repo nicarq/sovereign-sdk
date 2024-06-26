@@ -6,8 +6,8 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::runtime::capabilities::Authenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{EncodeCall, PrivateKey, RawTx};
-use sov_test_utils::bank_data::BankMessageGenerator;
-use sov_test_utils::value_setter_data::{ValueSetterMessage, ValueSetterMessages};
+use sov_test_utils::generators::bank::BankMessageGenerator;
+use sov_test_utils::generators::value_setter::{ValueSetterMessage, ValueSetterMessages};
 use sov_test_utils::{MessageGenerator, TestPrivateKey};
 
 use crate::authentication::ModAuth;
