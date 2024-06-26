@@ -1,15 +1,13 @@
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::Context;
 
-use crate::tests::helpers::{setup, BOND_AMOUNT, S};
+use crate::tests::helpers::{setup, BOND_AMOUNT};
 use crate::ProverIncentiveError;
 
 #[test]
 /// Tests that the prover can unbond correctly
 fn test_unbonding() -> anyhow::Result<()> {
-    let (module, prover_address, sequencer, mut state) = setup();
-    let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
+    let (module, prover_address, _, mut state) = setup();
     let token_id = GAS_TOKEN_ID;
 
     // Get their *unlocked* balance before undbonding
@@ -23,7 +21,7 @@ fn test_unbonding() -> anyhow::Result<()> {
     let mut working_set = state.to_working_set_unmetered();
 
     // Unbond the prover
-    module.unbond_prover(&context, &mut working_set)?;
+    module.unbond_prover(&prover_address, &mut working_set)?;
 
     // Assert that the prover no longer has bonded tokens
     assert_eq!(module.get_bond_amount(prover_address, &mut working_set)?, 0);
@@ -44,13 +42,12 @@ fn test_unbonding() -> anyhow::Result<()> {
 #[test]
 /// Tests that the prover cannot submit proofs if unbonded
 fn test_prover_not_bonded() -> Result<(), anyhow::Error> {
-    let (module, prover_address, sequencer, state) = setup();
-    let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
+    let (module, prover_address, _, state) = setup();
 
     let mut working_set = state.to_working_set_unmetered();
 
     // Unbond the prover
-    module.unbond_prover(&context, &mut working_set)?;
+    module.unbond_prover(&prover_address, &mut working_set)?;
 
     // Assert that the prover no longer has bonded tokens
     assert_eq!(module.get_bond_amount(prover_address, &mut working_set)?, 0);
@@ -61,7 +58,7 @@ fn test_prover_not_bonded() -> Result<(), anyhow::Error> {
         // Assert that processing a valid proof fails
         assert_eq!(
             module
-                .process_proof(proof, &context, &mut working_set)
+                .process_proof(proof, &prover_address, &mut working_set)
                 .expect_err("The proof should be rejected"),
             ProverIncentiveError::BondNotHighEnough
         );
