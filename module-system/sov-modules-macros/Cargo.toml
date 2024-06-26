@@ -34,7 +34,7 @@ prettier-please = { version = "0.1", default-features = false }
 proc-macro2 = "1.0"
 quote = "1.0"
 # @preston-evans98 has audited the diff of serde_jsonc against serde_json as of this commit.
-serde_jsonc = { git =  "https://github.com/nathanhammond/serde_jsonc.git", rev = "ebcbf97064fed7d034798bd0e7c5b2090f2def38"}
+serde_jsonc = { git = "https://github.com/nathanhammond/serde_jsonc.git", rev = "ebcbf97064fed7d034798bd0e7c5b2090f2def38" }
 syn = { version = "1.0", features = ["full"] }
 
 [dev-dependencies]
@@ -55,9 +55,9 @@ sov-test-utils = { path = "../sov-test-utils" }
 [features]
 default = []
 native = [
-	"sov-bank/native",
-	"sov-modules-api/native",
-	"sov-modules-macros/native",
-	"sov-rollup-interface/native",
-	"sov-state/native",
+    "sov-bank/native",
+    "sov-modules-api/native",
+    "sov-modules-macros/native",
+    "sov-rollup-interface/native",
+    "sov-state/native",
 ]

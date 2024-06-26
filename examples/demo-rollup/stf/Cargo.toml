@@ -39,7 +39,6 @@ sov-state = { path = "../../../module-system/sov-state" }
 sov-modules-api = { path = "../../../module-system/sov-modules-api" }
 sov-evm = { path = "../../../module-system/module-implementations/sov-evm" }
 
-
 [dev-dependencies]
 demo-stf = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
@@ -49,31 +48,30 @@ sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
 sov-modules-stf-blueprint = { path = "../../../module-system/sov-modules-stf-blueprint", features = ["test-utils"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
-
 [features]
 default = []
-offchain = [ "demo-stf/offchain", "sov-nft-module/offchain" ]
+offchain = ["demo-stf/offchain", "sov-nft-module/offchain"]
 native = [
-	"demo-stf/native",
-	"jsonrpsee",
-	"sov-accounts/native",
-	"sov-bank/native",
-	"sov-capabilities/native",
-	"sov-chain-state/native",
-	"sov-cli",
-	"sov-evm/native",
-	"sov-kernels/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
-	"sov-nft-module/native",
-	"sov-nonces/native",
-	"sov-prover-incentives/native",
-	"sov-rollup-interface/native",
-	"sov-sequencer-registry/native",
-	"sov-state/native",
-	"sov-stf-runner/native",
-	"sov-value-setter/native",
-	"tokio",
+    "demo-stf/native",
+    "jsonrpsee",
+    "sov-accounts/native",
+    "sov-bank/native",
+    "sov-capabilities/native",
+    "sov-chain-state/native",
+    "sov-cli",
+    "sov-evm/native",
+    "sov-kernels/native",
+    "sov-mock-da/native",
+    "sov-mock-zkvm/native",
+    "sov-modules-api/native",
+    "sov-modules-stf-blueprint/native",
+    "sov-nft-module/native",
+    "sov-nonces/native",
+    "sov-prover-incentives/native",
+    "sov-rollup-interface/native",
+    "sov-sequencer-registry/native",
+    "sov-state/native",
+    "sov-stf-runner/native",
+    "sov-value-setter/native",
+    "tokio",
 ]

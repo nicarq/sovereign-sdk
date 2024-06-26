@@ -27,7 +27,6 @@ sov-bank = { path = "../sov-bank" }
 sov-modules-api = { path = "../../sov-modules-api" }
 sov-state = { path = "../../sov-state" }
 
-
 [dev-dependencies]
 tempfile = { workspace = true }
 module-template = { path = ".", version = "*", features = ["native"] }
@@ -37,18 +36,18 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 [features]
 default = []
 arbitrary = [
-	"dep:arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
-	"module-template/arbitrary",
-	"sov-modules-api/arbitrary",
-	"sov-state/arbitrary",
-	"sov-test-utils/arbitrary",
+    "dep:arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "module-template/arbitrary",
+    "sov-modules-api/arbitrary",
+    "sov-state/arbitrary",
+    "sov-test-utils/arbitrary",
 ]
 native = [
-	"module-template/native",
-	"schemars",
-	"sov-bank/native",
-	"sov-modules-api/native",
-	"sov-state/native",
+    "module-template/native",
+    "schemars",
+    "sov-bank/native",
+    "sov-modules-api/native",
+    "sov-state/native",
 ]

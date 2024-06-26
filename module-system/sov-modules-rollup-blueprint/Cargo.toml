@@ -37,20 +37,20 @@ serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
 
 [features]
-default = [ "native" ]
+default = ["native"]
 native = [
-	"async-trait",
-	"serde_json",
-	"sov-cli",
-	"sov-db",
-	"sov-ledger-apis",
-	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
-	"sov-rollup-interface/native",
-	"sov-sequencer",
-	"sov-state/native",
-	"sov-stf-runner",
-	"sov-stf-runner?/native",
-	"tokio",
-	"tower-http",
+    "async-trait",
+    "serde_json",
+    "sov-cli",
+    "sov-db",
+    "sov-ledger-apis",
+    "sov-modules-api/native",
+    "sov-modules-stf-blueprint/native",
+    "sov-rollup-interface/native",
+    "sov-sequencer",
+    "sov-state/native",
+    "sov-stf-runner",
+    "sov-stf-runner?/native",
+    "tokio",
+    "tower-http",
 ]

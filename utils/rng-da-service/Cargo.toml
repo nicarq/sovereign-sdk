@@ -28,11 +28,11 @@ sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils" }
 
 [features]
-default = [ "native" ]
+default = ["native"]
 native = [
-	"demo-stf/native",
-	"sov-bank/native",
-	"sov-mock-da/native",
-	"sov-modules-api/native",
-	"sov-rollup-interface/native",
+    "demo-stf/native",
+    "sov-bank/native",
+    "sov-mock-da/native",
+    "sov-modules-api/native",
+    "sov-rollup-interface/native",
 ]

@@ -41,17 +41,17 @@ proptest = { workspace = true }
 
 [features]
 arbitrary = [
-	"dep:arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
-	"sov-db?/arbitrary",
-	"sov-rollup-interface/arbitrary",
+    "dep:arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "sov-db?/arbitrary",
+    "sov-rollup-interface/arbitrary",
 ]
 bench = [
-	"risc0-cycle-macros",
-	"risc0-cycle-macros?/bench",
-	"risc0-zkvm",
-	"risc0-zkvm-platform",
+    "risc0-cycle-macros",
+    "risc0-cycle-macros?/bench",
+    "risc0-zkvm",
+    "risc0-zkvm-platform",
 ]
 default = []
-native = [ "sov-db", "sov-rollup-interface/native" ]
+native = ["sov-db", "sov-rollup-interface/native"]

@@ -27,4 +27,4 @@ tracing = { workspace = true }
 sov-rest-utils = { path = ".", features = ["arbitrary"] }
 
 [features]
-arbitrary = [ "proptest", "proptest-derive", "sov-rest-utils/arbitrary" ]
+arbitrary = ["proptest", "proptest-derive", "sov-rest-utils/arbitrary"]

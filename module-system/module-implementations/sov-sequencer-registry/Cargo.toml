@@ -44,33 +44,33 @@ sov-modules-api = { path = "../../sov-modules-api", features = ["test-utils"] }
 
 [features]
 bench = [
-	"risc0-cycle-macros",
-	"risc0-cycle-macros?/bench",
-	"risc0-cycle-utils",
-	"risc0-zkvm",
-	"risc0-zkvm-platform",
-	"sov-modules-api/bench",
-	"sov-sequencer-registry/bench",
-	"sov-state/bench",
+    "risc0-cycle-macros",
+    "risc0-cycle-macros?/bench",
+    "risc0-cycle-utils",
+    "risc0-zkvm",
+    "risc0-zkvm-platform",
+    "sov-modules-api/bench",
+    "sov-sequencer-registry/bench",
+    "sov-state/bench",
 ]
 default = []
 arbitrary = [
-	"dep:arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
-	"sov-modules-api/arbitrary",
-	"sov-sequencer-registry/arbitrary",
-	"sov-state/arbitrary",
-	"sov-test-utils/arbitrary",
+    "dep:arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "sov-modules-api/arbitrary",
+    "sov-sequencer-registry/arbitrary",
+    "sov-state/arbitrary",
+    "sov-test-utils/arbitrary",
 ]
 native = [
-	"jsonrpsee",
-	"risc0-cycle-utils?/native",
-	"schemars",
-	# This:
-	"sov-bank/native",
-	"sov-mock-da/native",
-	"sov-modules-api/native",
-	"sov-sequencer-registry/native",
-	"sov-state/native",
+    "jsonrpsee",
+    "risc0-cycle-utils?/native",
+    "schemars",
+    # This:
+    "sov-bank/native",
+    "sov-mock-da/native",
+    "sov-modules-api/native",
+    "sov-sequencer-registry/native",
+    "sov-state/native",
 ]

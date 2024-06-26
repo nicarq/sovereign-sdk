@@ -20,17 +20,16 @@ sov-nonces = { path = "../module-implementations/sov-nonces" }
 sov-sequencer-registry = { path = "../module-implementations/sov-sequencer-registry" }
 sov-prover-incentives = { path = "../module-implementations/sov-prover-incentives" }
 
-
 [lints]
 workspace = true
 
 [features]
 default = []
 native = [
-	"sov-accounts/native",
-	"sov-bank/native",
-	"sov-modules-api/native",
-	"sov-nonces/native",
-	"sov-prover-incentives/native",
-	"sov-sequencer-registry/native",
+    "sov-accounts/native",
+    "sov-bank/native",
+    "sov-modules-api/native",
+    "sov-nonces/native",
+    "sov-prover-incentives/native",
+    "sov-sequencer-registry/native",
 ]

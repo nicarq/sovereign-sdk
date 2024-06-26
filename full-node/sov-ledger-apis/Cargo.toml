@@ -53,18 +53,18 @@ tokio = { workspace = true, features = ["test-util"] }
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"], version = "0.3" }
 
 [features]
-default = [ "client", "server" ]
+default = ["client", "server"]
 server = [
-	"anyhow",
-	"axum",
-	"futures",
-	"hex",
-	"jsonrpsee/server",
-	"serde_with",
-	"serde_yaml",
-	"sov-db",
-	"sov-rest-utils",
-	"tracing",
-	"utoipa-swagger-ui",
+    "anyhow",
+    "axum",
+    "futures",
+    "hex",
+    "jsonrpsee/server",
+    "serde_with",
+    "serde_yaml",
+    "sov-db",
+    "sov-rest-utils",
+    "tracing",
+    "utoipa-swagger-ui",
 ]
-client = [ "jsonrpsee/client", "jsonrpsee/macros" ]
+client = ["jsonrpsee/client", "jsonrpsee/macros"]

@@ -18,7 +18,7 @@ workspace = true
 tempfile = { workspace = true }
 sov-prover-incentives = { features = ["native"], path = "." }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"]  }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"] }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["native", "test-utils"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
@@ -38,13 +38,13 @@ sov-chain-state = { path = "../sov-chain-state", version = "0.3" }
 [features]
 default = []
 native = [
-	"jsonrpsee",
-	"schemars",
-	"sov-bank/native",
-	"sov-chain-state/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-prover-incentives/native",
-	"sov-state/native",
+    "jsonrpsee",
+    "schemars",
+    "sov-bank/native",
+    "sov-chain-state/native",
+    "sov-mock-da/native",
+    "sov-mock-zkvm/native",
+    "sov-modules-api/native",
+    "sov-prover-incentives/native",
+    "sov-state/native",
 ]

@@ -32,14 +32,13 @@ tempfile = { workspace = true }
 sov-test-utils = { path = "../../sov-test-utils" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
-
 [features]
 default = []
-offchain = [ "postgres", "sov-nft-module/offchain", "tokio", "tracing" ]
+offchain = ["postgres", "sov-nft-module/offchain", "tokio", "tracing"]
 native = [
-	"jsonrpsee",
-	"schemars",
-	"sov-modules-api/native",
-	"sov-nft-module/native",
-	"sov-state/native",
+    "jsonrpsee",
+    "schemars",
+    "sov-modules-api/native",
+    "sov-nft-module/native",
+    "sov-state/native",
 ]

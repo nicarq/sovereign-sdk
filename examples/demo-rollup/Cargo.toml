@@ -27,7 +27,9 @@ sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-bluepr
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module" }
 demo-stf = { path = "./stf", features = ["native"] }
-sov-ledger-apis = { path = "../../full-node/sov-ledger-apis", features = ["server"] }
+sov-ledger-apis = { path = "../../full-node/sov-ledger-apis", features = [
+    "server",
+] }
 risc0 = { path = "./provers/risc0" }
 borsh = { workspace = true, features = ["bytes"] }
 async-trait = { workspace = true }
@@ -97,18 +99,18 @@ regex = "1.10"
 
 [features]
 default = []
-nft-script = [ "sov-test-utils" ]
+nft-script = ["sov-test-utils"]
 
 bench = [
-	"hex",
-	"risc0/bench",
-	"sov-celestia-adapter/bench",
-	"sov-modules-api/bench",
-	"sov-modules-stf-blueprint/bench",
-	"sov-risc0-adapter/bench",
-	"sov-state/bench",
+    "hex",
+    "risc0/bench",
+    "sov-celestia-adapter/bench",
+    "sov-modules-api/bench",
+    "sov-modules-stf-blueprint/bench",
+    "sov-risc0-adapter/bench",
+    "sov-state/bench",
 ]
-offchain = [ "demo-stf/offchain", "sov-nft-module/offchain" ]
+offchain = ["demo-stf/offchain", "sov-nft-module/offchain"]
 
 [[bench]]
 name = "rollup_bench"

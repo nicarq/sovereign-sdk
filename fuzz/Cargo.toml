@@ -22,7 +22,6 @@ sov-bank = { path = "../module-system/module-implementations/sov-bank", features
 sov-prover-storage-manager = { path = "../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-test-utils = { path = "../module-system/sov-test-utils", features = ["arbitrary"] }
 
-
 # Prevent this from interfering with workspaces.
 [workspace]
 members = ["."]

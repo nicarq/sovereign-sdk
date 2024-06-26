@@ -27,7 +27,6 @@ bech32 = { workspace = true }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
-
 [dev-dependencies]
 sov-bank = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
@@ -37,11 +36,11 @@ sov-test-utils = { path = "../../sov-test-utils" }
 [features]
 default = []
 native = [
-	"jsonrpsee",
-	"schemars",
-	"sov-bank/native",
-	"sov-modules-api/native",
-	"sov-state/native",
+    "jsonrpsee",
+    "schemars",
+    "sov-bank/native",
+    "sov-modules-api/native",
+    "sov-state/native",
 ]
-cli = [ "native" ]
+cli = ["native"]
 test-utils = []

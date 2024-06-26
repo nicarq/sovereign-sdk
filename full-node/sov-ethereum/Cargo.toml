@@ -35,7 +35,6 @@ schnellru = "0.2.1"
 [dev-dependencies]
 proptest = { workspace = true }
 
-
 [features]
 default = []
 local = []
