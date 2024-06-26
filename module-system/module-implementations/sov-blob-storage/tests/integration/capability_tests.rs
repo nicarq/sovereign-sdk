@@ -3,7 +3,7 @@ use std::convert::Infallible;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_bank::GasTokenConfig;
-use sov_blob_storage::{PreferredBlobData, DEFERRED_SLOTS_COUNT};
+use sov_blob_storage::{PreferredBlobData, DEFERRED_SLOTS_COUNT, UNREGISTERED_BLOBS_PER_SLOT};
 use sov_chain_state::ChainStateConfig;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_kernels::soft_confirmations::{
@@ -540,6 +540,84 @@ fn test_recovery_mode() -> Result<(), Infallible> {
 }
 
 #[test]
+fn test_blobs_from_non_registered_sequencers_are_limited_to_set_amount() {
+    let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(true);
+    let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
+
+    // Define the kernel
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    let test_kernel = BasicKernel::<S, Da>::default();
+    test_kernel
+        .genesis(
+            &BasicKernelGenesisConfig {
+                chain_state: ChainStateConfig {
+                    current_time: Default::default(),
+                    genesis_da_height: 0,
+                    inner_code_commitment: Default::default(),
+                    outer_code_commitment: Default::default(),
+                },
+            },
+            &mut kernel_working_set,
+        )
+        .unwrap();
+
+    let unregistered_sequencer = MockAddress::from([7; 32]);
+    let mut blobs = vec![
+        make_blob(vec![1], REGULAR_SEQUENCER_DA, [1u8; 32]),
+        make_blob(vec![3, 3, 3], PREFERRED_SEQUENCER_DA, [3u8; 32]),
+    ];
+    let excessive_unregistered_blobs = 3;
+
+    for _ in 0..UNREGISTERED_BLOBS_PER_SLOT + excessive_unregistered_blobs {
+        blobs.push(make_blob(vec![2, 2], unregistered_sequencer, [2u8; 32]));
+    }
+
+    assert_eq!(
+        blobs.len() as u64,
+        2 + UNREGISTERED_BLOBS_PER_SLOT + excessive_unregistered_blobs
+    );
+
+    let mut unregistered_blobs_processed = 0;
+    let mut registered_blobs_processed = 0;
+
+    for slot_number in 0..DEFERRED_SLOTS_COUNT + 1 {
+        let mut slot_data = MockBlock {
+            header: MockBlockHeader::from_height(slot_number),
+            validity_cond: Default::default(),
+            batch_blobs: if slot_number == 0 {
+                blobs.clone()
+            } else {
+                vec![]
+            },
+            proof_blobs: Default::default(),
+        };
+        test_kernel.begin_slot_hook(
+            &slot_data.header,
+            &slot_data.validity_cond,
+            &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
+            &mut state_checkpoint,
+        );
+
+        kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
+        let blobs_to_execute = test_kernel
+            .get_blobs_for_this_slot(&mut slot_data.batch_blobs, &mut kernel_working_set)
+            .unwrap();
+
+        for batch in blobs_to_execute {
+            if batch.1 == unregistered_sequencer {
+                unregistered_blobs_processed += 1;
+            } else {
+                registered_blobs_processed += 1;
+            }
+        }
+    }
+    assert_eq!(registered_blobs_processed, 2);
+    // The `excessive_unregistered_blobs` amount of blobs weren't processed we were constrained to
+    // `UNREGISTERED_BLOBS_PER_SLOT`
+    assert_eq!(unregistered_blobs_processed, UNREGISTERED_BLOBS_PER_SLOT);
+}
+
+#[test]
 fn test_based_sequencing() -> Result<(), Infallible> {
     let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(false);
     let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
@@ -642,6 +720,105 @@ fn test_based_sequencing() -> Result<(), Infallible> {
     );
     assert_eq!(kernel_working_set.virtual_slot(), 2);
     assert!(execute_in_slot_2.is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn test_based_sequencing_unregistered_blobs() -> Result<(), Infallible> {
+    let (current_storage, _runtime, genesis_root) = TestRuntime::pre_initialized(false);
+    let mut state_checkpoint = StateCheckpoint::new(current_storage.clone());
+
+    // Define the kernel
+    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    let test_kernel = BasicKernel::<S, Da>::default();
+    test_kernel
+        .genesis(
+            &BasicKernelGenesisConfig {
+                chain_state: ChainStateConfig {
+                    current_time: Default::default(),
+                    genesis_da_height: 0,
+                    inner_code_commitment: Default::default(),
+                    outer_code_commitment: Default::default(),
+                },
+            },
+            &mut kernel_working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        test_kernel
+            .chain_state()
+            .next_visible_slot_number(&mut kernel_working_set)?,
+        1
+    );
+    assert_eq!(
+        test_kernel
+            .chain_state()
+            .true_slot_number(&mut kernel_working_set)?,
+        0
+    );
+
+    let unregistered_sequencer = MockAddress::from([7; 32]);
+    let blob_1 = make_blob(vec![1], REGULAR_SEQUENCER_DA, [1u8; 32]);
+    let blob_2 = make_blob(vec![2, 2], REGULAR_SEQUENCER_DA, [2u8; 32]);
+    let blob_3 = make_blob(vec![3, 3, 3], PREFERRED_SEQUENCER_DA, [3u8; 32]);
+    let unregistered_blob = make_blob(vec![2, 2], unregistered_sequencer, [2u8; 32]);
+    let mut blobs = vec![blob_1.clone(), blob_2.clone(), blob_3.clone()];
+    let excessive_unregistered_blobs = 3;
+
+    for _ in 0..UNREGISTERED_BLOBS_PER_SLOT + excessive_unregistered_blobs {
+        blobs.push(unregistered_blob.clone());
+    }
+
+    assert_eq!(
+        blobs.len() as u64,
+        3 + UNREGISTERED_BLOBS_PER_SLOT + excessive_unregistered_blobs
+    );
+
+    let mut slot_1_data = MockBlock {
+        header: MockBlockHeader::from_height(1),
+        validity_cond: Default::default(),
+        batch_blobs: blobs,
+        proof_blobs: Default::default(),
+    };
+    test_kernel.begin_slot_hook(
+        &slot_1_data.header,
+        &slot_1_data.validity_cond,
+        &genesis_root, // For this test, we don't actually execute blocks - so keep reusing the genesis root hash as a placeholder
+        &mut state_checkpoint,
+    );
+    kernel_working_set = KernelWorkingSet::from_kernel(&test_kernel, &mut state_checkpoint);
+    let mut execute_in_slot_1 = test_kernel
+        .get_blobs_for_this_slot(&mut slot_1_data.batch_blobs, &mut kernel_working_set)
+        .unwrap();
+
+    // assert no extra unregistered blobs were added
+    assert_eq!(
+        3 + UNREGISTERED_BLOBS_PER_SLOT,
+        execute_in_slot_1.len() as u64
+    );
+
+    assert_blob_matches_batch(blob_1, execute_in_slot_1.remove(0), "slot 1", false);
+    assert_blob_matches_batch(blob_2, execute_in_slot_1.remove(0), "slot 1", false);
+    assert_blob_matches_batch(blob_3, execute_in_slot_1.remove(0), "slot 1", false);
+
+    for _ in 0..UNREGISTERED_BLOBS_PER_SLOT {
+        assert_blob_matches_batch(
+            unregistered_blob.clone(),
+            execute_in_slot_1.remove(0),
+            "slot 1",
+            false,
+        );
+    }
+
+    assert_eq!(
+        test_kernel
+            .chain_state()
+            .true_slot_number(&mut kernel_working_set)?,
+        1
+    );
+    assert_eq!(kernel_working_set.virtual_slot(), 1);
 
     Ok(())
 }
