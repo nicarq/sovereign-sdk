@@ -47,14 +47,14 @@ tokio = { workspace = true, features = ["test-util", "macros"] }
 
 [features]
 arbitrary = [
-	"dep:arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
-	"dep:tempfile",
-	"rockbound/arbitrary",
-	"sov-mock-zkvm/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-test-utils/arbitrary",
+    "dep:arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "dep:tempfile",
+    "rockbound/arbitrary",
+    "sov-mock-zkvm/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-test-utils/arbitrary",
 ]
 
 [[bench]]

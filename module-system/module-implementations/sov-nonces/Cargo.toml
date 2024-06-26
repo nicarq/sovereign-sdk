@@ -23,23 +23,22 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 [dev-dependencies]
 sov-nonces = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
-sov-modules-api = { path = "../../sov-modules-api", features = ["test-utils"]}
+sov-modules-api = { path = "../../sov-modules-api", features = ["test-utils"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-test-utils = { path = "../../sov-test-utils" }
-
 
 [features]
 default = []
 arbitrary = [
-	"sov-modules-api/arbitrary",
-	"sov-nonces/arbitrary",
-	"sov-state/arbitrary",
-	"sov-test-utils/arbitrary",
+    "sov-modules-api/arbitrary",
+    "sov-nonces/arbitrary",
+    "sov-state/arbitrary",
+    "sov-test-utils/arbitrary",
 ]
 native = [
-	"jsonrpsee",
-	"schemars",
-	"sov-modules-api/native",
-	"sov-nonces/native",
-	"sov-state/native",
+    "jsonrpsee",
+    "schemars",
+    "sov-modules-api/native",
+    "sov-nonces/native",
+    "sov-state/native",
 ]

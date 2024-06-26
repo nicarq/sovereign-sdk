@@ -22,7 +22,6 @@ sov-modules-api = { path = "../../sov-modules-api", features = ["native"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-test-utils = { path = "../../sov-test-utils" }
 
-
 [dependencies]
 anyhow = { workspace = true }
 sov-modules-api = { path = "../../sov-modules-api" }
@@ -35,8 +34,8 @@ borsh = { workspace = true, features = ["rc"] }
 [features]
 default = []
 native = [
-	"schemars",
-	"sov-modules-api/native",
-	"sov-state/native",
-	"sov-value-setter/native",
+    "schemars",
+    "sov-modules-api/native",
+    "sov-state/native",
+    "sov-value-setter/native",
 ]

@@ -80,7 +80,6 @@ semicolon_if_nothing_returned = "deny"
 #map_err_ignore = "warn"
 #doc_markdown = "warn"
 
-
 [workspace.dependencies]
 # Dependencies maintained by Sovereign
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6" }

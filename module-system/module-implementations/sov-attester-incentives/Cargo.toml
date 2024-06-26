@@ -25,11 +25,10 @@ sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = 
 sov-rollup-interface = { path = "../../../rollup-interface", version = "0.3" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
-
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
-bcs =  { workspace = true }
+bcs = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 derivative = { workspace = true }
@@ -40,16 +39,15 @@ sov-chain-state = { path = "../sov-chain-state", version = "0.3" }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
-
 [features]
 default = []
 native = [
-	"sov-attester-incentives/native",
-	"sov-bank/native",
-	"sov-chain-state/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-rollup-interface/native",
-	"sov-state/native",
+    "sov-attester-incentives/native",
+    "sov-bank/native",
+    "sov-chain-state/native",
+    "sov-mock-da/native",
+    "sov-mock-zkvm/native",
+    "sov-modules-api/native",
+    "sov-rollup-interface/native",
+    "sov-state/native",
 ]

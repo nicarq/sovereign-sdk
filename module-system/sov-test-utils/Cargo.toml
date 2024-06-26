@@ -60,13 +60,13 @@ proptest = { workspace = true }
 default = []
 # Not every downstream user of this crate may want to / can use `demo-stf` as a
 # dependency, so it's optional.
-demo-stf = [ "dep:demo-stf" ]
+demo-stf = ["dep:demo-stf"]
 arbitrary = [
-	"ethereum-types/arbitrary",
-	"sov-db/arbitrary",
-	"sov-mock-zkvm/arbitrary",
-	"sov-modules-api/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-sequencer-registry/arbitrary",
-	"sov-state/arbitrary",
+    "ethereum-types/arbitrary",
+    "sov-db/arbitrary",
+    "sov-mock-zkvm/arbitrary",
+    "sov-modules-api/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-sequencer-registry/arbitrary",
+    "sov-state/arbitrary",
 ]

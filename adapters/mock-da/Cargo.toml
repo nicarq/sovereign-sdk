@@ -39,10 +39,10 @@ tokio = { workspace = true, features = ["test-util", "macros"] }
 [features]
 default = []
 native = [
-	"dep:futures",
-	"dep:schemars",
-	"dep:serde_json",
-	"dep:tokio",
-	"sov-mock-da/native",
-	"sov-rollup-interface/native",
+    "dep:futures",
+    "dep:schemars",
+    "dep:serde_json",
+    "dep:tokio",
+    "sov-mock-da/native",
+    "sov-rollup-interface/native",
 ]

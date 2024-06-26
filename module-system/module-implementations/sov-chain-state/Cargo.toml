@@ -35,15 +35,14 @@ sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["test-utils"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
-
 [features]
 default = []
 test-utils = []
 native = [
-	"jsonrpsee",
-	"sov-chain-state/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-state/native",
+    "jsonrpsee",
+    "sov-chain-state/native",
+    "sov-mock-da/native",
+    "sov-mock-zkvm/native",
+    "sov-modules-api/native",
+    "sov-state/native",
 ]

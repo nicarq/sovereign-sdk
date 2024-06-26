@@ -22,9 +22,9 @@ sov-chain-state = { path = "../module-implementations/sov-chain-state" }
 [features]
 default = []
 native = [
-	"sov-blob-storage/native",
-	"sov-chain-state/native",
-	"sov-modules-api/native",
-	"sov-state/native",
+    "sov-blob-storage/native",
+    "sov-chain-state/native",
+    "sov-modules-api/native",
+    "sov-state/native",
 ]
 test-utils = []

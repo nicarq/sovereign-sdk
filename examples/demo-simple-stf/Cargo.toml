@@ -13,9 +13,9 @@ workspace = true
 
 [features]
 native = [
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-rollup-interface/native",
+    "sov-mock-da/native",
+    "sov-mock-zkvm/native",
+    "sov-rollup-interface/native",
 ]
 
 [dependencies]

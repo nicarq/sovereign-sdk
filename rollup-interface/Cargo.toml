@@ -24,7 +24,7 @@ borsh = { workspace = true }
 bytes = { workspace = true, default-features = true }
 derive_more = { workspace = true, features = ["as_ref"] }
 digest = { workspace = true }
-futures = { workspace = true, optional = true, features= [ "alloc" ] }
+futures = { workspace = true, optional = true, features = ["alloc"] }
 hex = { workspace = true }
 # Proptest should be a dev-dependency, but those can't be optional
 proptest = { workspace = true, optional = true }
@@ -47,17 +47,17 @@ sov-rollup-interface = { path = ".", features = ["native", "arbitrary"] }
 
 [features]
 native = [
-	"backon",
-	"futures",
-	"schemars",
-	"sov-rollup-interface/native",
-	"tokio",
-	"tracing",
+    "backon",
+    "futures",
+    "schemars",
+    "sov-rollup-interface/native",
+    "tokio",
+    "tracing",
 ]
 arbitrary = [
-	"dep:arbitrary",
-	"proptest",
-	"proptest-derive",
-	"sha2",
-	"sov-rollup-interface/arbitrary",
+    "dep:arbitrary",
+    "proptest",
+    "proptest-derive",
+    "sha2",
+    "sov-rollup-interface/arbitrary",
 ]
