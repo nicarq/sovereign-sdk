@@ -5,7 +5,7 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
-    AggregatedProofPublicData, CodeCommitment, Context, Spec, StateCheckpoint, TypedEvent,
+    AggregatedProofPublicData, CodeCommitment, Spec, StateCheckpoint, TypedEvent,
 };
 
 use super::helpers::{get_transition_unwrap, MAX_TX_GAS_AMOUNT};
@@ -72,17 +72,11 @@ fn execute_txs_and_process_valid_proof(
     let aggregated_proof = &build_proof_log(module, &mut state)?;
 
     let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
-    let context = Context::<S>::new(
-        prover_address,
-        Default::default(),
-        sequencer,
-        LAST_SLOT_NUM + 1,
-    );
 
     // We use the unmetered working set, because we don't want to charge for the gas used in the last transition (this makes the test simpler)
     let mut state = state.to_working_set_unmetered();
 
-    if let Err(err) = module.process_proof(&proof, &context, &mut state) {
+    if let Err(err) = module.process_proof(&proof, &prover_address, &mut state) {
         panic!("Error when processing proof: {:?}", err);
     }
 
@@ -136,7 +130,6 @@ fn check_reward(
 /// Checks that the prover gets penalized if he tries to prove the same transitions again
 fn check_penalization_if_proven_again(
     prover_address: <S as Spec>::Address,
-    sequencer: <S as Spec>::Address,
     proving_penalty: u64,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     mut state: StateCheckpoint<S>,
@@ -154,16 +147,9 @@ fn check_penalization_if_proven_again(
     let proof_log = build_proof_log(module, &mut state)?;
     let proof = MockZkvm::create_serialized_proof(true, proof_log);
 
-    let context = Context::<S>::new(
-        prover_address,
-        Default::default(),
-        sequencer,
-        LAST_SLOT_NUM + 2,
-    );
-
     let mut state = state.to_working_set_unmetered();
     module
-        .process_proof(&proof, &context, &mut state)
+        .process_proof(&proof, &prover_address, &mut state)
         .expect("The proof should not be rejected");
 
     // Assert that the working set contains a penalized event
@@ -191,22 +177,14 @@ fn check_penalization_if_proven_again(
 
 fn check_unbonding(
     prover_address: <S as Spec>::Address,
-    sequencer: <S as Spec>::Address,
     expected_amount_withdrawn: u64,
     old_balance: u64,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     state: StateCheckpoint<S>,
 ) -> Result<StateCheckpoint<S>, Infallible> {
-    let context = Context::<S>::new(
-        prover_address,
-        Default::default(),
-        sequencer,
-        LAST_SLOT_NUM + 2,
-    );
-
     let mut state = state.to_working_set_unmetered();
     module
-        .unbond_prover(&context, &mut state)
+        .unbond_prover(&prover_address, &mut state)
         .expect("The proof should not be rejected");
 
     let (mut checkpoint, _, mut events) = state.checkpoint();
@@ -263,7 +241,6 @@ fn test_valid_proof() -> Result<(), Infallible> {
     // Now we have to check we can unbond
     check_unbonding(
         prover_address,
-        sequencer,
         BOND_AMOUNT,
         INITIAL_PROVER_BALANCE - BOND_AMOUNT + reward,
         &module,
@@ -302,18 +279,12 @@ fn test_valid_proof_with_penalization() -> Result<(), Infallible> {
         .expect("The proving penalty should be set at genesis");
 
     // Now we have to check that we cannot prove the same transitions again
-    let state = check_penalization_if_proven_again(
-        prover_address,
-        sequencer,
-        proving_penalty,
-        &module,
-        state,
-    )?;
+    let state =
+        check_penalization_if_proven_again(prover_address, proving_penalty, &module, state)?;
 
     // Now we have to check we can unbond
     check_unbonding(
         prover_address,
-        sequencer,
         BOND_AMOUNT - proving_penalty,
         INITIAL_PROVER_BALANCE - BOND_AMOUNT + reward,
         &module,

@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{
-    AggregatedProofPublicData, CallResponse, Context, DaSpec, EventEmitter, Gas, Spec,
-    StateAccessor, StateAccessorError, TxState, Zkvm,
+    AggregatedProofPublicData, CallResponse, DaSpec, EventEmitter, Gas, Spec, StateAccessor,
+    StateAccessorError, TxState, Zkvm,
 };
 use sov_state::EventContainer;
 use thiserror::Error;
@@ -146,31 +146,31 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     pub(crate) fn bond_prover(
         &self,
         bond_amount: u64,
-        context: &Context<S>,
+        prover_address: &S::Address,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
-        self.bond_prover_helper(bond_amount, context.sender(), state)
+        self.bond_prover_helper(bond_amount, prover_address, state)
     }
 
     /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
     pub(crate) fn unbond_prover(
         &self,
-        context: &Context<S>,
+        prover_address: &S::Address,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
-        if let Some(old_balance) = self.bonded_provers.get(context.sender(), state)? {
-            self.transfer_to_prover(old_balance, context, state)?;
+        if let Some(old_balance) = self.bonded_provers.get(prover_address, state)? {
+            self.transfer_to_prover(old_balance, prover_address, state)?;
 
             // Update our internal tracking of the total bonded amount for the sender.
-            self.bonded_provers.set(context.sender(), &0, state)?;
+            self.bonded_provers.set(prover_address, &0, state)?;
 
             // Emit the unbonding event
             self.emit_event(
                 state,
                 "unbond_prover",
                 Event::<S>::UnBondedProver {
-                    prover: context.sender().clone(),
+                    prover: prover_address.clone(),
                     amount_withdrawn: old_balance,
                 },
             );
@@ -274,7 +274,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     fn transfer_to_prover(
         &self,
         total_reward: u64,
-        context: &Context<S>,
+        sender: &S::Address,
         state: &mut impl StateAccessor,
     ) -> Result<(), ProverIncentiveError> {
         let coins = Coins {
@@ -284,7 +284,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // We can transfer the reward from the `ProverIncentives` module to the prover's account.
         self.bank
-            .transfer_from(self.id.to_payable(), context.sender(), coins, state)
+            .transfer_from(self.id.to_payable(), sender, coins, state)
             .map_err(|err| ProverIncentiveError::TransferFailure(err.to_string()))?;
 
         Ok(())
@@ -297,7 +297,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         init_slot_num: u64,
         final_slot_num: u64,
         old_balance: u64,
-        context: &Context<S>,
+        sender: &S::Address,
         state: &mut impl TxState<S>,
     ) -> Result<u64, ProverIncentiveError> {
         // Let's compute the total reward
@@ -336,13 +336,13 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // We only reward a portion of the total reward - we burn some of it
             // to avoid the provers to collude to prove empty blocks.
             let reward_amount = self.burn_rate().apply(total_reward);
-            self.transfer_to_prover(reward_amount, context, state)?;
+            self.transfer_to_prover(reward_amount, sender, state)?;
 
             self.emit_event(
                 state,
                 "process_valid_proof",
                 Event::<S>::ProcessedValidProof {
-                    prover: context.sender().clone(),
+                    prover: sender.clone(),
                     reward: reward_amount,
                 },
             );
@@ -357,13 +357,13 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
             // Unlock the prover's bond
             self.bonded_provers
-                .set(context.sender(), &(old_balance - fine), state)?;
+                .set(sender, &(old_balance - fine), state)?;
 
             self.emit_event(
                 state,
                 "prover_penalized",
                 Event::<S>::ProverPenalized {
-                    prover: context.sender().clone(),
+                    prover: sender.clone(),
                     amount: fine,
                     reason: crate::event::PenalizationReason::ProofAlreadyProcessed,
                 },
@@ -374,15 +374,15 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     }
 
     /// Try to process a zk proof, if the prover is bonded.
-    pub(crate) fn process_proof(
+    pub fn process_proof(
         &self,
         proof: &[u8],
-        context: &Context<S>,
+        prover_address: &S::Address,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ProverIncentiveError> {
         // Get the prover's old balance.
         // Revert if they aren't bonded
-        let old_balance = match self.bonded_provers.get(context.sender(), state)? {
+        let old_balance = match self.bonded_provers.get(prover_address, state)? {
             Some(balance) => balance,
             None => return Err(ProverIncentiveError::ProverNotBonded),
         };
@@ -401,7 +401,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         );
         // Lock the prover's bond amount.
         self.bonded_provers
-            .set(context.sender(), &new_balance, state)?;
+            .set(prover_address, &new_balance, state)?;
 
         let code_commitment = self
             .chain_state
@@ -418,7 +418,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                     state,
                     "prover_slashed",
                     Event::<S>::ProverSlashed {
-                        prover: context.sender().clone(),
+                        prover: prover_address.clone(),
                         reason: crate::event::SlashingReason::ProofInvalid,
                     },
                 );
@@ -436,7 +436,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                         state,
                         "prover_slashed",
                         Event::<S>::ProverSlashed {
-                            prover: context.sender().clone(),
+                            prover: prover_address.clone(),
                             reason,
                         },
                     );
@@ -450,13 +450,13 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             public_outputs.initial_slot_number,
             public_outputs.final_slot_number,
             old_balance,
-            context,
+            prover_address,
             state,
         )?;
 
         // Unlock the prover's bond
         self.bonded_provers
-            .set(context.sender(), &new_staked_balance, state)?;
+            .set(prover_address, &new_staked_balance, state)?;
 
         Ok(CallResponse::default())
     }

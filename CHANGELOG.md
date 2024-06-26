@@ -1,3 +1,4 @@
+- #853 Make the `ProverIncentives` call methods public and accept prover address explicitly.
 - #821 removes support for the RPC methods of rollup sequencers, and replaces them with a REST API accessible by default at `http://localhost:12346/sequencer`.
 - #851 Add BlobData constructors. 
 - #842 `ProofManager` saves zk-proofs received from the `STF` in the db. 

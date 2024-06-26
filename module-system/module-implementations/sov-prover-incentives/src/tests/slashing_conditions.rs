@@ -6,8 +6,7 @@ use borsh::BorshSerialize;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
-    AggregatedProofPublicData, CodeCommitment, Context, Spec, StateAccessor, StateCheckpoint,
-    WorkingSet,
+    AggregatedProofPublicData, CodeCommitment, Spec, StateAccessor, StateCheckpoint, WorkingSet,
 };
 
 use super::helpers::{get_transition_unwrap, simulate_chain_state_execution, MAX_TX_GAS_AMOUNT};
@@ -21,7 +20,6 @@ const LAST_SLOT_NUM: u64 = 2;
 /// Setups the slashing tests
 fn slashing_setup() -> (
     crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
-    <S as Spec>::Address,
     <S as Spec>::Address,
     StateCheckpoint<S>,
 ) {
@@ -42,22 +40,20 @@ fn slashing_setup() -> (
         state,
     );
 
-    (module, prover_address, sequencer, state_checkpoint)
+    (module, prover_address, state_checkpoint)
 }
 
 /// Proves a transition log
 fn prove_transition_log(
     aggregated_proof: AggregatedProofPublicData,
     prover_address: <S as Spec>::Address,
-    sequencer: <S as Spec>::Address,
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     state: &mut WorkingSet<S>,
 ) {
-    let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
     let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
 
     module
-        .process_proof(&proof, &context, state)
+        .process_proof(&proof, &prover_address, state)
         .expect("An invalid proof is not an error");
 }
 
@@ -91,16 +87,15 @@ fn check_prover_slashed(
 #[test]
 /// The prover gets slashed if they submit an invalid zk-proof
 fn test_slash_on_invalid_proof() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+    let (module, prover_address, state_checkpoint) = slashing_setup();
 
     let mut state = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {
-        let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
         let proof = &MockZkvm::create_serialized_proof(false, ());
         module
-            .process_proof(proof, &context, &mut state)
+            .process_proof(proof, &prover_address, &mut state)
             .expect("An invalid proof is not an error");
     }
 
@@ -116,7 +111,7 @@ fn test_slash_on_invalid_proof() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid genesis_hash
 fn test_slash_on_invalid_genesis_hash() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, mut state) = slashing_setup();
+    let (module, prover_address, mut state) = slashing_setup();
 
     let genesis_hash = module
         .chain_state
@@ -146,7 +141,6 @@ fn test_slash_on_invalid_genesis_hash() -> Result<(), Infallible> {
         prove_transition_log(
             log_with_wrong_initial_state_root,
             prover_address,
-            sequencer,
             &module,
             &mut state,
         );
@@ -166,7 +160,7 @@ fn test_slash_on_invalid_genesis_hash() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid final slot hash
 fn test_slash_on_invalid_initial_state_root() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, mut state) = slashing_setup();
+    let (module, prover_address, mut state) = slashing_setup();
 
     // Process an invalid proof
 
@@ -196,7 +190,6 @@ fn test_slash_on_invalid_initial_state_root() -> Result<(), Infallible> {
     prove_transition_log(
         log_with_wrong_initial_state_root,
         prover_address,
-        sequencer,
         &module,
         &mut state,
     );
@@ -213,7 +206,7 @@ fn test_slash_on_invalid_initial_state_root() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid final slot hash
 fn test_slash_on_invalid_final_slot_hash() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, mut state) = slashing_setup();
+    let (module, prover_address, mut state) = slashing_setup();
 
     // Process an invalid proof
     let genesis_hash = module
@@ -242,7 +235,6 @@ fn test_slash_on_invalid_final_slot_hash() -> Result<(), Infallible> {
     prove_transition_log(
         log_with_wrong_initial_state_root,
         prover_address,
-        sequencer,
         &module,
         &mut state,
     );
@@ -259,7 +251,7 @@ fn test_slash_on_invalid_final_slot_hash() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid final state root
 fn test_slash_on_invalid_final_state_root() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, mut state) = slashing_setup();
+    let (module, prover_address, mut state) = slashing_setup();
 
     // Process an invalid proof
 
@@ -289,7 +281,6 @@ fn test_slash_on_invalid_final_state_root() -> Result<(), Infallible> {
     prove_transition_log(
         log_with_wrong_final_state_root,
         prover_address,
-        sequencer,
         &module,
         &mut state,
     );
@@ -306,7 +297,7 @@ fn test_slash_on_invalid_final_state_root() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid initial slot hash
 fn test_slash_on_invalid_initial_slot_hash() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, mut state) = slashing_setup();
+    let (module, prover_address, mut state) = slashing_setup();
 
     let genesis_hash = module
         .chain_state
@@ -333,7 +324,6 @@ fn test_slash_on_invalid_initial_slot_hash() -> Result<(), Infallible> {
     prove_transition_log(
         log_with_wrong_initial_slot_hash,
         prover_address,
-        sequencer,
         &module,
         &mut state,
     );
@@ -350,7 +340,7 @@ fn test_slash_on_invalid_initial_slot_hash() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid initial transition
 fn test_slash_on_invalid_initial_transition() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, mut state) = slashing_setup();
+    let (module, prover_address, mut state) = slashing_setup();
 
     // Process an invalid proof
 
@@ -380,7 +370,6 @@ fn test_slash_on_invalid_initial_transition() -> Result<(), Infallible> {
     prove_transition_log(
         log_with_wrong_initial_state_root,
         prover_address,
-        sequencer,
         &module,
         &mut working_set,
     );
@@ -397,7 +386,7 @@ fn test_slash_on_invalid_initial_transition() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for an invalid final transition
 fn test_slash_on_invalid_final_transition() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, mut state) = slashing_setup();
+    let (module, prover_address, mut state) = slashing_setup();
 
     // Process an invalid proof
 
@@ -426,7 +415,6 @@ fn test_slash_on_invalid_final_transition() -> Result<(), Infallible> {
     prove_transition_log(
         log_with_wrong_initial_state_root,
         prover_address,
-        sequencer,
         &module,
         &mut working_set,
     );
@@ -443,17 +431,16 @@ fn test_slash_on_invalid_final_transition() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for which the output cannot be deserialized properly
 fn test_slash_on_invalid_output_format() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, state_checkpoint) = slashing_setup();
+    let (module, prover_address, state_checkpoint) = slashing_setup();
 
     let mut working_set = state_checkpoint.to_working_set_unmetered();
 
     // Process an invalid proof
     {
-        let context = Context::<S>::new(prover_address, Default::default(), sequencer, 1);
         let proof = MockZkvm::create_serialized_proof(true, ());
 
         module
-            .process_proof(&proof, &context, &mut working_set)
+            .process_proof(&proof, &prover_address, &mut working_set)
             .expect("An invalid proof is not an error");
     }
 
@@ -469,7 +456,7 @@ fn test_slash_on_invalid_output_format() -> Result<(), Infallible> {
 #[test]
 /// The prover gets slashed if they submit a valid proof for which the validity conditions are not correctly stored in the chain-state
 fn test_slash_on_invalid_validity_cond() -> Result<(), Infallible> {
-    let (module, prover_address, sequencer, mut state) = slashing_setup();
+    let (module, prover_address, mut state) = slashing_setup();
 
     // Process an invalid proof
 
@@ -500,7 +487,6 @@ fn test_slash_on_invalid_validity_cond() -> Result<(), Infallible> {
     prove_transition_log(
         log_with_wrong_initial_state_root,
         prover_address,
-        sequencer,
         &module,
         &mut working_set,
     );
