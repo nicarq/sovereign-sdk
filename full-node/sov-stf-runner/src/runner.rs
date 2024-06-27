@@ -226,7 +226,7 @@ where
             SocketAddr::new(axum_config.bind_host.parse()?, axum_config.bind_port);
 
         // Start the main rollup loop
-        let next_item_numbers = ledger_db.get_next_items_numbers();
+        let next_item_numbers = ledger_db.get_next_items_numbers()?;
         let last_slot_processed_before_shutdown = next_item_numbers.slot_number.saturating_sub(1);
 
         let da_height_processed =
@@ -438,7 +438,7 @@ where
             let last_finalized = self.da_service.get_last_finalized_block_header().await?;
             debug!(header = %last_finalized.display(), "Got last finalized header");
             let last_finalized_height = last_finalized.height();
-            let slot_number = self.ledger_db.get_next_items_numbers().slot_number;
+            let slot_number = self.ledger_db.get_next_items_numbers()?.slot_number;
             debug!(slot_number, "Last slot number");
             seen_state_transition.push_back(StateTransitionInfo {
                 data: transition_data,

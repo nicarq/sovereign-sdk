@@ -177,7 +177,6 @@ pub struct LedgerDb {
     /// Uses an optimized layout which
     /// requires transactions to be executed before being committed.
     db: Arc<CacheDb>,
-    next_item_numbers: Arc<Mutex<ItemNumbers>>,
     notification_service: LedgerNotificationService,
 }
 
@@ -194,50 +193,37 @@ impl LedgerDb {
         }
     }
 
-    fn load_next_item_numbers(db_snapshot: &CacheDb) -> anyhow::Result<ItemNumbers> {
-        Ok(ItemNumbers {
-            slot_number: Self::last_version_written(db_snapshot, SlotByNumber)?
-                .map(|x| x + 1)
-                .unwrap_or_default(),
-            batch_number: Self::last_version_written(db_snapshot, BatchByNumber)?
-                .map(|x| x + 1)
-                .unwrap_or_default(),
-            tx_number: Self::last_version_written(db_snapshot, TxByNumber)?
-                .map(|x| x + 1)
-                .unwrap_or_default(),
-            event_number: Self::last_version_written(db_snapshot, EventByNumber)?
-                .map(|x| x + 1)
-                .unwrap_or_default(),
-        })
-    }
-
-    /// Initialize a new [`LedgerDb`] with an provided [`CacheDb`]
+    /// Initialize a new [`LedgerDb`] with an provided [`CacheDb`].
     pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
-        let next_item_numbers = Self::load_next_item_numbers(&db)?;
         Ok(Self {
             db: Arc::new(db),
-            next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
             notification_service: LedgerNotificationService::new(),
         })
     }
 
     /// Replace underlying [`CacheDb`] with provided one.
-    /// Keeps underlying broadcast channel open.
+    /// Keeps the underlying broadcast channel open.
     pub fn replace_db(&mut self, db: CacheDb) -> anyhow::Result<()> {
         self.db.overwrite_change_set(db);
-        let loaded_item_numbers = Self::load_next_item_numbers(&self.db)?;
-
-        let mut next_item_numbers = self
-            .next_item_numbers
-            .lock()
-            .expect("ItemNumbers lock is poisoned");
-        *next_item_numbers = loaded_item_numbers;
         Ok(())
     }
 
-    /// Get the next slot, block, transaction, and event numbers
-    pub fn get_next_items_numbers(&self) -> ItemNumbers {
-        self.next_item_numbers.lock().unwrap().clone()
+    /// Get the next slot, block, transaction, and event numbers.
+    pub fn get_next_items_numbers(&self) -> anyhow::Result<ItemNumbers> {
+        Ok(ItemNumbers {
+            slot_number: Self::last_version_written(&self.db, SlotByNumber)?
+                .map(|x| x + 1)
+                .unwrap_or_default(),
+            batch_number: Self::last_version_written(&self.db, BatchByNumber)?
+                .map(|x| x + 1)
+                .unwrap_or_default(),
+            tx_number: Self::last_version_written(&self.db, TxByNumber)?
+                .map(|x| x + 1)
+                .unwrap_or_default(),
+            event_number: Self::last_version_written(&self.db, EventByNumber)?
+                .map(|x| x + 1)
+                .unwrap_or_default(),
+        })
     }
 
     /// Gets all slots with numbers `range.start` to `range.end`. If `range.end` is outside
@@ -342,17 +328,7 @@ impl LedgerDb {
         state_root: &[u8],
     ) -> anyhow::Result<SchemaBatch> {
         // Create a scope to ensure that the lock is released before we materialize data
-        let mut current_item_numbers = {
-            let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
-            let item_numbers = next_item_numbers.clone();
-            // TODO: Remove this, when ledger will also listen for storage upgrade
-            next_item_numbers.slot_number += 1;
-            next_item_numbers.batch_number += data_to_commit.batch_receipts.len() as u64;
-            next_item_numbers.tx_number += data_to_commit.num_txs as u64;
-            next_item_numbers.event_number += data_to_commit.num_events as u64;
-            item_numbers
-            // The lock is released here
-        };
+        let mut current_item_numbers = self.get_next_items_numbers()?;
         let mut schema_batch = SchemaBatch::new();
 
         let first_batch_number = current_item_numbers.batch_number;
