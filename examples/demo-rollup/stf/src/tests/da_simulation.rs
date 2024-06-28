@@ -7,6 +7,7 @@ use sov_modules_api::runtime::capabilities::Authenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{EncodeCall, PrivateKey, RawTx};
 use sov_test_utils::generators::bank::BankMessageGenerator;
+use sov_test_utils::generators::sequencer_registry::SequencerRegistryMessageGenerator;
 use sov_test_utils::generators::value_setter::{ValueSetterMessage, ValueSetterMessages};
 use sov_test_utils::{MessageGenerator, TestPrivateKey};
 
@@ -48,8 +49,8 @@ pub fn simulate_da_with_revert_msg(admin: TestPrivateKey) -> Vec<RawTx> {
 }
 
 pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<RawTx> {
-    let b: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key.clone());
-    let create_token_message = b.create_default_messages().remove(0);
+    let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key.clone());
+    let create_token_message = bank_generator.create_default_messages().remove(0);
     let tx = Transaction::<S>::new(
         create_token_message.sender_key.pub_key(),
         <Runtime<S, Da> as EncodeCall<Bank<S>>>::encode_call(create_token_message.content.clone()),
@@ -67,8 +68,8 @@ pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<RawTx> {
 }
 
 pub fn simulate_da_with_bad_nonce(key: TestPrivateKey) -> Vec<RawTx> {
-    let b: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key);
-    let mut create_token_message = b.create_default_messages().remove(0);
+    let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key);
+    let mut create_token_message = bank_generator.create_default_messages().remove(0);
     // Overwrite the nonce with the maximum value
     create_token_message.nonce = u64::MAX;
     let tx = create_token_message.to_tx::<Runtime<S, Da>>();
@@ -76,8 +77,8 @@ pub fn simulate_da_with_bad_nonce(key: TestPrivateKey) -> Vec<RawTx> {
 }
 
 pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<RawTx> {
-    let b: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key);
-    let create_token_message = b.create_default_messages().remove(0);
+    let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key);
+    let create_token_message = bank_generator.create_default_messages().remove(0);
     let tx = Transaction::<S>::new_signed_tx(
         &create_token_message.sender_key,
         UnsignedTransaction::<S>::new(
@@ -96,4 +97,43 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<RawTx> {
 fn encode_with_auth(tx: Transaction<S>) -> RawTx {
     let tx_bytes = tx.try_to_vec().unwrap();
     ModAuth::<S, Da>::encode(tx_bytes).unwrap()
+}
+
+pub fn simulate_da_with_incorrect_direct_registration_msg(admin: TestPrivateKey) -> Vec<RawTx> {
+    let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(admin);
+    let create_token_message = bank_generator.create_default_messages().remove(0);
+    let tx = create_token_message.to_tx::<Runtime<S, Da>>();
+
+    vec![RawTx {
+        data: tx.try_to_vec().unwrap(),
+    }]
+}
+
+pub fn simulate_da_with_multiple_direct_registration_msg(
+    sequencers: Vec<Vec<u8>>,
+    admin: TestPrivateKey,
+) -> Vec<RawTx> {
+    let mut messages = Vec::default();
+
+    let sequencer_and_stake = sequencers
+        .into_iter()
+        .map(|address| (address, 100000u64))
+        .collect();
+    let sequencer_registry_generator =
+        SequencerRegistryMessageGenerator::<S, Da>::generate_multiple_sequencer_registration(
+            sequencer_and_stake,
+            admin.clone(),
+        );
+    let default_messages = sequencer_registry_generator.create_default_messages();
+
+    let nonce_offset = messages.len() as u64;
+    for mut message in default_messages {
+        message.nonce += nonce_offset;
+        let tx = message.to_tx::<Runtime<S, Da>>();
+        messages.push(RawTx {
+            data: tx.try_to_vec().unwrap(),
+        });
+    }
+
+    messages
 }

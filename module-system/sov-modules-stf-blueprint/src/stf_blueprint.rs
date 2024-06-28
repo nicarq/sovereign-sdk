@@ -344,7 +344,12 @@ where
             }
         }
 
-        let sequencer_outcome = BatchSequencerOutcome::Rewarded(accumulated_reward);
+        let sequencer_outcome = if is_registered_sequencer {
+            BatchSequencerOutcome::Rewarded(accumulated_reward)
+        } else {
+            BatchSequencerOutcome::NotRewardable
+        };
+
         self.runtime.end_batch_hook(
             sequencer_outcome.clone(),
             sequencer_da_address,
