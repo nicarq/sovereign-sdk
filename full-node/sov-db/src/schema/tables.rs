@@ -25,7 +25,8 @@
 //! Module Accessory State Table:
 //! - `(ModuleIdBytes, Key) -> Value`
 
-use borsh::{maybestd, BorshDeserialize, BorshSerialize};
+use borsh::ser::BorshSerialize;
+use borsh::BorshDeserialize;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::Version;
 use rockbound::schema::{ColumnFamilyName, KeyDecoder, KeyEncoder, ValueCodec};
@@ -118,7 +119,7 @@ macro_rules! impl_borsh_value_codec {
             fn encode_value(
                 &self,
             ) -> ::std::result::Result<::std::vec::Vec<u8>, ::rockbound::CodecError> {
-                ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
+                ::borsh::to_vec(self).map_err(Into::into)
             }
 
             fn decode_value(data: &[u8]) -> ::std::result::Result<Self, ::rockbound::CodecError> {
@@ -145,7 +146,7 @@ macro_rules! define_table_with_default_codec {
 
         impl ::rockbound::schema::KeyEncoder<$table_name> for $key {
             fn encode_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::rockbound::CodecError> {
-                ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
+                ::borsh::to_vec(self).map_err(Into::into)
             }
         }
 
@@ -284,7 +285,7 @@ impl SeekKeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
 
 impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, Version) {
     fn decode_key(data: &[u8]) -> rockbound::schema::Result<Self> {
-        let mut cursor = maybestd::io::Cursor::new(data);
+        let mut cursor = std::io::Cursor::new(data);
         let key = Vec::<u8>::deserialize_reader(&mut cursor)?;
         let version = cursor.read_u64::<BigEndian>()?;
         Ok((key, version))
@@ -293,7 +294,7 @@ impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, Version) {
 
 impl ValueCodec<ModuleAccessoryState> for AccessoryStateValue {
     fn encode_value(&self) -> rockbound::schema::Result<Vec<u8>> {
-        self.try_to_vec().map_err(CodecError::from)
+        borsh::to_vec(self).map_err(CodecError::from)
     }
 
     fn decode_value(data: &[u8]) -> rockbound::schema::Result<Self> {

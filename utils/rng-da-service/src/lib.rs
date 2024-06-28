@@ -1,7 +1,6 @@
 use std::env;
 
 use async_trait::async_trait;
-use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use futures::stream::BoxStream;
 use sov_bank::{Bank, Coins};
@@ -51,7 +50,17 @@ impl RngDaService {
 }
 
 /// A simple DaSpec for a random number generator.
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Eq, Debug, Clone, Default)]
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    PartialEq,
+    Eq,
+    Debug,
+    Clone,
+    Default,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+)]
 pub struct RngDaSpec;
 
 impl DaSpec for RngDaSpec {
@@ -157,7 +166,7 @@ impl DaService for RngDaService {
             )
         };
 
-        let blob = BlobData::new_batch(txs).try_to_vec().unwrap();
+        let blob = borsh::to_vec(&BlobData::new_batch(txs)).unwrap();
 
         let address = MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS);
         let blob = MockBlob::new(blob, address, [0u8; 32]);
@@ -252,7 +261,7 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<RawTx> {
                 DEFAULT_ESTIMATED_GAS_USAGE,
             ),
         );
-        let ser_tx = tx.try_to_vec().unwrap();
+        let ser_tx = borsh::to_vec(&tx).unwrap();
         message_vec.push(ser_tx);
     }
 
@@ -285,7 +294,7 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<RawTx> {
             DEFAULT_ESTIMATED_GAS_USAGE,
         ),
     );
-    let ser_tx = tx.try_to_vec().unwrap();
+    let ser_tx = borsh::to_vec(&tx).unwrap();
     message_vec.push(ser_tx);
 
     message_vec

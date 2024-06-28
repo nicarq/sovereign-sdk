@@ -1,4 +1,3 @@
-use borsh::BorshSerialize;
 use demo_stf::runtime::RuntimeCall;
 use ethers_core::abi::Address;
 use sov_mock_da::MockDaSpec;
@@ -62,7 +61,7 @@ fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<T
     Transaction::<TestSpec>::new_signed_tx(
         &key,
         UnsignedTransaction::new(
-            msg.try_to_vec().unwrap(),
+            borsh::to_vec(&msg).unwrap(),
             chain_id,
             max_priority_fee_bips,
             max_fee,

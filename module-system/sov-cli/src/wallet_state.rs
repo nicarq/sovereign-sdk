@@ -144,7 +144,7 @@ where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
 {
     let tx = Transaction::<S>::new_signed_tx(signing_key, tx.with_nonce(nonce));
-    let tx = tx.try_to_vec()?;
+    let tx = borsh::to_vec(&tx)?;
     Ok(tx)
 }
 
@@ -344,9 +344,7 @@ mod pubkey_serde {
     where
         S: Serializer,
     {
-        let bytes = data
-            .try_to_vec()
-            .expect("serialization to vec is infallible");
+        let bytes = borsh::to_vec(data).expect("serialization to vec is infallible");
         HexString::new(bytes).serialize(serializer)
     }
 

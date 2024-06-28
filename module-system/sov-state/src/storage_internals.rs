@@ -132,7 +132,9 @@ impl From<VisibleHash> for [u8; 32] {
     Debug(bound = "H: SimpleHasher")
 )]
 pub struct SparseMerkleProof<H: SimpleHasher>(
-    #[serde(bound(serialize = "", deserialize = ""))] jmt::proof::SparseMerkleProof<H>,
+    #[serde(bound(serialize = "", deserialize = ""))]
+    #[borsh(bound(serialize = "", deserialize = ""))]
+    jmt::proof::SparseMerkleProof<H>,
 );
 
 impl<H: SimpleHasher> SparseMerkleProof<H> {

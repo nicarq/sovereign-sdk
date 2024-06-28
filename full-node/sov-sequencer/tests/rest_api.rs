@@ -1,5 +1,4 @@
 use base64::prelude::*;
-use borsh::BorshSerialize;
 use futures::stream::StreamExt;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::digest::Digest;
@@ -23,7 +22,7 @@ fn generate_txs(admin_private_key: TestPrivateKey) -> (TxHash, Vec<Transaction<T
     }
 
     let tx_hash: TxHash = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(
-        txs[0].try_to_vec().unwrap(),
+        borsh::to_vec(&txs[0]).unwrap(),
     )
     .into();
 
@@ -79,7 +78,7 @@ async fn axum_submit_batch_ok() {
         .publish_batch(&PublishBatchBody {
             transactions: txs
                 .iter()
-                .map(|tx| BASE64_STANDARD.encode(tx.try_to_vec().unwrap()))
+                .map(|tx| BASE64_STANDARD.encode(borsh::to_vec(tx).unwrap()))
                 .collect(),
         })
         .await;

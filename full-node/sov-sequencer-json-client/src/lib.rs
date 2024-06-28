@@ -25,9 +25,8 @@ impl Client {
         txs: &[Tx],
     ) -> Result<(), Error<types::PublishBatchResponse>> {
         for tx in txs {
-            let tx_bytes = tx
-                .try_to_vec()
-                .map_err(|err| Error::InvalidRequest(err.to_string()))?;
+            let tx_bytes =
+                borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
             let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
 
             self.accept_tx(&types::AcceptTxBody { body: tx_b64 })

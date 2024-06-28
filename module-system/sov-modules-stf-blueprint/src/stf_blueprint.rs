@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-#[cfg(feature = "native")]
-use borsh::BorshSerialize;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::capabilities::{
@@ -752,11 +750,12 @@ where
             let key = typed_event.event_key().to_vec();
             StoredEvent::new(
                 &key,
-                &<RT as sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event(
-                    typed_event,
+                &borsh::to_vec(
+                    &<RT as sov_modules_api::RuntimeEventProcessor>::convert_to_runtime_event(
+                        typed_event,
+                    )
+                    .expect("Unknown event type"),
                 )
-                .expect("Unknown event type")
-                .try_to_vec()
                 .expect("unable to serialize event"),
             )
         })

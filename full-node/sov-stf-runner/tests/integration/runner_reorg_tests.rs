@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use borsh::BorshSerialize;
 use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockValidityCond,
@@ -251,7 +250,5 @@ fn get_result_from_blocks(
 }
 
 fn batch(data: Vec<u8>) -> Vec<u8> {
-    BlobData::new_batch(vec![RawTx { data }])
-        .try_to_vec()
-        .unwrap()
+    borsh::to_vec(&BlobData::new_batch(vec![RawTx { data }])).unwrap()
 }

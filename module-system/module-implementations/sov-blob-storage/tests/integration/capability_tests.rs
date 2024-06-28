@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use sov_bank::GasTokenConfig;
 use sov_blob_storage::{PreferredBlobData, DEFERRED_SLOTS_COUNT, UNREGISTERED_BLOBS_PER_SLOT};
 use sov_chain_state::ChainStateConfig;
@@ -82,12 +82,11 @@ fn make_blobs(
                     }];
 
                     MockBlob::new(
-                        PreferredBlobData {
+                        borsh::to_vec(&PreferredBlobData {
                             data: BlobData::new_batch(txs),
                             sequence_number,
                             virtual_slots_to_advance: slots_to_advance as u8,
-                        }
-                        .try_to_vec()
+                        })
                         .unwrap(),
                         PREFERRED_SEQUENCER_DA,
                         [*blob_num + offset as u8; 32],
@@ -128,9 +127,7 @@ fn make_blobs_by_slot(
 
 fn make_blob(tx_data: Vec<u8>, sender: MockAddress, id: [u8; 32]) -> MockBlob {
     MockBlob::new(
-        BlobData::new_batch(vec![RawTx { data: tx_data }])
-            .try_to_vec()
-            .unwrap(),
+        borsh::to_vec(&BlobData::new_batch(vec![RawTx { data: tx_data }])).unwrap(),
         sender,
         id,
     )

@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use borsh::BorshSerialize;
 use sov_bank::{IntoPayable, Payable, ReserveGasError};
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::transaction::PriorityFeeBips;
@@ -39,7 +38,7 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
     );
 
     let txs = vec![RawTx {
-        data: tx.try_to_vec().unwrap(),
+        data: borsh::to_vec(&tx).unwrap(),
     }];
 
     // Execute the begin batch hook

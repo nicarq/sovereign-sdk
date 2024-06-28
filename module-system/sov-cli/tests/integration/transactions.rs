@@ -59,7 +59,7 @@ fn transaction_is_serialized_correctly() {
     let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
     let runtime_call = RuntimeCall::bank(call_message_from_file("requests/create_token.json"));
-    let runtime_call_bytes = runtime_call.try_to_vec().unwrap();
+    let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let chain_id = 0;
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
@@ -147,7 +147,7 @@ fn transaction_signed_properly_from_file() {
     };
     let runtime_call =
         RuntimeCall::<TestSpec, MockDaSpec>::bank(call_message_from_file(bank_create_token_path));
-    let runtime_call_bytes = runtime_call.try_to_vec().unwrap();
+    let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let nonce = 11;
     let workflow = TransactionWorkflow::Sign {
@@ -205,7 +205,7 @@ fn transaction_signed_properly_from_json_string() {
     };
     let runtime_call =
         RuntimeCall::<TestSpec, MockDaSpec>::bank(call_message_from_file(create_token_path));
-    let runtime_call_bytes = runtime_call.try_to_vec().unwrap();
+    let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let workflow = TransactionWorkflow::Sign {
         transaction: TransactionLoadWorkflow::<

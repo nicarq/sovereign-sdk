@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use borsh::BorshSerialize;
 pub use sov_attester_incentives;
 pub use sov_attester_incentives::{
     AttesterIncentives, AttesterIncentivesConfig, CallMessage as AttesterCallMessage,
@@ -252,9 +251,7 @@ impl<M: Module, S: Spec> MessageType<M, S> {
         unsigned_tx: UnsignedTransaction<S>,
         key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
-        let tx = Transaction::new_signed_tx(key, unsigned_tx)
-            .try_to_vec()
-            .unwrap();
+        let tx = borsh::to_vec(&Transaction::new_signed_tx(key, unsigned_tx)).unwrap();
         Self::PreSigned(RawTx { data: tx })
     }
 
@@ -266,7 +263,7 @@ impl<M: Module, S: Spec> MessageType<M, S> {
         let pub_key = key.pub_key();
         let nonce = *nonces.get(&pub_key).unwrap_or(&0);
         nonces.insert(pub_key, nonce + 1);
-        let tx = Transaction::<S>::new_signed_tx(
+        let tx = borsh::to_vec(&Transaction::<S>::new_signed_tx(
             &key,
             UnsignedTransaction::new(
                 msg,
@@ -276,8 +273,7 @@ impl<M: Module, S: Spec> MessageType<M, S> {
                 nonce,
                 None,
             ),
-        )
-        .try_to_vec()
+        ))
         .unwrap();
 
         RawTx { data: tx }
@@ -423,7 +419,7 @@ pub fn run_test_with_setup_fn<RT, S, M>(
         };
 
         let batch = BlobData::new_batch(txs);
-        let blob = batch.try_to_vec().unwrap();
+        let blob = borsh::to_vec(&batch).unwrap();
         let mut blob = MockBlob::new_with_hash(blob, sequencer_da_address);
 
         let relevant_blobs = RelevantBlobIters {

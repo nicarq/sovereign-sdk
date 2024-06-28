@@ -107,7 +107,17 @@ impl From<TmHash> for [u8; 32] {
     }
 }
 
-#[derive(Default, serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    BorshDeserialize,
+    BorshSerialize,
+)]
 pub struct CelestiaSpec;
 
 impl DaSpec for CelestiaSpec {

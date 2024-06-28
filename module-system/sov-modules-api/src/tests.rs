@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use sha2::Sha256;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_rollup_interface::crypto::{PrivateKey, Signature};
@@ -25,7 +25,7 @@ fn test_account_bech32m_display() {
 #[test]
 fn test_pub_key_serialization() {
     let pub_key = TestPrivateKey::generate().pub_key();
-    let serialized_pub_key = pub_key.try_to_vec().unwrap();
+    let serialized_pub_key = borsh::to_vec(&pub_key).unwrap();
 
     let deserialized_pub_key = TestPublicKey::try_from_slice(&serialized_pub_key).unwrap();
     assert_eq!(pub_key, deserialized_pub_key);
@@ -37,7 +37,7 @@ fn test_signature_serialization() {
     let priv_key = TestPrivateKey::generate();
 
     let sig = priv_key.sign(&msg);
-    let serialized_sig = sig.try_to_vec().unwrap();
+    let serialized_sig = borsh::to_vec(&sig).unwrap();
     let deserialized_sig = TestSignature::try_from_slice(&serialized_sig).unwrap();
     assert_eq!(sig, deserialized_sig);
 

@@ -124,7 +124,7 @@ impl<S: Spec> Transaction<S> {
     /// Check whether the transaction has been signed correctly.
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub fn verify(&self) -> anyhow::Result<()> {
-        let serialized_tx = self.to_unsigned_transaction().try_to_vec()?;
+        let serialized_tx = borsh::to_vec(&self.to_unsigned_transaction())?;
         self.signature().verify(&self.pub_key, &serialized_tx)?;
 
         Ok(())

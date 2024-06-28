@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use borsh::BorshSerialize;
 use sov_bank::Bank;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::runtime::capabilities::Authenticator;
@@ -95,7 +94,7 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<RawTx> {
 }
 
 fn encode_with_auth(tx: Transaction<S>) -> RawTx {
-    let tx_bytes = tx.try_to_vec().unwrap();
+    let tx_bytes = borsh::to_vec(&tx).unwrap();
     ModAuth::<S, Da>::encode(tx_bytes).unwrap()
 }
 
@@ -105,7 +104,7 @@ pub fn simulate_da_with_incorrect_direct_registration_msg(admin: TestPrivateKey)
     let tx = create_token_message.to_tx::<Runtime<S, Da>>();
 
     vec![RawTx {
-        data: tx.try_to_vec().unwrap(),
+        data: borsh::to_vec(&tx).unwrap(),
     }]
 }
 
@@ -131,7 +130,7 @@ pub fn simulate_da_with_multiple_direct_registration_msg(
         message.nonce += nonce_offset;
         let tx = message.to_tx::<Runtime<S, Da>>();
         messages.push(RawTx {
-            data: tx.try_to_vec().unwrap(),
+            data: borsh::to_vec(&tx).unwrap(),
         });
     }
 

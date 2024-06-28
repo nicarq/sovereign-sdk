@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use borsh::ser::BorshSerialize;
 use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
@@ -33,7 +32,7 @@ pub fn build_transaction(
     Transaction::<TestSpec>::new_signed_tx(
         signer,
         UnsignedTransaction::new(
-            runtime_encoded_message.try_to_vec().unwrap(),
+            borsh::to_vec(&runtime_encoded_message).unwrap(),
             chain_id,
             max_priority_fee_bips,
             max_fee,

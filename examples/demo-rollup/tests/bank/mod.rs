@@ -1,5 +1,4 @@
 use anyhow::Context;
-use borsh::BorshSerialize;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
 use futures::StreamExt;
@@ -116,7 +115,7 @@ fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSp
     Transaction::<TestSpec>::new_signed_tx(
         key,
         UnsignedTransaction::new(
-            msg.try_to_vec().unwrap(),
+            borsh::to_vec(&msg).unwrap(),
             chain_id,
             max_priority_fee_bips,
             max_fee,
@@ -145,7 +144,7 @@ fn build_transfer_token_tx(
     Transaction::<TestSpec>::new_signed_tx(
         key,
         UnsignedTransaction::new(
-            msg.try_to_vec().unwrap(),
+            borsh::to_vec(&msg).unwrap(),
             chain_id,
             max_priority_fee_bips,
             max_fee,

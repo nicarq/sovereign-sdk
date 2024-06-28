@@ -12,7 +12,9 @@ use crate::zk::ValidityConditionChecker;
 use crate::BasicAddress;
 
 /// A specification for the types used by a DA layer.
-pub trait DaSpec: 'static + Default + Debug + PartialEq + Eq + Clone + Send + Sync {
+pub trait DaSpec:
+    'static + Default + Debug + PartialEq + Eq + Clone + Send + Sync + BorshSerialize + BorshDeserialize
+{
     /// The hash of a DA layer block
     type SlotHash: BlockHashTrait;
 
@@ -338,7 +340,7 @@ pub struct RelevantBlobIters<I: IntoIterator> {
 }
 
 /// Contains the proofs that data from the relevant namespaces belong to a given DA block.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, BorshDeserialize, BorshSerialize)]
 pub struct RelevantProofs<InclusionMultiProof, CompletenessProof> {
     /// Proof for the `batch` namespace data.
     pub batch: DaProof<InclusionMultiProof, CompletenessProof>,
@@ -347,7 +349,7 @@ pub struct RelevantProofs<InclusionMultiProof, CompletenessProof> {
 }
 
 /// A proof that a set of blobs belongs to a given DA block.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, BorshDeserialize, BorshSerialize)]
 pub struct DaProof<InclusionMultiProof, CompletenessProof> {
     /// A proof that each tx in a set of blob transactions is included in a given block.
     pub inclusion_proof: InclusionMultiProof,

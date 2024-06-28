@@ -1,4 +1,3 @@
-use borsh::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use sov_bank::Bank;
 use sov_celestia_adapter::verifier::CelestiaSpec;
@@ -16,7 +15,7 @@ pub async fn submit_transactions(
     txs: Vec<RawTx>,
 ) -> anyhow::Result<()> {
     let batch = BlobData::new_batch(txs);
-    let batch_bytes = batch.try_to_vec().expect("Failed to serialize batch");
+    let batch_bytes = borsh::to_vec(&batch).expect("Failed to serialize batch");
     let fee = da_service.estimate_fee(batch_bytes.len()).await.unwrap();
     let tx_hash = da_service.send_transaction(&batch_bytes, fee).await?;
     tracing::info!(%tx_hash, "Submitted Tx");
@@ -47,7 +46,7 @@ pub fn prepare_message_for_submission(
         gas_limit: None,
     };
     let tx = Transaction::<ThisSpec>::new_signed_tx(&account.private_key, unsigned_tx);
-    let authed_tx = Auth::encode(tx.try_to_vec().unwrap()).unwrap();
+    let authed_tx = Auth::encode(borsh::to_vec(&tx).unwrap()).unwrap();
     account.nonce += 1;
     authed_tx
 }

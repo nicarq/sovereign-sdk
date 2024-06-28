@@ -611,7 +611,7 @@ mod tests {
         fn proptest_share_serialization_deserialization(data in share_bytes_strategy()) {
             let bytes = Bytes::from(data);
             let share = Share::new(bytes);
-            let serialized = share.try_to_vec().unwrap();
+            let serialized = borsh::to_vec(&share).unwrap();
             let deserialized: Share = Share::try_from_slice(&serialized).unwrap();
             prop_assert_eq!(share, deserialized);
         }
