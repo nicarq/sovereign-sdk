@@ -5291,7 +5291,6 @@ dependencies = [
  "borsh",
  "futures",
  "hex",
- "jsonrpsee 0.22.5",
  "serde",
  "serde_json",
  "serde_with",
@@ -5301,6 +5300,7 @@ dependencies = [
  "sov-rest-utils",
  "sov-rollup-interface",
  "tokio",
+ "tokio-stream",
  "tracing",
  "utoipa-swagger-ui",
 ]
@@ -5309,7 +5309,9 @@ dependencies = [
 name = "sov-ledger-json-client"
 version = "0.3.0"
 dependencies = [
- "base64 0.21.7",
+ "anyhow",
+ "base64 0.22.0",
+ "borsh",
  "chrono",
  "futures",
  "progenitor",
@@ -5318,6 +5320,10 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sov-rollup-interface",
+ "tokio",
+ "tokio-tungstenite 0.23.1",
+ "tracing",
 ]
 
 [[package]]

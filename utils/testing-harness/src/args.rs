@@ -11,6 +11,9 @@ pub struct Args {
     #[arg(long, default_value = "http://127.0.0.1:12345")]
     pub rpc_url: String,
 
+    #[arg(long, default_value = "http://127.0.0.1:12346")]
+    pub rest_url: String,
+
     /// How many transactions maximum should fit in the batch
     #[arg(long)]
     pub max_batch_size_tx: u64,
@@ -80,9 +83,5 @@ impl Args {
         }
 
         Ok(Namespace::const_v0(raw_namespace))
-    }
-
-    pub fn get_ws_url(&self) -> String {
-        self.rpc_url.replace("http://", "ws://")
     }
 }

@@ -5,7 +5,8 @@ use ethers_core::abi::Address;
 use ethers_providers::ProviderError;
 use ethers_signers::{LocalWallet, Signer};
 use futures::future::join_all;
-use jsonrpsee::core::client::Subscription;
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_stf_runner::RollupProverConfig;
@@ -77,7 +78,7 @@ pub(crate) async fn create_test_client(
 /// Deploys a test contract on the test rollup.
 pub(crate) async fn deploy_contract_check(
     client: &TestClient,
-    slot_subscription: &mut Subscription<u64>,
+    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
 ) -> Result<Address, Box<dyn std::error::Error>> {
     let runtime_code = client.deploy_contract_call().await?;
 
@@ -102,7 +103,7 @@ pub(crate) async fn deploy_contract_check(
 /// Calls `set_value` on the test contract.
 pub(crate) async fn set_value_check(
     client: &TestClient,
-    slot_subscription: &mut Subscription<u64>,
+    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
     contract_address: Address,
     set_arg: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -135,7 +136,7 @@ pub(crate) async fn set_value_check(
 /// Calls `set_value` on the test contract with unsigned transaction.
 pub(crate) async fn set_value_unsigned_check(
     client: &TestClient,
-    slot_subscription: &mut Subscription<u64>,
+    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
     contract_address: Address,
     set_arg: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -153,7 +154,7 @@ pub(crate) async fn set_value_unsigned_check(
 /// Calls `set_values` on the test contract.
 pub(crate) async fn set_multiple_values_check(
     client: &TestClient,
-    slot_subscription: &mut Subscription<u64>,
+    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
     contract_address: Address,
     values: Vec<u32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -181,7 +182,7 @@ pub(crate) async fn set_multiple_values_check(
 /// Checks evm gas evolution.
 pub(crate) async fn gas_check(
     client: &TestClient,
-    slot_subscription: &mut Subscription<u64>,
+    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
     contract_address: Address,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // get initial gas price

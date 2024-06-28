@@ -26,14 +26,7 @@
     - [Submit the Transaction(s)](#submit-the-transactions)
     - [Verify the Token Supply](#verify-the-token-supply)
 - [Disclaimer](#disclaimer)
-- [Interacting with your Node via RPC](#interacting-with-your-node-via-rpc)
-  - [Key Concepts](#key-concepts)
-  - [RPC Methods](#rpc-methods)
-    - [`ledger_getHead`](#ledger_gethead)
-    - [`ledger_getSlots`](#ledger_getslots)
-    - [`ledger_getBatches`](#ledger_getbatches)
-    - [`ledger_getTransactions`](#ledger_gettransactions)
-    - [`ledger_getEvents`](#ledger_getevents)
+- [Interacting with your Node via REST API](#interacting-with-your-node-via-rest-api)
 - [Testing with specific DA layers](#testing-with-specific-da-layers)
 - [License](#license)
 
@@ -117,8 +110,41 @@ The transaction hash can be used to query the RPC endpoint to fetch events belon
 this case have the TokenCreated Event
 
 ```sh,test-ci
-$ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEventsByTxnHash","params":["66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17"],"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":[{"event_value":{"TokenCreated":{"token_id":"token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"}},"module_name":"bank","module_id":"module_1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sh0zjpk"}],"id":1}%
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x950cb82721602fcbbd5c4fb9950aa6c718f0140b3112789d370ebc707b6d6c01/events | jq
+{
+  "data": [
+    {
+      "type": "event",
+      "number": 0,
+      "key": "token_created",
+      "value": {
+        "TokenCreated": {
+          "token_name": "sov-test-token",
+          "coins": {
+            "amount": 1000000,
+            "token_id": "token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"
+          },
+          "minter": {
+            "User": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
+          },
+          "authorized_minters": [
+            {
+              "User": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
+            },
+            {
+              "User": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
+            }
+          ]
+        }
+      },
+      "module": {
+        "type": "moduleRef",
+        "name": "bank"
+      }
+    }
+  ],
+  "meta": {}
+}
 ```
 
 We can see the TokenCreated event which contains the id of the token
@@ -314,7 +340,7 @@ $ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","met
 ```
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl --silent -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getAggregatedProof","id":1}' http://127.0.0.1:12345 | jq '.result.proof.public_data.initial_slot_number'
+$ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq '.data.publicData.initialSlotNumber'
 1
 ```
 
@@ -325,135 +351,18 @@ $ curl --silent -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0"
 `demo-rollup` is a prototype! It contains known vulnerabilities and should not be used in production under any
 circumstances.
 
-## Interacting with your Node via RPC
+## Interacting with your Node via REST API
 
 By default, this implementation prints the state root and the number of blobs processed for each slot. To access any
 other data, you'll
-want to use our RPC server. You can configure its host and port in `rollup_config.toml`.
+want to use our REST API server. You can configure its host and port in `rollup_config.toml`.
 
-### Key Concepts
+You can get an overview of all available endpoints by reading the OpenAPI specification [here](../../full-node//sov-ledger-apis//openapi-v3.yaml). Here's just a few example queries:
 
-**Query Modes**
-
-Most queries for ledger information accept an optional `QueryMode` argument. There are three QueryModes:
-
-- `Standard`. In Standard mode, a response to a query for an outer struct will contain the full outer struct and hashes
-  of inner structs. For example
-  a standard `ledger_getSlots` query would return all information relating to the requested slot, but only the hashes of
-  the batches contained therein.
-  If no `QueryMode` is specified, a `Standard` response will be returned
-- `Compact`. In Compact mode, even the hashes of child structs are omitted.
-- `Full`. In Full mode, child structs are recursively expanded. So, for example, a query for a slot would return the
-  slot's data, as well as data relating
-  to any `batches` that occurred in that slot, any transactions in those batches, and any events that were emitted by
-  those transactions.
-
-**Identifiers**
-
-There are several ways to uniquely identify items in the ledger DB.
-
-- By _number_. Each family of structs (`slots`, `blocks`, `transactions`, and `events`) is numbered in order starting
-  from `1`. So, for example, the
-  first transaction to appear on the DA layer will be numered `1` and might emit events `1`-`5`. Or, slot `17` might
-  contain batches `41` - `44`.
-- By _hash_. (`slots`, `blocks`, and `transactions` only)
-- By _containing item_id and offset_.
-- (`Events` only) By _transaction_id and key_.
-
-To request an item from the ledger DB, you can provide any identifier - and even mix and match different identifiers. We
-recommend using item number
-wherever possible, though, since resolving other identifiers may require additional database lookups.
-
-Some examples will make this clearer. Suppose that slot number `5` contains batches `9`, `10`, and `11`, that batch `10`
-contains
-transactions `50`-`81`, and that transaction `52` emits event number `17`. If we want to fetch events number `17`, we
-can use any of the following queries:
-
-- `{"jsonrpc":"2.0","method":"ledger_getEvents","params":[[17]], ... }`
-- `{"jsonrpc":"2.0","method":"ledger_getEvents","params":[[{"transaction_id": 50, "offset": 0}]], ... }`
-- `{"jsonrpc":"2.0","method":"ledger_getEvents","params":[[{"transaction_id": 50, "key": [1, 2, 4, 2, ...]}]], ... }`
-- `{"jsonrpc":"2.0","method":"ledger_getEvents","params":[[{"transaction_id": { "batch_id": 10, "offset": 2}, "offset": 0}]], ... }`
-
-### RPC Methods
-
-#### `ledger_getHead`
-
-This method returns the current head of the ledger. It has no arguments.
-
-**Example Query:**
-
-```shell
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getHead","params":[],"id":1}' http://127.0.0.1:12345
-
-{"jsonrpc":"2.0","result":{"number":22019,"hash":"0xe8daef0f58a558aea44632a420bb62318bff6c38bbc616ff849d0a4be0a69cd3","batch_range":{"start":2,"end":2}},"id":1}
-```
-
-This response indicates that the most recent slot processed was number `22019`, its hash, and that it contained no
-batches (since the `start` and `end`
-of the `batch_range` overlap). It also indicates that the next available batch to occur will be numbered `2`.
-
-#### `ledger_getSlots`
-
-This method retrieves slot data. It takes two arguments, a list of `SlotIdentifier`s and an optional `QueryMode`. If no
-query mode is provided,
-this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable,
-but `"params":[7, "Compact"]` is not.
-
-**Example Query:**
-
-```shell
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getSlots","params":[[7], "Compact"],"id":1}' http://127.0.0.1:12345
-
-{"jsonrpc":"2.0","result":[{"number":6,"hash":"0x6a23ea92fbe3250e081b3e4c316fe52bda53d0113f9e7f8f495afa0e24b693ff","batch_range":{"start":1,"end":2}}],"id":1}
-```
-
-This response indicates that slot number `6` contained batch `1` and gives the
-
-#### `ledger_getBatches`
-
-This method retrieves slot data. It takes two arguments, a list of `BatchIdentifier`s and an optional `QueryMode`. If no
-query mode is provided,
-this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable,
-but `"params":[7, "Compact"]` is not.
-
-**Example Query:**
-
-```shell
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getBatches","params":[["0xf784a42555ed652ed045cc8675f5bc11750f1c7fb0fbc8d6a04470a88c7e1b6c"]],"id":1}' http://127.0.0.1:12345
-
-{"jsonrpc":"2.0","result":[{"hash":"0xf784a42555ed652ed045cc8675f5bc11750f1c7fb0fbc8d6a04470a88c7e1b6c","tx_range":{"start":1,"end":2},"txs":["0x191d87a51e4e1dd13b4d89438c6717b756bd995d7108bef21a5ac0c9b6c77101"],"receipt":"Rewarded"}],"id":1}%
-```
-
-#### `ledger_getTransactions`
-
-This method retrieves transactions. It takes two arguments, a list of `TxIdentifiers`s and an optional `QueryMode`. If
-no query mode is provided,
-this list of identifiers may be flattened: `"params":[[7]]` and `"params":[7]` are both acceptable,
-but `"params":[7, "Compact"]` is not.
-
-**Example Query:**
-
-```shell
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getTransactions","params":[[{ "batch_id": 1, "offset": 0}]],"id":1}' http://127.0.0.1:12345
-
-{"jsonrpc":"2.0","result":[{"hash":"0x191d87a51e4e1dd13b4d89438c6717b756bd995d7108bef21a5ac0c9b6c77101","event_range":{"start":1,"end":1},"receipt":"Successful"}],"id":1}
-```
-
-This response indicates that transaction `1` emitted no events but executed successfully.
-
-#### `ledger_getEvents`
-
-This method retrieves the events based on the provided event identifiers.
-
-**Example Query:**
-
-```shell
-$ curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ledger_getEvents","params":[1],"id":1}' http://127.0.0.1:12345
-
-{"jsonrpc":"2.0","result":[null],"id":1}
-```
-
-This response indicates that event `1` has not been emitted yet.
+- `http://localhost:12346/ledger/events/17`
+- `http://localhost:12346/ledger/txs/50/events/0`
+- `http://localhost:12346/ledger/txs/0/events?key=base64key`
+- `http://localhost:12346/ledger/batches/10/txs/2/events/0`
 
 ## Testing with specific DA layers
 

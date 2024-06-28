@@ -1,8 +1,8 @@
 use sov_db::ledger_db::LedgerDb;
-use sov_ledger_apis::rest::LedgerRoutes;
+use sov_ledger_apis::LedgerRoutes;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::execution_mode::ExecutionMode;
-use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse, Spec};
+use sov_modules_api::{RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{
     BatchSequencerOutcome, Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents,
 };
@@ -36,15 +36,6 @@ where
 
     // Ledger endpoint.
     {
-        endpoints
-            .jsonrpsee_module
-            .merge(sov_ledger_apis::rpc::server::rpc_module::<
-                LedgerDb,
-                BatchSequencerOutcome,
-                TxReceiptContents,
-                RuntimeEventResponse<<B::Runtime as RuntimeEventProcessor>::RuntimeEvent>,
-            >(ledger_db.clone())?)?;
-
         let ledger_axum_router = LedgerRoutes::<
             LedgerDb,
             BatchSequencerOutcome,

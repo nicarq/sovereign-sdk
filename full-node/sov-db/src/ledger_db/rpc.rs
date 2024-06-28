@@ -160,7 +160,7 @@ impl LedgerStateProvider for LedgerDb {
         event_ids: &[EventIdentifier],
     ) -> Result<Vec<Option<E>>, Self::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(
             event_ids.len() <= MAX_EVENTS_PER_REQUEST as usize,
@@ -179,7 +179,7 @@ impl LedgerStateProvider for LedgerDb {
                         .db
                         .read_async::<EventByNumber>(&EventNumber(num))
                         .await?
-                        .map(|serialized_event| serialized_event.try_into()),
+                        .map(|serialized_event| (num, serialized_event).try_into()),
                     None => None,
                 }
                 .transpose()?,
@@ -192,11 +192,11 @@ impl LedgerStateProvider for LedgerDb {
         &self,
         slot_id: &SlotIdentifier,
         event_key_prefix_filter: Option<Vec<u8>>,
-    ) -> Result<Vec<(u64, E)>, Self::Error>
+    ) -> Result<Vec<E>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let slot_not_found_err = || anyhow::anyhow!("Slot `{:?}` not found", slot_id);
 
@@ -243,7 +243,7 @@ impl LedgerStateProvider for LedgerDb {
                 }
             }
 
-            events.push((event_num, event.try_into()?));
+            events.push((event_num, event).try_into()?);
         }
 
         Ok(events)
@@ -334,7 +334,7 @@ impl LedgerStateProvider for LedgerDb {
 
     async fn get_event_by_number<E>(&self, number: u64) -> Result<Option<E>, anyhow::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_events::<E>(&[EventIdentifier::Number(number)])
             .await
@@ -343,7 +343,7 @@ impl LedgerStateProvider for LedgerDb {
 
     async fn get_events_by_txn_hash<E>(&self, txn_hash: &[u8; 32]) -> Result<Vec<E>, Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let tx_range = (*txn_hash, TxNumber(0))..(*txn_hash, TxNumber(u64::MAX));
         let tx_numbers = self
@@ -376,7 +376,7 @@ impl LedgerStateProvider for LedgerDb {
 
     async fn get_events_by_txn_number<E>(&self, txn_num: u64) -> Result<Vec<E>, Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let stored_txn = self
             .db

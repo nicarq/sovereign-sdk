@@ -1,15 +1,9 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use jsonrpsee::async_client::Client;
-use jsonrpsee::core::client::{Subscription, SubscriptionClientT};
-use jsonrpsee::rpc_params;
-use jsonrpsee::ws_client::WsClientBuilder;
-use sov_ledger_apis::rpc::client::RpcClient;
+use futures::StreamExt;
+use sov_ledger_json_client::types as ledger_api_types;
 use sov_modules_api::prelude::tokio;
-use sov_modules_stf_blueprint::{BatchSequencerOutcome, TxReceiptContents};
-use sov_rollup_interface::rpc::{BatchResponse, ItemOrHash, QueryMode, SlotResponse, TxResponse};
-use sov_rollup_interface::stf::TxEffect;
 use tokio::task::JoinHandle;
 
 use crate::args::Args;
@@ -18,37 +12,22 @@ pub fn start_slot_watcher_task(
     config: &Args,
     wait_till_slot: Arc<AtomicU64>,
 ) -> JoinHandle<(u64, u64)> {
-    let ledger_ws_url = config.get_ws_url();
+    let rest_url = config.rest_url.clone();
     tokio::spawn(async move {
         let mut successful_count = 0;
         let mut error_count = 0;
-        let ledger_rpc_client = WsClientBuilder::default()
-            .build(ledger_ws_url)
-            .await
-            .unwrap();
+        let ledger_client = sov_ledger_json_client::Client::new(&rest_url);
+
         tracing::info!("Starting slot watcher");
 
-        let mut slot_subscription: Subscription<u64> = ledger_rpc_client
-            .subscribe(
-                "ledger_subscribeSlots",
-                rpc_params![],
-                "ledger_unsubscribeSlots",
-            )
-            .await
-            .unwrap();
+        let mut slot_subscription = ledger_client.subscribe_slots().await.unwrap();
+
         loop {
             let slot_number = match slot_subscription.next().await.transpose() {
-                Ok(slot) => slot.unwrap_or_default(),
+                Ok(slot) => slot.map(|s| s.number).unwrap_or_default(),
                 Err(e) => {
                     tracing::info!(error = ?e, "Error during next slot subscription, resubscribing");
-                    slot_subscription = ledger_rpc_client
-                        .subscribe(
-                            "ledger_subscribeSlots",
-                            rpc_params![],
-                            "ledger_unsubscribeSlots",
-                        )
-                        .await
-                        .unwrap();
+                    slot_subscription = ledger_client.subscribe_slots().await.unwrap();
                     continue;
                 }
             };
@@ -56,45 +35,32 @@ pub fn start_slot_watcher_task(
             let wait_till = wait_till_slot.load(Ordering::Relaxed);
             tracing::info!(final_slot_number = wait_till, "Going to wait till");
 
-            let slot = <Client as RpcClient<
-                SlotResponse<BatchSequencerOutcome, TxReceiptContents>,
-                BatchResponse<BatchSequencerOutcome, TxReceiptContents>,
-                TxResponse<TxReceiptContents>,
-            >>::get_slot_by_number::<'_, '_>(
-                &ledger_rpc_client, slot_number, QueryMode::Full
-            )
-            .await
-            .unwrap()
-            .unwrap();
+            let slot_response = ledger_client
+                .get_slot_by_id(
+                    &ledger_api_types::IntOrHash::Variant0(slot_number),
+                    Some(ledger_api_types::GetSlotByIdChildren::_0),
+                )
+                .await
+                .unwrap();
+            let slot = &slot_response.data;
 
-            let batches = slot.batches.unwrap_or_default();
+            let batches = &slot.batches;
             tracing::debug!(
-                hash = hex::encode(slot.hash),
+                hash = slot.hash.as_str(),
                 batches = batches.len(),
                 "Inspecting slot"
             );
 
             for batch in batches {
-                let batch = match batch {
-                    ItemOrHash::Hash(_) => {
-                        panic!("asked for full batch, got hash");
-                    }
-                    ItemOrHash::Full(batch_response) => batch_response,
-                };
-                let txs = batch.txs.unwrap_or_default();
+                let txs = &batch.txs;
                 tracing::debug!(txs = txs.len(), "Inspecting batch");
                 for tx_response in txs {
-                    let tx_response = match tx_response {
-                        ItemOrHash::Hash(_) => {
-                            panic!("asked for full tx, got hash");
-                        }
-                        ItemOrHash::Full(tx) => tx,
-                    };
-                    match tx_response.receipt {
-                        TxEffect::Skipped(_) | TxEffect::Reverted(_) => {
+                    match tx_response.receipt.result {
+                        ledger_api_types::TxReceiptResult::Reverted
+                        | ledger_api_types::TxReceiptResult::Skipped => {
                             error_count += 1;
                         }
-                        TxEffect::Successful(_) => {
+                        ledger_api_types::TxReceiptResult::Successful => {
                             successful_count += 1;
                         }
                     }

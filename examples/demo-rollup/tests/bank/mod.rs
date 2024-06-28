@@ -1,29 +1,21 @@
+use anyhow::Context;
 use borsh::BorshSerialize;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
-use jsonrpsee::core::client::{Subscription, SubscriptionClientT};
-use jsonrpsee::rpc_params;
-use jsonrpsee::ws_client::WsClient;
-use serde_json::{from_value, Value};
+use futures::StreamExt;
 use sov_bank::event::Event as BankEvent;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Coins, TokenId};
 use sov_kernels::basic::BasicKernelGenesisPaths;
-use sov_ledger_apis::rpc::client::RpcClient;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_modules_macros::config_value;
-use sov_rollup_interface::rpc::{
-    AggregatedProofResponse, BatchResponse, FinalityStatus, QueryMode, SlotIdentifier,
-    SlotResponse, TxResponse,
-};
-use sov_rollup_interface::zk::aggregated_proof::{
-    AggregateProofVerifier, AggregatedProofPublicData,
-};
+use sov_rollup_interface::rpc::FinalityStatus;
+use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_stf_runner::RollupProverConfig;
-use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec, TestTxReceiptContents};
+use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec};
 
 use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys, start_rollup};
 
@@ -185,14 +177,11 @@ async fn send_transactions_and_wait_slot(
     client: &ApiClient,
     transactions: &[Transaction<TestSpec>],
 ) -> anyhow::Result<u64> {
-    let mut slot_subscription: Subscription<u64> = client
-        .rpc
-        .subscribe(
-            "ledger_subscribeSlots",
-            rpc_params![],
-            "ledger_unsubscribeSlots",
-        )
-        .await?;
+    let mut slot_subscription = client
+        .ledger
+        .subscribe_slots()
+        .await
+        .context("Failed to subscribe to slots!")?;
 
     client
         .sequencer
@@ -203,22 +192,10 @@ async fn send_transactions_and_wait_slot(
         .next()
         .await
         .transpose()?
+        .map(|slot| slot.number)
         .unwrap_or_default();
 
     Ok(slot_number)
-}
-
-async fn subscribe_proof(
-    client: &ApiClient,
-) -> anyhow::Result<Subscription<AggregatedProofResponse>> {
-    Ok(client
-        .rpc
-        .subscribe(
-            "ledger_subscribeAggregatedProof",
-            rpc_params![],
-            "ledger_unsubscribeAggregatedProof",
-        )
-        .await?)
 }
 
 async fn assert_balance(
@@ -244,32 +221,26 @@ async fn assert_aggregated_proof(
     final_slot: u64,
     client: &ApiClient,
 ) -> anyhow::Result<()> {
-    let proof_resp = RpcClient::<
-        SlotResponse<u32, TestTxReceiptContents>,
-        BatchResponse<u32, TestTxReceiptContents>,
-        TxResponse<TestTxReceiptContents>,
-    >::get_aggregated_proof(&client.rpc)
-    .await?
-    .expect("Proof missing in the ledger db");
+    let proof_response = client.ledger.get_latest_aggregated_proof().await?;
 
     let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
-    verifier.verify(&proof_resp.proof)?;
+    verifier.verify(&proof_response.data.clone().try_into()?)?;
 
-    let proof_pub_data = proof_resp.proof.public_data();
+    let proof_pub_data = &proof_response.data.public_data;
     // We test inequality because proofs are saved asynchronously in the db.
     assert!(initial_slot <= proof_pub_data.initial_slot_number);
     assert!(final_slot <= proof_pub_data.final_slot_number);
 
-    let proof_data_info_resp = RpcClient::<
-        SlotResponse<u32, TestTxReceiptContents>,
-        BatchResponse<u32, TestTxReceiptContents>,
-        TxResponse<TestTxReceiptContents>,
-    >::get_aggregated_proof_info(&client.rpc)
-    .await?
-    .expect("Proof missing in the ledger db");
+    let proof_data_info_response = client.ledger.get_latest_aggregated_proof().await?;
 
-    assert!(initial_slot <= proof_data_info_resp.initial_slot_number);
-    assert!(final_slot <= proof_data_info_resp.final_slot_number);
+    assert!(
+        initial_slot
+            <= proof_data_info_response
+                .data
+                .public_data
+                .initial_slot_number
+    );
+    assert!(final_slot <= proof_data_info_response.data.public_data.final_slot_number);
 
     Ok(())
 }
@@ -277,7 +248,7 @@ async fn assert_aggregated_proof(
 fn assert_aggregated_proof_public_data(
     expected_initial_slot_number: u64,
     expected_final_slot_number: u64,
-    pub_data: &AggregatedProofPublicData,
+    pub_data: &sov_ledger_json_client::types::AggregatedProofPublicData,
 ) {
     assert_eq!(expected_initial_slot_number, pub_data.initial_slot_number);
     assert_eq!(expected_final_slot_number, pub_data.final_slot_number);
@@ -288,22 +259,18 @@ async fn assert_slot_finality(
     slot_number: u64,
     expected_finality: FinalityStatus,
 ) {
-    let slots: Vec<Option<SlotResponse<(), ()>>> =
-        RpcClient::<SlotResponse<(), ()>, BatchResponse<(), ()>, TxResponse<()>>::get_slots(
-            &client.rpc,
-            vec![SlotIdentifier::Number(slot_number)],
-            QueryMode::Compact,
+    let slot = client
+        .ledger
+        .get_slot_by_id(
+            &sov_ledger_json_client::types::IntOrHash::Variant0(slot_number),
+            None,
         )
         .await
         .unwrap();
-    assert_eq!(
-        1,
-        slots.len(),
-        "More than 1 slot is returned for slot number {slot_number}"
-    );
+
     assert_eq!(
         expected_finality,
-        slots[0].as_ref().unwrap().finality_status,
+        slot.data.finality_status.into(),
         "Wrong finality status for slot number {slot_number}"
     );
 }
@@ -312,25 +279,20 @@ async fn assert_bank_event<S: Spec>(
     client: &ApiClient,
     event_number: u64,
     expected_event: BankEvent<S>,
-) -> Result<(), anyhow::Error> {
-    let response_event = <WsClient as RpcClient<String, String, String>>::get_event_by_number(
-        &client.rpc,
-        event_number,
-    )
-    .await?
-    .unwrap();
-    if let Value::Object(ref map) = response_event {
-        let event_value = map.get("event_value").unwrap();
-        // Ensure "bank" is present in response json
-        assert_eq!(map.get("module_name").unwrap(), "bank");
-        // Attempt to deserialize the "body" of the bank key in the response to the Event type
-        let bank_event = from_value::<BankEvent<S>>(event_value.clone())
-            .expect("Unable to deserialize Bank event");
-        // Ensure the event generated is a TokenCreated event with the correct token_id
-        assert_eq!(bank_event, expected_event);
-    } else {
-        panic!("Event from rpc not an object");
-    }
+) -> anyhow::Result<()> {
+    let event_response = client.ledger.get_event_by_id(event_number).await?;
+
+    // Ensure "bank" is present in response json
+    assert_eq!(event_response.data.module.name, "bank");
+
+    let event_value = serde_json::Value::Object(event_response.data.value.clone());
+
+    // Attempt to deserialize the "body" of the bank key in the response to the Event type
+    let bank_event_contents = serde_json::from_value::<BankEvent<S>>(event_value)?;
+
+    // Ensure the event generated is a TokenCreated event with the correct token_id
+    assert_eq!(bank_event_contents, expected_event);
+
     Ok(())
 }
 
@@ -352,7 +314,12 @@ async fn send_test_bank_txs(test_case: TestCase, client: &ApiClient) -> Result<(
     )
     .await?;
 
-    let mut aggregated_proof_subscription = subscribe_proof(client).await?;
+    let mut aggregated_proof_subscription = client
+        .ledger
+        .subscribe_aggregated_proof()
+        .await
+        .context("Failed to subscribe to aggregated proof")?;
+
     assert_eq!(token_id, token_id_response);
 
     // create token. height 2
@@ -435,8 +402,8 @@ async fn send_test_bank_txs(test_case: TestCase, client: &ApiClient) -> Result<(
 
     if test_case.wait_for_aggregated_proof {
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
-        let pub_data = aggregated_proof_resp.proof.public_data();
-        assert_aggregated_proof_public_data(1, 1, pub_data);
+        let pub_data = aggregated_proof_resp.public_data;
+        assert_aggregated_proof_public_data(1, 1, &pub_data);
         assert_aggregated_proof(1, 1, client).await?;
     }
 

@@ -42,6 +42,7 @@ where
         + serde::Serialize
         + serde::de::DeserializeOwned,
 {
+    pub event_number: u64,
     /// Event key that was emitted along with this event
     pub event_key: String,
     /// A value representing the module event
@@ -51,7 +52,7 @@ where
 }
 
 /// TryFrom trait implementation to create a RuntimeEventResponse for Stored Event
-impl<E> TryFrom<sov_rollup_interface::stf::StoredEvent> for RuntimeEventResponse<E>
+impl<E> TryFrom<(u64, sov_rollup_interface::stf::StoredEvent)> for RuntimeEventResponse<E>
 where
     E: EventModuleName
         + Clone
@@ -62,7 +63,9 @@ where
 {
     type Error = anyhow::Error;
 
-    fn try_from(stored_event: sov_rollup_interface::stf::StoredEvent) -> Result<Self, Self::Error> {
+    fn try_from(
+        (event_number, stored_event): (u64, sov_rollup_interface::stf::StoredEvent),
+    ) -> Result<Self, Self::Error> {
         let runtime_event: E =
             borsh::de::BorshDeserialize::try_from_slice(stored_event.value().inner().as_slice())
                 .map_err(anyhow::Error::from)?;
@@ -73,6 +76,7 @@ where
         let module_name = runtime_event.module_name().to_string();
 
         Ok(Self {
+            event_number,
             event_key: key_str,
             event_value: runtime_event,
             module_name,

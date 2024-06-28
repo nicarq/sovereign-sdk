@@ -117,7 +117,7 @@ impl<Vm: Zkvm> AggregateProofVerifier<Vm> {
         }
     }
 
-    /// Verifies whether an `AggregatedProofData` contains a valid proof.
+    /// Verifies whether an [`AggregatedProof`] contains a valid proof.
     pub fn verify(&self, proof_data: &AggregatedProof) -> Result<(), Vm::Error> {
         let public_data = Vm::verify::<AggregatedProofPublicData>(
             proof_data.serialized_proof.raw_aggregated_proof.as_slice(),
