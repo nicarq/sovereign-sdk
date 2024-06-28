@@ -9,7 +9,7 @@ use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec, UnlimitedGasMeter};
 use sov_test_utils::TestSpec;
 type Da = MockDaSpec;
 
@@ -94,7 +94,8 @@ fn transaction_is_serialized_correctly() {
             ),
         );
 
-        tx.verify().expect("the computed signature is incorrect");
+        tx.verify(&mut UnlimitedGasMeter::new())
+            .expect("the computed signature is incorrect");
 
         assert_eq!(
             tx, tx_p,
@@ -183,7 +184,7 @@ fn transaction_signed_properly_from_file() {
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
 
     let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
-    signed_tx.verify().unwrap();
+    signed_tx.verify(&mut UnlimitedGasMeter::new()).unwrap();
 
     let default_pubkey = &wallet_state.addresses.default_address().unwrap().pub_key;
 
@@ -227,7 +228,7 @@ fn transaction_signed_properly_from_json_string() {
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
     let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
-    signed_tx.verify().unwrap();
+    signed_tx.verify(&mut UnlimitedGasMeter::new()).unwrap();
     assert_eq!(&runtime_call_bytes, &signed_tx.runtime_msg);
 }
 
@@ -282,7 +283,7 @@ fn transaction_signed_by_account_nickname() {
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
     let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
-    signed_tx.verify().unwrap();
+    signed_tx.verify(&mut UnlimitedGasMeter::new()).unwrap();
 
     // the key
     let key2 = wallet_state
@@ -328,7 +329,7 @@ fn transaction_outputs_json() {
     };
     let raw_signed_tx = hex::decode(&hex_tx[2..]).unwrap();
     let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
-    signed_tx.verify().unwrap();
+    signed_tx.verify(&mut UnlimitedGasMeter::new()).unwrap();
 }
 
 fn make_test_path<P: AsRef<Path>>(path: P) -> PathBuf {

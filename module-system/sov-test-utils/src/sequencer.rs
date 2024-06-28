@@ -96,7 +96,7 @@ where
             &[],
             sequencer_rollup_addr,
             SEQUENCER_ADDR.into(),
-            100_000,
+            100_000_000,
             "SovereignToken".to_string(),
             1_000_000_000,
         );
@@ -179,7 +179,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
             &[],
             sequencer_rollup_addr,
             SEQUENCER_ADDR.into(),
-            100_000,
+            100_000_000,
             "SovereignToken".to_string(),
             1_000_000_000,
         );

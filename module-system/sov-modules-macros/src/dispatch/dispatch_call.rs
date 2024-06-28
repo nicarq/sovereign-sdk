@@ -58,14 +58,16 @@ impl<'a> StructDef<'a> {
                 type Spec = #generic_param;
                 type Decodable = #call_enum #ty_generics;
 
-                fn decode_call(mut serialized_message: &[u8]) -> ::core::result::Result<Self::Decodable, ::std::io::Error> {
-                    let c = <#call_enum #ty_generics as ::borsh::BorshDeserialize>::deserialize(&mut serialized_message)?;
+                fn decode_call(mut serialized_message: &[u8], meter: &mut impl ::sov_modules_api::GasMeter<<Self::Spec as ::sov_modules_api::Spec>::Gas>)
+                    -> ::core::result::Result<Self::Decodable, ::sov_modules_api::MeteredBorshDeserializeError<<Self::Spec as ::sov_modules_api::Spec>::Gas>> {
+                    let c = <#call_enum #ty_generics as ::sov_modules_api::MeteredBorshDeserialize<<Self::Spec as ::sov_modules_api::Spec>::Gas>>::deserialize(&mut serialized_message, meter)?;
                     if !serialized_message.is_empty() {
-                        return ::core::result::Result::Err(
+                        return ::core::result::Result::Err(::sov_modules_api::MeteredBorshDeserializeError::IOError(
                             ::std::io::Error::new(
                                 ::std::io::ErrorKind::Other,
                                 "the provided message contains dangling data",
                             )
+                        )
                         );
                     }
                     ::core::result::Result::Ok(c)

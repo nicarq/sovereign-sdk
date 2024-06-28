@@ -41,7 +41,7 @@ fn main() {
         let serialized_message = <RT as EncodeCall<
             first_test_module::FirstTestStruct<ZkTestSpec>,
         >>::encode_call(message);
-        let module = RT::decode_call(&serialized_message).unwrap();
+        let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
 
         assert_eq!(runtime.module_id(&module), runtime.first.id());
         let _ = runtime
@@ -63,7 +63,7 @@ fn main() {
         let serialized_message = <RT as EncodeCall<
             second_test_module::SecondTestStruct<ZkTestSpec>,
         >>::encode_call(message);
-        let module = RT::decode_call(&serialized_message).unwrap();
+        let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
 
         assert_eq!(runtime.module_id(&module), runtime.second.id());
 

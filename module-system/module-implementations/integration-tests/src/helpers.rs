@@ -24,7 +24,7 @@ type TestStf = StfBlueprint<S, MockDaSpec, TestRuntime<S, MockDaSpec>, BasicKern
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
 
-pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 100_000;
+pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 100_000_000;
 pub(crate) const DEFAULT_USER_BALANCE: u64 = 1_000_000_000;
 
 pub struct SequencerParams<S: Spec, Da: DaSpec> {

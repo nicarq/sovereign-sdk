@@ -4,13 +4,16 @@ mod address;
 
 mod module_id;
 
-pub use hash::MeteredHasher;
+pub use metered_utils::{
+    MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
+    MeteredSigVerificationError, MeteredSignature,
+};
 pub use module_id::{ModuleId, ModuleIdBech32};
 
 mod error;
 mod gas;
-mod hash;
 mod key;
+mod metered_utils;
 
 pub use address::*;
 pub use error::*;
