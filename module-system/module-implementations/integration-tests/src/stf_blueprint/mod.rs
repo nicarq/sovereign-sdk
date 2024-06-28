@@ -207,7 +207,7 @@ fn test_enforces_chain_id() {
             );
 
         let utx =
-            UnsignedTransaction::new(encoded_message, chain_id, 100.into(), 1_000_000, 0, None);
+            UnsignedTransaction::new(encoded_message, chain_id, 100.into(), 100_000_000, 0, None);
         run_test(
             genesis.into_genesis_params(),
             vec![SlotTestCase::from_txs(vec![TxTestCase {

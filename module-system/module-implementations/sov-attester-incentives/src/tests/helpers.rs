@@ -19,13 +19,13 @@ use crate::AttesterIncentives;
 type S = sov_test_utils::TestSpec;
 
 pub const TOKEN_NAME: &str = "TEST_TOKEN";
-pub const BOND_AMOUNT: u64 = 1_000_000;
+pub const BOND_AMOUNT: u64 = 100_000_000;
 pub const INITIAL_USER_BALANCE: u64 = 10 * BOND_AMOUNT;
 pub const DEFAULT_ROLLUP_FINALITY: u64 = 3;
 pub const INIT_HEIGHT: u64 = 0;
 
-pub const MAX_TX_GAS_AMOUNT: u64 = 100_000;
-pub const TX_GAS_CONSUMED: [u64; 2] = [10; 2];
+pub const MAX_TX_GAS_AMOUNT: u64 = 10_000_000;
+pub const TX_GAS_CONSUMED: [u64; 2] = [100_000; 2];
 
 pub const NUM_BANK_ACCOUNTS: usize = 3;
 

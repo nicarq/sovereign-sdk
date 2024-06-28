@@ -37,8 +37,13 @@ use sov_rollup_interface::stf::RawTx;
 use thiserror::Error;
 
 use crate::digest::Digest;
-use crate::transaction::{AuthenticatedTransactionAndRawHash, Credentials, Transaction};
-use crate::{Context, CryptoSpec, DispatchCall, GasMeter, PreExecWorkingSet, Spec, TxScratchpad};
+use crate::transaction::{
+    AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
+};
+use crate::{
+    Context, CryptoSpec, DispatchCall, GasMeter, MeteredBorshDeserialize, MeteredHasher,
+    PreExecWorkingSet, Spec, TxScratchpad, UnlimitedGasMeter,
+};
 
 /// The chain id of the rollup.
 pub const CHAIN_ID: u64 = config_value!("CHAIN_ID");
@@ -175,6 +180,15 @@ pub enum UnregisteredAuthenticationError {
     RuntimeCall,
 }
 
+impl From<AuthenticationError> for UnregisteredAuthenticationError {
+    fn from(value: AuthenticationError) -> Self {
+        match value {
+            AuthenticationError::FatalError(e) => Self::FatalError(e),
+            AuthenticationError::Invalid(e) => Self::FatalError(FatalError::Other(e)),
+        }
+    }
+}
+
 /// Authenticates the transaction.
 /// Let's assume we have a rollup that contains `sov-bank` and `sov-evm` modules. This means that the rollup has to accept two kinds of transactions:
 /// 1. The `sov-bank` transactions encoded as the `Sov-Transaction` type.
@@ -225,22 +239,34 @@ pub struct AuthorizationData<S: Spec> {
     pub default_address: Option<S::Address>,
 }
 
-fn verify_and_decode_tx<S: Spec, D: DispatchCall>(
+fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     raw_tx_hash: [u8; 32],
     tx: Transaction<S>,
-) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, FatalError> {
+    meter: &mut impl GasMeter<S::Gas>,
+) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, AuthenticationError> {
     if tx.chain_id != CHAIN_ID {
-        return Err(FatalError::InvalidChainId {
-            expected: CHAIN_ID,
-            got: tx.chain_id,
-        });
+        return Err(AuthenticationError::FatalError(
+            FatalError::InvalidChainId {
+                expected: CHAIN_ID,
+                got: tx.chain_id,
+            },
+        ));
     }
 
-    tx.verify()
-        .map_err(|e| FatalError::SigVerificationFailed(e.to_string()))?;
+    tx.verify(meter).map_err(|e| match e {
+        TransactionVerificationError::BadSignature(_)
+        | TransactionVerificationError::TransactionDeserializationError(_) => {
+            AuthenticationError::FatalError(FatalError::SigVerificationFailed(e.to_string()))
+        }
+        TransactionVerificationError::GasError(_) => AuthenticationError::Invalid(e.to_string()),
+    })?;
 
-    let runtime_call = D::decode_call(tx.runtime_msg())
-        .map_err(|e| FatalError::MessageDecodingFailed(e.to_string(), raw_tx_hash))?;
+    let runtime_call = D::decode_call(tx.runtime_msg(), meter).map_err(|e| {
+        AuthenticationError::FatalError(FatalError::MessageDecodingFailed(
+            e.to_string(),
+            raw_tx_hash,
+        ))
+    })?;
 
     let pub_key = tx.pub_key().clone();
     let default_address = (&pub_key).into();
@@ -266,30 +292,28 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall>(
 }
 
 /// Authenticate raw sov-transaction.
-pub fn authenticate<S: Spec, D: DispatchCall, Meter: GasMeter<S::Gas>>(
+pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>, Meter: GasMeter<S::Gas>>(
     mut raw_tx: &[u8],
     stake_meter: &mut PreExecWorkingSet<S, Meter>,
 ) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>> {
-    let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
+    let raw_tx_hash = MeteredHasher::<
+        S::Gas,
+        PreExecWorkingSet<S, Meter>,
+        <S::CryptoSpec as CryptoSpec>::Hasher,
+    >::digest(raw_tx, stake_meter)
+    .map_err(|e| AuthenticationError::Invalid(e.to_string()))?;
 
-    // TODO(@theochap): Charge gas for deserialization.
+    let tx =
+        <Transaction<S> as MeteredBorshDeserialize<S::Gas>>::deserialize(&mut raw_tx, stake_meter)
+            .map_err(|e| {
+                AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+            })?;
 
-    let tx = <Transaction<S> as BorshDeserialize>::deserialize(&mut raw_tx).map_err(|e| {
-        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
-    })?;
-
-    stake_meter.charge_gas(&tx.gas_fixed_cost()).map_err(|e| {
-        AuthenticationError::Invalid(format!(
-            "Failed to reserve gas for signature checks from the sequencer's stake: {:?}",
-            e
-        ))
-    })?;
-
-    verify_and_decode_tx::<S, D>(raw_tx_hash, tx).map_err(AuthenticationError::FatalError)
+    verify_and_decode_tx::<S, D>(raw_tx_hash, tx, stake_meter)
 }
 
 /// Authenticate raw sov-transaction in the context of an unregistered sequencer.
-pub fn unregistered_authenticate<S: Spec, D: DispatchCall>(
+pub fn unregistered_authenticate<S: Spec, D: DispatchCall<Spec = S>>(
     mut raw_tx: &[u8],
 ) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, UnregisteredAuthenticationError> {
     let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
@@ -299,6 +323,5 @@ pub fn unregistered_authenticate<S: Spec, D: DispatchCall>(
         ))
     })?;
 
-    verify_and_decode_tx::<S, D>(raw_tx_hash, tx)
-        .map_err(UnregisteredAuthenticationError::FatalError)
+    verify_and_decode_tx::<S, D>(raw_tx_hash, tx, &mut UnlimitedGasMeter::new()).map_err(Into::into)
 }

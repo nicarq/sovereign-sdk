@@ -12,9 +12,9 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
-    BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis, GenesisState, Module,
-    ModuleInfo, PreExecWorkingSet, ProofReceipt, RawTx, RuntimeEventProcessor, Spec,
-    StateCheckpoint, TxScratchpad, TypedEvent, WorkingSet,
+    BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis, GenesisState,
+    MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, ProofReceipt, RawTx,
+    RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad, TypedEvent, WorkingSet,
 };
 use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
 use sov_rollup_interface::da::DaSpec;
@@ -192,8 +192,11 @@ where
 
     type Decodable = T::Decodable;
 
-    fn decode_call(serialized_message: &[u8]) -> Result<Self::Decodable, std::io::Error> {
-        T::decode_call(serialized_message)
+    fn decode_call(
+        serialized_message: &[u8],
+        meter: &mut impl GasMeter<<Self::Spec as Spec>::Gas>,
+    ) -> Result<Self::Decodable, MeteredBorshDeserializeError<<Self::Spec as Spec>::Gas>> {
+        T::decode_call(serialized_message, meter)
     }
 
     fn dispatch_call(

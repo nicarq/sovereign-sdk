@@ -116,7 +116,7 @@ pub fn simulate_da_with_multiple_direct_registration_msg(
 
     let sequencer_and_stake = sequencers
         .into_iter()
-        .map(|address| (address, 100000u64))
+        .map(|address| (address, 100_000_000u64))
         .collect();
     let sequencer_registry_generator =
         SequencerRegistryMessageGenerator::<S, Da>::generate_multiple_sequencer_registration(

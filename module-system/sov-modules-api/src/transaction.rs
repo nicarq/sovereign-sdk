@@ -10,10 +10,13 @@ use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
-use sov_rollup_interface::crypto::Signature as _;
+use sov_rollup_interface::crypto::SigVerificationError;
 use sov_rollup_interface::zk::CryptoSpec;
+use thiserror::Error;
 
-use crate::{Gas, GasArray, GasMeter, GasMeteringError, Spec};
+use crate::{
+    Gas, GasArray, GasMeter, GasMeteringError, MeteredSigVerificationError, MeteredSignature, Spec,
+};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -108,6 +111,32 @@ pub struct Transaction<S: Spec> {
     pub nonce: u64,
 }
 
+/// Errors that can be raised by the [`Transaction::verify`] method.
+#[derive(Error, Debug)]
+pub enum TransactionVerificationError<GU: Gas> {
+    #[error("Impossible to deserialize transaction: {0}")]
+    TransactionDeserializationError(String),
+    /// The signature check failed.
+    #[error("Signature verification error: {0}")]
+    BadSignature(SigVerificationError),
+    /// There is not enough gas to verify the signature.
+    #[error("A gas error was raised when trying to verify the signature, {0}")]
+    GasError(GasMeteringError<GU>),
+}
+
+impl<GU: Gas> From<MeteredSigVerificationError<GU>> for TransactionVerificationError<GU> {
+    fn from(value: MeteredSigVerificationError<GU>) -> TransactionVerificationError<GU> {
+        match value {
+            MeteredSigVerificationError::BadSignature(err) => {
+                TransactionVerificationError::BadSignature(err)
+            }
+            MeteredSigVerificationError::GasError(err) => {
+                TransactionVerificationError::GasError(err)
+            }
+        }
+    }
+}
+
 impl<S: Spec> Transaction<S> {
     pub fn signature(&self) -> &<S::CryptoSpec as CryptoSpec>::Signature {
         &self.signature
@@ -123,9 +152,16 @@ impl<S: Spec> Transaction<S> {
 
     /// Check whether the transaction has been signed correctly.
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    pub fn verify(&self) -> anyhow::Result<()> {
-        let serialized_tx = borsh::to_vec(&self.to_unsigned_transaction())?;
-        self.signature().verify(&self.pub_key, &serialized_tx)?;
+    pub fn verify(
+        &self,
+        meter: &mut impl GasMeter<S::Gas>,
+    ) -> Result<(), TransactionVerificationError<S::Gas>> {
+        let serialized_tx = borsh::to_vec(&self.to_unsigned_transaction()).map_err(|e| {
+            TransactionVerificationError::TransactionDeserializationError(e.to_string())
+        })?;
+        MeteredSignature::<S::Gas, _>::new(self.signature.clone())
+            .verify(&self.pub_key, &serialized_tx, meter)
+            .map_err(TransactionVerificationError::from)?;
 
         Ok(())
     }

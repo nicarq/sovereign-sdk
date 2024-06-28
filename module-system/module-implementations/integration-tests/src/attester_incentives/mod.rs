@@ -25,7 +25,7 @@ mod process_attestation;
 
 mod unbond;
 
-const USER_STAKE: u64 = 100_000;
+const USER_STAKE: u64 = 100_000_000;
 const ROLLUP_FINALITY_PERIOD: u64 = 2;
 const USER_BALANCE: u64 = 1_000_000_000;
 

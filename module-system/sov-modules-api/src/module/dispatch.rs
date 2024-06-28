@@ -2,7 +2,7 @@
 
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
-use crate::{ModuleId, WorkingSet};
+use crate::{GasMeter, MeteredBorshDeserializeError, ModuleId, WorkingSet};
 
 /// A trait that needs to be implemented for any call message.
 pub trait DispatchCall: Send + Sync {
@@ -13,7 +13,10 @@ pub trait DispatchCall: Send + Sync {
     type Decodable: Send + Sync;
 
     /// Decodes serialized call message
-    fn decode_call(serialized_message: &[u8]) -> Result<Self::Decodable, std::io::Error>;
+    fn decode_call(
+        serialized_message: &[u8],
+        meter: &mut impl GasMeter<<Self::Spec as Spec>::Gas>,
+    ) -> Result<Self::Decodable, MeteredBorshDeserializeError<<Self::Spec as Spec>::Gas>>;
 
     /// Dispatches a call message to the appropriate module.
     fn dispatch_call(

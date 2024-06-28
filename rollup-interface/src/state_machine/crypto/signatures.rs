@@ -15,7 +15,7 @@ use crate::alloc::borrow::ToOwned;
 #[derive(Debug, thiserror::Error)]
 pub enum SigVerificationError {
     /// The signature is invalid for the provided public key.
-    #[error("Bad signature {0}")]
+    #[error("Bad signature error: {0}")]
     BadSignature(String),
 }
 

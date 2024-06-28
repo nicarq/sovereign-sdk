@@ -150,8 +150,8 @@ fn test_sequencer_rewarded_max_priority_fee() -> Result<(), Infallible> {
     let mut rollup = TestRollup::new();
 
     // The max fee is the same as the base fee so the sequencer should not get rewarded
-    let max_fee =
-        <S as Spec>::Gas::from_slice(&[10_000, 10_000]).value(&rollup.initial_base_fee_per_gas());
+    let max_fee = <S as Spec>::Gas::from_slice(&[1_000_000, 1_000_000])
+        .value(&rollup.initial_base_fee_per_gas());
 
     test_sequencer_reward_in_stf(&mut rollup, max_fee)
 }

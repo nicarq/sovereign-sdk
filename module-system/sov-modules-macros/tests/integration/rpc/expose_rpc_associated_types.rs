@@ -131,7 +131,7 @@ fn main() {
     let message: u32 = 33;
     let serialized_message =
         <RT as EncodeCall<my_module::QueryModule<S, u32>>>::encode_call(message);
-    let module = RT::decode_call(&serialized_message).unwrap();
+    let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([12; 32].as_ref()).unwrap();
     let context = Context::<S>::new(sender, Default::default(), sequencer, 1);
