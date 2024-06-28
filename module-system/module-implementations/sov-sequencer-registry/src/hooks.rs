@@ -5,7 +5,7 @@ use risc0_cycle_utils::print_cycle_count;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{BatchWithId, Spec, StateCheckpoint};
 
-use crate::{SequencerOutcome, SequencerRegistry};
+use crate::{AllowedSequencerError, SequencerOutcome, SequencerRegistry};
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegistry<S, Da> {
     type Spec = S;
@@ -16,12 +16,17 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegi
         &self,
         _batch: &BatchWithId,
         sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
-        if self.is_sender_allowed(sender, state_checkpoint).is_err() {
-            anyhow::bail!("sender {} is not allowed to submit blobs", sender);
+        match self.is_sender_allowed(sender, state) {
+            Ok(_) | Err(AllowedSequencerError::NotRegistered) => Ok(()),
+            Err(AllowedSequencerError::InsufficientStakeAmount { .. }) => {
+                anyhow::bail!(
+                    "sender {} is not allowed to submit blobs, they are not sufficiently staked",
+                    sender
+                )
+            }
         }
-        Ok(())
     }
 
     fn end_batch_hook(

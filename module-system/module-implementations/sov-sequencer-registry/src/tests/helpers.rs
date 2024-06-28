@@ -10,7 +10,7 @@ use sov_modules_api::{
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::User;
 
-use crate::{SequencerConfig, SequencerRegistry};
+use crate::{AllowedSequencer, SequencerConfig, SequencerRegistry};
 
 pub type S = sov_test_utils::TestSpec;
 pub type Da = MockDaSpec;
@@ -126,6 +126,17 @@ impl TestSequencer {
         state: &mut StateCheckpoint<S>,
     ) -> Result<(), Infallible> {
         self.registry.minimum_bond.set(&amount, state)
+    }
+
+    pub fn set_allowed_sequencer(
+        &self,
+        da_address: <Da as DaSpec>::Address,
+        sequencer: &AllowedSequencer<S>,
+        state: &mut StateCheckpoint<S>,
+    ) -> Result<(), Infallible> {
+        self.registry
+            .allowed_sequencers
+            .set(&da_address, sequencer, state)
     }
 }
 
