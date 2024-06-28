@@ -29,6 +29,8 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     // Since our rollup is stateless, we don't need to consider the StateRoot.
     type StateRoot = [u8; 0];
 
+    type Address = [u8; 32];
+
     // This represents the initial configuration of the rollup, but it is not supported in this tutorial.
     type GenesisParams = ();
     type PreState = ();

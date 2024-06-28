@@ -130,6 +130,9 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
     /// Root hash of state merkle tree
     type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]>;
 
+    /// The address of the prover.
+    type Address: Serialize + DeserializeOwned + Clone;
+
     /// The initial params of the rollup.
     type GenesisParams;
 

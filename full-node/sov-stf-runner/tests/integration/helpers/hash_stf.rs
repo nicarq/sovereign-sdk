@@ -62,6 +62,7 @@ impl<Cond> HashStf<Cond> {
 impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     StateTransitionFunction<InnerVm, OuterVm, Da> for HashStf<Cond>
 {
+    type Address = [u8; 32];
     type StateRoot = [u8; 32];
     type GenesisParams = Vec<u8>;
     type PreState = ProverStorage<S>;

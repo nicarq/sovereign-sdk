@@ -285,6 +285,8 @@ where
 {
     type StateRoot = <S::Storage as Storage>::Root;
 
+    type Address = S::Address;
+
     type GenesisParams =
         GenesisParams<<RT as Genesis>::Config, <K as Kernel<S, Da>>::GenesisConfig>;
     type PreState = S::Storage;

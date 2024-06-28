@@ -13,6 +13,7 @@ pub struct MockStf<Cond> {
 impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     StateTransitionFunction<InnerVm, OuterVm, Da> for MockStf<Cond>
 {
+    type Address = Vec<u8>;
     type StateRoot = Vec<u8>;
     type GenesisParams = ();
     type PreState = ();
