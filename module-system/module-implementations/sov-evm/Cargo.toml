@@ -16,8 +16,8 @@ publish = false
 workspace = true
 
 [dependencies]
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["evm"] }
-sov-state = { path = "../../sov-state", version = "0.3" }
+sov-modules-api = { workspace = true, features = ["evm"] }
+sov-state = { workspace = true }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -57,11 +57,11 @@ ethers-core = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand-std"] }
 lazy_static = "1.4.0"
 
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-test-utils = { path = "../../sov-test-utils" }
-sov-eth-dev-signer = { path = "../../../full-node/sov-eth-dev-signer" }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["test-utils"] }
+sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-mock-da = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }
+sov-eth-dev-signer = { workspace = true }
+sov-modules-api = { workspace = true, features = ["test-utils"] }
 
 [features]
 default = []

@@ -26,19 +26,19 @@ tracing = { workspace = true }
 rockbound = { workspace = true }
 hex = { workspace = true }
 
-sov-modules-api = { path = "../../sov-modules-api", features = ["native", "test-utils"] }
-sov-state = { path = "../../sov-state", features = ["native"] }
+sov-modules-api = { workspace = true, features = ["native", "test-utils"] }
+sov-state = { workspace = true }
 
-sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"] }
-sov-test-utils = { path = "../../sov-test-utils" }
-sov-rollup-interface = { path = "../../../rollup-interface", features = ["native"] }
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint", features = ["native", "test-utils"] }
-sov-kernels = { path = "../../sov-kernels", features = ["native"] }
+sov-mock-zkvm = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }
+sov-rollup-interface = { workspace = true, features = ["native"] }
+sov-mock-da = { workspace = true, features = ["native"] }
+sov-modules-stf-blueprint = { workspace = true, features = ["native", "test-utils"] }
+sov-kernels = { workspace = true, features = ["native"] }
 
-sov-attester-incentives = { path = "../sov-attester-incentives", features = ["native"] }
-sov-chain-state = { path = "../sov-chain-state", features = ["native"] }
-sov-value-setter = { path = "../sov-value-setter", features = ["native"] }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-sequencer-registry = { path = "../sov-sequencer-registry", features = ["native"] }
-sov-bank = { path = "../sov-bank", features = ["native"] }
+sov-attester-incentives = { workspace = true, features = ["native"] }
+sov-chain-state = { workspace = true, features = ["native"] }
+sov-value-setter = { workspace = true, features = ["native"] }
+sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-sequencer-registry = { workspace = true, features = ["native"] }
+sov-bank = { workspace = true, features = ["native"] }

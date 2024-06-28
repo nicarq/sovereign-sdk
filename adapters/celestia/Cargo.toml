@@ -40,7 +40,7 @@ tracing = { workspace = true }
 risc0-cycle-macros = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-rollup-interface = { workspace = true }
 
 [dev-dependencies]
 postcard = { version = "1", features = ["use-std"] }

@@ -14,10 +14,10 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 
-sov-state = { path = "../sov-state", version = "0.3" }
-sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
-sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
-sov-chain-state = { path = "../module-implementations/sov-chain-state" }
+sov-state = { workspace = true }
+sov-modules-api = { workspace = true }
+sov-blob-storage = { workspace = true }
+sov-chain-state = { workspace = true }
 
 [features]
 default = []

@@ -21,9 +21,9 @@ anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
-sov-bank = { path = "../sov-bank", version = "0.3" }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
-sov-state = { path = "../../sov-state", version = "0.3" }
+sov-bank = { workspace = true }
+sov-modules-api = { workspace = true }
+sov-state = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
@@ -37,10 +37,10 @@ tracing = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 sov-sequencer-registry = { path = ".", features = ["native"] }
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-test-utils = { path = "../../sov-test-utils" }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-modules-api = { path = "../../sov-modules-api", features = ["test-utils"] }
+sov-mock-da = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }
+sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-modules-api = { workspace = true, features = ["test-utils"] }
 
 [features]
 bench = [

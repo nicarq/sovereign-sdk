@@ -13,12 +13,12 @@ repository.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 
-sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
-sov-bank = { path = "../module-implementations/sov-bank" }
-sov-accounts = { path = "../module-implementations/sov-accounts" }
-sov-nonces = { path = "../module-implementations/sov-nonces" }
-sov-sequencer-registry = { path = "../module-implementations/sov-sequencer-registry" }
-sov-prover-incentives = { path = "../module-implementations/sov-prover-incentives" }
+sov-modules-api = { workspace = true }
+sov-bank = { workspace = true }
+sov-accounts = { workspace = true }
+sov-nonces = { workspace = true }
+sov-sequencer-registry = { workspace = true }
+sov-prover-incentives = { workspace = true }
 
 [lints]
 workspace = true

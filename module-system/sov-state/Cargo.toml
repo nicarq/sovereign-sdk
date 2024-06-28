@@ -24,8 +24,8 @@ proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, features = ["rc"] }
 serde-big-array = "0.5.1"
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
-sov-db = { path = "../../full-node/sov-db", version = "0.3", optional = true }
+sov-rollup-interface = { workspace = true }
+sov-db = { workspace = true, optional = true }
 hex = { workspace = true }
 jmt = { workspace = true }
 sha2 = { workspace = true }

@@ -18,16 +18,16 @@ workspace = true
 [build-dependencies]
 schemars = { workspace = true }
 serde_json = { workspace = true }
-sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
-sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm", features = ["native"]  }
-sov-risc0-adapter = { path = "../../adapters/risc0", version = "0.3", features = ["native"] }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3", features = ["native"] }
+sov-modules-api = { workspace = true, features = ["native"] }
+sov-mock-da = { workspace = true, features = ["native"] }
+sov-mock-zkvm = { workspace = true, features = ["native"]  }
+sov-risc0-adapter = { workspace = true, features = ["native"] }
+sov-rollup-interface = { workspace = true, features = ["native"] }
 
 # Modules
-sov-accounts = { path = "../module-implementations/sov-accounts", features = ["native"] }
-sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
-sov-prover-incentives = { path = "../module-implementations/sov-prover-incentives", features = ["native"] }
-sov-sequencer-registry = { path = "../module-implementations/sov-sequencer-registry", features = ["native"] }
-sov-evm = { path = "../module-implementations/sov-evm", features = ["native"] }
-sov-value-setter = { path = "../module-implementations/sov-value-setter", features = ["native"] }
+sov-accounts = { workspace = true, features = ["native"] }
+sov-bank = { workspace = true, features = ["native"] }
+sov-prover-incentives = { workspace = true, features = ["native"] }
+sov-sequencer-registry = { workspace = true, features = ["native"] }
+sov-evm = { workspace = true, features = ["native"] }
+sov-value-setter = { workspace = true, features = ["native"] }

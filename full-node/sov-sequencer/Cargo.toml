@@ -30,12 +30,12 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 serde_with = { workspace = true, features = ["base64"] }
-sov-rest-utils = { path = "../sov-rest-utils" }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
-sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", features = ["native"] }
-sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", version = "0.3", features = ["native"] }
-sov-state = { path = "../../module-system/sov-state", version = "0.3" }
-sov-db = { path = "../sov-db", version = "0.3" }
+sov-rest-utils = { workspace = true }
+sov-rollup-interface = { workspace = true }
+sov-modules-api = { workspace = true, features = ["native"] }
+sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
+sov-state = { workspace = true }
+sov-db = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync", "rt"] }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
@@ -48,14 +48,14 @@ proptest = { workspace = true }
 proptest-derive = { workspace = true }
 reltester = { workspace = true }
 rockbound = { workspace = true }
-sov-value-setter = { path = "../../module-system/module-implementations/sov-value-setter", features = ["native"] }
-sov-kernels = { path = "../../module-system/sov-kernels", version = "0.3", features = ["native"] }
-sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
-sov-sequencer-json-client = { path = "../sov-sequencer-json-client" }
-sov-test-utils = { path = "../../module-system/sov-test-utils" }
-sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../adapters/mock-zkvm" }
-sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-db = { path = "../sov-db" }
+sov-value-setter = { workspace = true, features = ["native"] }
+sov-kernels = { workspace = true, features = ["native"] }
+sov-rollup-interface = { workspace = true }
+sov-sequencer-json-client = { workspace = true }
+sov-test-utils = { workspace = true }
+sov-mock-da = { workspace = true, features = ["native"] }
+sov-mock-zkvm = { workspace = true }
+sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-db = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util", "macros"] }
