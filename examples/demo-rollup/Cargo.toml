@@ -54,6 +54,7 @@ sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 sov-cli = { path = "../../module-system/sov-cli" }
 clap = { workspace = true }
 secp256k1 = { workspace = true }
+sha2 = { workspace = true }
 
 # Only needed for NFT script.
 sov-test-utils = { path = "../../module-system/sov-test-utils", optional = true }

@@ -18,7 +18,9 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{StateTransitionWitness, ZkvmHost};
+use sov_rollup_interface::zk::{
+    StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
+};
 use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
 use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
@@ -135,6 +137,12 @@ async fn test_proof_generation() {
             relevant_blobs,
             final_state_root: result.state_root,
         };
+
+        let data = StateTransitionWitnessWithAddress {
+            stf_witness: data,
+            prover_address: MockAddress::default(),
+        };
+
         host.add_hint(data);
 
         println!("Run prover without generating a proof for block {height}\n");

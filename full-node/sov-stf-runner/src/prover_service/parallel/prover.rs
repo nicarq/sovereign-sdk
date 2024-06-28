@@ -12,7 +12,8 @@ use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
 use sov_rollup_interface::zk::{
-    StateTransitionPublicData, StateTransitionWitness, ZkvmGuest, ZkvmHost,
+    StateTransitionPublicData, StateTransitionWitness, StateTransitionWitnessWithAddress,
+    ZkvmGuest, ZkvmHost,
 };
 use tracing::{debug, error, info};
 
@@ -26,7 +27,8 @@ use crate::{
 
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
 // the prover will reject new jobs.
-pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
+pub(crate) struct Prover<Address, StateRoot, Witness, Da: DaService> {
+    prover_address: Address,
     prover_state: Arc<RwLock<ProverState<StateRoot, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
@@ -34,13 +36,18 @@ pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
     phantom: std::marker::PhantomData<(StateRoot, Witness, Da)>,
 }
 
-impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
+impl<Address, StateRoot, Witness, Da> Prover<Address, StateRoot, Witness, Da>
 where
     Da: DaService,
+    Address: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    pub(crate) fn new(num_threads: usize, code_commitment: CodeCommitment) -> Self {
+    pub(crate) fn new(
+        prover_address: Address,
+        num_threads: usize,
+        code_commitment: CodeCommitment,
+    ) -> Self {
         Self {
             code_commitment,
             num_threads,
@@ -53,6 +60,7 @@ where
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
+            prover_address,
             phantom: PhantomData,
         }
     }
@@ -105,7 +113,13 @@ where
         // Initiate a new proving job only if the prover is not busy.
         if start_prover {
             prover_state.set_to_proving(block_header_hash.clone());
-            inner_vm.add_hint(&state_transition_info.data);
+
+            let data = StateTransitionWitnessWithAddress {
+                stf_witness: state_transition_info.data,
+                prover_address: self.prover_address.clone(),
+            };
+
+            inner_vm.add_hint(&data);
 
             self.pool.spawn(move || {
                 tracing::info_span!("guest_execution").in_scope(|| {
@@ -125,7 +139,7 @@ where
                         relevant_proofs,
                         relevant_blobs: blobs,
                         ..
-                    } = state_transition_info.data;
+                    } = data.stf_witness;
 
                     let validity_condition = verifier
                         .da_verifier

@@ -14,6 +14,7 @@ use sov_stf_runner::{
 use tokio::time;
 
 type StateRoot = Vec<u8>;
+type Address = Vec<u8>;
 
 #[tokio::test]
 async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
@@ -254,6 +255,7 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
 struct TestProver {
     prover_service: ParallelProverService<
+        Address,
         StateRoot,
         Vec<u8>,
         MockDaService,
@@ -268,6 +270,7 @@ struct TestProver {
 async fn wait_for_aggregated_proof(
     header_hashes: &[MockHash],
     prover_service: &ParallelProverService<
+        Address,
         StateRoot,
         Vec<u8>,
         MockDaService,
@@ -312,6 +315,7 @@ fn make_new_prover() -> TestProver {
             prover_config,
             (),
             num_threads,
+            Default::default(),
             Default::default(),
         ),
         inner_vm,

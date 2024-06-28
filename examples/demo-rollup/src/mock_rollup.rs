@@ -1,7 +1,10 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use demo_stf::authentication::ModAuth;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
+use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
@@ -9,7 +12,7 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
 use sov_modules_api::higher_kinded_types::Generic;
-use sov_modules_api::{CryptoSpec, Spec, Zkvm};
+use sov_modules_api::{Address, CryptoSpec, Spec, Zkvm};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
 use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
@@ -22,6 +25,8 @@ use sov_sequencer::SequencerDb;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverService, RollupConfig, RollupProverConfig};
 use tokio::sync::watch;
+
+use crate::PROVER_ADDRESS;
 
 /// Rollup with MockDa
 #[derive(Default)]
@@ -52,6 +57,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
     >;
 
     type ProverService = ParallelProverService<
+        <Self::Spec as Spec>::Address,
         <<Self::Spec as Spec>::Storage as Storage>::Root,
         <<Self::Spec as Spec>::Storage as Storage>::Witness,
         Self::DaService,
@@ -129,6 +135,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
             prover_config,
             zk_storage,
             CodeCommitment::default(),
+            Address::<Sha256>::from_str(PROVER_ADDRESS).expect("Prover address is not valid"),
         )
     }
 

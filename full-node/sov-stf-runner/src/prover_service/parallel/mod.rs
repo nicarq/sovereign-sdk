@@ -36,8 +36,9 @@ where
 }
 
 /// Prover service that generates proofs in parallel.
-pub struct ParallelProverService<StateRoot, Witness, Da, InnerVm, OuterVm, V>
+pub struct ParallelProverService<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
+    Address: Serialize + DeserializeOwned,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
     Witness: Serialize + DeserializeOwned,
     Da: DaService,
@@ -55,14 +56,15 @@ where
     prover_config: Arc<RollupProverConfig>,
 
     zk_storage: V::PreState,
-    prover_state: Prover<StateRoot, Witness, Da>,
+    prover_state: Prover<Address, StateRoot, Witness, Da>,
 
     verifier: Arc<Verifier<Da, InnerVm, OuterVm, V>>,
 }
 
-impl<StateRoot, Witness, Da, InnerVm, OuterVm, V>
-    ParallelProverService<StateRoot, Witness, Da, InnerVm, OuterVm, V>
+impl<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
+    ParallelProverService<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
+    Address: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
@@ -87,6 +89,7 @@ where
         zk_storage: V::PreState,
         num_threads: usize,
         code_commitment: CodeCommitment,
+        prover_address: Address,
     ) -> Self {
         let stf_verifier =
             StateTransitionVerifier::<V, Da::Verifier, InnerVm::Guest, OuterVm::Guest>::new(
@@ -103,7 +106,7 @@ where
             inner_vm,
             outer_vm,
             prover_config: Arc::new(config),
-            prover_state: Prover::new(num_threads, code_commitment),
+            prover_state: Prover::new(prover_address, num_threads, code_commitment),
             zk_storage,
             verifier,
         }
@@ -119,6 +122,7 @@ where
         config: RollupProverConfig,
         zk_storage: V::PreState,
         code_commitment: CodeCommitment,
+        prover_address: Address,
     ) -> Self {
         let num_cpus = num_cpus::get();
         assert!(num_cpus > 1, "Unable to create parallel prover service");
@@ -132,14 +136,16 @@ where
             zk_storage,
             num_cpus - 1,
             code_commitment,
+            prover_address,
         )
     }
 }
 
 #[async_trait]
-impl<StateRoot, Witness, Da, InnerVm, OuterVm, V> ProverService
-    for ParallelProverService<StateRoot, Witness, Da, InnerVm, OuterVm, V>
+impl<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V> ProverService
+    for ParallelProverService<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
+    Address: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,

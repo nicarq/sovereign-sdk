@@ -180,7 +180,7 @@ pub trait Matches<T> {
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
-/// Data required to prove a state transition.
+/// State transition witness.
 pub struct StateTransitionWitness<StateRoot, Witness, Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StateRoot,
@@ -194,4 +194,16 @@ pub struct StateTransitionWitness<StateRoot, Witness, Da: DaSpec> {
     pub relevant_blobs: RelevantBlobs<<Da as DaSpec>::BlobTransaction>,
     /// The witness for the state transition
     pub witness: Witness,
+}
+
+#[derive(Serialize, BorshDeserialize, BorshSerialize, Deserialize)]
+#[serde(
+    bound = "Address: Serialize + DeserializeOwned, StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned"
+)]
+/// Data required to prove a state transition.
+pub struct StateTransitionWitnessWithAddress<Address, StateRoot, Witness, Da: DaSpec> {
+    /// Witness.
+    pub stf_witness: StateTransitionWitness<StateRoot, Witness, Da>,
+    /// Prover address.
+    pub prover_address: Address,
 }

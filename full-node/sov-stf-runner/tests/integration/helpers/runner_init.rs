@@ -33,6 +33,7 @@ type S = DefaultStorageSpec<sha2::Sha256>;
 type StorageManager = ProverStorageManager<MockDaSpec, S>;
 
 pub type MockProverService = ParallelProverService<
+    Vec<u8>,
     [u8; 32],
     ArrayWitness,
     DaServiceWithRetries<MockDaService>,
@@ -166,6 +167,7 @@ pub fn initialize_runner(
             // Should be ZkStorage, but we don't need it for this test
             genesis_storage,
             threads,
+            Default::default(),
             Default::default(),
         )
     });

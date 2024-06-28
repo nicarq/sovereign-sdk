@@ -30,7 +30,9 @@ use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{StateTransitionWitness, ZkvmHost};
+use sov_rollup_interface::zk::{
+    StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
+};
 use sov_stf_runner::read_json_file;
 use tempfile::TempDir;
 
@@ -253,6 +255,12 @@ async fn main() -> Result<(), anyhow::Error> {
             relevant_blobs,
             final_state_root: result.state_root,
         };
+
+        let data = StateTransitionWitnessWithAddress {
+            stf_witness: data,
+            prover_address: MockAddress::default(),
+        };
+
         host.add_hint(data);
 
         println!("Skipping prover at block {height} to capture cycle counts\n");
