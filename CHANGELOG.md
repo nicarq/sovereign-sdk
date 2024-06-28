@@ -1,3 +1,4 @@
+- #863 Upgrades borsh to version 1.0. If you import borsh in one of your crates, be sure to upgrade as well.
 - #856 removes support for the `ledger_*` RPC methods and replaces them with a REST API accessible by default at `http://localhost:12346/ledger`.
 - #862 Adds `StateTransitionWitnessWithAddress` struct that is used to pass the prover address to the Prover.
 - #853 Make the `ProverIncentives` call methods public and accept prover address explicitly.

@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::execution_mode;
 #[cfg(feature = "native")]
 use sov_rollup_interface::execution_mode::{Native, WitnessGeneration};
@@ -8,7 +9,7 @@ use crate::higher_kinded_types::{Generic, HigherKindedHelper};
 use crate::{Address, GasUnit, Spec};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)]
 #[serde(bound = "")]
 pub struct DefaultSpec<InnerZkvm, OuterZkvm, Mode>(
     std::marker::PhantomData<(InnerZkvm, OuterZkvm, Mode)>,

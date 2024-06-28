@@ -1,5 +1,5 @@
 use anyhow::{ensure, Context, Error};
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use sov_rollup_interface::rpc::{EventIdentifier, LedgerStateProvider, PaginatedEventResponse};
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
 
@@ -91,7 +91,7 @@ where
                 Some(next_key)
             }
         })
-        .map(|next_key| next_key.try_to_vec().map(hex::encode))
+        .map(|next_key| borsh::to_vec(&next_key).map(hex::encode))
         .transpose()?;
     Ok(PaginatedEventResponse {
         events_response,
@@ -193,8 +193,11 @@ where
         paginated_query_response.next,
     );
 
-    let re_encoded_next =
-        next_key.and_then(|inner_next| (txn_range, inner_next).try_to_vec().ok().map(hex::encode));
+    let re_encoded_next = next_key.and_then(|inner_next| {
+        borsh::to_vec(&(txn_range, inner_next))
+            .ok()
+            .map(hex::encode)
+    });
 
     Ok(PaginatedEventResponse {
         events_response: event_response,

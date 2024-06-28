@@ -1,4 +1,4 @@
-use borsh::maybestd::io::Result;
+use std::io::Result;
 
 /// The Nonces module does not support calls so we use [`NotInstantiable`] type here.
 #[cfg_attr(

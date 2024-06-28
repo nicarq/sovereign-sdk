@@ -403,7 +403,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
 
         assert_eq!(
             BatchSequencerOutcome::Slashed (
-                FatalError::MessageDecodingFailed("Unexpected variant index: 110".to_string(), [143, 22, 210, 166, 230, 181, 125, 207, 124, 155, 127, 27, 150, 13, 26, 134, 196, 214, 78, 69, 215, 212, 223, 1, 224, 169, 248, 1, 83, 134, 94, 238]),
+                FatalError::MessageDecodingFailed("Unexpected variant tag: 110".to_string(), [143, 22, 210, 166, 230, 181, 125, 207, 124, 155, 127, 27, 150, 13, 26, 134, 196, 214, 78, 69, 215, 212, 223, 1, 224, 169, 248, 1, 83, 134, 94, 238]),
             ),
             apply_blob_outcome.inner,
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"

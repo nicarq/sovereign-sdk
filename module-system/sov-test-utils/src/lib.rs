@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
 pub use api_client::ApiClient;
-use borsh::ser::BorshSerialize;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Bank, BankConfig, GasTokenConfig, GAS_TOKEN_ID};
 pub use sov_db::schema::SchemaBatch;
@@ -119,7 +118,7 @@ pub fn new_test_blob_from_batch(
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
     let batch = BlobData::Batch(batch);
     let address = MockAddress::try_from(address).unwrap();
-    let data = batch.try_to_vec().unwrap();
+    let data = borsh::to_vec(&batch).unwrap();
     MockBlob::new(data, address, hash)
 }
 
@@ -276,7 +275,7 @@ pub trait MessageGenerator {
         let mut serialized_messages = Vec::default();
         for message in messages_iter {
             let tx = message.to_tx::<Encoder>();
-            serialized_messages.push(Auth::encode(tx.try_to_vec().unwrap()).unwrap());
+            serialized_messages.push(Auth::encode(borsh::to_vec(&tx).unwrap()).unwrap());
         }
         serialized_messages
     }
@@ -289,6 +288,6 @@ pub trait MessageGenerator {
 
         let batch = BlobData::new_batch(txs);
 
-        batch.try_to_vec().unwrap()
+        borsh::to_vec(&batch).unwrap()
     }
 }

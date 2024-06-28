@@ -619,57 +619,27 @@ dependencies = [
 
 [[package]]
 name = "borsh"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4114279215a005bc675e386011e594e1d9b800918cea18fcadadcce864a2046b"
-dependencies = [
- "borsh-derive",
- "bytes",
- "hashbrown 0.13.2",
-]
-
-[[package]]
-name = "borsh"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0901fc8eb0aca4c83be0106d6f2db17d86a08dfc2c25f0e84464bf381158add6"
 dependencies = [
+ "borsh-derive",
+ "bytes",
  "cfg_aliases",
 ]
 
 [[package]]
 name = "borsh-derive"
-version = "0.10.3"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0754613691538d51f329cce9af41d7b7ca150bc973056f1156611489475f54f7"
+checksum = "51670c3aa053938b0ee3bd67c3817e471e626151131b934038e83c5bf8de48f5"
 dependencies = [
- "borsh-derive-internal",
- "borsh-schema-derive-internal",
- "proc-macro-crate 0.1.5",
- "proc-macro2",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "borsh-derive-internal"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afb438156919598d2c7bad7e1c0adf3d26ed3840dbc010db1a882a65583ca2fb"
-dependencies = [
+ "once_cell",
+ "proc-macro-crate 3.1.0",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "borsh-schema-derive-internal"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "634205cc43f74a1b9046ef87c4540ebda95696ec0f315024860cad7c5b0f5ccd"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
+ "syn 2.0.55",
+ "syn_derive",
 ]
 
 [[package]]
@@ -990,7 +960,7 @@ name = "demo-stf"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "serde",
  "sov-accounts",
  "sov-bank",
@@ -1503,11 +1473,11 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "jmt"
-version = "0.9.0"
-source = "git+https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6"
+version = "0.10.0"
+source = "git+https://github.com/penumbra-zone/jmt.git?rev=dc554608895439022f1f11809d2d7a5f76f9a13f#dc554608895439022f1f11809d2d7a5f76f9a13f"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "digest 0.10.7",
  "hashbrown 0.13.2",
  "hex",
@@ -1827,7 +1797,7 @@ version = "3.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be30eaf4b0a9fba5336683b38de57bb86d179a35862ba6bfcf57625d006bde5b"
 dependencies = [
- "proc-macro-crate 2.0.2",
+ "proc-macro-crate 2.0.0",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -1936,21 +1906,20 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "0.1.5"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d6ea3c4595b96363c13943497db34af4460fb474a95c43f4446ad341b8c9785"
+checksum = "7e8366a6159044a37876a2b9817124296703c586a5c92e2c53751fa06d8d43e8"
 dependencies = [
- "toml",
+ "toml_edit 0.20.2",
 ]
 
 [[package]]
 name = "proc-macro-crate"
-version = "2.0.2"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b00f26d3400549137f92511a46ac1cd8ce37cb5598a96d382381458b992a5d24"
+checksum = "6d37c51ca738a55da99dc0c4a34860fd675453b8b36209178c2249bb13651284"
 dependencies = [
- "toml_datetime",
- "toml_edit",
+ "toml_edit 0.21.1",
 ]
 
 [[package]]
@@ -2361,7 +2330,7 @@ version = "0.3.0"
 source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=a00d0719388bcecd51b6033721957b27ffe12843#a00d0719388bcecd51b6033721957b27ffe12843"
 dependencies = [
  "anyhow",
- "borsh 1.4.0",
+ "borsh",
  "proc-macro2",
  "quote",
  "syn 2.0.55",
@@ -2783,7 +2752,7 @@ name = "sov-accounts"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "serde",
  "serde_with",
  "sov-modules-api",
@@ -2796,7 +2765,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bech32",
- "borsh 0.10.3",
+ "borsh",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -2809,7 +2778,7 @@ name = "sov-blob-storage"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "hex",
  "serde",
  "sov-chain-state",
@@ -2837,7 +2806,7 @@ name = "sov-chain-state"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "derivative",
  "serde",
  "sov-modules-api",
@@ -2851,6 +2820,7 @@ name = "sov-demo-prover-guest-mock"
 version = "0.3.0"
 dependencies = [
  "demo-stf",
+ "proc-macro-crate 2.0.0",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-kernels",
@@ -2868,7 +2838,7 @@ version = "0.3.0"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "bytes",
  "hex",
  "reth-primitives",
@@ -2907,7 +2877,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "borsh 0.10.3",
+ "borsh",
  "bytes",
  "hex",
  "serde",
@@ -2922,7 +2892,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bincode",
- "borsh 0.10.3",
+ "borsh",
  "digest 0.10.7",
  "ed25519-dalek",
  "hex",
@@ -2938,7 +2908,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bech32",
- "borsh 0.10.3",
+ "borsh",
  "derivative",
  "derive_more",
  "digest 0.10.7",
@@ -2979,7 +2949,7 @@ name = "sov-modules-stf-blueprint"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "hex",
  "risc0-cycle-macros",
  "risc0-zkvm",
@@ -2998,7 +2968,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bech32",
- "borsh 0.10.3",
+ "borsh",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -3009,7 +2979,7 @@ name = "sov-nonces"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -3020,7 +2990,7 @@ name = "sov-prover-incentives"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "serde",
  "sov-bank",
  "sov-chain-state",
@@ -3035,7 +3005,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bincode",
- "borsh 0.10.3",
+ "borsh",
  "bytemuck",
  "digest 0.10.7",
  "ed25519-dalek",
@@ -3055,7 +3025,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "borsh 0.10.3",
+ "borsh",
  "bytes",
  "derive_more",
  "digest 0.10.7",
@@ -3069,7 +3039,7 @@ name = "sov-sequencer-registry"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "serde",
  "sov-bank",
  "sov-modules-api",
@@ -3084,7 +3054,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bcs",
- "borsh 0.10.3",
+ "borsh",
  "derivative",
  "hex",
  "jmt",
@@ -3103,7 +3073,7 @@ name = "sov-stf-runner"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "hex",
  "num_cpus",
  "serde",
@@ -3117,7 +3087,7 @@ name = "sov-value-setter"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -3228,6 +3198,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn_derive"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1329189c02ff984e9736652b1631330da25eaa6bc639089ed4915d25446cbe7b"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.55",
+]
+
+[[package]]
 name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3330,25 +3312,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
-name = "toml"
-version = "0.5.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "toml_datetime"
-version = "0.6.3"
+version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cda73e2f1397b1262d6dfdcef8aafae14d1de7748d66822d3bfeeb6d03e5e4b"
+checksum = "4badfd56924ae69bcc9039335b2e017639ce3f9b001c393c1b2d1ef846ce2cbf"
 
 [[package]]
 name = "toml_edit"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "396e4d48bbb2b7554c944bde63101b5ae446cff6ec4a24227428f15eb72ef338"
+dependencies = [
+ "indexmap 2.2.6",
+ "toml_datetime",
+ "winnow",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
 dependencies = [
  "indexmap 2.2.6",
  "toml_datetime",

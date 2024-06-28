@@ -304,7 +304,6 @@ fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
 
 #[cfg(test)]
 mod tests {
-    use borsh::BorshSerialize;
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec};
@@ -351,7 +350,7 @@ mod tests {
         let gas_limit = None;
         let nonce = 1;
 
-        Transaction::<S>::new_signed_tx(
+        borsh::to_vec(&Transaction::<S>::new_signed_tx(
             private_key,
             UnsignedTransaction::new(
                 msg,
@@ -361,8 +360,7 @@ mod tests {
                 nonce,
                 gas_limit,
             ),
-        )
-        .try_to_vec()
+        ))
         .unwrap()
     }
 
@@ -388,7 +386,7 @@ mod tests {
         let gas_limit = None;
         let nonce = 1;
 
-        Transaction::<S>::new_signed_tx(
+        borsh::to_vec(&Transaction::<S>::new_signed_tx(
             private_key,
             UnsignedTransaction::new(
                 msg,
@@ -398,8 +396,7 @@ mod tests {
                 nonce,
                 gas_limit,
             ),
-        )
-        .try_to_vec()
+        ))
         .unwrap()
     }
 

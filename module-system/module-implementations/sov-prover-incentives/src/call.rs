@@ -254,9 +254,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                 .get_historical_transitions(slot_num, state)?
             {
                 Some(transition) => {
-                    if transition
-                        .validity_condition()
-                        .try_to_vec()
+                    if borsh::to_vec(transition.validity_condition())
                         .expect("Should always be able to serialize the validity condition")
                         != output_condition.clone()
                     {

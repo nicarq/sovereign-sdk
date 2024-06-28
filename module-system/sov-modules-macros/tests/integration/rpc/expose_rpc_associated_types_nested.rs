@@ -1,9 +1,9 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    prelude::UnwrapInfallible, Address, ApiStateAccessor, CallResponse, Context, DispatchCall,
-    EncodeCall, Error, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint,
-    StateValue, TxState,
+    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis,
+    MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue, TxState,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -12,7 +12,9 @@ pub trait Message: 'static {
     type Caller: std::fmt::Display;
     type Data: Data;
 }
-pub trait TestSpec: Default + std::fmt::Debug + 'static {
+pub trait TestSpec:
+    Default + std::fmt::Debug + 'static + borsh::BorshSerialize + borsh::BorshDeserialize
+{
     type Message: Message;
 }
 
@@ -121,7 +123,7 @@ impl Message for ActualMessage {
     type Data = u32;
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 struct ActualSpec;
 
 impl TestSpec for ActualSpec {

@@ -81,7 +81,7 @@ where
     /// given a nonce.
     pub fn with_nonce(&self, nonce: u64) -> UnsignedTransaction<S> {
         UnsignedTransaction::new(
-            self.tx.try_to_vec().unwrap(),
+            borsh::to_vec(&self.tx).unwrap(),
             self.chain_id,
             self.max_priority_fee_bips,
             self.max_fee,

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use borsh::BorshSerialize;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -129,7 +128,7 @@ where
                 );
 
                 let proof = BlobData::new_proof(agg_proof.raw_aggregated_proof);
-                let serialized_proof = proof.try_to_vec()?;
+                let serialized_proof = borsh::to_vec(&proof)?;
 
                 let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
 

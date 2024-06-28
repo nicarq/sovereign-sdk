@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use borsh::BorshSerialize;
 use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::{
     MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
@@ -59,7 +58,7 @@ impl TestNode {
             data: vec![1, 2, 3],
         }]);
 
-        let serialized_batch = batch.try_to_vec().unwrap();
+        let serialized_batch = borsh::to_vec(&batch).unwrap();
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
@@ -68,7 +67,7 @@ impl TestNode {
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
     pub async fn try_send_aggregated_proof(&self) -> Result<(), anyhow::Error> {
         let batch = BlobData::new_batch(vec![RawTx { data: vec![] }]);
-        let serialized_batch = batch.try_to_vec().unwrap();
+        let serialized_batch = borsh::to_vec(&batch).unwrap();
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await

@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
-use borsh::BorshSerialize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
@@ -202,10 +201,8 @@ where
             validity_conditions: block_proofs_data
                 .iter()
                 .map(|bp| {
-                    bp.st
-                        .validity_condition
-                        .try_to_vec()
-                        .expect("Impossible to serialize validity condition.")
+                    borsh::to_vec(&bp.st.validity_condition)
+                        .expect("Serializing to vec is infallible")
                 })
                 .collect(),
             initial_slot_number: initial_block_proof.slot_number,

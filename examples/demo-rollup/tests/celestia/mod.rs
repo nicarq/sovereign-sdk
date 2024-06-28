@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::ops::Range;
 use std::time::Duration;
 
-use borsh::BorshSerialize;
 use demo_stf::runtime;
 use futures::StreamExt;
 use rand::Rng;
@@ -91,7 +90,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
         let tx = Transaction::<DefaultSpec<Risc0Verifier, Risc0Verifier, Native>>::new_signed_tx(
             &token_deployer.private_key,
             UnsignedTransaction::new(
-                message.try_to_vec().unwrap(),
+                borsh::to_vec(&message).unwrap(),
                 chain_id,
                 max_priority_fee_bips,
                 max_fee,

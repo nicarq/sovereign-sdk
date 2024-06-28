@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use borsh::BorshSerialize;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{BlobData, RawTx};
 use sov_rollup_interface::common::{HexHash, HexString};
@@ -92,7 +91,7 @@ where
         }
 
         let batch = BlobData::new_batch(txs);
-        let serialized_batch = batch.try_to_vec()?;
+        let serialized_batch = borsh::to_vec(&batch)?;
 
         let fee = match self.0.da_service.estimate_fee(serialized_batch.len()).await {
             Ok(fee) => fee,

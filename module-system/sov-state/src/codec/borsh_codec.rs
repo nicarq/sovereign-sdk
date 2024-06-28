@@ -11,7 +11,7 @@ where
     V: BorshSerialize,
 {
     fn encode(&self, value: &V) -> Vec<u8> {
-        value.try_to_vec().expect("Failed to serialize value")
+        borsh::to_vec(value).expect("Failed to serialize value")
     }
 }
 
@@ -46,6 +46,6 @@ where
     T: BorshSerialize,
 {
     fn encode_key_like(&self, borrowed: &[T]) -> Vec<u8> {
-        borrowed.try_to_vec().unwrap()
+        borsh::to_vec(borrowed).expect("Borsh serialization to vec is infallible")
     }
 }

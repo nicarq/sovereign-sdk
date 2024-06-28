@@ -10,7 +10,6 @@ mod signer;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use borsh::ser::BorshSerialize;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
@@ -99,7 +98,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
             raw_tx.clone().try_into().map_err(EthApiError::from)?;
 
         let tx_hash = signed_transaction.hash();
-        let message = raw_tx.try_to_vec().expect("Failed to serialize raw tx");
+        let message = borsh::to_vec(&raw_tx).expect("Failed to serialize raw tx");
 
         Ok((tx_hash, message))
     }
@@ -139,9 +138,8 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
             .collect::<Result<Vec<_>, _>>()?;
 
         let batch = BlobData::new_batch(txs);
-        let serialized_batch = batch
-            .try_to_vec()
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+        let serialized_batch =
+            borsh::to_vec(&batch).map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
         let fee = self
             .da_service

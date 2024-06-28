@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use borsh::BorshSerialize;
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
@@ -30,7 +29,7 @@ fn build_proof_log(
     let first_transition = get_transition_unwrap(FIRST_SLOT_NUM, module, state);
     let last_transition = get_transition_unwrap(LAST_SLOT_NUM, module, state);
 
-    let vec_validity_cond = MockValidityCond { is_valid: true }.try_to_vec().unwrap();
+    let vec_validity_cond = borsh::to_vec(&MockValidityCond { is_valid: true }).unwrap();
     Ok(AggregatedProofPublicData {
         validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
         initial_slot_number: FIRST_SLOT_NUM,
