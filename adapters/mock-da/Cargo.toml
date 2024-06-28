@@ -27,7 +27,7 @@ tokio = { workspace = true, optional = true, features = ["test-util"] }
 futures = { workspace = true, optional = true, features = ["std"] }
 tracing = { workspace = true }
 
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-rollup-interface = { workspace = true }
 
 [dev-dependencies]
 bincode = { workspace = true }

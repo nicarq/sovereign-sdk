@@ -18,7 +18,7 @@ borsh = { workspace = true }
 digest = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-rollup-interface = { workspace = true }
 
 hex = { workspace = true }
 ed25519-dalek = { version = "2", features = ["serde"] }

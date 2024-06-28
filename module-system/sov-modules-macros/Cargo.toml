@@ -45,12 +45,12 @@ serde = { workspace = true }
 tempfile = { workspace = true }
 trybuild = "1.0"
 
-sov-modules-api = { path = "../sov-modules-api" }
-sov-rollup-interface = { path = "../../rollup-interface" }
-sov-state = { path = "../sov-state" }
-sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
-sov-modules-macros = { path = ".", features = ["native"] }
-sov-test-utils = { path = "../sov-test-utils" }
+sov-modules-api = { workspace = true }
+sov-rollup-interface = { workspace = true }
+sov-state = { workspace = true }
+sov-bank = { workspace = true, features = ["native"] }
+sov-modules-macros = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }
 
 [features]
 default = []

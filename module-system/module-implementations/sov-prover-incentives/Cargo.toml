@@ -16,11 +16,11 @@ workspace = true
 
 [dev-dependencies]
 tempfile = { workspace = true }
-sov-prover-incentives = { features = ["native"], path = "." }
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-sov-mock-zkvm = { path = "../../../adapters/mock-zkvm", features = ["native"] }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["native", "test-utils"] }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-prover-incentives = { path = ".", features = ["native"] }
+sov-mock-da = { workspace = true, features = ["native"] }
+sov-mock-zkvm = { workspace = true, features = ["native"] }
+sov-modules-api = { workspace = true, features = ["native", "test-utils"] }
+sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 
 [dependencies]
 anyhow = { workspace = true }
@@ -30,10 +30,10 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 
-sov-bank = { path = "../sov-bank", version = "0.3" }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
-sov-state = { path = "../../sov-state", version = "0.3" }
-sov-chain-state = { path = "../sov-chain-state", version = "0.3" }
+sov-bank = { workspace = true }
+sov-modules-api = { workspace = true }
+sov-state = { workspace = true }
+sov-chain-state = { workspace = true }
 
 [features]
 default = []

@@ -19,8 +19,8 @@ schemars = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 bech32 = { workspace = true }
 
-sov-modules-api = { path = "../../sov-modules-api" }
-sov-state = { path = "../../sov-state" }
+sov-modules-api = { workspace = true }
+sov-state = { workspace = true }
 
 postgres = { version = "0.19.7", optional = true }
 tokio = { workspace = true, features = ["rt-multi-thread"], optional = true }
@@ -29,8 +29,8 @@ tracing = { workspace = true, optional = true }
 [dev-dependencies]
 sov-nft-module = { version = "*", features = ["native"], path = "." }
 tempfile = { workspace = true }
-sov-test-utils = { path = "../../sov-test-utils" }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-test-utils = { workspace = true }
+sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 
 [features]
 default = []

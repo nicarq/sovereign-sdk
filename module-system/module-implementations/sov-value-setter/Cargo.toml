@@ -16,16 +16,16 @@ publish = false
 workspace = true
 
 [dev-dependencies]
-sov-value-setter = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
-sov-modules-api = { path = "../../sov-modules-api", features = ["native"] }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-test-utils = { path = "../../sov-test-utils" }
+sov-value-setter = { workspace = true, features = ["native"] }
+sov-modules-api = { workspace = true, features = ["native"] }
+sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-test-utils = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }
-sov-modules-api = { path = "../../sov-modules-api" }
-sov-state = { path = "../../sov-state" }
+sov-modules-api = { workspace = true }
+sov-state = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

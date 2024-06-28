@@ -17,15 +17,15 @@ schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
-sov-state = { path = "../../sov-state", version = "0.3" }
+sov-modules-api = { workspace = true }
+sov-state = { workspace = true }
 
 [dev-dependencies]
 sov-nonces = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
-sov-modules-api = { path = "../../sov-modules-api", features = ["test-utils"] }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-test-utils = { path = "../../sov-test-utils" }
+sov-modules-api = { workspace = true, features = ["test-utils"] }
+sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-test-utils = { workspace = true }
 
 [features]
 default = []

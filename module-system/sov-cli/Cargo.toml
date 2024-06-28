@@ -19,12 +19,12 @@ workspace = true
 
 [dependencies]
 base64 = { workspace = true }
-sov-modules-api = { path = "../sov-modules-api", version = "0.3", features = ["native"] }
-sov-bank = { path = "../module-implementations/sov-bank", version = "0.3", features = ["native"] }
-sov-nonces = { path = "../module-implementations/sov-nonces", version = "0.3", features = ["native"] }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
-sov-ledger-json-client = { path = "../../full-node/sov-ledger-json-client", version = "0.3" }
-sov-sequencer-json-client = { path = "../../full-node/sov-sequencer-json-client", version = "0.3" }
+sov-modules-api = { workspace = true, features = ["native"] }
+sov-bank = { workspace = true, features = ["native"] }
+sov-nonces = { workspace = true, features = ["native"] }
+sov-rollup-interface = { workspace = true }
+sov-ledger-json-client = { workspace = true }
+sov-sequencer-json-client = { workspace = true }
 directories = "5.0.1"
 anyhow = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
@@ -36,6 +36,6 @@ jsonrpsee = { workspace = true, features = ["client"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
-sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-test-utils = { path = "../sov-test-utils" }
+demo-stf = { workspace = true, features = ["native"] }
+sov-mock-da = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }

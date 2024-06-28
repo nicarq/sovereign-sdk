@@ -17,11 +17,11 @@ workspace = true
 [dependencies]
 tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
-sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
+sov-rollup-interface = { workspace = true, features = ["native"] }
 
-sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = ["native"] }
-sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
-sov-eth-dev-signer = { path = "../sov-eth-dev-signer" }
+sov-evm = { workspace = true, features = ["native"] }
+sov-modules-api = { workspace = true, features = ["native"] }
+sov-eth-dev-signer = { workspace = true }
 
 borsh = { workspace = true }
 serde = { workspace = true }
