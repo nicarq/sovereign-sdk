@@ -1,5 +1,6 @@
 demo-rollup-readme.sh
 /target
+lcov.info
 
 .idea/
 
