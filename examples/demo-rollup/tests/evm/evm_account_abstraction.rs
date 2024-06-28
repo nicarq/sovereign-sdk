@@ -11,7 +11,7 @@ use super::test_client::TestClient;
 use crate::evm::evm_test_helper::{self};
 use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_evm_account_abstraction() {
     let chain_id = config_value!("CHAIN_ID");
     let finalization_blocks = 0;
@@ -80,7 +80,7 @@ async fn execute_evm_tests(client: &TestClient) -> Result<(), Box<dyn std::error
     let balance = client.eth_get_balance(client.from_addr).await;
     assert!(balance > ethereum_types::U256::zero());
 
-    let mut slot_subscription = client.subscribe_for_slots().await;
+    let mut slot_subscription = client.subscribe_for_slots().await?;
     let contract_address =
         evm_test_helper::deploy_contract_check(client, &mut slot_subscription).await?;
 

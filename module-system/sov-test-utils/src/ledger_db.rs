@@ -2,24 +2,17 @@
 
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::Arc;
 
-use jsonrpsee::core::client::SubscriptionClientT;
 use sha2::Digest;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Coins, TokenId};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::SchemaBatch;
-use sov_ledger_apis::rest::LedgerRoutes;
-use sov_ledger_apis::rpc::client::RpcClient;
-use sov_ledger_apis::rpc::server::rpc_module;
+use sov_ledger_apis::LedgerRoutes;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash};
 use sov_modules_api::da::Time;
-use sov_modules_api::{
-    AggregatedProofPublicData, CodeCommitment, ModuleId, RuntimeEventResponse, StoredEvent,
-};
+use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, ModuleId, StoredEvent};
 pub use sov_prover_storage_manager::SimpleLedgerStorageManager;
-use sov_rollup_interface::rpc::{BatchResponse, SlotResponse, TxResponse};
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use tempfile::{tempdir, TempDir};
@@ -210,8 +203,6 @@ pub enum LedgerTestServiceData {
 pub struct LedgerTestService {
     // Must be kept in scope during the test to avoid directory deletion.
     _dir: TempDir,
-    pub rpc_handle: jsonrpsee::server::ServerHandle,
-    pub rpc_addr: SocketAddr,
     pub axum_handle: axum_server::Handle,
     pub axum_client: sov_ledger_json_client::Client,
 }
@@ -232,16 +223,6 @@ impl LedgerTestService {
 
         ledger_db.send_notifications();
         storage_manager.commit(ledger_data);
-
-        let rpc_module =
-            rpc_module::<LedgerDb, u32, TestTxReceiptContents, RuntimeEventResponse<TestEvent>>(
-                ledger_db.clone(),
-            )?;
-
-        let server = jsonrpsee::server::ServerBuilder::default()
-            .build("127.0.0.1:0")
-            .await?;
-        let rpc_addr = server.local_addr()?;
 
         let axum_handle = axum_server::Handle::new();
         let axum_handle1 = axum_handle.clone();
@@ -270,28 +251,9 @@ impl LedgerTestService {
 
         Ok(Self {
             _dir: dir,
-            rpc_handle: server.start(rpc_module),
-            rpc_addr,
             axum_handle,
             axum_client,
         })
-    }
-
-    pub async fn rpc_client(
-        &self,
-    ) -> Arc<
-        impl RpcClient<
-                SlotResponse<u32, TestTxReceiptContents>,
-                BatchResponse<u32, TestTxReceiptContents>,
-                TxResponse<TestTxReceiptContents>,
-            > + SubscriptionClientT,
-    > {
-        Arc::new(
-            jsonrpsee::ws_client::WsClientBuilder::new()
-                .build(format!("ws://{}", self.rpc_addr))
-                .await
-                .unwrap(),
-        )
     }
 }
 

@@ -43,7 +43,7 @@ pub async fn get_events_by_key_helper<E>(
     next: Option<&str>,
 ) -> Result<PaginatedEventResponse<E>, Error>
 where
-    E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+    E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
 {
     let scan_key_start = match next {
         Some(start_key) => {
@@ -123,7 +123,7 @@ pub async fn get_events_by_key_slot_range_helper<E>(
     next: Option<&str>,
 ) -> Result<PaginatedEventResponse<E>, Error>
 where
-    E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+    E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
 {
     let (txn_range, next_key) = match next {
         None => {

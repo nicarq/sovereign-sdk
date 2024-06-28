@@ -8,9 +8,11 @@ use ethers_core::types::{
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
 use ethers_signers::Wallet;
-use jsonrpsee::core::client::{ClientT, Subscription, SubscriptionClientT};
+use futures::StreamExt;
+use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
 use reth_primitives::Bytes;
+use sov_ledger_json_client::WsSubscription;
 use sov_test_utils::{ApiClient, SimpleStorageContract, TestSpec};
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
@@ -387,31 +389,21 @@ impl TestClient {
         gas.as_u64()
     }
 
-    pub(crate) async fn subscribe_for_slots(&self) -> Subscription<u64> {
-        self.node_client
-            .rpc
-            .subscribe(
-                "ledger_subscribeSlots",
-                rpc_params![],
-                "ledger_unsubscribeSlots",
-            )
-            .await
-            .unwrap()
+    pub(crate) async fn subscribe_for_slots(&self) -> WsSubscription<u64> {
+        Ok(self
+            .node_client
+            .ledger
+            .subscribe_slots()
+            .await?
+            .map(|s| s.map(|s| s.number))
+            .boxed())
     }
 
     pub(crate) async fn send_transactions_and_wait_slot(
         &self,
         transactions: &[sov_modules_api::transaction::Transaction<TestSpec>],
-    ) -> Result<(), anyhow::Error> {
-        let mut slot_subscription: Subscription<u64> = self
-            .node_client
-            .rpc
-            .subscribe(
-                "ledger_subscribeSlots",
-                rpc_params![],
-                "ledger_unsubscribeSlots",
-            )
-            .await?;
+    ) -> anyhow::Result<()> {
+        let mut slot_subscription = self.node_client.ledger.subscribe_slots().await?;
 
         self.node_client
             .sequencer

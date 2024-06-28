@@ -4,8 +4,7 @@ use std::time::Duration;
 
 use borsh::BorshSerialize;
 use demo_stf::runtime;
-use jsonrpsee::core::client::{Subscription, SubscriptionClientT};
-use jsonrpsee::rpc_params;
+use futures::StreamExt;
 use rand::Rng;
 use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
@@ -85,15 +84,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
     let rest_port = 12346;
     let client = ApiClient::new(rpc_port, rest_port).await?;
 
-    let mut slot_subscription: Subscription<u64> = client
-        .rpc
-        .subscribe(
-            "ledger_subscribeSlots",
-            rpc_params![],
-            "ledger_unsubscribeSlots",
-        )
-        .await
-        .unwrap();
+    let mut slot_subscription = client.ledger.subscribe_slots().await.unwrap();
 
     for (idx, message) in messages.into_iter().enumerate() {
         println!("Nonce {} . Going to submit message: {:?}", idx, message);
@@ -115,7 +106,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
             .await
             .unwrap();
         let slot = slot_subscription.next().await.unwrap().unwrap();
-        println!("SLOT: {} received", slot);
+        println!("SLOT: {} received", slot.number);
         tokio::time::sleep(Duration::from_millis(1000)).await;
     }
 

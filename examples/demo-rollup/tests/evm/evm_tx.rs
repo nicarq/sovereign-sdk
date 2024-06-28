@@ -5,13 +5,13 @@ use super::evm_test_helper;
 use super::test_client::TestClient;
 use crate::test_helpers::get_appropriate_rollup_prover_config;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn evm_tx_tests_instant_finality() -> anyhow::Result<()> {
     let rollup_prover_config = get_appropriate_rollup_prover_config();
     evm_tx_test(0, rollup_prover_config).await
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn evm_tx_tests_non_instant_finality() -> anyhow::Result<()> {
     evm_tx_test(3, RollupProverConfig::Skip).await
 }
@@ -68,7 +68,7 @@ async fn execute_evm_tests(client: &TestClient) -> Result<(), Box<dyn std::error
     let balance = client.eth_get_balance(client.from_addr).await;
     assert!(balance > ethereum_types::U256::zero());
 
-    let mut slot_subscription = client.subscribe_for_slots().await;
+    let mut slot_subscription = client.subscribe_for_slots().await?;
 
     let contract_address =
         evm_test_helper::deploy_contract_check(client, &mut slot_subscription).await?;

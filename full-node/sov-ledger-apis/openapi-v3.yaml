@@ -539,6 +539,17 @@ components:
         - hash
         - txRange
         - receipt
+    TxReceipt:
+      type: object
+      properties:
+        result:
+          type: string
+          enum:
+            - successful
+            - reverted
+            - skipped
+      required:
+        - result
     Tx:
       type: object
       properties:
@@ -557,7 +568,7 @@ components:
           type: string
           format: byte
         receipt:
-          $ref: "#/components/schemas/AnyJsonValue"
+          $ref: "#/components/schemas/TxReceipt"
         events:
           type: array
           items:
@@ -582,7 +593,8 @@ components:
         key:
           type: string
         value:
-          $ref: "#/components/schemas/AnyJsonValue"
+          type: object
+          additionalProperties: true
         module:
           $ref: "#/components/schemas/ModuleRef"
       required:

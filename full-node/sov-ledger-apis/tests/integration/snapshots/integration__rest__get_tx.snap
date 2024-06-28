@@ -12,7 +12,8 @@ expression: "&tx"
     "hash": "0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b",
     "number": 0,
     "receipt": {
-      "Successful": 0.0
+      "data": 0.0,
+      "result": "successful"
     },
     "type": "tx"
   },

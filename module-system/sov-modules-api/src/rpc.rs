@@ -19,7 +19,7 @@ pub trait LedgerStateProviderExt: LedgerStateProvider {
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse<E>, Self::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get events by a range of slots and key.
     async fn get_events_by_slot_range_key<E>(
@@ -31,7 +31,7 @@ pub trait LedgerStateProviderExt: LedgerStateProvider {
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse<E>, Self::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 }
 
 #[async_trait]
@@ -44,7 +44,7 @@ impl LedgerStateProviderExt for LedgerDb {
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse<E>, anyhow::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         get_events_by_key_helper::<E>(self, event_key, txn_range, num_events, next).await
     }
@@ -58,7 +58,7 @@ impl LedgerStateProviderExt for LedgerDb {
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse<E>, anyhow::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         get_events_by_key_slot_range_helper::<E>(
             self,

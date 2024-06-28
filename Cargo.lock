@@ -7416,6 +7416,7 @@ dependencies = [
  "sov-ethereum",
  "sov-kernels",
  "sov-ledger-apis",
+ "sov-ledger-json-client",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -7527,14 +7528,12 @@ dependencies = [
  "futures",
  "hex",
  "insta",
- "jsonrpsee 0.22.5",
  "reqwest 0.12.4",
  "serde",
  "serde_json",
  "serde_with",
  "serde_yaml",
  "sov-db",
- "sov-ledger-apis",
  "sov-ledger-json-client",
  "sov-mock-da",
  "sov-modules-api",
@@ -7543,6 +7542,7 @@ dependencies = [
  "sov-test-utils",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "tracing",
  "utoipa-swagger-ui",
 ]
@@ -7551,7 +7551,9 @@ dependencies = [
 name = "sov-ledger-json-client"
 version = "0.3.0"
 dependencies = [
- "base64 0.21.7",
+ "anyhow",
+ "base64 0.22.1",
+ "borsh 0.10.3",
  "chrono",
  "futures",
  "progenitor",
@@ -7560,7 +7562,10 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "serde_json",
+ "sov-rollup-interface",
  "tokio",
+ "tokio-tungstenite 0.23.1",
+ "tracing",
 ]
 
 [[package]]
@@ -8368,6 +8373,7 @@ dependencies = [
  "clap",
  "demo-stf",
  "derive_more",
+ "futures",
  "hex",
  "jsonrpsee 0.22.5",
  "serde",
@@ -8375,7 +8381,7 @@ dependencies = [
  "sov-bank",
  "sov-celestia-adapter",
  "sov-cli",
- "sov-ledger-apis",
+ "sov-ledger-json-client",
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-macros",

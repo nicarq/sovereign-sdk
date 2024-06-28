@@ -304,7 +304,7 @@ pub trait LedgerStateProvider {
         event_ids: &[EventIdentifier],
     ) -> Result<Vec<Option<E>>, Self::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get all events from a slot with an optional prefix filter. If a filter
     /// is not provided, all events from that slot are returned.
@@ -312,11 +312,11 @@ pub trait LedgerStateProvider {
         &self,
         slot_id: &SlotIdentifier,
         event_key_prefix_filter: Option<Vec<u8>>,
-    ) -> Result<Vec<(u64, E)>, Self::Error>
+    ) -> Result<Vec<E>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a single slot by hash.
     async fn get_slot_by_hash<B, T>(
@@ -400,7 +400,7 @@ pub trait LedgerStateProvider {
     /// Get a single event by number.
     async fn get_event_by_number<E>(&self, number: u64) -> Result<Option<E>, Self::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_events::<E>(&[EventIdentifier::Number(number)])
             .await
@@ -410,12 +410,12 @@ pub trait LedgerStateProvider {
     /// Get events by transaction hash.
     async fn get_events_by_txn_hash<E>(&self, txn_hash: &[u8; 32]) -> Result<Vec<E>, Self::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get events by transaction number.
     async fn get_events_by_txn_number<E>(&self, txn_num: u64) -> Result<Vec<E>, Self::Error>
     where
-        E: TryFrom<StoredEvent, Error = anyhow::Error> + Send + Sync;
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a single tx by number.
     async fn get_tx_by_number<T>(

@@ -15,17 +15,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use clap::Parser;
-use jsonrpsee::async_client::Client;
 use jsonrpsee::http_client::HttpClientBuilder;
-use jsonrpsee::ws_client::WsClientBuilder;
 use sov_celestia_adapter::types::Namespace;
 use sov_celestia_adapter::verifier::RollupParams;
 use sov_celestia_adapter::CelestiaService;
-use sov_ledger_apis::rpc::client::RpcClient;
 use sov_modules_api::prelude::tokio;
-use sov_modules_stf_blueprint::{BatchSequencerOutcome, TxReceiptContents};
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::rpc::{BatchResponse, QueryMode, SlotResponse, TxResponse};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::RawTx;
 
@@ -51,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     for addr in account_pool.addresses() {
         tracing::debug!(address = %addr, "Address has been read from disk");
     }
-    let client = HttpClientBuilder::default().build(&config.rpc_url)?;
+    let client = HttpClientBuilder::default().build(&config.rest_url)?;
     // Refreshing nonces before generating new users to avoid non needed RPC calls.
     account_pool.refresh_nonces(&client).await?;
     (0..config.new_users_count).for_each(|_| account_pool.generate_new_key());
@@ -70,23 +65,13 @@ async fn main() -> anyhow::Result<()> {
         },
     )
     .await;
-    let ledger_ws_url = config.get_ws_url();
-    let ledger_rpc_client = WsClientBuilder::default()
-        .build(ledger_ws_url.clone())
-        .await
-        .unwrap();
+
+    let ledger_client = sov_ledger_json_client::Client::new(&format!("{}/ledger", config.rest_url));
 
     // Calculating slot diff
     let first_head_header = da_service.get_head_block_header().await?;
-    let head: Option<_> = <Client as RpcClient<
-        SlotResponse<BatchSequencerOutcome, TxReceiptContents>,
-        BatchResponse<BatchSequencerOutcome, TxReceiptContents>,
-        TxResponse<TxReceiptContents>,
-    >>::get_head::<'_, '_>(&ledger_rpc_client, QueryMode::Compact)
-    .await
-    .unwrap();
-    let head_slot = head.unwrap();
-    let slot_diff = first_head_header.header().height() - head_slot.number;
+    let head_slot = ledger_client.get_latest_slot(None).await?;
+    let slot_diff = first_head_header.header().height() - head_slot.data.number;
     tracing::info!(slot_diff, "Difference between DA height and Rollup slot");
 
     // Starting slot watcher
