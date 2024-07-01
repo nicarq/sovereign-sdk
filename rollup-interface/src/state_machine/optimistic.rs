@@ -40,10 +40,10 @@ pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     pub challenger_address: Address,
     /// The state transition that was proven
     #[borsh(bound(
-        serialize = "Root: borsh::ser::BorshSerialize, Da::SlotHash: borsh::ser::BorshSerialize",
-        deserialize = "Root: borsh::de::BorshDeserialize, Da::SlotHash: borsh::de::BorshDeserialize"
+        serialize = "Address: borsh::ser::BorshSerialize, Root: borsh::ser::BorshSerialize, Da::SlotHash: borsh::ser::BorshSerialize",
+        deserialize = "Address: borsh::ser::BorshSerialize, Root: borsh::de::BorshDeserialize, Da::SlotHash: borsh::de::BorshDeserialize"
     ))]
-    pub state_transition: StateTransitionPublicData<Da, Root>,
+    pub state_transition: StateTransitionPublicData<Address, Da, Root>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, Serialize, Deserialize)]

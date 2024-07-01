@@ -14,7 +14,7 @@ pub trait ProofProcessor<S: Spec, Da: DaSpec> {
         proof_batch: Vec<u8>,
         state: StateCheckpoint<S>,
     ) -> (
-        ProofReceipt<Da, <S::Storage as Storage>::Root, ()>,
+        ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()>,
         StateCheckpoint<S>,
     );
 }

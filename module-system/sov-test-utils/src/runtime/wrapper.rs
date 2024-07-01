@@ -551,7 +551,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         _proof_batch: Vec<u8>,
         state: StateCheckpoint<S>,
     ) -> (
-        ProofReceipt<Da, <S::Storage as Storage>::Root, ()>,
+        ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()>,
         StateCheckpoint<S>,
     ) {
         (

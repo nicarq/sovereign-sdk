@@ -139,7 +139,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                     BlobData::Proof(raw_proof) => proof_receipts.push(ProofReceipt {
                         raw_proof,
                         blob_hash: [0u8; 32],
-                        outcome: ProofOutcome::<Da, Self::StateRoot>::Ignored,
+                        outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot>::Ignored,
                         extra_data: (),
                     }),
                 };

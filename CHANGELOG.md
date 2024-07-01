@@ -1,3 +1,4 @@
+- #862 Add `prover_address` to `StateTransitionPublicData` this will allow rewarding the prover.
 - #859 Adds a `MeteredSignature` struct wrapper and a `MeteredBorshDeserialize` trait that respectively charges gas for signature verification and borsh deserialization. We have renamed the `hash.rs` file to `metered_utils.rs` inside the `sov-modules-api/common` crate and grouped all the custom metered utils there. 
 - #863 Upgrades borsh to version 1.0. If you import borsh in one of your crates, be sure to upgrade as well.
 - #856 removes support for the `ledger_*` RPC methods and replaces them with a REST API accessible by default at `http://localhost:12346/ledger`.

@@ -63,13 +63,13 @@ pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents> {
 }
 
 /// A receipt for data posted into the proof namespace
-pub struct ProofReceipt<Da: DaSpec, Root, Extra> {
+pub struct ProofReceipt<Address, Da: DaSpec, Root, Extra> {
     /// The serialized zk-proof.
     pub raw_proof: Vec<u8>,
     /// The hash of the blob which contained the proof
     pub blob_hash: [u8; 32],
     /// The outcome of the proof
-    pub outcome: ProofOutcome<Da, Root>,
+    pub outcome: ProofOutcome<Address, Da, Root>,
     /// Any extra structured data to store with the proof receipt. For example, this might
     /// be the full contents of the proof (for an aggregate proof), or a proof that the sender
     /// of an attestation was bonded.
@@ -77,24 +77,27 @@ pub struct ProofReceipt<Da: DaSpec, Root, Extra> {
 }
 
 /// The contents of a proof receipt.
-pub enum ProofReceiptContents<Da: DaSpec, Root> {
+pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
     /// A receipt for an aggregate proof contains the public data form the proof.
     AggregateProof(AggregatedProofPublicData),
     /// A receipt for a block proof contains the public data from the state transition which was proven.
-    BlockProof(StateTransitionPublicData<Da, Root>),
+    BlockProof(StateTransitionPublicData<Address, Da, Root>),
     /// A receipt for an attestation contains the public data that the attestation made a claim about.
-    Attestation(StateTransitionPublicData<Da, Root>),
+    Attestation(StateTransitionPublicData<Address, Da, Root>),
 }
 
 /// The outcome of a proof
-pub enum ProofOutcome<Da: DaSpec, Root> {
+pub enum ProofOutcome<Address, Da: DaSpec, Root> {
     /// The blob was filtered out as irrelevant
     Ignored,
     /// The blob is some kind of valid proof
-    Valid(ProofReceiptContents<Da, Root>),
+    Valid(ProofReceiptContents<Address, Da, Root>),
     /// The blob is some kind of invalid proof
     Invalid,
 }
+
+type ProofReceipts<Address, Da, StateRoot, Extra> =
+    Vec<ProofReceipt<Address, Da, StateRoot, Extra>>;
 
 /// The result of applying a slot to current state.
 pub struct ApplySlotOutput<
@@ -108,7 +111,7 @@ pub struct ApplySlotOutput<
     /// Container for all state alterations that happened during slot execution
     pub change_set: Stf::ChangeSet,
     /// Receipt for each applied proof transaction
-    pub proof_receipts: Vec<ProofReceipt<Da, Stf::StateRoot, Stf::ProofReceiptContents>>,
+    pub proof_receipts: ProofReceipts<Stf::Address, Da, Stf::StateRoot, Stf::ProofReceiptContents>,
     /// Receipt for each applied batch
     pub batch_receipts: Vec<BatchReceipt<Stf::BatchReceiptContents, Stf::TxReceiptContents>>,
     /// Witness after applying the whole block
