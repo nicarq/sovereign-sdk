@@ -130,7 +130,7 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
-          path: ./fuzz/target
+          path: ./crates/fuzz/target
       - name: Run lint
         run: |
           if ! make lint ; then

@@ -29,12 +29,12 @@ cargo rustc --bin namespace_group_from_b64 \
     -Z sanitizer=address
 ```
 
-We don't default these options as they depend on the `rustc` version and might change in the future. For the list of available targets, check [Cargo.toml](./fuzz/Cargo.toml) under the `bin` section. We are currently not using optimized binaries as it might impact on how rocksdb is built. If you want to activate optimization, add `--release` after `rustc`.
+We don't default these options as they depend on the `rustc` version and might change in the future. For the list of available targets, check [Cargo.toml](./crates/fuzz/Cargo.toml) under the `bin` section. We are currently not using optimized binaries as it might impact on how rocksdb is built. If you want to activate optimization, add `--release` after `rustc`.
 
 Unfortunately, rustc doesn't support the `--bins` argument to build multiple binaries with custom compiler directives. We have to build every target individually. Below is a convenience [sed](https://www.gnu.org/software/sed/) script to build all targets.
 
 ```sh
-for t in `sed -n '/^\[\[bin\]\]/,/^$/ { /name\s*=\s*"\(.*\)"/s//\1/p }' fuzz/Cargo.toml` ; do cargo rustc --bin $t --manifest-path fuzz/Cargo.toml -- -C debuginfo=full -C debug-assertions -C passes='sancov-module' -C llvm-args='-sanitizer-coverage-level=3' -C llvm-args='-sanitizer-coverage-inline-8bit-counters' -Z sanitizer=address ; done
+for t in `sed -n '/^\[\[bin\]\]/,/^$/ { /name\s*=\s*"\(.*\)"/s//\1/p }' crates/fuzz/Cargo.toml` ; do cargo rustc --bin $t --manifest-path crates/fuzz/Cargo.toml -- -C debuginfo=full -C debug-assertions -C passes='sancov-module' -C llvm-args='-sanitizer-coverage-level=3' -C llvm-args='-sanitizer-coverage-inline-8bit-counters' -Z sanitizer=address ; done
 ```
 
 ## Run
@@ -57,10 +57,10 @@ To list the available targets, run:
 make targets
 ```
 
-Once built, you can run the targets under the `fuzz/target/<profile>` directory.
+Once built, you can run the targets under the `crates/fuzz/target/<profile>` directory.
 
 ```sh
-./fuzz/target/debug/namespace_group_from_b64
+./crates/fuzz/target/debug/namespace_group_from_b64
 ```
 
-It will run the fuzz until you interrupt the command (i.e. `CTRL-C`), and will record crashes under `fuzz/artifacts/*/crash-*`. If you find a crash, please report a new [bug](https://github.com/Sovereign-Labs/sovereign-sdk/issues/new?assignees=&labels=&projects=&template=bug_report.md&title=).
+It will run the fuzz until you interrupt the command (i.e. `CTRL-C`), and will record crashes under `crates/fuzz/artifacts/*/crash-*`. If you find a crash, please report a new [bug](https://github.com/Sovereign-Labs/sovereign-sdk/issues/new?assignees=&labels=&projects=&template=bug_report.md&title=).

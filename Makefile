@@ -82,7 +82,7 @@ check-features-default-targets:
 	cargo hack check --workspace --feature-powerset --exclude-features default
 
 check-fuzz: ## Checks that fuzz member compiles
-	$(MAKE) -C fuzz check
+	$(MAKE) -C crates/fuzz check
 
 find-unused-deps: ## Prints unused dependencies for project. Note: requires nightly
 	cargo +nightly udeps --all-targets --all-features

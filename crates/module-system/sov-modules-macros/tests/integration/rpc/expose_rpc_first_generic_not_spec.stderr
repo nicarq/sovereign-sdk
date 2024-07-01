@@ -11,7 +11,7 @@ error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
     |                ^ the trait `sov_modules_api::Spec` is not implemented for `T`
     |
 note: required by a bound in `sov_modules_api::Genesis::Spec`
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/mod.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/mod.rs
     |
     |     type Spec: Spec;
     |                ^^^^ required by this bound in `Genesis::Spec`
@@ -40,7 +40,7 @@ error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
     |
     = note: required for `impl sov_modules_api::GenesisState<<Self as sov_modules_api::Genesis>::Spec>` to implement `GenesisState<T>`
 note: the requirement `impl sov_modules_api::GenesisState<<Self as sov_modules_api::Genesis>::Spec>: GenesisState<T>` appears on the `impl`'s method `genesis` but not on the corresponding trait's method
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/mod.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/mod.rs
     |
     | pub trait Genesis {
     |           ------- in this trait
@@ -67,7 +67,7 @@ note: required because it appears within the type `PhantomData<(<T as TestSpec>:
     | pub struct PhantomData<T: ?Sized>;
     |            ^^^^^^^^^^^
 note: required because it appears within the type `sov_modules_api::containers::value::NamespacedStateValue<sov_state::User, <T as TestSpec>::Data>`
-   --> $WORKSPACE/module-system/sov-modules-api/src/containers/value.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/containers/value.rs
     |
     | pub struct NamespacedStateValue<N, V, Codec = BorshCodec> {
     |            ^^^^^^^^^^^^^^^^^^^^
@@ -82,7 +82,7 @@ note: required because it appears within the type `Runtime<T, S>`
 106 | struct Runtime<T: TestSpec, S: Spec> {
     |        ^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall`
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/dispatch.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
     |
     | pub trait DispatchCall: Send + Sync {
     |                                ^^^^ required by this bound in `DispatchCall`
@@ -105,7 +105,7 @@ note: required because it appears within the type `PhantomData<(<T as TestSpec>:
     | pub struct PhantomData<T: ?Sized>;
     |            ^^^^^^^^^^^
 note: required because it appears within the type `sov_modules_api::containers::value::NamespacedStateValue<sov_state::User, <T as TestSpec>::Data>`
-   --> $WORKSPACE/module-system/sov-modules-api/src/containers/value.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/containers/value.rs
     |
     | pub struct NamespacedStateValue<N, V, Codec = BorshCodec> {
     |            ^^^^^^^^^^^^^^^^^^^^
@@ -120,7 +120,7 @@ note: required because it appears within the type `Runtime<T, S>`
 106 | struct Runtime<T: TestSpec, S: Spec> {
     |        ^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall`
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/dispatch.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
     |
     | pub trait DispatchCall: Send + Sync {
     |                         ^^^^ required by this bound in `DispatchCall`
@@ -136,7 +136,7 @@ error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
     |                ^ the trait `sov_modules_api::Spec` is not implemented for `T`
     |
 note: required by a bound in `sov_modules_api::DispatchCall::Spec`
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/dispatch.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
     |
     |     type Spec: Spec;
     |                ^^^^ required by this bound in `DispatchCall::Spec`
@@ -158,7 +158,7 @@ note: required because it appears within the type `RuntimeCall<T, S>`
 104 | #[derive(Default, Genesis, DispatchCall, MessageCodec)]
     |                            ^^^^^^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall::Decodable`
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/dispatch.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
     |
     |     type Decodable: Send + Sync;
     |                            ^^^^ required by this bound in `DispatchCall::Decodable`
@@ -181,7 +181,7 @@ note: required because it appears within the type `RuntimeCall<T, S>`
 104 | #[derive(Default, Genesis, DispatchCall, MessageCodec)]
     |                            ^^^^^^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall::Decodable`
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/dispatch.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
     |
     |     type Decodable: Send + Sync;
     |                     ^^^^ required by this bound in `DispatchCall::Decodable`
@@ -217,7 +217,7 @@ note: required because it appears within the type `PhantomData<(<T as TestSpec>:
     | pub struct PhantomData<T: ?Sized>;
     |            ^^^^^^^^^^^
 note: required because it appears within the type `sov_modules_api::containers::value::NamespacedStateValue<sov_state::User, <T as TestSpec>::Data>`
-   --> $WORKSPACE/module-system/sov-modules-api/src/containers/value.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/containers/value.rs
     |
     | pub struct NamespacedStateValue<N, V, Codec = BorshCodec> {
     |            ^^^^^^^^^^^^^^^^^^^^
@@ -232,7 +232,7 @@ note: required because it appears within the type `Runtime<T, S>`
 106 | struct Runtime<T: TestSpec, S: Spec> {
     |        ^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall`
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/dispatch.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
     |
     | pub trait DispatchCall: Send + Sync {
     |                         ^^^^ required by this bound in `DispatchCall`
@@ -252,7 +252,7 @@ note: required because it appears within the type `PhantomData<(<T as TestSpec>:
     | pub struct PhantomData<T: ?Sized>;
     |            ^^^^^^^^^^^
 note: required because it appears within the type `sov_modules_api::containers::value::NamespacedStateValue<sov_state::User, <T as TestSpec>::Data>`
-   --> $WORKSPACE/module-system/sov-modules-api/src/containers/value.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/containers/value.rs
     |
     | pub struct NamespacedStateValue<N, V, Codec = BorshCodec> {
     |            ^^^^^^^^^^^^^^^^^^^^
@@ -267,7 +267,7 @@ note: required because it appears within the type `Runtime<T, S>`
 106 | struct Runtime<T: TestSpec, S: Spec> {
     |        ^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall`
-   --> $WORKSPACE/module-system/sov-modules-api/src/module/dispatch.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
     |
     | pub trait DispatchCall: Send + Sync {
     |                                ^^^^ required by this bound in `DispatchCall`
@@ -280,7 +280,7 @@ error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
     |                            ^^^^^^^^^^^^ the trait `sov_modules_api::Spec` is not implemented for `T`
     |
 note: required by a bound in `WorkingSet`
-   --> $WORKSPACE/module-system/sov-modules-api/src/state/accessors/scratchpad.rs
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/state/accessors/scratchpad.rs
     |
     | pub struct WorkingSet<S: Spec> {
     |                          ^^^^ required by this bound in `WorkingSet`
@@ -303,7 +303,7 @@ note: required because it appears within the type `PhantomData<(D, sov_state::Us
    | pub struct PhantomData<T: ?Sized>;
    |            ^^^^^^^^^^^
 note: required because it appears within the type `sov_modules_api::containers::value::NamespacedStateValue<sov_state::User, D>`
-  --> $WORKSPACE/module-system/sov-modules-api/src/containers/value.rs
+  --> $WORKSPACE/crates/module-system/sov-modules-api/src/containers/value.rs
    |
    | pub struct NamespacedStateValue<N, V, Codec = BorshCodec> {
    |            ^^^^^^^^^^^^^^^^^^^^
@@ -314,7 +314,7 @@ note: required because it appears within the type `QueryModule<S, D>`
    |                ^^^^^^^^^^^
    = note: required for `Arc<QueryModule<S, D>>` to implement `std::marker::Sync`
 note: required because it appears within the type `ApiState<QueryModule<S, D>, S>`
-  --> $WORKSPACE/module-system/sov-modules-api/src/rest/mod.rs
+  --> $WORKSPACE/crates/module-system/sov-modules-api/src/rest/mod.rs
    |
    | pub struct ApiState<T, S: Spec> {
    |            ^^^^^^^^
@@ -344,7 +344,7 @@ note: required because it appears within the type `PhantomData<(D, sov_state::Us
    | pub struct PhantomData<T: ?Sized>;
    |            ^^^^^^^^^^^
 note: required because it appears within the type `sov_modules_api::containers::value::NamespacedStateValue<sov_state::User, D>`
-  --> $WORKSPACE/module-system/sov-modules-api/src/containers/value.rs
+  --> $WORKSPACE/crates/module-system/sov-modules-api/src/containers/value.rs
    |
    | pub struct NamespacedStateValue<N, V, Codec = BorshCodec> {
    |            ^^^^^^^^^^^^^^^^^^^^
@@ -355,7 +355,7 @@ note: required because it appears within the type `QueryModule<S, D>`
    |                ^^^^^^^^^^^
    = note: required for `Arc<QueryModule<S, D>>` to implement `std::marker::Sync`
 note: required because it appears within the type `ApiState<QueryModule<S, D>, S>`
-  --> $WORKSPACE/module-system/sov-modules-api/src/rest/mod.rs
+  --> $WORKSPACE/crates/module-system/sov-modules-api/src/rest/mod.rs
    |
    | pub struct ApiState<T, S: Spec> {
    |            ^^^^^^^^

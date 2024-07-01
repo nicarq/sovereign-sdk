@@ -7,23 +7,23 @@
   "json.schemas": [
     {
       "fileMatch": ["bank.json"],
-      "url": "./module-system/module-schemas/genesis-schemas/sov-bank.json"
+      "url": "./crates/module-system/module-schemas/genesis-schemas/sov-bank.json"
     },
     {
       "fileMatch": ["accounts.json"],
-      "url": "./module-system/module-schemas/genesis-schemas/sov-accounts.json"
+      "url": "./crates/module-system/module-schemas/genesis-schemas/sov-accounts.json"
     },
     {
       "fileMatch": ["value_setter.json"],
-      "url": "./module-system/module-schemas/genesis-schemas/sov-value-setter.json"
+      "url": "./crates/module-system/module-schemas/genesis-schemas/sov-value-setter.json"
     },
     {
       "fileMatch": ["prover_incentives.json"],
-      "url": "./module-system/module-schemas/genesis-schemas/sov-prover-incentives.json"
+      "url": "./crates/module-system/module-schemas/genesis-schemas/sov-prover-incentives.json"
     },
     {
       "fileMatch": ["sequencer_registry.json"],
-      "url": "./module-system/module-schemas/genesis-schemas/sov-sequencer-registry.json"
+      "url": "./crates/module-system/module-schemas/genesis-schemas/sov-sequencer-registry.json"
     }
   ]
 }

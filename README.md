@@ -1,4 +1,4 @@
-![](./assets/banner.jpg)
+![](./docs/assets/banner.jpg)
 
 <div align="center">
   <a href="https://discord.gg/kbykCcPrcA" > 
@@ -107,7 +107,7 @@ The Avail project also maintains an adapter for their DA layer, which can be fou
 
 ## Testing
 
-An implementation of LLVM's libFUZZER is available under [fuzz/README.md](./fuzz/README.md). We also use [`zepter`] internally to keep feature propagation across Cargo workspaces up-to-date; you can invoke it with the suggested default configuration by calling `zepter`.
+An implementation of LLVM's libFUZZER is available under [fuzz/README.md](./crates/fuzz/README.md). We also use [`zepter`] internally to keep feature propagation across Cargo workspaces up-to-date; you can invoke it with the suggested default configuration by calling `zepter`.
 
 ## Warning
 
