@@ -28,7 +28,7 @@ use crate::{
 // the prover will reject new jobs.
 pub(crate) struct Prover<Address, StateRoot, Witness, Da: DaService> {
     prover_address: Address,
-    prover_state: Arc<RwLock<ProverState<StateRoot, Da::Spec>>>,
+    prover_state: Arc<RwLock<ProverState<Address, StateRoot, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
     code_commitment: CodeCommitment,
@@ -118,6 +118,8 @@ where
                 prover_address: self.prover_address.clone(),
             };
 
+            let prover_address = self.prover_address.clone();
+
             inner_vm.add_hint(&data);
 
             self.pool.spawn(move || {
@@ -147,11 +149,12 @@ where
 
                     let block_proof = proof.map(|p| BlockProof {
                         _proof: p,
-                        st: StateTransitionPublicData::<Da::Spec, StateRoot> {
+                        st: StateTransitionPublicData::<Address, Da::Spec, StateRoot> {
                             initial_state_root,
                             final_state_root,
                             slot_hash: block_header_hash.clone(),
                             validity_condition,
+                            prover_address,
                         },
                         slot_number: state_transition_info.slot_number,
                     });

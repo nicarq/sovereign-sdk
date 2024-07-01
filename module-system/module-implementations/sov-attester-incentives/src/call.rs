@@ -913,7 +913,7 @@ where
 
     fn check_challenge_outputs_against_transition(
         &self,
-        public_outputs: StateTransitionPublicData<Da, <S::Storage as Storage>::Root>,
+        public_outputs: StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
         height: &TransitionHeight,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), AttesterIncentiveErrors> {
@@ -997,7 +997,7 @@ where
             };
 
         let public_outputs_opt = <S::InnerZkvm as Zkvm>::verify::<
-            StateTransitionPublicData<Da, <S::Storage as Storage>::Root>,
+            StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
         >(proof, &code_commitment)
         .map_err(|e| anyhow::format_err!("{:?}", e));
 

@@ -39,7 +39,9 @@ where
         let data: StateTransitionWitnessWithAddress<Stf::Address, _, _, Da::Spec> =
             zkvm.read_from_host();
 
+        let prover_address = data.prover_address;
         let mut data = data.stf_witness;
+
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header,
             &data.relevant_blobs,
@@ -55,11 +57,12 @@ where
             data.relevant_blobs.as_iters(),
         );
 
-        let out: StateTransitionPublicData<Da::Spec, _> = StateTransitionPublicData {
+        let out: StateTransitionPublicData<Stf::Address, Da::Spec, _> = StateTransitionPublicData {
             initial_state_root: data.initial_state_root,
             final_state_root: result.state_root,
             slot_hash: data.da_block_header.hash(),
             validity_condition,
+            prover_address,
         };
 
         zkvm.commit(&out);

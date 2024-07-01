@@ -4,26 +4,29 @@ use sov_rollup_interface::da::DaSpec;
 
 use crate::prover_service::stf_info::BlockProof;
 
-pub(crate) enum ProverStatus<StateRoot, Da: DaSpec> {
+pub(crate) enum ProverStatus<Address, StateRoot, Da: DaSpec> {
     ProvingInProgress,
-    Proved(BlockProof<Da, StateRoot>),
+    Proved(BlockProof<Address, Da, StateRoot>),
     Err(anyhow::Error),
 }
 
-pub(crate) struct ProverState<StateRoot, Da: DaSpec> {
-    pub(crate) prover_status: HashMap<Da::SlotHash, ProverStatus<StateRoot, Da>>,
+pub(crate) struct ProverState<Address, StateRoot, Da: DaSpec> {
+    pub(crate) prover_status: HashMap<Da::SlotHash, ProverStatus<Address, StateRoot, Da>>,
     pub(crate) pending_tasks_count: usize,
 }
 
-impl<StateRoot, Da: DaSpec> ProverState<StateRoot, Da> {
-    pub(crate) fn remove(&mut self, hash: &Da::SlotHash) -> Option<ProverStatus<StateRoot, Da>> {
+impl<Address, StateRoot, Da: DaSpec> ProverState<Address, StateRoot, Da> {
+    pub(crate) fn remove(
+        &mut self,
+        hash: &Da::SlotHash,
+    ) -> Option<ProverStatus<Address, StateRoot, Da>> {
         self.prover_status.remove(hash)
     }
 
     pub(crate) fn set_to_proving(
         &mut self,
         hash: Da::SlotHash,
-    ) -> Option<ProverStatus<StateRoot, Da>> {
+    ) -> Option<ProverStatus<Address, StateRoot, Da>> {
         self.prover_status
             .insert(hash, ProverStatus::ProvingInProgress)
     }
@@ -31,8 +34,8 @@ impl<StateRoot, Da: DaSpec> ProverState<StateRoot, Da> {
     pub(crate) fn set_to_proved(
         &mut self,
         hash: Da::SlotHash,
-        proof: Result<BlockProof<Da, StateRoot>, anyhow::Error>,
-    ) -> Option<ProverStatus<StateRoot, Da>> {
+        proof: Result<BlockProof<Address, Da, StateRoot>, anyhow::Error>,
+    ) -> Option<ProverStatus<Address, StateRoot, Da>> {
         match proof {
             Ok(p) => self.prover_status.insert(hash, ProverStatus::Proved(p)),
             Err(e) => self.prover_status.insert(hash, ProverStatus::Err(e)),
@@ -42,7 +45,7 @@ impl<StateRoot, Da: DaSpec> ProverState<StateRoot, Da> {
     pub(crate) fn get_prover_status(
         &self,
         hash: &Da::SlotHash,
-    ) -> Option<&ProverStatus<StateRoot, Da>> {
+    ) -> Option<&ProverStatus<Address, StateRoot, Da>> {
         self.prover_status.get(hash)
     }
 

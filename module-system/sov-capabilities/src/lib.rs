@@ -170,7 +170,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         raw_proof: Vec<u8>,
         state: StateCheckpoint<S>,
     ) -> (
-        ProofReceipt<Da, <S::Storage as Storage>::Root, ()>,
+        ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()>,
         StateCheckpoint<S>,
     ) {
         // TODO #815

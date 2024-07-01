@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
-use sov_mock_da::MockValidityCond;
+use sov_mock_da::{MockAddress, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Batch, Gas, GasArray, Spec, StateCheckpoint, StateTransitionPublicData};
@@ -116,11 +116,12 @@ impl AttesterIncentivesTestHandler {
 
         // A challenger can now claim the stake from the bad attestation
         // We build the challenge
-        let transition = StateTransitionPublicData::<Da, _> {
+        let transition = StateTransitionPublicData::<MockAddress, Da, _> {
             initial_state_root: init_state_root,
             slot_hash: [10; 32].into(),
             final_state_root: first_state_root,
             validity_condition: MockValidityCond { is_valid: true },
+            prover_address: Default::default(),
         };
 
         let proof = MockZkvm::create_serialized_proof(true, transition);

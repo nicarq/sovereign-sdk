@@ -145,7 +145,7 @@ pub trait ValidityCondition:
 ///
 /// The period of time covered by a state transition proof may be a single slot, or a range of slots on the DA layer.
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-pub struct StateTransitionPublicData<Da: DaSpec, Root> {
+pub struct StateTransitionPublicData<Address, Da: DaSpec, Root> {
     /// The state of the rollup before the transition
     #[borsh(bound(
         serialize = "Root: borsh::ser::BorshSerialize",
@@ -169,6 +169,9 @@ pub struct StateTransitionPublicData<Da: DaSpec, Root> {
     /// to be checked outside of the zkVM circuit. This typically corresponds to
     /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
     pub validity_condition: Da::ValidityCondition,
+
+    /// Prover address.
+    pub prover_address: Address,
 }
 
 /// This trait expresses that a type can check a validity condition.

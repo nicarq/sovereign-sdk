@@ -1,11 +1,13 @@
 use std::convert::Infallible;
 
 use sov_bank::GAS_TOKEN_ID;
-use sov_mock_da::{MockDaSpec, MockValidityCond};
+use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{Context, Spec, StateCheckpoint, WorkingSet};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::zk::StateTransitionPublicData;
+use sov_state::StorageRoot;
+use sov_test_utils::TestStorageSpec;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
@@ -78,11 +80,12 @@ fn test_valid_challenge() -> Result<(), Infallible> {
     );
 
     {
-        let transition = StateTransitionPublicData::<MockDaSpec, _> {
+        let transition = StateTransitionPublicData::<MockAddress, MockDaSpec, _> {
             initial_state_root: initial_transition.state_root,
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
+            prover_address: Default::default(),
         };
 
         let proof = &MockZkvm::create_serialized_proof(true, transition);
@@ -214,12 +217,12 @@ fn test_invalid_challenge() -> Result<(), Infallible> {
         sequencer,
         INIT_HEIGHT + 2,
     );
-    let transition: StateTransitionPublicData<MockDaSpec, _> = StateTransitionPublicData {
-        initial_state_root: initial_transition.state_root,
-        slot_hash: [1; 32].into(),
-        final_state_root: transition_1.state_root,
-        validity_condition: MockValidityCond { is_valid: true },
-    };
+    let transition: StateTransitionPublicData<MockAddress, MockDaSpec, _> =
+        create_transition_public_data_default(
+            initial_transition.state_root,
+            transition_1.state_root,
+            [1; 32],
+        );
 
     let mut state = state_checkpoint.to_working_set_unmetered();
 
@@ -254,12 +257,11 @@ fn test_invalid_challenge() -> Result<(), Infallible> {
         );
 
         // Bad slot hash
-        let bad_transition = StateTransitionPublicData::<MockDaSpec, _> {
-            initial_state_root: initial_transition.state_root,
-            slot_hash: [2; 32].into(),
-            final_state_root: transition_1.state_root,
-            validity_condition: MockValidityCond { is_valid: true },
-        };
+        let bad_transition = create_transition_public_data_default(
+            initial_transition.state_root,
+            transition_1.state_root,
+            [2; 32],
+        );
 
         // An invalid proof
         let proof = &MockZkvm::create_serialized_proof(true, bad_transition);
@@ -274,11 +276,12 @@ fn test_invalid_challenge() -> Result<(), Infallible> {
         );
 
         // Bad validity condition
-        let bad_transition = StateTransitionPublicData::<MockDaSpec, _> {
+        let bad_transition = StateTransitionPublicData::<MockAddress, MockDaSpec, _> {
             initial_state_root: initial_transition.state_root,
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: false },
+            prover_address: Default::default(),
         };
 
         let proof = &MockZkvm::create_serialized_proof(true, bad_transition);
@@ -293,12 +296,11 @@ fn test_invalid_challenge() -> Result<(), Infallible> {
         );
 
         // Bad initial root
-        let bad_transition = StateTransitionPublicData::<MockDaSpec, _> {
-            initial_state_root: transition_1.state_root,
-            slot_hash: [1; 32].into(),
-            final_state_root: transition_1.state_root,
-            validity_condition: MockValidityCond { is_valid: true },
-        };
+        let bad_transition = create_transition_public_data_default(
+            transition_1.state_root,
+            transition_1.state_root,
+            [1; 32],
+        );
 
         let proof = &MockZkvm::create_serialized_proof(true, bad_transition);
 
@@ -313,4 +315,18 @@ fn test_invalid_challenge() -> Result<(), Infallible> {
     }
 
     Ok(())
+}
+
+fn create_transition_public_data_default(
+    initial_state_root: StorageRoot<TestStorageSpec>,
+    final_state_root: StorageRoot<TestStorageSpec>,
+    slot_hash: [u8; 32],
+) -> StateTransitionPublicData<MockAddress, MockDaSpec, StorageRoot<TestStorageSpec>> {
+    StateTransitionPublicData {
+        initial_state_root,
+        slot_hash: slot_hash.into(),
+        final_state_root,
+        validity_condition: MockValidityCond { is_valid: true },
+        prover_address: Default::default(),
+    }
 }
