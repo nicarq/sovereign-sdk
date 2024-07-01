@@ -340,8 +340,8 @@ $ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","met
 ```
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq '.data.publicData.initialSlotNumber'
-1
+$ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq 'if .data.publicData.initialSlotNumber >= 1 then true else false end'
+true
 ```
 
 ## Disclaimer

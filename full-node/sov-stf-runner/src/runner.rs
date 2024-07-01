@@ -295,6 +295,7 @@ where
 
         tokio::task::spawn(async move {
             let mut interval = tokio::time::interval(polling_interval);
+            debug!(?interval, "Interval for polling sync da height");
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             interval.tick().await; // Tick the interval once because it starts at 0ms. <https://docs.rs/tokio/latest/src/tokio/time/interval.rs.html#427>
 
@@ -331,7 +332,11 @@ where
         self.spawn_sync_status_updater(Duration::from_millis(self.da_polling_interval_ms));
 
         loop {
-            debug!(next_da_height, "Requesting DA block");
+            debug!(
+                next_da_height,
+                current_state_root = hex::encode(self.state_root.as_ref()),
+                "Requesting DA block"
+            );
             sov_metrics::update_metrics(|metrics| {
                 metrics.current_da_height.set(next_da_height as i64);
             });
@@ -487,6 +492,11 @@ where
             self.sync_state
                 .synced_da_height
                 .store(next_da_height, std::sync::atomic::Ordering::Release);
+            debug!(
+                height = next_da_height,
+                state_root = hex::encode(next_state_root.as_ref()),
+                "Execution of block is completed"
+            );
             next_da_height += 1;
             self.state_root = next_state_root;
 

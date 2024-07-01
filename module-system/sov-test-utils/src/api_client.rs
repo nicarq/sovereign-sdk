@@ -25,13 +25,13 @@ pub struct ApiClient {
 impl ApiClient {
     pub async fn new(rpc_port: u16, rest_port: u16) -> anyhow::Result<Self> {
         let sequencer = sov_sequencer_json_client::Client::new(&format!(
-            "http://localhost:{rest_port}/sequencer"
+            "http://127.0.0.1:{rest_port}/sequencer"
         ));
         let ledger =
-            sov_ledger_json_client::Client::new(&format!("http://localhost:{rest_port}/ledger"));
+            sov_ledger_json_client::Client::new(&format!("http://127.0.0.1:{rest_port}/ledger"));
 
         let rpc = WsClientBuilder::default()
-            .build(&format!("ws://localhost:{rpc_port}"))
+            .build(&format!("ws://127.0.0.1:{rpc_port}"))
             .await?;
 
         Ok(Self {

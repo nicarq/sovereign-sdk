@@ -1,12 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use anyhow::Context;
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use risc0::MOCK_DA_ELF;
 use sov_db::schema::SchemaBatch;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec};
+use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::execution_mode::WitnessGeneration;
 use sov_modules_api::SlotData;
@@ -21,7 +20,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
-use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
+use sov_stf_runner::read_json_file;
 use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
 
@@ -51,17 +50,11 @@ async fn test_proof_generation() {
     sov_test_utils::logging::initialize_logging();
     let genesis_conf_dir = String::from(DEFAULT_GENESIS_CONFIG_DIR);
 
-    let rollup_config_path = "tests/prover/rollup_config.toml".to_string();
-    let mut rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
-        .context("Failed to read rollup configuration")
-        .unwrap();
-
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
-    println!("Creating temp dir at {}", temp_dir.path().display());
-    rollup_config.storage.path = PathBuf::from(temp_dir.path());
+    tracing::info!("Creating temp dir at {}", temp_dir.path().display());
     let da_service = MockDaService::new(MockAddress::default());
     let storage_config = sov_state::config::Config {
-        path: rollup_config.storage.path,
+        path: temp_dir.path().into(),
     };
 
     let mut storage_manager =
@@ -84,7 +77,7 @@ async fn test_proof_generation() {
         }
     };
 
-    println!("Starting from empty storage, initialization chain");
+    tracing::info!("Starting from empty storage, initialization chain");
     let genesis_block = MockBlock::default();
     let (stf_state, _) = storage_manager
         .create_state_for(genesis_block.header())
@@ -103,7 +96,7 @@ async fn test_proof_generation() {
         let mut host = Risc0Host::new(MOCK_DA_ELF);
 
         let height = filtered_block.header().height();
-        println!(
+        tracing::info!(
             "Requesting data for height {} and prev_state_root 0x{}",
             height,
             hex::encode(prev_state_root.root_hash())
@@ -145,11 +138,11 @@ async fn test_proof_generation() {
 
         host.add_hint(data);
 
-        println!("Run prover without generating a proof for block {height}\n");
+        tracing::info!("Run prover without generating a proof for block {height}\n");
         let _receipt = host
             .run_without_proving()
             .expect("Prover should run successfully");
-        println!("==================================================\n");
+        tracing::info!("==================================================\n");
 
         prev_state_root = result.state_root;
         storage_manager

@@ -1,88 +1,43 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_rollup_interface::da::{
-    BlockHeaderTrait, DaProof, DaSpec, RelevantBlobs, RelevantProofs, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable, SlotData};
+use sov_rollup_interface::services::da::{DaService, MaybeRetryable, SlotData};
 use tokio::sync::{broadcast, Mutex, RwLock};
 use tokio::time;
-use tracing::debug;
 
-use crate::types::{default_wait_attempts, MockAddress, MockBlob, MockBlock, MockDaVerifier};
+use crate::in_memory::fork::PlannedFork;
+use crate::types::{GENESIS_BLOCK, GENESIS_HEADER, WAIT_ATTEMPT_PAUSE};
 use crate::utils::hash_to_array;
-use crate::verifier::MockDaSpec;
-use crate::{MockBlockHeader, MockDaConfig, MockHash, MockValidityCond, Proof};
-
-const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
-    prev_hash: MockHash([0; 32]),
-    hash: MockHash([1; 32]),
-    height: 0,
-    // 2023-01-01T00:00:00Z
-    time: Time::from_secs(1672531200),
+use crate::{
+    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockDaVerifier, MockFee,
+    MockHash, Proof,
 };
 
-const GENESIS_BLOCK: MockBlock = MockBlock {
-    header: GENESIS_HEADER,
-    validity_cond: MockValidityCond { is_valid: true },
-    batch_blobs: vec![],
-    proof_blobs: vec![],
-};
-
-/// Time in milliseconds to wait for the next block if it is not there yet.
-/// How many times wait attempts are done depends on service configuration.
-pub const WAIT_ATTEMPT_PAUSE_MS: u64 = 10;
-
-/// Definition of a fork that will be executed by [`MockDaService`] at a
-/// specified height.
-#[derive(Clone)]
-pub struct PlannedFork {
-    trigger_at_height: u64,
-    fork_height: u64,
-    blobs: Vec<Vec<u8>>,
-}
-
-impl PlannedFork {
-    /// Creates new [`PlannedFork`]. Panics if some parameters are invalid.
-    ///
-    /// # Arguments
-    ///
-    /// * `trigger_at_height` - Height at which fork is "noticed".
-    /// * `fork_height` - Height at which chain forked. Height of the first block in `blobs` will be `fork_height + 1`
-    /// * `blobs` - Blobs that will be added after fork. Single blob per each block
-    pub fn new(trigger_at_height: u64, fork_height: u64, blobs: Vec<Vec<u8>>) -> Self {
-        if fork_height > trigger_at_height {
-            panic!("Fork height must be less than trigger height");
-        }
-        let fork_len = (trigger_at_height - fork_height) as usize;
-        if fork_len < blobs.len() {
-            panic!("Not enough blobs for fork to be produced at given height");
-        }
-        Self {
-            trigger_at_height,
-            fork_height,
-            blobs,
-        }
-    }
-}
+const DEFAULT_WAIT_ATTEMPTS: u64 = 100;
 
 /// A [`DaService`] for use in tests.
 ///
-/// Height of the first submitted block is 1.
+/// The height of the first submitted block is 1.
 /// Submitted blocks are kept indefinitely in memory.
 #[derive(Clone)]
 pub struct MockDaService {
     sequencer_da_address: MockAddress,
     aggregated_proof_buffer: Arc<Mutex<VecDeque<Proof>>>,
     blocks: Arc<RwLock<VecDeque<MockBlock>>>,
-    /// How many blocks should be submitted, before block is finalized. 0 means instant finality.
+    /// Defines jow many blocks should be submitted, before block becomes finalized.
+    /// Zero means instant finality.
     blocks_to_finality: u32,
-    /// Used for calculating correct finality from state of `blocks`
+    /// Used for calculating correct finality from state of `blocks`.
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
+    /// How many attempts to get block at given height this service is going to do before giving up.
+    /// Wait time between attempts is defined by [`WAIT_ATTEMPT_PAUSE`].
     wait_attempts: u64,
     planned_fork: Option<PlannedFork>,
     aggregated_proof_sender: broadcast::Sender<()>,
@@ -109,17 +64,10 @@ impl MockDaService {
             blocks,
             blocks_to_finality: 0,
             finalized_header_sender: tx,
-            wait_attempts: default_wait_attempts(),
+            wait_attempts: DEFAULT_WAIT_ATTEMPTS,
             planned_fork: None,
             aggregated_proof_sender: aggregated_proof_subscription,
         }
-    }
-
-    /// Creates new [`MockDaService`] from given [`MockDaConfig`].
-    pub fn from_config(config: MockDaConfig) -> Self {
-        Self::new(config.sender_address)
-            .with_wait_attempts(config.wait_attempts)
-            .with_finality(config.finalization_blocks)
     }
 
     /// Sets the desired distance between the last finalized block and the head
@@ -141,7 +89,8 @@ impl MockDaService {
     }
 
     async fn wait_for_height(&self, height: u64) -> anyhow::Result<()> {
-        // Waits self.wait_attempts * 10ms to get block at height
+        let start = Instant::now();
+        // Waits self.wait_attempts * [`WAIT_ATTEMPT_PAUSE`] to get block at height
         for _ in 0..self.wait_attempts {
             {
                 if self
@@ -154,17 +103,17 @@ impl MockDaService {
                     return Ok(());
                 }
             }
-            time::sleep(Duration::from_millis(WAIT_ATTEMPT_PAUSE_MS)).await;
+            time::sleep(WAIT_ATTEMPT_PAUSE).await;
         }
         anyhow::bail!(
             "No block at height={height} has been sent in {:?}",
-            Duration::from_millis(self.wait_attempts * WAIT_ATTEMPT_PAUSE_MS),
+            start.elapsed()
         );
     }
 
     /// Rewrites existing non finalized blocks with given blocks
     /// New blobs will be added **after** specified height,
-    /// meaning that first blob will be in the block of height + 1.
+    /// meaning that the first blob will be in the block of height + 1.
     pub async fn fork_at(&self, height: u64, tx_blobs: &[Vec<u8>]) -> anyhow::Result<()> {
         let mut blocks = self.blocks.write().await;
         let last_finalized_height = self.get_last_finalized_height(&blocks).await;
@@ -186,7 +135,7 @@ impl MockDaService {
         Ok(())
     }
 
-    /// Set planned fork, that will be executed at specified height
+    /// Set planned fork, that will be executed at the specified height.
     pub async fn set_planned_fork(&mut self, planned_fork: PlannedFork) -> anyhow::Result<()> {
         let last_finalized_height = {
             let blocks = self.blocks.write().await;
@@ -249,7 +198,7 @@ impl MockDaService {
         }
     }
 
-    /// In MockDa a single block contains only one batch blob and any number of proof blobs.
+    /// In the [`MockDaService`] a single block contains only one batch blob and any number of proof blobs.
     fn add_block(
         &self,
         batch_blob: MockBlob,
@@ -259,14 +208,14 @@ impl MockDaService {
         let block = self.make_new_block(batch_blob, proof_blob, blocks);
 
         let height = block.header.height;
-        debug!("Creating block at height {}", height);
+        tracing::debug!("Creating block at height {}", height);
         blocks.push_back(block);
 
         // Enough blocks to finalize block
         if blocks.len() > self.blocks_to_finality as usize {
             let next_index_to_finalize = blocks.len() - self.blocks_to_finality as usize - 1;
             let next_finalized_header = blocks[next_index_to_finalize].header().clone();
-            debug!("Finalizing block at height {}", next_index_to_finalize);
+            tracing::debug!("Finalizing block at height {}", next_index_to_finalize);
             self.finalized_header_sender
                 .send(next_finalized_header)
                 .unwrap();
@@ -275,7 +224,7 @@ impl MockDaService {
         height
     }
 
-    /// Executes planned fork if it is planned at given height
+    /// Executes planned fork if it is planned at a given height.
     async fn planned_fork_handler(&self, height: u64) -> anyhow::Result<()> {
         if let Some(planned_fork_now) = &self.planned_fork {
             if planned_fork_now.trigger_at_height == height {
@@ -295,31 +244,16 @@ impl MockDaService {
     }
 }
 
-/// A fee implementation for the MockDaService. Fees are currently unused.
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
-pub struct MockFee(u64);
+fn block_hash(height: u64, blob_hashes: &[[u8; 32]], prev_hash: [u8; 32]) -> MockHash {
+    let mut block_to_hash = height.to_be_bytes().to_vec();
 
-impl MockFee {
-    /// Creates a new `MockFee` with the given rate.
-    pub const fn zero() -> Self {
-        Self(0)
-    }
-}
-
-impl Fee for MockFee {
-    type FeeRate = u64;
-
-    fn fee_rate(&self) -> Self::FeeRate {
-        self.0
+    for blob_hash in blob_hashes {
+        block_to_hash.extend_from_slice(blob_hash);
     }
 
-    fn set_fee_rate(&mut self, rate: Self::FeeRate) {
-        self.0 = rate;
-    }
+    block_to_hash.extend_from_slice(&prev_hash);
 
-    fn gas_estimate(&self) -> u64 {
-        1
-    }
+    MockHash::from(hash_to_array(&block_to_hash))
 }
 
 #[async_trait]
@@ -333,7 +267,7 @@ impl DaService for MockDaService {
     type Fee = MockFee;
 
     /// Gets block at given height
-    /// If block is not available, waits until it is
+    /// If block is not available, waits until it is produced.
     /// It is possible to read non-finalized and last finalized blocks multiple times
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
@@ -349,7 +283,7 @@ impl DaService for MockDaService {
         self.wait_for_height(height)
             .await
             .map_err(MaybeRetryable::Transient)?;
-        // Locking blocks here, so submissions has to wait
+        // Locking blocks here, so submissions have to wait
         let blocks = self.blocks.write().await;
         let oldest_available_height = blocks[0].header.height;
         let index =
@@ -404,37 +338,25 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
     ) -> RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction> {
-        RelevantBlobs {
-            proof_blobs: block.proof_blobs.clone(),
-            batch_blobs: block.batch_blobs.clone(),
-        }
+        block.as_relevant_blobs()
     }
 
     async fn get_extraction_proof(
         &self,
-        _block: &Self::FilteredBlock,
+        block: &Self::FilteredBlock,
         _blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
     ) -> RelevantProofs<
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
     > {
-        RelevantProofs {
-            batch: DaProof {
-                inclusion_proof: Default::default(),
-                completeness_proof: Default::default(),
-            },
-            proof: DaProof {
-                inclusion_proof: Default::default(),
-                completeness_proof: Default::default(),
-            },
-        }
+        block.get_relevant_proofs()
     }
 
     async fn send_transaction(&self, blob: &[u8], _fee: Self::Fee) -> Result<(), Self::Error> {
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         let mut proof_blobs = Vec::new();
         while let Some(proof) = proof_buffer.pop_front() {
-            debug!("Including buffered proof in block");
+            tracing::debug!("Including buffered proof in block");
             proof_blobs.push(self.make_blob(proof.0));
         }
 
@@ -452,7 +374,7 @@ impl DaService for MockDaService {
         proof: &[u8],
         _fee: Self::Fee,
     ) -> Result<(), Self::Error> {
-        debug!("Proof received. Buffering for later inclusion.");
+        tracing::debug!("Proof received. Buffering for later inclusion.");
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(Proof(proof.to_vec()));
         self.aggregated_proof_sender
@@ -465,27 +387,12 @@ impl DaService for MockDaService {
         let blobs = self.get_block_at(height).await?.proof_blobs;
         Ok(blobs
             .into_iter()
-            .map(|mut proof_blob| {
-                proof_blob.advance();
-                proof_blob.blob.accumulator().to_vec()
-            })
+            .map(|mut proof_blob| proof_blob.full_data().to_vec())
             .collect())
     }
     async fn estimate_fee(&self, _blob_size: usize) -> Result<Self::Fee, Self::Error> {
-        Ok(MockFee(0))
+        Ok(MockFee::zero())
     }
-}
-
-fn block_hash(height: u64, blob_hashes: &[[u8; 32]], prev_hash: [u8; 32]) -> MockHash {
-    let mut block_to_hash = height.to_be_bytes().to_vec();
-
-    for blob_hash in blob_hashes {
-        block_to_hash.extend_from_slice(blob_hash);
-    }
-
-    block_to_hash.extend_from_slice(&prev_hash);
-
-    MockHash::from(hash_to_array(&block_to_hash))
 }
 
 #[cfg(test)]
@@ -516,9 +423,9 @@ mod tests {
     ) -> JoinHandle<Vec<MockBlockHeader>> {
         let mut receiver = da.subscribe_finalized_header().await.unwrap();
         // All finalized headers should be pushed by that time
-        // This prevents test for freezing in case of a bug
+        // This prevents test for freezing in case of a bug,
         // But we need to wait longer, as `MockDa
-        let timeout_duration = Duration::from_millis(1000);
+        let timeout_duration = time::Duration::from_millis(1000);
         tokio::spawn(async move {
             let mut received = Vec::with_capacity(expected_num_headers);
             for _ in 0..=expected_num_headers {
@@ -884,11 +791,11 @@ mod tests {
             assert_consecutive_blocks(&block_2_after, &block_3_after);
             assert_consecutive_blocks(&block_1_after, &block_2_after);
 
-            let block_5 = da.get_block_at(5).await;
-            assert_eq!(
-                "No block at height=5 has been sent in 20ms",
-                block_5.unwrap_err().to_string()
-            );
+            let block_5_result = da.get_block_at(5).await;
+            assert!(block_5_result
+                .unwrap_err()
+                .to_string()
+                .starts_with("No block at height=5 has been sent in "));
         }
     }
 
