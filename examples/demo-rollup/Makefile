@@ -24,6 +24,7 @@ clean:
 	$(DOCKER_COMPOSE) down --volumes --rmi local
 	rm -f "$(CREDENTIALS_DIR)/$(KEY_NAME).jwt"
 	rm -rf "./demo_data"
+	rm -rf "mock_da.sqlite"
 	rm -f demo_rollup_config.toml
 	rm -rf "~/.sov-cli-wallet"
 	$(eval path := ./$(shell awk -F'=' '/^path/ {print $$2}' celestia_rollup_config.toml | tr -d '[:space:]"\n'))

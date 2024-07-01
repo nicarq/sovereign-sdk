@@ -7,7 +7,8 @@ use demo_stf::runtime::Runtime;
 use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
 use sov_kernels::basic::BasicKernel;
-use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
+use sov_mock_da::storable::service::StorableMockDaService;
+use sov_mock_da::{MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
@@ -46,7 +47,7 @@ where
 
 #[async_trait]
 impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
-    type DaService = DaServiceWithRetries<MockDaService>;
+    type DaService = DaServiceWithRetries<StorableMockDaService>;
     type DaConfig = MockDaConfig;
     type InnerZkvmHost = Risc0Host<'static>;
     type OuterZkvmHost = MockZkvm;
@@ -112,7 +113,9 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         &self,
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Self::DaService {
-        DaServiceWithRetries::new_fast(MockDaService::from_config(rollup_config.da.clone()))
+        DaServiceWithRetries::new_fast(
+            StorableMockDaService::from_config(rollup_config.da.clone()).await,
+        )
     }
 
     async fn create_prover_service(

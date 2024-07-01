@@ -18,7 +18,7 @@ workspace = true
 # more here: <https://github.com/oxidecomputer/progenitor>.
 [dependencies]
 # Core Progenitor dependencies, as described by the Progenitor README.
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { workspace = true, features = ["serde"] }
 futures = "0.3"
 progenitor = { git = "https://github.com/oxidecomputer/progenitor", rev = "0050f08b95edf9c0a7cbaad94161351af18e0246" }
 regress = "0.4.1"

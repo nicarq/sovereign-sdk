@@ -37,7 +37,7 @@ impl TestClient {
         rest_addr: std::net::SocketAddr,
     ) -> Self {
         let provider =
-            Provider::try_from(&format!("http://localhost:{}", rpc_addr.port())).unwrap();
+            Provider::try_from(&format!("http://127.0.0.1:{}", rpc_addr.port())).unwrap();
         let client = SignerMiddleware::new_with_provider_chain(provider, key)
             .await
             .unwrap();

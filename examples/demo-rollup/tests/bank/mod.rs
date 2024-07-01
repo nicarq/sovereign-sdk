@@ -6,7 +6,7 @@ use sov_bank::event::Event as BankEvent;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Coins, TokenId};
 use sov_kernels::basic::BasicKernelGenesisPaths;
-use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
+use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
@@ -76,11 +76,13 @@ async fn bank_tx_tests(
             },
             rollup_prover_config,
             MockDaConfig {
+                connection_string: "sqlite::memory:".to_string(),
                 // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
                 // Otherwise batches are going to be rejected
                 sender_address: MockAddress::new([0; 32]),
                 finalization_blocks: test_case.finalization_blocks,
-                wait_attempts: 50,
+                block_producing: BlockProducingConfig::OnSubmit,
+                block_time_ms: 5_000,
             },
         )
         .await;

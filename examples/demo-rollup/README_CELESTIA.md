@@ -208,13 +208,13 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
     Mint {
         /// The amount of tokens to mint.
         coins: Coins,
-        /// Address to mint tokens to
+        /// Address to mint tokens to.
         mint_to_address: S::Address,
     },
 
-    /// Freeze a token so that the supply is frozen
+    /// Freeze a token so that the supply is frozen.
     Freeze {
-        /// Address of the token to be frozen
+        /// Address of the token to be frozen.
         token_id: TokenId,
     },
 }

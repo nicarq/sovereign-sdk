@@ -5,6 +5,7 @@
 - #856 removes support for the `ledger_*` RPC methods and replaces them with a REST API accessible by default at `http://localhost:12346/ledger`.
 - #862 Adds `StateTransitionWitnessWithAddress` struct that is used to pass the prover address to the Prover.
 - #853 Make the `ProverIncentives` call methods public and accept prover address explicitly.
+- #823 Adds StorableMockDaService, where blocks will be persisted between restarts. `[da]` section for adapter has been changed. 
 - #821 removes support for the RPC methods of rollup sequencers, and replaces them with a REST API accessible by default at `http://localhost:12346/sequencer`.
 - #851 Add BlobData constructors. 
 - #842 `ProofManager` saves zk-proofs received from the `STF` in the db. 

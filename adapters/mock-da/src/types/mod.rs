@@ -2,19 +2,27 @@ mod address;
 
 use std::fmt::{Debug, Formatter};
 use std::hash::Hasher;
+use std::time::Duration;
 
 pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    BlockHashTrait, BlockHeaderTrait, CountedBufReader, RelevantBlobs, Time,
+    BlockHashTrait, BlockHeaderTrait, CountedBufReader, DaProof, RelevantBlobs, RelevantProofs,
+    Time,
 };
 #[cfg(feature = "native")]
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
 
+#[cfg(feature = "native")]
+use crate::storable::service::BlockProducing;
 use crate::utils::hash_to_array;
 use crate::validity_condition::MockValidityCond;
+
+/// Time in milliseconds to wait for the next block if it is not there yet.
+/// How many times wait attempts are done depends on service configuration.
+pub const WAIT_ATTEMPT_PAUSE: Duration = Duration::from_millis(10);
 
 /// Serialized aggregated proof.
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -63,6 +71,17 @@ impl From<MockHash> for [u8; 32] {
     }
 }
 
+impl TryFrom<Vec<u8>> for MockHash {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        let hash: [u8; 32] = value.try_into().map_err(|e: Vec<u8>| {
+            anyhow::anyhow!("Vec<u8> should have length 32: but it has {}", e.len())
+        })?;
+        Ok(MockHash(hash))
+    }
+}
+
 impl std::hash::Hash for MockHash {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.0);
@@ -79,15 +98,15 @@ pub struct MockBlockHeader {
     pub prev_hash: MockHash,
     /// The hash of this block.
     pub hash: MockHash,
-    /// The height of this block
+    /// The height of this block.
     pub height: u64,
-    /// The time at which this block was created
+    /// The time at which this block was created.
     pub time: Time,
 }
 
 impl MockBlockHeader {
-    /// Generates [`MockBlockHeader`] with given height, where hashes are derived from height
-    /// Can be used in tests, where header of following blocks will be consistent
+    /// Generates [`MockBlockHeader`] with given height, where hashes are derived from height.
+    /// Can be used in tests, where a header of the following blocks will be consistent.
     pub fn from_height(height: u64) -> MockBlockHeader {
         let prev_hash = u64_to_bytes(height);
         let hash = u64_to_bytes(height + 1);
@@ -138,31 +157,87 @@ impl BlockHeaderTrait for MockBlockHeader {
     }
 }
 
-/// The configuration for mock da
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct MockDaConfig {
-    /// The address to use to "submit" blobs on the mock da layer.
-    pub sender_address: MockAddress,
-    /// How many blocks progress to finalization.
-    #[serde(default)]
-    pub finalization_blocks: u32,
-    /// How many times try to wait for given block.
-    /// Time between wait attempts is [`crate::service::WAIT_ATTEMPT_PAUSE_MS`]
-    #[serde(default = "default_wait_attempts")]
-    pub wait_attempts: u64,
+#[cfg(feature = "native")]
+pub(crate) const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
+    prev_hash: MockHash([0; 32]),
+    hash: MockHash([1; 32]),
+    height: 0,
+    // 2023-01-01T00:00:00Z
+    time: Time::from_secs(1672531200),
+};
+
+#[cfg(feature = "native")]
+pub(crate) const GENESIS_BLOCK: MockBlock = MockBlock {
+    header: GENESIS_HEADER,
+    validity_cond: MockValidityCond { is_valid: true },
+    batch_blobs: Vec::new(),
+    proof_blobs: Vec::new(),
+};
+
+/// Configuration for block producing.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BlockProducingConfig {
+    /// New blocks are produced periodically.
+    /// This means that empty blocks can be produced.
+    Periodic,
+    /// New blocks are produced only when blob is submitted.
+    /// This also means that block has only one blob.
+    OnSubmit,
 }
 
-pub(crate) fn default_wait_attempts() -> u64 {
-    10_000
+/// The configuration for Mock Da.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct MockDaConfig {
+    /// Connection string to the database for storing Da Data.
+    ///   - "sqlite://demo_data/da.sqlite?mode=rwc"
+    ///   - "sqlite::memory:"
+    ///   - "postgresql://root:hunter2@aws.amazon.com/mock-da"
+    pub connection_string: String,
+    /// The address to use to "submit" blobs on the mock da layer.
+    pub sender_address: MockAddress,
+    /// Defines how many blocks progress to finalization.
+    #[serde(default)]
+    pub finalization_blocks: u32,
+    /// How MockDaService should produce blocks.
+    #[serde(default = "default_block_producing")]
+    pub block_producing: BlockProducingConfig,
+    /// Block time depends on `block_producing`:
+    ///  - For [`BlockProducingConfig::Periodic`] it defines how often new blocks will be produced, approximately.
+    ///  - For [`BlockProducingConfig::OnSubmit`] it defines max time service will wait for a new block to be submitted.
+    #[serde(default = "default_block_time_ms")]
+    pub block_time_ms: u64,
+}
+
+pub(crate) fn default_block_producing() -> BlockProducingConfig {
+    BlockProducingConfig::OnSubmit
+}
+
+pub(crate) fn default_block_time_ms() -> u64 {
+    120_000
 }
 
 impl MockDaConfig {
-    /// Create [`MockDaConfig`] with instant finality
+    /// Create [`MockDaConfig`] with instant finality.
     pub fn instant_with_sender(sender: MockAddress) -> Self {
         MockDaConfig {
+            connection_string: "sqlite::memory:".to_string(),
             sender_address: sender,
             finalization_blocks: 0,
-            wait_attempts: default_wait_attempts(),
+            block_producing: default_block_producing(),
+            block_time_ms: default_block_time_ms(),
+        }
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn block_producing(&self) -> BlockProducing {
+        match self.block_producing {
+            BlockProducingConfig::Periodic => {
+                BlockProducing::Periodic(Duration::from_millis(self.block_time_ms))
+            }
+            BlockProducingConfig::OnSubmit => {
+                BlockProducing::OnSubmit(Duration::from_millis(self.block_time_ms))
+            }
         }
     }
 }
@@ -254,11 +329,26 @@ impl MockBlock {
         next_block
     }
 
-    /// Creates RelevantBlobs data from this block.
+    /// Creates [`RelevantBlobs`] data from this block.
+    /// Where all batches and proofs are relevant.
     pub fn as_relevant_blobs(&self) -> RelevantBlobs<MockBlob> {
         RelevantBlobs {
             proof_blobs: self.proof_blobs.clone(),
             batch_blobs: self.batch_blobs.clone(),
+        }
+    }
+
+    /// Creates [`RelevantProofs`] with default values for inclusion and completeness proofs.
+    pub fn get_relevant_proofs(&self) -> RelevantProofs<[u8; 32], ()> {
+        RelevantProofs {
+            batch: DaProof {
+                inclusion_proof: Default::default(),
+                completeness_proof: Default::default(),
+            },
+            proof: DaProof {
+                inclusion_proof: Default::default(),
+                completeness_proof: Default::default(),
+            },
         }
     }
 }

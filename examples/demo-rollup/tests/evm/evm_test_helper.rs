@@ -8,7 +8,7 @@ use futures::future::join_all;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_kernels::basic::BasicKernelGenesisPaths;
-use sov_mock_da::{MockAddress, MockDaConfig};
+use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig};
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::SimpleStorageContract;
 use tokio::task::JoinHandle;
@@ -35,11 +35,14 @@ pub(crate) async fn start_node(
             },
             rollup_prover_config,
             MockDaConfig {
+                connection_string: "sqlite::memory:".to_string(),
                 // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
                 // Otherwise batches are going to be rejected
                 sender_address: MockAddress::new([0; 32]),
                 finalization_blocks,
-                wait_attempts: 1_000,
+                block_producing: BlockProducingConfig::OnSubmit,
+                // This parameter is important!
+                block_time_ms: 30_000,
             },
         )
         .await;
