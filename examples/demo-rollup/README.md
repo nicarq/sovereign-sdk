@@ -1,7 +1,7 @@
 # Demo Rollup ![Time - ~5 mins](https://img.shields.io/badge/Time-~5_mins-informational)
 
 <p align="center">
-  <img width="50%" src="../../assets/discord-banner.png">
+  <img width="50%" src="../../docs/assets/discord-banner.png">
   <br>
   <i>Stuck, facing problems, or unsure about something?</i>
   <br>

@@ -3,7 +3,7 @@
 This is a demo full node running a simple Sovereign SDK rollup on [Celestia](https://celestia.org/).
 
 <p align="center">
-  <img width="50%" src="../../assets/discord-banner.png">
+  <img width="50%" src="../../docs/assets/discord-banner.png">
   <br>
   <i>Stuck, facing problems, or unsure about something?</i>
   <br>
