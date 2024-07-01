@@ -46,6 +46,8 @@ pub struct AggregatedProofPublicData {
     pub final_slot_hash: Vec<u8>,
     /// Code Commitment of the aggregated proof circuit.
     pub code_commitment: CodeCommitment,
+    /// These are the addresses of the provers who proved individual blocks.
+    pub rewarded_addresses: Vec<Vec<u8>>,
 }
 
 impl core::fmt::Display for AggregatedProofPublicData {

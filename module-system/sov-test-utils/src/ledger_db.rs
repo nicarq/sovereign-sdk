@@ -68,6 +68,7 @@ pub async fn materialize_simple_ledger_db_data(
             initial_slot_hash: b"initial-slot-hash".to_vec(),
             final_slot_hash: b"final-slot-hash".to_vec(),
             code_commitment: CodeCommitment(b"code-commitment".to_vec()),
+            rewarded_addresses: vec![b"prover-address".to_vec()],
         },
     ))?);
 
@@ -176,6 +177,7 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
             initial_slot_hash: b"initial-slot-hash".to_vec(),
             final_slot_hash: b"final-slot-hash".to_vec(),
             code_commitment: CodeCommitment(b"code-commitment".to_vec()),
+            rewarded_addresses: vec![b"prover-address".to_vec()],
         },
     ))?);
 

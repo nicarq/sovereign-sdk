@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
+use borsh::BorshSerialize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
@@ -38,7 +39,7 @@ pub(crate) struct Prover<Address, StateRoot, Witness, Da: DaService> {
 impl<Address, StateRoot, Witness, Da> Prover<Address, StateRoot, Witness, Da>
 where
     Da: DaService,
-    Address: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    Address: BorshSerialize + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
@@ -210,13 +211,15 @@ where
                 .collect(),
             initial_slot_number: initial_block_proof.slot_number,
             final_slot_number: final_block_proof.slot_number,
-            // TODO https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/272
+
             genesis_state_root: Default::default(),
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
             initial_slot_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
             final_slot_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
             code_commitment: self.code_commitment.clone(),
+            // TODO: #815
+            rewarded_addresses: Default::default(),
         };
 
         debug!(%public_data, "generating aggregate proof");

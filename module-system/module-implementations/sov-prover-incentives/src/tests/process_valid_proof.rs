@@ -7,7 +7,7 @@ use sov_modules_api::{
     AggregatedProofPublicData, CodeCommitment, Spec, StateCheckpoint, TypedEvent,
 };
 
-use super::helpers::{get_transition_unwrap, MAX_TX_GAS_AMOUNT};
+use super::helpers::{get_transition_unwrap, MAX_TX_GAS_AMOUNT, MOCK_PROVER_ADDRESS};
 use crate::event::Event;
 use crate::tests::helpers::{
     setup, simulate_chain_state_execution, BOND_AMOUNT, INITIAL_PROVER_BALANCE,
@@ -40,6 +40,7 @@ fn build_proof_log(
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
     })
 }
 

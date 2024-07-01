@@ -101,6 +101,8 @@ impl TryInto<aggregated_proof::AggregatedProof> for types::AggregatedProof {
                 code_commitment: aggregated_proof::CodeCommitment(decode_b64(
                     &self.public_data.code_commitment,
                 )?),
+                // TODO: #815
+                rewarded_addresses: Default::default(),
             },
         ))
     }

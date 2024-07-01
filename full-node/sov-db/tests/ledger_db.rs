@@ -87,6 +87,7 @@ async fn test_save_aggregated_proof() {
             initial_slot_hash: vec![i + 2],
             final_slot_hash: vec![i + 3],
             code_commitment: CodeCommitment::default(),
+            rewarded_addresses: Default::default(),
         };
 
         let raw_aggregated_proof = MockZkvm::create_serialized_proof(true, public_data.clone());

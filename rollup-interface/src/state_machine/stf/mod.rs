@@ -76,6 +76,7 @@ pub struct ProofReceipt<Address, Da: DaSpec, Root, Extra> {
     pub extra_data: Extra,
 }
 
+#[allow(clippy::large_enum_variant)]
 /// The contents of a proof receipt.
 pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
     /// A receipt for an aggregate proof contains the public data form the proof.
@@ -86,6 +87,7 @@ pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
     Attestation(StateTransitionPublicData<Address, Da, Root>),
 }
 
+#[allow(clippy::large_enum_variant)]
 /// The outcome of a proof
 pub enum ProofOutcome<Address, Da: DaSpec, Root> {
     /// The blob was filtered out as irrelevant
