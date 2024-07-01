@@ -1,6 +1,6 @@
 use sov_bank::{IntoPayable, ReserveGasError};
 use sov_chain_state::StateTransition;
-use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
+use sov_mock_da::{MockAddress, MockBlockHeader, MockDaSpec, MockHash, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::da::Time;
@@ -27,6 +27,7 @@ pub(crate) const BOND_AMOUNT: u64 = 100_000;
 pub(crate) const INITIAL_PROVER_BALANCE: u64 = 10 * BOND_AMOUNT;
 pub(crate) const INITIAL_SEQUENCER_BALANCE: u64 = 20 * BOND_AMOUNT;
 pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
+pub(crate) const MOCK_PROVER_ADDRESS: MockAddress = MockAddress::new([1u8; 32]);
 
 pub const MAX_TX_GAS_AMOUNT: u64 = 10 * BOND_AMOUNT;
 

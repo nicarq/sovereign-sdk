@@ -8,7 +8,9 @@ use sov_modules_api::{
     AggregatedProofPublicData, CodeCommitment, Spec, StateAccessor, StateCheckpoint, WorkingSet,
 };
 
-use super::helpers::{get_transition_unwrap, simulate_chain_state_execution, MAX_TX_GAS_AMOUNT};
+use super::helpers::{
+    get_transition_unwrap, simulate_chain_state_execution, MAX_TX_GAS_AMOUNT, MOCK_PROVER_ADDRESS,
+};
 use crate::event::SlashingReason;
 use crate::tests::helpers::{setup, MOCK_CODE_COMMITMENT, S};
 use crate::Event;
@@ -133,6 +135,7 @@ fn test_slash_on_invalid_genesis_hash() -> Result<(), Infallible> {
             initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
             final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
             code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+            rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
         };
 
         let mut state = state.to_working_set_unmetered();
@@ -182,6 +185,7 @@ fn test_slash_on_invalid_initial_state_root() -> Result<(), Infallible> {
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
     };
 
     let mut state = state.to_working_set_unmetered();
@@ -227,6 +231,7 @@ fn test_slash_on_invalid_final_slot_hash() -> Result<(), Infallible> {
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
     };
 
     let mut state = state.to_working_set_unmetered();
@@ -273,6 +278,7 @@ fn test_slash_on_invalid_final_state_root() -> Result<(), Infallible> {
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
     };
 
     let mut state = state.to_working_set_unmetered();
@@ -316,6 +322,7 @@ fn test_slash_on_invalid_initial_slot_hash() -> Result<(), Infallible> {
         initial_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
     };
 
     let mut state = state.to_working_set_unmetered();
@@ -362,6 +369,7 @@ fn test_slash_on_invalid_initial_transition() -> Result<(), Infallible> {
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
     };
 
     let mut working_set = state.to_working_set_unmetered();
@@ -408,6 +416,7 @@ fn test_slash_on_invalid_final_transition() -> Result<(), Infallible> {
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
     };
 
     let mut working_set = state.to_working_set_unmetered();
@@ -479,6 +488,7 @@ fn test_slash_on_invalid_validity_cond() -> Result<(), Infallible> {
         initial_slot_hash: first_transition.slot_hash().as_ref().to_vec(),
         final_slot_hash: last_transition.slot_hash().as_ref().to_vec(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![MOCK_PROVER_ADDRESS.as_ref().to_vec()],
     };
 
     let mut working_set = state.to_working_set_unmetered();

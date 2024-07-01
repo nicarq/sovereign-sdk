@@ -3,6 +3,7 @@ mod state;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use borsh::BorshSerialize;
 use prover::Prover;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -64,7 +65,7 @@ where
 impl<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
     ParallelProverService<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
-    Address: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    Address: BorshSerialize + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
@@ -145,7 +146,7 @@ where
 impl<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V> ProverService
     for ParallelProverService<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
-    Address: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    Address: BorshSerialize + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
