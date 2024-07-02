@@ -6,7 +6,7 @@ pub type HexHash = HexString<[u8; 32]>;
 
 /// A [`serde`]-compatible newtype wrapper around [`Vec<u8>`] or other
 /// bytes-like types, which is serialized as a 0x-prefixed hex string.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::AsRef)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::AsRef)]
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 pub struct HexString<T = Vec<u8>>(pub T);
 
@@ -40,7 +40,11 @@ where
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&self.to_string())
+        } else {
+            serializer.serialize_bytes(self.0.as_ref())
+        }
     }
 }
 
@@ -52,14 +56,18 @@ where
     where
         D: serde::Deserializer<'de>,
     {
-        let string = String::deserialize(deserializer)?;
-        let s = string
-            .strip_prefix("0x")
-            .ok_or_else(|| serde::de::Error::custom("Missing 0x prefix"))?;
+        let bytes = if deserializer.is_human_readable() {
+            let string = String::deserialize(deserializer)?;
+            let s = string
+                .strip_prefix("0x")
+                .ok_or_else(|| serde::de::Error::custom("Missing 0x prefix"))?;
 
-        let bytes = hex::decode(s)
-            .map_err(|e| anyhow::anyhow!("failed to decode hex: {}", e))
-            .map_err(serde::de::Error::custom)?;
+            hex::decode(s)
+                .map_err(|e| anyhow::anyhow!("failed to decode hex: {}", e))
+                .map_err(serde::de::Error::custom)?
+        } else {
+            Vec::<u8>::deserialize(deserializer)?
+        };
 
         Ok(HexString(bytes.try_into().map_err(|_| {
             serde::de::Error::custom("Invalid hex string length")

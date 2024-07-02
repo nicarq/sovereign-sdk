@@ -727,8 +727,8 @@ impl NumberOrHash {
 impl Display for NumberOrHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NumberOrHash::Number(number) => write!(f, "{}", number),
-            NumberOrHash::Hash(hash) => write!(f, "0x{}", hex::encode(hash.0)),
+            NumberOrHash::Number(number) => number.fmt(f),
+            NumberOrHash::Hash(hash) => hash.fmt(f),
         }
     }
 }

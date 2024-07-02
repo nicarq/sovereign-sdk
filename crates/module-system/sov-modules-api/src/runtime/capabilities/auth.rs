@@ -31,6 +31,7 @@
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value;
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::stf::RawTx;
@@ -146,8 +147,8 @@ pub enum FatalError {
         got: u64,
     },
     /// Transaction decoding failed.
-    #[error("Transaction decoding error: {0}, tx hash: {1:?}")]
-    MessageDecodingFailed(String, [u8; 32]),
+    #[error("Transaction decoding error: {0}, tx hash: {1}")]
+    MessageDecodingFailed(String, HexHash),
     /// A variant to capture any other fatal error.
     #[error("Other fatal error: {0}")]
     Other(String),
@@ -264,7 +265,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     let runtime_call = D::decode_call(tx.runtime_msg(), meter).map_err(|e| {
         AuthenticationError::FatalError(FatalError::MessageDecodingFailed(
             e.to_string(),
-            raw_tx_hash,
+            HexHash::new(raw_tx_hash),
         ))
     })?;
 

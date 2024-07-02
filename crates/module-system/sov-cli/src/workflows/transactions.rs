@@ -8,7 +8,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_api::clap::{self, Subcommand};
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg};
-use sov_modules_api::{CliWallet, DispatchCall, GasArray};
+use sov_modules_api::{CliWallet, DispatchCall, GasArray, Spec};
+use sov_rollup_interface::common::HexString;
 
 use crate::wallet_state::{sign_tx, KeyIdentifier, WalletState};
 use crate::workflows::keys::load_key;
@@ -120,10 +121,9 @@ where
                     format!("Unable to load key {}", account.location.display())
                 })?;
 
-                let signed_tx = sign_tx(&private_key, &tx, nonce)?;
+                let signed_tx = HexString::new(sign_tx(&private_key, &tx, nonce)?);
 
                 if json_output {
-                    let signed_tx = format!("0x{}", hex::encode(signed_tx));
                     let output = SignTransactionOutput {
                         nonce,
                         input_tx: tx,
@@ -139,7 +139,7 @@ where
                     )?;
                     writeln!(&mut out, "{}", serde_json::to_string_pretty(&tx)?)?;
                     writeln!(&mut out, "Signed Transaction (borsh encoded):")?;
-                    writeln!(&mut out, "0x{}", hex::encode(signed_tx))?;
+                    writeln!(&mut out, "{}", signed_tx)?;
                 }
 
                 Ok(())
@@ -223,8 +223,8 @@ where
 
 #[derive(serde::Serialize)]
 #[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
-struct SignTransactionOutput<S: sov_modules_api::Spec, Tx: BorshSerialize + BorshDeserialize> {
+struct SignTransactionOutput<S: Spec, Tx: BorshSerialize + BorshDeserialize> {
     nonce: u64,
     input_tx: UnsignedTransactionWithoutNonce<S, Tx>,
-    signed_tx: String,
+    signed_tx: HexString,
 }
