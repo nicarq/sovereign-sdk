@@ -1,5 +1,5 @@
 //! [sea-orm](https://www.sea-ql.org/SeaORM/docs/index/) related code.
-use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait, QueryOrder, Schema};
+use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait, QueryOrder, QuerySelect, Schema};
 
 pub mod blobs;
 pub mod block_headers;
@@ -36,11 +36,14 @@ pub(crate) async fn create_tables<E: EntityTrait>(
 
 pub(crate) async fn query_last_height(db: &DatabaseConnection) -> anyhow::Result<u32> {
     tracing::debug!("Loading latest height from database");
-    // TODO: Optimize and only pull height and not whole blob https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/855
-    let largest_height = block_headers::Entity::find()
-        .order_by_desc(block_headers::Column::Height)
-        .one(db)
-        .await?;
 
-    Ok(largest_height.map(|i| i.height as u32).unwrap_or_default())
+    Ok(block_headers::Entity::find()
+        .order_by_desc(block_headers::Column::Height)
+        .select_only()
+        .column(block_headers::Column::Height)
+        .into_tuple::<(i32,)>()
+        .one(db)
+        .await?
+        .map(|i| i.0 as u32)
+        .unwrap_or_default())
 }
