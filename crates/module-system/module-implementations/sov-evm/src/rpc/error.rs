@@ -6,6 +6,7 @@ use std::time::Duration;
 use alloy_sol_types::decode_revert_reason;
 use reth_rpc_types::request::TransactionInputError;
 use revm::primitives::{Address, EVMError, HaltReason, InvalidHeader, U256};
+use sov_rollup_interface::common::HexString;
 
 use crate::evm::conversions::RlpConversionError;
 
@@ -590,7 +591,7 @@ fn rpc_err(
         code,
         msg.into(),
         data.map(|data| {
-            jsonrpsee::core::to_json_raw_value(&format!("0x{}", hex::encode(data)))
+            jsonrpsee::core::to_json_raw_value(&HexString::new(data))
                 .expect("serializing String does fail")
         }),
     )

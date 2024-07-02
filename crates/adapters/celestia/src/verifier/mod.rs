@@ -43,7 +43,7 @@ impl BlobReaderTrait for BlobWithSender {
     }
 
     fn hash(&self) -> [u8; 32] {
-        self.hash
+        self.hash.0
     }
 
     fn verified_data(&self) -> &[u8] {

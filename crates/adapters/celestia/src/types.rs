@@ -14,6 +14,7 @@ use celestia_types::{
 };
 use nmt_rs::NamespacedSha2Hasher;
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::common::HexHash;
 #[cfg(feature = "native")]
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::da::CountedBufReader;
@@ -83,7 +84,7 @@ impl NamespaceWithShares {
 pub struct BlobWithSender {
     pub blob: CountedBufReader<BlobIterator>,
     pub sender: CelestiaAddress,
-    pub hash: [u8; 32],
+    pub hash: HexHash,
 }
 
 /// Data that is required for extracting the relevant blobs from the namespace
@@ -124,7 +125,7 @@ impl NamespaceData {
             let blob_tx = BlobWithSender {
                 blob: CountedBufReader::new(blob.into_iter()),
                 sender: sender.parse().expect("Incorrect sender address"),
-                hash: commitment.0,
+                hash: HexHash::new(commitment.0),
             };
 
             output.push(blob_tx);

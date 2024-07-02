@@ -3448,6 +3448,7 @@ dependencies = [
  "secp256k1 0.27.0",
  "serde",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "thiserror",
  "tracing",

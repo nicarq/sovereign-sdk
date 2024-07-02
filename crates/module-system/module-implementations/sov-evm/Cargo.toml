@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 sov-modules-api = { workspace = true, features = ["evm"] }
+sov-rollup-interface = { workspace = true }
 sov-state = { workspace = true }
 
 anyhow = { workspace = true }
@@ -75,4 +76,5 @@ native = [
     "sov-mock-da/native",
     "sov-modules-api/native",
     "sov-state/native",
+    "sov-rollup-interface/native"
 ]

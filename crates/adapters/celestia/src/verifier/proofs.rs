@@ -33,7 +33,7 @@ pub fn new_inclusion_proof(
     for tx in blobs.iter() {
         let (_, position) = rollup_data
             .relevant_pfbs
-            .get(tx.hash.as_slice())
+            .get(tx.hash.0.as_slice())
             .expect("commitment must exist in map");
         needed_tx_shares.push(position.clone());
     }
