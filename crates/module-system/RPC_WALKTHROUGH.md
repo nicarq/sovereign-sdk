@@ -19,7 +19,7 @@ has identical syntax to [`jsonrpsee::rpc`](https://docs.rs/jsonrpsee-proc-macros
 except that the `method` annotation has been renamed to `rpc_method` to clarify its purpose.
 
 ```rust
-// This code goes in your module's rpc.rs file
+// This code goes in your module's `query.rs` file.
 use sov_modules_api::macros::rpc_gen;
 
 #[rpc_gen(client, server, namespace = "bank")]

@@ -7,9 +7,9 @@ pub use call::CallMessage;
 mod genesis;
 pub use genesis::*;
 #[cfg(feature = "native")]
-mod rpc;
+mod query;
 #[cfg(feature = "native")]
-pub use rpc::*;
+pub use query::*;
 use sov_modules_api::{
     CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, Spec, TxState,
 };

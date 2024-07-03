@@ -2,11 +2,11 @@ mod call;
 mod event;
 mod genesis;
 #[cfg(feature = "native")]
-mod rpc;
+mod query;
 pub use call::CallMessage;
 pub use event::Event;
 #[cfg(feature = "native")]
-pub use rpc::*;
+pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
 

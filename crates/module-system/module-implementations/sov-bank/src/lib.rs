@@ -7,9 +7,9 @@ mod test_utils;
 pub use capability::{ReserveGasError, ReserveGasErrorReason};
 mod genesis;
 #[cfg(feature = "native")]
-mod rpc;
+mod query;
 #[cfg(feature = "native")]
-pub use rpc::*;
+pub use query::*;
 mod token;
 /// Util functions for bank
 pub mod utils;

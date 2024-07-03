@@ -19,7 +19,7 @@ pub mod hooks;
 
 /// The query interface with the module
 #[cfg(feature = "native")]
-mod rpc;
+mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};

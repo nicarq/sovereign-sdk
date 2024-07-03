@@ -13,12 +13,12 @@ pub use genesis::*;
 mod tests;
 
 #[cfg(feature = "native")]
-mod rpc;
+mod query;
 
 mod event;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
-pub use rpc::*;
+pub use query::*;
 use sov_bank::{Amount, BurnRate};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState};
