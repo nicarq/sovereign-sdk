@@ -3,10 +3,10 @@
 mod call;
 mod capabilities;
 #[cfg(feature = "native")]
-mod rpc;
+mod query;
 use call::NotInstantiable;
 #[cfg(feature = "native")]
-pub use rpc::*;
+pub use query::*;
 use sov_modules_api::{
     Context, CredentialId, Error, GenesisState, ModuleId, ModuleInfo, Spec, StateReader, TxState,
 };

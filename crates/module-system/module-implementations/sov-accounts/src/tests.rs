@@ -7,7 +7,7 @@ use sov_modules_api::{
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
-use crate::rpc::Response;
+use crate::query::Response;
 use crate::{call, Account, AccountConfig, AccountData, Accounts};
 
 type S = sov_test_utils::TestSpec;

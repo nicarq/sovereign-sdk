@@ -16,13 +16,13 @@ mod tests;
 
 use sov_modules_api::prelude::UnwrapInfallible;
 #[cfg(feature = "native")]
-mod rpc;
+mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
 pub use capabilities::SequencerStakeMeter;
 pub use genesis::*;
 #[cfg(feature = "native")]
-pub use rpc::*;
+pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
