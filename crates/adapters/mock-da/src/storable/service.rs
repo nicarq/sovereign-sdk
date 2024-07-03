@@ -20,6 +20,8 @@ use crate::{
 };
 
 const DEFAULT_BLOCK_WAITING_TIME: Duration = Duration::from_secs(120);
+// Time to accommodate rare cases of lock waiting time or latency to the database.
+const EXTRA_TIME_FOR_MAX_BLOCK: Duration = Duration::from_secs(10);
 
 /// Defines how StorableMockService should produce new blocks.
 #[derive(Debug, Clone)]
@@ -37,7 +39,9 @@ pub enum BlockProducing {
 impl BlockProducing {
     fn get_max_waiting_time_for_block(&self) -> Duration {
         match self {
-            BlockProducing::OnSubmit(duration) | BlockProducing::Periodic(duration) => *duration,
+            BlockProducing::OnSubmit(duration) | BlockProducing::Periodic(duration) => {
+                *duration + EXTRA_TIME_FOR_MAX_BLOCK
+            }
             // Use a large number to prevent infinite blocking.
             BlockProducing::Manual => DEFAULT_BLOCK_WAITING_TIME * 1000,
         }
@@ -382,7 +386,7 @@ mod tests {
         let result_1 = service.get_block_at(height_1).await;
         assert!(result_1.is_err());
         let err = result_1.unwrap_err().to_string();
-        assert_eq!("No block at height=4294967295 has been sent in 10ms", err);
+        assert_eq!("No block at height=4294967295 has been sent in 10.01s", err);
 
         let result_2 = service.get_block_at(height_2).await;
         assert!(result_2.is_err());
