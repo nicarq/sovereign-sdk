@@ -3363,7 +3363,6 @@ name = "sov-bank"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bech32 0.11.0",
  "borsh 1.4.0",
  "serde",
  "sov-modules-api",
@@ -3586,7 +3585,6 @@ name = "sov-nft-module"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bech32 0.11.0",
  "borsh 1.4.0",
  "serde",
  "sov-modules-api",
