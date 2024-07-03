@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use super::Zkvm;
 
-// Type that represents a serialized validity condition.
 type SerializedValidityCondition = Vec<u8>;
+type SerializedAddress = Vec<u8>;
 
 /// Aggregated proof code commitment.
 #[derive(
@@ -47,7 +47,7 @@ pub struct AggregatedProofPublicData {
     /// Code Commitment of the aggregated proof circuit.
     pub code_commitment: CodeCommitment,
     /// These are the addresses of the provers who proved individual blocks.
-    pub rewarded_addresses: Vec<Vec<u8>>,
+    pub rewarded_addresses: Vec<SerializedAddress>,
 }
 
 impl core::fmt::Display for AggregatedProofPublicData {

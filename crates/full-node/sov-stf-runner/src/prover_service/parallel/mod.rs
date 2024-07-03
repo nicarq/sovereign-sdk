@@ -65,7 +65,8 @@ where
 impl<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
     ParallelProverService<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
-    Address: BorshSerialize + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    Address:
+        BorshSerialize + AsRef<[u8]> + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
@@ -146,7 +147,8 @@ where
 impl<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V> ProverService
     for ParallelProverService<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V>
 where
-    Address: BorshSerialize + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    Address:
+        BorshSerialize + AsRef<[u8]> + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
