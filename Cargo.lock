@@ -8221,6 +8221,7 @@ dependencies = [
  "sov-risc0-adapter",
  "sov-rollup-interface",
  "sov-sequencer-registry",
+ "sov-stf-runner",
  "sov-value-setter",
 ]
 
@@ -8640,6 +8641,7 @@ dependencies = [
  "jsonrpsee 0.22.5",
  "num_cpus",
  "rayon",
+ "schemars",
  "serde",
  "serde_json",
  "sha2 0.10.8",

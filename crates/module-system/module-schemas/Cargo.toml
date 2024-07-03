@@ -23,6 +23,7 @@ sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"]  }
 sov-risc0-adapter = { workspace = true, features = ["native"] }
 sov-rollup-interface = { workspace = true, features = ["native"] }
+sov-stf-runner = { workspace = true, features = ["native"] }
 
 # Modules
 sov-accounts = { workspace = true, features = ["native"] }

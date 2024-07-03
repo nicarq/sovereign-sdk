@@ -6001,6 +6001,7 @@ dependencies = [
  "borsh 1.5.1",
  "hex",
  "num_cpus",
+ "schemars",
  "serde",
  "serde_json",
  "sov-metrics",

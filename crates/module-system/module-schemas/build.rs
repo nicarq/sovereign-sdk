@@ -9,6 +9,7 @@ use sov_modules_api::ModuleCallJsonSchema;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::execution_mode;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
+use sov_stf_runner::RollupConfig;
 
 type InnerZkvmHost = Risc0Host<'static>;
 type OuterZkvmHost = MockZkvm;
@@ -43,6 +44,19 @@ fn main() -> io::Result<()> {
         "sov-sequencer-registry.json",
     )?;
 
+    // Rollup configuration schema.
+    store_rollup_config_json_schema("rollup-config.json")?;
+
+    Ok(())
+}
+
+fn store_rollup_config_json_schema(filename: &str) -> io::Result<()> {
+    let schema = schema_for!(RollupConfig<serde_json::Value>);
+    let schema_string = serde_json::to_string_pretty(&schema)?;
+
+    let mut file = File::create(filename)?;
+    file.write_all(schema_string.as_bytes())?;
+    file.write_all(b"\n")?;
     Ok(())
 }
 

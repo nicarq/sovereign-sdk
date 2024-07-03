@@ -2,11 +2,12 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
 /// Configuration for StateTransitionRunner.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 pub struct RunnerConfig {
     /// DA start height.
     pub genesis_height: u64,
@@ -19,7 +20,7 @@ pub struct RunnerConfig {
 }
 
 /// Configuration for HTTP server(s) exposed by the node.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 pub struct HttpServerConfig {
     /// Server host.
     pub bind_host: String,
@@ -28,21 +29,21 @@ pub struct HttpServerConfig {
 }
 
 /// Simple storage configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 pub struct StorageConfig {
     /// Path that can be utilized by concrete implementation
     pub path: PathBuf,
 }
 
 /// Prover service configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Copy, JsonSchema)]
 pub struct ProofManagerConfig {
     /// The "distance"  measured in the number of blocks between two consecutive aggregated proofs.
     pub aggregated_proof_block_jump: usize,
 }
 
 /// Rollup Configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 pub struct RollupConfig<DaServiceConfig> {
     /// Currently rollup config runner only supports storage path parameter
     pub storage: StorageConfig,
