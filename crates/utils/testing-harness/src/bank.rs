@@ -13,7 +13,7 @@ use crate::types::PreparedCallMessage;
 
 const DEFAULT_MAX_FEE: u64 = 10_000_000;
 // How much funds account should have to be considered a "whale".
-const MINIMAL_WHALE_BALANCE: u64 = 100_000_000_000;
+const MINIMAL_WHALE_BALANCE: u64 = 100_000_000;
 const MAX_MINT_BATCH_SIZE: usize = 10;
 
 fn get_bank_config<S: Spec>(
