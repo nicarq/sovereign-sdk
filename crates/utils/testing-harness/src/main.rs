@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     for addr in account_pool.addresses() {
         tracing::debug!(address = %addr, "Address has been read from disk");
     }
-    let client = HttpClientBuilder::default().build(&config.rest_url)?;
+    let client = HttpClientBuilder::default().build(&config.rpc_url)?;
     // Refreshing nonces before generating new users to avoid non needed RPC calls.
     account_pool.refresh_nonces(&client).await?;
     (0..config.new_users_count).for_each(|_| account_pool.generate_new_key());

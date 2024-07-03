@@ -12,7 +12,7 @@ pub fn start_slot_watcher_task(
     config: &Args,
     wait_till_slot: Arc<AtomicU64>,
 ) -> JoinHandle<(u64, u64)> {
-    let rest_url = config.rest_url.clone();
+    let rest_url = format!("{}/ledger", config.rest_url.clone());
     tokio::spawn(async move {
         let mut successful_count = 0;
         let mut error_count = 0;
