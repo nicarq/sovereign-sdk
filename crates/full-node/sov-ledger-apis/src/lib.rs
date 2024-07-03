@@ -883,23 +883,30 @@ impl TryFrom<AggregatedProofResponse> for AggregatedProof {
     type Error = anyhow::Error;
 
     fn try_from(value: AggregatedProofResponse) -> Result<Self, Self::Error> {
-        let proof = value.proof.serialized_proof().to_vec();
+        let proof: Vec<u8> = value.proof.serialized_proof().to_vec();
+        let data = value.proof.public_data();
+
         let public_data = AggregatedProofPublicData {
-            validity_conditions: value
-                .proof
-                .public_data()
+            validity_conditions: data
                 .validity_conditions
                 .iter()
                 .map(|v| ValidityCondition(v.clone()))
                 .collect(),
-            initial_slot_number: value.proof.public_data().initial_slot_number,
-            final_slot_number: value.proof.public_data().final_slot_number,
-            genesis_state_root: value.proof.public_data().genesis_state_root.clone(),
-            initial_state_root: value.proof.public_data().initial_state_root.clone(),
-            final_state_root: value.proof.public_data().final_state_root.clone(),
-            initial_slot_hash: value.proof.public_data().initial_slot_hash.clone(),
-            final_slot_hash: value.proof.public_data().final_slot_hash.clone(),
-            code_commitment: value.proof.public_data().code_commitment.0.clone(),
+
+            rewarded_addresses: data
+                .rewarded_addresses
+                .iter()
+                .map(|v| RewardedAddresses(v.clone()))
+                .collect(),
+
+            initial_slot_number: data.initial_slot_number,
+            final_slot_number: data.final_slot_number,
+            genesis_state_root: data.genesis_state_root.clone(),
+            initial_state_root: data.initial_state_root.clone(),
+            final_state_root: data.final_state_root.clone(),
+            initial_slot_hash: data.initial_slot_hash.clone(),
+            final_slot_hash: data.final_slot_hash.clone(),
+            code_commitment: data.code_commitment.0.clone(),
         };
 
         Ok(Self { proof, public_data })
@@ -910,6 +917,11 @@ impl TryFrom<AggregatedProofResponse> for AggregatedProof {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ValidityCondition(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
+
+#[serde_as]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RewardedAddresses(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
 
 #[serde_as]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -930,6 +942,7 @@ struct AggregatedProofPublicData {
     pub final_slot_hash: Vec<u8>,
     #[serde_as(as = "serde_with::base64::Base64")]
     pub code_commitment: Vec<u8>,
+    pub rewarded_addresses: Vec<RewardedAddresses>,
 }
 
 #[cfg(test)]

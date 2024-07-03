@@ -39,7 +39,8 @@ pub(crate) struct Prover<Address, StateRoot, Witness, Da: DaService> {
 impl<Address, StateRoot, Witness, Da> Prover<Address, StateRoot, Witness, Da>
 where
     Da: DaService,
-    Address: BorshSerialize + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    Address:
+        BorshSerialize + Serialize + DeserializeOwned + AsRef<[u8]> + Clone + Send + Sync + 'static,
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
@@ -201,25 +202,29 @@ where
         let initial_block_proof = block_proofs_data.first().unwrap();
         let final_block_proof = block_proofs_data.last().unwrap();
 
+        let mut rewarded_addresses = Vec::default();
+        let mut validity_conditions = Vec::default();
+        for bp in block_proofs_data.iter() {
+            rewarded_addresses.push(
+                borsh::to_vec(&bp.st.prover_address).expect("Serializing to vec is infallible"),
+            );
+
+            validity_conditions.push(
+                borsh::to_vec(&bp.st.validity_condition).expect("Serializing to vec is infallible"),
+            );
+        }
+
         let public_data = AggregatedProofPublicData {
-            validity_conditions: block_proofs_data
-                .iter()
-                .map(|bp| {
-                    borsh::to_vec(&bp.st.validity_condition)
-                        .expect("Serializing to vec is infallible")
-                })
-                .collect(),
+            validity_conditions,
+            rewarded_addresses,
             initial_slot_number: initial_block_proof.slot_number,
             final_slot_number: final_block_proof.slot_number,
-
             genesis_state_root: Default::default(),
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
             initial_slot_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
             final_slot_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
             code_commitment: self.code_commitment.clone(),
-            // TODO: #815
-            rewarded_addresses: Default::default(),
         };
 
         debug!(%public_data, "generating aggregate proof");

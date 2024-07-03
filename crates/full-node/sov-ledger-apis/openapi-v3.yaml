@@ -400,6 +400,11 @@ components:
         Catch-all object for details about the response. Currently
         unused; may be used in the future for pagination details, request ID,
         rate-limiting information, etc..
+    RewardedAddresses:
+      type: array
+      items:
+        type: string
+        format: byte
     ValidityConditions:
       type: array
       items:
@@ -417,6 +422,8 @@ components:
     AggregatedProofPublicData:
       type: object
       properties:
+        rewardedAddresses:
+          $ref: "#/components/schemas/RewardedAddresses"
         validityConditions:
           $ref: "#/components/schemas/ValidityConditions"
         initialSlotNumber:
@@ -443,6 +450,7 @@ components:
         codeCommitment:
           $ref: "#/components/schemas/CodeCommitment"
       required:
+        - rewardedAddresses
         - validityConditions
         - initialSlotNumber
         - finalSlotNumber
