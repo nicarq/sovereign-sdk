@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RollupConfig_for_AnyValue",
+  "description": "Rollup Configuration",
+  "type": "object",
+  "required": [
+    "da",
+    "proof_manager",
+    "runner",
+    "storage"
+  ],
+  "properties": {
+    "da": {
+      "description": "Data Availability service configuration."
+    },
+    "proof_manager": {
+      "description": "Proof manager configuration.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/ProofManagerConfig"
+        }
+      ]
+    },
+    "runner": {
+      "description": "Runner own configuration.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/RunnerConfig"
+        }
+      ]
+    },
+    "storage": {
+      "description": "Currently rollup config runner only supports storage path parameter",
+      "allOf": [
+        {
+          "$ref": "#/definitions/StorageConfig"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "HttpServerConfig": {
+      "description": "Configuration for HTTP server(s) exposed by the node.",
+      "type": "object",
+      "required": [
+        "bind_host",
+        "bind_port"
+      ],
+      "properties": {
+        "bind_host": {
+          "description": "Server host.",
+          "type": "string"
+        },
+        "bind_port": {
+          "description": "Server port.",
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ProofManagerConfig": {
+      "description": "Prover service configuration.",
+      "type": "object",
+      "required": [
+        "aggregated_proof_block_jump"
+      ],
+      "properties": {
+        "aggregated_proof_block_jump": {
+          "description": "The \"distance\"  measured in the number of blocks between two consecutive aggregated proofs.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        }
+      }
+    },
+    "RunnerConfig": {
+      "description": "Configuration for StateTransitionRunner.",
+      "type": "object",
+      "required": [
+        "axum_config",
+        "da_polling_interval_ms",
+        "genesis_height",
+        "rpc_config"
+      ],
+      "properties": {
+        "axum_config": {
+          "description": "Axum server configuration.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/HttpServerConfig"
+            }
+          ]
+        },
+        "da_polling_interval_ms": {
+          "description": "Polling interval for the DA service to check the sync status (in milliseconds).",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "genesis_height": {
+          "description": "DA start height.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "rpc_config": {
+          "description": "RPC configuration.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/HttpServerConfig"
+            }
+          ]
+        }
+      }
+    },
+    "StorageConfig": {
+      "description": "Simple storage configuration",
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "description": "Path that can be utilized by concrete implementation",
+          "type": "string"
+        }
+      }
+    }
+  }
+}
