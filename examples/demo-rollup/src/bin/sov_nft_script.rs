@@ -3,14 +3,16 @@ use std::time::Duration;
 use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_nft_module::utils::{
     get_collection_id, get_create_collection_message, get_mint_nft_message,
     get_transfer_nft_message,
 };
 use sov_nft_module::{CallMessage, CollectionId};
-use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec};
+use sov_test_utils::{
+    ApiClient, TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+};
 
 const COLLECTION_1: &str = "Sovereign Squirrel Syndicate";
 const COLLECTION_2: &str = "Celestial Dolphins";
@@ -25,8 +27,8 @@ pub fn build_transaction(
 ) -> Transaction<TestSpec> {
     let runtime_encoded_message = RuntimeCall::<TestSpec, MockDaSpec>::nft(message);
     let chain_id = config_value!("CHAIN_ID");
-    let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = 0;
+    let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
+    let max_fee = TEST_DEFAULT_MAX_FEE;
     let gas_limit = None;
 
     Transaction::<TestSpec>::new_signed_tx(

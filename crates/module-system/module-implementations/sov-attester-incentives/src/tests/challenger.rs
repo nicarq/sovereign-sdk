@@ -7,13 +7,10 @@ use sov_modules_api::{Context, Spec, StateCheckpoint, WorkingSet};
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::zk::StateTransitionPublicData;
 use sov_state::StorageRoot;
-use sov_test_utils::TestStorageSpec;
+use sov_test_utils::{TestStorageSpec, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::call::AttesterIncentiveErrors;
-use crate::tests::helpers::{
-    commit_get_new_storage, setup, ExecutionSimulationVars, BOND_AMOUNT, INITIAL_USER_BALANCE,
-    INIT_HEIGHT,
-};
+use crate::tests::helpers::{commit_get_new_storage, setup, ExecutionSimulationVars, INIT_HEIGHT};
 use crate::SlashingReason;
 
 type S = sov_test_utils::TestSpec;
@@ -46,7 +43,7 @@ fn test_valid_challenge() -> Result<(), Infallible> {
 
     module
         .bond_user_helper(
-            BOND_AMOUNT,
+            TEST_DEFAULT_USER_STAKE,
             &challenger_address,
             crate::call::Role::Challenger,
             &mut state,
@@ -64,13 +61,13 @@ fn test_valid_challenge() -> Result<(), Infallible> {
                 &mut state
             )?
             .value,
-        BOND_AMOUNT
+        TEST_DEFAULT_USER_STAKE
     );
 
     // Set a bad transition to get a reward from
     module
         .bad_transition_pool
-        .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut state)?;
+        .set(&(INIT_HEIGHT + 1), &TEST_DEFAULT_USER_STAKE, &mut state)?;
 
     let context = Context::<S>::new(
         challenger_address,
@@ -109,7 +106,8 @@ fn test_valid_challenge() -> Result<(), Infallible> {
                 .bank
                 .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut state)?
                 .unwrap(),
-            INITIAL_USER_BALANCE - BOND_AMOUNT + module.burn_rate().apply(BOND_AMOUNT),
+            TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_USER_STAKE
+                + module.burn_rate().apply(TEST_DEFAULT_USER_STAKE),
             "The challenger should have been rewarded"
         );
 
@@ -137,7 +135,7 @@ fn test_valid_challenge() -> Result<(), Infallible> {
                 .bank
                 .get_balance_of(&challenger_address, GAS_TOKEN_ID, &mut state)?
                 .unwrap(),
-            INITIAL_USER_BALANCE + module.burn_rate().apply(BOND_AMOUNT),
+            TEST_DEFAULT_USER_BALANCE + module.burn_rate().apply(TEST_DEFAULT_USER_STAKE),
             "The challenger should have been unbonded"
         );
     }
@@ -156,7 +154,7 @@ fn invalid_proof_helper(
     // Let's bond the challenger and try to publish a false challenge
     module
         .bond_user_helper(
-            BOND_AMOUNT,
+            TEST_DEFAULT_USER_STAKE,
             &challenger_address,
             crate::call::Role::Challenger,
             state,
@@ -207,9 +205,11 @@ fn test_invalid_challenge() -> Result<(), Infallible> {
     let initial_transition = exec_vars.pop().unwrap();
 
     // Set a bad transition to get a reward from
-    module
-        .bad_transition_pool
-        .set(&(INIT_HEIGHT + 1), &BOND_AMOUNT, &mut state_checkpoint)?;
+    module.bad_transition_pool.set(
+        &(INIT_HEIGHT + 1),
+        &TEST_DEFAULT_USER_STAKE,
+        &mut state_checkpoint,
+    )?;
 
     let context = Context::<S>::new(
         challenger_address,

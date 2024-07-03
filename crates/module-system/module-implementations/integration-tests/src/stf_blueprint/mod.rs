@@ -19,13 +19,11 @@ use sov_test_utils::runtime::{
 };
 use sov_test_utils::{
     generate_optimistic_runtime, new_test_blob_from_batch, MessageGenerator, TestAddress,
-    TestHasher, TestPrivateKey,
+    TestHasher, TestPrivateKey, TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
 
-use crate::helpers::{
-    AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, DEFAULT_USER_BALANCE, S,
-};
+use crate::helpers::{AttesterIncentivesParams, BankParams, Da, SequencerParams, TestRollup, S};
 
 impl TestRollup {
     // Check the current kernel height and that the context are correctly built
@@ -128,8 +126,8 @@ fn test_stf_internal_updates() {
     let seq_rollup_addr = seq_params.rollup_address;
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::with_addresses_and_balances(vec![
-        (seq_params.rollup_address, DEFAULT_USER_BALANCE),
-        (admin_pub_key, DEFAULT_USER_BALANCE),
+        (seq_params.rollup_address, TEST_DEFAULT_USER_BALANCE),
+        (admin_pub_key, TEST_DEFAULT_USER_BALANCE),
     ]);
     let attester_params = AttesterIncentivesParams::default();
 
@@ -193,7 +191,7 @@ fn test_enforces_chain_id() {
         let mut genesis = HighLevelOptimisticGenesisConfig::generate();
         genesis
             .additional_accounts
-            .push((test_address, DEFAULT_USER_BALANCE));
+            .push((test_address, TEST_DEFAULT_USER_BALANCE));
         let genesis = GenesisConfig::from_minimal_config(
             genesis.into(),
             sov_value_setter::ValueSetterConfig {

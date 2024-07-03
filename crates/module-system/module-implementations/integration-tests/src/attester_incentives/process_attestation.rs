@@ -12,7 +12,7 @@ use sov_test_utils::generators::attester_incentive::AttesterIncentivesMessageGen
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestStorageSpec};
 
-use super::{AttesterIncentivesTestHandler, USER_BALANCE};
+use super::{AttesterIncentivesTestHandler, TEST_DEFAULT_USER_BALANCE};
 use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
 
 impl AttesterIncentivesTestHandler {
@@ -289,7 +289,7 @@ fn test_honest_value_setter_process_attestation() -> Result<(), Infallible> {
         .try_attest_first_transition(
             init_state_root,
             exec_vars.clone(),
-            USER_BALANCE - test_handler.attester_stake,
+            TEST_DEFAULT_USER_BALANCE - test_handler.attester_stake,
             &mut rollup,
         )?;
 

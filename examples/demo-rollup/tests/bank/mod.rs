@@ -8,19 +8,20 @@ use sov_bank::{Coins, TokenId};
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::rpc::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_stf_runner::RollupProverConfig;
-use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec};
+use sov_test_utils::{
+    ApiClient, TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+};
 
 use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys, start_rollup};
 
 const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
-const MAX_TX_FEE: u64 = 100_000_000;
 
 struct TestCase {
     wait_for_aggregated_proof: bool,
@@ -111,8 +112,8 @@ fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSp
             authorized_minters: vec![],
         });
     let chain_id = config_value!("CHAIN_ID");
-    let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = MAX_TX_FEE;
+    let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
+    let max_fee = TEST_DEFAULT_MAX_FEE;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,
@@ -140,8 +141,8 @@ fn build_transfer_token_tx(
             coins: Coins { amount, token_id },
         });
     let chain_id = config_value!("CHAIN_ID");
-    let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = MAX_TX_FEE;
+    let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
+    let max_fee = TEST_DEFAULT_MAX_FEE;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,

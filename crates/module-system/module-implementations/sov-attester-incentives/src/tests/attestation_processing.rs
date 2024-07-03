@@ -10,7 +10,6 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{CryptoSpec, GasMeter, Module, PrivateKey, Spec, StateAccessor, WorkingSet};
 use sov_state::jmt::RootHash;
 use sov_state::{BorshCodec, SlotValue, Storage, StorageProof, StorageRoot};
-use sov_test_utils::generate_optimistic_runtime;
 use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::sov_attester_incentives::{
     AttesterIncentives, CallMessage, Event, Role, WrappedAttestation,
@@ -18,8 +17,8 @@ use sov_test_utils::runtime::sov_attester_incentives::{
 use sov_test_utils::runtime::{
     run_test_with_setup_fn, MessageType, SlotTestCase, TxOutcome, TxTestCase,
 };
+use sov_test_utils::{generate_optimistic_runtime, TEST_DEFAULT_USER_STAKE};
 
-use crate::tests::helpers::BOND_AMOUNT;
 type S = sov_test_utils::TestSpec;
 const DUMMY_CALL_MESSAGE: CallMessage<S, MockDaSpec> = CallMessage::UnbondChallenger; // This will get overwritten by the setup hook
 
@@ -242,7 +241,7 @@ fn test_burn_on_invalid_attestation() {
     let attester = &mut genesis_config.initial_attester;
     let attester_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
     attester.address = <S as Spec>::Address::from(&attester_key.pub_key());
-    attester.bond = BOND_AMOUNT;
+    attester.bond = TEST_DEFAULT_USER_STAKE;
     let attester_address = attester.address;
 
     // Run genesis registering the attester and sequencer we've generated.
@@ -268,7 +267,7 @@ fn test_burn_on_invalid_attestation() {
                         // Must simply return an error. Cannot burn the token at this point because we don't know if the
                         // sender is bonded or not.
                         attestation.proof_of_bond.proof.value =
-                            Some(SlotValue::new(&(BOND_AMOUNT * 5), &BorshCodec));
+                            Some(SlotValue::new(&(TEST_DEFAULT_USER_STAKE * 5), &BorshCodec));
                     }
                     1 => last_attested_slot += 1, // Since this attestation is unmodified, it will succeed so we need to move attesting to the next slot
                     2 => {
@@ -305,7 +304,7 @@ fn test_burn_on_invalid_attestation() {
                             .get(&attester_address, &mut ws.to_unmetered())
                             .unwrap_infallible()
                             .unwrap_or_default(),
-                        BOND_AMOUNT,
+                        TEST_DEFAULT_USER_STAKE,
                     );
                 }),
             },
@@ -327,7 +326,7 @@ fn test_burn_on_invalid_attestation() {
                             )
                             .unwrap_infallible()
                             .value,
-                        BOND_AMOUNT,
+                        TEST_DEFAULT_USER_STAKE,
                     );
                 }),
             },
@@ -391,11 +390,11 @@ fn test_burn_on_invalid_attestation() {
                                 )
                                 .unwrap_infallible()
                                 .value,
-                            BOND_AMOUNT,
+                            TEST_DEFAULT_USER_STAKE,
                         );
                     })),
                     message: MessageType::Plain(
-                        CallMessage::BondAttester(BOND_AMOUNT),
+                        CallMessage::BondAttester(TEST_DEFAULT_USER_STAKE),
                         attester_key.clone(),
                     ),
                 },
@@ -424,7 +423,7 @@ fn test_burn_on_invalid_attestation() {
                                 .bad_transition_pool
                                 .get(&2, &mut state.to_unmetered())
                                 .unwrap_infallible(),
-                            Some(BOND_AMOUNT),
+                            Some(TEST_DEFAULT_USER_STAKE),
                             "The transition should not exist in the pool"
                         );
                     })),

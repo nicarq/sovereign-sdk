@@ -6,10 +6,9 @@ use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{
     Batch, BatchWithId, Gas, GasArray, GasMeter, GasUnit, ModuleInfo, RawTx, Spec,
 };
-use sov_test_utils::generate_empty_tx;
+use sov_test_utils::{generate_empty_tx, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use super::helpers::{TestSequencer, S};
-use crate::tests::helpers::{INITIAL_BALANCE, INITIAL_BALANCE_LARGE, LOCKED_AMOUNT};
 use crate::SequencerOutcome;
 
 /// Tests that the sequencer gets correctly rewarded when it processes a batch and:
@@ -19,7 +18,8 @@ use crate::SequencerOutcome;
 fn test_reward_sequencer() -> Result<(), Infallible> {
     // Genesis initialization.
     // We need to pass the large balance to make sure we have enough funds to pay for the tip and the sequencer registration
-    let (sequencer_test, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false)?;
+    let (sequencer_test, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
     let balance_after_genesis = sequencer_test.query_sequencer_balance(&mut state)?.unwrap();
     let registry_balance_after_genesis = sequencer_test
         .query_balance(sequencer_test.registry.id().to_payable(), &mut state)?
@@ -126,7 +126,7 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
 #[test]
 fn test_penalize_sequencer() -> Result<(), Infallible> {
     // Genesis initialization.
-    let (sequencer_test, state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (sequencer_test, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
     let seq_da_address = sequencer_test.sequencer_config.seq_da_address;
 
     let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
@@ -138,7 +138,9 @@ fn test_penalize_sequencer() -> Result<(), Infallible> {
         .expect("The sequencer should be registered and have enough staked amount");
 
     pre_exec_ws
-        .charge_gas(&<S as Spec>::Gas::from_slice(&[LOCKED_AMOUNT / 2; 2]))
+        .charge_gas(&<S as Spec>::Gas::from_slice(
+            &[TEST_DEFAULT_USER_STAKE / 2; 2],
+        ))
         .unwrap();
 
     // We penalize the sequencer by removing all its stake

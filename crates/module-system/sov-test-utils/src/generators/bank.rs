@@ -5,7 +5,9 @@ use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{CryptoSpec, PrivateKey as _, Spec};
 
-use crate::{Message, MessageGenerator, TestSpec};
+use crate::{
+    Message, MessageGenerator, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+};
 type PrivateKey<S> = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 pub struct TransferData<S: Spec> {
@@ -247,8 +249,8 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
                 transfer_message.sender_pkey.clone(),
                 transfer_token_tx::<S>(transfer_message),
                 Self::DEFAULT_CHAIN_ID,
-                Self::DEFAULT_MAX_PRIORITY_FEE,
-                Self::DEFAULT_MAX_FEE,
+                TEST_DEFAULT_MAX_PRIORITY_FEE,
+                TEST_DEFAULT_MAX_FEE,
                 gas_limit,
                 nonce,
             ));

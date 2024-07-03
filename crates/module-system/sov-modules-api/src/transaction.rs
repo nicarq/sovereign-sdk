@@ -7,7 +7,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use serde::{Deserialize, Serialize};
-use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::SigVerificationError;
@@ -199,26 +198,6 @@ impl<S: Spec> Transaction<S> {
             self.nonce,
             self.gas_limit.clone(),
         )
-    }
-
-    /// The gas cost to pay to perform pre-execution checks for a given transaction.
-    /// Contains a fixed amount which corresponds to the cost of signature verification
-    /// and a variable amount which corresponds to the cost of transaction deserialization/message decoding.
-    ///
-    /// TODO(@theochap): This method will be removed in the next PRs in favor of granular checks happening directly in the
-    /// `Stf`
-    pub fn gas_fixed_cost(&self) -> S::Gas {
-        const GAS_TX_FIXED_COST: [u64; 2] = config_value!("GAS_TX_FIXED_COST");
-
-        const GAS_TX_COST_PER_BYTE: [u64; 2] = config_value!("GAS_TX_COST_PER_BYTE");
-
-        let gas_tx_fixed_cost = S::Gas::from_slice(&GAS_TX_FIXED_COST);
-        let mut gas_tx_cost = S::Gas::from_slice(&GAS_TX_COST_PER_BYTE);
-
-        gas_tx_cost.scalar_product(self.runtime_msg.len() as u64);
-        gas_tx_cost.combine(&gas_tx_fixed_cost);
-
-        gas_tx_cost
     }
 }
 

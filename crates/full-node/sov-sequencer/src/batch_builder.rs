@@ -304,17 +304,22 @@ fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
 
 #[cfg(test)]
 mod tests {
+
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::macros::config_value;
-    use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+    use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey};
     use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
     use sov_state::{ProverStorage, Storage};
     use sov_test_utils::auth::TestAuth;
     use sov_test_utils::runtime::{create_genesis_config, TestRuntime};
-    use sov_test_utils::{TestPrivateKey, TestPublicKey, TestSpec, TestStorageSpec as StorageSpec};
+    use sov_test_utils::{
+        TestPrivateKey, TestPublicKey, TestSpec, TestStorageSpec as StorageSpec,
+        TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_BALANCE,
+        TEST_DEFAULT_USER_STAKE,
+    };
     use sov_value_setter::{CallMessage, ValueSetter};
     use tempfile::TempDir;
 
@@ -345,8 +350,8 @@ mod tests {
         let msg = CallMessage::SetValue(value);
         let msg = <TestRuntime<_, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
         let chain_id = config_value!("CHAIN_ID");
-        let max_priority_fee_bips = PriorityFeeBips::ZERO;
-        let max_fee = 1_000_000;
+        let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
+        let max_fee = TEST_DEFAULT_MAX_FEE;
         let gas_limit = None;
         let nonce = 1;
 
@@ -381,8 +386,8 @@ mod tests {
     fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey) -> Vec<u8> {
         let msg = generate_random_bytes();
         let chain_id = config_value!("CHAIN_ID");
-        let max_priority_fee_bips = PriorityFeeBips::ZERO;
-        let max_fee = 1_000_000;
+        let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
+        let max_fee = TEST_DEFAULT_MAX_FEE;
         let gas_limit = None;
         let nonce = 1;
 
@@ -458,9 +463,9 @@ mod tests {
             &additional_accounts,
             seq_rollup_address,
             seq_da_address,
-            100_000,
+            TEST_DEFAULT_USER_STAKE,
             "BatchBuilderTestToken".to_string(),
-            1_000_000_000,
+            TEST_DEFAULT_USER_BALANCE,
         );
 
         let mut genesis_state =

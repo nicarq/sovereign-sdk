@@ -7,17 +7,16 @@ use sov_modules_api::{
     Context, Gas, GasArray, GasPrice, Module, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
 use tempfile::TempDir;
 
 const CREATE_TOKEN_NATIVE_COST: u64 = 2;
 const CREATE_TOKEN_ZK_COST: u64 = 3;
 
-const INIT_BALANCE: u64 = 10_000;
-
 type S = sov_test_utils::TestSpec;
 #[test]
 fn zeroed_price_wont_deduct_working_set() {
-    let sender_balance = INIT_BALANCE;
+    let sender_balance = TEST_DEFAULT_USER_BALANCE;
     let remaining_funds = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[0, 0]))
         .execute()
         .unwrap();
@@ -30,7 +29,7 @@ fn zeroed_price_wont_deduct_working_set() {
 
 #[test]
 fn normal_price_will_deduct_working_set() {
-    let sender_balance = INIT_BALANCE;
+    let sender_balance = TEST_DEFAULT_USER_BALANCE;
 
     let native_price = 2;
     let zk_price = 3;
@@ -54,7 +53,7 @@ fn normal_price_will_deduct_working_set() {
 
 #[test]
 fn constants_price_is_charged_correctly() {
-    let sender_balance = INIT_BALANCE;
+    let sender_balance = TEST_DEFAULT_USER_BALANCE;
 
     let remaining_funds = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[2, 3]))
         .execute()
@@ -74,11 +73,14 @@ fn constants_price_is_charged_correctly() {
 
 #[test]
 fn not_enough_gas_wont_panic() {
-    let sender_balance = INIT_BALANCE;
+    let sender_balance = TEST_DEFAULT_USER_BALANCE;
 
-    let result = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[2000, 3000]))
-        .override_gas_config()
-        .execute();
+    let result = BankGasTestCase::init(
+        sender_balance,
+        GasPrice::from_slice(&[TEST_DEFAULT_USER_BALANCE / 2, TEST_DEFAULT_USER_BALANCE / 2]),
+    )
+    .override_gas_config()
+    .execute();
 
     assert!(
         result.is_err(),
@@ -88,7 +90,7 @@ fn not_enough_gas_wont_panic() {
 
 #[test]
 fn very_high_gas_price_wont_panic_or_overflow() {
-    let sender_balance = INIT_BALANCE;
+    let sender_balance = TEST_DEFAULT_USER_BALANCE;
 
     let result = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[u64::MAX; 2]))
         .override_gas_config()

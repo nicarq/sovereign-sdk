@@ -12,20 +12,18 @@ use sov_rollup_interface::da::Time;
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
 use sov_state::{ProverStorage, SparseMerkleProof, StorageRoot};
-use sov_test_utils::TestStorageSpec as StorageSpec;
+use sov_test_utils::{
+    TestStorageSpec as StorageSpec, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE,
+    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
+};
 
 use crate::AttesterIncentives;
 
 type S = sov_test_utils::TestSpec;
 
 pub const TOKEN_NAME: &str = "TEST_TOKEN";
-pub const BOND_AMOUNT: u64 = 100_000_000;
-pub const INITIAL_USER_BALANCE: u64 = 10 * BOND_AMOUNT;
 pub const DEFAULT_ROLLUP_FINALITY: u64 = 3;
 pub const INIT_HEIGHT: u64 = 0;
-
-pub const MAX_TX_GAS_AMOUNT: u64 = 10_000_000;
-pub const TX_GAS_CONSUMED: [u64; 2] = [100_000; 2];
 
 pub const NUM_BANK_ACCOUNTS: usize = 3;
 
@@ -94,7 +92,7 @@ pub(crate) fn setup(
     let (bank_config, mut addresses) = create_bank_config_with_token(
         TOKEN_NAME.to_string(),
         NUM_BANK_ACCOUNTS,
-        INITIAL_USER_BALANCE,
+        TEST_DEFAULT_USER_BALANCE,
     );
     let bank = sov_bank::Bank::<S>::default();
     let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
@@ -125,9 +123,9 @@ pub(crate) fn setup(
     // initialize prover incentives
     let module = AttesterIncentives::<S, MockDaSpec>::default();
     let config = crate::AttesterIncentivesConfig {
-        minimum_attester_bond: BOND_AMOUNT,
-        minimum_challenger_bond: BOND_AMOUNT,
-        initial_attesters: vec![(attester_address, BOND_AMOUNT)],
+        minimum_attester_bond: TEST_DEFAULT_USER_STAKE,
+        minimum_challenger_bond: TEST_DEFAULT_USER_STAKE,
+        initial_attesters: vec![(attester_address, TEST_DEFAULT_USER_STAKE)],
         rollup_finality_period: DEFAULT_ROLLUP_FINALITY,
         maximum_attested_height: INIT_HEIGHT,
         light_client_finalized_height: INIT_HEIGHT,
@@ -209,8 +207,8 @@ impl ExecutionSimulationVars {
                 tx_key.sign(&[]),
                 0,
                 PriorityFeeBips::ZERO,
-                MAX_TX_GAS_AMOUNT,
-                Some(<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED)),
+                TEST_DEFAULT_MAX_FEE,
+                Some(<S as Spec>::Gas::from_slice(&TEST_DEFAULT_GAS_LIMIT)),
                 i.into(),
             )
             .into();
@@ -246,7 +244,7 @@ impl ExecutionSimulationVars {
 
             // We charge some gas to the sequencer to make sure the gas meter is updated
             state
-                .charge_gas(&<S as Spec>::Gas::from_slice(&TX_GAS_CONSUMED))
+                .charge_gas(&<S as Spec>::Gas::from_slice(&TEST_DEFAULT_GAS_LIMIT))
                 .expect("Gas charge failed");
 
             let (mut tx_scratchpad, tx_consumption, _) = state.finalize();

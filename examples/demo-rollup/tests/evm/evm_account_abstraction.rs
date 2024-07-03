@@ -1,10 +1,10 @@
 use demo_stf::runtime::RuntimeCall;
 use ethers_core::abi::Address;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::CredentialId;
 use sov_modules_macros::config_value;
-use sov_test_utils::TestSpec;
+use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
 use super::test_client::TestClient;
 use crate::evm::evm_test_helper::{self};
@@ -55,8 +55,8 @@ fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<T
         sov_accounts::CallMessage::InsertCredentialId(CredentialId(credentials)),
     );
 
-    let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = 100_000_000;
+    let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
+    let max_fee = TEST_DEFAULT_MAX_FEE;
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         &key,

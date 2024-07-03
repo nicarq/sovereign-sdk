@@ -1,4 +1,5 @@
--  Add prover address to `AggregatedProofPublicData` 
+- #881 adds blessed constants in the `constants.json` to be used to charge gas in the tests. It also removes an unused method `tx_fixed_cost` that got deprecated with the recent changes in gas. The default value of the `MAX_FEE` in the CLI wallet is now `10_000_000`.
+- #864 Add prover address to `AggregatedProofPublicData` 
 - #862 Add `prover_address` to `StateTransitionPublicData` this will allow rewarding the prover.
 - #859 Adds a `MeteredSignature` struct wrapper and a `MeteredBorshDeserialize` trait that respectively charges gas for signature verification and borsh deserialization. We have renamed the `hash.rs` file to `metered_utils.rs` inside the `sov-modules-api/common` crate and grouped all the custom metered utils there. 
 - #863 Upgrades borsh to version 1.0. If you import borsh in one of your crates, be sure to upgrade as well.

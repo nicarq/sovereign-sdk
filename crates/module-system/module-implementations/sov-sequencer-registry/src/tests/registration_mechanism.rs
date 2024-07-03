@@ -3,11 +3,12 @@ use std::convert::Infallible;
 use sov_bank::Payable;
 use sov_mock_da::MockAddress;
 use sov_modules_api::{Context, Module};
+use sov_test_utils::{TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::tests::helpers::{
     generate_address, TestSequencer, ANOTHER_SEQUENCER_DA_ADDRESS, ANOTHER_SEQUENCER_KEY,
-    GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY, INITIAL_BALANCE, INITIAL_BALANCE_LARGE,
-    LOCKED_AMOUNT, LOW_FUND_KEY, REWARD_SEQUENCER_KEY, UNKNOWN_SEQUENCER_DA_ADDRESS,
+    GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY, LOW_FUND_KEY, REWARD_SEQUENCER_KEY,
+    UNKNOWN_SEQUENCER_DA_ADDRESS,
 };
 use crate::{CallMessage, SequencerRegistryError};
 
@@ -20,7 +21,8 @@ type S = sov_test_utils::TestSpec;
 //  - exit works and funds are returned
 #[test]
 fn test_registration_lifecycle() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     // Check normal lifecycle
 
@@ -43,7 +45,7 @@ fn test_registration_lifecycle() -> Result<(), Infallible> {
     let mut state = state.to_working_set_unmetered();
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
-        amount: LOCKED_AMOUNT,
+        amount: TEST_DEFAULT_USER_STAKE,
     };
     test_sequencer
         .registry
@@ -54,7 +56,10 @@ fn test_registration_lifecycle() -> Result<(), Infallible> {
     let balance_after_registration = test_sequencer
         .query_balance((&sequencer_address).as_token_holder(), &mut state)?
         .unwrap();
-    assert_eq!(balance_before - LOCKED_AMOUNT, balance_after_registration);
+    assert_eq!(
+        balance_before - TEST_DEFAULT_USER_STAKE,
+        balance_after_registration
+    );
 
     let registry_response_after_registration = test_sequencer
         .registry
@@ -89,7 +94,7 @@ fn test_registration_lifecycle() -> Result<(), Infallible> {
 
 #[test]
 fn test_registration_not_enough_funds() -> Result<(), Infallible> {
-    let (test_sequencer, state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let da_address = MockAddress::from(ANOTHER_SEQUENCER_DA_ADDRESS);
 
@@ -99,10 +104,12 @@ fn test_registration_not_enough_funds() -> Result<(), Infallible> {
         Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
 
     let mut state = state.to_working_set_unmetered();
-    let response =
-        test_sequencer
-            .registry
-            .register(&da_address, LOCKED_AMOUNT, &sender_context, &mut state);
+    let response = test_sequencer.registry.register(
+        &da_address,
+        TEST_DEFAULT_USER_STAKE,
+        &sender_context,
+        &mut state,
+    );
 
     // Note: the next PR will add a check for the error message back
     assert!(
@@ -112,7 +119,7 @@ fn test_registration_not_enough_funds() -> Result<(), Infallible> {
 
     assert_eq!(
         response.unwrap_err(),
-        SequencerRegistryError::InsufficientFundsToRegister(LOCKED_AMOUNT)
+        SequencerRegistryError::InsufficientFundsToRegister(TEST_DEFAULT_USER_STAKE)
     );
 
     Ok(())
@@ -120,7 +127,7 @@ fn test_registration_not_enough_funds() -> Result<(), Infallible> {
 
 #[test]
 fn test_registration_second_time() -> Result<(), Infallible> {
-    let (test_sequencer, state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
@@ -130,10 +137,12 @@ fn test_registration_second_time() -> Result<(), Infallible> {
         Context::<S>::new(sequencer_address, Default::default(), reward_address, 1);
 
     let mut state = state.to_working_set_unmetered();
-    let response =
-        test_sequencer
-            .registry
-            .register(&da_address, LOCKED_AMOUNT, &sender_context, &mut state);
+    let response = test_sequencer.registry.register(
+        &da_address,
+        TEST_DEFAULT_USER_STAKE,
+        &sender_context,
+        &mut state,
+    );
 
     // Note: the next PR will add a check for the error message back
     assert!(response.is_err(), "duplicate registration should fail");
@@ -148,7 +157,7 @@ fn test_registration_second_time() -> Result<(), Infallible> {
 
 #[test]
 fn test_exit_different_sender() -> Result<(), Infallible> {
-    let (test_sequencer, state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
@@ -163,7 +172,7 @@ fn test_exit_different_sender() -> Result<(), Infallible> {
         .registry
         .register(
             &MockAddress::new(ANOTHER_SEQUENCER_DA_ADDRESS),
-            LOCKED_AMOUNT,
+            TEST_DEFAULT_USER_STAKE,
             &sender_context,
             &mut state,
         )
@@ -194,7 +203,7 @@ fn test_exit_different_sender() -> Result<(), Infallible> {
 
 #[test]
 fn test_allow_exit_last_sequencer() -> Result<(), Infallible> {
-    let (test_sequencer, state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let rewards_address = generate_address(REWARD_SEQUENCER_KEY);
@@ -216,7 +225,7 @@ fn test_allow_exit_last_sequencer() -> Result<(), Infallible> {
 /// of a batch that they've submitted.
 #[test]
 fn test_prevent_exit_during_own_batch() -> Result<(), Infallible> {
-    let (test_sequencer, state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let sender_context =
@@ -235,7 +244,8 @@ fn test_prevent_exit_during_own_batch() -> Result<(), Infallible> {
 
 #[test]
 fn test_preferred_sequencer_returned_and_removed() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, true)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, true)?;
 
     assert_eq!(
         Some(test_sequencer.sequencer_config.seq_da_address),
@@ -269,7 +279,7 @@ fn test_preferred_sequencer_returned_and_removed() -> Result<(), Infallible> {
 
 #[test]
 fn test_registration_balance_increase() -> Result<(), Infallible> {
-    let (test_sequencer, state) = TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false)?;
+    let (test_sequencer, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     // created settings
 
@@ -292,7 +302,7 @@ fn test_registration_balance_increase() -> Result<(), Infallible> {
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
-        amount: LOCKED_AMOUNT,
+        amount: TEST_DEFAULT_USER_STAKE,
     };
 
     let mut state = state.to_working_set_unmetered();
@@ -359,7 +369,7 @@ fn test_registration_balance_increase() -> Result<(), Infallible> {
 
 #[test]
 fn test_balance_increase_fails_if_insufficient_funds() -> Result<(), Infallible> {
-    let (test_sequencer, state) = TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false)?;
+    let (test_sequencer, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     // created settings
 
@@ -382,7 +392,7 @@ fn test_balance_increase_fails_if_insufficient_funds() -> Result<(), Infallible>
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
-        amount: LOCKED_AMOUNT,
+        amount: TEST_DEFAULT_USER_STAKE,
     };
 
     let mut state = state.to_working_set_unmetered();
@@ -424,7 +434,7 @@ fn test_balance_increase_fails_if_insufficient_funds() -> Result<(), Infallible>
 #[test]
 fn test_non_registered_sequencer_is_not_allowed() -> Result<(), Infallible> {
     let (test_sequencer, mut working_set) =
-        TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false)?;
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let da_address = MockAddress::from(ANOTHER_SEQUENCER_DA_ADDRESS);
 
@@ -435,7 +445,7 @@ fn test_non_registered_sequencer_is_not_allowed() -> Result<(), Infallible> {
 
 #[test]
 fn test_balance_increase_fails_for_unknown_sequencer() -> Result<(), Infallible> {
-    let (test_sequencer, state) = TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false)?;
+    let (test_sequencer, state) = TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     // created settings
 
@@ -453,7 +463,7 @@ fn test_balance_increase_fails_for_unknown_sequencer() -> Result<(), Infallible>
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
-        amount: LOCKED_AMOUNT,
+        amount: TEST_DEFAULT_USER_STAKE,
     };
 
     let mut state = state.to_working_set_unmetered();

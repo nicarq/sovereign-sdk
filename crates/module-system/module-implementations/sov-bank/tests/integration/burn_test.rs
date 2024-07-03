@@ -7,6 +7,8 @@ use sov_prover_storage_manager::new_orphan_storage;
 use crate::helpers::generate_address;
 
 type S = sov_test_utils::TestSpec;
+use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
+
 use crate::helpers::create_bank_config_with_token;
 
 #[test]
@@ -24,7 +26,7 @@ fn burn_deployed_tokens() -> Result<(), Infallible> {
 
     let salt = 0;
     let token_name = "Token1".to_owned();
-    let initial_balance = 100;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
     let token_id = GAS_TOKEN_ID;
 
     let bank_config = BankConfig::<S> {

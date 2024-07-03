@@ -6,12 +6,12 @@ use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
     AggregatedProofPublicData, CodeCommitment, Spec, StateCheckpoint, TypedEvent,
 };
+use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 
 use super::helpers::{get_transition_unwrap, MAX_TX_GAS_AMOUNT, MOCK_PROVER_ADDRESS};
 use crate::event::Event;
 use crate::tests::helpers::{
-    setup, simulate_chain_state_execution, BOND_AMOUNT, INITIAL_PROVER_BALANCE,
-    MOCK_CODE_COMMITMENT, S,
+    setup, simulate_chain_state_execution, INITIAL_PROVER_BALANCE, MOCK_CODE_COMMITMENT, S,
 };
 const FIRST_SLOT_NUM: u64 = 1;
 const LAST_SLOT_NUM: u64 = 2;
@@ -118,11 +118,14 @@ fn check_reward(
             .bank
             .get_balance_of(&prover_address, token_addr, state)?
             .unwrap_or_default(),
-        reward + INITIAL_PROVER_BALANCE - BOND_AMOUNT
+        reward + INITIAL_PROVER_BALANCE - TEST_DEFAULT_USER_STAKE
     );
 
     // Assert that the prover's bond amount has not been burned
-    assert_eq!(module.get_bond_amount(prover_address, state)?, BOND_AMOUNT);
+    assert_eq!(
+        module.get_bond_amount(prover_address, state)?,
+        TEST_DEFAULT_USER_STAKE
+    );
 
     Ok(reward)
 }
@@ -169,7 +172,7 @@ fn check_penalization_if_proven_again(
     // Assert that the prover's bond amount has been penalized
     assert_eq!(
         module.get_bond_amount(prover_address, &mut checkpoint)?,
-        BOND_AMOUNT - proving_penalty
+        TEST_DEFAULT_USER_STAKE - proving_penalty
     );
 
     Ok(checkpoint)
@@ -241,8 +244,8 @@ fn test_valid_proof() -> Result<(), Infallible> {
     // Now we have to check we can unbond
     check_unbonding(
         prover_address,
-        BOND_AMOUNT,
-        INITIAL_PROVER_BALANCE - BOND_AMOUNT + reward,
+        TEST_DEFAULT_USER_STAKE,
+        INITIAL_PROVER_BALANCE - TEST_DEFAULT_USER_STAKE + reward,
         &module,
         state,
     )?;
@@ -285,8 +288,8 @@ fn test_valid_proof_with_penalization() -> Result<(), Infallible> {
     // Now we have to check we can unbond
     check_unbonding(
         prover_address,
-        BOND_AMOUNT - proving_penalty,
-        INITIAL_PROVER_BALANCE - BOND_AMOUNT + reward,
+        TEST_DEFAULT_USER_STAKE - proving_penalty,
+        INITIAL_PROVER_BALANCE - TEST_DEFAULT_USER_STAKE + reward,
         &module,
         state,
     )?;

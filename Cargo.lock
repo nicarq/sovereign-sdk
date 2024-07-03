@@ -8398,6 +8398,7 @@ dependencies = [
  "sov-prover-incentives",
  "sov-prover-storage-manager",
  "sov-state",
+ "sov-test-utils",
  "tempfile",
  "thiserror",
 ]

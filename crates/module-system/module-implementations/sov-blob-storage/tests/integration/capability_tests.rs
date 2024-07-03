@@ -19,13 +19,14 @@ use sov_modules_api::{
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_sequencer_registry::SequencerConfig;
 use sov_state::{ProverStorage, Storage};
-use sov_test_utils::{new_test_blob_from_batch, TestStorageSpec as StorageSpec};
+use sov_test_utils::{
+    new_test_blob_from_batch, TestStorageSpec as StorageSpec, TEST_DEFAULT_USER_STAKE,
+};
 use tracing::{debug, info};
 
 type S = sov_test_utils::TestSpec;
 type Da = MockDaSpec;
 
-const LOCKED_AMOUNT: u64 = 200;
 const PREFERRED_SEQUENCER_DA: MockAddress = MockAddress::new([10u8; 32]);
 const PREFERRED_SEQUENCER_ROLLUP: <S as Spec>::Address =
     Address::new(*b"preferred_______________________");
@@ -43,8 +44,8 @@ fn get_bank_config(
     let gas_token_config = GasTokenConfig {
         token_name,
         address_and_balances: vec![
-            (preferred_sequencer, LOCKED_AMOUNT * 3),
-            (regular_sequencer, LOCKED_AMOUNT * 3),
+            (preferred_sequencer, TEST_DEFAULT_USER_STAKE * 3),
+            (regular_sequencer, TEST_DEFAULT_USER_STAKE * 3),
         ],
         authorized_minters: vec![],
     };
@@ -910,7 +911,7 @@ impl TestRuntime<S, MockDaSpec> {
         // In addition to "genesis", register one non-preferred sequencer
         let register_message = sov_sequencer_registry::CallMessage::Register {
             da_address: REGULAR_SEQUENCER_DA.as_ref().to_vec(),
-            amount: LOCKED_AMOUNT,
+            amount: TEST_DEFAULT_USER_STAKE,
         };
         runtime
             .sequencer_registry
@@ -943,7 +944,7 @@ impl TestRuntime<S, MockDaSpec> {
         let sequencer_registry_config = SequencerConfig {
             seq_rollup_address: PREFERRED_SEQUENCER_ROLLUP,
             seq_da_address: PREFERRED_SEQUENCER_DA,
-            minimum_bond: LOCKED_AMOUNT,
+            minimum_bond: TEST_DEFAULT_USER_STAKE,
             is_preferred_sequencer: with_preferred_sequencer,
         };
 

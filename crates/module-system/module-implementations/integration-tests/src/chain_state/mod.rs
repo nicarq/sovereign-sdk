@@ -8,11 +8,12 @@ use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::TestRuntime;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, MessageGenerator};
+use sov_test_utils::{
+    has_tx_events, new_test_blob_from_batch, MessageGenerator, TEST_DEFAULT_USER_BALANCE,
+};
 
 use crate::helpers::{
     AttesterIncentivesParams, BankParams, SequencerParams, TestKernel, TestRollup,
-    DEFAULT_USER_BALANCE,
 };
 
 type S = sov_test_utils::TestSpec;
@@ -37,8 +38,8 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
     let seq_params = SequencerParams::default();
     let seq_da_addr = seq_params.da_address;
     let bank_params = BankParams::with_addresses_and_balances(vec![
-        (admin_pub_key, DEFAULT_USER_BALANCE),
-        (seq_params.rollup_address, DEFAULT_USER_BALANCE),
+        (admin_pub_key, TEST_DEFAULT_USER_BALANCE),
+        (seq_params.rollup_address, TEST_DEFAULT_USER_BALANCE),
     ]);
     let attester_params = AttesterIncentivesParams::default();
 

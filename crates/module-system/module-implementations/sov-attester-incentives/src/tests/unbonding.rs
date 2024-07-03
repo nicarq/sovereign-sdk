@@ -4,11 +4,11 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, StateCheckpoint};
 use sov_prover_storage_manager::SimpleStorageManager;
+use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    commit_get_new_storage, setup, ExecutionSimulationVars, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY,
-    INIT_HEIGHT,
+    commit_get_new_storage, setup, ExecutionSimulationVars, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
 };
 type S = sov_test_utils::TestSpec;
 
@@ -25,7 +25,7 @@ fn test_two_phase_unbonding() -> Result<(), Infallible> {
         module
             .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)?
             .value,
-        BOND_AMOUNT
+        TEST_DEFAULT_USER_STAKE
     );
 
     let context = Context::<S>::new(
@@ -92,7 +92,7 @@ fn test_two_phase_unbonding() -> Result<(), Infallible> {
         // We cannot try to bond either
         let err = module
             .bond_user_helper(
-                BOND_AMOUNT,
+                TEST_DEFAULT_USER_STAKE,
                 &attester_address,
                 crate::call::Role::Attester,
                 &mut state,
@@ -110,7 +110,7 @@ fn test_two_phase_unbonding() -> Result<(), Infallible> {
     {
         let err = module
             .bond_user_helper(
-                BOND_AMOUNT,
+                TEST_DEFAULT_USER_STAKE,
                 &attester_address,
                 crate::call::Role::Attester,
                 &mut state,
@@ -171,7 +171,7 @@ fn test_two_phase_unbonding() -> Result<(), Infallible> {
 
         // Check that the final balance is the same as the initial balance
         assert_eq!(
-            initial_account_balance + BOND_AMOUNT,
+            initial_account_balance + TEST_DEFAULT_USER_STAKE,
             module
                 .bank
                 .get_balance_of(&attester_address, GAS_TOKEN_ID, &mut state)?
