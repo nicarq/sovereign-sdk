@@ -253,7 +253,7 @@ where
                                 sequencer_da_address = %sequencer_da_address,
                                 tx_idx = %idx,
                                 remaining = remaining,
-                                "Error: The transaction was rejected by the 'authorize_sequencer' capability. Dropping the remaining transactions in that batch",
+                                "The transaction was rejected by the 'authorize_sequencer' capability. Dropping the remaining transactions in that batch",
                             );
                             break;
                         }
@@ -306,25 +306,29 @@ where
 
                         // In these cases the sequencer is penalized and we can just ignore the outcome
                         err => {
-                            if let Ok((reason, raw_tx_hash)) =
-                                TryInto::<(SkippedReason, [u8; 32])>::try_into(err)
-                            {
-                                warn!(
-                                    error = %reason,
-                                    raw_tx_hash = hex::encode(raw_tx_hash),
-                                    tx_idx = %idx,
-                                    "An error occurred while processing a transaction. The transaction was not executed. The sequencer was penalized.",
-                                );
+                            match TryInto::<(SkippedReason, [u8; 32])>::try_into(err) {
+                                Ok((reason, raw_tx_hash)) => {
+                                    warn!(
+                                        error = %reason,
+                                        raw_tx_hash = hex::encode(raw_tx_hash),
+                                        tx_idx = %idx,
+                                        "An error occurred while processing a transaction. The transaction was not executed. The sequencer was penalized.",
+                                    );
 
-                                let tx_receipt = TransactionReceipt {
-                                    tx_hash: raw_tx_hash,
-                                    body_to_save: None,
-                                    events: Vec::new(),
-                                    receipt: TxEffect::Skipped(reason),
-                                    gas_used: S::Gas::zero().to_vec(),
-                                };
+                                    let tx_receipt = TransactionReceipt {
+                                        tx_hash: raw_tx_hash,
+                                        body_to_save: None,
+                                        events: Vec::new(),
+                                        receipt: TxEffect::Skipped(reason),
+                                        gas_used: S::Gas::zero().to_vec(),
+                                    };
 
-                                tx_receipts.push(tx_receipt);
+                                    tx_receipts.push(tx_receipt);
+                                }
+                                Err(err) => {
+                                    // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
+                                    error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
+                                }
                             }
                         }
                     }
