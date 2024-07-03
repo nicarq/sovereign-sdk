@@ -1,7 +1,8 @@
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_zkvm::MockZkvm;
+use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 
-use crate::tests::helpers::{setup, BOND_AMOUNT};
+use crate::tests::helpers::setup;
 use crate::ProverIncentiveError;
 
 #[test]
@@ -33,7 +34,7 @@ fn test_unbonding() -> anyhow::Result<()> {
             .get_balance_of(&prover_address, token_id, &mut working_set)?;
     assert_eq!(
         unlocked_balance,
-        Some(BOND_AMOUNT + initial_unlocked_balance)
+        Some(TEST_DEFAULT_USER_STAKE + initial_unlocked_balance)
     );
 
     Ok(())

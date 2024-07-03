@@ -21,6 +21,7 @@ sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native", "test-utils"] }
 sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-test-utils = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }

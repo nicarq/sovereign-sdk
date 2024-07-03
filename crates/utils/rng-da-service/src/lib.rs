@@ -9,7 +9,7 @@ use sov_mock_da::{
     MockValidityCondChecker, MOCK_SEQUENCER_DA_ADDRESS,
 };
 use sov_modules_api::macros::config_value;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
     BlobData, CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, RawTx, Spec,
 };
@@ -17,11 +17,11 @@ use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
 use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable, SlotData};
-use sov_test_utils::{TestPrivateKey, TestSpec};
+use sov_test_utils::{
+    TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+};
 
 const CHAIN_ID: u64 = config_value!("CHAIN_ID");
-const DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
-const DEFAULT_MAX_FEE: u64 = 0;
 const DEFAULT_ESTIMATED_GAS_USAGE: Option<GasUnit<2>> = None;
 
 pub fn sender_address_with_pkey<S: Spec>() -> (S::Address, TestPrivateKey)
@@ -255,8 +255,8 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<RawTx> {
             UnsignedTransaction::new(
                 enc_msg,
                 CHAIN_ID,
-                DEFAULT_MAX_PRIORITY_FEE,
-                DEFAULT_MAX_FEE,
+                TEST_DEFAULT_MAX_PRIORITY_FEE,
+                TEST_DEFAULT_MAX_FEE,
                 start_nonce.wrapping_add(i as u64),
                 DEFAULT_ESTIMATED_GAS_USAGE,
             ),
@@ -288,8 +288,8 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<RawTx> {
         UnsignedTransaction::new(
             enc_msg,
             CHAIN_ID,
-            DEFAULT_MAX_PRIORITY_FEE,
-            DEFAULT_MAX_FEE,
+            TEST_DEFAULT_MAX_PRIORITY_FEE,
+            TEST_DEFAULT_MAX_FEE,
             start_nonce,
             DEFAULT_ESTIMATED_GAS_USAGE,
         ),

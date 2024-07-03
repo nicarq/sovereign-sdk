@@ -9,7 +9,7 @@ use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
 use super::AttesterIncentivesTestHandler;
-use crate::attester_incentives::{ROLLUP_FINALITY_PERIOD, USER_BALANCE};
+use crate::attester_incentives::{ROLLUP_FINALITY_PERIOD, TEST_DEFAULT_USER_BALANCE};
 use crate::helpers::{Da, TestRollup, S};
 
 #[test]
@@ -143,7 +143,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
                 &mut state
             )?,
             Some(
-                USER_BALANCE
+                TEST_DEFAULT_USER_BALANCE
                     - begin_unbond_result[0].gas_consumed_value()
                     - end_unbonding_result[0].gas_consumed_value()
             )

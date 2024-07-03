@@ -45,6 +45,16 @@ pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signatu
 pub type TestHasher = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;
 pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
 
+// --- Blessed gas parameters (used for testing) ---
+pub const TEST_DEFAULT_MAX_FEE: u64 = 100000000;
+pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [1000000, 1000000];
+// The default amount of tokens that should be staked by a user (prover, sequencer, etc.)
+pub const TEST_DEFAULT_USER_STAKE: u64 = 100000000;
+// The default amount of tokens that should be in the user's bank account
+pub const TEST_DEFAULT_USER_BALANCE: u64 = 1000000000;
+pub const TEST_DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
+// --- End Blessed gas parameters (used for testing) ---
+
 /// An implementation of [`TxReceiptContents`] for testing. TestTxReceiptContents uses
 /// a `u32` as the receipt contents.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -189,9 +199,6 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
 /// Trait used to generate messages from the DA layer to automate module testing
 pub trait MessageGenerator {
     const DEFAULT_CHAIN_ID: u64 = config_value!("CHAIN_ID");
-    const DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
-    const DEFAULT_MAX_FEE: u64 = 100_000_000;
-    const DEFAULT_ESTIMATED_GAS_USAGE: [u64; 2] = [1_000_000, 1_000_000];
 
     /// Module where the messages originate from.
     type Module: Module;
@@ -211,10 +218,10 @@ pub trait MessageGenerator {
     fn create_default_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
         self.create_messages(
             Self::DEFAULT_CHAIN_ID,
-            Self::DEFAULT_MAX_PRIORITY_FEE,
-            Self::DEFAULT_MAX_FEE,
+            TEST_DEFAULT_MAX_PRIORITY_FEE,
+            TEST_DEFAULT_MAX_FEE,
             Some(<Self::Spec as Spec>::Gas::from_slice(
-                &Self::DEFAULT_ESTIMATED_GAS_USAGE,
+                &TEST_DEFAULT_GAS_LIMIT,
             )),
         )
     }
@@ -222,8 +229,8 @@ pub trait MessageGenerator {
     fn create_default_messages_without_gas_usage(&self) -> Vec<Message<Self::Spec, Self::Module>> {
         self.create_messages(
             Self::DEFAULT_CHAIN_ID,
-            Self::DEFAULT_MAX_PRIORITY_FEE,
-            Self::DEFAULT_MAX_FEE,
+            TEST_DEFAULT_MAX_PRIORITY_FEE,
+            TEST_DEFAULT_MAX_FEE,
             None,
         )
     }
@@ -234,10 +241,10 @@ pub trait MessageGenerator {
     ) -> Vec<RawTx> {
         self.create_raw_txs::<Encoder, Auth>(
             Self::DEFAULT_CHAIN_ID,
-            Self::DEFAULT_MAX_PRIORITY_FEE,
-            Self::DEFAULT_MAX_FEE,
+            TEST_DEFAULT_MAX_PRIORITY_FEE,
+            TEST_DEFAULT_MAX_FEE,
             Some(<Self::Spec as Spec>::Gas::from_slice(
-                &Self::DEFAULT_ESTIMATED_GAS_USAGE,
+                &TEST_DEFAULT_GAS_LIMIT,
             )),
         )
     }
@@ -250,8 +257,8 @@ pub trait MessageGenerator {
     ) -> Vec<RawTx> {
         self.create_raw_txs::<Encoder, Auth>(
             Self::DEFAULT_CHAIN_ID,
-            Self::DEFAULT_MAX_PRIORITY_FEE,
-            Self::DEFAULT_MAX_FEE,
+            TEST_DEFAULT_MAX_PRIORITY_FEE,
+            TEST_DEFAULT_MAX_FEE,
             None,
         )
     }

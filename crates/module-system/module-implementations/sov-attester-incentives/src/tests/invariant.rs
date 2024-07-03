@@ -3,11 +3,11 @@ use std::convert::Infallible;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, StateCheckpoint};
 use sov_prover_storage_manager::SimpleStorageManager;
+use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
-    commit_get_new_storage, setup, ExecutionSimulationVars, BOND_AMOUNT, DEFAULT_ROLLUP_FINALITY,
-    INIT_HEIGHT,
+    commit_get_new_storage, setup, ExecutionSimulationVars, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
 };
 type S = sov_test_utils::TestSpec;
 
@@ -25,7 +25,7 @@ fn test_transition_invariant() -> Result<(), Infallible> {
         module
             .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)?
             .value,
-        BOND_AMOUNT
+        TEST_DEFAULT_USER_STAKE
     );
 
     // Simulate the execution of a chain, with the genesis hash and two transitions after.
@@ -89,7 +89,7 @@ fn test_transition_invariant() -> Result<(), Infallible> {
             module
                 .get_bond_amount(attester_address, crate::call::Role::Attester, &mut state)?
                 .value,
-            BOND_AMOUNT
+            TEST_DEFAULT_USER_STAKE
         );
     }
 

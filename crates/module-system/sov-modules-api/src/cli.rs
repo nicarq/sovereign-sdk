@@ -58,7 +58,7 @@ pub struct JsonStringArg {
         long,
         help = "The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
         charged for the gas fees of the transaction. This value contains both the tip and the base fee.",
-        default_value = "1000000"
+        default_value = "10000000"
     )]
     pub max_fee: u64,
 

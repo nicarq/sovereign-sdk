@@ -5,7 +5,7 @@ use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips
 use sov_modules_api::{
     Address, Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, UnlimitedGasMeter, WorkingSet,
 };
-use sov_test_utils::{generate_empty_tx, simple_bank_setup};
+use sov_test_utils::{generate_empty_tx, simple_bank_setup, TEST_DEFAULT_USER_BALANCE};
 
 type S = sov_test_utils::TestSpec;
 
@@ -16,8 +16,6 @@ struct CapabilityTestParams {
     pub working_set: WorkingSet<S>,
     pub sender_address: <S as Spec>::Address,
 }
-
-const INITIAL_BALANCE: u64 = 10_000;
 
 /// Helper function that creates a simple bank setup (one account with `initial_balance`), generates a transaction
 /// with the given gas parameters, reserves some gas, checks the resulting gas meter, and returns useful test parameters.
@@ -77,7 +75,7 @@ fn reserve_gas_helper(
 /// We use half the price for pre-execution checks, the rest for the transaction.
 #[test]
 fn test_honest_reserve_gas_capability_without_priority_fee() -> Result<(), Infallible> {
-    let initial_balance = INITIAL_BALANCE;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
     let mut params = reserve_gas_helper(
         initial_balance,
         PriorityFeeBips::ZERO,
@@ -128,7 +126,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() -> Result<(), Infal
 /// We use half the price for pre-execution checks, the rest for the transaction.
 #[test]
 fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() -> Result<(), Infallible> {
-    let initial_balance = INITIAL_BALANCE;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
     let mut params = reserve_gas_helper(
         initial_balance,
         PriorityFeeBips::from_percentage(10),
@@ -177,7 +175,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() -> Result<(
 /// The priority fee is non zero and is charged as part of the transaction.
 #[test]
 fn test_honest_reserve_gas_capability_with_priority_fee() -> anyhow::Result<()> {
-    let initial_balance = INITIAL_BALANCE;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
     let max_priority_fee_bips = PriorityFeeBips::from_percentage(10);
 
     let mut params = reserve_gas_helper(
@@ -278,7 +276,7 @@ fn test_reserve_gas_no_account() {
 /// Tests that the `reserve_gas` method fails if the sender balance is not high enough to pay for the gas.
 #[test]
 fn test_reserve_gas_not_enough_balance() {
-    let initial_balance = INITIAL_BALANCE;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
     let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
 
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
@@ -311,7 +309,7 @@ fn test_reserve_gas_not_enough_balance() {
 /// This check is only performed if the `gas_limit` is set.
 #[test]
 fn test_reserve_gas_price_too_high() {
-    let initial_balance = INITIAL_BALANCE;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
     let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
 
     // This transaction has gas limit set to [50; 2], which means the associated gas price is [1; 2].

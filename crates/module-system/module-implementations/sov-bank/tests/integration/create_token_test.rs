@@ -4,6 +4,7 @@ use sov_bank::{get_token_id, Bank, CallMessage};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateCheckpoint};
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
 
 use crate::helpers::*;
 
@@ -25,7 +26,7 @@ fn initial_and_deployed_token() -> Result<(), Infallible> {
     let sender_context =
         Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
     let minter = generate_address::<S>("minter");
-    let initial_balance = 500;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
     let token_name = "Token1".to_owned();
     let salt = 1;
     let token_id = get_token_id::<S>(&token_name, &sender_address, salt);

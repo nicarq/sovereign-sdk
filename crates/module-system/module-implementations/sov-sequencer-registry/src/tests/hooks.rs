@@ -3,10 +3,10 @@ use std::convert::Infallible;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{Batch, BatchWithId};
+use sov_test_utils::{TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::tests::helpers::{
-    generate_address, Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, INITIAL_BALANCE,
-    LOCKED_AMOUNT, UNKNOWN_SEQUENCER_DA_ADDRESS,
+    generate_address, Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, UNKNOWN_SEQUENCER_DA_ADDRESS,
 };
 use crate::{AllowedSequencer, SequencerOutcome, SequencerRegistry};
 
@@ -15,11 +15,15 @@ type S = sov_test_utils::TestSpec;
 /// Tests that the `begin_batch_hook` passes if the sequencer is registered & bonded.
 #[test]
 fn begin_batch_hook_known_sequencer() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
 
-    assert_eq!(INITIAL_BALANCE - LOCKED_AMOUNT, balance_after_genesis);
+    assert_eq!(
+        TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_USER_STAKE,
+        balance_after_genesis
+    );
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
@@ -45,7 +49,8 @@ fn begin_batch_hook_known_sequencer() -> Result<(), Infallible> {
 /// Tests that the `begin_batch_hook` succeeds if the sequencer is not registered.
 #[test]
 fn begin_batch_hook_unknown_sequencer() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let test_batch = BatchWithId {
         batch: Batch { txs: vec![] },
@@ -64,12 +69,13 @@ fn begin_batch_hook_unknown_sequencer() -> Result<(), Infallible> {
 /// Tests that the `begin_batch_hook` fails if the sequencer is not bonded.
 #[test]
 fn begin_batch_hook_unbonded_sequencer() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
     let insufficient_bond_sequencer_address = UNKNOWN_SEQUENCER_DA_ADDRESS;
     let insufficient_bond_sequencer = AllowedSequencer {
         address: generate_address("sequencer"),
         // LOCKED_AMOUNT = required amount for bond
-        balance: LOCKED_AMOUNT - 10,
+        balance: TEST_DEFAULT_USER_STAKE - 10,
     };
     let _ = test_sequencer.set_allowed_sequencer(
         insufficient_bond_sequencer_address.into(),
@@ -100,7 +106,8 @@ fn begin_batch_hook_unbonded_sequencer() -> Result<(), Infallible> {
 /// Tests that calling `begin_batch_hook` following by `end_batch_hook` succeeds if the sequencer is registered & bonded.
 #[test]
 fn end_batch_hook_success() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
     let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);

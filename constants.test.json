@@ -19,8 +19,6 @@
             100000, 100000
         ],
         "DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION": [1, 1],
-        "GAS_TX_FIXED_COST": [10, 10],
-        "GAS_TX_COST_PER_BYTE": [0, 0],
         "TEST_U32": 42,
         "TEST_BOOL": true,
         "TEST_STRING": "Some Other String",

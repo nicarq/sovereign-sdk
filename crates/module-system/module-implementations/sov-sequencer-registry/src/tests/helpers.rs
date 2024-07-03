@@ -9,6 +9,7 @@ use sov_modules_api::{
 };
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::User;
+use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 
 use crate::{AllowedSequencer, SequencerConfig, SequencerRegistry};
 
@@ -26,10 +27,6 @@ pub const REWARD_SEQUENCER_KEY: &str = "sequencer_4";
 
 pub const UNKNOWN_SEQUENCER_DA_ADDRESS: [u8; 32] = [3; 32];
 pub const LOW_FUND_KEY: &str = "zero_funds";
-pub const INITIAL_BALANCE: u64 = 100_000;
-
-pub const INITIAL_BALANCE_LARGE: u64 = 1_000_000;
-pub const LOCKED_AMOUNT: u64 = 10_000;
 
 pub const GENESIS_TOKEN_NAME: &str = "initial_token";
 
@@ -64,7 +61,10 @@ impl TestSequencer {
         // The genesis sequencer balance should be the initial balance minus the locked amount
         let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
 
-        assert_eq!(initial_balance - LOCKED_AMOUNT, balance_after_genesis);
+        assert_eq!(
+            initial_balance - TEST_DEFAULT_USER_STAKE,
+            balance_after_genesis
+        );
 
         Ok((test_sequencer, state))
     }
@@ -170,7 +170,7 @@ pub fn create_sequencer_config(
     SequencerConfig {
         seq_rollup_address,
         seq_da_address: MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
-        minimum_bond: LOCKED_AMOUNT,
+        minimum_bond: TEST_DEFAULT_USER_STAKE,
         is_preferred_sequencer,
     }
 }

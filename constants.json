@@ -25,10 +25,6 @@
         "UNREGISTERED_BLOBS_PER_SLOT": 5,
         // The ID of the "native token" of the rollup, which is used to pay gas fees.
         "GAS_TOKEN_ID": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
-        // The fixed gas price of a transaction. Transactions also incur some variable cost.
-        "GAS_TX_FIXED_COST": [10, 10],
-        // The cost per byte of transaction data.
-        "GAS_TX_COST_PER_BYTE": [0, 0],
         // --- Gas parameters to charge for state accesses ---
         // The cost of a storage access operation.
         "GAS_TO_CHARGE_FOR_ACCESS": [5, 5],

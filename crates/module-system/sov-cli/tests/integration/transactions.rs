@@ -8,9 +8,9 @@ use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkf
 use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec, UnlimitedGasMeter};
-use sov_test_utils::TestSpec;
+use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 type Da = MockDaSpec;
 
 #[test]
@@ -62,8 +62,8 @@ fn transaction_is_serialized_correctly() {
     let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let chain_id = 0;
-    let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = 0;
+    let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
+    let max_fee = TEST_DEFAULT_MAX_FEE;
     let gas_limit = None;
 
     let unsigned_tx = UnsignedTransactionWithoutNonce::new(

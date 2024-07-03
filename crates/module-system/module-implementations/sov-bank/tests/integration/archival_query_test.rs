@@ -8,7 +8,7 @@ use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::namespaces::Accessory;
 use sov_state::storage::{SlotKey, SlotValue, StateUpdate};
 use sov_state::{ProverStorage, Storage};
-use sov_test_utils::TestStorageSpec as StorageSpec;
+use sov_test_utils::{TestStorageSpec as StorageSpec, TEST_DEFAULT_USER_BALANCE};
 
 use crate::helpers::*;
 
@@ -16,7 +16,14 @@ type S = sov_test_utils::TestSpec;
 
 #[test]
 fn transfer_initial_token() -> Result<(), anyhow::Error> {
-    let initial_balance = 100;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
+    // The amount per transfer for the non-archival, most recent state.
+    const AMOUNT_PER_TRANSFER: u64 = 10;
+    // The amount per transfer for the archival state.
+    const AMOUNT_PER_ARCHIVAL_TRANSFER: u64 = AMOUNT_PER_TRANSFER / 2;
+    // Another amount per transfer for a different archival state.
+    const AMOUNT_PER_ARCHIVAL_TRANSFER_2: u64 = AMOUNT_PER_TRANSFER / 3;
+
     let bank_config = create_bank_config_with_token(4, initial_balance);
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
@@ -40,7 +47,10 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut state,
     );
-    assert_eq!((sender_balance, receiver_balance), (100, 100));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_BALANCE)
+    );
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
     let mut state: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
 
@@ -50,7 +60,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         sender_address,
         sequencer_address,
         receiver_address,
-        10,
+        AMOUNT_PER_TRANSFER,
         &mut state,
     );
     let mut state = state.checkpoint().0;
@@ -62,7 +72,13 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut state,
     );
-    assert_eq!((sender_balance, receiver_balance), (90, 110));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (
+            TEST_DEFAULT_USER_BALANCE - AMOUNT_PER_TRANSFER,
+            TEST_DEFAULT_USER_BALANCE + AMOUNT_PER_TRANSFER
+        )
+    );
 
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
 
@@ -74,7 +90,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         sender_address,
         sequencer_address,
         receiver_address,
-        10,
+        AMOUNT_PER_TRANSFER,
         &mut state,
     );
 
@@ -86,7 +102,13 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut state,
     );
-    assert_eq!((sender_balance, receiver_balance), (80, 120));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (
+            TEST_DEFAULT_USER_BALANCE - 2 * AMOUNT_PER_TRANSFER,
+            TEST_DEFAULT_USER_BALANCE + 2 * AMOUNT_PER_TRANSFER
+        )
+    );
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
 
     // Archival tests
@@ -102,8 +124,15 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut archival.to_unmetered(),
     );
-    assert_eq!((sender_balance, receiver_balance), (90, 110));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (
+            TEST_DEFAULT_USER_BALANCE - AMOUNT_PER_TRANSFER,
+            TEST_DEFAULT_USER_BALANCE + AMOUNT_PER_TRANSFER
+        )
+    );
 
+    // We want to transfer a different amount in the archival mode so that there is no collision with the `normal` transfers.
     // modify in archival
     transfer(
         &bank,
@@ -111,7 +140,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         sender_address,
         sequencer_address,
         receiver_address,
-        5,
+        AMOUNT_PER_ARCHIVAL_TRANSFER,
         &mut archival,
     );
 
@@ -124,7 +153,13 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut archival,
     );
-    assert_eq!((sender_balance, receiver_balance), (85, 115));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (
+            TEST_DEFAULT_USER_BALANCE - AMOUNT_PER_TRANSFER - AMOUNT_PER_ARCHIVAL_TRANSFER,
+            TEST_DEFAULT_USER_BALANCE + AMOUNT_PER_TRANSFER + AMOUNT_PER_ARCHIVAL_TRANSFER
+        )
+    );
 
     let archival_slot: u64 = 1;
     let mut state: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
@@ -136,15 +171,19 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut archival.to_unmetered(),
     );
-    assert_eq!((sender_balance, receiver_balance), (100, 100));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_BALANCE)
+    );
 
+    // We want to transfer a different amount in the archival mode so that there is no collision with the `normal` transfers.
     transfer(
         &bank,
         token_id,
         sender_address,
         sequencer_address,
         receiver_address,
-        45,
+        AMOUNT_PER_ARCHIVAL_TRANSFER_2,
         &mut archival,
     );
 
@@ -155,7 +194,13 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut archival.to_unmetered(),
     );
-    assert_eq!((sender_balance, receiver_balance), (55, 145));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (
+            TEST_DEFAULT_USER_BALANCE - AMOUNT_PER_ARCHIVAL_TRANSFER_2,
+            TEST_DEFAULT_USER_BALANCE + AMOUNT_PER_ARCHIVAL_TRANSFER_2
+        )
+    );
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
@@ -164,7 +209,13 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut state.to_unmetered(),
     );
-    assert_eq!((sender_balance, receiver_balance), (80, 120));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (
+            TEST_DEFAULT_USER_BALANCE - 2 * AMOUNT_PER_TRANSFER,
+            TEST_DEFAULT_USER_BALANCE + 2 * AMOUNT_PER_TRANSFER
+        )
+    );
 
     // Accessory tests
 
@@ -174,7 +225,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         sender_address,
         sequencer_address,
         receiver_address,
-        10,
+        AMOUNT_PER_TRANSFER,
         &mut state,
     );
 
@@ -186,7 +237,13 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut state,
     );
-    assert_eq!((sender_balance, receiver_balance), (70, 130));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (
+            TEST_DEFAULT_USER_BALANCE - 3 * AMOUNT_PER_TRANSFER,
+            TEST_DEFAULT_USER_BALANCE + 3 * AMOUNT_PER_TRANSFER
+        )
+    );
 
     StateWriter::<Accessory>::set(
         &mut state,
@@ -209,7 +266,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         sender_address,
         sequencer_address,
         receiver_address,
-        10,
+        AMOUNT_PER_TRANSFER,
         &mut state,
     );
     let (mut state, _, _) = state.checkpoint();
@@ -221,7 +278,13 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         receiver_address,
         &mut state,
     );
-    assert_eq!((sender_balance, receiver_balance), (60, 140));
+    assert_eq!(
+        (sender_balance, receiver_balance),
+        (
+            TEST_DEFAULT_USER_BALANCE - 4 * AMOUNT_PER_TRANSFER,
+            TEST_DEFAULT_USER_BALANCE + 4 * AMOUNT_PER_TRANSFER
+        )
+    );
     StateWriter::<Accessory>::set(
         &mut state,
         &SlotKey::from_slice(b"k"),

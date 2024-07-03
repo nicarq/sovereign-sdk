@@ -16,6 +16,7 @@ use sov_modules_api::{
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
 use sov_state::{DefaultStorageSpec, StorageRoot, User};
+use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::ProverIncentives;
 
@@ -23,13 +24,12 @@ pub(crate) type S =
     sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 pub(crate) type Da = MockDaSpec;
 
-pub(crate) const BOND_AMOUNT: u64 = 100_000;
-pub(crate) const INITIAL_PROVER_BALANCE: u64 = 10 * BOND_AMOUNT;
-pub(crate) const INITIAL_SEQUENCER_BALANCE: u64 = 20 * BOND_AMOUNT;
+pub(crate) const INITIAL_PROVER_BALANCE: u64 = TEST_DEFAULT_USER_BALANCE;
+pub(crate) const INITIAL_SEQUENCER_BALANCE: u64 = TEST_DEFAULT_USER_BALANCE;
 pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
 pub(crate) const MOCK_PROVER_ADDRESS: MockAddress = MockAddress::new([1u8; 32]);
 
-pub const MAX_TX_GAS_AMOUNT: u64 = 10 * BOND_AMOUNT;
+pub const MAX_TX_GAS_AMOUNT: u64 = TEST_DEFAULT_MAX_FEE;
 
 impl ProverIncentives<S, Da> {
     pub fn get_bond_amount<Accessor: StateAccessor>(
@@ -210,9 +210,9 @@ fn setup_helper(
     // initialize prover incentives
     let module = ProverIncentives::<S, Da>::default();
     let config = crate::ProverIncentivesConfig {
-        proving_penalty: BOND_AMOUNT / 2,
-        minimum_bond: BOND_AMOUNT,
-        initial_provers: vec![(prover_address, BOND_AMOUNT)],
+        proving_penalty: TEST_DEFAULT_USER_STAKE / 2,
+        minimum_bond: TEST_DEFAULT_USER_STAKE,
+        initial_provers: vec![(prover_address, TEST_DEFAULT_USER_STAKE)],
     };
 
     let mut state = checkpoint.to_genesis_state_accessor::<ProverIncentives<S, Da>>(&config);
@@ -240,7 +240,7 @@ pub(crate) fn setup() -> (
         module
             .get_bond_amount(prover_address, &mut state)
             .expect("The working set should not run out of gas during setup"),
-        BOND_AMOUNT
+        TEST_DEFAULT_USER_STAKE
     );
 
     (module, prover_address, sequencer, state)

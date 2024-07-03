@@ -4,18 +4,19 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{Batch, BatchWithId, Context, Module};
+use sov_test_utils::{TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::tests::helpers::{
     generate_address, Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY,
-    INITIAL_BALANCE, INITIAL_BALANCE_LARGE, LOCKED_AMOUNT, REWARD_SEQUENCER_KEY, S,
-    UNKNOWN_SEQUENCER_DA_ADDRESS,
+    REWARD_SEQUENCER_KEY, S, UNKNOWN_SEQUENCER_DA_ADDRESS,
 };
 use crate::{CallMessage, SequencerOutcome, SequencerRegistry};
 
 /// Tests the slashing mechanism on the `end_batch_hook` method.
 #[test]
 fn end_batch_hook_slash() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
 
@@ -52,7 +53,8 @@ fn end_batch_hook_slash() -> Result<(), Infallible> {
 /// Tests the slashing mechanism for a preferred sequencer on the `end_batch_hook`
 #[test]
 fn end_batch_hook_slash_preferred_sequencer() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, true)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, true)?;
     let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
@@ -91,7 +93,8 @@ fn end_batch_hook_slash_preferred_sequencer() -> Result<(), Infallible> {
 
 #[test]
 fn end_batch_hook_slash_unknown_sequencer() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let test_batch = BatchWithId {
         batch: Batch { txs: vec![] },
@@ -130,7 +133,8 @@ fn end_batch_hook_slash_unknown_sequencer() -> Result<(), Infallible> {
 
 #[test]
 fn begin_batch_hook_without_enough_stake() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
@@ -139,7 +143,7 @@ fn begin_batch_hook_without_enough_stake() -> Result<(), Infallible> {
         id: [0u8; 32],
     };
 
-    test_sequencer.set_coins_amount_to_lock(LOCKED_AMOUNT + 1, &mut state)?;
+    test_sequencer.set_coins_amount_to_lock(TEST_DEFAULT_USER_STAKE + 1, &mut state)?;
 
     let res = test_sequencer.registry.begin_batch_hook(
         &test_batch,
@@ -157,7 +161,8 @@ fn begin_batch_hook_without_enough_stake() -> Result<(), Infallible> {
 
 #[test]
 fn slashed_sequencer_should_not_preserve_balance() -> Result<(), Infallible> {
-    let (test_sequencer, mut state) = TestSequencer::initialize_test(INITIAL_BALANCE_LARGE, false)?;
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     // created settings
 
@@ -275,7 +280,7 @@ fn slashed_sequencer_should_not_preserve_balance() -> Result<(), Infallible> {
 
     let register_message = CallMessage::Register {
         da_address: genesis_sequencer_da_address.as_ref().to_vec(),
-        amount: LOCKED_AMOUNT,
+        amount: TEST_DEFAULT_USER_STAKE,
     };
 
     let mut state = state.to_working_set_unmetered();

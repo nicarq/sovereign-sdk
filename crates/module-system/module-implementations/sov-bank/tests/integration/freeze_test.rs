@@ -6,6 +6,7 @@ use sov_bank::{
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, Spec, StateAccessor, StateCheckpoint, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
 
 type S = sov_test_utils::TestSpec;
 
@@ -21,7 +22,7 @@ fn freeze_token() -> Result<(), Infallible> {
 
     let salt = 0;
     let token_name = "Token1".to_owned();
-    let initial_balance = 100;
+    let initial_balance = TEST_DEFAULT_USER_BALANCE;
     let token_id = GAS_TOKEN_ID;
 
     let bank_config = BankConfig::<S> {

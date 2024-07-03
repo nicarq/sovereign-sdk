@@ -17,15 +17,13 @@ use sov_state::Storage;
 use sov_test_utils::runtime::traits::MinimalRuntime;
 use sov_test_utils::runtime::{GenesisConfig, TestRuntime};
 pub(crate) use sov_test_utils::TestStorageSpec as StorageSpec;
+use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 use sov_value_setter::ValueSetterConfig;
 
 type TestStf = StfBlueprint<S, MockDaSpec, TestRuntime<S, MockDaSpec>, BasicKernel<S, MockDaSpec>>;
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
-
-pub(crate) const DEFAULT_STAKE_AMOUNT: u64 = 100_000_000;
-pub(crate) const DEFAULT_USER_BALANCE: u64 = 1_000_000_000;
 
 pub struct SequencerParams<S: Spec, Da: DaSpec> {
     pub rollup_address: S::Address,
@@ -38,7 +36,7 @@ impl Default for SequencerParams<S, MockDaSpec> {
         SequencerParams {
             rollup_address: [1_u8; 32].into(),
             da_address: [1_u8; 32].into(),
-            stake_amount: DEFAULT_STAKE_AMOUNT,
+            stake_amount: TEST_DEFAULT_USER_STAKE,
         }
     }
 }

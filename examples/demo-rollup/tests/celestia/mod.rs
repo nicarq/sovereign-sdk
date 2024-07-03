@@ -9,12 +9,12 @@ use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::Spec;
 use sov_modules_macros::config_value;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::DaSpec;
-use sov_test_utils::ApiClient;
+use sov_test_utils::{ApiClient, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
 fn generate_dynamic_random_vectors(len_range: Range<usize>) -> Vec<Vec<u8>> {
     let mut rng = rand::thread_rng();
@@ -71,8 +71,8 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
         });
 
     let chain_id = config_value!("CHAIN_ID");
-    let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = 0;
+    let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
+    let max_fee = TEST_DEFAULT_MAX_FEE;
 
     let messages = generate_call_message::<DefaultSpec<Risc0Verifier, Risc0Verifier, Native>, Da>(
         blobs_payload_bytes_range,

@@ -13,6 +13,7 @@ use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::TestRuntime;
 use sov_test_utils::{
     new_test_blob_from_batch, MessageGenerator, TestPrivateKey, TestStorageSpec as StorageSpec,
+    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{
@@ -25,9 +26,7 @@ mod process_attestation;
 
 mod unbond;
 
-const USER_STAKE: u64 = 100_000_000;
 const ROLLUP_FINALITY_PERIOD: u64 = 2;
-const USER_BALANCE: u64 = 1_000_000_000;
 
 fn get_first_transaction_receipt(env: &ExecutionSimulationVars) -> &TransactionReceipt {
     env.batch_receipts
@@ -148,7 +147,7 @@ impl AttesterIncentivesTestHandler {
         SequencerParams {
             rollup_address: self.seq_rollup_addr,
             da_address: self.seq_da_addr,
-            stake_amount: USER_STAKE,
+            stake_amount: TEST_DEFAULT_USER_STAKE,
         }
     }
 
@@ -156,7 +155,7 @@ impl AttesterIncentivesTestHandler {
         BankParams {
             token_name: "TOKEN_TEST".to_string(),
             addresses_and_balances: vec![
-                (self.admin_public_key, USER_BALANCE),
+                (self.admin_public_key, TEST_DEFAULT_USER_BALANCE),
                 (
                     self.attester_private_key
                         .to_address::<<S as Spec>::Address>(),
@@ -167,7 +166,7 @@ impl AttesterIncentivesTestHandler {
                         .to_address::<<S as Spec>::Address>(),
                     self.challenger_balance,
                 ),
-                (self.seq_rollup_addr, USER_BALANCE),
+                (self.seq_rollup_addr, TEST_DEFAULT_USER_BALANCE),
             ],
         }
     }
@@ -180,8 +179,8 @@ impl AttesterIncentivesTestHandler {
                 self.attester_stake,
             )],
             rollup_finality_period: ROLLUP_FINALITY_PERIOD,
-            minimum_attester_bond: USER_STAKE,
-            minimum_challenger_bond: USER_STAKE,
+            minimum_attester_bond: TEST_DEFAULT_USER_STAKE,
+            minimum_challenger_bond: TEST_DEFAULT_USER_STAKE,
             maximum_attested_height: 0,
             light_client_finalized_height: 0,
             commitment_to_allowed_challenge_method: MockCodeCommitment([0; 32]),
@@ -201,10 +200,10 @@ impl AttesterIncentivesTestHandler {
                 .to_address::<<S as Spec>::Address>(),
             attester_private_key: TestPrivateKey::generate(),
             challenger_private_key: TestPrivateKey::generate(),
-            attester_stake: USER_STAKE,
-            challenger_stake: USER_STAKE,
-            attester_balance: USER_BALANCE,
-            challenger_balance: USER_BALANCE,
+            attester_stake: TEST_DEFAULT_USER_STAKE,
+            challenger_stake: TEST_DEFAULT_USER_STAKE,
+            attester_balance: TEST_DEFAULT_USER_BALANCE,
+            challenger_balance: TEST_DEFAULT_USER_BALANCE,
             seq_da_addr: sequencer_params.da_address,
             seq_rollup_addr: sequencer_params.rollup_address,
         }
@@ -225,10 +224,10 @@ impl AttesterIncentivesTestHandler {
             value_setter,
             attester_private_key: TestPrivateKey::generate(),
             challenger_private_key: TestPrivateKey::generate(),
-            attester_stake: USER_STAKE,
-            challenger_stake: USER_STAKE,
-            attester_balance: USER_BALANCE,
-            challenger_balance: USER_BALANCE,
+            attester_stake: TEST_DEFAULT_USER_STAKE,
+            challenger_stake: TEST_DEFAULT_USER_STAKE,
+            attester_balance: TEST_DEFAULT_USER_BALANCE,
+            challenger_balance: TEST_DEFAULT_USER_BALANCE,
             seq_da_addr: seq_params.da_address,
             seq_rollup_addr: seq_params.rollup_address,
         }
