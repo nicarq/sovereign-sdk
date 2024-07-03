@@ -218,7 +218,6 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
 
         self.emit_event(
             state,
-            "sequencer_exited",
             Event::<S>::Exited {
                 sequencer: sender.clone(),
             },
@@ -296,7 +295,6 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
 
         self.emit_event(
             state,
-            "sequencer_balance_increased",
             Event::<S>::Deposited {
                 sequencer: address,
                 amount,

@@ -426,7 +426,6 @@ q
         // Use emit event with a specific value of the type Event that was created and bound to the Module implementation
         self.emit_event(
             state,
-            "token_transfer",
             Event::TokenTransferred {
                 token_id: coins.token_id,
                 amount: coins.amount,

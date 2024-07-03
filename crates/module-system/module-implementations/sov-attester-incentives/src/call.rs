@@ -300,7 +300,6 @@ where
         // We raise an event
         self.emit_event(
             state,
-            "user_slashed",
             Event::<S>::UserSlashed {
                 address: user.clone(),
                 reason,
@@ -327,7 +326,6 @@ where
 
         self.emit_event(
             state,
-            "user slashed",
             Event::UserSlashed {
                 address: user.clone(),
                 reason,
@@ -454,7 +452,6 @@ where
         match role {
             Role::Attester => self.emit_event(
                 state,
-                "bonded_attester",
                 Event::<S>::BondedAttester {
                     new_deposit: bond_amount,
                     total_bond: total_balance,
@@ -462,7 +459,6 @@ where
             ),
             Role::Challenger => self.emit_event(
                 state,
-                "bonded_challenger",
                 Event::<S>::BondedChallenger {
                     new_deposit: bond_amount,
                     total_bond: total_balance,
@@ -488,7 +484,6 @@ where
             // Emit the unbonding event
             self.emit_event(
                 state,
-                "unbond_challenger",
                 Event::<S>::UnbondedChallenger {
                     amount_withdrawn: old_balance,
                 },
@@ -574,7 +569,6 @@ where
 
             self.emit_event(
                 state,
-                "unbond_challenger",
                 Event::<S>::UnbondedChallenger {
                     amount_withdrawn: unbonding_info.amount,
                 },
@@ -693,7 +687,6 @@ where
                     Ok(e) => {
                         self.emit_event(
                             state,
-                            "attester slashed",
                             Event::UserSlashed {
                                 address: attester.clone(),
                                 reason: SlashingReason::TransitionInvalid,
@@ -883,7 +876,6 @@ where
 
         self.emit_event(
             state,
-            "process_attestation",
             Event::<S>::ProcessedValidAttestation {
                 attester: context.sender().clone(),
             },
@@ -1030,7 +1022,6 @@ where
 
                 self.emit_event(
                     state,
-                    "process_challenge",
                     Event::<S>::ProcessedValidProof {
                         challenger: context.sender().clone(),
                     },

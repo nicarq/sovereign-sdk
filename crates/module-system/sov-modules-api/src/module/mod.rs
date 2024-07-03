@@ -109,14 +109,36 @@ pub trait ModuleInfo {
 }
 
 /// Event Emitter trait for a blanket implementation
-pub trait EventEmitter {
+pub trait EventEmitter: ModuleInfo {
     /// Execution context.
     type Spec: Spec;
     /// Module defined event resulting from a call method.
     type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;
 
-    /// Emit event
-    fn emit_event(&self, state: &mut impl EventContainer, event_key: &str, event: Self::Event);
+    /// Emits an event with an auto-generated event key composed by the module
+    /// of origin's name and the `enum` variant's name of the event.
+    fn emit_event(&self, state: &mut impl EventContainer, event: Self::Event) {
+        #[allow(unused_variables)]
+        let _ = || (&state, &event);
+
+        if cfg!(feature = "native") {
+            let event_debug = format!("{:?}", event);
+            // `.unwrap_or_default()` would only happen if `Debug` returns an
+            // empty or all-whitespace string, which seems unlikely.
+            let event_variant_name = event_debug.split_whitespace().next().unwrap_or_default();
+            let event_key = format!("{}/{}", self.prefix().module_name(), event_variant_name);
+
+            state.add_event(&event_key, event);
+        }
+    }
+
+    /// Emits an event with a custom event key.
+    fn emit_event_with_custom_key(
+        &self,
+        state: &mut impl EventContainer,
+        event_key: &str,
+        event: Self::Event,
+    );
 }
 
 impl<T> EventEmitter for T
@@ -125,9 +147,16 @@ where
 {
     type Spec = <T as ModuleInfo>::Spec;
     type Event = <T as Module>::Event;
-    fn emit_event(&self, state: &mut impl EventContainer, event_key: &str, event: Self::Event) {
+
+    fn emit_event_with_custom_key(
+        &self,
+        state: &mut impl EventContainer,
+        event_key: &str,
+        event: Self::Event,
+    ) {
         #[allow(unused_variables)]
-        let _ = || (&state, &event_key, &event);
+        let _ = || (&state, &event);
+
         if cfg!(feature = "native") {
             state.add_event(event_key, event);
         }

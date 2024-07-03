@@ -131,7 +131,6 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         // Emit the bonding event
         self.emit_event(
             state,
-            "bond_prover_helper",
             Event::<S>::BondedProver {
                 prover: prover.clone(),
                 deposit: bond_amount,
@@ -168,7 +167,6 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // Emit the unbonding event
             self.emit_event(
                 state,
-                "unbond_prover",
                 Event::<S>::UnBondedProver {
                     prover: prover_address.clone(),
                     amount_withdrawn: old_balance,
@@ -338,7 +336,6 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
             self.emit_event(
                 state,
-                "process_valid_proof",
                 Event::<S>::ProcessedValidProof {
                     prover: sender.clone(),
                     reward: reward_amount,
@@ -359,7 +356,6 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
             self.emit_event(
                 state,
-                "prover_penalized",
                 Event::<S>::ProverPenalized {
                     prover: sender.clone(),
                     amount: fine,
@@ -414,7 +410,6 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             Err(_) => {
                 self.emit_event(
                     state,
-                    "prover_slashed",
                     Event::<S>::ProverSlashed {
                         prover: prover_address.clone(),
                         reason: crate::event::SlashingReason::ProofInvalid,
@@ -432,7 +427,6 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                 ErrorOrSlashed::Slashed(reason) => {
                     self.emit_event(
                         state,
-                        "prover_slashed",
                         Event::<S>::ProverSlashed {
                             prover: prover_address.clone(),
                             reason,
