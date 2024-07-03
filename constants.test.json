@@ -7,6 +7,7 @@
         "GAS_TOKEN_ID": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
         "TEST_TOKEN_ID": "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm",
         "TEST_TOKEN_ID_INVALID_CHECKSUM": "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqabcdef",
+        "GAS_FORCED_SEQUENCER_REGISTRATION_COST": [100000, 100000],
         "GAS_TO_CHARGE_FOR_ACCESS": [5, 5],
         "GAS_TO_REFUND_FOR_HOT_ACCESS": [4, 4],
         "GAS_TO_CHARGE_FOR_WRITE": [10, 10],

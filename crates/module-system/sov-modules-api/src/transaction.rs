@@ -596,6 +596,13 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
     }
 }
 
+pub fn forced_sequencer_registration_cost<S: Spec>() -> S::Gas {
+    const GAS_FORCED_SEQUENCER_REGISTRATION_COST: [u64; 2] =
+        config_value!("GAS_FORCED_SEQUENCER_REGISTRATION_COST");
+
+    S::Gas::from_slice(&GAS_FORCED_SEQUENCER_REGISTRATION_COST)
+}
+
 #[cfg(test)]
 mod tests {
     use sov_mock_zkvm::MockZkVerifier;

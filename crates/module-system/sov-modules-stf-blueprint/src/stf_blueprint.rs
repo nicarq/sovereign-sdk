@@ -8,10 +8,12 @@ use sov_modules_api::capabilities::{
     TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
+use sov_modules_api::transaction::{
+    forced_sequencer_registration_cost, AuthenticatedTransactionData, SequencerReward,
+};
 use sov_modules_api::{
-    BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray, PreExecWorkingSet, RawTx,
-    Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
+    BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray, GasMeter, PreExecWorkingSet,
+    RawTx, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::stf::StoredEvent;
 use tracing::{debug, error, info, warn};
@@ -531,16 +533,16 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     height: u64,
     mut tx_scratchpad: TxScratchpad<S>,
 ) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
-    let (tx, auth_data, message) =
-        match _authenticate_unregistered_with_cycle_count(runtime, raw_tx) {
-            Ok(v) => v,
-            Err(e) => {
-                return Err(TxProcessingError {
-                    reason: TxProcessingErrorReason::InvalidUnregisteredTx(e.to_string()),
-                    tx_scratchpad,
-                });
-            }
-        };
+    let (tx, auth_data, message) = match authenticate_unregistered_with_cycle_count(runtime, raw_tx)
+    {
+        Ok(v) => v,
+        Err(e) => {
+            return Err(TxProcessingError {
+                reason: TxProcessingErrorReason::InvalidUnregisteredTx(e.to_string()),
+                tx_scratchpad,
+            });
+        }
+    };
 
     let raw_tx_hash = &tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
@@ -581,6 +583,16 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         });
     }
 
+    if let Err(e) = pre_exec_working_set.charge_gas(&forced_sequencer_registration_cost::<S>()) {
+        return Err(TxProcessingError {
+            tx_scratchpad: pre_exec_working_set.into(),
+            reason: TxProcessingErrorReason::CannotReserveGas {
+                reason: e.to_string(),
+                raw_tx_hash: *raw_tx_hash,
+            },
+        });
+    }
+
     let working_set = match runtime
         .capabilities()
         .try_reserve_gas(tx, &ctx, pre_exec_working_set)
@@ -614,7 +626,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn _authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
+fn authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     runtime: &R,
     raw_tx: &RawTx,
 ) -> AuthenticationResult<
