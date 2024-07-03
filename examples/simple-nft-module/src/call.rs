@@ -47,7 +47,7 @@ impl<S: Spec> NonFungibleToken<S> {
         }
 
         self.give_nft(context.sender(), id, state)?;
-        self.emit_event(state, "simple_nft_mint", Event::Mint { id });
+        self.emit_event(state, Event::Mint { id });
 
         Ok(CallResponse::default())
     }
@@ -68,7 +68,7 @@ impl<S: Spec> NonFungibleToken<S> {
 
         self.remove_nft(id, state)?;
         self.give_nft(&to, id, state)?;
-        self.emit_event(state, "nft_transfer", Event::Transfer { id });
+        self.emit_event(state, Event::Transfer { id });
 
         Ok(CallResponse::default())
     }
@@ -87,7 +87,7 @@ impl<S: Spec> NonFungibleToken<S> {
         }
 
         self.remove_nft(id, state)?;
-        self.emit_event(state, "nft_burned", Event::Burn { id });
+        self.emit_event(state, Event::Burn { id });
 
         Ok(CallResponse::default())
     }

@@ -240,7 +240,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
 
         self.emit_event(
             state,
-            "sequencer_registered",
             Event::<S>::Registered {
                 sequencer: address.clone(),
                 amount,

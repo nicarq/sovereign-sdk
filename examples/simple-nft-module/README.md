@@ -287,7 +287,7 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
             anyhow::bail!("Only token owner can transfer token");
         }
         self.owners.set(&id, &to, state);
-        self.emit_event(state, "nft_transfer", Event::Transfer { id });
+        self.emit_event(state, Event::Transfer { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 
@@ -308,7 +308,7 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
         }
         self.owners.remove(&id, state);
 
-        self.emit_event(state, "nft_burn", Event::Burn { id });
+        self.emit_event(state,  Event::Burn { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 }

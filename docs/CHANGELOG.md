@@ -1,3 +1,4 @@
+- #904 removes the need to specify event keys when calling `self.emit_event`, because the event key is now generated automatically based on the module name and the event variant (e.g. `Bank/TokenCreated`). You can use `self.emit_event_with_custom_key` to emit events with custom keys.
 - #881 adds blessed constants in the `constants.json` to be used to charge gas in the tests. It also removes an unused method `tx_fixed_cost` that got deprecated with the recent changes in gas. The default value of the `MAX_FEE` in the CLI wallet is now `10_000_000`.
 - #864 Add prover address to `AggregatedProofPublicData` 
 - #885 renames the `rpc.rs` file in the standard SDK module template to `query.rs`.

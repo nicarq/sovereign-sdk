@@ -109,7 +109,6 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         self.tokens.set(&token_id, &token, state)?;
         self.emit_event(
             state,
-            "token_created",
             Event::TokenCreated {
                 token_name: token_name.clone(),
                 coins: Coins {
@@ -140,7 +139,6 @@ impl<S: sov_modules_api::Spec> Bank<S> {
                 // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/168
                 self.emit_event(
                     state,
-                    "token_transfer",
                     Event::TokenTransferred {
                         from: sender.as_token_holder().into(),
                         to: to.into(),
@@ -184,7 +182,6 @@ impl<S: sov_modules_api::Spec> Bank<S> {
 
         self.emit_event(
             state,
-            "token_burned",
             Event::TokenBurned {
                 owner: owner.into(),
                 coins,
@@ -255,7 +252,6 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         self.tokens.set(&coins.token_id, &token, state)?;
         self.emit_event(
             state,
-            "token_minted",
             Event::TokenMinted {
                 mint_to_identity: mint_to_identity.into(),
                 coins: coins.clone(),
@@ -294,7 +290,6 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         self.tokens.set(&token_id, &token, state)?;
         self.emit_event(
             state,
-            "token_frozen",
             Event::TokenFrozen {
                 freezer: sender.into(),
                 token_id,

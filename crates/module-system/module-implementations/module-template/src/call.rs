@@ -29,7 +29,7 @@ impl<S: sov_modules_api::Spec> ExampleModule<S> {
         state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse> {
         self.value.set(&new_value, state)?;
-        self.emit_event(state, "set_value", Event::Set { value: new_value });
+        self.emit_event(state, Event::Set { value: new_value });
 
         Ok(CallResponse::default())
     }

@@ -59,7 +59,7 @@ impl<S: sov_modules_api::Spec> ValueSetter<S> {
         // This is how we set a new value:
         self.value.set(&new_value, state)?;
 
-        self.emit_event(state, "set_value", Event::NewValue(new_value));
+        self.emit_event(state, Event::NewValue(new_value));
 
         Ok(CallResponse::default())
     }
