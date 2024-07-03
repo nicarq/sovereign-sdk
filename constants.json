@@ -19,10 +19,16 @@
         // on the speed of inclusion for forced transactions, since they will always be included ASAP.)
         // Setting this parameter to 0 disables soft-confirmations entirely.
         "DEFERRED_SLOTS_COUNT": 2,
-        /// How many blobs from unregistered sequencers we will accept per slot
-        /// We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
-        /// this serves as protection against spam.
+        // How many blobs from unregistered sequencers we will accept per slot
+        // We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
+        // this serves as protection against spam.
         "UNREGISTERED_BLOBS_PER_SLOT": 5,
+        // The fixed gas price of checking forced sequencer registration transactions.
+        // This price is added to regular transaction checks & execution costs.
+        // This should be set in such a way that forced sequencer registration is more expensive
+        // than regular registration to prevent this mechanism being gamed instead of
+        // used only when users feel they are being censored.
+        "GAS_FORCED_SEQUENCER_REGISTRATION_COST": [100000, 100000],
         // The ID of the "native token" of the rollup, which is used to pay gas fees.
         "GAS_TOKEN_ID": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
         // --- Gas parameters to charge for state accesses ---
