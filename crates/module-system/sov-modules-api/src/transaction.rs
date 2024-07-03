@@ -7,6 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use serde::{Deserialize, Serialize};
+use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::SigVerificationError;
