@@ -41,6 +41,7 @@ macro_rules! impl_bech32_conversion {
             use super:: __BECH32_HRP;
             use std::fmt;
             use std::str::FromStr;
+            use $crate::prelude::{bech32, serde, anyhow};
             use bech32::primitives::decode::{UncheckedHrpstring, CheckedHrpstring};
             use bech32::{Bech32m, Hrp};
 
@@ -101,7 +102,7 @@ macro_rules! impl_bech32_conversion {
                 }
             }
 
-            impl $(< $generic > )?  serde::Serialize for $id $(< $generic > )?  {
+            impl $(< $generic > )? serde::Serialize for $id $(< $generic > )?  {
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                 where
                     S: serde::Serializer,

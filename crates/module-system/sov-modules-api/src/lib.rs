@@ -111,10 +111,13 @@ pub mod prelude {
     };
     pub extern crate tracing;
 
+    pub extern crate anyhow;
     #[cfg(feature = "native")]
     pub extern crate axum;
+    pub extern crate bech32;
     #[cfg(feature = "native")]
     pub extern crate clap;
+    pub extern crate serde;
     #[cfg(feature = "native")]
     pub extern crate serde_json;
     #[cfg(feature = "native")]
