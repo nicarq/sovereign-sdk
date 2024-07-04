@@ -1,11 +1,13 @@
 use std::path::{Path, PathBuf};
-use std::{env, fmt, fs, process};
+use std::{fmt, fs};
 
 use proc_macro2::{Ident, TokenStream};
 use serde_jsonc::{Map, Value};
 use syn::{PathArguments, Type, TypePath};
 
 use crate::common::json_value_to_expr;
+
+const CONSTANTS_MANIFEST_PATH: Option<&str> = option_env!("CONSTANTS_MANIFEST_PATH");
 
 #[derive(Debug, Clone)]
 pub struct Manifest<'a> {
@@ -34,103 +36,32 @@ impl<'a> Manifest<'a> {
         })
     }
 
-    /// Reads a `constants.json` manifest file, retrieving it from the workspace root of the
-    /// current working directory.
+    /// Reads a `constants.json` manifest file, walking up the directory tree
+    /// starting from
+    /// [`OUT_DIR`](https://doc.rust-lang.org/cargo/reference/environment-variables.html) until it finds
+    /// one.
     ///
-    /// If the environment variable `CONSTANTS_MANIFEST` is set, it will use that path as workspace
-    /// directory.
+    /// If the environment variable `CONSTANTS_MANIFEST` is set, the file will
+    /// be read from that directory instead.
     ///
-    /// If the compilation is executed for a directory different than the current working dir
-    /// (example: `cargo build --manifest-path /foo/bar/Cargo.toml`), you should override the
-    /// constants manifest dir with the target directory:
+    /// If the `test` Cargo feature is enabled or the environment variable
+    /// `CONSTANTS_MANIFEST_TEST_MODE` is set, the proc-macro will look for a
+    /// file named `constants.test.json` instead.
     ///
-    /// ```sh
-    /// CONSTANTS_MANIFEST=/foo/bar cargo build --manifest-path /foo/bar/Cargo.toml
-    /// ```
+    /// # Arguments
     ///
-    /// The `parent` is used to report the errors to the correct span location.
-    pub fn read_constants(parent: &'a Ident) -> Result<Self, syn::Error> {
-        // The flag check is a workaround to <https://github.com/dtolnay/trybuild/issues/231>.
-        // Despite trybuild being a crate to build tests, it won't set the `test` flag. It isn't
-        // setting the `trybuild` flag properly either.
-        let name = if cfg!(test) || env::var_os("CONSTANTS_MANIFEST_TEST_MODE").is_some() {
-            "constants.test.json"
-        } else {
-            "constants.json"
-        };
-
-        let constants_dir = env::var_os("CONSTANTS_MANIFEST")
-            .map(PathBuf::from)
-            .map(Ok)
-            .unwrap_or_else(env::current_dir)
-            .map_err(|e| {
-                Self::err(
-                    env!("CARGO_MANIFEST_DIR"),
-                    parent,
-                    format!("failed to compute the `{name}` base path: {e}"),
-                )
-            })?;
-
-        // we remove the __CARGO_FIX_PLZ due to incompatibility with `cargo metadata`
-        // https://github.com/rust-lang/cargo/issues/9706
-        let output = process::Command::new(env!("CARGO"))
-            .args(["metadata", "--format-version=1", "--no-deps"])
-            .current_dir(&constants_dir)
-            .env_remove("__CARGO_FIX_PLZ")
-            .output()
-            .map_err(|e| {
-                Self::err(
-                    &constants_dir,
-                    parent,
-                    format!("failed to compute the `{name}` path: {e}"),
-                )
-            })?;
-
-        let metadata: Value = serde_jsonc::from_slice::<Value>(&output.stdout).map_err(|e| {
-            Self::err(
-                &constants_dir,
-                parent,
-                format!("Failed to parse `workspace_root` as json: {}", e),
-            )
-        })?;
-        let ws_root = metadata.get("workspace_root").ok_or_else(|| {
-            Self::err(
-                &constants_dir,
-                parent,
-                "Failed to read `workspace_root` from cargo metadata",
-            )
-        })?;
-        let ws = ws_root
-            .as_str()
-            .ok_or_else(|| {
-                Self::err(
-                    &constants_dir,
-                    parent,
-                    "The `workspace_root` from cargo metadata is not a valid string",
-                )
-            })
-            .map(PathBuf::from)?;
-
-        if !ws.is_dir() {
-            return Err(Self::err(
-                &ws,
-                parent,
-                format!("the computed `{name}` path is not a directory"),
-            ));
-        }
-
-        // checks if is pointing to a cargo project
-        if !ws.join("Cargo.toml").is_file() {
-            return Err(Self::err(
-                &ws,
-                parent,
+    /// `parent` is used to report the errors to the correct span location.
+    pub fn read_constants(parent: &'a Ident) -> syn::Result<Self> {
+        let constants_path = CONSTANTS_MANIFEST_PATH.map(PathBuf::from).ok_or_else(|| {
+            syn::Error::new(
+                parent.span(),
                 format!(
-                    "the computed `{name}` path is not a valid workspace: Cargo.toml not found"
+                    "Failed to find a `{}` file in the current directory or any parent directory",
+                    "constants.json"
                 ),
-            ));
-        }
+            )
+        })?;
 
-        let constants_path = ws.join(name);
         let constants = fs::read_to_string(&constants_path).map_err(|e| {
             Self::err(
                 &constants_path,

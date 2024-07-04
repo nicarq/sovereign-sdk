@@ -1,11 +1,6 @@
 use std::env;
-use std::path::PathBuf;
 
 fn set_constants_manifest() {
-    let manifest_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
-    let constants = PathBuf::from(manifest_dir).canonicalize().unwrap();
-
-    env::set_var("CONSTANTS_MANIFEST", constants);
     env::set_var("CONSTANTS_MANIFEST_TEST_MODE", "1");
 }
 
