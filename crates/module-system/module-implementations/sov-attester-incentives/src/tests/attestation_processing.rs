@@ -7,7 +7,10 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{CryptoSpec, GasMeter, Module, PrivateKey, Spec, StateAccessor, WorkingSet};
+use sov_modules_api::{
+    CryptoSpec, GasMeter, Module, PrivateKey, Spec, StateCheckpoint, UnmeteredStateWrapper,
+    WorkingSet,
+};
 use sov_state::jmt::RootHash;
 use sov_state::{BorshCodec, SlotValue, Storage, StorageProof, StorageRoot};
 use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
@@ -26,7 +29,7 @@ const DUMMY_CALL_MESSAGE: CallMessage<S, MockDaSpec> = CallMessage::UnbondChalle
 fn create_attestation(
     slot_to_attest: u64,
     attester_address: &<S as Spec>::Address,
-    state: &mut WorkingSet<S>,
+    state: &mut UnmeteredStateWrapper<WorkingSet<S>>,
 ) -> Result<
     Attestation<
         MockDaSpec,
@@ -36,29 +39,29 @@ fn create_attestation(
     Infallible,
 > {
     let chain_state = ChainState::<S, MockDaSpec>::default();
-    let mut unmetered_state = state.to_unmetered();
 
     // Get the values for the transition being attested
     let current_transition = chain_state
-        .get_historical_transitions(slot_to_attest, &mut unmetered_state)?
+        .get_historical_transitions(slot_to_attest, state)?
         .unwrap();
 
     let prev_root = if slot_to_attest == 1 {
-        chain_state.get_genesis_hash(&mut unmetered_state)?
+        chain_state.get_genesis_hash(state)?
     } else {
         chain_state
-            .get_historical_transitions(slot_to_attest - 1, &mut unmetered_state)?
+            .get_historical_transitions(slot_to_attest - 1, state)?
             .map(|t| *t.post_state_root())
     }
     .unwrap();
 
-    let mut archival_state = state.get_archival_at(1);
+    let mut archival_ws = state.inner().get_archival_at(1);
+    let mut archival_state = UnmeteredStateWrapper::new(&mut archival_ws);
 
     // Recall that the attester must be bonded *at a height that light clients consider finalized*
     // Since finalization takes a long time (24 hours), we know that it will never advance past slot 1 in tests.
     let proof_of_bond = AttesterIncentives::<S, MockDaSpec>::default()
         .bonded_attesters
-        .get_with_proof(attester_address, &mut archival_state.to_unmetered());
+        .get_with_proof(attester_address, &mut archival_state);
 
     Ok(Attestation {
         initial_state_root: prev_root,
@@ -98,11 +101,13 @@ fn test_process_valid_attestation() {
     let mut attestation_setup =
         move |message: &mut <AttesterIncentives<S, MockDaSpec> as Module>::CallMessage,
               _root: <<S as Spec>::Storage as Storage>::Root,
-              state: &mut <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState| {
+              mut state: UnmeteredStateWrapper<
+            <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState,
+        >| {
             if message == &DUMMY_CALL_MESSAGE {
                 let next_slot = last_attested_slot + 1;
-                let attestation =
-                    create_attestation(next_slot, &attester_address, state).unwrap_infallible();
+                let attestation = create_attestation(next_slot, &attester_address, &mut state)
+                    .unwrap_infallible();
                 *message =
                     CallMessage::ProcessAttestation(WrappedAttestation { inner: attestation });
                 last_attested_slot = next_slot;
@@ -146,61 +151,71 @@ fn test_process_valid_attestation() {
             // event is emitted and do necessary accounting to check the attester's balance later
             SlotTestCase {
                 transaction_test_cases: vec![TxTestCase {
-                    outcome: TxOutcome::Applied(Box::new(move |ws: &mut WorkingSet<S>| {
-                        // Do accounting for the attester's balance
-                        {
-                            // The attester's balance should be decremented by the gas used
-                            expected_balance.fetch_sub(
-                                ws.gas_used_value(),
-                                std::sync::atomic::Ordering::SeqCst,
-                            );
-                            // We know that attester will attest to this slot later, so he'll get back some of his gas at that point.
-                            expected_balance.fetch_add(
-                                AttesterIncentives::<S, MockDaSpec>::default()
-                                    .burn_rate()
-                                    .apply(ws.gas_used_value()),
-                                std::sync::atomic::Ordering::SeqCst,
-                            );
-                        }
+                    outcome: TxOutcome::Applied(Box::new(
+                        move |ws: UnmeteredStateWrapper<WorkingSet<S>>| {
+                            // Do accounting for the attester's balance
+                            {
+                                // The attester's balance should be decremented by the gas used
+                                expected_balance.fetch_sub(
+                                    ws.inner().gas_used_value(),
+                                    std::sync::atomic::Ordering::SeqCst,
+                                );
+                                // We know that attester will attest to this slot later, so he'll get back some of his gas at that point.
+                                expected_balance.fetch_add(
+                                    AttesterIncentives::<S, MockDaSpec>::default()
+                                        .burn_rate()
+                                        .apply(ws.inner().gas_used_value()),
+                                    std::sync::atomic::Ordering::SeqCst,
+                                );
+                            }
 
-                        // Check that the attestation succeeded
-                        assert!(ws.events().iter().any(|event| matches!(
-                            event.downcast_ref::<Event<S>>(),
-                            Some(Event::ProcessedValidAttestation { .. })
-                        )));
-                    })),
+                            // Check that the attestation succeeded
+                            assert!(ws.inner().events().iter().any(|event| matches!(
+                                event.downcast_ref::<Event<S>>(),
+                                Some(Event::ProcessedValidAttestation { .. })
+                            )));
+                        },
+                    )),
                     message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
                 }],
                 post_hook: Box::new(|_| {}),
             },
             SlotTestCase {
                 transaction_test_cases: vec![TxTestCase {
-                    outcome: TxOutcome::Applied(Box::new(move |ws: &mut WorkingSet<S>| {
-                        // Check that the attestation succeeded
-                        assert!(ws.events().iter().any(|event| matches!(
-                            event.downcast_ref::<Event<S>>(),
-                            Some(Event::ProcessedValidAttestation { .. })
-                        )));
-                        // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
-                        expected_balance_ref_1
-                            .fetch_sub(ws.gas_used_value(), std::sync::atomic::Ordering::SeqCst);
-                    })),
+                    outcome: TxOutcome::Applied(Box::new(
+                        move |ws: UnmeteredStateWrapper<WorkingSet<S>>| {
+                            // Check that the attestation succeeded
+                            assert!(ws.inner().events().iter().any(|event| matches!(
+                                event.downcast_ref::<Event<S>>(),
+                                Some(Event::ProcessedValidAttestation { .. })
+                            )));
+                            // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
+                            expected_balance_ref_1.fetch_sub(
+                                ws.inner().gas_used_value(),
+                                std::sync::atomic::Ordering::SeqCst,
+                            );
+                        },
+                    )),
                     message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
                 }],
                 post_hook: Box::new(|_| {}),
             },
             SlotTestCase {
                 transaction_test_cases: vec![TxTestCase {
-                    outcome: TxOutcome::Applied(Box::new(move |ws: &mut WorkingSet<S>| {
-                        // Check that the attestation succeeded
-                        assert!(ws.events().iter().any(|event| matches!(
-                            event.downcast_ref::<Event<S>>(),
-                            Some(Event::ProcessedValidAttestation { .. })
-                        )));
-                        // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
-                        expected_balance_ref_2
-                            .fetch_sub(ws.gas_used_value(), std::sync::atomic::Ordering::SeqCst);
-                    })),
+                    outcome: TxOutcome::Applied(Box::new(
+                        move |ws: UnmeteredStateWrapper<WorkingSet<S>>| {
+                            // Check that the attestation succeeded
+                            assert!(ws.inner().events().iter().any(|event| matches!(
+                                event.downcast_ref::<Event<S>>(),
+                                Some(Event::ProcessedValidAttestation { .. })
+                            )));
+                            // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
+                            expected_balance_ref_2.fetch_sub(
+                                ws.inner().gas_used_value(),
+                                std::sync::atomic::Ordering::SeqCst,
+                            );
+                        },
+                    )),
                     message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
                 }],
                 post_hook: Box::new(move |state_checkpoint| {
@@ -255,11 +270,13 @@ fn test_burn_on_invalid_attestation() {
     let mut attestation_setup =
         move |message: &mut <AttesterIncentives<S, MockDaSpec> as Module>::CallMessage,
               _root: <<S as Spec>::Storage as Storage>::Root,
-              state: &mut <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState| {
+              mut state: UnmeteredStateWrapper<
+            <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState,
+        >| {
             if message == &DUMMY_CALL_MESSAGE {
                 let next_slot = last_attested_slot + 1;
-                let mut attestation =
-                    create_attestation(next_slot, &attester_address, state).unwrap_infallible();
+                let mut attestation = create_attestation(next_slot, &attester_address, &mut state)
+                    .unwrap_infallible();
 
                 match round {
                     0 => {
@@ -296,12 +313,12 @@ fn test_burn_on_invalid_attestation() {
             // Run any empty slot, and check that the attester has the correct bond amount from genesis
             SlotTestCase::<_, AttesterIncentives<S, MockDaSpec>, _> {
                 transaction_test_cases: vec![],
-                post_hook: Box::new(move |ws| {
+                post_hook: Box::new(move |ws: &mut StateCheckpoint<S>| {
                     // Assert that genesis yielded the expected bond amount
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
                             .bonded_attesters
-                            .get(&attester_address, &mut ws.to_unmetered())
+                            .get(&attester_address, ws)
                             .unwrap_infallible()
                             .unwrap_or_default(),
                         TEST_DEFAULT_USER_STAKE,
@@ -319,11 +336,7 @@ fn test_burn_on_invalid_attestation() {
                     // Assert that the attester was not slashed
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
-                            .get_bond_amount(
-                                attester_address,
-                                Role::Attester,
-                                &mut state.to_unmetered()
-                            )
+                            .get_bond_amount(attester_address, Role::Attester, state)
                             .unwrap_infallible()
                             .value,
                         TEST_DEFAULT_USER_STAKE,
@@ -334,7 +347,7 @@ fn test_burn_on_invalid_attestation() {
                 TxTestCase {
                     outcome: TxOutcome::<RT>::Applied(Box::new(|state| {
                         // Check that the attestation succeeded
-                        assert!(state.events().iter().any(|event| matches!(
+                        assert!(state.inner().events().iter().any(|event| matches!(
                             event.downcast_ref::<Event<S>>(),
                             Some(Event::ProcessedValidAttestation { .. })
                         )));
@@ -342,20 +355,16 @@ fn test_burn_on_invalid_attestation() {
                     message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
                 },
                 TxTestCase {
-                    outcome: TxOutcome::<RT>::Applied(Box::new(move |state| {
+                    outcome: TxOutcome::<RT>::Applied(Box::new(move |mut state| {
                         // Check that the attestation resulted in slashing
-                        assert!(state.events().iter().any(|event| matches!(
+                        assert!(state.inner().events().iter().any(|event| matches!(
                             event.downcast_ref::<Event<S>>(),
                             Some(Event::UserSlashed { .. })
                         )));
                         // Assert that the attester was slashed
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(
-                                    attester_address,
-                                    Role::Attester,
-                                    &mut state.to_unmetered()
-                                )
+                                .get_bond_amount(attester_address, Role::Attester, &mut state)
                                 .unwrap_infallible()
                                 .value,
                             0,
@@ -365,7 +374,7 @@ fn test_burn_on_invalid_attestation() {
                         assert!(
                             AttesterIncentives::<S, MockDaSpec>::default()
                                 .bad_transition_pool
-                                .get(&2, &mut state.to_unmetered())
+                                .get(&2, &mut state)
                                 .unwrap_infallible()
                                 .is_none(),
                             "The transition should not exist in the pool"
@@ -376,18 +385,14 @@ fn test_burn_on_invalid_attestation() {
             ]),
             SlotTestCase::from_txs(vec![
                 TxTestCase {
-                    outcome: TxOutcome::<RT>::Applied(Box::new(move |state| {
-                        assert!(state.events().iter().any(|event| matches!(
+                    outcome: TxOutcome::<RT>::Applied(Box::new(move |mut state| {
+                        assert!(state.inner().events().iter().any(|event| matches!(
                             event.downcast_ref::<Event<S>>(),
                             Some(Event::BondedAttester { .. })
                         )));
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(
-                                    attester_address,
-                                    Role::Attester,
-                                    &mut state.to_unmetered()
-                                )
+                                .get_bond_amount(attester_address, Role::Attester, &mut state)
                                 .unwrap_infallible()
                                 .value,
                             TEST_DEFAULT_USER_STAKE,
@@ -399,20 +404,16 @@ fn test_burn_on_invalid_attestation() {
                     ),
                 },
                 TxTestCase {
-                    outcome: TxOutcome::<RT>::Applied(Box::new(move |state| {
+                    outcome: TxOutcome::<RT>::Applied(Box::new(move |mut state| {
                         // Check that the attestation resulted in slashing
-                        assert!(state.events().iter().any(|event| matches!(
+                        assert!(state.inner().events().iter().any(|event| matches!(
                             event.downcast_ref::<Event<S>>(),
                             Some(Event::UserSlashed { .. })
                         )));
                         // Assert that the attester was slashed
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(
-                                    attester_address,
-                                    Role::Attester,
-                                    &mut state.to_unmetered()
-                                )
+                                .get_bond_amount(attester_address, Role::Attester, &mut state)
                                 .unwrap_infallible()
                                 .value,
                             0,
@@ -421,7 +422,7 @@ fn test_burn_on_invalid_attestation() {
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
                                 .bad_transition_pool
-                                .get(&2, &mut state.to_unmetered())
+                                .get(&2, &mut state)
                                 .unwrap_infallible(),
                             Some(TEST_DEFAULT_USER_STAKE),
                             "The transition should not exist in the pool"

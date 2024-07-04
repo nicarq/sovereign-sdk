@@ -14,7 +14,8 @@ use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionCons
 use sov_modules_api::{
     BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis, GenesisState,
     MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, ProofReceipt, RawTx,
-    RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad, TypedEvent, WorkingSet,
+    RuntimeEventProcessor, Spec, StateAccessor, StateCheckpoint, TxScratchpad, TypedEvent,
+    UnmeteredStateWrapper, WorkingSet,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::DaSpec;
@@ -27,8 +28,10 @@ use super::traits::{
     TestRuntimeHookOverrides,
 };
 
-pub type WorkingSetClosure<T> = Box<dyn FnOnce(&mut <T as TxHooks>::TxState) + Send + Sync>;
-pub type StateRootClosure<Call, Root, Ws> = dyn FnMut(&mut Call, Root, &mut Ws) + Send + Sync;
+pub type WorkingSetClosure<T> =
+    Box<dyn FnOnce(UnmeteredStateWrapper<<T as TxHooks>::TxState>) + Send + Sync>;
+pub type StateRootClosure<Call, Root, Ws> =
+    dyn FnMut(&mut Call, Root, UnmeteredStateWrapper<Ws>) + Send + Sync;
 pub type EndSlotClosure<T> = Box<dyn FnMut(&mut T) + Send + Sync>;
 
 /// A queue of closures which can be executed in a `Runtime`'s post transaction hook.
@@ -117,7 +120,7 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> TestRuntimeHookOverrides<S,
                 .next()
                 .expect("Must provide one closure per transaction");
 
-            closure(working_set);
+            closure(working_set.to_unmetered());
         }
         Ok(())
     }

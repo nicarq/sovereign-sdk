@@ -1,3 +1,4 @@
+- #906 Simplifies the `UnmeteredStateWrapper` wrapper struct and adds it in the testing framework as a wrapper of the `TxState` trait to prevent test maintainers from charging gas in the hooks.
 -  #889 Add `rewarded_addresses` filed to `openapi::AggregatedProofPublicData` 
 -  #869 Add prover address to `AggregatedProofPublicData` 
 - #904 removes the need to specify event keys when calling `self.emit_event`, because the event key is now generated automatically based on the module name and the event variant (e.g. `Bank/TokenCreated`). You can use `self.emit_event_with_custom_key` to emit events with custom keys.

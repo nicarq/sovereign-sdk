@@ -1,5 +1,4 @@
 use std::convert::Infallible;
-use std::marker::PhantomData;
 
 use sov_state::{
     CompileTimeNamespace, IsValueCached, SlotKey, SlotValue, StateCodec, StateItemCodec,
@@ -13,13 +12,12 @@ use crate::state::accessors::seal::CachedAccessor;
 use crate::{ProvenStateAccessor, Spec, StateReaderAndWriter, WorkingSet};
 use crate::{StateReader, StateWriter};
 
-pub struct UnmeteredStateWrapper<'a, T: CachedAccessor<N>, N: CompileTimeNamespace> {
+pub struct UnmeteredStateWrapper<'a, T> {
     pub(crate) inner: &'a mut T,
-    pub(crate) phantom: PhantomData<N>,
 }
 
 impl<'a, T: CachedAccessor<N>, N: CompileTimeNamespace> CachedAccessor<N>
-    for UnmeteredStateWrapper<'a, T, N>
+    for UnmeteredStateWrapper<'a, T>
 {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         self.inner.get_cached(key)
@@ -34,8 +32,20 @@ impl<'a, T: CachedAccessor<N>, N: CompileTimeNamespace> CachedAccessor<N>
     }
 }
 
-impl<'a, Inner: CachedAccessor<N>, N: CompileTimeNamespace> StateReader<N>
-    for UnmeteredStateWrapper<'a, Inner, N>
+impl<'a, Inner> UnmeteredStateWrapper<'a, Inner> {
+    pub fn inner(&self) -> &Inner {
+        self.inner
+    }
+
+    #[cfg(feature = "test-utils")]
+    pub fn new(inner: &'a mut Inner) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, Inner, N: CompileTimeNamespace> StateReader<N> for UnmeteredStateWrapper<'a, Inner>
+where
+    Inner: StateReader<N>,
 {
     type Error = Infallible;
 
@@ -59,8 +69,9 @@ impl<'a, Inner: CachedAccessor<N>, N: CompileTimeNamespace> StateReader<N>
     }
 }
 
-impl<'a, Inner: CachedAccessor<N>, N: CompileTimeNamespace> StateWriter<N>
-    for UnmeteredStateWrapper<'a, Inner, N>
+impl<'a, Inner, N: CompileTimeNamespace> StateWriter<N> for UnmeteredStateWrapper<'a, Inner>
+where
+    Inner: StateWriter<N>,
 {
     type Error = Infallible;
 
@@ -77,7 +88,7 @@ impl<'a, Inner: CachedAccessor<N>, N: CompileTimeNamespace> StateWriter<N>
 
 #[cfg(feature = "native")]
 impl<'a, N: ProvableCompileTimeNamespace, S: Spec> ProvenStateAccessor<N>
-    for UnmeteredStateWrapper<'a, WorkingSet<S>, N>
+    for UnmeteredStateWrapper<'a, WorkingSet<S>>
 where
     WorkingSet<S>: StateReaderAndWriter<N>,
 {
