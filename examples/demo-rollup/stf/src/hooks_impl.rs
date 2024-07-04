@@ -2,9 +2,8 @@ use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::{
     AccessoryStateReaderAndWriter, BatchWithId, Spec, StateCheckpoint, WorkingSet,
 };
-use sov_modules_stf_blueprint::BatchSequencerOutcome;
 use sov_rollup_interface::da::DaSpec;
-use sov_sequencer_registry::SequencerRegistry;
+use sov_sequencer_registry::{BatchSequencerOutcome, SequencerRegistry};
 use tracing::info;
 
 use crate::runtime::Runtime;
@@ -37,12 +36,12 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
     ) {
         // Since we need to make sure the `StfBlueprint` doesn't depend on the module system, we need to
         // convert the `SequencerOutcome` structures manually.
-        match result {
+        match &result {
             BatchSequencerOutcome::Rewarded(amount) => {
                 info!(%sender, ?amount, "Rewarding sequencer");
                 <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
                     &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Rewarded(amount.into()),
+                    result,
                     sender,
                     state,
                 );
@@ -52,7 +51,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
                 info!(%sender, ?reason, "Slashing sequencer");
                 <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
                     &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Slashed,
+                    result,
                     sender,
                     state,
                 );

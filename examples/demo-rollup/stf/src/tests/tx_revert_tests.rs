@@ -4,12 +4,13 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS}
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{ApiStateAccessor, Batch, PrivateKey, PublicKey, Spec, StateCheckpoint};
-use sov_modules_stf_blueprint::{BatchSequencerOutcome, SkippedReason, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{SkippedReason, StfBlueprint, TxEffect};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_sequencer_registry::BatchSequencerOutcome;
 use sov_state::DefaultStorageSpec;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::{has_tx_events, new_test_blob_from_batch, SchemaBatch, TestHasher, TestSpec};

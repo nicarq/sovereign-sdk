@@ -16,10 +16,10 @@ use sov_modules_api::{
     MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, ProofReceipt, RawTx,
     RuntimeEventProcessor, Spec, StateCheckpoint, TxScratchpad, TypedEvent, WorkingSet,
 };
-use sov_modules_stf_blueprint::{BatchSequencerOutcome, Runtime};
+use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::stf::ProofOutcome;
-use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
+use sov_sequencer_registry::{BatchSequencerOutcome, SequencerRegistry, SequencerStakeMeter};
 use sov_state::Storage;
 
 use super::traits::{

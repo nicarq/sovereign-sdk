@@ -25,6 +25,8 @@ pub use genesis::*;
 pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_modules_api::capabilities::FatalError;
+use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     CallResponse, Context, Error, EventEmitter, GenesisState, InfallibleStateAccessor, ModuleId,
     ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue, TxState,
@@ -61,6 +63,27 @@ pub enum AllowedSequencerError {
     /// The sequencer is not registered.
     #[error("The sequencer is not registered")]
     NotRegistered,
+}
+
+/// Represents the different outcomes that can occur for a sequencer after batch processing.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum BatchSequencerOutcome {
+    /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
+    Rewarded(SequencerReward),
+    /// Sequencer loses its deposit and receives no reward.
+    Slashed(
+        /// Reason why sequencer was slashed.
+        FatalError,
+    ),
+    /// Batch was ignored, sequencer deposit left untouched.
+    Ignored(
+        /// Reason why the batch was ignored.
+        String,
+    ),
+    /// The sequencer is not rewardable for the submitted batch.
+    /// This occurs when an unregistered sequencer submits a batch directly to the DA.
+    /// The batch might be applied but there is nobody to reward.
+    NotRewardable,
 }
 
 /// Reason why sequencer was slashed.
@@ -101,21 +124,6 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
     /// So this sequencer can guarantee soft confirmation time for transactions
     #[state]
     pub(crate) preferred_sequencer: StateValue<Da::Address, BcsCodec>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-/// Represents the different outcomes that can occur for a sequencer after batch processing.
-pub enum SequencerOutcome {
-    /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
-    Rewarded(u64),
-    /// Sequencer loses its deposit and receives no reward
-    Slashed,
-    /// Batch was ignored, sequencer deposit left untouched.
-    Ignored,
-    /// The sequencer is not rewardable for the submitted batch.
-    /// This occurs when the batch that was processed came from an unregistered sequencer.
-    /// The batch might be applied but there is nobody to reward.
-    NotRewardable,
 }
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for SequencerRegistry<S, Da> {

@@ -2,13 +2,14 @@ use std::convert::Infallible;
 
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::hooks::ApplyBatchHooks;
+use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{Batch, BatchWithId};
 use sov_test_utils::{TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::tests::helpers::{
     generate_address, Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, UNKNOWN_SEQUENCER_DA_ADDRESS,
 };
-use crate::{AllowedSequencer, SequencerOutcome, SequencerRegistry};
+use crate::{AllowedSequencer, BatchSequencerOutcome, SequencerRegistry};
 
 type S = sov_test_utils::TestSpec;
 
@@ -123,7 +124,7 @@ fn end_batch_hook_success() -> Result<(), Infallible> {
 
     <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
         &test_sequencer.registry,
-        SequencerOutcome::Rewarded(0),
+        BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
         &genesis_sequencer_da_address,
         &mut state,
     );

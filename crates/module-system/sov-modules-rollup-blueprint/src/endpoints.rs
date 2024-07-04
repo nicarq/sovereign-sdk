@@ -3,13 +3,12 @@ use sov_ledger_apis::LedgerRoutes;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{RuntimeEventProcessor, Spec};
-use sov_modules_stf_blueprint::{
-    BatchSequencerOutcome, Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents,
-};
+use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
+use sov_sequencer_registry::BatchSequencerOutcome;
 use tokio::sync::watch;
 use tower_http::cors::CorsLayer;
 

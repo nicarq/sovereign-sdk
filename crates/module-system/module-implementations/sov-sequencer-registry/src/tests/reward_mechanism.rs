@@ -2,14 +2,14 @@ use std::convert::Infallible;
 
 use sov_bank::{IntoPayable, Payable, ReserveGasError};
 use sov_modules_api::hooks::ApplyBatchHooks;
-use sov_modules_api::transaction::PriorityFeeBips;
+use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward};
 use sov_modules_api::{
     Batch, BatchWithId, Gas, GasArray, GasMeter, GasUnit, ModuleInfo, RawTx, Spec,
 };
 use sov_test_utils::{generate_empty_tx, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use super::helpers::{TestSequencer, S};
-use crate::SequencerOutcome;
+use crate::BatchSequencerOutcome;
 
 /// Tests that the sequencer gets correctly rewarded when it processes a batch and:
 /// - the `GasEnforcer` capability is correctly used (hence the module has enough funds to pay for the reward)
@@ -106,7 +106,9 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
 
     // We refund the tip to the sequencer account in the end batch hook
     sequencer_test.registry.end_batch_hook(
-        SequencerOutcome::Rewarded(registry_balance_after_refund - registry_balance_after_genesis),
+        BatchSequencerOutcome::Rewarded(SequencerReward(
+            registry_balance_after_refund - registry_balance_after_genesis,
+        )),
         &seq_da_address,
         &mut checkpoint,
     );

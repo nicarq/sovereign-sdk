@@ -16,11 +16,12 @@ use sov_modules_api::{
     RawTx, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::stf::StoredEvent;
+use sov_sequencer_registry::BatchSequencerOutcome;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ApplyTxResult, BatchSequencerOutcome, Runtime, SkippedReason, TxEffect, TxProcessingError,
-    TxProcessingErrorReason, TxReceiptContents,
+    ApplyTxResult, Runtime, SkippedReason, TxEffect, TxProcessingError, TxProcessingErrorReason,
+    TxReceiptContents,
 };
 
 type ApplyBatchResult<T> = Result<T, ApplyBatchError>;

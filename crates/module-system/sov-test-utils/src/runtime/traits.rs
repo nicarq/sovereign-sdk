@@ -9,8 +9,7 @@ use sov_modules_api::{
     BatchWithId, Context, DaSpec, DispatchCall, Genesis, RuntimeEventProcessor, Spec,
     StateCheckpoint, WorkingSet,
 };
-use sov_modules_stf_blueprint::BatchSequencerOutcome;
-use sov_sequencer_registry::SequencerRegistry;
+use sov_sequencer_registry::{BatchSequencerOutcome, SequencerRegistry};
 
 use super::wrapper::EndSlotClosure;
 use super::WorkingSetClosure;
@@ -119,24 +118,9 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
         sender: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        // Since we need to make sure the `StfBlueprint` doesn't depend on the module system, we need to
-        // convert the `SequencerOutcome` structures manually.
-        let seqencer_outcome = match result {
-            BatchSequencerOutcome::Rewarded(amount) => {
-                sov_sequencer_registry::SequencerOutcome::Rewarded(amount.into())
-            }
-            BatchSequencerOutcome::Ignored(_) => sov_sequencer_registry::SequencerOutcome::Ignored,
-            BatchSequencerOutcome::Slashed(_reason) => {
-                sov_sequencer_registry::SequencerOutcome::Slashed
-            }
-            BatchSequencerOutcome::NotRewardable => {
-                sov_sequencer_registry::SequencerOutcome::NotRewardable
-            }
-        };
-
         <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
             self.sequencer_registry(),
-            seqencer_outcome,
+            result,
             sender,
             state_checkpoint,
         );
