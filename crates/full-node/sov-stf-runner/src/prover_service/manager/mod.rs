@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
-use sov_db::ledger_db::LedgerDb;
-use sov_db::schema::SchemaBatch;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::BlobData;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use sov_rollup_interface::zk::Zkvm;
-use tracing::debug;
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
@@ -21,7 +18,6 @@ mod types;
 pub struct ProofManager<Ps: ProverService> {
     da_service: Arc<Ps::DaService>,
     prover_service: Option<Ps>,
-    ledger_db: LedgerDb,
     outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
     proofs_to_create: UnAggregatedProofList<Ps>,
     config: ProofManagerConfig,
@@ -35,27 +31,25 @@ where
     pub fn new(
         da_service: Arc<Ps::DaService>,
         prover_service: Option<Ps>,
-        ledger_db: LedgerDb,
         outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
         config: ProofManagerConfig,
     ) -> Self {
         Self {
             da_service,
             prover_service,
-            ledger_db,
             outer_code_commitment,
             proofs_to_create: UnAggregatedProofList::new(),
             config,
         }
     }
 
-    /// Materializes all [`AggregatedProof`] posted on DA
-    /// into [`SchemaBatch`] that can be saved to the database.
-    pub(crate) async fn materialize_aggregated_proofs(
+    /// Verifies raw proofs and returns collection of verified aggregated proofs.
+    /// Stops on first invalid proof
+    pub(crate) async fn verify_aggregated_proofs(
         &self,
         raw_proofs: impl Iterator<Item = Vec<u8>>,
-    ) -> Result<SchemaBatch, anyhow::Error> {
-        let mut aggregated_proofs_data = SchemaBatch::new();
+    ) -> anyhow::Result<Vec<AggregatedProof>> {
+        let mut aggregated_proofs_data: Vec<AggregatedProof> = Vec::new();
         for raw_aggregated_proof in raw_proofs {
             // Verify aggregated proof before storing it into the database.
             // TODO #815
@@ -65,21 +59,17 @@ where
             ) {
                 Ok(public_data) => public_data,
                 Err(err) => {
-                    debug!(?err, "Received invalid aggregated proof for the DA");
+                    tracing::info!(?err, "Received invalid aggregated proof for the DA");
                     return Ok(aggregated_proofs_data);
                 }
             };
 
-            let this_height_data =
-                self.ledger_db
-                    .materialize_aggregated_proof(AggregatedProof::new(
-                        SerializedAggregatedProof {
-                            raw_aggregated_proof,
-                        },
-                        public_data,
-                    ))?;
-
-            aggregated_proofs_data.merge(this_height_data);
+            aggregated_proofs_data.push(AggregatedProof::new(
+                SerializedAggregatedProof {
+                    raw_aggregated_proof,
+                },
+                public_data,
+            ));
         }
 
         Ok(aggregated_proofs_data)
@@ -94,7 +84,7 @@ where
             Ps::Witness,
             <Ps::DaService as DaService>::Spec,
         >,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         if let Some(prover_service) = self.prover_service.as_ref() {
             let block_hash = transition_data.da_block_header().hash();
             // Save the transition for later proving. This is temporarily redundant
