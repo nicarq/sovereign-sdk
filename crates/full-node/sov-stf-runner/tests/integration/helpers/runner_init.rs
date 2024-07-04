@@ -177,7 +177,6 @@ pub fn initialize_runner(
     let proof_manager = ProofManager::new(
         da_service.clone(),
         prover_service,
-        ledger_db.clone(),
         MockCodeCommitment::default(),
         rollup_config.proof_manager,
     );

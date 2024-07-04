@@ -25,6 +25,8 @@ pub use config::{from_toml_path, ProofManagerConfig, RollupConfig, RunnerConfig,
 #[cfg(feature = "native")]
 pub use runner::*;
 
+#[cfg(feature = "native")]
+mod state_manager;
 /// Implements the `StateTransitionVerifier` type for checking the validity of a state transition
 pub mod verifier;
 

@@ -244,7 +244,6 @@ mod blueprint {
             let proof_manager = ProofManager::new(
                 da_service.clone(),
                 prover_service,
-                ledger_db.clone(),
                 self.create_outer_code_commitment(),
                 rollup_config.proof_manager,
             );
