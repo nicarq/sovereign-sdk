@@ -4092,7 +4092,6 @@ dependencies = [
  "lazy_static",
  "memchr",
  "parking_lot",
- "protobuf",
  "thiserror",
 ]
 
@@ -4118,13 +4117,13 @@ dependencies = [
 
 [[package]]
 name = "proptest-derive"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf16337405ca084e9c78985114633b6827711d22b9e6ef6c6c0d665eb3f0b6e"
+checksum = "6ff7ff745a347b87471d859a377a9a404361e7efc2a971d73424a6d183c0fc77"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -4179,12 +4178,6 @@ checksum = "3235c33eb02c1f1e212abdbe34c78b264b038fb58ca612664343271e36e55ffe"
 dependencies = [
  "prost",
 ]
-
-[[package]]
-name = "protobuf"
-version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
 name = "protobuf-src"
@@ -4677,7 +4670,7 @@ dependencies = [
 [[package]]
 name = "rockbound"
 version = "1.0.0"
-source = "git+https://github.com/sovereign-Labs/rockbound?rev=e9aa4ae6a21ba623c68a76533af1470c44381c25#e9aa4ae6a21ba623c68a76533af1470c44381c25"
+source = "git+https://github.com/sovereign-Labs/rockbound?rev=0604c000b41dfe9392e54cfff5fc68b7bdcd3b22#0604c000b41dfe9392e54cfff5fc68b7bdcd3b22"
 dependencies = [
  "anyhow",
  "byteorder",

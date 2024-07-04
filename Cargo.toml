@@ -124,7 +124,7 @@ sov-db = { path = "crates/full-node/sov-db", default-features = false, version =
 # Dependencies maintained by Sovereign
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "dc554608895439022f1f11809d2d7a5f76f9a13f" }
 reltester = { git = "https://github.com/sovereign-labs/reltester.git", branch = "main" }
-rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "e9aa4ae6a21ba623c68a76533af1470c44381c25" }
+rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "0604c000b41dfe9392e54cfff5fc68b7bdcd3b22" }
 # External dependencies
 async-trait = "0.1.71"
 anyhow = { version = "1.0.68" }
@@ -151,7 +151,7 @@ once_cell = { version = "1.19.0", default-features = false, features = [
 ] }
 prometheus = { version = "0.13.3", default-features = false }
 proptest = { version = "1.3", default-features = false, features = ["alloc"] }
-proptest-derive = "0.4.0"
+proptest-derive = "0.5.0"
 rand = "0.8"
 rayon = "1.9.0"
 reqwest = { version = "0.12", features = [
