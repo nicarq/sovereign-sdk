@@ -1,7 +1,5 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
-#[cfg(any(feature = "test-utils", feature = "evm"))]
-use std::marker::PhantomData;
 
 use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
@@ -34,14 +32,11 @@ use crate::{Gas, GasMeter, GasMeteringError, Spec};
 /// ```
 pub trait StateAccessor: StateReaderAndWriter<User> {
     #[cfg(any(feature = "test-utils", feature = "evm"))]
-    fn to_unmetered(&mut self) -> UnmeteredStateWrapper<Self, User>
+    fn to_unmetered(&mut self) -> UnmeteredStateWrapper<Self>
     where
         Self: Sized,
     {
-        UnmeteredStateWrapper {
-            inner: self,
-            phantom: PhantomData,
-        }
+        UnmeteredStateWrapper { inner: self }
     }
 }
 
@@ -386,7 +381,7 @@ impl<T: AccessoryStateReader> StateReader<Accessory> for T {
 }
 
 /// Provides write-only access to a particular namespace
-pub trait StateWriter<N: CompileTimeNamespace> {
+pub trait StateWriter<N: CompileTimeNamespace>: CachedAccessor<N> {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Sets a value in the storage. Basically a wrapper around [`StateWriter::set`].

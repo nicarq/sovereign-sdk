@@ -1,5 +1,4 @@
 //! Runtime state machine definitions.
-
 use sov_state::namespaces::User;
 #[cfg(any(feature = "native", feature = "test-utils"))]
 use sov_state::Storage;

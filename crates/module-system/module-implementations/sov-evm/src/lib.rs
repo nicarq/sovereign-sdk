@@ -33,7 +33,6 @@ use sov_modules_api::{
     UnmeteredStateWrapper,
 };
 use sov_state::codec::BcsCodec;
-use sov_state::User;
 
 use crate::event::Event;
 use crate::evm::db::EvmDb;
@@ -151,7 +150,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
     pub(crate) fn get_db<'a, Ws: StateAccessor>(
         &self,
         state: &'a mut Ws,
-    ) -> EvmDb<UnmeteredStateWrapper<'a, Ws, User>> {
+    ) -> EvmDb<UnmeteredStateWrapper<'a, Ws>> {
         let infallible_state_accessor = state.to_unmetered();
         EvmDb::new(
             self.accounts.clone(),

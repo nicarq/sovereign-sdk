@@ -16,7 +16,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{
     BlobData, CryptoSpec, DaSpec, EncodeCall, Genesis, Module, PrivateKey, RawTx, SlotData, Spec,
-    StateCheckpoint, WorkingSet,
+    StateAccessor, StateCheckpoint, WorkingSet,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
@@ -410,7 +410,7 @@ pub fn run_test_with_setup_fn<RT, S, M>(
 
             for mut msg in msgs_and_priv_keys.into_iter() {
                 if let MessageType::Plain(msg, _) = &mut msg {
-                    tx_setup_fn(msg, prev_state_root, &mut state);
+                    tx_setup_fn(msg, prev_state_root, state.to_unmetered());
                 }
 
                 signed_txs.push(msg.to_raw_tx::<RT>(&mut nonces));
@@ -531,7 +531,8 @@ mod test_rt {
     use sov_kernels::basic::BasicKernelGenesisConfig;
     use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockCodeCommitment;
-    use sov_modules_api::{Address, PrivateKey, WorkingSet};
+    use sov_modules_api::prelude::UnwrapInfallible;
+    use sov_modules_api::{Address, PrivateKey, UnmeteredStateWrapper, WorkingSet};
     use sov_modules_stf_blueprint::GenesisParams;
 
     use super::*;
@@ -544,14 +545,17 @@ mod test_rt {
     // Tests the test setup by running the value setter module and checking if the value was set correctly
     fn test_value_setter_tx_success() {
         let value_to_set = 18;
-        let assertion = Box::new(move |state: &mut WorkingSet<TestSpec>| {
-            let value_setter = ValueSetter::<TestSpec>::default();
-            let value = value_setter
-                .value
-                .get(state)
-                .expect("We should be able to get a value from the state");
-            assert_eq!(value, Some(value_to_set));
-        });
+        let assertion = Box::new(
+            move |mut state: UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
+                let value_setter = ValueSetter::<TestSpec>::default();
+                let value = value_setter
+                    .value
+                    .get(&mut state)
+                    .unwrap_infallible()
+                    .expect("We should be able to get a value from the state");
+                assert_eq!(value, value_to_set);
+            },
+        );
 
         run_value_setter_txs_with_assertions(vec![(value_to_set, assertion)]);
     }
@@ -563,14 +567,17 @@ mod test_rt {
     // failed to handle panics.
     fn test_value_setter_tx_bad_assertion() {
         let value_to_set = 18;
-        let bad_assertion = Box::new(move |state: &mut WorkingSet<TestSpec>| {
-            let value_setter = ValueSetter::<TestSpec>::default();
-            let value = value_setter
-                .value
-                .get(state)
-                .expect("We should be able to get a value from the state");
-            assert_eq!(value, Some(value_to_set + 1)); // This will fail!
-        });
+        let bad_assertion = Box::new(
+            move |mut state: UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
+                let value_setter = ValueSetter::<TestSpec>::default();
+                let value = value_setter
+                    .value
+                    .get(&mut state)
+                    .unwrap_infallible()
+                    .expect("We should be able to get a value from the state");
+                assert_eq!(value, value_to_set + 1); // This will fail!
+            },
+        );
 
         run_value_setter_txs_with_assertions(vec![
             (value_to_set, bad_assertion),
