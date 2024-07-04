@@ -534,7 +534,7 @@ impl<GU: Gas> Display for TransactionConsumption<GU> {
     BorshSerialize,
     BorshDeserialize,
 )]
-pub struct SequencerReward(u64);
+pub struct SequencerReward(pub u64);
 
 impl SequencerReward {
     /// Returns a zero sequencer reward. This can be used to initialize an accumulator to build a sequencer reward.

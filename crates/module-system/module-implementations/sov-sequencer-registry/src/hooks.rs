@@ -1,15 +1,13 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use risc0_cycle_utils::print_cycle_count;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{BatchWithId, Spec, StateCheckpoint};
 
-use crate::{AllowedSequencerError, SequencerOutcome, SequencerRegistry};
+use crate::{AllowedSequencerError, BatchSequencerOutcome, SequencerRegistry};
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegistry<S, Da> {
     type Spec = S;
-    type BatchResult = SequencerOutcome;
+    type BatchResult = BatchSequencerOutcome;
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_batch_hook(
@@ -36,13 +34,13 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ApplyBatchHooks<Da> for SequencerRegi
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
         match result {
-            SequencerOutcome::Rewarded(amount) => {
-                self.reward_sequencer(sender, amount, state_checkpoint);
+            BatchSequencerOutcome::Rewarded(amount) => {
+                self.reward_sequencer(sender, amount.into(), state_checkpoint);
             }
-            SequencerOutcome::Slashed => {
+            BatchSequencerOutcome::Slashed(_) => {
                 self.slash_sequencer(sender, state_checkpoint);
             }
-            SequencerOutcome::Ignored | SequencerOutcome::NotRewardable => {}
+            BatchSequencerOutcome::Ignored(_) | BatchSequencerOutcome::NotRewardable => {}
         };
     }
 }

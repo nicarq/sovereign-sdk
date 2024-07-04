@@ -57,6 +57,7 @@ sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-modules-api = { path = ".", features = ["test-utils"] }
 
 [features]
@@ -71,6 +72,7 @@ arbitrary = [
     "sov-rest-utils/arbitrary",
     "sov-rollup-interface/arbitrary",
     "sov-state/arbitrary",
+    "sov-sequencer-registry/arbitrary"
 ]
 bench = [
     "risc0-cycle-macros",
@@ -79,6 +81,7 @@ bench = [
     "risc0-zkvm-platform",
     "sov-modules-api/bench",
     "sov-state/bench",
+    "sov-sequencer-registry/bench"
 ]
 native = [
     "async-trait",
@@ -100,6 +103,7 @@ native = [
     "tokio",
     "utoipa",
     "utoipa-swagger-ui",
+    "sov-sequencer-registry/native"
 ]
 test-utils = []
 evm = []

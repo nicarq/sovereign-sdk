@@ -9,7 +9,7 @@ mod utils;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    AuthenticationError, FatalError, HasCapabilities, ProofProcessor, RuntimeAuthenticator,
+    AuthenticationError, HasCapabilities, ProofProcessor, RuntimeAuthenticator,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
@@ -21,6 +21,7 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
+use sov_sequencer_registry::BatchSequencerOutcome;
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
 pub use stf_blueprint::{process_tx, BatchReceipt, StfBlueprint, TransactionReceipt};
@@ -88,27 +89,6 @@ impl sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents {
     type Reverted = Error;
     type Skipped = SkippedReason;
     type Successful = ();
-}
-
-/// Represents the different outcomes that can occur for a sequencer after batch processing.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum BatchSequencerOutcome {
-    /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties
-    Rewarded(SequencerReward),
-    /// Sequencer loses its deposit and receives no reward
-    Slashed(
-        /// Reason why sequencer was slashed.
-        FatalError,
-    ),
-    /// Batch was ignored, sequencer deposit left untouched.
-    Ignored(
-        /// Reason why the batch was ignored.
-        String,
-    ),
-    /// The sequencer is not rewardable for the submitted batch.
-    /// This occurs when an unregistered sequencer submits a batch directly to the DA.
-    /// The batch might be applied but there is nobody to reward.
-    NotRewardable,
 }
 
 /// The result of applying a transaction to the state.
