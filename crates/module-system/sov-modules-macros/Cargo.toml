@@ -52,6 +52,9 @@ sov-bank = { workspace = true, features = ["native"] }
 sov-modules-macros = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 
+[build-dependencies]
+anyhow = { workspace = true }
+
 [features]
 default = []
 native = [
