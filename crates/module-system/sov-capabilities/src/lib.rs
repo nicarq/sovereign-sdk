@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
     Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome, ProofReceipt,
-    Spec, StateCheckpoint, Storage, TxScratchpad, WorkingSet,
+    Spec, StateCheckpoint, Storage, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 
@@ -145,7 +145,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         &self,
         auth_data: &Self::AuthorizationData,
         height: u64,
-        state: &mut TxScratchpad<S>,
+        state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
     ) -> Result<Context<S>, anyhow::Error> {
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,

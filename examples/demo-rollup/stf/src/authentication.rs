@@ -9,7 +9,9 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::runtime::capabilities::{
     AuthenticationError, AuthenticationResult, FatalError, RuntimeAuthenticator,
 };
-use sov_modules_api::{DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, RawTx, Spec};
+use sov_modules_api::{
+    DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, RawTx, Spec, UnlimitedGasMeter,
+};
 use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::{Runtime, RuntimeCall};
@@ -39,6 +41,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
     fn authenticate_unregistered(
         &self,
         raw_tx: &RawTx,
+        pre_exec_ws: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
     ) -> AuthenticationResult<
         S,
         Self::Decodable,
@@ -46,9 +49,11 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
         UnregisteredAuthenticationError,
     > {
         let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_modules_api::capabilities::unregistered_authenticate::<S, Runtime<S, Da>>(
-                &raw_tx.data,
-            )?;
+            sov_modules_api::capabilities::authenticate::<
+                S,
+                Runtime<S, Da>,
+                UnlimitedGasMeter<S::Gas>,
+            >(&raw_tx.data, pre_exec_ws)?;
 
         match &runtime_call {
             RuntimeCall::sequencer_registry(sov_sequencer_registry::CallMessage::Register {

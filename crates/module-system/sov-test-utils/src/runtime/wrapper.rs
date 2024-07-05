@@ -15,7 +15,7 @@ use sov_modules_api::{
     BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis, GenesisState,
     MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, ProofReceipt, RawTx,
     RuntimeEventProcessor, Spec, StateAccessor, StateCheckpoint, TxScratchpad, TypedEvent,
-    UnmeteredStateWrapper, WorkingSet,
+    UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::DaSpec;
@@ -309,13 +309,18 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> RuntimeAuthenticator<S>
     fn authenticate_unregistered(
         &self,
         raw_tx: &RawTx,
+        pre_exec_ws: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
     ) -> AuthenticationResult<
         S,
         Self::Decodable,
         Self::AuthorizationData,
         sov_modules_api::capabilities::UnregisteredAuthenticationError,
     > {
-        sov_modules_api::capabilities::unregistered_authenticate::<S, Self>(&raw_tx.data)
+        Ok(sov_modules_api::capabilities::authenticate::<
+            S,
+            Self,
+            UnlimitedGasMeter<S::Gas>,
+        >(&raw_tx.data, pre_exec_ws)?)
     }
 }
 
@@ -524,7 +529,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         &self,
         auth_tx: &Self::AuthorizationData,
         height: u64,
-        _state: &mut TxScratchpad<S>,
+        _state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
     ) -> Result<Context<S>, anyhow::Error> {
         let sender = auth_tx.default_address.clone().unwrap();
         // The tx sender & sequencer are the same entity
