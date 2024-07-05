@@ -235,6 +235,7 @@ where
                     &self.runtime,
                     raw_tx,
                     sequencer_da_address,
+                    gas_price,
                     height,
                     tx_scratchpad,
                 )
@@ -535,16 +536,23 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     runtime: &R,
     raw_tx: &RawTx,
     sequencer_da_address: &D::Address,
+    gas_price: &<S::Gas as Gas>::Price,
     height: u64,
-    mut tx_scratchpad: TxScratchpad<S>,
+    tx_scratchpad: TxScratchpad<S>,
 ) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
-    let (tx, auth_data, message) = match authenticate_unregistered_with_cycle_count(runtime, raw_tx)
-    {
+    let mut pre_exec_working_set =
+        tx_scratchpad.to_pre_exec_working_set(UnlimitedGasMeter::new_with_price(gas_price.clone()));
+
+    let (tx, auth_data, message) = match authenticate_unregistered_with_cycle_count(
+        runtime,
+        raw_tx,
+        &mut pre_exec_working_set,
+    ) {
         Ok(v) => v,
         Err(e) => {
             return Err(TxProcessingError {
                 reason: TxProcessingErrorReason::InvalidUnregisteredTx(e.to_string()),
-                tx_scratchpad,
+                tx_scratchpad: pre_exec_working_set.into(),
             });
         }
     };
@@ -555,12 +563,12 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let ctx = match runtime.capabilities().resolve_unregistered_context(
         &auth_data,
         height,
-        &mut tx_scratchpad,
+        &mut pre_exec_working_set,
     ) {
         Ok(ctx) => ctx,
         Err(e) => {
             return Err(TxProcessingError {
-                tx_scratchpad,
+                tx_scratchpad: pre_exec_working_set.into(),
                 reason: TxProcessingErrorReason::CannotResolveContext {
                     reason: e.to_string(),
                     raw_tx_hash: *raw_tx_hash,
@@ -568,10 +576,6 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             });
         }
     };
-
-    // We don't do any pre execution checks that need to be metered.
-    // The transaction is coming from a user not a registered sequencer
-    let mut pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(UnlimitedGasMeter::new());
 
     // Check that the transaction isn't a duplicate
     if let Err(e) =
@@ -634,13 +638,14 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 fn authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     runtime: &R,
     raw_tx: &RawTx,
+    pre_exec_working_set: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
 ) -> AuthenticationResult<
     S,
     <R as RuntimeAuthenticator<S>>::Decodable,
     <R as RuntimeAuthenticator<S>>::AuthorizationData,
     UnregisteredAuthenticationError,
 > {
-    runtime.authenticate_unregistered(raw_tx)
+    runtime.authenticate_unregistered(raw_tx, pre_exec_working_set)
 }
 
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:

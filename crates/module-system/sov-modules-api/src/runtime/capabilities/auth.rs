@@ -23,12 +23,11 @@
 //! 3. The [`RuntimeAuthenticator::authenticate_unregistered`] method accepts bytes and parses them
 //!    into a structure relevant for registering unregistered sequencers without going through a
 //!    registered sequencer. In the normal case the raw bytes will be a Sovereign Rollup
-//!    transaction containing a `Register` call message. This method will also not charge sequencer gas for
-//!    the operations it performs as there isn't a staked sequencer in this context. The
-//!    implication of this is that misbehaving transaction submissions can't be penalized, thus
+//!    transaction containing a `Register` call message. This method will also accept an unmetered
+//!    pre-execution working set that will accumulate costs to charge the sender if execution
+//!    succeeds. The implication of this is that misbehaving transaction submissions can't be penalized, thus
 //!    there is a need to limit the amount of unregistered transactions we process.
 
-use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::common::HexHash;
@@ -37,7 +36,6 @@ use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::stf::RawTx;
 use thiserror::Error;
 
-use crate::digest::Digest;
 use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
 };
@@ -67,13 +65,12 @@ pub trait RuntimeAuthenticator<S: Spec> {
     /// Authenticates raw transactions that are submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
     ///
-    /// This function differs to it's registered counterpart in that it doesn't accept a state
-    /// access parameter that charges gas to a sequencer (because there isn't one) as well as other
-    /// checks that are not relevant to tx authentication in the context of unregistered
-    /// sequencers.
+    /// This function differs to it's registered counterpart in that it typically accepts an
+    /// unlimited gas meter to account for the fact there isn't a staked sequencer.
     fn authenticate_unregistered(
         &self,
         tx: &RawTx,
+        state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
     ) -> AuthenticationResult<
         S,
         Self::Decodable,
@@ -105,7 +102,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         &self,
         auth_data: &Self::AuthorizationData,
         height: u64,
-        state: &mut TxScratchpad<S>,
+        state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
     ) -> Result<Context<S>, anyhow::Error>;
 
     /// Prevents duplicate transactions from running.
@@ -295,34 +292,19 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 /// Authenticate raw sov-transaction.
 pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>, Meter: GasMeter<S::Gas>>(
     mut raw_tx: &[u8],
-    stake_meter: &mut PreExecWorkingSet<S, Meter>,
+    state: &mut PreExecWorkingSet<S, Meter>,
 ) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>> {
     let raw_tx_hash = MeteredHasher::<
         S::Gas,
         PreExecWorkingSet<S, Meter>,
         <S::CryptoSpec as CryptoSpec>::Hasher,
-    >::digest(raw_tx, stake_meter)
+    >::digest(raw_tx, state)
     .map_err(|e| AuthenticationError::Invalid(e.to_string()))?;
 
-    let tx =
-        <Transaction<S> as MeteredBorshDeserialize<S::Gas>>::deserialize(&mut raw_tx, stake_meter)
-            .map_err(|e| {
-                AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
-            })?;
-
-    verify_and_decode_tx::<S, D>(raw_tx_hash, tx, stake_meter)
-}
-
-/// Authenticate raw sov-transaction in the context of an unregistered sequencer.
-pub fn unregistered_authenticate<S: Spec, D: DispatchCall<Spec = S>>(
-    mut raw_tx: &[u8],
-) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, UnregisteredAuthenticationError> {
-    let raw_tx_hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(raw_tx).into();
-    let tx = <Transaction<S> as BorshDeserialize>::deserialize(&mut raw_tx).map_err(|e| {
-        UnregisteredAuthenticationError::FatalError(FatalError::DeserializationFailed(
-            e.to_string(),
-        ))
+    let tx = <Transaction<S> as MeteredBorshDeserialize<S::Gas>>::deserialize(&mut raw_tx, state)
+        .map_err(|e| {
+        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
     })?;
 
-    verify_and_decode_tx::<S, D>(raw_tx_hash, tx, &mut UnlimitedGasMeter::new()).map_err(Into::into)
+    verify_and_decode_tx::<S, D>(raw_tx_hash, tx, state)
 }
