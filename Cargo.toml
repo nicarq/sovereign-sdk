@@ -77,6 +77,7 @@ manual_ok_or = "deny"
 doc_link_with_quotes = "deny"
 match_same_arms = "deny"
 semicolon_if_nothing_returned = "deny"
+float_arithmetic = "deny" # Can cause subtle bugs due to different behavior between native and zkVM execution.
 
 #map_err_ignore = "warn"
 #doc_markdown = "warn"
