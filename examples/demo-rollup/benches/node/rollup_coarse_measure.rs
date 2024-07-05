@@ -1,3 +1,5 @@
+#![allow(clippy::float_arithmetic)]
+
 #[macro_use]
 extern crate prettytable;
 

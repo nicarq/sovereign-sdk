@@ -1,3 +1,5 @@
+#![allow(clippy::float_arithmetic)]
+
 use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

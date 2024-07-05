@@ -266,7 +266,7 @@ impl<S: sov_modules_api::Spec> NonFungibleToken<S> {
 
         self.owners.set(&id, context.sender(), state);
 
-        self.emit_event(state, "nft_mint", Event::Mint { id });
+        self.emit_event(state, Event::Mint { id });
         Ok(sov_modules_api::CallResponse::default())
     }
 

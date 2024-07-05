@@ -1,3 +1,5 @@
+#![allow(clippy::float_arithmetic)]
+
 mod datagen;
 
 use std::collections::HashMap;
