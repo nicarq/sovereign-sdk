@@ -87,4 +87,5 @@ native = [
     "tokio",
     "toml",
     "tracing",
+    "sov-metrics/native"
 ]
