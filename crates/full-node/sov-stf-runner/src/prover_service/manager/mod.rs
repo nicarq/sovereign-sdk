@@ -8,7 +8,6 @@ use sov_rollup_interface::zk::Zkvm;
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
-use crate::config::ProofManagerConfig;
 use crate::prover_service::AggregatedProofPublicData;
 use crate::{ProverService, StateTransitionInfo};
 
@@ -20,7 +19,7 @@ pub struct ProofManager<Ps: ProverService> {
     prover_service: Option<Ps>,
     outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
     proofs_to_create: UnAggregatedProofList<Ps>,
-    config: ProofManagerConfig,
+    aggregated_proof_block_jump: usize,
 }
 
 impl<Ps: ProverService> ProofManager<Ps>
@@ -32,14 +31,14 @@ where
         da_service: Arc<Ps::DaService>,
         prover_service: Option<Ps>,
         outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
-        config: ProofManagerConfig,
+        aggregated_proof_block_jump: usize,
     ) -> Self {
         Self {
             da_service,
             prover_service,
             outer_code_commitment,
             proofs_to_create: UnAggregatedProofList::new(),
-            config,
+            aggregated_proof_block_jump,
         }
     }
 
@@ -105,8 +104,7 @@ where
                 .await;
 
             // If we've covered enough blocks for the aggregate proof, generate and submit it to DA
-            if self.proofs_to_create.current_proof_jump() >= self.config.aggregated_proof_block_jump
-            {
+            if self.proofs_to_create.current_proof_jump() >= self.aggregated_proof_block_jump {
                 self.proofs_to_create.close_newest_proof();
                 let metadata = self.proofs_to_create.take_oldest();
                 let agg_proof = self

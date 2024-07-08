@@ -27,10 +27,6 @@ pub const ROLLUP_BATCH_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_BATCH_N
 /// The rollup stores the zk proofs in the namespace b"sov-test-p" on Celestia.
 pub const ROLLUP_PROOF_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_PROOF_NAMESPACE_RAW);
 
-/// The address of the prover.
-// TODO: #815 this value will be read form a config file.
-pub const PROVER_ADDRESS: &str = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx";
-
 /// Default initialization of logging
 pub fn initialize_logging() {
     tracing_subscriber::registry()

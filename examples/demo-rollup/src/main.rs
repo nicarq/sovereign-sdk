@@ -3,10 +3,12 @@ use std::path::PathBuf;
 use anyhow::Context as _;
 use clap::Parser;
 use demo_stf::genesis_config::GenesisPaths;
+use sha2::Sha256;
 use sov_demo_rollup::{initialize_logging, CelestiaDemoRollup, MockDemoRollup};
 use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::execution_mode::Native;
+use sov_modules_api::Address;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::debug;
@@ -103,7 +105,7 @@ async fn new_rollup_with_celestia_da(
 ) -> Result<Rollup<CelestiaDemoRollup<Native>, Native>, anyhow::Error> {
     debug!(config_path = rollup_config_path, "Starting Celestia rollup");
 
-    let rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
+    let rollup_config: RollupConfig<Address<Sha256>, sov_celestia_adapter::CelestiaConfig> =
         from_toml_path(rollup_config_path).context("Failed to read rollup configuration")?;
 
     let kernel_genesis = BasicKernelGenesisConfig {
@@ -117,8 +119,8 @@ async fn new_rollup_with_celestia_da(
         )?,
     };
 
-    let mock_rollup = CelestiaDemoRollup::<Native>::default();
-    mock_rollup
+    let celestia_rollup = CelestiaDemoRollup::<Native>::default();
+    celestia_rollup
         .create_new_rollup(
             rt_genesis_paths,
             kernel_genesis,
@@ -136,8 +138,8 @@ async fn new_rollup_with_mock_da(
 ) -> Result<Rollup<MockDemoRollup<Native>, Native>, anyhow::Error> {
     debug!(config_path = rollup_config_path, "Starting mock rollup");
 
-    let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
-        .with_context(|| {
+    let rollup_config: RollupConfig<Address<Sha256>, MockDaConfig> =
+        from_toml_path(rollup_config_path).with_context(|| {
             format!(
                 "Failed to read rollup configuration from {}",
                 rollup_config_path

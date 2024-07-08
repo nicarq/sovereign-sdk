@@ -1,3 +1,4 @@
+- #913 Read prover address from file configuration file.
 - #906 Simplifies the `UnmeteredStateWrapper` wrapper struct and adds it in the testing framework as a wrapper of the `TxState` trait to prevent test maintainers from charging gas in the hooks.
 -  #889 Add `rewarded_addresses` filed to `openapi::AggregatedProofPublicData` 
 -  #869 Add prover address to `AggregatedProofPublicData` 
