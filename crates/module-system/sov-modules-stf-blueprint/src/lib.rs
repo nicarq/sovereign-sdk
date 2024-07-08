@@ -19,6 +19,7 @@ use sov_modules_api::{
     BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
     RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
 };
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_sequencer_registry::BatchSequencerOutcome;
@@ -115,7 +116,7 @@ pub enum TxProcessingErrorReason {
     /// The transaction was not applied because it didn't pass the pre-execution gas checks
     /// (from the `GasEnforcer::try_reserve_gas` capability).
     /// In this case, the sequencer should be charged the amount of gas used for the pre-execution checks.
-    #[error("The transaction was not applied because it didn't pass the pre-execution gas checks, reason: {reason}, tx hash: {raw_tx_hash:?}.")]
+    #[error("The transaction was not applied because it didn't pass the pre-execution gas checks, reason: {reason}, tx hash: {}.", HexHash::new(*raw_tx_hash))]
     CannotReserveGas {
         /// The reason why this error was raised.
         reason: String,
@@ -123,7 +124,7 @@ pub enum TxProcessingErrorReason {
         raw_tx_hash: [u8; 32],
     },
     /// The transaction was not applied because it was a duplicate.
-    #[error("The transaction was not applied because it had an invalid nonce, reason: {reason}, tx hash: {raw_tx_hash:?}.")]
+    #[error("The transaction was not applied because it had an invalid nonce, reason: {reason}, tx hash: {}.", HexHash::new(*raw_tx_hash))]
     Nonce {
         /// The reason why this error was raised.
         reason: String,
@@ -132,7 +133,7 @@ pub enum TxProcessingErrorReason {
     },
 
     /// The transaction was not applied because the `Context` could not be resolved.
-    #[error("The transaction was not applied because the `Context` could not be resolved, reason: {reason}, tx hash: {raw_tx_hash:?}.")]
+    #[error("The transaction was not applied because the `Context` could not be resolved, reason: {reason}, tx hash: {}.", HexHash::new(*raw_tx_hash))]
     CannotResolveContext {
         /// The reason why this error was raised.
         reason: String,
