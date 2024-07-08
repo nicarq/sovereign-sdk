@@ -1,12 +1,14 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
+use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::{
     MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
-use sov_modules_api::{BlobData, RawTx};
+use sov_modules_api::{Address, BlobData, RawTx};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
@@ -116,7 +118,7 @@ pub fn initialize_runner(
     >,
     TestNode,
 ) {
-    let rollup_config = RollupConfig::<MockDaConfig> {
+    let rollup_config = RollupConfig::<_, MockDaConfig> {
         storage: StorageConfig {
             path: path.to_path_buf(),
         },
@@ -135,6 +137,10 @@ pub fn initialize_runner(
         da: MockDaConfig::instant_with_sender(da_service.da_service().sequencer_address()),
         proof_manager: ProofManagerConfig {
             aggregated_proof_block_jump,
+            prover_address: Address::<Sha256>::from_str(
+                "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
+            )
+            .expect("Prover address is not valid"),
         },
     };
 
@@ -178,7 +184,7 @@ pub fn initialize_runner(
         da_service.clone(),
         prover_service,
         MockCodeCommitment::default(),
-        rollup_config.proof_manager,
+        rollup_config.proof_manager.aggregated_proof_block_jump,
     );
     (
         StateTransitionRunner::new(

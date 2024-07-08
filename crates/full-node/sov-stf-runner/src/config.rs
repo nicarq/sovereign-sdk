@@ -37,14 +37,16 @@ pub struct StorageConfig {
 
 /// Prover service configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Copy, JsonSchema)]
-pub struct ProofManagerConfig {
+pub struct ProofManagerConfig<Address> {
     /// The "distance"  measured in the number of blocks between two consecutive aggregated proofs.
     pub aggregated_proof_block_jump: usize,
+    /// The prover receives rewards to this address.
+    pub prover_address: Address,
 }
 
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
-pub struct RollupConfig<DaServiceConfig> {
+pub struct RollupConfig<Address, DaServiceConfig> {
     /// Currently rollup config runner only supports storage path parameter
     pub storage: StorageConfig,
     /// Runner own configuration.
@@ -52,7 +54,7 @@ pub struct RollupConfig<DaServiceConfig> {
     /// Data Availability service configuration.
     pub da: DaServiceConfig,
     /// Proof manager configuration.
-    pub proof_manager: ProofManagerConfig,
+    pub proof_manager: ProofManagerConfig<Address>,
 }
 
 /// Reads toml file as a specific type.
@@ -79,7 +81,9 @@ mod tests {
     use std::path::PathBuf;
     use std::str::FromStr;
 
+    use sha2::Sha256;
     use sov_celestia_adapter::verifier::address::CelestiaAddress;
+    use sov_modules_api::Address;
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -111,12 +115,14 @@ mod tests {
             bind_port = 12346
             [proof_manager]
             aggregated_proof_block_jump = 22
+            prover_address = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
         "#;
 
         let config_file = create_config_from(config);
 
-        let config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
+        let config: RollupConfig<Address<Sha256>, sov_celestia_adapter::CelestiaConfig> =
             from_toml_path(config_file.path()).unwrap();
+
         let expected = RollupConfig {
             runner: RunnerConfig {
                 genesis_height: 31337,
@@ -146,6 +152,10 @@ mod tests {
             },
             proof_manager: ProofManagerConfig {
                 aggregated_proof_block_jump: 22,
+                prover_address: Address::from_str(
+                    "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
+                )
+                .unwrap(),
             },
         };
         assert_eq!(config, expected);

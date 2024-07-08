@@ -1,19 +1,23 @@
 use std::net::SocketAddr;
 use std::path::Path;
+use std::str::FromStr;
 
 use demo_stf::genesis_config::GenesisPaths;
+use sha2::Sha256;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::Spec;
+use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::FullNodeBlueprint;
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig,
     StorageConfig,
 };
 use tokio::sync::oneshot;
+
+const PROVER_ADDRESS: &str = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx";
 
 pub fn read_private_keys<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -66,6 +70,8 @@ pub async fn start_rollup(
         da: da_config,
         proof_manager: ProofManagerConfig {
             aggregated_proof_block_jump: 1,
+            prover_address: Address::<Sha256>::from_str(PROVER_ADDRESS)
+                .expect("Prover address is not valid"),
         },
     };
 

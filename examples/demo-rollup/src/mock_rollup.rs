@@ -1,10 +1,7 @@
-use std::str::FromStr;
-
 use async_trait::async_trait;
 use demo_stf::authentication::ModAuth;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
-use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::storable::service::StorableMockDaService;
@@ -13,7 +10,7 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
 use sov_modules_api::higher_kinded_types::Generic;
-use sov_modules_api::{Address, CryptoSpec, Spec, Zkvm};
+use sov_modules_api::{CryptoSpec, Spec, Zkvm};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
 use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
@@ -26,8 +23,6 @@ use sov_sequencer::SequencerDb;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverService, RollupConfig, RollupProverConfig};
 use tokio::sync::watch;
-
-use crate::PROVER_ADDRESS;
 
 /// Rollup with MockDa
 #[derive(Default)]
@@ -84,7 +79,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
     ) -> anyhow::Result<RuntimeEndpoints> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<
             Self,
@@ -111,7 +106,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
     async fn create_da_service(
         &self,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
     ) -> Self::DaService {
         DaServiceWithRetries::new_fast(
             StorableMockDaService::from_config(rollup_config.da.clone()).await,
@@ -121,7 +116,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
     async fn create_prover_service(
         &self,
         prover_config: RollupProverConfig,
-        _rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let inner_vm = Risc0Host::new(risc0::MOCK_DA_ELF);
@@ -138,13 +133,13 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
             prover_config,
             zk_storage,
             CodeCommitment::default(),
-            Address::<Sha256>::from_str(PROVER_ADDRESS).expect("Prover address is not valid"),
+            rollup_config.proof_manager.prover_address,
         )
     }
 
     fn create_storage_manager(
         &self,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
     ) -> anyhow::Result<Self::StorageManager> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),

@@ -5,7 +5,7 @@ use schemars::schema_for;
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_spec::DefaultSpec;
-use sov_modules_api::ModuleCallJsonSchema;
+use sov_modules_api::{ModuleCallJsonSchema, Spec};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::execution_mode;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
@@ -51,7 +51,7 @@ fn main() -> io::Result<()> {
 }
 
 fn store_rollup_config_json_schema(filename: &str) -> io::Result<()> {
-    let schema = schema_for!(RollupConfig<serde_json::Value>);
+    let schema = schema_for!(RollupConfig<<S as Spec>::Address, serde_json::Value>);
     let schema_string = serde_json::to_string_pretty(&schema)?;
 
     let mut file = File::create(filename)?;

@@ -9,10 +9,12 @@ use anyhow::Context;
 use criterion::{criterion_group, criterion_main, Criterion};
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
+use sha2::Sha256;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::SchemaBatch;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
+use sov_modules_api::Address;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rng_da_service::{RngDaService, RngDaSpec};
@@ -36,7 +38,7 @@ fn rollup_bench(_bench: &mut Criterion) {
         .sample_size(10)
         .measurement_time(Duration::from_secs(20));
     let rollup_config_path = "benches/node/rollup_config.toml".to_string();
-    let mut rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
+    let mut rollup_config: RollupConfig<Address<Sha256>, sov_celestia_adapter::CelestiaConfig> =
         from_toml_path(rollup_config_path)
             .context("Failed to read rollup configuration")
             .unwrap();

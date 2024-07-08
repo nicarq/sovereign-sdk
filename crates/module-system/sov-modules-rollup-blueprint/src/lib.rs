@@ -114,7 +114,7 @@ mod blueprint {
             ledger_db: &LedgerDb,
             sequencer_db: &SequencerDb,
             da_service: &Self::DaService,
-            rollup_config: &RollupConfig<Self::DaConfig>,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
         ) -> Result<RuntimeEndpoints, anyhow::Error>;
 
         /// Creates GenesisConfig from genesis files.
@@ -126,7 +126,7 @@ mod blueprint {
                 Self::DaSpec,
             >>::GenesisPaths,
             kernel_genesis: <Self::Kernel as Kernel<Self::Spec, Self::DaSpec>>::GenesisConfig,
-            _rollup_config: &RollupConfig<Self::DaConfig>,
+            _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
         ) -> anyhow::Result<
             GenesisParams<
                 <Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
@@ -147,14 +147,14 @@ mod blueprint {
         /// Creates instance of [`DaService`].
         async fn create_da_service(
             &self,
-            rollup_config: &RollupConfig<Self::DaConfig>,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
         ) -> Self::DaService;
 
         /// Creates instance of [`ProverService`].
         async fn create_prover_service(
             &self,
             prover_config: RollupProverConfig,
-            rollup_config: &RollupConfig<Self::DaConfig>,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
             da_service: &Self::DaService,
         ) -> Self::ProverService;
 
@@ -162,7 +162,7 @@ mod blueprint {
         /// Panics if initialization fails.
         fn create_storage_manager(
             &self,
-            rollup_config: &RollupConfig<Self::DaConfig>,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
         ) -> Result<Self::StorageManager, anyhow::Error>;
 
         /// Creates instance of a LedgerDb.
@@ -184,7 +184,7 @@ mod blueprint {
                 Self::Spec ,
                 Self::DaSpec,
             >>::GenesisConfig,
-            rollup_config: RollupConfig<Self::DaConfig>,
+            rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
             prover_config: Option<RollupProverConfig>,
         ) -> Result<Rollup<Self, M>, anyhow::Error>
         where
@@ -245,7 +245,7 @@ mod blueprint {
                 da_service.clone(),
                 prover_service,
                 self.create_outer_code_commitment(),
-                rollup_config.proof_manager,
+                rollup_config.proof_manager.aggregated_proof_block_jump,
             );
 
             let runner = StateTransitionRunner::new(
