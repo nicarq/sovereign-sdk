@@ -18,7 +18,8 @@ impl<S: Spec> Nonces<S> {
 
         anyhow::ensure!(
             sender_nonce == nonce,
-            "Tx bad nonce, expected: {}, but found: {}",
+            "Tx bad nonce for credential id {}, expected: {}, but found: {}",
+            credential_id,
             nonce,
             sender_nonce
         );
