@@ -473,4 +473,9 @@ where
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         self.state_manager.get_state_root()
     }
+
+    /// Retrieve a handle for the underlying DA service
+    pub fn da_service(&self) -> Arc<Da> {
+        self.da_service.clone()
+    }
 }

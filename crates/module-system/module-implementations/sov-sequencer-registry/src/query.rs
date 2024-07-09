@@ -6,7 +6,7 @@ use sov_modules_api::{ApiStateAccessor, Spec};
 
 use crate::SequencerRegistry;
 
-/// The response type to the `getSequencerDddress` RPC method.
+/// The response type to the `getSequencerAddress` RPC method.
 #[cfg_attr(
     feature = "native",
     derive(serde::Deserialize, serde::Serialize, Clone)
