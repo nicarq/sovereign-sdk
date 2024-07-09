@@ -163,11 +163,16 @@ impl<S: sov_modules_api::Spec> Token<S> {
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         if from == to {
+            tracing::debug!("Token transfer succeeded because it was transferring tokens to self.");
             return Ok(());
         }
-        let from_balance = self
-            .decrease_balance_checked(from, amount, state)
-            .with_context(|| format!("Incorrect balance on={} for token={}", from, self.name))?;
+
+        if amount == 0 {
+            tracing::debug!("Token transfer succeeded because the transfer amount was zero.");
+            return Ok(());
+        }
+
+        let from_balance = self.decrease_balance_checked(from, amount, state)?;
 
         let to_balance = self
             .balances
@@ -272,7 +277,10 @@ impl<S: sov_modules_api::Spec> Token<S> {
 
         let new_balance = match balance.checked_sub(amount) {
             Some(from_balance) => from_balance,
-            None => bail!("Insufficient funds for {}", from),
+            None => bail!(format!(
+                "Insufficient balance from={from}, got={balance}, needed={amount}, for token={}",
+                self.name
+            )),
         };
         Ok(new_balance)
     }

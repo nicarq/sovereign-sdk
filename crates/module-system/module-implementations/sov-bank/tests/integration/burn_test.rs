@@ -31,7 +31,7 @@ fn burn_deployed_tokens() -> Result<(), Infallible> {
 
     let bank_config = BankConfig::<S> {
         gas_token_config: GasTokenConfig {
-            token_name,
+            token_name: token_name.clone(),
             address_and_balances: vec![(minter, initial_balance)],
             authorized_minters: vec![minter],
         },
@@ -143,7 +143,15 @@ fn burn_deployed_tokens() -> Result<(), Infallible> {
         ),
         message_1
     );
-    assert_eq!(format!("Insufficient funds for {}", minter), message_2);
+    assert_eq!(
+        format!(
+            "Insufficient balance from={minter}, got={}, needed={}, for token={}",
+            initial_balance - burn_amount,
+            initial_balance + 10,
+            token_name
+        ),
+        message_2,
+    );
 
     // ---
     // Try to burn non-existing token
