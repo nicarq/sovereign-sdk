@@ -1,4 +1,4 @@
-error: The constant named `TEST_ARRAY_OF_U8` inside `$WORKSPACE/constants.test.json` should be a bech32 string, but it's not a string in the first place: `[11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+error: The constant named `TEST_ARRAY_OF_U8` inside `$WORKSPACE/constants.testing.toml` should be a bech32 string, but it's not a string in the first place: `[11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
        11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11]`
  --> tests/integration/constants/bech32_constant_not_a_string.rs:4:50
   |

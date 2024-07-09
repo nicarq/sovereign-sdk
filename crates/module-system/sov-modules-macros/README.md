@@ -35,7 +35,7 @@ let call_result = RT::decode_call(message_data)
 
 ```
 
-#### `constants.json`
+#### `constants.toml`
 
 This crate enables the embedding of constants into the compiled binary, allowing runtime developers to set parameters such as gas prices without modifying the module code.
 
@@ -45,29 +45,25 @@ The `gas_price` attribute will specify the gas price charged by module execution
 
 The `config` attribute will act as a placeholder for runtime configuration.
 
-Here is an example of a `constants.json` file:
+Here is an example of a `constants.toml` file:
 
-```json
-{
-  "comment": "Sovereign SDK constants",
-  "gas": {
-    "Bank": {
-      "create_token": [4, 4],
-      "transfer": [5, 5],
-      "burn": [2, 2],
-      "mint": [2, 2],
-      "freeze": [1, 1]
-    }
-  },
-  "constants": {
-    "DEFERRED_SLOTS_COUNT": 2
-  }
-}
+```toml
+# Sovereign SDK constants
+
+[gas.Bank]
+create_token = [4, 4]
+transfer = [5, 5]
+burn = [2, 2]
+mint = [2, 2]
+freeze = [1, 1]
+
+[constants]
+DEFERRED_SLOTS_COUNT = 2
 ```
 
-The default location of the `constants.json` file is in the root directory of the current workspace. Nonetheless, this can be superseded by setting the environment variable `CONSTANTS_MANIFEST` during compilation.
+The default location of the `constants.toml` file is in the root directory of the current workspace. Nonetheless, this can be superseded by setting the environment variable `CONSTANTS_MANIFEST` during compilation.
 
-The following command will assert a `/foo/bar/Cargo.toml` file exists, and will use `/foo/bar/constants.json`.
+The following command will assert a `/foo/bar/Cargo.toml` file exists, and will use `/foo/bar/constants.toml`.
 
 ```sh
 CONSTANTS_MANIFEST=/foo/bar cargo build

@@ -269,41 +269,31 @@ fn syn_lit_to_expr(lit: syn::Lit) -> syn::Expr {
     syn::Expr::Lit(syn::ExprLit { attrs: vec![], lit })
 }
 
-/// Converts a JSON value into a Rust expression of the most appropriate type.
+/// Converts a TOML value into a Rust expression of the most appropriate type.
 ///
 /// Nulls and objects are not supported because they don't map naturally to any
 /// [`std`] Rust type.
-pub fn json_value_to_expr(value: &serde_jsonc::Value, span: Span) -> syn::Result<syn::Expr> {
-    use serde_jsonc::Value;
+pub fn toml_value_to_expr(value: &toml::Value, span: Span) -> syn::Result<syn::Expr> {
+    use toml::Value;
 
-    let error = |json_type: &str| {
-        syn::Error::new(span, format!("failed to convert JSON value into Rust expression; its JSON value type ({}) is not supported: `{:?}`", json_type, value))
+    let error = |toml_type: &str| {
+        syn::Error::new(span, format!("failed to convert TOML value into Rust expression; its TOML value type ({}) is not supported: `{:?}`", toml_type, value))
     };
 
     match value {
-        Value::Null => Err(error("null")),
-        Value::Object(_) => Err(error("object")),
-        Value::Bool(b) => Ok(syn_lit_to_expr(syn::Lit::Bool(syn::LitBool::new(*b, span)))),
-        Value::Number(num) => {
-            if num.is_f64() {
-                Ok(syn_lit_to_expr(syn::Lit::Float(syn::LitFloat::new(
-                    &num.to_string(),
-                    span,
-                ))))
-            } else if num.is_i64() {
-                Ok(syn_lit_to_expr(syn::Lit::Int(syn::LitInt::new(
-                    &num.to_string(),
-                    span,
-                ))))
-            } else {
-                Err(error("number not within supported range"))
-            }
-        }
+        Value::Table(_) => Err(error("table")),
+        Value::Float(_) => Err(error("float")),
+        Value::Datetime(_) => Err(error("datetime")),
+        Value::Boolean(b) => Ok(syn_lit_to_expr(syn::Lit::Bool(syn::LitBool::new(*b, span)))),
+        Value::Integer(num) => Ok(syn_lit_to_expr(syn::Lit::Int(syn::LitInt::new(
+            &num.to_string(),
+            span,
+        )))),
         Value::String(s) => Ok(syn_lit_to_expr(syn::Lit::Str(syn::LitStr::new(s, span)))),
         Value::Array(arr) => {
             let values: Vec<syn::Expr> = arr
                 .iter()
-                .map(|v| json_value_to_expr(v, span))
+                .map(|v| toml_value_to_expr(v, span))
                 .collect::<syn::Result<_>>()?;
             Ok(syn::Expr::Array(syn::ExprArray {
                 attrs: Vec::new(),
