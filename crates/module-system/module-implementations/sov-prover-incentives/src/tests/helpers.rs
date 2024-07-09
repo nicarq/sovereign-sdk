@@ -7,7 +7,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{Transaction, TxDetails};
 use sov_modules_api::{
     Address, CryptoSpec, GasArray, GasMeter, InfallibleStateAccessor, KernelModule,
     KernelWorkingSet, Module, ModuleInfo, PrivateKey, Spec, StateAccessor, StateCheckpoint,
@@ -97,15 +97,17 @@ pub(crate) fn simulate_chain_state_execution(
         // We also need to call the `GasEnforcer` hook to ensure that the reward pool is populated.
         let tx_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
 
-        let tx = Transaction::<S>::new(
+        let tx = Transaction::<S>::new_with_details(
             tx_key.pub_key(),
             vec![],
             tx_key.sign(&[]),
-            0,
-            0.into(),
-            MAX_TX_GAS_AMOUNT,
-            Some(max_gas_used_per_step.clone()),
             i.into(),
+            TxDetails {
+                max_priority_fee_bips: 0.into(),
+                max_fee: MAX_TX_GAS_AMOUNT,
+                gas_limit: Some(max_gas_used_per_step.clone()),
+                chain_id: 0,
+            },
         )
         .into();
 

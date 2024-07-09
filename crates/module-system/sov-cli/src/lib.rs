@@ -8,7 +8,7 @@ use directories::BaseDirs;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub use sov_modules_api::clap;
-use sov_modules_api::transaction::{PriorityFeeBips, UnsignedTransaction};
+use sov_modules_api::transaction::{PriorityFeeBips, TxDetails, UnsignedTransaction};
 use sov_modules_api::Spec;
 
 /// Types and functionality storing and loading the persistent state of the wallet
@@ -40,20 +40,10 @@ pub struct UnsignedTransactionWithoutNonce<S: Spec, Tx>
 where
     Tx: BorshSerialize + BorshDeserialize,
 {
-    /// The underlying transaction
-    pub tx: Tx,
-    /// The ID of the target chain
-    pub chain_id: u64,
-    /// The maximum priority fee that can be paid for this transaction expressed in bips.
-    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
-    pub max_priority_fee_bips: PriorityFeeBips,
-    /// The maximum fee that can be paid for this transaction expressed as the gas token amount
-    pub max_fee: u64,
-    /// The estimated gas usage of the transaction
-    /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
-    /// across the different gas dimensions. If provided, this quantity will be used along
-    /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
-    pub gas_limit: Option<S::Gas>,
+    // The underlying transaction
+    tx: Tx,
+    // Details related to fees and gas handling.
+    details: TxDetails<S>,
 }
 
 impl<S: Spec, Tx> UnsignedTransactionWithoutNonce<S, Tx>
@@ -70,10 +60,12 @@ where
     ) -> Self {
         Self {
             tx,
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            gas_limit,
+            details: TxDetails {
+                max_priority_fee_bips,
+                max_fee,
+                gas_limit,
+                chain_id,
+            },
         }
     }
 
@@ -82,11 +74,11 @@ where
     pub fn with_nonce(&self, nonce: u64) -> UnsignedTransaction<S> {
         UnsignedTransaction::new(
             borsh::to_vec(&self.tx).unwrap(),
-            self.chain_id,
-            self.max_priority_fee_bips,
-            self.max_fee,
+            self.details.chain_id,
+            self.details.max_priority_fee_bips,
+            self.details.max_fee,
             nonce,
-            self.gas_limit.clone(),
+            self.details.gas_limit.clone(),
         )
     }
 }

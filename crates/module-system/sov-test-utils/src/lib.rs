@@ -10,7 +10,7 @@ pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
@@ -147,14 +147,8 @@ pub struct Message<S: Spec, Mod: Module> {
     pub sender_key: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     /// The message content.
     pub content: Mod::CallMessage,
-    /// The ID of the chain.
-    pub chain_id: u64,
-    /// The gas tip for the sequencer.
-    pub max_priority_fee_bips: PriorityFeeBips,
-    /// The gas limit for the transaction execution.
-    pub max_fee: u64,
-    /// The maximum gas price for the transaction execution.
-    pub gas_limit: Option<S::Gas>,
+    /// Data related to fees and gas handling.
+    pub details: TxDetails<S>,
     /// The message nonce.
     pub nonce: u64,
 }
@@ -172,10 +166,12 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
         Self {
             sender_key,
             content,
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            gas_limit,
+            details: TxDetails {
+                chain_id,
+                max_priority_fee_bips,
+                max_fee,
+                gas_limit,
+            },
             nonce,
         }
     }
@@ -186,11 +182,11 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
             &self.sender_key,
             UnsignedTransaction::new(
                 message,
-                self.chain_id,
-                self.max_priority_fee_bips,
-                self.max_fee,
+                self.details.chain_id,
+                self.details.max_priority_fee_bips,
+                self.details.max_fee,
                 self.nonce,
-                self.gas_limit,
+                self.details.gas_limit,
             ),
         )
     }

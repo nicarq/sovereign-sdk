@@ -242,11 +242,11 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     tx: Transaction<S>,
     meter: &mut impl GasMeter<S::Gas>,
 ) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, AuthenticationError> {
-    if tx.chain_id != CHAIN_ID {
+    if tx.details.chain_id != CHAIN_ID {
         return Err(AuthenticationError::FatalError(
             FatalError::InvalidChainId {
                 expected: CHAIN_ID,
-                got: tx.chain_id,
+                got: tx.details.chain_id,
             },
         ));
     }
