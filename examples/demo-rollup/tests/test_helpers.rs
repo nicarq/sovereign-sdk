@@ -10,7 +10,7 @@ use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{Address, Spec};
-use sov_modules_rollup_blueprint::FullNodeBlueprint;
+use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig,
     StorageConfig,
@@ -40,14 +40,12 @@ pub fn read_private_keys<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
     key_and_address
 }
 
-pub async fn start_rollup(
-    rpc_reporting_channel: oneshot::Sender<SocketAddr>,
-    rest_reporting_channel: oneshot::Sender<SocketAddr>,
+pub async fn construct_rollup(
     rt_genesis_paths: GenesisPaths,
     kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: RollupProverConfig,
     da_config: MockDaConfig,
-) {
+) -> Rollup<MockDemoRollup<Native>, Native> {
     let temp_dir = tempfile::tempdir().unwrap();
     let temp_path = temp_dir.path();
 
@@ -85,7 +83,7 @@ pub async fn start_rollup(
         .expect("Failed to parse chain_state genesis config"),
     };
 
-    let rollup = mock_demo_rollup
+    mock_demo_rollup
         .create_new_rollup(
             &rt_genesis_paths,
             kernel_genesis,
@@ -93,12 +91,27 @@ pub async fn start_rollup(
             Some(rollup_prover_config),
         )
         .await
-        .unwrap();
+        .unwrap()
+}
 
-    rollup
-        .run_and_report_addr(Some(rpc_reporting_channel), Some(rest_reporting_channel))
-        .await
-        .unwrap();
+pub async fn start_rollup(
+    rpc_reporting_channel: oneshot::Sender<SocketAddr>,
+    rest_reporting_channel: oneshot::Sender<SocketAddr>,
+    rt_genesis_paths: GenesisPaths,
+    kernel_genesis_paths: BasicKernelGenesisPaths,
+    rollup_prover_config: RollupProverConfig,
+    da_config: MockDaConfig,
+) {
+    construct_rollup(
+        rt_genesis_paths,
+        kernel_genesis_paths,
+        rollup_prover_config,
+        da_config,
+    )
+    .await
+    .run_and_report_addr(Some(rpc_reporting_channel), Some(rest_reporting_channel))
+    .await
+    .unwrap();
 }
 
 pub fn get_appropriate_rollup_prover_config() -> RollupProverConfig {

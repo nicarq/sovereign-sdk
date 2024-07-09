@@ -63,6 +63,7 @@ sov-rollup-interface = { workspace = true, features = ["arbitrary"] }
 sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-mock-da = { workspace = true }
 sov-bank = { workspace = true, features = ["native"] }
+sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-accounts = { workspace = true, features = ["native"] }
 sov-nft-module = { workspace = true, features = ["native"] }
 sov-ledger-json-client = { workspace = true }
@@ -109,6 +110,7 @@ bench = [
     "sov-modules-stf-blueprint/bench",
     "sov-risc0-adapter/bench",
     "sov-state/bench",
+    "sov-sequencer-registry/bench"
 ]
 offchain = ["demo-stf/offchain", "sov-nft-module/offchain"]
 

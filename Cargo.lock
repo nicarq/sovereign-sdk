@@ -7953,6 +7953,7 @@ dependencies = [
  "sov-rng-da-service",
  "sov-rollup-interface",
  "sov-sequencer",
+ "sov-sequencer-registry",
  "sov-state",
  "sov-stf-runner",
  "sov-test-utils",
