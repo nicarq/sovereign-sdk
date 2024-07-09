@@ -295,10 +295,12 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_id": 4321,
-  "max_priority_fee_bips": 0,
-  "max_fee": 100000000,
-  "gas_limit": null
+  "details": {
+    "max_priority_fee_bips": 0,
+    "max_fee": 100000000,
+    "gas_limit": null,
+    "chain_id": 4321
+  }
 }
 ```
 

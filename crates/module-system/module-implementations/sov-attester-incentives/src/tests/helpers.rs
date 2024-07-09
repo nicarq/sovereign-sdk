@@ -1,7 +1,7 @@
 use sov_bank::{Bank, BankConfig, GasTokenConfig, IntoPayable, ReserveGasError};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     CryptoSpec, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
@@ -201,15 +201,17 @@ impl ExecutionSimulationVars {
             // We also need to call the `GasEnforcer` hook to ensure that the reward pool is populated.
             let tx_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
 
-            let tx = Transaction::<S>::new(
+            let tx = Transaction::<S>::new_with_details(
                 tx_key.pub_key(),
                 vec![],
                 tx_key.sign(&[]),
-                0,
-                PriorityFeeBips::ZERO,
-                TEST_DEFAULT_MAX_FEE,
-                Some(<S as Spec>::Gas::from_slice(&TEST_DEFAULT_GAS_LIMIT)),
                 i.into(),
+                TxDetails {
+                    max_priority_fee_bips: PriorityFeeBips::ZERO,
+                    max_fee: TEST_DEFAULT_MAX_FEE,
+                    gas_limit: Some(<S as Spec>::Gas::from_slice(&TEST_DEFAULT_GAS_LIMIT)),
+                    chain_id: 0,
+                },
             )
             .into();
 

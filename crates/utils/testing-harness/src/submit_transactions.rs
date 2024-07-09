@@ -37,14 +37,15 @@ pub fn prepare_message_for_submission(
     let nonce = account.nonce;
     let runtime_msg =
         <Runtime<ThisSpec, CelestiaSpec> as EncodeCall<Bank<ThisSpec>>>::encode_call(call_message);
-    let unsigned_tx = UnsignedTransaction {
+    let unsigned_tx = UnsignedTransaction::new(
         runtime_msg,
-        chain_id: config.chain_id,
-        max_priority_fee_bips: PriorityFeeBips::from_percentage(config.priority_fee_percent),
+        config.chain_id,
+        PriorityFeeBips::from_percentage(config.priority_fee_percent),
         max_fee,
         nonce,
-        gas_limit: None,
-    };
+        None,
+    );
+
     let tx = Transaction::<ThisSpec>::new_signed_tx(&account.private_key, unsigned_tx);
     let authed_tx = Auth::encode(borsh::to_vec(&tx).unwrap()).unwrap();
     account.nonce += 1;

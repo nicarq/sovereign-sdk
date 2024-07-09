@@ -78,6 +78,36 @@ impl PriorityFeeBips {
     }
 }
 
+/// Contains details related to fees and gas handling.
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub struct TxDetails<S: Spec> {
+    /// The maximum priority fee that can be paid for this transaction expressed as a basis point percentage of the gas consumed by the transaction.
+    /// Ie if the transaction has consumed `100` gas tokens, and the priority fee is set to `100_000` (10%), the
+    /// gas tip will be `10` tokens.
+    pub max_priority_fee_bips: PriorityFeeBips,
+    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
+    pub max_fee: u64,
+    /// The gas limit of the transaction.
+    /// This is an optional field that can be used to provide a limit of the gas usage of the transaction
+    /// across the different gas dimensions. If provided, this quantity will be used along
+    /// with the current gas price (`gas_limit *_scalar gas_price`) to compute the transaction fee and compare it to the `max_fee`.
+    /// If the scalar product of the gas limit and the gas price is greater than the `max_fee`, the transaction will be rejected.
+    /// Then up to `gas_limit *_scalar gas_price` gas tokens can be spent on gas execution in the transaction execution - if the
+    /// transaction spends more than that amount, it will run out of gas and be reverted.
+    pub gas_limit: Option<S::Gas>,
+    /// The ID of the target chain.
+    pub chain_id: u64,
+}
+
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
 #[derive(
     Debug,
@@ -93,22 +123,8 @@ pub struct Transaction<S: Spec> {
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     pub runtime_msg: Vec<u8>,
-    pub chain_id: u64,
-    /// The maximum priority fee that can be paid for this transaction expressed as a basis point percentage of the gas consumed by the transaction.
-    /// Ie if the transaction has consumed `100` gas tokens, and the priority fee is set to `100_000` (10%), the
-    /// gas tip will be `10` tokens.
-    pub max_priority_fee_bips: PriorityFeeBips,
-    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub max_fee: u64,
-    /// The gas limit of the transaction.
-    /// This is an optional field that can be used to provide a limit of the gas usage of the transaction
-    /// accross the different gas dimensions. If provided, this quantity will be used along
-    /// with the current gas price (`gas_limit *_scalar gas_price`) to compute the transaction fee and compare it to the `max_fee`.
-    /// If the scalar product of the gas limit and the gas price is greater than the `max_fee`, the transaction will be rejected.
-    /// Then up to `gas_limit *_scalar gas_price` gas tokens can be spent on gas execution in the transaction execution - if the
-    /// transaction spends more than that amount, it will run out of gas and be reverted.
-    pub gas_limit: Option<S::Gas>,
     pub nonce: u64,
+    pub details: TxDetails<S>,
 }
 
 /// Errors that can be raised by the [`Transaction::verify`] method.
@@ -166,38 +182,27 @@ impl<S: Spec> Transaction<S> {
         Ok(())
     }
 
-    /// New transaction.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn new_with_details(
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         message: Vec<u8>,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
-        chain_id: u64,
-        max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
-        gas_limit: Option<S::Gas>,
         nonce: u64,
+        details: TxDetails<S>,
     ) -> Self {
         Self {
             signature,
             runtime_msg: message,
             pub_key,
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            gas_limit,
             nonce,
+            details,
         }
     }
 
     fn to_unsigned_transaction(&self) -> UnsignedTransaction<S> {
-        UnsignedTransaction::new(
+        UnsignedTransaction::new_with_details(
             self.runtime_msg.clone(),
-            self.chain_id,
-            self.max_priority_fee_bips,
-            self.max_fee,
             self.nonce,
-            self.gas_limit.clone(),
+            self.details.clone(),
         )
     }
 }
@@ -222,22 +227,12 @@ impl<S: Spec> Transaction<S> {
 /// An unsent transaction with the required data to be submitted to the DA layer
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct UnsignedTransaction<S: Spec> {
-    /// The runtime message
-    pub runtime_msg: Vec<u8>,
-    /// The ID of the target chain
-    pub chain_id: u64,
-    /// The maximum priority fee that can be paid for this transaction expressed in bips.
-    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
-    pub max_priority_fee_bips: PriorityFeeBips,
-    /// The maximum fee that can be paid for this transaction expressed as the gas token amount
-    pub max_fee: u64,
-    /// The nonce
-    pub nonce: u64,
-    /// The estimated gas usage of the transaction
-    /// This is an optional field that can be used to provide an estimate of the gas usage of the transaction
-    /// across the different gas dimensions. If provided, this quantity will be used along
-    /// with the current multi-dimensional gas price to compute the estimated transaction fee and compare it to the `max_fee`
-    pub gas_limit: Option<S::Gas>,
+    // The runtime message
+    runtime_msg: Vec<u8>,
+    // The nonce
+    nonce: u64,
+    // Data related to fees and gas handling.
+    details: TxDetails<S>,
 }
 
 impl<S: Spec> UnsignedTransaction<S> {
@@ -252,11 +247,21 @@ impl<S: Spec> UnsignedTransaction<S> {
     ) -> Self {
         Self {
             runtime_msg,
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
             nonce,
-            gas_limit,
+            details: TxDetails {
+                max_priority_fee_bips,
+                max_fee,
+                gas_limit,
+                chain_id,
+            },
+        }
+    }
+
+    pub const fn new_with_details(runtime_msg: Vec<u8>, nonce: u64, details: TxDetails<S>) -> Self {
+        Self {
+            runtime_msg,
+            nonce,
+            details,
         }
     }
 
@@ -267,15 +272,12 @@ impl<S: Spec> UnsignedTransaction<S> {
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
     ) -> Transaction<S> {
-        Transaction::new(
+        Transaction::new_with_details(
             pub_key,
             self.runtime_msg,
             signature,
-            self.chain_id,
-            self.max_priority_fee_bips,
-            self.max_fee,
-            self.gas_limit.clone(),
             self.nonce,
+            self.details,
         )
     }
 }
@@ -285,10 +287,10 @@ type RawTxHash = [u8; 32];
 impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
     fn from(tx: Transaction<S>) -> Self {
         Self {
-            chain_id: tx.chain_id,
-            max_priority_fee_bips: tx.max_priority_fee_bips,
-            max_fee: tx.max_fee,
-            gas_limit: tx.gas_limit,
+            chain_id: tx.details.chain_id,
+            max_priority_fee_bips: tx.details.max_priority_fee_bips,
+            max_fee: tx.details.max_fee,
+            gas_limit: tx.details.gas_limit,
         }
     }
 }

@@ -50,16 +50,13 @@ pub fn simulate_da_with_revert_msg(admin: TestPrivateKey) -> Vec<RawTx> {
 pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<RawTx> {
     let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key.clone());
     let create_token_message = bank_generator.create_default_messages().remove(0);
-    let tx = Transaction::<S>::new(
+    let tx = Transaction::<S>::new_with_details(
         create_token_message.sender_key.pub_key(),
         <Runtime<S, Da> as EncodeCall<Bank<S>>>::encode_call(create_token_message.content.clone()),
         // Use the signature of an empty message
         key.sign(&[]),
-        create_token_message.chain_id,
-        create_token_message.max_priority_fee_bips,
-        create_token_message.max_fee,
-        create_token_message.gas_limit,
         create_token_message.nonce,
+        create_token_message.details,
     );
     // Overwrite the signature with the signature of the empty message
 
@@ -80,13 +77,10 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<RawTx> {
     let create_token_message = bank_generator.create_default_messages().remove(0);
     let tx = Transaction::<S>::new_signed_tx(
         &create_token_message.sender_key,
-        UnsignedTransaction::<S>::new(
+        UnsignedTransaction::<S>::new_with_details(
             b"not a real call message".to_vec(),
-            create_token_message.chain_id,
-            create_token_message.max_priority_fee_bips,
-            create_token_message.max_fee,
             create_token_message.nonce,
-            create_token_message.gas_limit,
+            create_token_message.details.clone(),
         ),
     );
 
