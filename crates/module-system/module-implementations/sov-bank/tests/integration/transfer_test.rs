@@ -93,7 +93,6 @@ fn transfer_initial_token() -> Result<(), Infallible> {
         let mut chain = err.chain();
         let message_1 = chain.next().unwrap().to_string();
         let message_2 = chain.next().unwrap().to_string();
-        let message_3 = chain.next().unwrap().to_string();
         assert!(chain.next().is_none());
         assert_eq!(
             format!(
@@ -107,14 +106,13 @@ fn transfer_initial_token() -> Result<(), Infallible> {
         );
         assert_eq!(
             format!(
-                "Incorrect balance on={} for token={}",
-                sender_address, token_name
+                "Insufficient balance from={}, got={}, needed={}, for token={}",
+                sender_address,
+                initial_balance - transfer_amount,
+                initial_balance + 1,
+                token_name
             ),
             message_2,
-        );
-        assert_eq!(
-            format!("Insufficient funds for {}", sender_address),
-            message_3,
         );
     }
 
@@ -176,7 +174,6 @@ fn transfer_initial_token() -> Result<(), Infallible> {
         let mut chain = err.chain();
         let message_1 = chain.next().unwrap().to_string();
         let message_2 = chain.next().unwrap().to_string();
-        let message_3 = chain.next().unwrap().to_string();
         assert!(chain.next().is_none());
 
         assert_eq!(
@@ -186,20 +183,12 @@ fn transfer_initial_token() -> Result<(), Infallible> {
             ),
             message_1
         );
-        assert_eq!(
-            format!(
-                "Incorrect balance on={} for token={}",
-                unknown_sender, token_name
-            ),
-            message_2,
-        );
 
         let expected_message_part = format!(
             "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and storage key:",
             token_id
         );
-
-        assert!(message_3.contains(&expected_message_part));
+        assert!(message_2.contains(&expected_message_part));
 
         let receiver_balance_after = query_user_balance(receiver_address, &mut state)?;
         assert_eq!(receiver_balance_before, receiver_balance_after);
