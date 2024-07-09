@@ -1,11 +1,12 @@
 - #927 Refactor common fields in `Transaction`, `UnsignedTransaction` & `Message` into a new `TxDetails` struct.
 - #913 Read prover address from file configuration file.
+- #910 replaces `constants.json` with `constants.toml` and `constants.test.json` with `constants.testing.toml`. The expected file "schema" and contents are the same, just the file format has changed and you'll just need to translate your file contents from JSON to TOML.
 - #906 Simplifies the `UnmeteredStateWrapper` wrapper struct and adds it in the testing framework as a wrapper of the `TxState` trait to prevent test maintainers from charging gas in the hooks.
 -  #889 Add `rewarded_addresses` filed to `openapi::AggregatedProofPublicData` 
 -  #869 Add prover address to `AggregatedProofPublicData` 
 - #904 removes the need to specify event keys when calling `self.emit_event`, because the event key is now generated automatically based on the module name and the event variant (e.g. `Bank/TokenCreated`). You can use `self.emit_event_with_custom_key` to emit events with custom keys.
 - #900 Track & charge pre-execution gas costs during direct sequencer registration.
-- #881 adds blessed constants in the `constants.json` to be used to charge gas in the tests. It also removes an unused method `tx_fixed_cost` that got deprecated with the recent changes in gas. The default value of the `MAX_FEE` in the CLI wallet is now `10_000_000`.
+- #881 adds blessed constants in the `constants.toml` to be used to charge gas in the tests. It also removes an unused method `tx_fixed_cost` that got deprecated with the recent changes in gas. The default value of the `MAX_FEE` in the CLI wallet is now `10_000_000`.
 - #864 Add prover address to `AggregatedProofPublicData` 
 - #885 renames the `rpc.rs` file in the standard SDK module template to `query.rs`.
 - #869 Add prover address to `AggregatedProofPublicData` 
@@ -136,7 +137,7 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
   - Augment the authorization error for the `rawTx` verification with an enum with 2 variants: `FatalError` (sequencer gets slashed for acting maliciously) and `Invalid` (sequencer gets penalized a constant amount from his balance).
   - Remove the `Penalized` variant from the `SequencerOutcome`. This is replaced by the `penalize_sequencer` capability that is called whenever the sequencer gets penalized.
   - Add a `authorize_sequencer` capability that verifies that the sequencer has locked enough tokens to execute the next transaction. Since the sequencer bond can vary between transactions (because he may get penalized), this method needs to be called whenever the sequencer start executing a new transaction.
-- #599 changes the way you define Rust constants which use the `constants.json` file.
+- #599 changes the way you define Rust constants which use the `constants.toml` file.
   Instead of the attribute macro `#[config_constant]`, you'll now use `config_value!`, like this:
 
   ```rust
@@ -319,8 +320,8 @@ while the first VM continues Ato be used for block production. The signature of 
   enough funds to pay for the gas.
 
 - #385 makes the `reward_burn_rate` constant in the `ProverIncentives` module and transforms the associated getters to
-  be infallible. In the future, the reward burn rate will have to be set in the `constants.json` and
-  the `constants.test.json` files and need to be a value in the range [0, 99].
+  be infallible. In the future, the reward burn rate will have to be set in the `constants.toml` and
+  the `constants.testing.toml` files and need to be a value in the range [0, 99].
 
 - #340 moves the Kernels' implementation (currently the `BasicKernel` and the `SoftConfirmationsKernel`) to a
   dedicated `sov-kernel` crate.

@@ -18,9 +18,11 @@ pub fn find_constants_manifest() -> anyhow::Result<Option<PathBuf>> {
     // Despite trybuild being a crate to build tests, it won't set the `test` flag. It isn't
     // setting the `trybuild` flag properly either.
     let filename = if cfg!(test) || env::var_os("CONSTANTS_MANIFEST_TEST_MODE").is_some() {
-        "constants.test.json"
+        // `constants.test.toml` would be better, but Taplo doesn't like it:
+        // <https://github.com/tamasfe/taplo/issues/578>.
+        "constants.testing.toml"
     } else {
-        "constants.json"
+        "constants.toml"
     };
 
     let dir_to_search = env::var_os("CONSTANTS_MANIFEST")
@@ -33,7 +35,7 @@ pub fn find_constants_manifest() -> anyhow::Result<Option<PathBuf>> {
             )
         })?;
 
-    // Iterate up the directory tree until we find a `constants.json` file.
+    // Iterate up the directory tree until we find a `constants.toml` file.
     let mut manifest_path = None;
     let mut dir: &Path = &dir_to_search;
     loop {

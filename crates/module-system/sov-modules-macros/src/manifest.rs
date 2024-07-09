@@ -2,10 +2,10 @@ use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 
 use proc_macro2::{Ident, TokenStream};
-use serde_jsonc::{Map, Value};
 use syn::{PathArguments, Type, TypePath};
+use toml::Value;
 
-use crate::common::json_value_to_expr;
+use crate::common::toml_value_to_expr;
 
 const CONSTANTS_MANIFEST_PATH: Option<&str> = option_env!("CONSTANTS_MANIFEST_PATH");
 
@@ -26,7 +26,7 @@ impl<'a> Manifest<'a> {
     where
         S: AsRef<str>,
     {
-        let value = serde_jsonc::from_str(manifest.as_ref())
+        let value = toml::from_str(manifest.as_ref())
             .map_err(|e| Self::err(&path, parent, format!("failed to parse manifest: {e}")))?;
 
         Ok(Self {
@@ -36,7 +36,7 @@ impl<'a> Manifest<'a> {
         })
     }
 
-    /// Reads a `constants.json` manifest file, walking up the directory tree
+    /// Reads a `constants.toml` manifest file, walking up the directory tree
     /// starting from
     /// [`OUT_DIR`](https://doc.rust-lang.org/cargo/reference/environment-variables.html) until it finds
     /// one.
@@ -46,7 +46,7 @@ impl<'a> Manifest<'a> {
     ///
     /// If the `test` Cargo feature is enabled or the environment variable
     /// `CONSTANTS_MANIFEST_TEST_MODE` is set, the proc-macro will look for a
-    /// file named `constants.test.json` instead.
+    /// file named `constants.testing.toml` instead.
     ///
     /// # Arguments
     ///
@@ -57,7 +57,7 @@ impl<'a> Manifest<'a> {
                 parent.span(),
                 format!(
                     "Failed to find a `{}` file in the current directory or any parent directory",
-                    "constants.json"
+                    "constants.toml"
                 ),
             )
         })?;
@@ -78,9 +78,9 @@ impl<'a> Manifest<'a> {
     }
 
     /// Gets the requested object from the manifest by key
-    fn get_object(&self, field: &Ident, key: &str) -> Result<&Map<String, Value>, syn::Error> {
+    fn get_object(&self, field: &Ident, key: &str) -> syn::Result<&toml::Table> {
         self.value
-            .as_object()
+            .as_table()
             .ok_or_else(|| Self::err(&self.path, field, "manifest is not an object"))?
             .get(key)
             .ok_or_else(|| {
@@ -90,12 +90,12 @@ impl<'a> Manifest<'a> {
                     format!("manifest does not contain a `{key}` attribute"),
                 )
             })?
-            .as_object()
+            .as_table()
             .ok_or_else(|| {
                 Self::err(
                     &self.path,
                     field,
-                    format!("`{key}` attribute of `{field}` is not an object"),
+                    format!("`{key}` attribute of `{field}` is not a table"),
                 )
             })
     }
@@ -110,7 +110,7 @@ impl<'a> Manifest<'a> {
     /// };
     /// ```
     ///
-    /// Where `foo` and `bar` are fields of the json constants file under the located `gas` field.
+    /// Where `foo` and `bar` are fields of the TOML constants file under the located `gas` field.
     ///
     /// The `gas` field resolution will first attempt to query `gas.parent`, and then fallback to
     /// `gas`. They must be objects with arrays of integers as fields.
@@ -118,7 +118,7 @@ impl<'a> Manifest<'a> {
         let root = self.get_object(field, "gas")?;
 
         let root = match root.get(&self.parent.to_string()) {
-            Some(Value::Object(m)) => m,
+            Some(Value::Table(t)) => t,
             Some(_) => {
                 return Err(Self::err(
                     &self.path,
@@ -143,8 +143,8 @@ impl<'a> Manifest<'a> {
                 Value::Array(a) => a
                     .iter()
                     .map(|v| match v {
-                        Value::Bool(b) => Ok(*b as u64),
-                        Value::Number(n) => n.as_u64().ok_or_else(|| {
+                        Value::Boolean(b) => Ok(*b as u64),
+                        Value::Integer(n) => Ok(u64::try_from(*n).map_err(|_| {
                             Self::err(
                                 &self.path,
                                 field,
@@ -152,7 +152,7 @@ impl<'a> Manifest<'a> {
                                     "the value of the field `{k}` must be an array of valid `u64`"
                                 ),
                             )
-                        }),
+                        })?),
                         _ => Err(Self::err(
                             &self.path,
                             field,
@@ -162,17 +162,14 @@ impl<'a> Manifest<'a> {
                         )),
                     })
                     .collect::<Result<_, _>>()?,
-                Value::Number(n) => n
-                    .as_u64()
-                    .ok_or_else(|| {
-                        Self::err(
-                            &self.path,
-                            field,
-                            format!("the value of the field `{k}` must be a `u64`"),
-                        )
-                    })
-                    .map(|n| vec![n])?,
-                Value::Bool(b) => vec![*b as u64],
+                Value::Integer(n) => vec![u64::try_from(*n).map_err(|_| {
+                    Self::err(
+                        &self.path,
+                        field,
+                        format!("the value of the field `{k}` must be a `u64`"),
+                    )
+                })?],
+                Value::Boolean(b) => vec![*b as u64],
 
                 _ => {
                     return Err(Self::err(
@@ -213,7 +210,7 @@ impl<'a> Manifest<'a> {
             )
         })?;
 
-        let expr = json_value_to_expr(value, field.span())?;
+        let expr = toml_value_to_expr(value, field.span())?;
         Ok(quote::quote!(#expr))
     }
 
@@ -240,19 +237,17 @@ mod tests {
 
     #[test]
     fn parse_gas_config_works() {
-        let input = r#"{
-            "comment": "Sovereign SDK constants",
-            "gas": {
-                "complex_math_operation": [1, 2, 3],
-                "some_other_operation": [4, 5, 6]
-            }
-        }"#;
+        let input = r#"
+            [gas]
+            complex_math_operation = [1, 2, 3]
+            some_other_operation = [4, 5, 6]
+        "#;
 
         let parent = Ident::new("Foo", proc_macro2::Span::call_site());
         let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
         let field: Ident = syn::parse_str("foo_gas_config").unwrap();
 
-        let decl = Manifest::read_str(input, PathBuf::from("foo.json"), &parent)
+        let decl = Manifest::read_str(input, PathBuf::from("foo.toml"), &parent)
             .unwrap()
             .parse_gas_config(&gas_config, &field)
             .unwrap();
@@ -272,19 +267,17 @@ mod tests {
 
     #[test]
     fn parse_gas_config_single_dimension_works() {
-        let input = r#"{
-            "comment": "Sovereign SDK constants",
-            "gas": {
-                "complex_math_operation": 1,
-                "some_other_operation": 2
-            }
-        }"#;
+        let input = r#"
+            [gas]
+            complex_math_operation = 1
+            some_other_operation = 2
+        "#;
 
         let parent = Ident::new("Foo", proc_macro2::Span::call_site());
         let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
         let field: Ident = syn::parse_str("foo_gas_config").unwrap();
 
-        let decl = Manifest::read_str(input, PathBuf::from("foo.json"), &parent)
+        let decl = Manifest::read_str(input, PathBuf::from("foo.toml"), &parent)
             .unwrap()
             .parse_gas_config(&gas_config, &field)
             .unwrap();

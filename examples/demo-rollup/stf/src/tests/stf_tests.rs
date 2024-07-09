@@ -496,7 +496,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
 
     let some_sequencer: [u8; 32] = [121; 32];
     let another_unregistered_sequencer: [u8; 32] = [86; 32];
-    // specified in constants config file: "constants.test.json", `UNREGISTERED_BLOBS_PER_SLOT`
+    // specified in constants config file: "constants.testing.toml", `UNREGISTERED_BLOBS_PER_SLOT`
     let unregistered_blobs_per_slot = 5;
     let mut blobs = vec![];
 

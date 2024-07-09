@@ -46,23 +46,20 @@ modifies state needs to take its state as an argument.
 
 ### Gas configuration
 
-The module might contain a field for the gas configuration. If annotated with `#[gas]` under a struct that derives `ModuleInfo`, it will attempt to read a `constants.json` file from the root of the project, and inject it into the `Default::default()` implementation of the module.
+The module might contain a field for the gas configuration. If annotated with `#[gas]` under a struct that derives `ModuleInfo`, it will attempt to read a `constants.toml` file from the root of the project, and inject it into the `Default::default()` implementation of the module.
 
-Here is an example `constants.json` file:
+Here is an example `constants.toml` file:
 
-```json
-{
-  "gas": {
-    "create_token": 4,
-    "transfer": 5,
-    "burn": 2,
-    "mint": 2,
-    "freeze": 1
-  }
-}
+```toml
+[gas]
+create_token = 4
+transfer = 5
+burn = 2
+mint = 2
+freeze = 1
 ```
 
-The `ModuleInfo` macro will look for a `gas` field inside the JSON, that must be an object, and will look for the name of the module inside of the `gas` object. If present, it will parse that object as gas configuration; otherwise, it will parse the `gas` object directly. On the example above, it will attempt to parse a structure that looks like this:
+The `ModuleInfo` macro will look for a `gas` field inside the TOML, that must be an object, and will look for the name of the module inside of the `gas` object. If present, it will parse that object as gas configuration; otherwise, it will parse the `gas` object directly. On the example above, it will attempt to parse a structure that looks like this:
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -75,21 +72,15 @@ pub struct BankGasConfig<GU: Gas> {
 }
 ```
 
-The `Gas` generic type will be defined by the runtime `Context`. For `DefaultContext`, we use `GasUnit<2>` - that is, a gas unit with a two dimensions. The same setup is defined for `ZkDefaultContext`. Here is an example of a `constants.json` file, specific to the `Bank` module:
+The `Gas` generic type will be defined by the runtime `Context`. For `DefaultContext`, we use `GasUnit<2>` - that is, a gas unit with a two dimensions. The same setup is defined for `ZkDefaultContext`. Here is an example of a `constants.toml` file, specific to the `Bank` module:
 
-```json
-{
-  "gas": {
-    "comment": "this field will be ignored, as there is a matching module field",
-    "Bank": {
-      "create_token": [4, 19],
-      "transfer": [5, 25],
-      "burn": [2, 7],
-      "mint": [2, 6],
-      "freeze": [1, 4]
-    }
-  }
-}
+```toml
+[gas.Bank]
+create_token = [4, 19]
+transfer = [5, 25]
+burn = [2, 7]
+mint = [2, 6]
+freeze = [1, 4]
 ```
 
 As you can see above, the fields can be either array, numeric, or boolean. If boolean, it will be converted to either `0` or `1`. If array, each element is expected to be either a numeric or boolean. The example above will create a gas unit of two dimensions. If the `Context` requires less dimensions than available, it will pick the first ones of relevance, and ignore the rest. That is: with a `Context` of one dimension, , the effective config will be expanded to:

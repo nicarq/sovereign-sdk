@@ -118,7 +118,7 @@ pub mod macros {
     ///  2. The Bech32 newtype to decode the value into. This type must be
     ///     defined by [`impl_hash32_type`](crate::impl_hash32_type).
     pub use sov_modules_macros::config_bech32;
-    /// Reads a JSON value from the rollup configuration manifest file and
+    /// Reads a TOML value from the rollup configuration manifest file and
     /// converts it into a Rust expression available at compile time. Nulls and
     /// objects are not supported.
     pub use sov_modules_macros::config_value;
