@@ -16,9 +16,11 @@ pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
     Batch, CryptoSpec, DaSpec, GasArray, GasUnit, Module, RawTx, Spec, StateCheckpoint,
 };
-use sov_modules_stf_blueprint::{BatchReceipt, BlobData};
+use sov_modules_stf_blueprint::{BatchReceipt, BlobData, StfBlueprint};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::stf::TxReceiptContents;
+
+use crate::runtime::BasicKernel;
 
 mod api_client;
 pub mod auth;
@@ -44,8 +46,11 @@ pub type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicK
 pub type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
 pub type TestHasher = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;
 pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
+pub type TestStfBlueprint<RT, S> = StfBlueprint<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>;
 
-// --- Blessed gas parameters (used for testing) ---
+// --- Blessed test parameters ---
+
+// Blessed gas parameters
 pub const TEST_DEFAULT_MAX_FEE: u64 = 100000000;
 pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [1000000, 1000000];
 // The default amount of tokens that should be staked by a user (prover, sequencer, etc.)
@@ -54,6 +59,12 @@ pub const TEST_DEFAULT_USER_STAKE: u64 = 100000000;
 pub const TEST_DEFAULT_USER_BALANCE: u64 = 1000000000;
 pub const TEST_DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(0);
 // --- End Blessed gas parameters (used for testing) ---
+
+// Blessed rollup constants
+// Constants used in the genesis configuration of the test runtime
+pub const TEST_MAX_ATTESTED_HEIGHT: u64 = 0;
+pub const TEST_LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
+pub const TEST_ROLLUP_FINALITY_PERIOD: u64 = 1;
 
 /// An implementation of [`TxReceiptContents`] for testing. TestTxReceiptContents uses
 /// a `u32` as the receipt contents.

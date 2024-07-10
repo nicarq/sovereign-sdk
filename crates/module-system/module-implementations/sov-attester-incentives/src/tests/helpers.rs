@@ -1,11 +1,15 @@
+use std::convert::Infallible;
+
 use sov_bank::{Bank, BankConfig, GasTokenConfig, IntoPayable, ReserveGasError};
+use sov_chain_state::ChainState;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
+use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    CryptoSpec, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet, ModuleInfo,
-    PrivateKey, Spec, StateCheckpoint, UnlimitedGasMeter,
+    ApiStateAccessor, CryptoSpec, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet,
+    ModuleInfo, PrivateKey, Spec, StateCheckpoint, UnlimitedGasMeter,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::Time;
@@ -282,4 +286,50 @@ impl ExecutionSimulationVars {
 
         (ret_exec_vars, state_checkpoint)
     }
+}
+
+#[allow(clippy::type_complexity)]
+pub fn create_attestation(
+    slot_to_attest: u64,
+    attester_address: &<S as Spec>::Address,
+    state: &mut ApiStateAccessor<S>,
+) -> Result<
+    Attestation<
+        MockDaSpec,
+        StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+        <<S as Spec>::Storage as Storage>::Root,
+    >,
+    Infallible,
+> {
+    let chain_state = ChainState::<S, MockDaSpec>::default();
+
+    // Get the values for the transition being attested
+    let current_transition = chain_state
+        .get_historical_transitions(slot_to_attest, state)?
+        .unwrap();
+
+    let prev_root = if slot_to_attest == 1 {
+        chain_state.get_genesis_hash(state)?
+    } else {
+        chain_state
+            .get_historical_transitions(slot_to_attest - 1, state)?
+            .map(|t| *t.post_state_root())
+    }
+    .unwrap();
+
+    let mut archival_state = state.get_archival_at(slot_to_attest);
+
+    let proof_of_bond = AttesterIncentives::<S, MockDaSpec>::default()
+        .bonded_attesters
+        .get_with_proof(attester_address, &mut archival_state);
+
+    Ok(Attestation {
+        initial_state_root: prev_root,
+        slot_hash: *current_transition.slot_hash(),
+        post_state_root: *current_transition.post_state_root(),
+        proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
+            claimed_transition_num: slot_to_attest,
+            proof: proof_of_bond,
+        },
+    })
 }

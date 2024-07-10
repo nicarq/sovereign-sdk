@@ -1,78 +1,26 @@
-use std::convert::Infallible;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::hooks::TxHooks;
-use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    CryptoSpec, GasMeter, Module, PrivateKey, Spec, StateCheckpoint, UnmeteredStateWrapper,
-    WorkingSet,
+    ApiStateAccessor, GasMeter, Module, Spec, StateCheckpoint, UnmeteredStateWrapper, WorkingSet,
 };
 use sov_state::jmt::RootHash;
-use sov_state::{BorshCodec, SlotValue, Storage, StorageProof, StorageRoot};
+use sov_state::{BorshCodec, SlotValue, Storage, StorageRoot};
 use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::sov_attester_incentives::{
     AttesterIncentives, CallMessage, Event, Role, WrappedAttestation,
 };
 use sov_test_utils::runtime::{
-    run_test_with_setup_fn, MessageType, SlotTestCase, TxOutcome, TxTestCase,
+    MessageType, SlotTestCase, StakedUser, TestRunner, TxOutcome, TxTestCase,
 };
 use sov_test_utils::{generate_optimistic_runtime, TEST_DEFAULT_USER_STAKE};
 
+use crate::tests::helpers::create_attestation;
+
 type S = sov_test_utils::TestSpec;
 const DUMMY_CALL_MESSAGE: CallMessage<S, MockDaSpec> = CallMessage::UnbondChallenger; // This will get overwritten by the setup hook
-
-#[allow(clippy::type_complexity)]
-fn create_attestation(
-    slot_to_attest: u64,
-    attester_address: &<S as Spec>::Address,
-    state: &mut UnmeteredStateWrapper<WorkingSet<S>>,
-) -> Result<
-    Attestation<
-        MockDaSpec,
-        StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
-        <<S as Spec>::Storage as Storage>::Root,
-    >,
-    Infallible,
-> {
-    let chain_state = ChainState::<S, MockDaSpec>::default();
-
-    // Get the values for the transition being attested
-    let current_transition = chain_state
-        .get_historical_transitions(slot_to_attest, state)?
-        .unwrap();
-
-    let prev_root = if slot_to_attest == 1 {
-        chain_state.get_genesis_hash(state)?
-    } else {
-        chain_state
-            .get_historical_transitions(slot_to_attest - 1, state)?
-            .map(|t| *t.post_state_root())
-    }
-    .unwrap();
-
-    let mut archival_ws = state.inner().get_archival_at(1);
-    let mut archival_state = UnmeteredStateWrapper::new(&mut archival_ws);
-
-    // Recall that the attester must be bonded *at a height that light clients consider finalized*
-    // Since finalization takes a long time (24 hours), we know that it will never advance past slot 1 in tests.
-    let proof_of_bond = AttesterIncentives::<S, MockDaSpec>::default()
-        .bonded_attesters
-        .get_with_proof(attester_address, &mut archival_state);
-
-    Ok(Attestation {
-        initial_state_root: prev_root,
-        slot_hash: *current_transition.slot_hash(),
-        post_state_root: *current_transition.post_state_root(),
-        proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
-            claimed_transition_num: slot_to_attest,
-            proof: proof_of_bond,
-        },
-    })
-}
 
 /// Start by testing the positive case where the attestations are valid. We check that...
 /// valid attestations are processed correctly
@@ -83,16 +31,15 @@ fn test_process_valid_attestation() {
 
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
-    let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
-    let attester = &mut genesis_config.initial_attester;
-    let attester_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-    attester.address = <S as Spec>::Address::from(&attester_key.pub_key());
-    let attester_address = attester.address;
-    let initial_balance = attester.bond;
-    let expected_balance = attester.additional_balance.unwrap_or_default();
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate();
+
+    let genesis_attester_address = genesis_config.initial_attester.address();
+    let genesis_attester_bond = genesis_config.initial_attester.bond();
+    let genesis_attester_balance = genesis_config.initial_attester.free_balance();
+    let genesis_attester_key = genesis_config.initial_attester.private_key();
 
     // Run genesis registering the attester and sequencer we've generated.
-    let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.clone().into());
     let mut last_attested_slot = 0;
 
     // Create a transaction setup function which overwrites dummy CallMessages with a valid attestation.
@@ -101,12 +48,10 @@ fn test_process_valid_attestation() {
     let mut attestation_setup =
         move |message: &mut <AttesterIncentives<S, MockDaSpec> as Module>::CallMessage,
               _root: <<S as Spec>::Storage as Storage>::Root,
-              mut state: UnmeteredStateWrapper<
-            <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState,
-        >| {
+              state: &mut ApiStateAccessor<S>| {
             if message == &DUMMY_CALL_MESSAGE {
                 let next_slot = last_attested_slot + 1;
-                let attestation = create_attestation(next_slot, &attester_address, &mut state)
+                let attestation = create_attestation(next_slot, &genesis_attester_address, state)
                     .unwrap_infallible();
                 *message =
                     CallMessage::ProcessAttestation(WrappedAttestation { inner: attestation });
@@ -117,7 +62,7 @@ fn test_process_valid_attestation() {
     // We use an arc of an atomic to do accounting for the expected balance.
     // because of limitations in rusts capture rules, we need a bunch of clones
     // of this arc ahead of time
-    let expected_balance = Arc::new(AtomicU64::new(expected_balance));
+    let expected_balance = Arc::new(AtomicU64::new(genesis_attester_balance));
     let expected_balance_ref_1 = expected_balance.clone();
     let expected_balance_ref_2 = expected_balance.clone();
     let expected_balance_ref_3 = expected_balance.clone();
@@ -127,21 +72,21 @@ fn test_process_valid_attestation() {
     // words, attestations lag by two slots). Then we run three attestations, one for each of the
     // empty blocks and one for the first slot that contains a transaction. This allows us to test
     // that gas metering is done correctly.
-    run_test_with_setup_fn(
+    TestRunner::run_test_with_setup_fn(
         genesis.into_genesis_params(),
         &mut attestation_setup,
         vec![
             // Run any empty slot, and check that the attester has the correct bond amount from genesis
             SlotTestCase::<_, AttesterIncentives<S, MockDaSpec>, _> {
-                transaction_test_cases: vec![],
+                batch_test_cases: vec![],
                 post_hook: Box::new(move |state_checkpoint| {
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
                             .bonded_attesters
-                            .get(&attester_address, state_checkpoint)
+                            .get(&genesis_attester_address, state_checkpoint)
                             .unwrap_infallible()
                             .unwrap_or_default(),
-                        initial_balance,
+                        genesis_attester_bond,
                     );
                 }),
             },
@@ -150,7 +95,7 @@ fn test_process_valid_attestation() {
             // Attest to the first slot. Check that a ProcessedValidAttestation attestation
             // event is emitted and do necessary accounting to check the attester's balance later
             SlotTestCase {
-                transaction_test_cases: vec![TxTestCase {
+                batch_test_cases: vec![vec![TxTestCase {
                     outcome: TxOutcome::Applied(Box::new(
                         move |ws: UnmeteredStateWrapper<WorkingSet<S>>| {
                             // Do accounting for the attester's balance
@@ -176,12 +121,15 @@ fn test_process_valid_attestation() {
                             )));
                         },
                     )),
-                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
-                }],
+                    message: MessageType::Plain(
+                        DUMMY_CALL_MESSAGE.clone(),
+                        genesis_attester_key.clone(),
+                    ),
+                }]],
                 post_hook: Box::new(|_| {}),
             },
             SlotTestCase {
-                transaction_test_cases: vec![TxTestCase {
+                batch_test_cases: vec![vec![TxTestCase {
                     outcome: TxOutcome::Applied(Box::new(
                         move |ws: UnmeteredStateWrapper<WorkingSet<S>>| {
                             // Check that the attestation succeeded
@@ -196,12 +144,15 @@ fn test_process_valid_attestation() {
                             );
                         },
                     )),
-                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
-                }],
+                    message: MessageType::Plain(
+                        DUMMY_CALL_MESSAGE.clone(),
+                        genesis_attester_key.clone(),
+                    ),
+                }]],
                 post_hook: Box::new(|_| {}),
             },
             SlotTestCase {
-                transaction_test_cases: vec![TxTestCase {
+                batch_test_cases: vec![vec![TxTestCase {
                     outcome: TxOutcome::Applied(Box::new(
                         move |ws: UnmeteredStateWrapper<WorkingSet<S>>| {
                             // Check that the attestation succeeded
@@ -216,28 +167,36 @@ fn test_process_valid_attestation() {
                             );
                         },
                     )),
-                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
-                }],
+                    message: MessageType::Plain(
+                        DUMMY_CALL_MESSAGE.clone(),
+                        genesis_attester_key.clone(),
+                    ),
+                }]],
                 post_hook: Box::new(move |state_checkpoint| {
                     assert_eq!(
                         sov_bank::Bank::<S>::default()
                             .get_balance_of(
-                                &attester_address,
+                                &genesis_attester_address,
                                 sov_bank::GAS_TOKEN_ID,
                                 state_checkpoint
                             )
                             .unwrap_infallible()
                             .unwrap(),
                         expected_balance_ref_3.load(std::sync::atomic::Ordering::SeqCst)
+                            - genesis_attester_bond
                     );
 
                     // Check that the attester still has their full bond
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
-                            .get_bond_amount(attester_address, Role::Attester, state_checkpoint)
+                            .get_bond_amount(
+                                genesis_attester_address,
+                                Role::Attester,
+                                state_checkpoint
+                            )
                             .unwrap_infallible()
                             .value,
-                        initial_balance
+                        genesis_attester_bond,
                     );
                 }),
             },
@@ -252,15 +211,14 @@ fn test_burn_on_invalid_attestation() {
     type RT = AttesterRuntime<S, MockDaSpec>;
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
-    let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
-    let attester = &mut genesis_config.initial_attester;
-    let attester_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-    attester.address = <S as Spec>::Address::from(&attester_key.pub_key());
-    attester.bond = TEST_DEFAULT_USER_STAKE;
-    let attester_address = attester.address;
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate();
+
+    let genesis_attester_address = genesis_config.initial_attester.address();
+    let genesis_attester_bond = genesis_config.initial_attester.bond();
+    let genesis_attester_key = genesis_config.initial_attester.private_key();
 
     // Run genesis registering the attester and sequencer we've generated.
-    let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.clone().into());
     let mut round = 0;
     let mut last_attested_slot = 0;
 
@@ -270,13 +228,12 @@ fn test_burn_on_invalid_attestation() {
     let mut attestation_setup =
         move |message: &mut <AttesterIncentives<S, MockDaSpec> as Module>::CallMessage,
               _root: <<S as Spec>::Storage as Storage>::Root,
-              mut state: UnmeteredStateWrapper<
-            <AttesterRuntime<S, MockDaSpec> as TxHooks>::TxState,
-        >| {
+              state: &mut ApiStateAccessor<S>| {
             if message == &DUMMY_CALL_MESSAGE {
                 let next_slot = last_attested_slot + 1;
-                let mut attestation = create_attestation(next_slot, &attester_address, &mut state)
-                    .unwrap_infallible();
+                let mut attestation =
+                    create_attestation(next_slot, &genesis_attester_address, state)
+                        .unwrap_infallible();
 
                 match round {
                     0 => {
@@ -284,7 +241,7 @@ fn test_burn_on_invalid_attestation() {
                         // Must simply return an error. Cannot burn the token at this point because we don't know if the
                         // sender is bonded or not.
                         attestation.proof_of_bond.proof.value =
-                            Some(SlotValue::new(&(TEST_DEFAULT_USER_STAKE * 5), &BorshCodec));
+                            Some(SlotValue::new(&(&genesis_attester_bond * 5), &BorshCodec));
                     }
                     1 => last_attested_slot += 1, // Since this attestation is unmodified, it will succeed so we need to move attesting to the next slot
                     2 => {
@@ -306,40 +263,43 @@ fn test_burn_on_invalid_attestation() {
             }
         };
 
-    run_test_with_setup_fn(
+    TestRunner::run_test_with_setup_fn(
         genesis.into_genesis_params(),
         &mut attestation_setup,
         vec![
             // Run any empty slot, and check that the attester has the correct bond amount from genesis
             SlotTestCase::<_, AttesterIncentives<S, MockDaSpec>, _> {
-                transaction_test_cases: vec![],
+                batch_test_cases: vec![],
                 post_hook: Box::new(move |ws: &mut StateCheckpoint<S>| {
                     // Assert that genesis yielded the expected bond amount
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
                             .bonded_attesters
-                            .get(&attester_address, ws)
+                            .get(&genesis_attester_address, ws)
                             .unwrap_infallible()
                             .unwrap_or_default(),
-                        TEST_DEFAULT_USER_STAKE,
+                        genesis_attester_bond,
                     );
                 }),
             },
             // Run an empty slot
             SlotTestCase::empty(),
             SlotTestCase {
-                transaction_test_cases: vec![TxTestCase {
+                batch_test_cases: vec![vec![TxTestCase {
                     outcome: TxOutcome::Reverted, // Fails without slashing because the bond proof was invalid
-                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
-                }],
+                    message: MessageType::Plain(
+                        DUMMY_CALL_MESSAGE.clone(),
+                        genesis_attester_key.clone(),
+                    ),
+                }]],
                 post_hook: Box::new(move |state| {
                     // Assert that the attester was not slashed
                     assert_eq!(
                         AttesterIncentives::<S, MockDaSpec>::default()
-                            .get_bond_amount(attester_address, Role::Attester, state)
+                            .get_bond_amount(genesis_attester_address, Role::Attester, state)
                             .unwrap_infallible()
                             .value,
-                        TEST_DEFAULT_USER_STAKE,
+                        genesis_attester_bond,
                     );
                 }),
             },
@@ -352,7 +312,10 @@ fn test_burn_on_invalid_attestation() {
                             Some(Event::ProcessedValidAttestation { .. })
                         )));
                     })),
-                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
+                    message: MessageType::Plain(
+                        DUMMY_CALL_MESSAGE.clone(),
+                        genesis_attester_key.clone(),
+                    ),
                 },
                 TxTestCase {
                     outcome: TxOutcome::<RT>::Applied(Box::new(move |mut state| {
@@ -364,7 +327,11 @@ fn test_burn_on_invalid_attestation() {
                         // Assert that the attester was slashed
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(attester_address, Role::Attester, &mut state)
+                                .get_bond_amount(
+                                    genesis_attester_address,
+                                    Role::Attester,
+                                    &mut state
+                                )
                                 .unwrap_infallible()
                                 .value,
                             0,
@@ -380,7 +347,10 @@ fn test_burn_on_invalid_attestation() {
                             "The transition should not exist in the pool"
                         );
                     })),
-                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
+                    message: MessageType::Plain(
+                        DUMMY_CALL_MESSAGE.clone(),
+                        genesis_attester_key.clone(),
+                    ),
                 },
             ]),
             SlotTestCase::from_txs(vec![
@@ -392,15 +362,19 @@ fn test_burn_on_invalid_attestation() {
                         )));
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(attester_address, Role::Attester, &mut state)
+                                .get_bond_amount(
+                                    genesis_attester_address,
+                                    Role::Attester,
+                                    &mut state
+                                )
                                 .unwrap_infallible()
                                 .value,
                             TEST_DEFAULT_USER_STAKE,
                         );
                     })),
                     message: MessageType::Plain(
-                        CallMessage::BondAttester(TEST_DEFAULT_USER_STAKE),
-                        attester_key.clone(),
+                        CallMessage::BondAttester(genesis_attester_bond),
+                        genesis_attester_key.clone(),
                     ),
                 },
                 TxTestCase {
@@ -413,7 +387,11 @@ fn test_burn_on_invalid_attestation() {
                         // Assert that the attester was slashed
                         assert_eq!(
                             AttesterIncentives::<S, MockDaSpec>::default()
-                                .get_bond_amount(attester_address, Role::Attester, &mut state)
+                                .get_bond_amount(
+                                    genesis_attester_address,
+                                    Role::Attester,
+                                    &mut state
+                                )
                                 .unwrap_infallible()
                                 .value,
                             0,
@@ -424,11 +402,14 @@ fn test_burn_on_invalid_attestation() {
                                 .bad_transition_pool
                                 .get(&2, &mut state)
                                 .unwrap_infallible(),
-                            Some(TEST_DEFAULT_USER_STAKE),
+                            Some(genesis_attester_bond),
                             "The transition should not exist in the pool"
                         );
                     })),
-                    message: MessageType::Plain(DUMMY_CALL_MESSAGE.clone(), attester_key.clone()),
+                    message: MessageType::Plain(
+                        DUMMY_CALL_MESSAGE.clone(),
+                        genesis_attester_key.clone(),
+                    ),
                 },
             ]),
         ],

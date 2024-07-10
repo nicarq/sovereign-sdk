@@ -29,14 +29,14 @@ pub trait MinimalRuntime<S: Spec, Da: DaSpec>: Default {
 pub trait MinimalGenesis<S: Spec>: Genesis<Spec = S> {
     type Da: DaSpec;
     fn sequencer_registry_config(
-        config: &mut Self::Config,
-    ) -> &mut <SequencerRegistry<S, Self::Da> as Genesis>::Config;
+        config: &Self::Config,
+    ) -> &<SequencerRegistry<S, Self::Da> as Genesis>::Config;
 
-    fn bank_config(config: &mut Self::Config) -> &mut <Bank<S> as Genesis>::Config;
+    fn bank_config(config: &Self::Config) -> &<Bank<S> as Genesis>::Config;
 
     fn attester_incentives_config(
-        config: &mut Self::Config,
-    ) -> &mut <AttesterIncentives<S, Self::Da> as Genesis>::Config;
+        config: &Self::Config,
+    ) -> &<AttesterIncentives<S, Self::Da> as Genesis>::Config;
 }
 
 /// A marker trait which bundles a [`MinimalRuntime`] with additional traits that we require
