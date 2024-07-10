@@ -23,8 +23,9 @@
   - [How to Submit Transactions](#how-to-submit-transactions)
     - [1. Build `sov-cli`](#1-build-sov-cli)
     - [2. Generate the Transaction](#2-generate-the-transaction)
-    - [Submit the Transaction(s)](#submit-the-transactions)
-    - [Verify the Token Supply](#verify-the-token-supply)
+    - [3. Make sure all the accounts involved have enough funds to pay for the transaction.](#3-make-sure-all-the-accounts-involved-have-enough-funds-to-pay-for-the-transaction)
+    - [4. Submit the Transaction(s)](#4-submit-the-transactions)
+    - [5. Verify the Token Supply](#5-verify-the-token-supply)
 - [Disclaimer](#disclaimer)
 - [Interacting with your Node via REST API](#interacting-with-your-node-via-rest-api)
 - [Testing with specific DA layers](#testing-with-specific-da-layers)
@@ -322,7 +323,16 @@ Adding the following transaction to batch:
 }
 ```
 
-#### Submit the Transaction(s)
+#### 3. Make sure all the accounts involved have enough funds to pay for the transaction.
+
+For the transaction to be processed successfully, you have to ensure that the sender account has enough funds to pay for the transaction fees and the sequencer has staked enough tokens to pay for the pre-execution checks. This `README` file uses addresses from the `examples/test-data/genesis/demo/mock` folder, which are pre-populated with enough funds. 
+
+To be able to execute most simple transactions, the transaction sender should have about `1_000_000_000` tokens on their account and the sequencer should have staked `100_000_000` tokens in the registry.
+
+More details can be found in the Sovereign book [available here](https://github.com/Sovereign-Labs/sovereign-book).
+
+
+#### 4. Submit the Transaction(s)
 
 You now have a batch with a single transaction in your wallet. If you want to submit any more transactions as part of
 this
@@ -333,7 +343,7 @@ $ sleep 20  # Wait a bit for the `make test-create-token` transaction to be proc
 $ ./../../target/debug/sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
 ```
 
-#### Verify the Token Supply
+#### 5. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
 $ sleep 20  # Wait a bit for the block to be processed by the node
