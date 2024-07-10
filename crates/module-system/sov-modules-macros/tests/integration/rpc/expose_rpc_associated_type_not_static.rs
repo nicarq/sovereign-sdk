@@ -1,9 +1,9 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    prelude::UnwrapInfallible, Address, ApiStateAccessor, CallResponse, Context, DispatchCall,
-    EncodeCall, Error, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint,
-    StateValue, TxState,
+    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis,
+    MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue, TxState,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -125,7 +125,7 @@ fn main() {
     let config = GenesisConfig::new(22);
     let mut genesis_state = state.to_genesis_state_accessor::<RT>(&config);
     runtime.genesis(&config, &mut genesis_state).unwrap();
-    let working_set = genesis_state.checkpoint().to_working_set_unmetered();
+    let mut working_set = genesis_state.checkpoint().to_working_set_unmetered();
 
     let message: u32 = 33;
     let serialized_message =

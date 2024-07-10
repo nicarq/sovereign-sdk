@@ -559,7 +559,7 @@ jobs:
     # (Namespace.so runs CI jobs inside containers, unlike GitHub or BuildJet).
     # Ideally, we'd patch `docker/docker-compose.yml` to use volume mounting
     # options that work on Namespace.so.
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: buildjet-8vcpu-ubuntu-2204
     needs:
       - check
     timeout-minutes: 60
