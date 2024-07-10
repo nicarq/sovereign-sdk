@@ -127,6 +127,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     pub fn penalize_sequencer(
         &self,
         sender: &Da::Address,
+        reason: impl std::fmt::Display,
         pre_exec_working_set: PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>,
     ) -> TxScratchpad<S> {
         let penalty_amount = pre_exec_working_set.gas_used_value();
@@ -146,7 +147,8 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
                 sequencer = %address,
                 penalty_amount = ?penalty_amount,
                 remaining_stake = %remaining_stake,
-                "The sequencer was penalized"
+                reason = %reason,
+                "The sequencer was penalized",
             );
 
             self.allowed_sequencers

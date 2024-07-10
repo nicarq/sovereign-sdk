@@ -148,7 +148,7 @@ fn test_penalize_sequencer() -> Result<(), Infallible> {
     // We penalize the sequencer by removing all its stake
     let res = sequencer_test
         .registry
-        .penalize_sequencer(&seq_da_address, pre_exec_ws);
+        .penalize_sequencer(&seq_da_address, "no reason", pre_exec_ws);
 
     let mut state_checkpoint = res.commit();
 

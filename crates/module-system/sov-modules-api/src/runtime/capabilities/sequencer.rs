@@ -48,6 +48,7 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
     fn penalize_sequencer(
         &self,
         sequencer: &Da::Address,
+        reason: impl std::fmt::Display,
         pre_exec_ws: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> TxScratchpad<S>;
 }
