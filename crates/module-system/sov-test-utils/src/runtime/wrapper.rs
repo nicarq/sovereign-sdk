@@ -30,8 +30,7 @@ use super::traits::{
 
 pub type WorkingSetClosure<T> =
     Box<dyn FnOnce(UnmeteredStateWrapper<<T as TxHooks>::TxState>) + Send + Sync>;
-pub type StateRootClosure<Call, Root, Ws> =
-    dyn FnMut(&mut Call, Root, UnmeteredStateWrapper<Ws>) + Send + Sync;
+pub type StateRootClosure<Call, Root, Ws> = dyn FnMut(&mut Call, Root, &mut Ws) + Send + Sync;
 pub type EndSlotClosure<T> = Box<dyn FnMut(&mut T) + Send + Sync>;
 
 /// A queue of closures which can be executed in a `Runtime`'s post transaction hook.
@@ -141,18 +140,18 @@ impl<S: Spec, Da: DaSpec, T: MinimalGenesis<S, Da = Da> + TxHooks<Spec = S>> Min
 {
     type Da = Da;
     fn sequencer_registry_config(
-        config: &mut <T as Genesis>::Config,
-    ) -> &mut <SequencerRegistry<S, Da> as Genesis>::Config {
+        config: &<T as Genesis>::Config,
+    ) -> &<SequencerRegistry<S, Da> as Genesis>::Config {
         T::sequencer_registry_config(config)
     }
 
-    fn bank_config(config: &mut <T as Genesis>::Config) -> &mut <Bank<S> as Genesis>::Config {
+    fn bank_config(config: &<T as Genesis>::Config) -> &<Bank<S> as Genesis>::Config {
         T::bank_config(config)
     }
 
     fn attester_incentives_config(
-        config: &mut <T as Genesis>::Config,
-    ) -> &mut <AttesterIncentives<S, Self::Da> as Genesis>::Config {
+        config: &<T as Genesis>::Config,
+    ) -> &<AttesterIncentives<S, Self::Da> as Genesis>::Config {
         T::attester_incentives_config(config)
     }
 }

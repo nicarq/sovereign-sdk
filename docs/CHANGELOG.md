@@ -1,3 +1,6 @@
+- #908 refactors the testing framework to achieve the following objectives:
+   - Allow the execution of transactions from different modules in one test
+   - Allow the execution of multiple batches within one slot
 - #927 Refactor common fields in `Transaction`, `UnsignedTransaction` & `Message` into a new `TxDetails` struct.
 - #913 Read prover address from file configuration file.
 - #910 replaces `constants.json` with `constants.toml` and `constants.test.json` with `constants.testing.toml`. The expected file "schema" and contents are the same, just the file format has changed and you'll just need to translate your file contents from JSON to TOML.

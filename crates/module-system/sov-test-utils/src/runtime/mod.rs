@@ -13,13 +13,13 @@ pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    BlobData, CryptoSpec, DaSpec, EncodeCall, Genesis, Module, PrivateKey, RawTx, SlotData, Spec,
-    StateAccessor, StateCheckpoint, WorkingSet,
+    ApiStateAccessor, ApplySlotOutput, BlobData, CryptoSpec, DaSpec, EncodeCall, Genesis, Module,
+    PrivateKey, RawTx, SlotData, Spec, StateCheckpoint,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
+use sov_modules_stf_blueprint::{BatchReceipt, Runtime, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -28,17 +28,21 @@ pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
+use crate::{
+    TestStfBlueprint, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_STAKE,
+    TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
+};
+
 pub mod genesis;
+
+pub use genesis::StakedUser;
+
+#[cfg(test)]
+mod tests;
 pub mod traits;
 pub mod wrapper;
 use traits::{MinimalGenesis, PostTxHookRegistry};
 pub use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
-
-// Constants used in the genesis configuration of the test runtime
-const MIN_USER_BOND: u64 = 100_000_000;
-const MAX_ATTESTED_HEIGHT: u64 = 0;
-const LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
-const ROLLUP_FINALITY_PERIOD: u64 = 1;
 
 /// Generates a runtime containing the [`Bank`], [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
 /// and [`SequencerRegistry`] modules in addition to any provided as arguments`
@@ -107,16 +111,16 @@ macro_rules! generate_optimistic_runtime {
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalGenesis<S> for __GeneratedRuntimeInternals<S, Da> {
             type Da = Da;
-            fn sequencer_registry_config(config: &mut GenesisConfig<S, Da>) -> &mut <$crate::runtime::SequencerRegistry<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
-                &mut config.sequencer_registry
+            fn sequencer_registry_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::SequencerRegistry<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
+                &config.sequencer_registry
             }
 
-            fn bank_config(config: &mut GenesisConfig<S, Da>) -> &mut <$crate::runtime::Bank<S> as ::sov_modules_api::Genesis>::Config {
-                &mut config.bank
+            fn bank_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::Bank<S> as ::sov_modules_api::Genesis>::Config {
+                &config.bank
             }
 
-            fn attester_incentives_config(config: &mut GenesisConfig<S, Da>) -> &mut <$crate::runtime::AttesterIncentives<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
-                &mut config.attester_incentives
+            fn attester_incentives_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::AttesterIncentives<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
+                &config.attester_incentives
             }
         }
 
@@ -161,21 +165,23 @@ macro_rules! generate_optimistic_runtime {
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
 pub struct SlotTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
-    pub transaction_test_cases: Vec<TxTestCase<RT, M, S>>,
+    pub batch_test_cases: Vec<BatchTestCase<RT, M, S>>,
     pub post_hook: EndSlotClosure<StateCheckpoint<S>>,
 }
+
+pub type BatchTestCase<RT, M, S> = Vec<TxTestCase<RT, M, S>>;
 
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
     pub fn empty() -> Self {
         Self {
-            transaction_test_cases: vec![],
+            batch_test_cases: vec![],
             post_hook: Box::new(|_| {}),
         }
     }
 
     pub fn from_txs(test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
         Self {
-            transaction_test_cases: test_cases,
+            batch_test_cases: vec![test_cases],
             post_hook: Box::new(|_| {}),
         }
     }
@@ -186,7 +192,7 @@ impl<T: Into<TxTestCase<RT, M, S>>, RT: Runtime<S, MockDaSpec>, M: Module, S: Sp
 {
     fn from(test_cases: Vec<T>) -> Self {
         SlotTestCase {
-            transaction_test_cases: test_cases.into_iter().map(Into::into).collect(),
+            batch_test_cases: vec![test_cases.into_iter().map(Into::into).collect()],
             post_hook: Box::new(|_| {}),
         }
     }
@@ -212,6 +218,15 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec>
         }
     }
 }
+
+pub enum TxExpectedResult {
+    /// Expects that the tx was successful
+    Applied,
+    /// Expects that the tx was reverted
+    Reverted,
+}
+pub type BatchExpectedResult = Vec<TxExpectedResult>;
+pub type SlotExpectedResult = Vec<BatchExpectedResult>;
 
 pub enum TxOutcome<RT: TxHooks> {
     /// Expects that the tx was successful and runs the provided closure in the post_dispatch hook
@@ -268,8 +283,8 @@ impl<M: Module, S: Spec> MessageType<M, S> {
             UnsignedTransaction::new(
                 msg,
                 config_value!("CHAIN_ID"),
-                PriorityFeeBips::ZERO,
-                100_000_000,
+                TEST_DEFAULT_MAX_PRIORITY_FEE,
+                TEST_DEFAULT_MAX_FEE,
                 nonce,
                 None,
             ),
@@ -285,183 +300,374 @@ pub struct TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
     pub message: MessageType<M, S>,
 }
 
-/// Run a test on the given runtime
-///
-/// The test is defined by a series of slot test cases, where the workflow is...
-/// 1. Run genesis
-/// 2. For each call message, execute the message and apply the post-execution closure to check
-/// that the result is valid.
-pub fn run_test<RT, S, M>(
-    genesis_config: GenesisParams<<RT as Genesis>::Config, BasicKernelGenesisConfig<S, MockDaSpec>>,
-    slots: Vec<SlotTestCase<RT, M, S>>,
-    runtime: RT,
-) where
-    RT: Runtime<S, MockDaSpec>
-        + PostTxHookRegistry<S, MockDaSpec>
-        + EndSlotHookRegistry<S, MockDaSpec>
-        + MinimalGenesis<S, Da = MockDaSpec>
-        + EncodeCall<M>,
-    S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
-    M: Module,
-{
-    run_test_with_setup_fn(genesis_config, &mut |_, _, _| {}, slots, runtime);
+impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
+    pub fn split(self) -> (TxRunner<S, M>, Option<WorkingSetClosure<RT>>) {
+        let (expected_result, is_post_check): (TxExpectedResult, Option<_>) = match self.outcome {
+            TxOutcome::Applied(closure) => (TxExpectedResult::Applied, Option::Some(closure)),
+            TxOutcome::Reverted => (TxExpectedResult::Reverted, None),
+        };
+
+        (
+            TxRunner {
+                message: self.message,
+                expected_result,
+            },
+            is_post_check,
+        )
+    }
 }
 
-/// Run a test on the given runtime
-///
-/// The test is defined by a series of slot test cases, where the workflow is...
-/// 1. Run genesis
-/// 2. For each slot, apply the provided pre-execution closure to each call message
-/// with the current state as an argument. This allows us to set update any call messages
-/// that depend on the current state.
-/// 3. For each call message, execute the message and apply the post-execution closure to check
-/// that the result is valid.
-pub fn run_test_with_setup_fn<RT, S, M>(
-    mut genesis_config: GenesisParams<
-        <RT as Genesis>::Config,
-        BasicKernelGenesisConfig<S, MockDaSpec>,
-    >,
-    tx_setup_fn: &mut StateRootClosure<
-        <M as Module>::CallMessage,
-        <<S as Spec>::Storage as Storage>::Root,
-        <RT as TxHooks>::TxState,
-    >,
-    slots: Vec<SlotTestCase<RT, M, S>>,
-    runtime: RT,
-) where
+pub type SlotReceipt = Vec<BatchReceipt>;
+
+/// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
+pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
+    stf: StfBlueprint<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>,
+    nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+    slot_receipts: Vec<SlotReceipt>,
+    state_root: <S::Storage as Storage>::Root,
+    storage_manager:
+        ProverStorageManager<MockDaSpec, DefaultStorageSpec<<S::CryptoSpec as CryptoSpec>::Hasher>>,
+    default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
+}
+
+pub type SlotRunner<S, M> = Vec<BatchRunner<S, M>>;
+pub type BatchRunner<S, M> = Vec<TxRunner<S, M>>;
+
+pub struct TxRunner<S: Spec, M: Module> {
+    message: MessageType<M, S>,
+    expected_result: TxExpectedResult,
+}
+
+impl<RT, S> TestRunner<RT, S>
+where
     RT: Runtime<S, MockDaSpec>
         + PostTxHookRegistry<S, MockDaSpec>
         + EndSlotHookRegistry<S, MockDaSpec>
-        + MinimalGenesis<S, Da = MockDaSpec>
-        + EncodeCall<M>,
+        + MinimalGenesis<S, Da = MockDaSpec>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
-    M: Module,
 {
-    let mut nonces = HashMap::new();
-    let mut post_slot_closures = Vec::with_capacity(slots.len());
-    let mut messages_by_slot = Vec::with_capacity(slots.len());
-    let mut tx_successful = Vec::new();
-    // Register the transaction hooks with the runtime. Destructure the test cases for easier processing.
-    {
-        for slot in slots {
-            let SlotTestCase {
-                transaction_test_cases,
-                post_hook,
-            } = slot;
-            post_slot_closures.push(post_hook);
+    /// Returns the runtime of the test runner.
+    pub fn runtime(&self) -> &RT {
+        self.stf.runtime()
+    }
 
-            let mut messages = Vec::with_capacity(transaction_test_cases.len());
-            let mut hooks = Vec::with_capacity(transaction_test_cases.len());
-            for test_case in transaction_test_cases {
-                let TxTestCase { outcome, message } = test_case;
-                messages.push(message);
-                if let TxOutcome::Applied(post_check) = outcome {
-                    hooks.push(post_check);
-                    tx_successful.push(true);
-                } else {
-                    tx_successful.push(false);
-                };
-            }
-            runtime.add_post_dispatch_tx_hook_actions(hooks);
-            messages_by_slot.push(messages);
+    /// Returns the state root of the previous slot.
+    /// Since genesis is always ran when constructing the runner, there will always be a previous slot when executing new slots.
+    pub fn state_root(&self) -> &<S::Storage as Storage>::Root {
+        &self.state_root
+    }
+
+    /// Returns the current slot number. The genesis slot is 0 but since genesis doesn't generate a receipt, we need to return the length of the execution slot receipts + 1.
+    pub fn curr_slot_number(&self) -> u64 {
+        self.slot_receipts.len() as u64 + 1
+    }
+
+    /// Builds a new test runner and runs genesis.
+    pub fn new_with_genesis(
+        genesis_config: GenesisParams<
+            <RT as Genesis>::Config,
+            BasicKernelGenesisConfig<S, MockDaSpec>,
+        >,
+        runtime: RT,
+    ) -> Self {
+        // Use the runtime to create an STF blueprint
+        let stf =
+            StfBlueprint::<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>::with_runtime(runtime);
+
+        // ----- Setup and run genesis ---------
+        let temp_dir = tempfile::tempdir().unwrap();
+        let storage_config = sov_state::config::Config {
+            path: PathBuf::from(temp_dir.path()),
+        };
+
+        let mut storage_manager = ProverStorageManager::<MockDaSpec, _>::new(storage_config)
+            .expect("ProverStorageManager initialization has failed");
+
+        let default_sequencer_da_address =
+            <RT as MinimalGenesis<S>>::sequencer_registry_config(&genesis_config.runtime)
+                .seq_da_address;
+
+        let genesis_block = MockBlock::default();
+        let (stf_state, _) = storage_manager
+            .create_state_for(genesis_block.header())
+            .unwrap();
+        let (state_root, change_set) = stf.init_chain(stf_state, genesis_config);
+
+        storage_manager
+            .save_change_set(genesis_block.header(), change_set, SchemaBatch::new())
+            .unwrap();
+        // Write it to the database immediately
+        storage_manager.finalize(&genesis_block.header).unwrap();
+
+        // ----- End genesis ---------
+
+        Self {
+            nonces: HashMap::new(),
+            slot_receipts: Vec::new(),
+            state_root,
+            storage_manager,
+            stf,
+            default_sequencer_da_address,
         }
     }
-    runtime.add_end_slot_hook_actions(post_slot_closures);
 
-    // Use the runtime to create an STF blueprint
-    let stf = StfBlueprint::<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>::with_runtime(runtime);
+    // Register the transaction hooks with the runtime and builds a [`SlotRunner`] for each slot.
+    fn register_hooks<M: Module>(
+        &mut self,
+        slots: Vec<SlotTestCase<RT, M, S>>,
+    ) -> Vec<SlotRunner<S, M>> {
+        let (slot_runners, post_slot_closures): (Vec<_>, Vec<_>) = slots
+            .into_iter()
+            .map(
+                |SlotTestCase {
+                     batch_test_cases,
+                     post_hook,
+                 }| {
+                    let batch_runners: Vec<_> = batch_test_cases
+                        .into_iter()
+                        .map(|batch_test_case| {
+                            let (batch_runners, post_checks): (Vec<_>, Vec<_>) =
+                                batch_test_case.into_iter().map(TxTestCase::split).unzip();
 
-    // ----- Setup and run genesis ---------
-    let temp_dir = tempfile::tempdir().unwrap();
-    let storage_config = sov_state::config::Config {
-        path: PathBuf::from(temp_dir.path()),
-    };
-    let sequencer_da_address =
-        <RT as MinimalGenesis<S>>::sequencer_registry_config(&mut genesis_config.runtime)
-            .seq_da_address;
+                            self.runtime().add_post_dispatch_tx_hook_actions(
+                                post_checks.into_iter().flatten().collect(),
+                            );
 
-    let mut storage_manager = ProverStorageManager::<MockDaSpec, _>::new(storage_config)
-        .expect("ProverStorageManager initialization has failed");
+                            batch_runners
+                        })
+                        .collect();
 
-    let genesis_block = MockBlock::default();
-    let (stf_state, _) = storage_manager
-        .create_state_for(genesis_block.header())
-        .unwrap();
-    let (state_root, change_set) = stf.init_chain(stf_state, genesis_config);
+                    (batch_runners, post_hook)
+                },
+            )
+            .unzip();
 
-    storage_manager
-        .save_change_set(genesis_block.header(), change_set, SchemaBatch::new())
-        .unwrap();
-    // Write it to the database immediately
-    storage_manager.finalize(&genesis_block.header).unwrap();
-    let mut prev_state_root = state_root;
-    // ----- End genesis ---------
+        self.runtime().add_end_slot_hook_actions(post_slot_closures);
 
-    let mut expect_success = tx_successful.into_iter();
-    for (prev_slot_number, msgs_and_priv_keys) in messages_by_slot.into_iter().enumerate() {
-        let block_header = MockBlockHeader::from_height(prev_slot_number as u64 + 1);
-        let (stf_state, _) = storage_manager
+        slot_runners
+    }
+
+    fn build_batch<M: Module>(
+        &mut self,
+        stf_state: &ProverStorage<
+            DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
+        >,
+        tx_setup_fn: &mut StateRootClosure<
+            <M as Module>::CallMessage,
+            <<S as Spec>::Storage as Storage>::Root,
+            ApiStateAccessor<S>,
+        >,
+        slot_runner: Vec<Vec<TxRunner<S, M>>>,
+    ) -> (Vec<MockBlob>, SlotExpectedResult)
+    where
+        RT: EncodeCall<M>,
+    {
+        let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
+        let state_root = *self.state_root();
+
+        let (blobs, expected_slot_results): (Vec<_>, Vec<_>) = slot_runner
+            .into_iter()
+            .map(|batch_runner| {
+                let build_batch_txs = |mut runner: TxRunner<S, M>| {
+                    if let MessageType::Plain(message, _) = &mut runner.message {
+                        tx_setup_fn(message, state_root, &mut state);
+                    }
+
+                    (
+                        runner.message.to_raw_tx::<RT>(&mut self.nonces),
+                        runner.expected_result,
+                    )
+                };
+
+                let (batch_of_raw_txs, expected_tx_results): (Vec<_>, Vec<_>) =
+                    batch_runner.into_iter().map(build_batch_txs).unzip();
+
+                let batch = BlobData::new_batch(batch_of_raw_txs);
+                let blob = MockBlob::new_with_hash(
+                    borsh::to_vec(&batch).unwrap(),
+                    self.default_sequencer_da_address,
+                );
+
+                (blob, expected_tx_results)
+            })
+            .unzip();
+
+        (blobs, expected_slot_results)
+    }
+
+    /// Checks the slot results and apply the changes to the state
+    fn check_and_apply_slot_result(
+        &mut self,
+        block_header: MockBlockHeader,
+        expected_slot_results: SlotExpectedResult,
+        result: ApplySlotOutput<
+            <S as Spec>::InnerZkvm,
+            <S as Spec>::OuterZkvm,
+            MockDaSpec,
+            TestStfBlueprint<RT, S>,
+        >,
+    ) {
+        let slot_receipts = result.batch_receipts;
+
+        for (batch_receipt, expected_batch_results) in
+            slot_receipts.iter().zip(expected_slot_results)
+        {
+            for (tx_receipt, expected_tx_result) in
+                batch_receipt.tx_receipts.iter().zip(expected_batch_results)
+            {
+                match expected_tx_result {
+                    TxExpectedResult::Applied => {
+                        assert!(tx_receipt.receipt.is_successful());
+                    }
+                    TxExpectedResult::Reverted => {
+                        assert!(tx_receipt.receipt.is_reverted());
+                    }
+                }
+            }
+        }
+
+        self.storage_manager
+            .save_change_set(&block_header, result.change_set, SchemaBatch::new())
+            .unwrap();
+
+        self.slot_receipts.push(slot_receipts);
+
+        self.state_root = result.state_root;
+    }
+
+    /// Executes a single slot with a given setup function
+    fn execute_slot<M: Module>(
+        &mut self,
+        tx_setup_fn: &mut StateRootClosure<
+            <M as Module>::CallMessage,
+            <<S as Spec>::Storage as Storage>::Root,
+            ApiStateAccessor<S>,
+        >,
+        slot_runner: SlotRunner<S, M>,
+    ) where
+        RT: EncodeCall<M>,
+    {
+        let block_header = MockBlockHeader::from_height(self.curr_slot_number() + 1);
+
+        let (stf_state, _) = self
+            .storage_manager
             .create_state_for(&block_header)
             .expect("Block builds on height zero");
-        // Setup call messages
-        let txs = {
-            let mut state = WorkingSet::<S>::new(stf_state.clone());
-            let mut signed_txs = Vec::new();
 
-            for mut msg in msgs_and_priv_keys.into_iter() {
-                if let MessageType::Plain(msg, _) = &mut msg {
-                    tx_setup_fn(msg, prev_state_root, state.to_unmetered());
-                }
+        let (mut blobs, expected_slot_results) =
+            self.build_batch(&stf_state, tx_setup_fn, slot_runner);
 
-                signed_txs.push(msg.to_raw_tx::<RT>(&mut nonces));
-            }
-            signed_txs
-        };
-
-        let batch = BlobData::new_batch(txs);
-        let blob = borsh::to_vec(&batch).unwrap();
-        let mut blob = MockBlob::new_with_hash(blob, sequencer_da_address);
-
+        // TODO(@theochap): add support for proof blobs
         let relevant_blobs = RelevantBlobIters {
             proof_blobs: vec![],
-            batch_blobs: vec![&mut blob],
+            batch_blobs: blobs.iter_mut().collect(),
         };
-        let result = stf.apply_slot(
-            &state_root,
+
+        let result = self.stf.apply_slot(
+            self.state_root(),
             stf_state,
             Default::default(),
             &block_header,
             &Default::default(),
             relevant_blobs,
         );
-        for batch in result.batch_receipts {
-            for tx_receipt in batch.tx_receipts {
-                if expect_success
-                    .next()
-                    .expect("Must have one outcome per transaction")
-                {
-                    assert!(tx_receipt.receipt.is_successful());
-                } else {
-                    assert!(tx_receipt.receipt.is_reverted());
-                }
-            }
-        }
 
-        storage_manager
-            .save_change_set(&block_header, result.change_set, SchemaBatch::new())
-            .unwrap();
-        prev_state_root = result.state_root;
+        self.check_and_apply_slot_result(block_header, expected_slot_results, result);
     }
 
-    assert!(
-        stf.runtime().try_get_next_tx_action().flatten().is_none(),
-        "All post tx hooks must have run! This error indicates that at least one transaction failed that was expected to succeed!"
-    );
+    /// Executes the provided slots with a given setup function
+    pub fn execute_slots_with_setup_fn<M: Module>(
+        &mut self,
+        tx_setup_fn: &mut StateRootClosure<
+            <M as Module>::CallMessage,
+            <<S as Spec>::Storage as Storage>::Root,
+            ApiStateAccessor<S>,
+        >,
+        slots_test_cases: Vec<SlotTestCase<RT, M, S>>,
+    ) where
+        RT: EncodeCall<M>,
+    {
+        let slots_runner = self.register_hooks(slots_test_cases);
 
-    assert!(
-        stf.runtime().try_get_next_slot_action().flatten().is_none(),
-        "All end slot hooks must have run! This should be unreachable!"
-    );
+        for slot_runner in slots_runner {
+            self.execute_slot(tx_setup_fn, slot_runner);
+        }
+
+        assert!(
+            self.stf.runtime().try_get_next_tx_action().flatten().is_none(),
+            "All post tx hooks must have run! This error indicates that at least one transaction failed that was expected to succeed!"
+        );
+
+        assert!(
+            self.stf
+                .runtime()
+                .try_get_next_slot_action()
+                .flatten()
+                .is_none(),
+            "All end slot hooks must have run! This should be unreachable!"
+        );
+    }
+
+    /// Executes the provided slots without a setup function. This is a helper function for [`TestRunner::execute_slots_with_setup_fn`]
+    pub fn execute_slots<M: Module>(&mut self, slots_test_cases: Vec<SlotTestCase<RT, M, S>>)
+    where
+        RT: EncodeCall<M>,
+    {
+        self.execute_slots_with_setup_fn(&mut |_, _, _| {}, slots_test_cases);
+    }
+
+    /// Run a test on the given runtime
+    ///
+    /// The test is defined by a series of slot test cases, where the workflow is...
+    /// 1. Run genesis
+    /// 2. For each call message, execute the message and apply the post-execution closure to check
+    /// that the result is valid.
+    ///
+    /// This method is a helper function for [`TestRunner::run_test_with_setup_fn`]
+    pub fn run_test<M>(
+        genesis_config: GenesisParams<
+            <RT as Genesis>::Config,
+            BasicKernelGenesisConfig<S, MockDaSpec>,
+        >,
+        slots: Vec<SlotTestCase<RT, M, S>>,
+        runtime: RT,
+    ) where
+        RT: EncodeCall<M>,
+        M: Module,
+    {
+        Self::run_test_with_setup_fn(genesis_config, &mut |_, _, _| {}, slots, runtime);
+    }
+
+    /// Run a test on the given runtime
+    ///
+    /// The test is defined by a series of slot test cases, where the workflow is...
+    /// 1. Run genesis
+    /// 2. For each slot, apply the provided pre-execution closure to each call message
+    /// with the current state as an argument. This allows us to set update any call messages
+    /// that depend on the current state.
+    /// 3. For each call message, execute the message and apply the post-execution closure to check
+    /// that the result is valid.
+    ///
+    /// This method calls successively [`TestRunner::new_with_genesis`] followed by [`TestRunner::execute_slots_with_setup_fn`].
+    pub fn run_test_with_setup_fn<M>(
+        genesis_config: GenesisParams<
+            <RT as Genesis>::Config,
+            BasicKernelGenesisConfig<S, MockDaSpec>,
+        >,
+        tx_setup_fn: &mut StateRootClosure<
+            <M as Module>::CallMessage,
+            <<S as Spec>::Storage as Storage>::Root,
+            ApiStateAccessor<S>,
+        >,
+        slots: Vec<SlotTestCase<RT, M, S>>,
+        runtime: RT,
+    ) where
+        RT: EncodeCall<M>,
+        M: Module,
+    {
+        let mut runner = TestRunner::new_with_genesis(genesis_config, runtime);
+        runner.execute_slots_with_setup_fn(tx_setup_fn, slots);
+    }
 }
 
 // TODO: Delete the hookless TestRuntime after upgrading tests to the HookedRuntime
@@ -498,12 +704,12 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
             is_preferred_sequencer: true,
         },
         attester_incentives: AttesterIncentivesConfig {
-            minimum_attester_bond: MIN_USER_BOND,
-            minimum_challenger_bond: MIN_USER_BOND,
-            initial_attesters: vec![(admin.clone(), MIN_USER_BOND)],
-            rollup_finality_period: ROLLUP_FINALITY_PERIOD,
-            maximum_attested_height: MAX_ATTESTED_HEIGHT,
-            light_client_finalized_height: LIGHT_CLIENT_FINALIZED_HEIGHT,
+            minimum_attester_bond: TEST_DEFAULT_USER_STAKE,
+            minimum_challenger_bond: TEST_DEFAULT_USER_STAKE,
+            initial_attesters: vec![(admin.clone(), TEST_DEFAULT_USER_STAKE)],
+            rollup_finality_period: TEST_ROLLUP_FINALITY_PERIOD,
+            maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
+            light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
             phantom_data: PhantomData,
         },
 
@@ -522,171 +728,5 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
             },
             tokens: vec![],
         },
-    }
-}
-
-#[cfg(test)]
-mod test_rt {
-
-    use sov_kernels::basic::BasicKernelGenesisConfig;
-    use sov_mock_da::MockDaSpec;
-    use sov_mock_zkvm::MockCodeCommitment;
-    use sov_modules_api::prelude::UnwrapInfallible;
-    use sov_modules_api::{Address, PrivateKey, UnmeteredStateWrapper, WorkingSet};
-    use sov_modules_stf_blueprint::GenesisParams;
-
-    use super::*;
-    use crate::{TestPrivateKey, TestSpec};
-
-    const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
-    generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
-
-    #[test]
-    // Tests the test setup by running the value setter module and checking if the value was set correctly
-    fn test_value_setter_tx_success() {
-        let value_to_set = 18;
-        let assertion = Box::new(
-            move |mut state: UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
-                let value_setter = ValueSetter::<TestSpec>::default();
-                let value = value_setter
-                    .value
-                    .get(&mut state)
-                    .unwrap_infallible()
-                    .expect("We should be able to get a value from the state");
-                assert_eq!(value, value_to_set);
-            },
-        );
-
-        run_value_setter_txs_with_assertions(vec![(value_to_set, assertion)]);
-    }
-
-    #[test]
-    #[should_panic]
-    // Tests the test setup by running the value setter with an assertion that should fail and then trying to
-    // run another transaction afterward. This would cause subsequent tests to block forever if the test runtime
-    // failed to handle panics.
-    fn test_value_setter_tx_bad_assertion() {
-        let value_to_set = 18;
-        let bad_assertion = Box::new(
-            move |mut state: UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
-                let value_setter = ValueSetter::<TestSpec>::default();
-                let value = value_setter
-                    .value
-                    .get(&mut state)
-                    .unwrap_infallible()
-                    .expect("We should be able to get a value from the state");
-                assert_eq!(value, value_to_set + 1); // This will fail!
-            },
-        );
-
-        run_value_setter_txs_with_assertions(vec![
-            (value_to_set, bad_assertion),
-            (1, Box::new(|_| {})),
-        ]);
-    }
-
-    // Sets a value and then runs the provided assertion
-    fn run_value_setter_txs_with_assertions(
-        values_and_assertions: Vec<(u32, WorkingSetClosure<TestRuntime<TestSpec, MockDaSpec>>)>,
-    ) {
-        let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
-        let admin_pkey = TestPrivateKey::generate();
-        let admin_addr = (&admin_pkey.pub_key()).into();
-        let genesis_config = create_test_rt_genesis_config(
-            admin_addr,
-            &[],
-            sequencer_rollup_addr,
-            SEQUENCER_ADDR.into(),
-            100_000_000,
-            "SovereignToken".to_string(),
-            10_000_000_000,
-        );
-        let kernel_genesis = BasicKernelGenesisConfig {
-            chain_state: ChainStateConfig {
-                current_time: Default::default(),
-                inner_code_commitment: MockCodeCommitment::default(),
-                outer_code_commitment: MockCodeCommitment::default(),
-                genesis_da_height: 0,
-            },
-        };
-        let params = GenesisParams {
-            runtime: genesis_config,
-            kernel: kernel_genesis,
-        };
-        let tx_test_cases = values_and_assertions
-            .into_iter()
-            .map(|(value, assertion)| {
-                let msg = sov_value_setter::CallMessage::SetValue(value);
-                TxTestCase::<_, ValueSetter<TestSpec>, _>::from((
-                    admin_pkey.clone(),
-                    assertion,
-                    msg,
-                ))
-            })
-            .collect::<Vec<_>>();
-
-        run_test::<_, _, _>(
-            params,
-            vec![SlotTestCase::from(tx_test_cases)],
-            TestRuntime::<TestSpec, MockDaSpec>::default(),
-        );
-    }
-
-    // TODO: generate this function in macro. We'll change the return type to a fixed `BasicGenesisConfig`
-    // and then implement a helper function to combine this basic config with config for other modules to
-    // create the full genesis config.
-    //
-    // This function should also take fewer arguments and generate data more aggressively.
-    // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/682>
-    #[allow(clippy::too_many_arguments)]
-    fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
-        admin: S::Address,
-        additional_accounts: &[(S::Address, u64)],
-        seq_rollup_address: S::Address,
-        seq_da_address: Da::Address,
-        seq_stake_amount: u64,
-        token_name: String,
-        init_balance: u64,
-    ) -> GenesisConfig<S, Da> {
-        assert!(
-            init_balance >= seq_stake_amount,
-            "sequencer cannot stake more than its initial balance"
-        );
-        GenesisConfig {
-            value_setter: ValueSetterConfig {
-                admin: admin.clone(),
-            },
-            sequencer_registry: SequencerConfig {
-                seq_rollup_address: seq_rollup_address.clone(),
-                seq_da_address,
-                minimum_bond: seq_stake_amount,
-                is_preferred_sequencer: true,
-            },
-            attester_incentives: AttesterIncentivesConfig {
-                minimum_attester_bond: MIN_USER_BOND,
-                minimum_challenger_bond: MIN_USER_BOND,
-                initial_attesters: vec![(admin.clone(), MIN_USER_BOND)],
-                rollup_finality_period: ROLLUP_FINALITY_PERIOD,
-                maximum_attested_height: MAX_ATTESTED_HEIGHT,
-                light_client_finalized_height: LIGHT_CLIENT_FINALIZED_HEIGHT,
-                phantom_data: PhantomData,
-            },
-
-            bank: BankConfig {
-                gas_token_config: sov_bank::GasTokenConfig {
-                    token_name: token_name.clone(),
-                    address_and_balances: {
-                        let mut additional_accounts_vec = additional_accounts.to_vec();
-                        additional_accounts_vec.append(&mut vec![
-                            (seq_rollup_address, init_balance),
-                            (admin.clone(), init_balance),
-                        ]);
-                        additional_accounts_vec
-                    },
-                    authorized_minters: vec![admin.clone()],
-                },
-                tokens: vec![],
-            },
-        }
     }
 }

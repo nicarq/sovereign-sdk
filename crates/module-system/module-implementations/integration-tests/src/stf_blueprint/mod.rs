@@ -13,13 +13,13 @@ use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
-use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::genesis::{HighLevelOptimisticGenesisConfig, User};
 use sov_test_utils::runtime::{
-    run_test, MessageType, SlotTestCase, TestRuntime, TxOutcome, TxTestCase,
+    MessageType, SlotTestCase, TestRunner, TestRuntime, TxOutcome, TxTestCase,
 };
 use sov_test_utils::{
-    generate_optimistic_runtime, new_test_blob_from_batch, MessageGenerator, TestAddress,
-    TestHasher, TestPrivateKey, TEST_DEFAULT_USER_BALANCE,
+    generate_optimistic_runtime, new_test_blob_from_batch, MessageGenerator, TestHasher,
+    TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
 
@@ -186,16 +186,17 @@ fn test_enforces_chain_id() {
         chain_id: u64,
         expected_outcome: TxOutcome<IntegTestRuntime<S, MockDaSpec>>,
     ) {
-        let test_key = TestPrivateKey::generate();
-        let test_address = TestAddress::from(&test_key.pub_key());
-        let mut genesis = HighLevelOptimisticGenesisConfig::generate();
-        genesis
+        let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
+        genesis_config
             .additional_accounts
-            .push((test_address, TEST_DEFAULT_USER_BALANCE));
+            .push(User::<S>::generate(TEST_DEFAULT_USER_BALANCE));
+
+        let admin_account = genesis_config.additional_accounts[0].clone();
+
         let genesis = GenesisConfig::from_minimal_config(
-            genesis.into(),
+            genesis_config.clone().into(),
             sov_value_setter::ValueSetterConfig {
-                admin: test_address,
+                admin: admin_account.address(),
             },
         );
 
@@ -206,11 +207,14 @@ fn test_enforces_chain_id() {
 
         let utx =
             UnsignedTransaction::new(encoded_message, chain_id, 100.into(), 100_000_000, 0, None);
-        run_test(
+        TestRunner::run_test(
             genesis.into_genesis_params(),
             vec![SlotTestCase::from_txs(vec![TxTestCase {
                 outcome: expected_outcome,
-                message: MessageType::<ValueSetter<S>, S>::pre_signed(utx, &test_key),
+                message: MessageType::<ValueSetter<S>, S>::pre_signed(
+                    utx,
+                    admin_account.private_key(),
+                ),
             }])],
             Default::default(),
         );
