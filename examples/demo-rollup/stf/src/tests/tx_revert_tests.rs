@@ -300,7 +300,7 @@ fn test_tx_bad_nonce() {
         assert_eq!(
             tx_receipts[0].receipt,
             TxEffect::Skipped(SkippedReason::IncorrectNonce(
-                "Tx bad nonce for credential id 0xfea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44, expected: 18446744073709551615, but found: 0".to_string()
+                "Tx bad nonce for credential id: 0xfea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44, expected: 0, but found: 18446744073709551615".to_string()
             ))
         );
 
