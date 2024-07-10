@@ -417,9 +417,11 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             }
             Err(AuthenticationError::Invalid(reason)) => {
                 // Applies the outcome of the transaction execution to update the sequencer's state.
-                let tx_scratchpad = runtime
-                    .capabilities()
-                    .penalize_sequencer(sequencer_da_address, pre_exec_working_set);
+                let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+                    sequencer_da_address,
+                    AuthenticationError::Invalid(reason.clone()),
+                    pre_exec_working_set,
+                );
 
                 return Err(TxProcessingError {
                     tx_scratchpad,
@@ -442,16 +444,19 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     );
     let ctx = match maybe_ctx {
         Ok(ctx) => ctx,
-        Err(e) => {
+        Err(err) => {
+            let err_string = err.to_string();
             // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-            let tx_scratchpad = runtime
-                .capabilities()
-                .penalize_sequencer(sequencer_da_address, pre_exec_working_set);
+            let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+                sequencer_da_address,
+                err,
+                pre_exec_working_set,
+            );
 
             return Err(TxProcessingError {
                 tx_scratchpad,
                 reason: TxProcessingErrorReason::CannotResolveContext {
-                    reason: e.to_string(),
+                    reason: err_string,
                     raw_tx_hash: *raw_tx_hash,
                 },
             });
@@ -459,20 +464,24 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(e) =
+    if let Err(err) =
         runtime
             .capabilities()
             .check_uniqueness(&auth_data, &ctx, &mut pre_exec_working_set)
     {
+        let err_string = err.to_string();
+
         // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-        let tx_scratchpad = runtime
-            .capabilities()
-            .penalize_sequencer(sequencer_da_address, pre_exec_working_set);
+        let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+            sequencer_da_address,
+            err,
+            pre_exec_working_set,
+        );
 
         return Err(TxProcessingError {
             tx_scratchpad,
             reason: TxProcessingErrorReason::Nonce {
-                reason: e.to_string(),
+                reason: err_string,
                 raw_tx_hash: *raw_tx_hash,
             },
         });
@@ -487,15 +496,18 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             reason,
             pre_exec_working_set,
         }) => {
+            let reason_string = reason.to_string();
             // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-            let tx_scratchpad = runtime
-                .capabilities()
-                .penalize_sequencer(sequencer_da_address, pre_exec_working_set);
+            let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+                sequencer_da_address,
+                reason,
+                pre_exec_working_set,
+            );
 
             return Err(TxProcessingError {
                 tx_scratchpad,
                 reason: TxProcessingErrorReason::CannotReserveGas {
-                    reason: reason.to_string(),
+                    reason: reason_string,
                     raw_tx_hash: *raw_tx_hash,
                 },
             });

@@ -75,10 +75,11 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
     fn penalize_sequencer(
         &self,
         sequencer: &Da::Address,
+        reason: impl std::fmt::Display,
         pre_exec_working_set: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> TxScratchpad<S> {
         self.sequencer_registry
-            .penalize_sequencer(sequencer, pre_exec_working_set)
+            .penalize_sequencer(sequencer, reason, pre_exec_working_set)
     }
 }
 
