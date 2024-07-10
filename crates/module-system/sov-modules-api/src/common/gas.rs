@@ -360,6 +360,12 @@ pub struct UnlimitedGasMeter<GU: Gas> {
     gas_price: GU::Price,
 }
 
+impl<GU: Gas> Default for UnlimitedGasMeter<GU> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<GU: Gas> UnlimitedGasMeter<GU> {
     /// Creates a new unlimited gas meter with the provided gas price.
     pub const fn new_with_price(gas_price: GU::Price) -> Self {
