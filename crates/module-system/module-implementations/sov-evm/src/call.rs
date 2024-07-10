@@ -70,7 +70,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
                 tracing::debug!(
                     hash = hex::encode(evm_tx.hash()),
                     gas_used,
-                    "EVM transaction has been successfully executed"
+                    "EVM transaction has been executed"
                 );
                 Receipt {
                     receipt: reth_primitives::Receipt {
