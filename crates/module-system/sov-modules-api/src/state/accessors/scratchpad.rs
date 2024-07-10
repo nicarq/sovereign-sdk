@@ -1,6 +1,6 @@
 //! Runtime state machine definitions.
 use sov_state::namespaces::User;
-#[cfg(any(feature = "native", feature = "test-utils"))]
+#[cfg(feature = "native")]
 use sov_state::Storage;
 use sov_state::{
     CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue,
@@ -79,7 +79,7 @@ impl<S: Spec> UniversalStateAccessor for TxScratchpad<S> {
 }
 
 impl<S: Spec> TxScratchpad<S> {
-    #[cfg(any(feature = "native", feature = "test-utils"))]
+    #[cfg(feature = "native")]
     fn delta(&self) -> &Delta<S::Storage> {
         &self.delta.inner
     }
@@ -226,7 +226,10 @@ impl<S: Spec> StateCheckpoint<S> {
 
     /// Produces a metered [`WorkingSet`] from this [`StateCheckpoint`].
     /// This is useful for tests that need to bypass pre-execution checks.
-    pub fn to_working_set(
+    ///
+    /// ## Deprecated(@theochap)
+    /// This method is deprecated and will be removed in the future. Please refrain from writing tests that use this method.
+    pub fn to_working_set_deprecated(
         self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
@@ -325,39 +328,8 @@ impl<S: Spec> WorkingSet<S> {
         self.max_fee
     }
 
-    #[cfg(any(feature = "native", feature = "test-utils"))]
-    fn inner(&self) -> &TxScratchpad<S> {
-        &self.delta.inner
-    }
-
-    #[cfg(any(feature = "native", feature = "test-utils"))]
-    pub(crate) fn storage(&self) -> &S::Storage {
-        &self.inner().delta().inner
-    }
-}
-
-#[cfg(feature = "test-utils")]
-impl<S: Spec> WorkingSet<S> {
-    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`].
-    ///
-    /// The witness value is set to [`Default::default`]. Use
-    /// [`WorkingSet::with_witness`] to set a custom witness value.
-    pub fn new(inner: S::Storage) -> Self {
-        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
-        let tx_scratchpad = TxScratchpad {
-            delta: RevertableWriter::new(state_checkpoint.delta),
-        };
-
-        WorkingSet {
-            delta: RevertableWriter::new(tx_scratchpad),
-            events: Default::default(),
-            gas_meter: TxGasMeter::unmetered(),
-            max_fee: 0,
-            max_priority_fee_bips: PriorityFeeBips::ZERO,
-        }
-    }
-
     /// A helper function to create a new [`WorkingSet`] with a given gas price and remaining funds.
+    #[cfg(test)]
     pub fn new_with_gas_meter(
         inner: S::Storage,
         remaining_funds: u64,
@@ -376,11 +348,21 @@ impl<S: Spec> WorkingSet<S> {
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
     }
+}
 
-    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
-    /// and a custom witness value.
-    pub fn with_witness(inner: S::Storage, witness: <S::Storage as Storage>::Witness) -> Self {
-        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::with_witness(inner, witness);
+#[cfg(feature = "test-utils")]
+impl<S: Spec> WorkingSet<S> {
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`].
+    ///
+    /// ## Deprecated(@theochap)
+    /// This method is deprecated and will be removed in the future. Please refrain from writing
+    /// tests that use this method.
+    /// Instead, one could use (in decreasing order of preference):
+    /// - the testing framework,
+    /// - or [`crate::ApiStateAccessor::new`]
+    /// - or [`StateCheckpoint::new`]
+    pub fn new_deprecated(inner: S::Storage) -> Self {
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
         let tx_scratchpad = TxScratchpad {
             delta: RevertableWriter::new(state_checkpoint.delta),
         };
@@ -412,27 +394,6 @@ impl<S: Spec> WorkingSet<S> {
         let checkpoint = tx_scratchpad.commit();
 
         (checkpoint, transaction_consumption, events)
-    }
-
-    /// Creates a new archival working set with the same underlying `Storage` but an empty Delta, without
-    /// modifying the original [`WorkingSet`].
-    /// Propagates the gas meter to the new working set.
-    ///
-    /// ## TODO(@theochap)
-    /// We should be able to remove this method once we rewrite the archival state tests.
-    pub fn get_archival_at(&self, version: u64) -> Self {
-        let storage = self.storage().clone();
-        let tx_scratchpad = TxScratchpad {
-            delta: RevertableWriter::new(Delta::new(storage.clone(), Some(version))),
-        };
-
-        Self {
-            delta: RevertableWriter::new(tx_scratchpad),
-            events: Default::default(),
-            gas_meter: TxGasMeter::unmetered(),
-            max_fee: 0,
-            max_priority_fee_bips: PriorityFeeBips::ZERO,
-        }
     }
 }
 
@@ -481,6 +442,14 @@ impl<S: Spec> EventContainer for WorkingSet<S> {
 impl<S: Spec> WorkingSet<S> {
     fn version(&self) -> Option<u64> {
         self.inner().delta().version
+    }
+
+    fn inner(&self) -> &TxScratchpad<S> {
+        &self.delta.inner
+    }
+
+    pub(crate) fn storage(&self) -> &S::Storage {
+        &self.inner().delta().inner
     }
 }
 

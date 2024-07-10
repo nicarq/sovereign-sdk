@@ -100,7 +100,7 @@ fn test_accessory_value_setter() -> Result<(), Infallible> {
         "AccessoryStateValue read has returned an incorrect value"
     );
 
-    let mut ws = <WorkingSet<TestSpec>>::new(storage.clone());
+    let mut ws = <WorkingSet<TestSpec>>::new_deprecated(storage.clone());
 
     module.accessory_state.set(&1000, &mut ws)?;
 

@@ -21,7 +21,7 @@ type S = sov_test_utils::TestSpec;
 fn simple_contract_execution_sov_state() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set: WorkingSet<S> =
-        WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+        WorkingSet::new_deprecated(new_orphan_storage(tmpdir.path()).unwrap());
 
     let evm = Evm::<S>::default();
     let evm_db = evm.get_db(&mut working_set);

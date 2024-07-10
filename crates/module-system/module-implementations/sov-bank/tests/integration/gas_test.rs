@@ -176,7 +176,7 @@ impl BankGasTestCase {
             gas_limit: None,
         };
 
-        let state = state.to_working_set(&tx, &gas_price);
+        let state = state.to_working_set_deprecated(&tx, &gas_price);
 
         Self {
             state,

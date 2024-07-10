@@ -221,7 +221,8 @@ fn test_get_account_after_pub_key_update() -> Result<(), Infallible> {
 #[test]
 fn test_resolve_sender_address() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state: WorkingSet<S> = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state: WorkingSet<S> =
+        WorkingSet::new_deprecated(new_orphan_storage(tmpdir.path()).unwrap());
     let (mut checkpoint, _, _) = state.checkpoint();
     let accounts = &mut Accounts::<S>::default();
 

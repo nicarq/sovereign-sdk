@@ -1,6 +1,6 @@
 use std::panic::catch_unwind;
 
-use sov_modules_api::{CryptoSpec, ModuleId, ModuleInfo, Spec, StateValue, WorkingSet};
+use sov_modules_api::{CryptoSpec, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue};
 use sov_state::{DefaultStorageSpec, StateCodec, StateItemDecoder, StateItemEncoder, ZkStorage};
 use sov_test_utils::ZkTestSpec;
 
@@ -59,8 +59,8 @@ fn main() {
     let module: TestModule<ZkTestSpec> = TestModule::default();
 
     catch_unwind(|| {
-        let mut working_set: WorkingSet<ZkTestSpec> = WorkingSet::new(storage);
-        module.state_value.set(&0u32, &mut working_set).unwrap();
+        let mut state: StateCheckpoint<ZkTestSpec> = StateCheckpoint::new(storage);
+        module.state_value.set(&0u32, &mut state).unwrap();
     })
     .unwrap_err();
 }

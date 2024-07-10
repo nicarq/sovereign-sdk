@@ -81,7 +81,7 @@ fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: StateThin
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::new(storage);
+    let mut working_set = WorkingSet::new_deprecated(storage);
     let thing = St::create::<S>(&mut working_set);
 
     for condition in conditions {
@@ -412,7 +412,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     let state_value = VersionedStateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
+    let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone());
 
     let mut state_checkpoint = working_set.checkpoint().0;
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
@@ -448,7 +448,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 
     // Check that we can get the current value with a standard working set
-    let working_set: WorkingSet<S> = WorkingSet::new(storage.clone());
+    let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone());
     let mut state_checkpoint = working_set.checkpoint().0;
     let kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     let mut versioned_reader = VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);

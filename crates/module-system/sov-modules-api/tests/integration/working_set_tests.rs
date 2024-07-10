@@ -20,7 +20,7 @@ fn test_workingset_get() {
     let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
-    let mut working_set = WorkingSet::<TestSpec>::new(storage.clone());
+    let mut working_set = WorkingSet::<TestSpec>::new_deprecated(storage.clone());
     StateWriter::<User>::set(&mut working_set, &storage_key, storage_value.clone()).expect("The set operation should succeed because there should be enough funds in the metered working set");
     let value = StateReader::<User>::get(&mut working_set, &storage_key).expect("The get operation should succeed because there should be enough funds in the metered working set");
 
