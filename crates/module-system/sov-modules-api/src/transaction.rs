@@ -452,8 +452,11 @@ where
             gas_used: GU::ZEROED,
         }
     }
+}
 
-    pub(crate) fn new(remaining_funds: u64, gas_price: GU::Price) -> Self {
+#[cfg(test)]
+impl<GU: Gas> TxGasMeter<GU> {
+    pub fn new(remaining_funds: u64, gas_price: GU::Price) -> Self {
         Self {
             remaining_funds,
             gas_price,

@@ -64,7 +64,8 @@ mod test {
             for test in &tests {
                 {
                     let storage = storage_manager.create_storage();
-                    let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage.clone());
+                    let mut working_set: WorkingSet<TestSpec> =
+                        WorkingSet::new_deprecated(storage.clone());
                     StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone())?;
                     let (checkpoint, _gas_meter, _) = working_set.checkpoint();
                     let (cache, _, witness) = checkpoint.freeze();
@@ -111,7 +112,7 @@ mod test {
         {
             let storage = storage_manager.create_storage();
             assert!(storage.is_empty());
-            let mut working_set: WorkingSet<TestSpec> = WorkingSet::new(storage.clone());
+            let mut working_set: WorkingSet<TestSpec> = WorkingSet::new_deprecated(storage.clone());
             StateWriter::<User>::set(&mut working_set, &key, value.clone())?;
             let (cache, _, witness) = working_set.checkpoint().0.freeze();
             let (_, change_set) = storage

@@ -302,7 +302,7 @@ fn mint_token() -> Result<(), Infallible> {
 #[test]
 fn mint_token_from_module_and_address() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut state = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::<S>::new_deprecated(new_orphan_storage(tmpdir.path()).unwrap());
 
     let bank = Bank::<S>::default();
 
@@ -387,7 +387,7 @@ fn mint_token_from_module_and_address() -> Result<(), Infallible> {
 #[test]
 fn create_token_from_module() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut state = WorkingSet::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = WorkingSet::<S>::new_deprecated(new_orphan_storage(tmpdir.path()).unwrap());
 
     let bank = Bank::<S>::default();
 

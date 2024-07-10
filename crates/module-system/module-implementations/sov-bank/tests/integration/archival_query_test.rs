@@ -1,8 +1,8 @@
-use sov_bank::{Amount, Bank, CallMessage, Coins, TokenId};
+use sov_bank::{Amount, Bank, Coins, TokenId};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    ApiStateAccessor, Context, InfallibleStateAccessor, Module, Spec, StateAccessor,
-    StateCheckpoint, StateReader, StateWriter, WorkingSet,
+    ApiStateAccessor, InfallibleStateAccessor, Module, Spec, StateCheckpoint, StateReader,
+    StateWriter,
 };
 use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::namespaces::Accessory;
@@ -36,7 +36,6 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
 
     let token_id = sov_bank::GAS_TOKEN_ID;
     let sender_address = bank_config.gas_token_config.address_and_balances[0].0;
-    let sequencer_address = bank_config.gas_token_config.address_and_balances[3].0;
     let receiver_address = bank_config.gas_token_config.address_and_balances[1].0;
     assert_ne!(sender_address, receiver_address);
 
@@ -52,18 +51,16 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         (TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_BALANCE)
     );
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
-    let mut state: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
+    let mut state = StateCheckpoint::<S>::new(prover_storage.clone());
 
     transfer(
         &bank,
         token_id,
         sender_address,
-        sequencer_address,
         receiver_address,
         AMOUNT_PER_TRANSFER,
         &mut state,
     );
-    let mut state = state.checkpoint().0;
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
@@ -82,19 +79,17 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
 
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
 
-    let mut state: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
+    let mut state = StateCheckpoint::<S>::new(prover_storage.clone());
 
     transfer(
         &bank,
         token_id,
         sender_address,
-        sequencer_address,
         receiver_address,
         AMOUNT_PER_TRANSFER,
         &mut state,
     );
 
-    let mut state = state.checkpoint().0;
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_id,
@@ -114,16 +109,11 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
     // Archival tests
 
     let archival_slot: u64 = 2;
-    let state: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
-    let mut archival = state.get_archival_at(archival_slot);
+    let state = &mut ApiStateAccessor::<S>::new(prover_storage.clone());
+    let archival = &mut state.get_archival_at(archival_slot);
 
-    let (sender_balance, receiver_balance) = query_sender_receiver_balances(
-        &bank,
-        token_id,
-        sender_address,
-        receiver_address,
-        &mut archival.to_unmetered(),
-    );
+    let (sender_balance, receiver_balance) =
+        query_sender_receiver_balances(&bank, token_id, sender_address, receiver_address, archival);
     assert_eq!(
         (sender_balance, receiver_balance),
         (
@@ -138,21 +128,13 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         &bank,
         token_id,
         sender_address,
-        sequencer_address,
         receiver_address,
         AMOUNT_PER_ARCHIVAL_TRANSFER,
-        &mut archival,
+        archival,
     );
 
-    let mut archival = archival.checkpoint().0;
-
-    let (sender_balance, receiver_balance) = query_sender_receiver_balances(
-        &bank,
-        token_id,
-        sender_address,
-        receiver_address,
-        &mut archival,
-    );
+    let (sender_balance, receiver_balance) =
+        query_sender_receiver_balances(&bank, token_id, sender_address, receiver_address, archival);
     assert_eq!(
         (sender_balance, receiver_balance),
         (
@@ -162,14 +144,14 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
     );
 
     let archival_slot: u64 = 1;
-    let mut state: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
-    let mut archival = state.get_archival_at(archival_slot);
+    let api_state = &mut ApiStateAccessor::<S>::new(prover_storage.clone());
+    let api_archival = &mut api_state.get_archival_at(archival_slot);
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_id,
         sender_address,
         receiver_address,
-        &mut archival.to_unmetered(),
+        api_archival,
     );
     assert_eq!(
         (sender_balance, receiver_balance),
@@ -181,10 +163,9 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         &bank,
         token_id,
         sender_address,
-        sequencer_address,
         receiver_address,
         AMOUNT_PER_ARCHIVAL_TRANSFER_2,
-        &mut archival,
+        api_archival,
     );
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
@@ -192,7 +173,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         token_id,
         sender_address,
         receiver_address,
-        &mut archival.to_unmetered(),
+        api_archival,
     );
     assert_eq!(
         (sender_balance, receiver_balance),
@@ -207,7 +188,7 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         token_id,
         sender_address,
         receiver_address,
-        &mut state.to_unmetered(),
+        api_state,
     );
     assert_eq!(
         (sender_balance, receiver_balance),
@@ -218,18 +199,16 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
     );
 
     // Accessory tests
-
+    let mut state = StateCheckpoint::<S>::new(prover_storage.clone());
     transfer(
         &bank,
         token_id,
         sender_address,
-        sequencer_address,
         receiver_address,
         AMOUNT_PER_TRANSFER,
         &mut state,
     );
 
-    let mut state = state.checkpoint().0;
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
         token_id,
@@ -250,26 +229,24 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         &SlotKey::from_slice(b"k"),
         SlotValue::from(b"v1".to_vec()),
     )?;
-    let val =
-        StateReader::<Accessory>::get(&mut state.accessory_state(), &SlotKey::from_slice(b"k"))?
-            .unwrap();
-    assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
 
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
 
+    let api_state = &mut ApiStateAccessor::<S>::new(prover_storage.clone());
+    let val = StateReader::<Accessory>::get(api_state, &SlotKey::from_slice(b"k"))?.unwrap();
+    assert_eq!("v1", String::from_utf8(val.value().to_vec()).unwrap());
+
     // next block
 
-    let mut state: WorkingSet<S> = WorkingSet::new(prover_storage.clone());
+    let mut state = StateCheckpoint::<S>::new(prover_storage.clone());
     transfer(
         &bank,
         token_id,
         sender_address,
-        sequencer_address,
         receiver_address,
         AMOUNT_PER_TRANSFER,
         &mut state,
     );
-    let (mut state, _, _) = state.checkpoint();
 
     let (sender_balance, receiver_balance) = query_sender_receiver_balances(
         &bank,
@@ -290,12 +267,12 @@ fn transfer_initial_token() -> Result<(), anyhow::Error> {
         &SlotKey::from_slice(b"k"),
         SlotValue::from(b"v2".to_vec()),
     )?;
-    let val =
-        StateReader::<Accessory>::get(&mut state.accessory_state(), &SlotKey::from_slice(b"k"))?
-            .unwrap();
-    assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
     let prover_storage = commit(state, prover_storage, &mut storage_manager);
+
+    let api_state = &mut ApiStateAccessor::<S>::new(prover_storage.clone());
+    let val = StateReader::<Accessory>::get(api_state, &SlotKey::from_slice(b"k"))?.unwrap();
+    assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 
     // archival versioned state query
 
@@ -344,24 +321,18 @@ fn transfer(
     bank: &Bank<S>,
     token_id: TokenId,
     sender_address: <S as Spec>::Address,
-    sequencer_address: <S as Spec>::Address,
     receiver_address: <S as Spec>::Address,
     transfer_amount: Amount,
-    state: &mut WorkingSet<S>,
+    state: &mut impl InfallibleStateAccessor,
 ) {
-    let transfer_message = CallMessage::Transfer {
-        to: receiver_address,
-        coins: Coins {
-            amount: transfer_amount,
-            token_id,
-        },
+    let to = receiver_address;
+    let coin_amount = Coins {
+        amount: transfer_amount,
+        token_id,
     };
 
-    let sender_context =
-        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
-
-    bank.call(transfer_message, &sender_context, state)
-        .expect("Transfer call failed");
+    bank.transfer_from(&sender_address, &to, coin_amount, state)
+        .unwrap();
 }
 
 fn commit(

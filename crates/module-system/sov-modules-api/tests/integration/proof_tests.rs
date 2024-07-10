@@ -31,7 +31,7 @@ fn make_user_map_proof(
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
-    let mut working_set = WorkingSet::<S>::new(storage);
+    let mut working_set = WorkingSet::<S>::new_deprecated(storage);
 
     let proof = map.get_with_proof(&1, &mut working_set);
     (root, proof, map)
@@ -60,7 +60,7 @@ fn make_user_value_proof(
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
-    let mut working_set = WorkingSet::<S>::new(storage);
+    let mut working_set = WorkingSet::<S>::new_deprecated(storage);
 
     let proof = state_val.get_with_proof(&mut working_set);
     (root, proof, state_val)
@@ -179,10 +179,10 @@ fn test_archival_proof_gen() {
 
     let storage = storage_manager.create_storage();
     // Generate a proof at each archival state and validate it against the root
-    let mut base_working_set = WorkingSet::<S>::new(storage.clone());
+    let mut api_state_accessor = ApiStateAccessor::<S>::new(storage.clone());
     for iter in 0..10 {
-        let mut working_set = base_working_set.get_archival_at((iter + 1) as u64); // Versions are 1-indexed
-        let proof = state_val.get_with_proof(&mut working_set);
+        let mut archival_accessor = api_state_accessor.get_archival_at((iter + 1) as u64); // Versions are 1-indexed
+        let proof = state_val.get_with_proof(&mut archival_accessor);
         let value = state_val
             .verify_proof::<S>(roots[iter as usize], proof)
             .unwrap();
@@ -194,7 +194,7 @@ fn test_archival_proof_gen() {
     }
 
     // Check that the default working_set use the latest state for archival proof generation
-    let proof = state_val.get_with_proof(&mut base_working_set);
+    let proof = state_val.get_with_proof(&mut api_state_accessor);
     let final_value = state_val.verify_proof::<S>(roots[9], proof).unwrap();
     assert_eq!(final_value, None);
 }

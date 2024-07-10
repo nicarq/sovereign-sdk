@@ -36,11 +36,6 @@ impl<'a, Inner> UnmeteredStateWrapper<'a, Inner> {
     pub fn inner(&self) -> &Inner {
         self.inner
     }
-
-    #[cfg(feature = "test-utils")]
-    pub fn new(inner: &'a mut Inner) -> Self {
-        Self { inner }
-    }
 }
 
 impl<'a, Inner, N: CompileTimeNamespace> StateReader<N> for UnmeteredStateWrapper<'a, Inner>

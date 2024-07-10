@@ -21,7 +21,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
 
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage::<StorageSpec>(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::<TestSpec>::new(storage);
+    let mut working_set = WorkingSet::<TestSpec>::new_deprecated(storage);
     let nft = NonFungibleToken::default();
 
     let create_collection_message = CallMessage::CreateCollection {
