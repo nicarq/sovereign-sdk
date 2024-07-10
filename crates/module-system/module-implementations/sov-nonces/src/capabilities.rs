@@ -8,20 +8,17 @@ impl<S: Spec> Nonces<S> {
     pub fn check_nonce(
         &self,
         credential_id: &CredentialId,
-        nonce: u64,
+        nonce_to_check: u64,
         state_checkpoint: &mut impl StateAccessor,
     ) -> Result<(), anyhow::Error> {
-        let sender_nonce = self
+        let senders_expected_nonce = self
             .nonces
             .get(credential_id, state_checkpoint)?
             .unwrap_or_default();
 
         anyhow::ensure!(
-            sender_nonce == nonce,
-            "Tx bad nonce for credential id {}, expected: {}, but found: {}",
-            credential_id,
-            nonce,
-            sender_nonce
+            senders_expected_nonce == nonce_to_check,
+            "Tx bad nonce for credential id: {credential_id}, expected: {senders_expected_nonce}, but found: {nonce_to_check}",
         );
         Ok(())
     }
