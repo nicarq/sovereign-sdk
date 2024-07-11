@@ -20,9 +20,9 @@ use sov_celestia_adapter::types::Namespace;
 use sov_celestia_adapter::verifier::RollupParams;
 use sov_celestia_adapter::CelestiaService;
 use sov_modules_api::prelude::tokio;
+use sov_modules_api::RawTx;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::stf::RawTx;
 
 use crate::account_pool::AccountPool;
 use crate::args::Args;

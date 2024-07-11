@@ -8,12 +8,14 @@ use sov_mock_da::{
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
-use sov_modules_api::{Address, BlobData, RawTx};
+use sov_modules_api::{Address, BlobData, ProofSerializer, RawTx};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
+use sov_rollup_interface::zk::aggregated_proof::{
+    AggregatedProofPublicData, SerializedAggregatedProof,
+};
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
     HttpServerConfig, InitVariant, ParallelProverService, ProofManager, ProofManagerConfig,
@@ -97,6 +99,23 @@ impl TestNode {
     ) -> Result<Option<AggregatedProofPublicData>, anyhow::Error> {
         let proof_from_db = self.ledger_db.get_latest_aggregated_proof().await?;
         Ok(proof_from_db.map(|p| p.proof.public_data().clone()))
+    }
+}
+
+struct DummyProofSerializer {}
+
+impl ProofSerializer for DummyProofSerializer {
+    fn new() -> Self {
+        DummyProofSerializer {}
+    }
+
+    fn serialize_proof_blob_with_metadata(
+        &self,
+        serialized_proof: SerializedAggregatedProof,
+    ) -> anyhow::Result<Vec<u8>> {
+        let proof = BlobData::new_proof(serialized_proof.raw_aggregated_proof);
+        let serialized_proof = borsh::to_vec(&proof)?;
+        Ok(serialized_proof)
     }
 }
 
@@ -185,6 +204,7 @@ pub fn initialize_runner(
         prover_service,
         MockCodeCommitment::default(),
         rollup_config.proof_manager.aggregated_proof_block_jump,
+        Box::new(DummyProofSerializer::new()),
     );
     (
         StateTransitionRunner::new(

@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod batch;
 #[cfg(feature = "native")]
 pub mod cli;
 pub mod common;
@@ -15,12 +16,15 @@ pub mod rpc;
 pub mod runtime;
 pub mod state;
 
+pub use batch::*;
 pub use common::*;
 pub use module::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
 pub use runtime::*;
 pub use state::*;
+
+pub mod proof_metadata;
 
 mod reexport_macros;
 pub use reexport_macros::*;
@@ -52,6 +56,7 @@ pub use sov_rollup_interface::{digest, execution_mode, BasicAddress, RollupAddre
 pub use sov_state::Storage;
 
 pub use crate::common::ModuleError as Error;
+pub use crate::proof_metadata::SovApiProofSerializer;
 pub use crate::state::StateReaderAndWriter;
 pub mod optimistic {
     pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};

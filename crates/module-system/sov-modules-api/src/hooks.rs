@@ -1,9 +1,8 @@
 use sov_rollup_interface::da::DaSpec;
 
-use super::BatchWithId;
 use crate::transaction::AuthenticatedTransactionData;
 use crate::{
-    AccessoryStateReaderAndWriter, Context, Spec, StateCheckpoint, TxState,
+    AccessoryStateReaderAndWriter, BatchWithId, Context, Spec, StateCheckpoint, TxState,
     VersionedStateReadWriter,
 };
 
