@@ -5,6 +5,7 @@ edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "Sovereign SDK module for managing and tracking nonces"
 
 version = { workspace = true }
 readme = "README.md"

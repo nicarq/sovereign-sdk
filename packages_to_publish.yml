@@ -3,7 +3,6 @@
 - sov-mock-zkvm
 - sov-rest-utils
 - sov-db
-- sov-modules-core
 - sov-state
 - sov-prover-storage-manager
 - sov-modules-macros # Requires --no-verify because it writes outside of OUT_DIR.
@@ -15,6 +14,7 @@
 - sov-stf-runner
 - sov-modules-rollup-blueprint
 - sov-ledger-apis
+- sov-ledger-json-client
 
 # Modules
 - sov-accounts
@@ -24,6 +24,7 @@
 - sov-chain-state
 - sov-blob-storage
 - sov-nft-module
+- sov-nonces
 
 # Adapters
 - sov-risc0-adapter
