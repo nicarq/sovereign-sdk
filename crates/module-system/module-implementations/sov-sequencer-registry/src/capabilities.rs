@@ -43,6 +43,7 @@ impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
                 remaining_funds: self.remaining_stake,
+                total_gas_consumed: self.gas_used().clone(),
             });
         }
 

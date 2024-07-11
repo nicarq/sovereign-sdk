@@ -422,6 +422,7 @@ where
                 gas_to_charge: gas.clone(),
                 gas_price: self.gas_price.clone(),
                 remaining_funds: self.remaining_funds,
+                total_gas_consumed: self.gas_used.clone(),
             })?;
 
         self.gas_used.combine(gas);
