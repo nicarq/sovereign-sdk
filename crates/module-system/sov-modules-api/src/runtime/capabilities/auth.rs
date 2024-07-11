@@ -33,7 +33,6 @@ use sov_modules_macros::config_value;
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::stf::RawTx;
 use thiserror::Error;
 
 use crate::transaction::{
@@ -41,7 +40,7 @@ use crate::transaction::{
 };
 use crate::{
     Context, CryptoSpec, DispatchCall, GasMeter, MeteredBorshDeserialize, MeteredHasher,
-    PreExecWorkingSet, Spec, TxScratchpad, UnlimitedGasMeter,
+    PreExecWorkingSet, RawTx, Spec, TxScratchpad, UnlimitedGasMeter,
 };
 
 /// The chain id of the rollup.

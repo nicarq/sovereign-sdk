@@ -48,7 +48,7 @@ mod blueprint {
     use sov_db::schema::{CacheDb, SchemaBatch};
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::runtime::capabilities::Kernel;
-    use sov_modules_api::{Spec, Zkvm};
+    use sov_modules_api::{ProofSerializer, Spec, Zkvm};
     use sov_modules_stf_blueprint::{
         GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint,
     };
@@ -101,6 +101,9 @@ mod blueprint {
             Witness = <<Self::Spec as Spec>::Storage as Storage>::Witness,
             DaService = Self::DaService,
         >;
+
+        /// Serialize proof blob and adds metadata needed for verification.
+        type ProofSerializer: ProofSerializer + 'static;
 
         /// Creates code commitments for the outer zkVM program.
         fn create_outer_code_commitment(
@@ -246,6 +249,7 @@ mod blueprint {
                 prover_service,
                 self.create_outer_code_commitment(),
                 rollup_config.proof_manager.aggregated_proof_block_jump,
+                Box::new(Self::ProofSerializer::new()),
             );
 
             let runner = StateTransitionRunner::new(

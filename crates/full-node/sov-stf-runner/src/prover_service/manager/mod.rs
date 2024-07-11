@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::BlobData;
+use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use sov_rollup_interface::zk::Zkvm;
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
@@ -20,6 +20,7 @@ pub struct ProofManager<Ps: ProverService> {
     outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
     proofs_to_create: UnAggregatedProofList<Ps>,
     aggregated_proof_block_jump: usize,
+    proof_serializer: Box<dyn ProofSerializer>,
 }
 
 impl<Ps: ProverService> ProofManager<Ps>
@@ -32,6 +33,7 @@ where
         prover_service: Option<Ps>,
         outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
         aggregated_proof_block_jump: usize,
+        proof_serializer: Box<dyn ProofSerializer>,
     ) -> Self {
         Self {
             da_service,
@@ -39,6 +41,7 @@ where
             outer_code_commitment,
             proofs_to_create: UnAggregatedProofList::new(),
             aggregated_proof_block_jump,
+            proof_serializer,
         }
     }
 
@@ -110,14 +113,15 @@ where
                 let agg_proof = self
                     .create_aggregate_proof_with_retries(metadata, prover_service)
                     .await;
+
                 tracing::debug!(
                     bytes = agg_proof.raw_aggregated_proof.len(),
                     "Sending aggregated proof to DA"
                 );
 
-                let proof = BlobData::new_proof(agg_proof.raw_aggregated_proof);
-                let serialized_proof = borsh::to_vec(&proof)?;
-
+                let serialized_proof = self
+                    .proof_serializer
+                    .serialize_proof_blob_with_metadata(agg_proof)?;
                 let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
 
                 self.da_service
