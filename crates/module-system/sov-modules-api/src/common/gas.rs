@@ -310,11 +310,12 @@ impl From<u64> for GasUnit<1> {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum GasMeteringError<GU: Gas> {
     /// The gas meter has ran out of gas.
-    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, remaining funds {remaining_funds}")]
+    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, remaining funds {remaining_funds}, total gas consumed {total_gas_consumed}")]
     OutOfGas {
         gas_to_charge: GU,
         gas_price: GU::Price,
         remaining_funds: u64,
+        total_gas_consumed: GU,
     },
     /// The refund operation failed for the gas meter.
     #[error("The gas to refund is greater than the gas used. Gas to refund {gas_to_refund}, gas used {gas_used}")]
