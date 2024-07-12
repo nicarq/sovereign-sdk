@@ -12,7 +12,9 @@ repository.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+borsh = { workspace = true }
 
+sov-rollup-interface = { workspace = true }
 sov-modules-api = { workspace = true }
 sov-bank = { workspace = true }
 sov-accounts = { workspace = true }
@@ -32,4 +34,5 @@ native = [
     "sov-nonces/native",
     "sov-prover-incentives/native",
     "sov-sequencer-registry/native",
+    "sov-rollup-interface/native",
 ]

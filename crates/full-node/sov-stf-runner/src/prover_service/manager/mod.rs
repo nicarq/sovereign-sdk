@@ -49,14 +49,14 @@ where
     /// Stops on first invalid proof
     pub(crate) async fn verify_aggregated_proofs(
         &self,
-        raw_proofs: impl Iterator<Item = Vec<u8>>,
+        serialized_proofs: impl Iterator<Item = SerializedAggregatedProof>,
     ) -> anyhow::Result<Vec<AggregatedProof>> {
         let mut aggregated_proofs_data: Vec<AggregatedProof> = Vec::new();
-        for raw_aggregated_proof in raw_proofs {
+        for serialized_proof in serialized_proofs {
             // Verify aggregated proof before storing it into the database.
             // TODO #815
             let public_data: AggregatedProofPublicData = match <Ps::Verifier as Zkvm>::verify(
-                &raw_aggregated_proof,
+                &serialized_proof.raw_aggregated_proof,
                 &self.outer_code_commitment,
             ) {
                 Ok(public_data) => public_data,
@@ -66,12 +66,7 @@ where
                 }
             };
 
-            aggregated_proofs_data.push(AggregatedProof::new(
-                SerializedAggregatedProof {
-                    raw_aggregated_proof,
-                },
-                public_data,
-            ));
+            aggregated_proofs_data.push(AggregatedProof::new(serialized_proof, public_data));
         }
 
         Ok(aggregated_proofs_data)

@@ -20,6 +20,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::stf::ProofOutcome;
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::{BatchSequencerOutcome, SequencerRegistry, SequencerStakeMeter};
 use sov_state::Storage;
 
@@ -564,7 +565,9 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
     ) {
         (
             ProofReceipt {
-                raw_proof: vec![],
+                raw_proof: SerializedAggregatedProof {
+                    raw_aggregated_proof: vec![],
+                },
                 blob_hash: [0; 32],
                 outcome: ProofOutcome::Ignored,
                 extra_data: (),
