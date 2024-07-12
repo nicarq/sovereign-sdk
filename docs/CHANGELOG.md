@@ -1,3 +1,4 @@
+- #950 Add metadata abou gas & fees to the serialized proof.
 - #943 Add `ProofSerializer` trait which allow adding additional metadata to the proof blob.
 - #908 refactors the testing framework to achieve the following objectives:
    - Allow the execution of transactions from different modules in one test

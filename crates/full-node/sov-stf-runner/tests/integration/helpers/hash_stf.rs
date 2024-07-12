@@ -3,6 +3,7 @@ use sha2::Digest;
 use sov_modules_api::{BlobData, ProofOutcome, ProofReceipt};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
@@ -137,7 +138,9 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                 match BlobData::try_from_slice(data).unwrap() {
                     BlobData::Batch(_) => hasher.update(data),
                     BlobData::Proof(raw_proof) => proof_receipts.push(ProofReceipt {
-                        raw_proof,
+                        raw_proof: SerializedAggregatedProof {
+                            raw_aggregated_proof: raw_proof,
+                        },
                         blob_hash: [0u8; 32],
                         outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot>::Ignored,
                         extra_data: (),

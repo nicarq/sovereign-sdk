@@ -1,13 +1,17 @@
+use borsh::BorshDeserialize;
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
     AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor, RuntimeAuthorization,
     SequencerAuthorization, TryReserveGasError,
 };
+use sov_modules_api::prelude::tracing;
+use sov_modules_api::proof_metadata::SerializeProofWithDetails;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
 use sov_modules_api::{
     Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome, ProofReceipt,
     Spec, StateCheckpoint, Storage, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 
 /// Implements the basic capabilities required for a zk-rollup runtime.
@@ -175,14 +179,31 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         StateCheckpoint<S>,
     ) {
         // TODO #815
-        (
-            ProofReceipt {
-                raw_proof,
-                blob_hash: [0; 32],
-                outcome: ProofOutcome::Ignored,
-                extra_data: (),
-            },
-            state,
-        )
+        match SerializeProofWithDetails::<S>::try_from_slice(&raw_proof) {
+            Ok(proof_with_details) => (
+                ProofReceipt {
+                    raw_proof: proof_with_details.proof,
+                    blob_hash: [0; 32],
+                    outcome: ProofOutcome::Ignored,
+                    extra_data: (),
+                },
+                state,
+            ),
+            Err(e) => {
+                tracing::warn!("Unable to deserialize raw proof from DA {}", e);
+                (
+                    ProofReceipt {
+                        // TODO #815: We will return the serialized proof only for verified proofs.
+                        raw_proof: SerializedAggregatedProof {
+                            raw_aggregated_proof: Default::default(),
+                        },
+                        blob_hash: [0; 32],
+                        outcome: ProofOutcome::Invalid,
+                        extra_data: (),
+                    },
+                    state,
+                )
+            }
+        }
     }
 }

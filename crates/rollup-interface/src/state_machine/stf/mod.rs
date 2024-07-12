@@ -14,7 +14,7 @@ pub use proof_serializer::*;
 pub use transaction::*;
 
 use crate::da::{DaSpec, RelevantBlobIters};
-use crate::zk::aggregated_proof::AggregatedProofPublicData;
+use crate::zk::aggregated_proof::{AggregatedProofPublicData, SerializedAggregatedProof};
 use crate::zk::{StateTransitionPublicData, ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "arbitrary"))]
@@ -65,7 +65,7 @@ pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents> {
 /// A receipt for data posted into the proof namespace
 pub struct ProofReceipt<Address, Da: DaSpec, Root, Extra> {
     /// The serialized zk-proof.
-    pub raw_proof: Vec<u8>,
+    pub raw_proof: SerializedAggregatedProof,
     /// The hash of the blob which contained the proof
     pub blob_hash: [u8; 32],
     /// The outcome of the proof
