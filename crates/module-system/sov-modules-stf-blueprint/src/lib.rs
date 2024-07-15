@@ -3,14 +3,13 @@
 mod stf_blueprint;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::TxScratchpad;
+mod batch_processing;
 #[cfg(feature = "test-utils")]
 mod utils;
-
+pub use batch_processing::{process_tx, BatchReceipt, TransactionReceipt};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use sov_modules_api::capabilities::{
-    AuthenticationError, HasCapabilities, ProofProcessor, RuntimeAuthenticator,
-};
+use sov_modules_api::capabilities::{AuthenticationError, HasCapabilities, RuntimeAuthenticator};
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::SequencerReward;
@@ -25,7 +24,7 @@ use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_sequencer_registry::BatchSequencerOutcome;
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
-pub use stf_blueprint::{process_tx, BatchReceipt, StfBlueprint, TransactionReceipt};
+pub use stf_blueprint::StfBlueprint;
 use thiserror::Error;
 use tracing::info;
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
@@ -388,8 +387,7 @@ where
                     total_gas.combine(&gas_used);
                 }
                 BlobData::Proof(proof) => {
-                    let (receipt, next_checkpoint) =
-                        self.runtime.capabilities().process_proof(proof, checkpoint);
+                    let (receipt, next_checkpoint) = self.process_proof(proof, checkpoint);
 
                     checkpoint = next_checkpoint;
                     proof_receipts.push(receipt);
