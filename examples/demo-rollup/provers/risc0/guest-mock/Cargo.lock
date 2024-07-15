@@ -2904,6 +2904,7 @@ dependencies = [
  "async-trait",
  "borsh",
  "bytes",
+ "derive_more",
  "hex",
  "serde",
  "sha2",

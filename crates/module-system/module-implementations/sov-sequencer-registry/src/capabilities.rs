@@ -2,7 +2,6 @@ use sov_bank::Amount;
 use sov_modules_api::capabilities::AuthorizeSequencerError;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Gas, GasMeter, GasMeteringError, PreExecWorkingSet, Spec, TxScratchpad};
-use thiserror::Error;
 
 use crate::{AllowedSequencer, SequencerRegistry};
 
@@ -22,15 +21,6 @@ use crate::{AllowedSequencer, SequencerRegistry};
 pub struct SequencerStakeMeter<GU: Gas> {
     remaining_stake: Amount,
     penalty_accumulator: GU,
-    gas_price: GU::Price,
-}
-
-/// Error raised when the sequencer is getting penalized an amount greater than its remaining stake.
-#[derive(Debug, Error, PartialEq, Eq)]
-#[error("The remaining stake amount of the sequencer (value: {remaining_staked_amount}) is lower than the amount to penalize (gas price: {gas_price}, gas value: {amount_to_penalize})")]
-pub struct SequencerStakeError<GU: Gas> {
-    remaining_staked_amount: Amount,
-    amount_to_penalize: GU,
     gas_price: GU::Price,
 }
 

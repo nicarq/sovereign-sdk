@@ -5710,6 +5710,7 @@ dependencies = [
  "borsh 1.5.1",
  "bytes",
  "chrono",
+ "derive_more",
  "futures",
  "hex",
  "schemars",

@@ -8103,6 +8103,7 @@ dependencies = [
  "borsh 1.5.0",
  "bytes",
  "chrono",
+ "derive_more",
  "futures",
  "hex",
  "rand 0.8.5",

@@ -1,12 +1,12 @@
 mod address;
 
 use std::fmt::{Debug, Formatter};
-use std::hash::Hasher;
 use std::time::Duration;
 
 pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{
     BlockHashTrait, BlockHeaderTrait, CountedBufReader, DaProof, RelevantBlobs, RelevantProofs,
     Time,
@@ -34,40 +34,31 @@ pub struct Proof(pub(crate) Vec<u8>);
     Copy,
     PartialEq,
     Eq,
+    Hash,
     serde::Serialize,
     serde::Deserialize,
     BorshDeserialize,
     BorshSerialize,
+    derive_more::From,
+    derive_more::Into,
 )]
 pub struct MockHash(pub [u8; 32]);
 
 impl Debug for MockHash {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
+        write!(f, "{}", HexHash::new(self.0))
     }
 }
 
 impl core::fmt::Display for MockHash {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
+        write!(f, "{}", HexHash::new(self.0))
     }
 }
 
 impl AsRef<[u8]> for MockHash {
     fn as_ref(&self) -> &[u8] {
         &self.0
-    }
-}
-
-impl From<[u8; 32]> for MockHash {
-    fn from(value: [u8; 32]) -> Self {
-        Self(value)
-    }
-}
-
-impl From<MockHash> for [u8; 32] {
-    fn from(value: MockHash) -> Self {
-        value.0
     }
 }
 
@@ -79,13 +70,6 @@ impl TryFrom<Vec<u8>> for MockHash {
             anyhow::anyhow!("Vec<u8> should have length 32: but it has {}", e.len())
         })?;
         Ok(MockHash(hash))
-    }
-}
-
-impl std::hash::Hash for MockHash {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(&self.0);
-        state.finish();
     }
 }
 
