@@ -10,6 +10,7 @@ use celestia_tendermint::block::Height;
 use celestia_tendermint::crypto::default::Sha256;
 use celestia_tendermint::merkle::simple_hash_from_byte_vectors;
 use celestia_tendermint::Hash;
+use celestia_tendermint_proto::google::protobuf::Timestamp;
 pub use celestia_tendermint_proto::v0_34 as celestia_tm_version;
 use celestia_tendermint_proto::v0_34::types::IndexWrapper;
 use celestia_tendermint_proto::Protobuf;
@@ -17,7 +18,7 @@ use celestia_types::{DataAvailabilityHeader, ExtendedHeader};
 use prost::bytes::Buf;
 use prost::Message;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, Time};
+use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, NanoSeconds, Time};
 #[cfg(feature = "native")]
 use sov_rollup_interface::services::da::SlotData;
 use tracing::debug;
@@ -239,7 +240,11 @@ impl BlockHeader for CelestiaHeader {
         let protobuf_time = celestia_tendermint::time::Time::decode(self.header.time.as_slice())
             .expect("Timestamp must be valid");
 
-        Time::from_secs(protobuf_time.unix_timestamp())
+        let timestamp: Timestamp = protobuf_time.into();
+        let timestamp_nanos = NanoSeconds::new(timestamp.nanos as u32)
+            .expect("Nanoseconds should be less than a second");
+
+        Time::new(timestamp.seconds, timestamp_nanos)
     }
 }
 
