@@ -314,7 +314,7 @@ mod tests {
     use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
     use sov_state::{ProverStorage, Storage};
     use sov_test_utils::auth::TestAuth;
-    use sov_test_utils::runtime::{create_genesis_config, TestRuntime};
+    use sov_test_utils::runtime::optimistic::{create_genesis_config, TestRuntime};
     use sov_test_utils::{
         TestPrivateKey, TestPublicKey, TestSpec, TestStorageSpec as StorageSpec,
         TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_BALANCE,

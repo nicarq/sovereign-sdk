@@ -5,7 +5,7 @@ use sov_modules_api::runtime::capabilities::{
 };
 use sov_modules_api::{DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, RawTx, Spec};
 
-use crate::runtime::TestRuntime;
+use crate::runtime::optimistic::TestRuntime;
 
 /// Test authenticator.
 pub struct TestAuth<S: Spec, Da: DaSpec> {

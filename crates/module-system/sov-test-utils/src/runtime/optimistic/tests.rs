@@ -7,8 +7,8 @@ use sov_modules_api::{Address, PrivateKey, UnmeteredStateWrapper, WorkingSet};
 use sov_modules_stf_blueprint::GenesisParams;
 
 use super::*;
-use crate::runtime::genesis::HighLevelOptimisticGenesisConfig;
-use crate::runtime::{SlotTestCase, TestRunner};
+use crate::runtime::optimistic::genesis::HighLevelOptimisticGenesisConfig;
+use crate::runtime::{ChainStateConfig, SlotTestCase, TestRunner, TxTestCase, WorkingSetClosure};
 use crate::{
     generate_optimistic_runtime, TestPrivateKey, TestSpec, TEST_DEFAULT_USER_BALANCE,
     TEST_DEFAULT_USER_STAKE,

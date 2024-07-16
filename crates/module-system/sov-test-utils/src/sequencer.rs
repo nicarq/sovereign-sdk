@@ -17,7 +17,8 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 
 use crate::auth::TestAuth;
-use crate::runtime::{create_genesis_config, ChainStateConfig, TestRuntime};
+use crate::runtime::optimistic::{create_genesis_config, TestRuntime};
+use crate::runtime::ChainStateConfig;
 use crate::{TestHasher, TestPrivateKey, TestSpec};
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];

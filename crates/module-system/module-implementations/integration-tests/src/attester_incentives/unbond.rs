@@ -5,7 +5,7 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::{Batch, StateCheckpoint};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::attester_incentive::AttesterIncentivesMessageGenerator;
-use sov_test_utils::runtime::TestRuntime;
+use sov_test_utils::runtime::optimistic::TestRuntime;
 use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
 
 use super::AttesterIncentivesTestHandler;

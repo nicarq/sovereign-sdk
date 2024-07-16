@@ -8,7 +8,7 @@ use sov_modules_api::{
 };
 use sov_state::jmt::RootHash;
 use sov_state::{BorshCodec, SlotValue, Storage, StorageRoot};
-use sov_test_utils::runtime::genesis::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::optimistic::genesis::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::sov_attester_incentives::{
     AttesterIncentives, CallMessage, Event, Role, WrappedAttestation,
 };
