@@ -9,7 +9,7 @@ use sov_modules_stf_blueprint::TxEffect;
 use sov_sequencer_registry::BatchSequencerOutcome;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
-use sov_test_utils::runtime::TestRuntime;
+use sov_test_utils::runtime::optimistic::TestRuntime;
 use sov_test_utils::{
     new_test_blob_from_batch, MessageGenerator, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_USER_BALANCE,
     TEST_DEFAULT_USER_STAKE,

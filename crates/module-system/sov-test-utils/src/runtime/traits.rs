@@ -1,8 +1,7 @@
 //! Provides traits which are useful for wrapping a (possibly incomplete) runtime implementation to create a test runtime
 //! with configurable hooks.
 
-use sov_attester_incentives::AttesterIncentives;
-use sov_bank::Bank;
+use sov_bank::{Bank, Payable};
 use sov_modules_api::hooks::{ApplyBatchHooks, TxHooks};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
@@ -14,14 +13,15 @@ use sov_sequencer_registry::{BatchSequencerOutcome, SequencerRegistry};
 use super::wrapper::EndSlotClosure;
 use super::WorkingSetClosure;
 
-/// A struct which contains at least the bank, sequencer registry, and attester incentives modules.
+/// A struct which contains at least the bank and sequencer registry modules.
 pub trait MinimalRuntime<S: Spec, Da: DaSpec>: Default {
     /// Returns a reference to the sequencer registry module.
     fn sequencer_registry(&self) -> &SequencerRegistry<S, Da>;
     /// Returns a reference to the bank module.
     fn bank(&self) -> &Bank<S>;
-    /// Returns a reference to the attester-incentives module.
-    fn attester_incentives(&self) -> &AttesterIncentives<S, Da>;
+    /// Returns a reference to the recipient of the base fees.
+    /// This is typically either `AttesterIncentives` optimistic or `ProverIncentives` for provable mode respectively.
+    fn base_fee_recipient(&self) -> impl Payable<S>;
 }
 
 /// A trait which allows access to the contents of the genesis configuration
@@ -33,10 +33,6 @@ pub trait MinimalGenesis<S: Spec>: Genesis<Spec = S> {
     ) -> &<SequencerRegistry<S, Self::Da> as Genesis>::Config;
 
     fn bank_config(config: &Self::Config) -> &<Bank<S> as Genesis>::Config;
-
-    fn attester_incentives_config(
-        config: &Self::Config,
-    ) -> &<AttesterIncentives<S, Self::Da> as Genesis>::Config;
 }
 
 /// A marker trait which bundles a [`MinimalRuntime`] with additional traits that we require

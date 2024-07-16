@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use sov_attester_incentives::AttesterIncentives;
 use sov_bank::{Bank, IntoPayable};
 use sov_modules_api::capabilities::{
     AuthenticationResult, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
@@ -148,12 +147,6 @@ impl<S: Spec, Da: DaSpec, T: MinimalGenesis<S, Da = Da> + TxHooks<Spec = S>> Min
 
     fn bank_config(config: &<T as Genesis>::Config) -> &<Bank<S> as Genesis>::Config {
         T::bank_config(config)
-    }
-
-    fn attester_incentives_config(
-        config: &<T as Genesis>::Config,
-    ) -> &<AttesterIncentives<S, Self::Da> as Genesis>::Config {
-        T::attester_incentives_config(config)
     }
 }
 
@@ -335,8 +328,8 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> MinimalRuntime<S, Da>
         self.inner.sequencer_registry()
     }
 
-    fn attester_incentives(&self) -> &AttesterIncentives<S, Da> {
-        self.inner.attester_incentives()
+    fn base_fee_recipient(&self) -> impl sov_bank::Payable<S> {
+        self.inner.base_fee_recipient()
     }
 }
 
@@ -444,7 +437,7 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> GasEnforcer<S, Da>
         tx_scratchpad: &mut TxScratchpad<S>,
     ) {
         self.bank().allocate_consumed_gas(
-            &self.attester_incentives().id().to_payable(),
+            &self.inner.base_fee_recipient(),
             &self.sequencer_registry().id().to_payable(),
             tx_consumption,
             tx_scratchpad,

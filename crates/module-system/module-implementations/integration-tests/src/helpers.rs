@@ -14,8 +14,8 @@ use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::Storage;
+use sov_test_utils::runtime::optimistic::{GenesisConfig, TestRuntime};
 use sov_test_utils::runtime::traits::MinimalRuntime;
-use sov_test_utils::runtime::{GenesisConfig, TestRuntime};
 pub(crate) use sov_test_utils::TestStorageSpec as StorageSpec;
 use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 use sov_value_setter::ValueSetterConfig;
@@ -135,7 +135,7 @@ impl TestRollup {
     }
 
     pub(crate) fn attester_incentives(&self) -> &AttesterIncentives<S, Da> {
-        self.stf().runtime().attester_incentives()
+        &self.stf().runtime().inner.attester_incentives
     }
 
     pub(crate) fn bank(&self) -> &Bank<S> {
@@ -256,7 +256,8 @@ impl TestRollup {
                 self.storage().get_with_proof::<User>(
                     self.stf()
                         .runtime()
-                        .attester_incentives()
+                        .inner
+                        .attester_incentives
                         .get_attester_storage_key(attester_address),
                     None,
                 )

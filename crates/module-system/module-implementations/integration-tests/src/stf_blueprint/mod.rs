@@ -13,10 +13,9 @@ use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
-use sov_test_utils::runtime::genesis::{HighLevelOptimisticGenesisConfig, User};
-use sov_test_utils::runtime::{
-    MessageType, SlotTestCase, TestRunner, TestRuntime, TxOutcome, TxTestCase,
-};
+use sov_test_utils::runtime::genesis::User;
+use sov_test_utils::runtime::optimistic::{HighLevelOptimisticGenesisConfig, TestRuntime};
+use sov_test_utils::runtime::{MessageType, SlotTestCase, TestRunner, TxOutcome, TxTestCase};
 use sov_test_utils::{
     generate_optimistic_runtime, new_test_blob_from_batch, MessageGenerator, TestHasher,
     TEST_DEFAULT_USER_BALANCE,
