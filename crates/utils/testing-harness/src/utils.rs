@@ -4,7 +4,7 @@ use std::path::Path;
 
 use serde::de::DeserializeOwned;
 
-pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::Result<R> {
+pub(crate) fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::Result<R> {
     let mut contents = String::new();
     {
         let mut file = File::open(path)?;
