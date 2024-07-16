@@ -9188,6 +9188,7 @@ name = "testing-harness"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "borsh 1.5.0",
  "clap",
  "demo-stf",
@@ -9206,8 +9207,10 @@ dependencies = [
  "sov-modules-macros",
  "sov-modules-stf-blueprint",
  "sov-nonces",
+ "sov-prover-incentives",
  "sov-risc0-adapter",
  "sov-rollup-interface",
+ "thiserror",
  "tokio",
  "toml 0.8.12",
  "tracing",
