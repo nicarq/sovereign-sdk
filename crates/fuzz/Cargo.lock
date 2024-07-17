@@ -4670,7 +4670,7 @@ dependencies = [
 [[package]]
 name = "rockbound"
 version = "1.0.0"
-source = "git+https://github.com/sovereign-Labs/rockbound?rev=0604c000b41dfe9392e54cfff5fc68b7bdcd3b22#0604c000b41dfe9392e54cfff5fc68b7bdcd3b22"
+source = "git+https://github.com/sovereign-Labs/rockbound?rev=cda9e2b5a96a0c51e47f0d67f64d5a174da5e60b#cda9e2b5a96a0c51e47f0d67f64d5a174da5e60b"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -5637,6 +5637,7 @@ dependencies = [
  "sov-rollup-interface",
  "tempfile",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

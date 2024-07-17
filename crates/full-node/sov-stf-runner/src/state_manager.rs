@@ -278,6 +278,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use sov_db::storage_manager::NativeChangeSet;
     use sov_mock_da::{
         MockAddress, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockFee,
         MockValidityCond, PlannedFork,
@@ -289,8 +290,7 @@ mod tests {
     use sov_rollup_interface::stf::StateTransitionFunction;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
     use sov_state::{
-        ArrayWitness, NativeStorage, ProverChangeSet, ProverStorage, SlotKey, SlotValue,
-        StateAccesses, Storage,
+        ArrayWitness, NativeStorage, ProverStorage, SlotKey, SlotValue, StateAccesses, Storage,
     };
 
     use super::*;
@@ -342,7 +342,7 @@ mod tests {
     fn produce_synthetic_changes(
         prover_storage: &ProverStorage<S>,
         height: u64,
-    ) -> (StateRoot, ProverChangeSet) {
+    ) -> (StateRoot, NativeChangeSet) {
         let w = ArrayWitness::default();
         let mut accesses = StateAccesses::default();
         accesses.user.ordered_writes.push((
