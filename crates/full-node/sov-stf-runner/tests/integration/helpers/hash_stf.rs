@@ -1,5 +1,6 @@
 use borsh::BorshDeserialize;
 use sha2::Digest;
+use sov_db::storage_manager::NativeChangeSet;
 use sov_modules_api::{BlobData, ProofOutcome, ProofReceipt};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -8,8 +9,8 @@ use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
 use sov_state::{
-    ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverChangeSet,
-    ProverStorage, StateAccesses, Storage,
+    ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverStorage, StateAccesses,
+    Storage,
 };
 
 pub type S = DefaultStorageSpec<sha2::Sha256>;
@@ -35,7 +36,7 @@ impl<Cond> HashStf<Cond> {
         hasher: sha2::Sha256,
         storage: ProverStorage<S>,
         witness: &ArrayWitness,
-    ) -> ([u8; 32], ProverChangeSet) {
+    ) -> ([u8; 32], NativeChangeSet) {
         let result = hasher.finalize();
 
         let hash_key = HashStf::<Cond>::hash_key();
@@ -67,7 +68,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     type StateRoot = [u8; 32];
     type GenesisParams = Vec<u8>;
     type PreState = ProverStorage<S>;
-    type ChangeSet = ProverChangeSet;
+    type ChangeSet = NativeChangeSet;
     type TxReceiptContents = ();
     type ProofReceiptContents = ();
     type BatchReceiptContents = [u8; 32];

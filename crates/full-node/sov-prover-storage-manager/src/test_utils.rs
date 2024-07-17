@@ -9,7 +9,8 @@ use rockbound::{ReadOnlyLock, SchemaBatch};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::state_db::StateDb;
-use sov_state::{MerkleProofSpec, ProverChangeSet, ProverStorage};
+use sov_db::storage_manager::NativeChangeSet;
+use sov_state::{MerkleProofSpec, ProverStorage};
 
 use crate::cache_container_group::{CacheContainerRwLockGroup, CacheDbGroup};
 use crate::jmt_init;
@@ -28,7 +29,7 @@ pub fn new_orphan_storage<S: MerkleProofSpec>(
     let accessory_db_sm = Arc::new(RwLock::new(CacheContainer::orphan(accessory_db_raw)));
     let accessory_db_snapshot = CacheDb::new(0, accessory_db_sm.into());
     let accessory_db = AccessoryDb::with_cache_db(accessory_db_snapshot)?;
-    if let Some(ProverChangeSet {
+    if let Some(NativeChangeSet {
         state_change_set, ..
     }) = ProverStorage::<S>::should_init_db(&state_db)
     {
@@ -96,8 +97,8 @@ impl<S: MerkleProofSpec> SimpleStorageManager<S> {
     }
 
     // If we want it faster, can keep in memory
-    pub fn commit(&mut self, prover_change_set: ProverChangeSet) {
-        let ProverChangeSet {
+    pub fn commit(&mut self, prover_change_set: NativeChangeSet) {
+        let NativeChangeSet {
             state_change_set,
             accessory_change_set,
         } = prover_change_set;

@@ -9,6 +9,7 @@ use sov_db::namespaces::{
     UserNamespace,
 };
 use sov_db::state_db::{JmtHandler, StateDb};
+use sov_db::storage_manager::NativeChangeSet;
 
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
 use crate::config::Config;
@@ -43,13 +44,13 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     }
 
     /// Indicates if caller should initialize underlying database with some data.
-    pub fn should_init_db(db: &StateDb) -> Option<ProverChangeSet> {
+    pub fn should_init_db(db: &StateDb) -> Option<NativeChangeSet> {
         let user_init = Self::should_init::<UserNamespace>(db);
         let kernel_init = Self::should_init::<KernelNamespace>(db);
         match (user_init, kernel_init) {
             (Some(mut user_init), Some(kernel_init)) => {
                 user_init.merge(kernel_init);
-                Some(ProverChangeSet {
+                Some(NativeChangeSet {
                     state_change_set: user_init,
                     accessory_change_set: Default::default(),
                 })
@@ -259,15 +260,6 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     }
 }
 
-/// Changeset extracted from [`ProverStorage`]
-#[derive(Default)]
-pub struct ProverChangeSet {
-    /// [`sov_db::schema::SchemaBatch`] associated with provable state updates.
-    pub state_change_set: sov_db::schema::SchemaBatch,
-    /// [`sov_db::schema::SchemaBatch`] associated with non-provable accessory updates.
-    pub accessory_change_set: sov_db::schema::SchemaBatch,
-}
-
 #[derive(Default)]
 pub struct ProverStateUpdate {
     pub(crate) node_batch: NodeBatch,
@@ -306,7 +298,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type Proof = SparseMerkleProof<S::Hasher>;
     type Root = StorageRoot<S>;
     type StateUpdate = NamespacedStateUpdate;
-    type ChangeSet = ProverChangeSet;
+    type ChangeSet = NativeChangeSet;
 
     fn get<N: ProvableCompileTimeNamespace>(
         &self,
@@ -347,7 +339,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 
         let accessory_batch = self.materialize_accessory(&state_update.accessory);
 
-        ProverChangeSet {
+        NativeChangeSet {
             state_change_set: user_ns_batch,
             accessory_change_set: accessory_batch,
         }

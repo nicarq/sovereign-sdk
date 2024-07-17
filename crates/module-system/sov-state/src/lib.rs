@@ -20,7 +20,7 @@ pub mod jmt {
     pub use jmt::{KeyHash, RootHash, Version};
 }
 #[cfg(feature = "native")]
-pub use prover_storage::{ProverChangeSet, ProverStorage};
+pub use prover_storage::ProverStorage;
 use sha2::digest::typenum::U32;
 use sov_rollup_interface::digest::Digest;
 pub use storage_internals::{SparseMerkleProof, StorageRoot, VisibleHash};

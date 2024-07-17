@@ -11,9 +11,10 @@ use rockbound::{ReadOnlyLock, SchemaBatch};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::state_db::StateDb;
+use sov_db::storage_manager::NativeChangeSet;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_state::{MerkleProofSpec, ProverChangeSet, ProverStorage};
+use sov_state::{MerkleProofSpec, ProverStorage};
 
 use crate::cache_container_group::{CacheContainerRwLockGroup, CacheDbGroup};
 
@@ -232,7 +233,7 @@ where
     Da::SlotHash: Hash,
 {
     type StfState = ProverStorage<S>;
-    type StfChangeSet = ProverChangeSet;
+    type StfChangeSet = NativeChangeSet;
     type LedgerState = CacheDb;
     type LedgerChangeSet = SchemaBatch;
 
@@ -378,7 +379,7 @@ where
             "Saving the ProverChangeSet"
         );
 
-        let ProverChangeSet {
+        let NativeChangeSet {
             state_change_set,
             accessory_change_set,
         } = stf_change_set;
@@ -428,7 +429,7 @@ pub(crate) fn jmt_init<S: MerkleProofSpec>(cache_containers: &CacheContainerRwLo
         ..
     } = cache_containers.get_cache_db_group(0);
 
-    if let Some(ProverChangeSet {
+    if let Some(NativeChangeSet {
         state_change_set,
         accessory_change_set,
     }) = ProverStorage::<S>::should_init_db(&StateDb::with_cache_db(state_cache_db).unwrap())
@@ -541,7 +542,7 @@ mod tests {
         witness: &ArrayWitness,
         state_writes: &[(u64, Option<u64>)],
         accessory_writes: &[(u64, Option<u64>)],
-    ) -> ProverChangeSet {
+    ) -> NativeChangeSet {
         let mut state_operations = OrderedReadsAndWrites::default();
         for (key, val) in state_writes {
             state_operations.ordered_writes.push(write_op(*key, *val));
@@ -1309,7 +1310,7 @@ mod tests {
         );
     }
 
-    fn fill_storage_for_height(height: u64, stf_state: &ProverStorage<S>) -> ProverChangeSet {
+    fn fill_storage_for_height(height: u64, stf_state: &ProverStorage<S>) -> NativeChangeSet {
         let witness = ArrayWitness::default();
         let mut state_ops = vec![];
         let mut accessory_ops = vec![];
