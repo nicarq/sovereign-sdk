@@ -362,10 +362,19 @@ where
             // STF execution
             let mut relevant_blobs = self.da_service.extract_relevant_blobs(&filtered_block);
             let batch_blobs = &mut relevant_blobs.batch_blobs;
+            let proof_blobs = &relevant_blobs.proof_blobs;
             info!(
                 batch_blobs_count = batch_blobs.len(),
                 next_da_height,
                 batch_blobs = ?batch_blobs
+                    .iter()
+                    .map(|b| format!(
+                        "sequencer={} blob_hash=0x{}",
+                        b.sender(),
+                        hex::encode(b.hash())
+                    ))
+                    .collect::<Vec<_>>(),
+                proof_blobs = ?proof_blobs
                     .iter()
                     .map(|b| format!(
                         "sequencer={} blob_hash=0x{}",
