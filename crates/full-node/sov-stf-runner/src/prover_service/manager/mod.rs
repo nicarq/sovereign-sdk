@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use backon::{BackoffBuilder, ExponentialBuilder};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use sov_rollup_interface::zk::Zkvm;
+use tokio::time::{sleep, Duration};
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
@@ -12,6 +14,10 @@ use crate::prover_service::AggregatedProofPublicData;
 use crate::{ProverService, StateTransitionInfo};
 
 mod types;
+
+const BACKOFF_POLICY_MIN_DELAY: u64 = 1;
+const BACKOFF_POLICY_MAX_DELAY: u64 = 60;
+const BACKOFF_POLICY_MAX_NUM_RETRIES: usize = 5;
 
 /// Manages the lifecycle of the `AggregatedProof`.
 pub struct ProofManager<Ps: ProverService> {
@@ -21,6 +27,7 @@ pub struct ProofManager<Ps: ProverService> {
     proofs_to_create: UnAggregatedProofList<Ps>,
     aggregated_proof_block_jump: usize,
     proof_serializer: Box<dyn ProofSerializer>,
+    backoff_policy: ExponentialBuilder,
 }
 
 impl<Ps: ProverService> ProofManager<Ps>
@@ -42,6 +49,10 @@ where
             proofs_to_create: UnAggregatedProofList::new(),
             aggregated_proof_block_jump,
             proof_serializer,
+            backoff_policy: ExponentialBuilder::default()
+                .with_min_delay(Duration::from_secs(BACKOFF_POLICY_MIN_DELAY))
+                .with_max_delay(Duration::from_secs(BACKOFF_POLICY_MAX_DELAY))
+                .with_max_times(BACKOFF_POLICY_MAX_NUM_RETRIES),
         }
     }
 
@@ -107,7 +118,7 @@ where
                 let metadata = self.proofs_to_create.take_oldest();
                 let agg_proof = self
                     .create_aggregate_proof_with_retries(metadata, prover_service)
-                    .await;
+                    .await?;
 
                 tracing::debug!(
                     bytes = agg_proof.raw_aggregated_proof.len(),
@@ -131,15 +142,41 @@ where
         &self,
         mut metadata: AggregateProofMetadata<Ps>,
         prover_service: &Ps,
-    ) -> SerializedAggregatedProof {
-        // TODO: Add backoff on proof submission
-        // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/446>
+    ) -> anyhow::Result<SerializedAggregatedProof> {
+        let mut attempt_num = 1u32;
+        let mut backoff_iter = self.backoff_policy.build();
+
         loop {
+            let maybe_backoff_duration = backoff_iter.next();
             match metadata.prove(prover_service).await {
-                Ok(proof) => break proof,
-                Err((returned_metadata, err)) => {
-                    tracing::error!("Failed to generate aggregate proof: {}. Retrying.", err);
-                    metadata = returned_metadata;
+                Ok(proof) => return Ok(proof),
+                Err((returned_metadata, error)) => {
+                    let error_message = format!("Failed to generate aggregate proof: {error}");
+
+                    if error_message.contains("Elf parse error") {
+                        // NOTE We exit early on this error since it means the we've failed to find/parse
+                        // the zk circuit, and there's no recovering from that.
+                        tracing::error!("Fatal error: {error_message}");
+                        tracing::error!(
+                            "Please check your zk circuit ELF file was built correctly!"
+                        );
+                        anyhow::bail!(error)
+                    };
+
+                    tracing::error!(error_message);
+                    match maybe_backoff_duration {
+                        None => {
+                            tracing::warn!("Maximum number of retries exhausted - exiting");
+                            anyhow::bail!(error)
+                        }
+                        Some(duration) => {
+                            tracing::info!("Retrying generation of aggregate proof in {}s, attempt {attempt_num} of {}...", duration.as_secs(), BACKOFF_POLICY_MAX_NUM_RETRIES);
+                            attempt_num += 1;
+                            sleep(duration).await;
+                            metadata = returned_metadata;
+                            continue;
+                        }
+                    }
                 }
             }
         }

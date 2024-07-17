@@ -17,6 +17,7 @@ workspace = true
 anyhow = { workspace = true }
 axum = { workspace = true, features = ["tokio", "http1", "http2"], optional = true }
 derivative = { workspace = true, optional = true }
+backon = { workspace = true, optional = true }
 num_cpus = { workspace = true }
 thiserror = { workspace = true, optional = true }
 borsh = { workspace = true }
@@ -67,6 +68,7 @@ native = [
     "async-trait",
     "axum",
     "derivative",
+    "backon",
     "futures",
     "jsonrpsee",
     "rayon",
