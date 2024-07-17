@@ -15,121 +15,20 @@ pub mod genesis;
 #[cfg(test)]
 mod tests;
 
-/// Generates a runtime containing the [`Bank`](sov_bank::Bank), [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
-/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments`
+/// Generates a optimistic runtime containing the [`Bank`](sov_bank::Bank), [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments.
 #[macro_export]
 macro_rules! generate_optimistic_runtime {
     ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
-        #[derive(
-            Default,
-            Clone,
-            ::sov_modules_api::Genesis,
-            ::sov_modules_api::DispatchCall,
-            ::sov_modules_api::Event,
-            ::sov_modules_api::MessageCodec
-        )]
-        #[serialization(
-            ::borsh::BorshDeserialize,
-            ::borsh::BorshSerialize,
-            ::serde::Serialize,
-            ::serde::Deserialize
-        )]
-        pub struct __GeneratedRuntimeInternals<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> {
-            pub sequencer_registry: $crate::runtime::SequencerRegistry<S, Da>,
-            pub attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
-            pub bank: $crate::runtime::Bank<S>,
-            $(pub $module_name: $module_ty),*
-        }
-
-        pub type $id<S, Da> = $crate::runtime::wrapper::TestRuntimeWrapper<S, Da, __GeneratedRuntimeInternals<S, Da>>;
-
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalRuntime<S, Da> for __GeneratedRuntimeInternals<S, Da> {
-            fn bank(&self) -> &$crate::runtime::Bank<S> {
-                &self.bank
-            }
-
-            fn sequencer_registry(&self) -> &$crate::runtime::SequencerRegistry<S, Da> {
-                &self.sequencer_registry
-            }
-
-            fn base_fee_recipient(&self) -> impl $crate::runtime::Payable<S> {
-                ::sov_bank::IntoPayable::to_payable(&self.attester_incentives.id)
-            }
-        }
-
-        impl <S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::hooks::TxHooks for __GeneratedRuntimeInternals<S, Da> {
-            type Spec = S;
-            type TxState = ::sov_modules_api::WorkingSet<S>;
-
-            fn pre_dispatch_tx_hook(
-                &self,
-                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
-                _state: &mut Self::TxState,
-            ) -> ::anyhow::Result<()> {
-                Ok(())
-            }
-
-            fn post_dispatch_tx_hook(
-                &self,
-                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
-                _ctx: &::sov_modules_api::Context<S>,
-                _state: &mut Self::TxState,
-            ) -> ::anyhow::Result<()> {
-                Ok(())
-            }
-        }
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalGenesis<S> for __GeneratedRuntimeInternals<S, Da> {
-            type Da = Da;
-            fn sequencer_registry_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::SequencerRegistry<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
-                &config.sequencer_registry
-            }
-
-            fn bank_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::Bank<S> as ::sov_modules_api::Genesis>::Config {
-                &config.bank
-            }
-        }
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> GenesisConfig<S, Da> {
-            #[allow(unused)]
-            pub fn from_minimal_config(minimal_config: $crate::runtime::optimistic::genesis::MinimalOptimisticGenesisConfig<S, Da>,
-                $($module_name: <$module_ty as ::sov_modules_api::Genesis>::Config),*
-            ) -> Self {
-                Self {
-                    sequencer_registry: minimal_config.sequencer_registry,
-                    attester_incentives: minimal_config.attester_incentives,
-                    bank: minimal_config.bank,
-                    $(
-                        $module_name,
-                    )*
-                }
-            }
-        }
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> GenesisConfig<S, Da>
-        where <S::InnerZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,
-         <S::OuterZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,{
-            #[allow(unused)]
-            pub fn into_genesis_params(self) -> $crate::runtime::GenesisParams<Self, $crate::runtime::BasicKernelGenesisConfig<S, Da>> {
-                $crate::runtime::GenesisParams {
-                    runtime: self,
-                    kernel: $crate::runtime::BasicKernelGenesisConfig {
-                        chain_state: $crate::runtime::ChainStateConfig {
-                            current_time: Default::default(),
-                            inner_code_commitment: Default::default(),
-                            outer_code_commitment: Default::default(),
-                            genesis_da_height: 0,
-                        }
-                    }
-                }
-            }
+        $crate::generate_runtime! {
+            name: $id,
+            modules: [$($module_name : $module_ty),*],
+            base_fee_recipient: attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
+            minimal_genesis_config_type: $crate::runtime::optimistic::genesis::MinimalOptimisticGenesisConfig<S, Da>
         }
     };
 }
 
-// TODO: Delete the hookless TestRuntime after upgrading tests to the HookedRuntime
-// <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/682>
 generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 
 /// Admin: single address that will be used as admin and minter.

@@ -19,6 +19,7 @@ use sov_modules_api::{
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime, StfBlueprint};
+pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -35,6 +36,7 @@ pub mod genesis;
 
 pub use genesis::StakedUser;
 
+pub(crate) mod macros;
 pub mod optimistic;
 pub mod traits;
 pub mod wrapper;

@@ -8637,6 +8637,7 @@ dependencies = [
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-prover-incentives",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-sequencer",
