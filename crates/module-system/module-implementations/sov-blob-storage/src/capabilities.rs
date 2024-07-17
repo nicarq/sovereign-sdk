@@ -47,6 +47,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
+        tracing::trace!("On based sequencer path");
         self.chain_state
             .set_next_visible_slot_number(&(state.current_slot().saturating_add(1)), state)
             .unwrap_infallible();
@@ -63,7 +64,8 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     {
         let mut batches = Vec::new();
         let mut unregistered_blobs = 0;
-        for blob in current_blobs.into_iter() {
+        for (idx, blob) in current_blobs.into_iter().enumerate() {
+            tracing::trace!("processing blob {}", idx);
             match self.validate_blob_and_sender(blob, unregistered_blobs, state) {
                 ValidateBlobOutcome::Discard(reason) => self.log_discarded_blob(blob, reason),
                 ValidateBlobOutcome::Accept(sequencer_status) => {
@@ -73,12 +75,18 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                     if !from_registered_sequencer {
                         unregistered_blobs += 1;
                     }
+                    tracing::trace!(%from_registered_sequencer);
 
                     if let Some(mut data) = self.deserialize_or_try_slash_sender::<BlobData>(
                         blob,
                         from_registered_sequencer,
                         state.inner,
                     ) {
+                        tracing::trace!(
+                            "Successfully deserialized blob {} ({}). Adding to batch.",
+                            idx,
+                            hex::encode(blob.hash()),
+                        );
                         if !from_registered_sequencer {
                             if let BlobData::Batch(ref mut batch) = data {
                                 self.process_unregistered_batch(blob, batch);
@@ -200,6 +208,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
+        tracing::trace!("On recovery mode path");
         let mut batches_to_process = Vec::new();
 
         // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
@@ -255,6 +264,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
+        tracing::trace!("On preferred sequencer path");
         let mut unregistered_blobs = 0;
         let mut new_forced_blobs = Vec::new();
         let next_sequence_number = self
@@ -269,7 +279,8 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             .remove(&next_sequence_number, state.inner)
             .unwrap_infallible();
 
-        for blob in current_blobs.into_iter() {
+        for (idx, blob) in current_blobs.into_iter().enumerate() {
+            tracing::trace!("Checking blob {}", idx);
             match self.validate_blob_and_sender(blob, unregistered_blobs, state) {
                 ValidateBlobOutcome::Discard(reason) => self.log_discarded_blob(blob, reason),
                 ValidateBlobOutcome::Accept(sequencer_status) => {
@@ -387,6 +398,11 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             let slot_to_check = state.virtual_slot().saturating_add(slot);
             let batches_from_next_slot =
                 self.take_blobs_for_slot_number(slot_to_check, state.inner);
+            tracing::trace!(
+                "Found {} additional blobs in slot {} ",
+                batches_from_next_slot.len(),
+                slot_to_check
+            );
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
 
