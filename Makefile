@@ -44,7 +44,6 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-risczero
 	cargo risczero install
 	cargo install zepter
-	rustup target add thumbv6m-none-eabi
 	rustup target add wasm32-unknown-unknown
 
 install-risc0-toolchain:
