@@ -14,7 +14,6 @@ members = [
     "examples/demo-rollup",
     "examples/simple-nft-module",
     # Full Node
-    "crates/full-node/sov-rest-utils",
     "crates/full-node/sov-db",
     "crates/full-node/sov-sequencer",
     "crates/full-node/sov-sequencer-json-client",
@@ -27,6 +26,7 @@ members = [
     "crates/full-node/sov-eth-dev-signer",
     # Utils
     "crates/utils/rng-da-service",
+    "crates/utils/sov-rest-utils",
     "crates/utils/testing-harness",
     # Module System
     "crates/module-system/sov-cli",
@@ -112,7 +112,7 @@ sov-attester-incentives = { path = "crates/module-system/module-implementations/
 sov-capabilities = { path = "crates/module-system/sov-capabilities", default-features = false, version = "0.3" }
 sov-kernels = { path = "crates/module-system/sov-kernels", default-features = false, version = "0.3" }
 sov-state = { path = "crates/module-system/sov-state", default-features = false, version = "0.3" }
-sov-rest-utils = { path = "crates/full-node/sov-rest-utils", default-features = false, version = "0.3" }
+sov-rest-utils = { path = "crates/utils/sov-rest-utils", default-features = false, version = "0.3" }
 sov-prover-storage-manager = { path = "crates/full-node/sov-prover-storage-manager", default-features = false, version = "0.3" }
 sov-metrics = { path = "crates/full-node/sov-metrics", default-features = false, version = "0.3" }
 sov-sequencer-json-client = { path = "crates/full-node/sov-sequencer-json-client", default-features = false, version = "0.3" }
