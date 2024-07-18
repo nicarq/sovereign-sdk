@@ -9,6 +9,7 @@ use sov_db::{
     define_table_with_seek_key_codec, define_table_without_codec, impl_borsh_value_codec,
 };
 use sov_rollup_interface::services::batch_builder::TxHash;
+use uuid::Uuid;
 
 /// A database holding transactions that have been submitted to the sequencer
 /// and other related data.
@@ -70,18 +71,20 @@ pub struct MempoolTx {
     pub tx_bytes: Vec<u8>,
     /// The hash of the transaction.
     pub hash: TxHash,
-    /// An incremental counter used to order transactions by insertion time.
-    /// Gaps are allowed.
-    pub incremental_id: u64,
+    /// A monotonically increasing counter used to order transactions by
+    /// insertion time. Gaps are allowed.
+    pub incremental_id: u128,
 }
 
 impl MempoolTx {
     /// Creates a new [`MempoolTx`] from the given transaction bytes.
-    pub fn new(hash: TxHash, tx_bytes: Vec<u8>, incremental_id: u64) -> Self {
+    pub fn new(hash: TxHash, tx_bytes: Vec<u8>) -> Self {
         Self {
             tx_bytes,
             hash,
-            incremental_id,
+            // UUIDv7 are monotonically increasing. See here:
+            // <https://github.com/uuid-rs/uuid/releases/tag/1.9.0>.
+            incremental_id: Uuid::now_v7().as_u128(),
         }
     }
 }
@@ -90,3 +93,15 @@ define_table_with_seek_key_codec!(
     /// Transactions stored in the mempool, keyed by hash.
     (MempoolTxByHash) TxHash => MempoolTx
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uuid_v7_is_monotonically_increasing() {
+        let a = Uuid::now_v7();
+        let b = Uuid::now_v7();
+        assert!(a < b);
+    }
+}
