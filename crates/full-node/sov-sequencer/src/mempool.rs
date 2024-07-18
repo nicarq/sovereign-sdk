@@ -14,11 +14,10 @@ use crate::db::{MempoolTx, SequencerDb};
 pub struct FairMempool {
     pub mempool_max_txs_count: usize,
     sequencer_db: SequencerDb,
-    next_incr_id: u64,
     // Transaction data
     // ----------------
     txs_ordered_by_most_fair_fit: BTreeMap<MempoolCursor, Arc<MempoolTx>>,
-    txs_ordered_by_incremental_id: BTreeMap<u64, Arc<MempoolTx>>,
+    txs_ordered_by_incremental_id: BTreeMap<u128, Arc<MempoolTx>>,
     txs_by_hash: HashMap<TxHash, Arc<MempoolTx>>,
 }
 
@@ -27,7 +26,6 @@ impl FairMempool {
         let mut mempool = Self {
             mempool_max_txs_count,
             sequencer_db,
-            next_incr_id: 0,
             txs_ordered_by_incremental_id: BTreeMap::new(),
             txs_ordered_by_most_fair_fit: BTreeMap::new(),
             txs_by_hash: HashMap::new(),
@@ -37,15 +35,6 @@ impl FairMempool {
         for (_, tx) in txs.into_iter() {
             mempool.add(Arc::new(tx))?;
         }
-
-        mempool.next_incr_id = mempool
-            .txs_ordered_by_incremental_id
-            .last_key_value()
-            .map(|(k, _v)| *k)
-            // If the mempool is empty, we start at 1. 0 is reserved as a special value for the
-            // cursor.
-            .unwrap_or(0)
-            + 1;
 
         Ok(mempool)
     }
@@ -123,10 +112,9 @@ impl FairMempool {
             return Ok(tx.clone());
         }
 
-        let tx = Arc::new(MempoolTx::new(hash, raw, self.next_incr_id));
+        let tx = Arc::new(MempoolTx::new(hash, raw));
 
         self.add(tx.clone())?;
-        self.next_incr_id += 1;
 
         Ok(tx)
     }
@@ -159,7 +147,7 @@ impl FairMempool {
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 pub struct MempoolCursor {
     tx_size_in_bytes: usize,
-    incremental_id: u64,
+    incremental_id: u128,
 }
 
 impl MempoolCursor {
