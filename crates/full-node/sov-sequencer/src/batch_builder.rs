@@ -304,7 +304,6 @@ fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
 
 #[cfg(test)]
 mod tests {
-
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec};

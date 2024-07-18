@@ -73,10 +73,11 @@ where
             .ok();
     }
 
-    pub fn subscribe(self: Arc<Self>, tx_hash: TxHash) -> TxStatusReceiver<Da> {
-        let recv = self.get_or_create_sender(tx_hash).subscribe();
-        TxStatusReceiver {
-            recv,
+    pub fn subscription(self: Arc<Self>, tx_hash: TxHash) -> TxStatusSubscription<Da> {
+        let sender = self.get_or_create_sender(tx_hash);
+
+        TxStatusSubscription {
+            sender,
             tx_hash,
             notifier: self.clone(),
         }
@@ -116,31 +117,46 @@ where
 
 /// A wrapper around [`broadcast::Receiver`] that runs some cleanup logic on the
 /// original [`TxStatusNotifier`] upon dropping.
-pub struct TxStatusReceiver<Da>
+///
+/// # Important note
+///
+/// To avoid memory leaks, the [`TxStatusNotifier`] should be dropped **after**
+/// all receivers obtained through [`TxStatusReceiver::subscribe`] have been
+/// dropped.
+pub struct TxStatusSubscription<Da>
 where
     Da: DaService,
     Da::TransactionId: Clone + Send + Sync,
 {
-    pub recv: broadcast::Receiver<TxStatus<Da::TransactionId>>,
+    /// The WebSocket Axum handler function needs to take ownership over the
+    /// [`broadcast::Receiver`] so that it can call
+    /// [`tokio_stream::wrappers::BroadcastStream::new()`].
+    ///
+    /// Unfortunately, it'd be impossible to move a receiver out of
+    /// [`TxStatusSubscription`] because it implements [`Drop`]. By storing the
+    /// sender here instead, it's possible to easily take ownership over
+    /// new receivers while keeping [`TxStatusSubscription`] in scope,
+    /// which is needed for proper cleanup logic.
+    pub sender: broadcast::Sender<TxStatus<Da::TransactionId>>,
     tx_hash: TxHash,
     notifier: Arc<TxStatusNotifier<Da>>,
 }
 
-impl<Da> Drop for TxStatusReceiver<Da>
+impl<Da> Drop for TxStatusSubscription<Da>
 where
     Da: DaService,
     Da::TransactionId: Clone + Send + Sync,
 {
     fn drop(&mut self) {
-        // If this is the last receiver (besides the one that is used to update
-        // the cache), remove the sender from the map.
-        if self
-            .notifier
-            .get_or_create_sender(self.tx_hash)
-            .receiver_count()
-            <= 2
-        {
-            self.notifier.senders.remove(&self.tx_hash);
+        match self.notifier.senders.entry(self.tx_hash) {
+            Entry::Vacant(_) => {}
+            Entry::Occupied(entry) => {
+                // If this is the last receiver (besides the one that is used to update
+                // the cache), remove the sender from the map.
+                if entry.get().receiver_count() <= 2 {
+                    entry.remove();
+                }
+            }
         }
     }
 }
@@ -185,49 +201,55 @@ mod tests {
     async fn multiple_subscribers() {
         let notifier = Arc::new(TxStatusNotifier::<MockDaService>::new());
 
-        let mut sub1a = notifier.clone().subscribe([1; 32]);
-        let mut sub1b = notifier.clone().subscribe([1; 32]);
-        let sub2 = notifier.clone().subscribe([2; 32]);
+        let sub1a = notifier.clone().subscription([1; 32]);
+        let sub1b = notifier.clone().subscription([1; 32]);
+        let sub2 = notifier.clone().subscription([2; 32]);
 
-        assert_eq!(notifier.senders.len(), 2);
+        {
+            let mut sub1a = sub1a.sender.subscribe();
+            let mut sub1b = sub1b.sender.subscribe();
+            let sub2 = sub2.sender.subscribe();
 
-        // No notifications yet.
-        assert_eq!(sub1a.recv.len(), 0);
-        assert_eq!(sub1b.recv.len(), 0);
-        assert_eq!(sub2.recv.len(), 0);
+            assert_eq!(notifier.senders.len(), 2);
 
-        notifier.notify([1; 32], TxStatus::Submitted);
-        notifier.notify(
-            [1; 32],
-            TxStatus::Published {
-                da_transaction_id: (),
-            },
-        );
-        wait().await;
+            // No notifications yet.
+            assert_eq!(sub1a.len(), 0);
+            assert_eq!(sub1b.len(), 0);
+            assert_eq!(sub2.len(), 0);
 
-        assert_eq!(sub1a.recv.len(), 2);
-        assert_eq!(sub1b.recv.len(), 2);
-        assert_eq!(sub2.recv.len(), 0);
+            notifier.notify([1; 32], TxStatus::Submitted);
+            notifier.notify(
+                [1; 32],
+                TxStatus::Published {
+                    da_transaction_id: (),
+                },
+            );
+            wait().await;
 
-        sub1a.recv.recv().await.unwrap();
+            assert_eq!(sub1a.len(), 2);
+            assert_eq!(sub1b.len(), 2);
+            assert_eq!(sub2.len(), 0);
 
-        assert_eq!(sub1a.recv.len(), 1);
-        assert_eq!(sub1b.recv.len(), 2);
-        assert_eq!(sub2.recv.len(), 0);
+            sub1a.recv().await.unwrap();
 
-        sub1b.recv.recv().await.unwrap();
+            assert_eq!(sub1a.len(), 1);
+            assert_eq!(sub1b.len(), 2);
+            assert_eq!(sub2.len(), 0);
 
-        assert_eq!(sub1a.recv.len(), 1);
-        assert_eq!(sub1b.recv.len(), 1);
-        assert_eq!(sub2.recv.len(), 0);
+            sub1b.recv().await.unwrap();
 
-        assert_eq!(
-            notifier.get_cached(&[1; 32]),
-            Some(TxStatus::Published {
-                da_transaction_id: ()
-            })
-        );
-        assert_eq!(notifier.get_cached(&[2; 32]), None);
+            assert_eq!(sub1a.len(), 1);
+            assert_eq!(sub1b.len(), 1);
+            assert_eq!(sub2.len(), 0);
+
+            assert_eq!(
+                notifier.get_cached(&[1; 32]),
+                Some(TxStatus::Published {
+                    da_transaction_id: ()
+                })
+            );
+            assert_eq!(notifier.get_cached(&[2; 32]), None);
+        }
 
         // Mix up the order of dropping the subscribers to catch any potential
         // funny business.

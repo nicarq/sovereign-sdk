@@ -33,18 +33,20 @@ pub mod test_utils;
 use std::fmt::Debug;
 
 use axum::body::Body;
+use axum::extract::ws::{self, WebSocket};
 use axum::extract::Request;
 use axum::http::{HeaderName, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 pub use axum_extractors::{Path, Query};
+use futures::StreamExt;
 pub use pagination::{PageSelection, Pagination};
 pub use sorting::{Sorting, SortingOrder};
 use tower_http::compression::CompressionLayer;
 use tower_http::propagate_header::PropagateHeaderLayer;
 use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
-use tracing::error_span;
+use tracing::{error_span, warn};
 
 /// The standard response type used by the utilities in this crate.
 pub type ApiResult<T, E = Response> = Result<ResponseObject<T>, E>;
@@ -193,6 +195,56 @@ where
                 ))),
         )
         .fallback(errors::global_404)
+}
+
+/// A utility function for serving some data inside a [`futures::Stream`] over a
+/// WebSocket connection.
+pub async fn serve_generic_ws_subscription<S, M>(mut socket: WebSocket, mut subscription: S)
+where
+    S: futures::Stream<Item = anyhow::Result<M>> + Unpin,
+    M: Clone + serde::Serialize + Send + Sync + 'static,
+{
+    loop {
+        tokio::select! {
+            msg = socket.recv() => {
+                match msg {
+                    Some(Err(error)) => {
+                        warn!(?error, "Websocket error");
+                        return;
+                    },
+                    None => {
+                        // The client disconnected.
+                        return;
+                    },
+                    Some(Ok(_)) => {
+                        // Ignore incoming messages.
+                    },
+                }
+            },
+            data_res = subscription.next() => {
+                match data_res {
+                    Some(Ok(data)) => {
+                        let Ok(serialized) = serde_json::to_string(&data) else {
+                            return
+                        };
+                        let message = ws::Message::Text(serialized);
+                        if let Err(err) = socket.send(message).await {
+                            warn!(?err, "Websocket error while sending data");
+                            // Keep the loop going.
+                        }
+                    },
+                    Some(Err(err)) => {
+                        warn!(?err, "Webocket error while receiving data from internal Tokio channel");
+                        return;
+                    },
+                    None => {
+                        // No more data to send.
+                        return;
+                    },
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
