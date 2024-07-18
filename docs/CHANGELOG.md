@@ -1,3 +1,4 @@
+- #966 Adds gas & fees relevant logic to the `STF::process_proof` method.
 - #956 Split stf_blueprint into smaller chunks.
 - #950 Add metadata abou gas & fees to the serialized proof.
 - #943 Add `ProofSerializer` trait which allow adding additional metadata to the proof blob.

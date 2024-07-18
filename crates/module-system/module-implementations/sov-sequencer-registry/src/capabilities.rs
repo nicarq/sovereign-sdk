@@ -1,5 +1,5 @@
 use sov_bank::Amount;
-use sov_modules_api::capabilities::AuthorizeSequencerError;
+use sov_modules_api::capabilities::{AuthorizationResult, AuthorizeSequencerError};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Gas, GasMeter, GasMeteringError, PreExecWorkingSet, Spec, TxScratchpad};
 
@@ -78,8 +78,8 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         sender: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         mut scratchpad: TxScratchpad<S>,
-    ) -> Result<PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>, AuthorizeSequencerError<S>> {
-        let sequencer = match self.is_sender_allowed(sender, &mut scratchpad) {
+    ) -> AuthorizationResult<S, SequencerStakeMeter<S::Gas>> {
+        let allowed_sequencer = match self.is_sender_allowed(sender, &mut scratchpad) {
             Ok(seq) => seq,
             Err(e) => {
                 return Err(AuthorizeSequencerError {
@@ -90,12 +90,15 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         };
 
         let seq_meter = SequencerStakeMeter::<S::Gas> {
-            remaining_stake: sequencer.balance,
+            remaining_stake: allowed_sequencer.balance,
             penalty_accumulator: S::Gas::zero(),
             gas_price: base_fee_per_gas.clone(),
         };
 
-        Ok(scratchpad.to_pre_exec_working_set(seq_meter))
+        Ok((
+            allowed_sequencer,
+            scratchpad.to_pre_exec_working_set(seq_meter),
+        ))
     }
 
     /// Refunds some of the sequencer's staked amount.

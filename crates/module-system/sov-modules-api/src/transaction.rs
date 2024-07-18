@@ -284,14 +284,20 @@ impl<S: Spec> UnsignedTransaction<S> {
 
 type RawTxHash = [u8; 32];
 
+impl<S: Spec> From<TxDetails<S>> for AuthenticatedTransactionData<S> {
+    fn from(details: TxDetails<S>) -> Self {
+        Self {
+            chain_id: details.chain_id,
+            max_priority_fee_bips: details.max_priority_fee_bips,
+            max_fee: details.max_fee,
+            gas_limit: details.gas_limit,
+        }
+    }
+}
+
 impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
     fn from(tx: Transaction<S>) -> Self {
-        Self {
-            chain_id: tx.details.chain_id,
-            max_priority_fee_bips: tx.details.max_priority_fee_bips,
-            max_fee: tx.details.max_fee,
-            gas_limit: tx.details.gas_limit,
-        }
+        tx.details.into()
     }
 }
 

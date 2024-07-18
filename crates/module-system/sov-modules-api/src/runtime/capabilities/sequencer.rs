@@ -1,6 +1,8 @@
 use std::fmt;
 use std::fmt::Debug;
 
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::{Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad};
@@ -21,6 +23,25 @@ impl<S: Spec> Debug for AuthorizeSequencerError<S> {
     }
 }
 
+/// An allowed sequencer for a rollup.
+#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
+#[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
+pub struct AllowedSequencer<S: Spec> {
+    /// The rollup address of the sequencer.
+    pub address: S::Address,
+    /// The staked balance of the sequencer.
+    pub balance: u64,
+}
+
+/// The result of the [`SequencerAuthorization::authorize_sequencer`] capability.
+pub type AuthorizationResult<S, SequencerStakeMeter> = Result<
+    (
+        AllowedSequencer<S>,
+        PreExecWorkingSet<S, SequencerStakeMeter>,
+    ),
+    AuthorizeSequencerError<S>,
+>;
+
 /// Authorizes the sequencer to submit and process batches.
 pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
     /// A type-safe struct that should track the staked amount of the sequencer and the eventual execution penalities.
@@ -36,7 +57,7 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
         sequencer: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         tx_scratchpad: TxScratchpad<S>,
-    ) -> Result<PreExecWorkingSet<S, Self::SequencerStakeMeter>, AuthorizeSequencerError<S>>;
+    ) -> AuthorizationResult<S, Self::SequencerStakeMeter>;
 
     /// Penalizes the sequencer without slashing his account.
     /// If the sequencer is penalized, the stake amount of the sequencer is reduced, potentially preventing future transactions from being executed.

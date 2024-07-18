@@ -25,7 +25,7 @@ pub use genesis::*;
 pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
-use sov_modules_api::capabilities::FatalError;
+use sov_modules_api::capabilities::{AllowedSequencer, FatalError};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     CallResponse, Context, Error, EventEmitter, GenesisState, InfallibleStateAccessor, ModuleId,
@@ -36,16 +36,6 @@ use sov_state::{EventContainer, User};
 use thiserror::Error;
 
 use crate::event::Event;
-
-/// An allowed sequencer for a rollup.
-#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
-#[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct AllowedSequencer<S: Spec> {
-    /// The rollup address of the sequencer.
-    pub address: S::Address,
-    /// The staked balance of the sequencer.
-    pub balance: Amount,
-}
 
 /// Errors that can be raised by the [`SequencerRegistry`] module during hooks execution.
 #[derive(

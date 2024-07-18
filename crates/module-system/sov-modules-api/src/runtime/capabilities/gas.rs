@@ -30,7 +30,7 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     fn try_reserve_gas<Meter: GasMeter<S::Gas>>(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        context: &Context<S>,
+        sender: &S::Address,
         pre_exec_working_set: PreExecWorkingSet<S, Meter>,
     ) -> Result<WorkingSet<S>, TryReserveGasError<S, Meter>>;
 

@@ -4,6 +4,7 @@ mod stf_blueprint;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::TxScratchpad;
 mod batch_processing;
+mod proof_processing;
 #[cfg(feature = "test-utils")]
 mod utils;
 pub use batch_processing::{process_tx, BatchReceipt, TransactionReceipt};
@@ -388,7 +389,8 @@ where
                     total_gas.combine(&gas_used);
                 }
                 BlobData::Proof(proof) => {
-                    let (receipt, next_checkpoint) = self.process_proof(proof, checkpoint);
+                    let (receipt, next_checkpoint) =
+                        self.process_proof(blob.id, sender, &gas_price, proof, checkpoint);
 
                     checkpoint = next_checkpoint;
                     proof_receipts.push(receipt);
