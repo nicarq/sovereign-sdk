@@ -5,8 +5,7 @@ use std::ops::Range;
 use std::sync::OnceLock;
 
 use anyhow::Context;
-use axum::extract::ws::WebSocket;
-use axum::extract::{ws, Request, State, WebSocketUpgrade};
+use axum::extract::{Request, State, WebSocketUpgrade};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -22,7 +21,10 @@ use sov_modules_api::{EventModuleName, RuntimeEventResponse};
 use sov_rest_utils::errors::{
     self, database_error_response_500, internal_server_error_response_500, not_found_404,
 };
-use sov_rest_utils::{json_obj, preconfigured_router_layers, ApiResult, ErrorObject, Path, Query};
+use sov_rest_utils::{
+    json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, ErrorObject,
+    Path, Query,
+};
 use sov_rollup_interface::common::{HexHash, HexString};
 use sov_rollup_interface::rpc::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
@@ -31,7 +33,6 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::stf::TxReceiptContents;
 use tokio_stream::wrappers::{BroadcastStream, WatchStream};
-use tracing::warn;
 use utoipa_swagger_ui::{Config, SwaggerUi};
 
 type PathMap = Path<HashMap<String, NumberOrHash>>;
@@ -555,54 +556,6 @@ where
     // SUBSCRIPTIONS
     // -------------
 
-    async fn internal_generic_subscribe<S, M>(mut socket: WebSocket, mut subscription: S)
-    where
-        S: futures::Stream<Item = anyhow::Result<M>> + Unpin,
-        M: Clone + Serialize + Send + Sync + 'static,
-    {
-        loop {
-            tokio::select! {
-                msg = socket.recv() => {
-                    match msg {
-                        Some(Err(error)) => {
-                            warn!(?error, "Websocket error");
-                            return;
-                        },
-                        None => {
-                            // The client disconnected.
-                            return;
-                        },
-                        Some(Ok(_)) => {
-                            // Ignore incoming messages.
-                        },
-                    }
-                },
-                data_res = subscription.next() => {
-                    match data_res {
-                        Some(Ok(data)) => {
-                            let Ok(serialized) = serde_json::to_string(&data) else {
-                                return
-                            };
-                            let message = ws::Message::Text(serialized);
-                            if let Err(err) = socket.send(message).await {
-                                warn!(?err, "Websocket error while sending data");
-                                // Keep the loop going.
-                            }
-                        },
-                        Some(Err(err)) => {
-                            warn!(?err, "Webocket error while receiving data from internal Tokio channel");
-                            return;
-                        },
-                        None => {
-                            // No more data to send.
-                            return;
-                        },
-                    }
-                }
-            }
-        }
-    }
-
     async fn subscribe_to_aggregated_proofs(
         State(ledger): State<T>,
         ws: WebSocketUpgrade,
@@ -615,7 +568,7 @@ where
                             .context("Failed to convert proof to REST API representation")
                     })
             });
-            Self::internal_generic_subscribe(socket, subscription).await;
+            serve_generic_ws_subscription(socket, subscription).await;
         })
     }
 
@@ -634,7 +587,7 @@ where
                 })
                 .boxed();
 
-            Self::internal_generic_subscribe(socket, subscription).await;
+            serve_generic_ws_subscription(socket, subscription).await;
         })
     }
 
@@ -676,7 +629,7 @@ where
                 .flatten()
                 .boxed();
 
-            Self::internal_generic_subscribe(socket, subscription).await;
+            serve_generic_ws_subscription(socket, subscription).await;
         })
     }
 }

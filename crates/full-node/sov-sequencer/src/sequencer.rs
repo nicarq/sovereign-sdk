@@ -1,13 +1,17 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use anyhow::Context;
+use futures::StreamExt;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{BlobData, RawTx};
+use sov_rest_utils::serve_generic_ws_subscription;
 use sov_rollup_interface::common::{HexHash, HexString};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::Mutex;
+use tokio_stream::wrappers::BroadcastStream;
 
 use super::tx_status::{TxStatus, TxStatusNotifier};
 use super::{AcceptTxResponse, SubmittedBatchInfo};
@@ -161,7 +165,6 @@ mod axum_router {
     use sov_rest_utils::{
         errors, json_obj, preconfigured_router_layers, ApiResult, ErrorObject, Path,
     };
-    use tracing::debug;
     use utoipa_swagger_ui::{Config, SwaggerUi};
 
     use super::*;
@@ -197,7 +200,7 @@ mod axum_router {
         pub transactions: Vec<Base64Blob>,
     }
 
-    #[derive(serde::Serialize, serde::Deserialize)]
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct TxInfo<DaTxId> {
         id: HexString<TxHash>,
         #[serde(flatten)]
@@ -255,7 +258,7 @@ mod axum_router {
             ws: ws::WebSocketUpgrade,
         ) -> impl IntoResponse {
             let notifier = sequencer.0 .0.tx_status_notifier.clone();
-            let mut tx_status_recv = notifier.subscribe(tx_hash.0 .0);
+            let sub = notifier.subscription(tx_hash.0 .0);
 
             ws.on_upgrade(move |mut socket| async move {
                 sequencer
@@ -263,19 +266,14 @@ mod axum_router {
                     .await
                     .ok();
 
-                while let Ok(tx_status) = tx_status_recv.recv.recv().await {
-                    let resource_obj = TxInfo {
-                        id: HexString(tx_hash.0 .0),
-                        status: tx_status,
-                    };
-                    let ws_msg = ws::Message::Text(serde_json::to_string(&resource_obj).unwrap());
-                    dbg!(&ws_msg);
-
-                    if let Err(error) = socket.send(ws_msg).await {
-                        debug!(?error, "WebSocket connection closed (or errored)");
-                        break;
-                    }
-                }
+                let subscription = BroadcastStream::new(sub.sender.subscribe()).map(|data| {
+                    data.context("Failed to subscribe to proofs")
+                        .map(|status| TxInfo {
+                            id: HexString(tx_hash.0 .0),
+                            status,
+                        })
+                });
+                serve_generic_ws_subscription(socket, subscription).await;
             })
         }
 

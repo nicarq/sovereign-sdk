@@ -1,6 +1,4 @@
 #![deny(missing_docs)]
-// Needed to allow nested `Arc`s.
-#![allow(clippy::redundant_allocation)]
 #![doc = include_str!("../README.md")]
 
 mod batch_builder;
