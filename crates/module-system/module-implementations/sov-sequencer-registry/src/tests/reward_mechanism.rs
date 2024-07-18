@@ -54,7 +54,7 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
 
     let transaction_scratchpad = state.to_tx_scratchpad();
 
-    let pre_exec_ws = sequencer_test
+    let (_, pre_exec_ws) = sequencer_test
         .registry
         .authorize_sequencer(&seq_da_address, &gas_price, transaction_scratchpad)
         .expect("Impossible to authorize sequencer");
@@ -134,7 +134,7 @@ fn test_penalize_sequencer() -> Result<(), Infallible> {
     let gas_price = &<<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
     let transaction_scratchpad = state.to_tx_scratchpad();
 
-    let mut pre_exec_ws = sequencer_test
+    let (_, mut pre_exec_ws) = sequencer_test
         .registry
         .authorize_sequencer(&seq_da_address, gas_price, transaction_scratchpad)
         .expect("The sequencer should be registered and have enough staked amount");

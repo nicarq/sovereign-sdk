@@ -53,7 +53,7 @@ impl TestRollup {
             gas_price,
             transaction_scratchpad,
         ) {
-            Ok(pre_exec_ws) => pre_exec_ws,
+            Ok((_, pre_exec_ws)) => pre_exec_ws,
             Err(AuthorizeSequencerError {
                 reason,
                 tx_scratchpad: _,

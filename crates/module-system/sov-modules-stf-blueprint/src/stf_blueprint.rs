@@ -2,13 +2,13 @@ use std::marker::PhantomData;
 
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use sov_modules_api::capabilities::ProofProcessor;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{BatchWithId, DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage};
 use sov_rollup_interface::stf::StoredEvent;
 use tracing::{debug, info};
 
 use crate::batch_processing::{apply_batch, BatchReceipt};
+use crate::proof_processing::process_proof;
 use crate::Runtime;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
@@ -105,15 +105,25 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn process_proof(
         &self,
-        proof_batch: Vec<u8>,
-        state: StateCheckpoint<S>,
+        blob_hash: [u8; 32],
+        sender: Da::Address,
+        gas_price: &<S::Gas as Gas>::Price,
+        raw_proof: Vec<u8>,
+        checkpoint: StateCheckpoint<S>,
     ) -> (
         ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()>,
         StateCheckpoint<S>,
     ) {
-        self.runtime
-            .capabilities()
-            .process_proof(proof_batch, state)
+        let res = process_proof(
+            &self.runtime,
+            blob_hash,
+            sender,
+            gas_price,
+            raw_proof,
+            checkpoint,
+        );
+
+        (res.proof_receipt, res.checkpoint)
     }
 }
 

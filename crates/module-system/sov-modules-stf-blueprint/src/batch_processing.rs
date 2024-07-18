@@ -298,7 +298,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 ) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
     // Checks the sequencer balance before the transaction is executed.
     // If the sequencer balance is not high enough, the transaction is rejected.
-    let mut pre_exec_working_set = match runtime.capabilities().authorize_sequencer(
+    let (_, mut pre_exec_working_set) = match runtime.capabilities().authorize_sequencer(
         sequencer_da_address,
         gas_price,
         scratchpad,
@@ -397,32 +397,33 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         });
     }
 
-    let working_set = match runtime
-        .capabilities()
-        .try_reserve_gas(tx, &ctx, pre_exec_working_set)
-    {
-        Ok(working_set) => working_set,
-        Err(TryReserveGasError {
-            reason,
-            pre_exec_working_set,
-        }) => {
-            let reason_string = reason.to_string();
-            // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-            let tx_scratchpad = runtime.capabilities().penalize_sequencer(
-                sequencer_da_address,
+    let working_set =
+        match runtime
+            .capabilities()
+            .try_reserve_gas(tx, ctx.sender(), pre_exec_working_set)
+        {
+            Ok(working_set) => working_set,
+            Err(TryReserveGasError {
                 reason,
                 pre_exec_working_set,
-            );
+            }) => {
+                let reason_string = reason.to_string();
+                // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
+                let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+                    sequencer_da_address,
+                    reason,
+                    pre_exec_working_set,
+                );
 
-            return Err(TxProcessingError {
-                tx_scratchpad,
-                reason: TxProcessingErrorReason::CannotReserveGas {
-                    reason: reason_string,
-                    raw_tx_hash: *raw_tx_hash,
-                },
-            });
-        }
-    };
+                return Err(TxProcessingError {
+                    tx_scratchpad,
+                    reason: TxProcessingErrorReason::CannotReserveGas {
+                        reason: reason_string,
+                        raw_tx_hash: *raw_tx_hash,
+                    },
+                });
+            }
+        };
 
     // If the transaction is valid, execute it and apply the changes to the state.
     Ok(apply_tx(
@@ -524,24 +525,25 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         });
     }
 
-    let working_set = match runtime
-        .capabilities()
-        .try_reserve_gas(tx, &ctx, pre_exec_working_set)
-    {
-        Ok(working_set) => working_set,
-        Err(TryReserveGasError {
-            reason,
-            pre_exec_working_set,
-        }) => {
-            return Err(TxProcessingError {
-                tx_scratchpad: pre_exec_working_set.into(),
-                reason: TxProcessingErrorReason::CannotReserveGas {
-                    reason: reason.to_string(),
-                    raw_tx_hash: *raw_tx_hash,
-                },
-            });
-        }
-    };
+    let working_set =
+        match runtime
+            .capabilities()
+            .try_reserve_gas(tx, ctx.sender(), pre_exec_working_set)
+        {
+            Ok(working_set) => working_set,
+            Err(TryReserveGasError {
+                reason,
+                pre_exec_working_set,
+            }) => {
+                return Err(TxProcessingError {
+                    tx_scratchpad: pre_exec_working_set.into(),
+                    reason: TxProcessingErrorReason::CannotReserveGas {
+                        reason: reason.to_string(),
+                        raw_tx_hash: *raw_tx_hash,
+                    },
+                });
+            }
+        };
 
     // If the transaction is valid, execute it and apply the changes to the state.
     Ok(apply_tx(

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use sov_bank::{Bank, IntoPayable};
 use sov_modules_api::capabilities::{
-    AuthenticationResult, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
+    AuthenticationResult, AuthorizationData, AuthorizationResult, GasEnforcer, HasCapabilities,
     ProofProcessor, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
     TryReserveGasError,
 };
@@ -423,11 +423,11 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> GasEnforcer<S, Da>
     fn try_reserve_gas<Meter: GasMeter<S::Gas>>(
         &self,
         tx: &AuthenticatedTransactionData<S>,
-        context: &Context<S>,
+        sender: &S::Address,
         pre_exec_working_set: PreExecWorkingSet<S, Meter>,
     ) -> Result<WorkingSet<S>, TryReserveGasError<S, Meter>> {
         self.bank()
-            .reserve_gas(tx, context.sender(), pre_exec_working_set)
+            .reserve_gas(tx, sender, pre_exec_working_set)
             .map_err(Into::into)
     }
 
@@ -465,7 +465,7 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> SequencerAuthorization<S, D
         sequencer: &<Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         tx_scratchpad: TxScratchpad<S>,
-    ) -> Result<PreExecWorkingSet<S, Self::SequencerStakeMeter>, AuthorizeSequencerError<S>> {
+    ) -> AuthorizationResult<S, Self::SequencerStakeMeter> {
         self.sequencer_registry()
             .authorize_sequencer(sequencer, base_fee_per_gas, tx_scratchpad)
     }
