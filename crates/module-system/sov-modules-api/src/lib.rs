@@ -1,10 +1,25 @@
+//! This crate defines the core traits and types used by the module system of Sovereign's SDK.
+//!
+//! It specifies interfaces which allow to communicate with the rollup storage and state (state accessors from the `state module`),
+//! the module state (defined in `containers` and `module`) but also provides tools to interact/query the rollup (CLI, RPC, REST API, ...).
+//! We also define an interface to handle and process transactions inside the `transaction` module.
+//! General utilities used throughout the codebase are available inside the `common` module.
+
 #![doc = include_str!("../README.md")]
 
 mod batch;
+/// Defines interfaces to interact with the rollup's state through CLI.
 #[cfg(feature = "native")]
 pub mod cli;
+
+/// Defines common types, concepts and utilities used throughout the codebase. Among those,
 pub mod common;
+
+/// Defines general containers types to interact with the modules' state.
 mod containers;
+
+pub mod gas;
+
 pub mod default_spec;
 pub mod higher_kinded_types;
 pub mod hooks;
@@ -18,6 +33,7 @@ pub mod state;
 
 pub use batch::*;
 pub use common::*;
+pub use gas::*;
 pub use module::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
