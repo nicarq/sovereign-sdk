@@ -179,12 +179,6 @@ where
                                 sequencer_da_address = %sequencer_da_address,
                                 err=%err, "Tx authentication raised a fatal error, sequencer slashed");
 
-                        runtime.end_batch_hook(
-                            BatchSequencerOutcome::Slashed(err.clone()),
-                            sequencer_da_address,
-                            &mut checkpoint,
-                        );
-
                         return (
                             Err(ApplyBatchError::Slashed {
                                 hash: batch_with_id.id,
@@ -202,11 +196,7 @@ where
                             reason = %reason,
                             "Processing of unregistered sequencer transaction raised error, skipping"
                         );
-                        runtime.end_batch_hook(
-                            BatchSequencerOutcome::Ignored(reason.clone()),
-                            sequencer_da_address,
-                            &mut checkpoint,
-                        );
+
                         return (
                             Err(ApplyBatchError::Ignored {
                                 hash: batch_with_id.id,
@@ -266,12 +256,6 @@ where
     } else {
         BatchSequencerOutcome::NotRewardable
     };
-
-    runtime.end_batch_hook(
-        sequencer_outcome.clone(),
-        sequencer_da_address,
-        &mut checkpoint,
-    );
 
     (
         Ok(BatchReceipt {

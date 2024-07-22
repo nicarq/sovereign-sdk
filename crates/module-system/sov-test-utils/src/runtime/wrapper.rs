@@ -6,10 +6,12 @@ use sov_bank::{Bank, IntoPayable};
 use sov_modules_api::capabilities::{
     AuthenticationResult, AuthorizationData, AuthorizationResult, GasEnforcer, HasCapabilities,
     ProofProcessor, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
-    TryReserveGasError,
+    SequencerRemuneration, TryReserveGasError,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
+};
 use sov_modules_api::{
     BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis, GenesisState,
     MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, ProofReceipt, RawTx,
@@ -238,7 +240,7 @@ where
 
     fn end_batch_hook(
         &self,
-        result: Self::BatchResult,
+        result: &Self::BatchResult,
         sender: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
@@ -575,5 +577,24 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
             },
             state,
         )
+    }
+}
+
+impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>
+    for TestRuntimeWrapper<S, Da, T>
+{
+    fn reward_sequencer(
+        &self,
+        sender: &Da::Address,
+        reward: SequencerReward,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        self.sequencer_registry()
+            .reward_sequencer(sender, reward.into(), state_checkpoint);
+    }
+
+    fn slash_sequencer(&self, sender: &Da::Address, state_checkpoint: &mut StateCheckpoint<S>) {
+        self.sequencer_registry()
+            .slash_sequencer(sender, state_checkpoint);
     }
 }

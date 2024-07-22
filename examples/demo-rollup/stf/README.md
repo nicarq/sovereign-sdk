@@ -97,13 +97,11 @@ There are two kind of hooks:
 `ApplyBatchHooks`, which has the following methods:
 
 1. `begin_batch_hook `Invoked at the beginning of the `apply_blob` function, before the blob is deserialized into a group of transactions. This is a good time to ensure that the sequencer is properly bonded.
-2. `end_batch_hook` invoked at the end of the `apply_blob` function. This is a good place to reward sequencers.
+2. `end_batch_hook` invoked at the end of the `apply_blob` function.
 
 To use the `StfBlueprint`, the runtime needs to provide implementation of these hooks which specifies what needs to happen at each of these four stages.
 
-In this demo, we only rely on two modules which need access to the hooks - `sov-accounts` and `sequencer-registry`.
-
-The `sequencer-registry` implements `ApplyBatchHooks` since it is responsible for managing the sequencer bond.
+In this demo, we only rely on a single modules which need access to the hooks - `sov-accounts`.
 
 The implementation for `MyRuntime` is straightforward because we can leverage the existing hooks provided by `sov-accounts` and `sequencer-registry` and reuse them in our implementation.
 
@@ -131,27 +129,6 @@ impl<S: Spec> TxHooks for Runtime<S> {
 }
 ```
 
-```Rust
-impl<S: Spec> ApplyBatchHooks for Runtime<S> {
-    type Spec = S;
-
-    fn lock_sequencer_bond(
-        &self,
-        sequencer: &[u8],
-        state: &mut WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        self.sequencer.lock_sequencer_bond(sequencer, state)
-    }
-
-    fn reward_sequencer(
-        &self,
-        amount: u64,
-        state: &mut WorkingSet<S>,
-    ) -> anyhow::Result<()> {
-        self.sequencer.reward_sequencer(amount, state)
-    }
-}
-```
 
 That's it - with those three structs implemented, you can plug them into your `StfBlueprint` and get a
 complete State Transition Function!

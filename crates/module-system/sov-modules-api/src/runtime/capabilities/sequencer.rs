@@ -5,7 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
-use crate::{Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad};
+use crate::transaction::SequencerReward;
+use crate::{Gas, GasMeter, PreExecWorkingSet, Spec, StateCheckpoint, TxScratchpad};
 
 /// An error that can be returned within the [`SequencerAuthorization::authorize_sequencer`] capability.
 pub struct AuthorizeSequencerError<S: Spec> {
@@ -72,4 +73,18 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
         reason: impl std::fmt::Display,
         pre_exec_ws: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> TxScratchpad<S>;
+}
+
+/// Functionality related to the rewarding and slashing of the sequencer.
+pub trait SequencerRemuneration<S: Spec, Da: DaSpec> {
+    /// Reward the sequencer for correctly processing the transaction batch.
+    fn reward_sequencer(
+        &self,
+        sender: &Da::Address,
+        reward: SequencerReward,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    );
+
+    /// Slash the sequencer for malicious behavior.
+    fn slash_sequencer(&self, sender: &Da::Address, state_checkpoint: &mut StateCheckpoint<S>);
 }

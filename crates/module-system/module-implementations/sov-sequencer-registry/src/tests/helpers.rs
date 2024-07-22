@@ -11,7 +11,7 @@ use sov_state::User;
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 
-use crate::{AllowedSequencer, SequencerConfig, SequencerRegistry};
+use crate::{SequencerConfig, SequencerRegistry};
 
 pub type S = sov_test_utils::TestSpec;
 pub type Da = MockDaSpec;
@@ -126,17 +126,6 @@ impl TestSequencer {
         state: &mut StateCheckpoint<S>,
     ) -> Result<(), Infallible> {
         self.registry.minimum_bond.set(&amount, state)
-    }
-
-    pub fn set_allowed_sequencer(
-        &self,
-        da_address: <Da as DaSpec>::Address,
-        sequencer: &AllowedSequencer<S>,
-        state: &mut StateCheckpoint<S>,
-    ) -> Result<(), Infallible> {
-        self.registry
-            .allowed_sequencers
-            .set(&da_address, sequencer, state)
     }
 }
 
