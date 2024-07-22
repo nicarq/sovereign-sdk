@@ -13,9 +13,9 @@ use sov_modules_api::{
     KernelWorkingSet, Module, ModuleInfo, PrivateKey, Spec, StateAccessor, StateCheckpoint,
     StateReader,
 };
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::jmt::RootHash;
 use sov_state::{DefaultStorageSpec, StorageRoot, User};
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::ProverIncentives;
@@ -234,7 +234,7 @@ pub(crate) fn setup() -> (
     StateCheckpoint<S>,
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (module, prover_address, sequencer, mut state) = setup_helper(state);
 
     // Assert that the prover has the correct bond amount before processing the proof

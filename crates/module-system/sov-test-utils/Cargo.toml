@@ -42,7 +42,6 @@ sov-ledger-apis = { workspace = true }
 sov-ledger-json-client = { workspace = true }
 sov-sequencer-json-client = { workspace = true }
 sov-capabilities = { workspace = true, features = ["native"] }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-sequencer = { workspace = true }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-chain-state = { workspace = true, features = ["native"] }
@@ -53,6 +52,7 @@ sov-mock-zkvm = { workspace = true, features = ["native"] }
 tempfile = { workspace = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 jsonrpsee = { workspace = true }
+rockbound = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -63,11 +63,12 @@ default = []
 # dependency, so it's optional.
 demo-stf = ["dep:demo-stf"]
 arbitrary = [
-    "ethereum-types/arbitrary",
-    "sov-db/arbitrary",
-    "sov-mock-zkvm/arbitrary",
-    "sov-modules-api/arbitrary",
-    "sov-rollup-interface/arbitrary",
-    "sov-sequencer-registry/arbitrary",
-    "sov-state/arbitrary",
+	"ethereum-types/arbitrary",
+	"sov-db/arbitrary",
+	"sov-mock-zkvm/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-rollup-interface/arbitrary",
+	"sov-sequencer-registry/arbitrary",
+	"sov-state/arbitrary",
+	"rockbound/arbitrary"
 ]

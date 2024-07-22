@@ -8,8 +8,8 @@ use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::da::Time;
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
 use sov_modules_api::{Gas, GasArray, KernelModule, KernelWorkingSet, Spec, StateCheckpoint};
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::{Storage, StorageRoot};
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{TestSpec, TestStorageSpec as StorageSpec};
 
 const INITIAL_BASE_FEE_PER_GAS: [u64; 2] = [100, 100];

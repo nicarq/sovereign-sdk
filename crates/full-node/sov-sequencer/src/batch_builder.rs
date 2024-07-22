@@ -310,10 +310,10 @@ mod tests {
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
     use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey};
-    use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
     use sov_state::{ProverStorage, Storage};
     use sov_test_utils::auth::TestAuth;
     use sov_test_utils::runtime::optimistic::{create_genesis_config, TestRuntime};
+    use sov_test_utils::storage::{new_finalized_storage, SimpleStorageManager};
     use sov_test_utils::{
         TestPrivateKey, TestPublicKey, TestSpec, TestStorageSpec as StorageSpec,
         TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_BALANCE,
@@ -413,7 +413,7 @@ mod tests {
         let sequencer_db_path = tmpdir.path().join("mempool");
         let storage = initial_storage.unwrap_or_else(|| {
             let state_path = tmpdir.path().join("state");
-            new_orphan_storage(state_path).unwrap()
+            new_finalized_storage(state_path)
         });
         let storage = watch::Sender::new(storage).subscribe();
         let sequencer_db = SequencerDb::new(sequencer_db_path).unwrap();
@@ -580,8 +580,8 @@ mod tests {
     }
 
     mod build_batch {
-        use sov_prover_storage_manager::SimpleStorageManager;
         use sov_rollup_interface::services::batch_builder::BatchBuilder;
+        use sov_test_utils::storage::SimpleStorageManager;
 
         use super::*;
 

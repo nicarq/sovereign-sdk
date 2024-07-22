@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
-use sov_db::schema::{CacheDb, SchemaBatch};
+use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -137,7 +137,11 @@ where
     Da: DaService<Error = anyhow::Error> + Clone,
     InnerVm: ZkvmHost,
     OuterVm: ZkvmHost,
-    Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = SchemaBatch, LedgerState = CacheDb>,
+    Sm: HierarchicalStorageManager<
+        Da::Spec,
+        LedgerChangeSet = SchemaBatch,
+        LedgerState = DeltaReader,
+    >,
     Sm::StfState: Clone,
     Stf: StateTransitionFunction<
         <InnerVm::Guest as ZkvmGuest>::Verifier,
@@ -188,7 +192,7 @@ where
                     "No history detected. Initializing chain on the block header..."
                 );
                 let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header)?;
-                ledger_db.replace_db(ledger_state)?;
+                ledger_db.replace_reader(ledger_state);
                 let (genesis_root, initialized_storage) = stf.init_chain(stf_state, params);
                 let data_to_commit: SlotCommit<
                     _,
@@ -254,10 +258,9 @@ where
         })
     }
 
-    /// Starts an RPC server with provided rpc methods.
+    /// Starts an RPC server with provided RPC methods and returns [`SocketAddr`] it is bind to.
     ///  # Arguments:
     ///   * methods: [`RpcModule`] with all RPC methods.
-    ///   * channel: If `Some`, notification with actual [`SocketAddr`] where RPC server listens to.
     pub async fn start_rpc_server(&self, methods: RpcModule<()>) -> anyhow::Result<SocketAddr> {
         let server = jsonrpsee::server::ServerBuilder::default()
             .build([self.listen_address_rpc].as_ref())

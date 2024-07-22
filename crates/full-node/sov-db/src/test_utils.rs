@@ -1,37 +1,54 @@
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::collections::HashSet;
 
-use crate::schema::{CacheContainer, CacheDb, ChangeSet, SchemaBatch};
-use crate::DbOptions;
+use rand::{Rng, SeedableRng};
 
-const MAGIC_SNAPSHOT_ID: u64 = u64::MAX - 2;
+use crate::accessory_db::AccessoryDb;
+use crate::state_db::StateDb;
+use crate::storage_manager::InitializableNativeStorage;
 
-/// Should be used for testing, when changes should be written to underlying DB directly.
-/// Useful when caller does not want to maintain any kind of ordering or relation between changes
-/// and wants them to be merged inside a database.
-pub fn commit_changes_through(cache_container: &RwLock<CacheContainer>, changes: SchemaBatch) {
-    // This one probably does not exist in CacheContainer
-    let change_set = ChangeSet::new_with_operations(MAGIC_SNAPSHOT_ID, changes);
-    let mut writer = cache_container.write().unwrap();
-    writer.add_snapshot(change_set).unwrap();
-    writer.commit_snapshot(&MAGIC_SNAPSHOT_ID).unwrap();
+/// Simple container for unlocking testing of NativeStorage without need of ProverStorage.
+#[derive(Debug, Clone)]
+pub struct TestNativeStorage {
+    #[allow(missing_docs)]
+    pub state: StateDb,
+    #[allow(missing_docs)]
+    pub accessory_db: AccessoryDb,
 }
 
-/// Setup simple [`CacheDb`] with ID=0, that can be used for tests.
-/// Returned [`CacheContainer`] can be used together
-/// with [`commit_changes_through`] to persist data to disk.
-pub fn setup_cache_db_with_container(
-    path: impl AsRef<std::path::Path>,
-    db_options: DbOptions,
-) -> (CacheDb, Arc<RwLock<CacheContainer>>) {
-    let db = db_options.default_setup_db_in_path(path).unwrap();
-    let to_parent = Arc::new(RwLock::new(HashMap::new()));
-    let cache_container = Arc::new(RwLock::new(CacheContainer::new(
-        db,
-        to_parent.clone().into(),
-    )));
-    (
-        CacheDb::new(MAGIC_SNAPSHOT_ID, cache_container.clone().into()),
-        cache_container,
-    )
+impl InitializableNativeStorage for TestNativeStorage {
+    fn new(db: StateDb, accessory_db: AccessoryDb) -> Self {
+        Self {
+            state: db,
+            accessory_db,
+        }
+    }
+}
+
+#[allow(missing_docs)]
+pub fn generate_random_bytes(count: usize) -> HashSet<Vec<u8>> {
+    let seed: [u8; 32] = [1; 32];
+
+    // Create an RNG with the specified seed, so tests are reproducible.
+    // We don't need actual randomness, we need some value distribution.
+    let mut rng = rand::prelude::StdRng::from_seed(seed);
+
+    generate_more_random_bytes(&mut rng, count, &HashSet::new())
+}
+
+/// Generates more unique keys, which are also not present in given keys.
+pub fn generate_more_random_bytes<R: Rng>(
+    rng: &mut R,
+    count: usize,
+    existing_keys: &HashSet<Vec<u8>>,
+) -> HashSet<Vec<u8>> {
+    let mut samples: HashSet<Vec<u8>> = HashSet::with_capacity(count);
+
+    while samples.len() < count {
+        let inner_vec_size = rng.gen_range(32..=256);
+        let storage_key: Vec<u8> = (0..inner_vec_size).map(|_| rng.gen::<u8>()).collect();
+        if !existing_keys.contains(&storage_key) {
+            samples.insert(storage_key);
+        }
+    }
+    samples
 }

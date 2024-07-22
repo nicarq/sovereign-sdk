@@ -29,7 +29,6 @@ tracing = { workspace = true, optional = true }
 sov-nft-module = { version = "*", features = ["native"], path = "." }
 tempfile = { workspace = true }
 sov-test-utils = { workspace = true }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 
 [features]
 default = []

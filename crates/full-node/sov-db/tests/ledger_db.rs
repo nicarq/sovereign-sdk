@@ -6,9 +6,8 @@ use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
 use sov_test_utils::ledger_db::sov_ledger_json_client::types::IntOrHash;
-use sov_test_utils::ledger_db::{
-    LedgerTestService, LedgerTestServiceData, SimpleLedgerStorageManager,
-};
+use sov_test_utils::ledger_db::{LedgerTestService, LedgerTestServiceData};
+use sov_test_utils::storage::SimpleLedgerStorageManager;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_filtered_slot_events() {
@@ -51,7 +50,7 @@ fn test_slot_subscription() {
     let temp_dir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
     let ledger_storage = storage_manager.create_ledger_storage();
-    let ledger_db = LedgerDb::with_cache_db(ledger_storage).unwrap();
+    let ledger_db = LedgerDb::with_reader(ledger_storage).unwrap();
 
     let mut rx = ledger_db.subscribe_slots();
     let _ = ledger_db
@@ -70,7 +69,9 @@ async fn test_save_aggregated_proof() {
     let temp_dir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
     let ledger_storage = storage_manager.create_ledger_storage();
-    let ledger_db = LedgerDb::with_cache_db(ledger_storage).unwrap();
+    // Storage sender is ignored, because data is immediately committed to the database.
+    // Existing DeltaReader has a view to this database.
+    let ledger_db = LedgerDb::with_reader(ledger_storage).unwrap();
     let _rx = ledger_db.subscribe_proof_saved();
 
     let proof_from_db = ledger_db.get_latest_aggregated_proof().await.unwrap();

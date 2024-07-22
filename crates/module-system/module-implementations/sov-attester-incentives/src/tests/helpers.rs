@@ -11,11 +11,11 @@ use sov_modules_api::{
     ApiStateAccessor, CryptoSpec, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet,
     ModuleInfo, PrivateKey, Spec, StateCheckpoint, UnlimitedGasMeter,
 };
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::Time;
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
 use sov_state::{ProverStorage, SparseMerkleProof, StorageRoot};
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{
     TestStorageSpec as StorageSpec, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE,
     TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,

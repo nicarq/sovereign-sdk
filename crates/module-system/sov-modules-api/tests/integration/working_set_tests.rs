@@ -1,20 +1,17 @@
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{KernelWorkingSet, StateCheckpoint, StateReader, StateWriter, WorkingSet};
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::{Kernel, User};
 use sov_state::{SlotKey, SlotValue};
-
-type TestSpec = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+use sov_test_utils::storage::new_finalized_storage;
+use sov_test_utils::TestSpec;
 
 #[test]
 fn test_workingset_get() {
     let tempdir = tempfile::tempdir().unwrap();
     let codec = BcsCodec {};
-    let storage = new_orphan_storage(tempdir.path()).unwrap();
+    let storage = new_finalized_storage(tempdir.path());
 
     let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
     let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
@@ -31,7 +28,7 @@ fn test_workingset_get() {
 fn test_kernel_workingset_get() {
     let tempdir = tempfile::tempdir().unwrap();
     let codec = BcsCodec {};
-    let storage = new_orphan_storage(tempdir.path()).unwrap();
+    let storage = new_finalized_storage(tempdir.path());
 
     let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
     let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);

@@ -1,6 +1,6 @@
 use sov_modules_api::{CredentialId, PrivateKey, PublicKey, WorkingSet};
 use sov_nonces::Nonces;
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
 type S = sov_test_utils::TestSpec;
@@ -9,8 +9,7 @@ type S = sov_test_utils::TestSpec;
 fn check_hooks_test() {
     let nonces = Nonces::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set =
-        WorkingSet::<S>::new_deprecated(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut working_set = WorkingSet::<S>::new_deprecated(new_finalized_storage(tmpdir.path()));
 
     let priv_key = TestPrivateKey::generate();
     let sender = priv_key.pub_key();

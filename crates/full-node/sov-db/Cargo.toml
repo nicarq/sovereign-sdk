@@ -34,6 +34,7 @@ bincode = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 hex = { workspace = true }
 tracing = { workspace = true }
+rand = { workspace = true, optional = true }
 
 [dev-dependencies]
 sov-mock-da = { workspace = true, features = ["native"] }
@@ -59,8 +60,16 @@ arbitrary = [
     "sov-rollup-interface/arbitrary",
     "sov-test-utils/arbitrary",
 ]
+test-utils = ["dep:rand"]
 
 [[bench]]
 name = "state_db_single_snapshot"
 path = "benches/state_db_bench.rs"
 harness = false
+required-features = ["test-utils"]
+
+[[bench]]
+name = "native_storage_manager"
+path = "benches/native_storage_manager.rs"
+harness = false
+required-features = ["test-utils"]

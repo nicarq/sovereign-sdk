@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use sov_bank::{get_token_id, Bank, CallMessage};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateCheckpoint};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
 
 use crate::helpers::*;
@@ -14,7 +14,7 @@ type S = sov_test_utils::TestSpec;
 fn initial_and_deployed_token() -> Result<(), Infallible> {
     let bank_config = create_bank_config_with_token(1, 100);
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
     let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
     let bank = Bank::default();
     bank.genesis(&bank_config, &mut genesis_state).unwrap();
@@ -69,7 +69,7 @@ fn initial_and_deployed_token() -> Result<(), Infallible> {
 fn overflow_max_supply() {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
 
     let bank_config = create_bank_config_with_token(2, u64::MAX - 2);
 

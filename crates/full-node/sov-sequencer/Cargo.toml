@@ -57,7 +57,6 @@ sov-sequencer-json-client = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-db = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util", "macros"] }

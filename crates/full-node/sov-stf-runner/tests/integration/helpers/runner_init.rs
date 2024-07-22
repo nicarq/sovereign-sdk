@@ -3,20 +3,20 @@ use std::sync::Arc;
 
 use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
+use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{
     MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::{Address, BlobData, ProofSerializer, RawTx};
-use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, SerializedAggregatedProof,
 };
-use sov_state::{ArrayWitness, DefaultStorageSpec};
+use sov_state::{ArrayWitness, DefaultStorageSpec, ProverStorage};
 use sov_stf_runner::{
     HttpServerConfig, InitVariant, ParallelProverService, ProofManager, ProofManagerConfig,
     RollupConfig, RollupProverConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
@@ -33,7 +33,7 @@ type MockInitVariant = InitVariant<
     DaServiceWithRetries<MockDaService>,
 >;
 type S = DefaultStorageSpec<sha2::Sha256>;
-type StorageManager = ProverStorageManager<MockDaSpec, S>;
+type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
 
 pub type MockProverService = ParallelProverService<
     Vec<u8>,
@@ -165,14 +165,11 @@ pub fn initialize_runner(
 
     let stf = HashStf::<MockValidityCond>::new();
 
-    let storage_config = sov_state::config::Config {
-        path: path.to_path_buf(),
-    };
-    let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
+    let mut storage_manager: StorageManager = NativeStorageManager::new(path).unwrap();
     let genesis_block = MockBlockHeader::from_height(0);
     let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_block).unwrap();
 
-    let ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
+    let ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
     let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
     let inner_vm = MockZkvm::new();

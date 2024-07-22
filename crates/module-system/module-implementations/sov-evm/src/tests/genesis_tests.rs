@@ -8,8 +8,8 @@ use reth_primitives::{
 };
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::{KernelWorkingSet, Module, StateCheckpoint};
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
+use sov_test_utils::storage::new_finalized_storage;
 
 use crate::evm::primitive_types::{Block, SealedBlock};
 use crate::evm::{DbAccount, EvmChainConfig};
@@ -54,7 +54,7 @@ pub(crate) static BENEFICIARY: Address = Address::new([3u8; 20]);
 fn genesis_data() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
 
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
 
     let account = &TEST_CONFIG.data[0];
@@ -87,7 +87,7 @@ fn genesis_data() -> Result<(), Infallible> {
 #[test]
 fn genesis_cfg() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
 
     let cfg = evm.cfg.get(&mut state_checkpoint)?.unwrap();
@@ -111,7 +111,7 @@ fn genesis_cfg() -> Result<(), Infallible> {
 #[should_panic(expected = "EVM spec must start from block 0")]
 fn genesis_cfg_missing_specs() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     setup(
         &EvmConfig {
             spec: vec![(5, SpecId::BERLIN)].into_iter().collect(),
@@ -126,7 +126,7 @@ fn genesis_empty_spec_defaults_to_shanghai() -> Result<(), Infallible> {
     let mut config = TEST_CONFIG.clone();
     config.spec.clear();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&config, state_checkpoint);
 
     let cfg = evm.cfg.get(&mut state_checkpoint)?.unwrap();
@@ -139,7 +139,7 @@ fn genesis_empty_spec_defaults_to_shanghai() -> Result<(), Infallible> {
 #[should_panic(expected = "Cancun is not supported")]
 fn genesis_cfg_cancun() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     setup(
         &EvmConfig {
             spec: vec![(0, SpecId::CANCUN)].into_iter().collect(),
@@ -153,7 +153,7 @@ fn genesis_cfg_cancun() {
 fn genesis_block() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
 
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
     let mut accessory_state = state_checkpoint.accessory_state();
 
@@ -207,7 +207,7 @@ fn genesis_block() -> Result<(), Infallible> {
 #[test]
 fn genesis_head() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
     let head = evm.head.get(&mut state_checkpoint)?.unwrap();
 

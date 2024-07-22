@@ -39,7 +39,6 @@ tempfile = { workspace = true }
 sov-sequencer-registry = { path = ".", features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
 
 [features]

@@ -343,10 +343,10 @@ mod test {
     use std::fmt::Debug;
 
     use sov_mock_zkvm::MockZkVerifier;
-    use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::codec::BorshCodec;
     use sov_state::Prefix;
+    use sov_test_utils::storage::new_finalized_storage;
     use unwrap_infallible::UnwrapInfallible;
 
     use super::*;
@@ -357,7 +357,7 @@ mod test {
     #[test]
     fn test_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let storage = new_finalized_storage(tmpdir.path());
         let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());

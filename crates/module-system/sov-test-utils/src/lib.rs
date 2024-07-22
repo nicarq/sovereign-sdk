@@ -23,7 +23,6 @@ use sov_modules_api::{
     Batch, CryptoSpec, DaSpec, GasArray, GasUnit, Module, RawTx, Spec, StateCheckpoint,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, BlobData, StfBlueprint};
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::stf::TxReceiptContents;
 
 use crate::runtime::BasicKernel;
@@ -50,10 +49,15 @@ pub mod runtime;
 
 /// Utilities for testing the sequencer.
 pub mod sequencer;
+/// Utilities for testing that require [`ProverStorage`].
+pub mod storage;
 
 pub use evm::simple_smart_contract::SimpleStorageContract;
 use sov_modules_api::PrivateKey;
 use sov_rollup_interface::execution_mode::{Native, Zk};
+pub use sov_state::ProverStorage;
+
+use crate::storage::new_finalized_storage;
 
 /// The default test spec. Uses a [`MockZkVerifier`] for both inner and outer vm verification.
 /// Uses [`sov_mock_zkvm::MockZkvmCryptoSpec`] for cryptographic primitives.
@@ -78,7 +82,9 @@ pub type TestHasher = <TestCryptoSpec as CryptoSpec>::Hasher;
 pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
 /// The default STF blueprint type. Uses [`MockDaSpec`] for DA and [`BasicKernel`] for kernel.
 pub type TestStfBlueprint<RT, S> = StfBlueprint<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>;
-
+/// The default [`sov_db::storage_manager::NativeStorageManager`], that can be used with [`ProverStorage`] and [`TestStorageSpec`].
+pub type TestStorageManager =
+    sov_db::storage_manager::NativeStorageManager<MockDaSpec, ProverStorage<TestStorageSpec>>;
 // --- Blessed test parameters ---
 
 // Blessed gas parameters
@@ -156,7 +162,7 @@ pub fn simple_bank_setup_deprecated(
 ) {
     let bank = Bank::<TestSpec>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
 
     let sender_address = generate_address::<TestSpec>("just_sender");
 

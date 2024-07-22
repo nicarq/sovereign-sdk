@@ -6,8 +6,8 @@ use simple_nft_module::{
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::utils::generate_address as gen_addr_generic;
 use sov_modules_api::{Context, Module, Spec, StateCheckpoint};
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::ProverStorage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TestStorageSpec;
 
 pub type S = sov_test_utils::TestSpec;
@@ -29,7 +29,7 @@ fn genesis_and_mint() -> Result<(), Infallible> {
     };
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
     let nft = NonFungibleToken::default();
 
     let mut genesis_state = state.to_genesis_state_accessor::<NonFungibleToken<S>>(&config);
@@ -89,7 +89,7 @@ fn transfer() -> Result<(), Infallible> {
         owners: vec![(0, admin), (1, owner1), (2, owner2)],
     };
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let nft = NonFungibleToken::default();
     let mut genesis_state = state.to_genesis_state_accessor::<NonFungibleToken<S>>(&config);
     nft.genesis(&config, &mut genesis_state).unwrap();
@@ -162,7 +162,7 @@ fn burn() -> Result<(), Infallible> {
     };
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
     let nft = NonFungibleToken::default();
     let mut genesis_state = state.to_genesis_state_accessor::<NonFungibleToken<S>>(&config);
     nft.genesis(&config, &mut genesis_state).unwrap();

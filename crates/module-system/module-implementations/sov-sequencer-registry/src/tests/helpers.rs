@@ -7,8 +7,8 @@ use sov_modules_api::{
     Address, CryptoSpec, DaSpec, InfallibleStateAccessor, Module, Spec, StateAccessor,
     StateCheckpoint, StateReader,
 };
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::User;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 
 use crate::{AllowedSequencer, SequencerConfig, SequencerRegistry};
@@ -46,7 +46,7 @@ impl TestSequencer {
     ) -> Result<(TestSequencer, StateCheckpoint<S>), Infallible> {
         let test_sequencer = create_test_sequencer(initial_balance, with_preferred_sequencer);
         let tmpdir = tempfile::tempdir().unwrap();
-        let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+        let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
         let mut state = test_sequencer.genesis(state);
 
         // Check that genesis has been performed correctly

@@ -2,7 +2,7 @@
 use std::collections::VecDeque;
 
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
-use sov_db::schema::{CacheDb, SchemaBatch};
+use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::TxReceiptContents;
@@ -43,7 +43,11 @@ impl<StateRoot, Witness, Sm, Da> StateManager<StateRoot, Witness, Sm, Da>
 where
     Da: DaService<Error = anyhow::Error> + Clone,
     StateRoot: Clone + AsRef<[u8]>,
-    Sm: HierarchicalStorageManager<Da::Spec, LedgerChangeSet = SchemaBatch, LedgerState = CacheDb>,
+    Sm: HierarchicalStorageManager<
+        Da::Spec,
+        LedgerChangeSet = SchemaBatch,
+        LedgerState = DeltaReader,
+    >,
     Sm::StfState: Clone,
 {
     pub(crate) fn new(
@@ -99,7 +103,7 @@ where
             // In case if reorg happened, we want to keep ledger and RPC storages in sync.
             // Otherwise, the RPC storage and LedgerDb have been updated in [`Self::update_rpc_and_ledger_storage`]
             self.rpc_storage_sender.send_replace(stf_pre_state.clone());
-            self.ledger_db.replace_db(ledger_state)?;
+            self.ledger_db.replace_reader(ledger_state);
         }
 
         tracing::trace!(block_header = %filtered_block.header().display(), "Returning STF state for block");
@@ -262,7 +266,7 @@ where
         // receivers currently alive, which makes it easier to reason about the
         // code.
         self.rpc_storage_sender.send_replace(rpc_storage);
-        self.ledger_db.replace_db(ledger_state)?;
+        self.ledger_db.replace_reader(ledger_state);
         Ok(())
     }
 
@@ -278,14 +282,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use sov_db::storage_manager::NativeChangeSet;
+    use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
     use sov_mock_da::{
         MockAddress, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockFee,
         MockValidityCond, PlannedFork,
     };
     use sov_mock_zkvm::MockZkvm;
     use sov_modules_stf_blueprint::TxReceiptContents;
-    use sov_prover_storage_manager::ProverStorageManager;
     use sov_rollup_interface::services::da::DaServiceWithRetries;
     use sov_rollup_interface::stf::StateTransitionFunction;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
@@ -311,20 +314,16 @@ mod tests {
     >>::Witness;
     type MockSlotCommit = SlotCommit<MockBlock, Witness, TxReceiptContents>;
     type TestStateManager =
-        StateManager<StateRoot, Witness, ProverStorageManager<MockDaSpec, S>, Da>;
+        StateManager<StateRoot, Witness, NativeStorageManager<MockDaSpec, ProverStorage<S>>, Da>;
 
     const SEQUENCER_ADDRESS: MockAddress = MockAddress::new([0; 32]);
 
     async fn setup_state_manager(path: &std::path::Path) -> anyhow::Result<TestStateManager> {
-        let storage_config = sov_state::config::Config {
-            path: path.to_path_buf(),
-        };
-
-        let mut storage_manager: ProverStorageManager<MockDaSpec, S> =
-            ProverStorageManager::new(storage_config)?;
+        let mut storage_manager: NativeStorageManager<MockDaSpec, ProverStorage<S>> =
+            NativeStorageManager::new(path)?;
         let genesis_header = MockBlockHeader::from_height(0);
         let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_header)?;
-        let ledger_db = LedgerDb::with_cache_db(ledger_state)?;
+        let ledger_db = LedgerDb::with_reader(ledger_state)?;
         let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
         let (state_root, change_set) = produce_synthetic_changes(&genesis_storage, 0);
@@ -508,10 +507,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_seen_block_has_been_tracked() -> anyhow::Result<()> {
-        // The idea of the test, is that state manager receives request for storage for a block
+        // The idea of the test, is that state manager receives a request for storage for a block
         // That is not a part of the current chain.
-        // But it cannot back-track to last known block in new chain,
-        // because it hasn't seen transition in new chain.
+        // But it cannot back-track to the last known block in the new chain,
+        // because it hasn't seen transition in the new chain.
         // We simulate that by removing seen transitions before actual finalization happens.
 
         let tempdir = tempfile::tempdir()?;

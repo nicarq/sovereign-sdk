@@ -4,30 +4,28 @@
 extern crate prettytable;
 
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::Context;
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use humantime::format_duration;
 use prettytable::Table;
 use prometheus::{Histogram, HistogramOpts, Registry};
-use sha2::Sha256;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::SchemaBatch;
+use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_api::Address;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_prover_storage_manager::ProverStorageManager;
 use sov_rng_da_service::{RngDaService, RngDaSpec};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_stf_runner::{from_toml_path, read_json_file, RollupConfig};
+use sov_state::ProverStorage;
+use sov_stf_runner::read_json_file;
 use sov_test_utils::{TestSpec, TestStorageSpec};
 use tempfile::TempDir;
 
@@ -93,22 +91,11 @@ async fn main() -> Result<(), anyhow::Error> {
         timer_output = true;
     }
 
-    let rollup_config_path = "benches/node/rollup_config.toml".to_string();
-    let mut rollup_config: RollupConfig<Address<Sha256>, sov_celestia_adapter::CelestiaConfig> =
-        from_toml_path(rollup_config_path)
-            .context("Failed to read rollup configuration")
-            .unwrap();
-
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
-    rollup_config.storage.path = PathBuf::from(temp_dir.path());
-
     let da_service = Arc::new(RngDaService::new());
 
-    let storage_config = sov_state::config::Config {
-        path: rollup_config.storage.path.clone(),
-    };
     let mut storage_manager =
-        ProverStorageManager::<MockDaSpec, TestStorageSpec>::new(storage_config)
+        NativeStorageManager::<MockDaSpec, ProverStorage<TestStorageSpec>>::new(temp_dir.path())
             .expect("ProverStorage initialization failed");
 
     let genesis_block_header = MockBlockHeader::from_height(0);
@@ -117,7 +104,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .create_state_for(&genesis_block_header)
         .expect("Getting genesis storage failed");
 
-    let ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
+    let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
 
     let stf = StfBlueprint::<
         TestSpec,
@@ -195,13 +182,14 @@ async fn main() -> Result<(), anyhow::Error> {
     // 3 blocks to finalization
     let fork_length = 3;
     let blocks_num = blocks.len() as u64;
-    // Rollup processing. Block h=2 -> end are the transfer transactions. Timers start here
+    // Rollup processing. Blocks from h=2 to end are the transfer transactions. Timers start here.
     let total = Instant::now();
     let mut apply_block_time = Duration::new(0, 0);
     for (filtered_block, mut relevant_blobs) in blocks.into_iter().zip(blobs.into_iter()) {
-        let (stf_state, _) = storage_manager
+        let (stf_state, ledger_storage) = storage_manager
             .create_state_for(filtered_block.header())
             .unwrap();
+        ledger_db.replace_reader(ledger_storage);
         // We don't need to replace ledgerDb database, because data goes immediately to rocksdb on
         // each finalization, and it reads from there.
         let now = Instant::now();

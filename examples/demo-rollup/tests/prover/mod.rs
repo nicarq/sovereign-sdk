@@ -4,13 +4,13 @@ use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use risc0::MOCK_DA_ELF;
 use sov_db::schema::SchemaBatch;
+use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::execution_mode::WitnessGeneration;
 use sov_modules_api::SlotData;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -20,6 +20,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
+use sov_state::ProverStorage;
 use sov_stf_runner::read_json_file;
 use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
@@ -53,12 +54,9 @@ async fn test_proof_generation() {
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
     tracing::info!("Creating temp dir at {}", temp_dir.path().display());
     let da_service = MockDaService::new(MockAddress::default());
-    let storage_config = sov_state::config::Config {
-        path: temp_dir.path().into(),
-    };
 
     let mut storage_manager =
-        ProverStorageManager::<MockDaSpec, TestStorageSpec>::new(storage_config)
+        NativeStorageManager::<MockDaSpec, ProverStorage<TestStorageSpec>>::new(temp_dir.path())
             .expect("ProverStorageManager initialization has failed");
     let stf = TestSTF::new();
 

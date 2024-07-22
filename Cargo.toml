@@ -21,7 +21,6 @@ members = [
     "crates/full-node/sov-ledger-apis",
     "crates/full-node/sov-ledger-json-client",
     "crates/full-node/sov-stf-runner",
-    "crates/full-node/sov-prover-storage-manager",
     "crates/full-node/sov-metrics",
     "crates/full-node/sov-eth-dev-signer",
     # Utils
@@ -113,7 +112,6 @@ sov-capabilities = { path = "crates/module-system/sov-capabilities", default-fea
 sov-kernels = { path = "crates/module-system/sov-kernels", default-features = false, version = "0.3" }
 sov-state = { path = "crates/module-system/sov-state", default-features = false, version = "0.3" }
 sov-rest-utils = { path = "crates/utils/sov-rest-utils", default-features = false, version = "0.3" }
-sov-prover-storage-manager = { path = "crates/full-node/sov-prover-storage-manager", default-features = false, version = "0.3" }
 sov-metrics = { path = "crates/full-node/sov-metrics", default-features = false, version = "0.3" }
 sov-sequencer-json-client = { path = "crates/full-node/sov-sequencer-json-client", default-features = false, version = "0.3" }
 sov-cli = { path = "crates/module-system/sov-cli", default-features = false, version = "0.3" }

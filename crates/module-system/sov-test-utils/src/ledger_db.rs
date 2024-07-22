@@ -12,11 +12,11 @@ use sov_ledger_apis::LedgerRoutes;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash};
 use sov_modules_api::da::Time;
 use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, ModuleId, StoredEvent};
-pub use sov_prover_storage_manager::SimpleLedgerStorageManager;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use tempfile::{tempdir, TempDir};
 
+use crate::storage::SimpleLedgerStorageManager;
 use crate::{TestSpec, TestTxReceiptContents};
 
 type TestEvent = demo_stf::runtime::RuntimeEvent<TestSpec, MockDaSpec>;
@@ -221,8 +221,8 @@ impl LedgerTestService {
         let dir = tempdir()?;
 
         let mut storage_manager = SimpleLedgerStorageManager::new(dir.path());
-        let cache_db = storage_manager.create_ledger_storage();
-        let ledger_db = LedgerDb::with_cache_db(cache_db)?;
+        let reader = storage_manager.create_ledger_storage();
+        let ledger_db = LedgerDb::with_reader(reader)?;
 
         let ledger_data = match data {
             LedgerTestServiceData::Simple => materialize_simple_ledger_db_data(&ledger_db).await?,

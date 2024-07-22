@@ -16,9 +16,9 @@ use sov_modules_api::{
     Address, BlobData, BlobDataWithId, BlobReaderTrait, Context, DaSpec, DispatchCall,
     KernelWorkingSet, MessageCodec, Module, RawTx, Spec, StateCheckpoint,
 };
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_sequencer_registry::SequencerConfig;
 use sov_state::{ProverStorage, Storage};
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{
     new_test_blob_from_batch_deprecated, TestStorageSpec as StorageSpec, TEST_DEFAULT_USER_STAKE,
 };

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 pub use sov_attester_incentives;
 pub use sov_attester_incentives::{
@@ -20,7 +19,6 @@ use sov_modules_api::{
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime, StfBlueprint};
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
-use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -36,6 +34,7 @@ use crate::{TestStfBlueprint, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FE
 pub mod genesis;
 
 pub use genesis::StakedUser;
+use sov_db::storage_manager::NativeStorageManager;
 
 pub(crate) mod macros;
 
@@ -261,8 +260,7 @@ pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     slot_receipts: Vec<SlotReceipt>,
     state_root: <S::Storage as Storage>::Root,
-    storage_manager:
-        ProverStorageManager<MockDaSpec, DefaultStorageSpec<<S::CryptoSpec as CryptoSpec>::Hasher>>,
+    storage_manager: NativeStorageManager<MockDaSpec, ProverStorage<DefaultSpecWithHasher<S>>>,
     default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
 }
 
@@ -316,11 +314,7 @@ where
 
         // ----- Setup and run genesis ---------
         let temp_dir = tempfile::tempdir().unwrap();
-        let storage_config = sov_state::config::Config {
-            path: PathBuf::from(temp_dir.path()),
-        };
-
-        let mut storage_manager = ProverStorageManager::<MockDaSpec, _>::new(storage_config)
+        let mut storage_manager = NativeStorageManager::new(temp_dir.path())
             .expect("ProverStorageManager initialization has failed");
 
         let default_sequencer_da_address =

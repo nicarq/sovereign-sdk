@@ -12,17 +12,20 @@ use sov_mock_da::{MockBlockHeader, MockHash};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 
-use crate::namespaces::UserNamespace;
-use crate::schema::namespace::JmtValues;
+use crate::accessory_db::AccessoryDb;
+use crate::state_db::StateDb;
 use crate::storage_manager::tests::arbitrary::{get_block_hash, ForkDescription, ForkMap};
 use crate::storage_manager::tests::data_helpers::{
-    decode_state_item, encode_state_key, get_expected_chain_values, get_state_value,
-    materialize_ledger_changes, materialize_stf_changes, produce_single_entry_native_changes,
-    verify_ledger_storage, verify_reader, verify_stf_storage,
+    encode_height, encode_height_as_key_hash, encode_state_key, get_expected_chain_values,
+    get_state_value, materialize_ledger_changes, materialize_stf_changes,
+    produce_single_entry_native_changes, verify_ledger_storage, verify_stf_storage, N, VERSION,
 };
 use crate::storage_manager::{NativeChangeSet, NativeStorageManager};
+use crate::test_utils::TestNativeStorage;
 
 type Da = sov_mock_da::MockDaSpec;
+
+type S = TestNativeStorage;
 
 // Checking typical lifecycle of the storage in linear progression of the chain,
 // meaning no forks happen, and DA height progresses incrementally by 1.
@@ -33,7 +36,7 @@ type Da = sov_mock_da::MockDaSpec;
 // 4. If finalization needs to happen for some block, finalization happens.
 fn linear_progression(to_height: u64, finality: u64) {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     let mut chain = Vec::with_capacity(to_height as usize);
     // Starting from height 1, as 0 is genesis
@@ -99,7 +102,7 @@ impl ExplorationMode {
 // Create and save changes from all forks, iterating by height
 fn test_exploration(fork: ForkDescription, exploration_mode: ExplorationMode) {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     let fork_map = ForkMap::from(fork);
     let start = fork_map.get_start().expect("Empty chain-map");
@@ -182,7 +185,7 @@ fn minimal_fork_bfs() {
 fn calls_on_empty() {
     let tmpdir = tempfile::tempdir().unwrap();
 
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
     assert!(storage_manager.is_empty());
     #[cfg(debug_assertions)]
     storage_manager.validate_internal_consistency();
@@ -241,7 +244,7 @@ proptest! {
 fn double_create_storage() {
     // Checks that calling create storage multiple times for the same block works without errors
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     let da_header = MockBlockHeader::from_height(1);
     // Bootstrap storage
@@ -264,7 +267,7 @@ fn double_create_storage() {
 }
 
 fn attempt_to_save_unknown_block(
-    storage_manager: &mut NativeStorageManager<Da>,
+    storage_manager: &mut NativeStorageManager<Da, S>,
     da_header: &MockBlockHeader,
 ) {
     let result = storage_manager.save_change_set(
@@ -285,7 +288,7 @@ fn attempt_to_save_unknown_block(
 #[test]
 fn unknown_block_cannot_be_saved() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     // On empty map
     let da_header_1 = MockBlockHeader::from_height(1);
@@ -305,7 +308,7 @@ fn unknown_block_cannot_be_saved() {
 #[test]
 fn double_save_changes() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
     let da_header = MockBlockHeader::from_height(1);
     let _ = storage_manager.create_state_for(&da_header).unwrap();
     // the first save everything is good.
@@ -332,7 +335,7 @@ fn double_save_changes() {
 #[test]
 fn create_state_after_not_saved_block() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
     let da_header = MockBlockHeader::from_height(1);
 
     let _ = storage_manager.create_state_for(&da_header).unwrap();
@@ -363,7 +366,7 @@ fn create_state_after_not_saved_block() {
 #[test]
 fn finalize_only_last_block() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
     let to_height = 5;
     for height in 1..=to_height {
         let da_header = MockBlockHeader::from_height(height);
@@ -386,7 +389,7 @@ fn parallel_forks_reading_while_finalization_happens() {
     // A -> B -> C -> D -> E -> F -> G -> H
     //                               \ -> G
     //                                .....
-    // E, H, G, etc are moved to a separate thread.
+    // E, H, G, etc. are moved to a separate thread.
     // They read data from each snapshot all the time,
     // checking that data from each for is present
 
@@ -411,7 +414,7 @@ fn parallel_forks_reading_while_finalization_happens() {
     );
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     // fill storage manager
     let start = fork_map.get_start().expect("Empty chain-map");
@@ -500,7 +503,7 @@ fn check_snapshots_ordering() {
     // If snapshots are out of order, expected values will be "shadowed".
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     let to_height = 5;
     let mut expected_values = Vec::with_capacity(to_height as usize);
@@ -508,25 +511,36 @@ fn check_snapshots_ordering() {
     for height in 1..=to_height {
         let da_header = MockBlockHeader::from_height(height);
         let _ = storage_manager.create_state_for(&da_header).unwrap();
-        let mut stf_changes = NativeChangeSet::default();
+
         let hash_bytes = da_header.hash().0.to_vec();
-        let value = Some(hash_bytes);
         let write_to = to_height
             .checked_sub(height)
             .unwrap()
             .checked_add(1)
             .unwrap();
         expected_values.push((write_to, da_header.hash()));
-        for k in 1..=write_to {
-            let key = encode_state_key(k);
-            stf_changes
-                .state_change_set
-                .put::<JmtValues<UserNamespace>>(&key, &value)
-                .unwrap();
-        }
+
+        let state_values_to_materialize = (1..=write_to).map(|k| {
+            let key_as_hash = encode_height_as_key_hash(k);
+            (key_as_hash, &hash_bytes)
+        });
+        let state_change_set =
+            StateDb::materialize_preimages::<N>(state_values_to_materialize).unwrap();
+
+        let accessory_values_to_materialize = (1..=write_to).map(|k| {
+            let key = encode_height(k).to_vec();
+            (key, Some(hash_bytes.clone()))
+        });
+        let accessory_change_set =
+            AccessoryDb::materialize_values(accessory_values_to_materialize, VERSION).unwrap();
+
+        let stf_change_set = NativeChangeSet {
+            state_change_set,
+            accessory_change_set,
+        };
 
         storage_manager
-            .save_change_set(&da_header, stf_changes, SchemaBatch::default())
+            .save_change_set(&da_header, stf_change_set, SchemaBatch::default())
             .unwrap();
     }
     // Validation.
@@ -534,13 +548,8 @@ fn check_snapshots_ordering() {
     expected_values.reverse();
     let da_header = MockBlockHeader::from_height(to_height);
     let (stf_storage, _) = storage_manager.create_state_after(&da_header).unwrap();
-    let range = encode_state_key(1)..encode_state_key(to_height + 1);
-    verify_reader::<JmtValues<UserNamespace>, _, _>(
-        &stf_storage.state_reader,
-        range.clone(),
-        &expected_values,
-        decode_state_item,
-    );
+
+    verify_stf_storage(&stf_storage, &expected_values);
 }
 
 #[test]
@@ -549,14 +558,15 @@ fn several_jumping_forks() {
     // They all create storage for itself.
     // Then they all save some changes.
     // Then 1 is finalized after x blocks.
-    // Purpose of this is to check, that at given height several storages can be created without saving all the data.
+    // The purpose of this is to check that at a given height,
+    // several storages can be created without saving all the data.
     let to_height = 10;
     let finality = 3;
     let forks_number = 5;
     let main_fork_id = 1;
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     let mut fork_headers = Vec::with_capacity(forks_number as usize);
     for height in 1..=to_height {
@@ -602,7 +612,7 @@ fn several_jumping_forks() {
     }
 }
 
-// 2 helper functions for following tests.
+// 2 helper functions for the following tests.
 
 // Here is chain schema:
 //  A -> B
@@ -631,7 +641,7 @@ fn removed_fork_data_view() {
     // "Orphaned fork" is a fork appears when finalization happens on different fork past the start height of this fork.
     // Meaning that this fork should be discarded completely, because data from sibling fork was finalized.
     // This test documents behavior that observed from this orphaned fork.
-    // This might be useful to know if there's long running task that relies on data from a fork that has been orphaned.
+    // This might be useful to know if there's a long-running task that relies on data from a fork that has been orphaned.
     // Test details.
     // Here is chain schema:
     //  A -> B
@@ -648,7 +658,7 @@ fn removed_fork_data_view() {
     let value_2 = Some(vec![2u8; 32]);
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     // Just to put data into rocksdb
     let (block_a, block_b, block_c) = get_abc_blocks();
@@ -666,9 +676,9 @@ fn removed_fork_data_view() {
     let (stf_reader_b, _) = storage_manager.create_state_for(&block_b).unwrap();
     let (stf_reader_c, _) = storage_manager.create_state_for(&block_c).unwrap();
 
-    let value_at_b = get_state_value(&stf_reader_b.state_reader, &key);
+    let value_at_b = get_state_value(&stf_reader_b.state, &key);
     assert_eq!(value_1, value_at_b);
-    let value_at_c = get_state_value(&stf_reader_c.state_reader, &key);
+    let value_at_c = get_state_value(&stf_reader_c.state, &key);
     assert_eq!(value_1, value_at_c);
 
     // Saving block B, data is correct
@@ -677,16 +687,16 @@ fn removed_fork_data_view() {
         .save_change_set(&block_b, stf_changes, SchemaBatch::default())
         .unwrap();
     assert!(!storage_manager.is_empty());
-    let value_at_b = get_state_value(&stf_reader_b.state_reader, &key);
+    let value_at_b = get_state_value(&stf_reader_b.state, &key);
     assert_eq!(value_1, value_at_b);
-    let value_at_c = get_state_value(&stf_reader_c.state_reader, &key);
+    let value_at_c = get_state_value(&stf_reader_c.state, &key);
     assert_eq!(value_1, value_at_c);
 
     // Finalizing block B
     storage_manager.finalize(&block_b).unwrap();
     assert!(storage_manager.snapshots.is_empty());
 
-    let value_at_c = get_state_value(&stf_reader_c.state_reader, &key);
+    let value_at_c = get_state_value(&stf_reader_c.state, &key);
     // Now it suddenly has `value_2`, instead of `value_1` that has been observed previously.
     assert_eq!(value_2, value_at_c);
 }
@@ -704,7 +714,7 @@ fn fork_keeps_reference_to_snapshot_after_finalization() {
     let (block_a, block_b, block_c) = get_abc_blocks();
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = NativeStorageManager::<Da>::new(tmpdir.path()).unwrap();
+    let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
     let _ = storage_manager.create_state_for(&block_a).unwrap();
     let stf_changes = produce_single_entry_native_changes(&key, &value_1);
@@ -715,9 +725,9 @@ fn fork_keeps_reference_to_snapshot_after_finalization() {
     let (stf_reader_b, _) = storage_manager.create_state_for(&block_b).unwrap();
     let (stf_reader_c, _) = storage_manager.create_state_for(&block_c).unwrap();
 
-    let value_at_b = get_state_value(&stf_reader_b.state_reader, &key);
+    let value_at_b = get_state_value(&stf_reader_b.state, &key);
     assert_eq!(value_1, value_at_b);
-    let value_at_c = get_state_value(&stf_reader_c.state_reader, &key);
+    let value_at_c = get_state_value(&stf_reader_c.state, &key);
     assert_eq!(value_1, value_at_c);
 
     let stf_changes = produce_single_entry_native_changes(&key, &value_2);
@@ -730,6 +740,6 @@ fn fork_keeps_reference_to_snapshot_after_finalization() {
 
     // reader_c still observes data from block A,
     // even though it has been overwritten in rocksdb by block B
-    let value_at_c = get_state_value(&stf_reader_c.state_reader, &key);
+    let value_at_c = get_state_value(&stf_reader_c.state, &key);
     assert_eq!(value_1, value_at_c);
 }

@@ -12,11 +12,11 @@ pub use versioned_value::VersionedStateValue;
 #[cfg(test)]
 mod test {
     use sov_mock_zkvm::MockZkVerifier;
-    use sov_prover_storage_manager::SimpleStorageManager;
-    use sov_rollup_interface::execution_mode::Native;
     use sov_state::namespaces::User;
     use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, Storage};
+    use sov_test_utils::storage::SimpleStorageManager;
 
+    use crate::execution_mode::Native;
     use crate::{CryptoSpec, StateWriter, Version, WorkingSet};
 
     type StorageSpec = DefaultStorageSpec<TestHasher>;

@@ -32,7 +32,6 @@ sov-blob-storage = { path = ".", features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true }
 sov-test-utils = { workspace = true }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-kernels = { workspace = true, features = ["native", "test-utils"] }
 
 [features]

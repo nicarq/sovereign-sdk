@@ -2,12 +2,13 @@ use std::convert::Infallible;
 
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::*;
-use sov_prover_storage_manager::{new_orphan_storage, SimpleStorageManager};
-use sov_rollup_interface::execution_mode::{self, Native};
+use sov_rollup_interface::execution_mode::{self};
 use sov_state::{ArrayWitness, Prefix, ProvableNamespace, ProverStorage, Storage, ZkStorage};
+use sov_test_utils::storage::{new_finalized_storage, SimpleStorageManager};
+use sov_test_utils::TestSpec;
 use unwrap_infallible::UnwrapInfallible;
 
-type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+type S = TestSpec;
 type Zk =
     sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, execution_mode::Zk>;
 pub type TestHasher = <<S as Spec>::CryptoSpec as CryptoSpec>::Hasher;
@@ -80,7 +81,7 @@ fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: StateThin
     conditions: &[Condition],
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let storage = new_finalized_storage(tmpdir.path());
     let mut working_set = WorkingSet::new_deprecated(storage);
     let thing = St::create::<S>(&mut working_set);
 
@@ -237,7 +238,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
 
     // Native execution
     let witness: ArrayWitness = {
-        let storage = new_orphan_storage::<StorageSpec>(tempdir.path()).unwrap();
+        let storage = new_finalized_storage::<StorageSpec>(tempdir.path());
         let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone());
         state_value.set(&11, &mut state)?;
         let _ = state_value.get(&mut state);

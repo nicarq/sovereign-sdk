@@ -27,8 +27,9 @@ pub mod accessory_db;
 /// Define namespaces at the database level
 pub mod namespaces;
 pub mod storage_manager;
-#[cfg(test)]
-mod test_utils;
+/// Utils that are helpful outside the crate or for benchmarks.
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
 
 /// Options on how to setup [`rockbound::DB`] or any other persistence.
 pub struct DbOptions {

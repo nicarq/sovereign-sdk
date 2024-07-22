@@ -8,8 +8,8 @@ use reth_primitives::{
 use revm::primitives::BlockEnv;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{KernelWorkingSet, StateCheckpoint, VersionedStateReadWriter};
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
+use sov_test_utils::storage::new_finalized_storage;
 
 use super::genesis_tests::{setup, TEST_CONFIG};
 use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSignedAndRecovered};
@@ -21,7 +21,7 @@ pub(crate) const DA_ROOT_HASH: B256 = B256::new([10u8; 32]);
 #[test]
 fn begin_slot_hook_creates_pending_block() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);
@@ -49,7 +49,7 @@ fn begin_slot_hook_creates_pending_block() -> Result<(), Infallible> {
 #[test]
 fn end_slot_hook_sets_head() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);
@@ -114,7 +114,7 @@ fn end_slot_hook_sets_head() -> Result<(), Infallible> {
 #[test]
 fn end_slot_hook_moves_transactions_and_receipts() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);
@@ -203,7 +203,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
 #[test]
 fn finalize_hook_creates_final_block() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&TEST_CONFIG, state_checkpoint);
     let p = [10u8; 32];
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);

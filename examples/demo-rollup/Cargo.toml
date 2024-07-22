@@ -19,7 +19,6 @@ sov-mock-da = { workspace = true, features = ["native"] }
 const-rollup-config = { workspace = true }
 sov-stf-runner = { workspace = true, features = ["native"] }
 sov-rollup-interface = { workspace = true, features = ["native"] }
-sov-prover-storage-manager = { workspace = true }
 
 sov-modules-rollup-blueprint = { workspace = true, features = ["native"] }
 sov-kernels = { workspace = true }
@@ -60,7 +59,6 @@ sov-test-utils = { workspace = true, optional = true }
 [dev-dependencies]
 sov-rng-da-service = { workspace = true }
 sov-rollup-interface = { workspace = true, features = ["arbitrary"] }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-mock-da = { workspace = true }
 sov-bank = { workspace = true, features = ["native"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }

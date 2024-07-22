@@ -1,7 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
-use rockbound::cache::cache_db::CacheDb;
-use rockbound::{Schema, SchemaBatch, SeekKeyEncoder};
+use rockbound::cache::delta_reader::DeltaReader;
+use rockbound::{Schema, SchemaBatch};
 use serde::Serialize;
 use sov_rollup_interface::rpc::AggregatedProofResponse;
 use sov_rollup_interface::services::da::SlotData;
@@ -23,6 +23,8 @@ pub mod event_helper;
 mod rpc;
 mod rpc_constants;
 
+pub(crate) const DB_LOCK_POISONED: &str = "Internal db lock is poisoned";
+
 /// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
 /// the respective heights at the start or end of slot processing.
 #[derive(Default, Clone, Debug)]
@@ -38,7 +40,7 @@ pub struct ItemNumbers {
     pub event_number: u64,
 }
 
-/// All of the data to be committed to the ledger db for a single slot.
+/// All the data to be committed to the ledger db for a single slot.
 #[derive(Debug)]
 pub struct SlotCommit<S: SlotData, B, T: TxReceiptContents> {
     slot_data: S,
@@ -167,7 +169,7 @@ impl LedgerNotificationService {
 }
 
 #[derive(Clone, Debug)]
-/// A database which stores the ledger history (slots, transactions, events, etc).
+/// A database which stores the ledger history (slots, transactions, events, etc.).
 /// Ledger data is first ingested into an in-memory map
 /// before being fed to the state-transition function.
 /// Once the state-transition function has been executed and finalized,
@@ -176,7 +178,9 @@ pub struct LedgerDb {
     /// The database which stores the committed ledger.
     /// Uses an optimized layout which
     /// requires transactions to be executed before being committed.
-    db: Arc<CacheDb>,
+    /// Using [`RwLock`] here, because Ledger is also used as an RPC,
+    /// so storage replacement needs to be propagated to other cloned instances.
+    db: Arc<RwLock<DeltaReader>>,
     notification_service: LedgerNotificationService,
 }
 
@@ -193,90 +197,49 @@ impl LedgerDb {
         }
     }
 
-    /// Initialize a new [`LedgerDb`] with an provided [`CacheDb`].
-    pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
+    /// Initialize a new [`LedgerDb`] with the provided [`DeltaReader`].
+    pub fn with_reader(reader: DeltaReader) -> anyhow::Result<Self> {
         Ok(Self {
-            db: Arc::new(db),
+            db: Arc::new(RwLock::new(reader)),
             notification_service: LedgerNotificationService::new(),
         })
     }
 
-    /// Replace underlying [`CacheDb`] with provided one.
-    /// Keeps the underlying broadcast channel open.
-    pub fn replace_db(&mut self, db: CacheDb) -> anyhow::Result<()> {
-        self.db.overwrite_change_set(db);
-        Ok(())
+    /// Replace the underlying reader with a new [`DeltaReader`].
+    pub fn replace_reader(&mut self, reader: DeltaReader) {
+        let mut existing_reader = self.db.write().expect(DB_LOCK_POISONED);
+        *existing_reader = reader;
     }
 
     /// Get the next slot, block, transaction, and event numbers.
     pub fn get_next_items_numbers(&self) -> anyhow::Result<ItemNumbers> {
+        let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         Ok(ItemNumbers {
-            slot_number: Self::last_version_written(&self.db, SlotByNumber)?
+            slot_number: Self::last_version_written(&db, SlotByNumber)?
                 .map(|x| x + 1)
                 .unwrap_or_default(),
-            batch_number: Self::last_version_written(&self.db, BatchByNumber)?
+            batch_number: Self::last_version_written(&db, BatchByNumber)?
                 .map(|x| x + 1)
                 .unwrap_or_default(),
-            tx_number: Self::last_version_written(&self.db, TxByNumber)?
+            tx_number: Self::last_version_written(&db, TxByNumber)?
                 .map(|x| x + 1)
                 .unwrap_or_default(),
-            event_number: Self::last_version_written(&self.db, EventByNumber)?
+            event_number: Self::last_version_written(&db, EventByNumber)?
                 .map(|x| x + 1)
                 .unwrap_or_default(),
         })
     }
 
     /// Gets all slots with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
+    /// the range of the database, the result will be smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
     pub(crate) async fn _get_slot_range(
         &self,
         range: &std::ops::Range<SlotNumber>,
     ) -> Result<Vec<StoredSlot>, anyhow::Error> {
-        self.get_data_range::<SlotByNumber, _, _>(range).await
-    }
-
-    /// Gets all batches with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    pub(crate) async fn get_batch_range(
-        &self,
-        range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredBatch>, anyhow::Error> {
-        self.get_data_range::<BatchByNumber, _, _>(range).await
-    }
-
-    /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    pub(crate) async fn get_tx_range(
-        &self,
-        range: &std::ops::Range<TxNumber>,
-    ) -> Result<Vec<StoredTransaction>, anyhow::Error> {
-        self.get_data_range::<TxByNumber, _, _>(range).await
-    }
-
-    /// Gets all data with identifier in `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via RPC.
-    async fn get_data_range<T, K, V>(
-        &self,
-        range: &std::ops::Range<K>,
-    ) -> Result<Vec<V>, anyhow::Error>
-    where
-        T: Schema<Key = K, Value = V>,
-        K: Into<u64> + Copy + SeekKeyEncoder<T>,
-    {
-        let raw_out = self.db.collect_in_range_async(range.clone()).await?;
-        let mut out = Vec::with_capacity(raw_out.len());
-        for (_, value) in raw_out {
-            out.push(value);
-        }
-        Ok(out)
+        let db = self.db.read().expect(DB_LOCK_POISONED).clone();
+        LedgerDb::_get_data_range_from::<SlotByNumber, _, _>(&db, range).await
     }
 
     fn put_slot(
@@ -413,7 +376,7 @@ impl LedgerDb {
     }
 
     fn last_version_written<T: Schema<Key = U>, U: Into<u64>>(
-        db: &CacheDb,
+        db: &DeltaReader,
         _schema: T,
     ) -> anyhow::Result<Option<u64>> {
         let largest = db.get_largest::<T>()?;
@@ -426,7 +389,13 @@ impl LedgerDb {
 
     /// Get the most recent committed slot, if any.
     pub fn get_head_slot(&self) -> anyhow::Result<Option<(SlotNumber, StoredSlot)>> {
-        self.db.get_largest::<SlotByNumber>()
+        // Clone immediately, so instance is short-lived, reducing the probability of race-condition
+        // according to [`tokio::sync::watch::Receiver::borrow`] documentation
+        self.db
+            .read()
+            .expect(DB_LOCK_POISONED)
+            .clone()
+            .get_largest::<SlotByNumber>()
     }
 
     /// Materializes aggregated zk proof

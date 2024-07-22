@@ -58,7 +58,6 @@ ethers-core = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand-std"] }
 lazy_static = "1.4.0"
 
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-eth-dev-signer = { workspace = true }

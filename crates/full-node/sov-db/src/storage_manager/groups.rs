@@ -6,7 +6,7 @@ use rockbound::SchemaBatch;
 use crate::accessory_db::AccessoryDb;
 use crate::ledger_db::LedgerDb;
 use crate::state_db::StateDb;
-use crate::storage_manager::StfStoragePlaceholder;
+use crate::storage_manager::InitializableNativeStorage;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SnapshotGroup {
@@ -65,10 +65,15 @@ impl DbGroup {
         Ok(())
     }
 
-    pub(crate) fn create_storage(
+    pub(crate) fn get_finalized_state_db(&self) -> anyhow::Result<StateDb> {
+        let state_reader = DeltaReader::new(self.state.clone(), Vec::new());
+        StateDb::with_delta_reader(state_reader)
+    }
+
+    pub(crate) fn create_storage<S: InitializableNativeStorage>(
         &self,
         rev_snapshots: Vec<SnapshotGroup>,
-    ) -> (StfStoragePlaceholder, DeltaReader) {
+    ) -> anyhow::Result<(S, DeltaReader)> {
         let mut state_snapshots = Vec::with_capacity(rev_snapshots.len());
         let mut accessory_snapshots = Vec::with_capacity(rev_snapshots.len());
         let mut ledger_snapshots = Vec::with_capacity(rev_snapshots.len());
@@ -85,15 +90,13 @@ impl DbGroup {
         }
 
         let state_reader = DeltaReader::new(self.state.clone(), state_snapshots);
+        let state_db = StateDb::with_delta_reader(state_reader)?;
         let accessory_reader = DeltaReader::new(self.accessory.clone(), accessory_snapshots);
+        let accessory_db = AccessoryDb::with_reader(accessory_reader)?;
         let ledger_reader = DeltaReader::new(self.ledger.clone(), ledger_snapshots);
 
-        (
-            StfStoragePlaceholder {
-                state_reader,
-                accessory_reader,
-            },
-            ledger_reader,
-        )
+        let storage = S::new(state_db, accessory_db);
+
+        Ok((storage, ledger_reader))
     }
 }

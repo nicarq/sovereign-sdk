@@ -4,14 +4,14 @@ use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
 use sov_accounts::{Accounts, CallMessage};
 use sov_modules_api::{Context, Module, StateCheckpoint};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 
 type S = sov_test_utils::TestSpec;
 
 // Check arbitrary, random calls
 fuzz_target!(|input: (&[u8], Vec<(Context<S>, CallMessage)>)| {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let storage = new_finalized_storage(tmpdir.path());
     let state = StateCheckpoint::new(storage);
 
     let (seed, msgs) = input;

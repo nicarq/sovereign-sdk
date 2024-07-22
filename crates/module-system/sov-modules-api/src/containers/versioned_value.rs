@@ -126,9 +126,9 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
 mod tests {
     use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockZkVerifier;
-    use sov_prover_storage_manager::new_orphan_storage;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::Prefix;
+    use sov_test_utils::storage::new_finalized_storage;
     use unwrap_infallible::UnwrapInfallible;
 
     use crate::capabilities::mocks::MockKernel;
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn test_kernel_state_value_as_value() {
         let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let storage = new_finalized_storage(tmpdir.path());
         let mut working_set = StateCheckpoint::new(storage);
 
         let prefix = Prefix::new(b"test".to_vec());
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn test_kernel_state_value_as_map() {
         let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let storage = new_finalized_storage(tmpdir.path());
         let mut working_set = StateCheckpoint::new(storage);
 
         let prefix = Prefix::new(b"test".to_vec());

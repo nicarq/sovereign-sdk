@@ -7,8 +7,8 @@ use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Context, KernelWorkingSet, Module, StateAccessor, StateCheckpoint, VersionedStateReadWriter,
 };
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::VisibleHash;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::SimpleStorageContract;
 
 use crate::call::CallMessage;
@@ -37,7 +37,7 @@ fn call_test() -> Result<(), Infallible> {
     };
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&evm_config, state_checkpoint);
 
     let contract_addr: Address = Address::from_slice(
@@ -122,7 +122,7 @@ fn failed_transaction_test() -> Result<(), Infallible> {
     let dev_signer: TestSigner = TestSigner::new_random();
     let binding = EvmConfig::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let (evm, mut state_checkpoint) = setup(&binding, state_checkpoint);
     let mut temp_kernel = KernelWorkingSet::uninitialized(&mut state_checkpoint);
     temp_kernel.update_virtual_height(1);

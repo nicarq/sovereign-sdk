@@ -4,7 +4,7 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::{
     Address, Context, CredentialId, Module, PrivateKey, PublicKey, StateCheckpoint,
 };
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
 use crate::query::Response;
@@ -28,7 +28,7 @@ fn test_config_account() -> Result<(), Infallible> {
 
     let accounts = &mut Accounts::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
     let mut genesis = state.to_genesis_state_accessor::<Accounts<S>>(&account_config);
 
     accounts.init_module(&account_config, &mut genesis).unwrap();
@@ -66,7 +66,7 @@ fn test_update_account() -> Result<(), Infallible> {
         }],
     };
 
-    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
     let mut genesis = state.to_genesis_state_accessor::<Accounts<S>>(&config);
 
     accounts.init_module(&config, &mut genesis).unwrap();
@@ -121,7 +121,7 @@ fn test_update_account() -> Result<(), Infallible> {
 #[test]
 fn test_update_account_fails() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
     let accounts = &mut Accounts::<S>::default();
 
     let sender_1 = TestPrivateKey::generate().pub_key();
@@ -171,7 +171,7 @@ fn test_update_account_fails() {
 #[test]
 fn test_get_account_after_pub_key_update() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
     let accounts = &mut Accounts::<S>::default();
 
     let sender = TestPrivateKey::generate().pub_key();
@@ -221,8 +221,7 @@ fn test_get_account_after_pub_key_update() -> Result<(), Infallible> {
 #[test]
 fn test_resolve_sender_address() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let state: WorkingSet<S> =
-        WorkingSet::new_deprecated(new_orphan_storage(tmpdir.path()).unwrap());
+    let state: WorkingSet<S> = WorkingSet::new_deprecated(new_finalized_storage(tmpdir.path()));
     let (mut checkpoint, _, _) = state.checkpoint();
     let accounts = &mut Accounts::<S>::default();
 

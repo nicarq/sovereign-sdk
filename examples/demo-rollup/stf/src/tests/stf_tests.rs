@@ -5,15 +5,16 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS}
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{ApiStateAccessor, Batch, Spec};
 use sov_modules_stf_blueprint::{StfBlueprint, TxEffect};
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer_registry::BatchSequencerOutcome;
 use sov_test_utils::generators::bank::get_default_token_id;
+use sov_test_utils::storage::{NativeStorageManager, SimpleStorageManager};
 use sov_test_utils::{
     has_tx_events_deprecated, new_test_blob_from_batch_deprecated, SchemaBatch, TestSpec,
+    TestStorageManager,
 };
 
 use super::da_simulation::simulate_da_with_multiple_direct_registration_msg;
@@ -21,16 +22,12 @@ use crate::runtime::Runtime;
 use crate::tests::da_simulation::{
     simulate_da, simulate_da_with_incorrect_direct_registration_msg,
 };
-use crate::tests::{
-    create_genesis_config_for_tests, create_storage_manager_for_tests, read_private_keys,
-    StfBlueprintTest, S,
-};
+use crate::tests::{create_genesis_config_for_tests, read_private_keys, StfBlueprintTest, S};
 
 #[test]
 fn test_demo_values_in_db() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
-    let path = tempdir.path();
-    let mut storage_manager = create_storage_manager_for_tests(path);
+    let mut storage_manager = SimpleStorageManager::new(tempdir.path());
     let config = create_genesis_config_for_tests();
 
     let genesis_block = MockBlock::default();
@@ -40,15 +37,11 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
     let admin_address: <TestSpec as Spec>::Address = admin_key_and_address.address;
     let admin_private_key = admin_key_and_address.private_key;
 
-    let last_block = {
+    {
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let (stf_state, _) = storage_manager
-            .create_state_for(genesis_block.header())
-            .unwrap();
+        let stf_state = storage_manager.create_storage();
         let (genesis_root, stf_change_set) = stf.init_chain(stf_state, config);
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_change_set, SchemaBatch::new())
-            .unwrap();
+        storage_manager.commit(stf_change_set);
 
         let txs = simulate_da(admin_private_key);
         let blob =
@@ -59,7 +52,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             batch_blobs: vec![blob],
         };
 
-        let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let stf_state = storage_manager.create_storage();
 
         let result = stf.apply_slot(
             &genesis_root,
@@ -82,19 +75,13 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
         );
 
         assert!(has_tx_events_deprecated(&apply_blob_outcome),);
-        storage_manager
-            .save_change_set(block_1.header(), result.change_set, SchemaBatch::new())
-            .unwrap();
-        block_1
+        storage_manager.commit(result.change_set);
     };
 
     // Generate a new storage instance after dumping data to the db.
     {
-        let next_block = last_block.next_mock();
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let (stf_state, _ledger_state) = storage_manager
-            .create_state_for(next_block.header())
-            .unwrap();
+        let stf_state = storage_manager.create_storage();
         let mut state = ApiStateAccessor::new(stf_state);
         let resp = runtime
             .bank
@@ -111,8 +98,8 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
 #[test]
 fn test_demo_values_in_cache() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
-    let path = tempdir.path();
-    let mut storage_manager = create_storage_manager_for_tests(path);
+    let mut storage_manager: TestStorageManager =
+        NativeStorageManager::new(tempdir.path()).unwrap();
 
     let stf: StfBlueprintTest = StfBlueprint::new();
 
