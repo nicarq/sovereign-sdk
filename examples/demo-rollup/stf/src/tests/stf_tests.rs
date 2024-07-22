@@ -12,7 +12,9 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer_registry::BatchSequencerOutcome;
 use sov_test_utils::generators::bank::get_default_token_id;
-use sov_test_utils::{has_tx_events, new_test_blob_from_batch, SchemaBatch, TestSpec};
+use sov_test_utils::{
+    has_tx_events_deprecated, new_test_blob_from_batch_deprecated, SchemaBatch, TestSpec,
+};
 
 use super::da_simulation::simulate_da_with_multiple_direct_registration_msg;
 use crate::runtime::Runtime;
@@ -49,7 +51,8 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             .unwrap();
 
         let txs = simulate_da(admin_private_key);
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob =
+            new_test_blob_from_batch_deprecated(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -78,7 +81,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             "Sequencer execution should have succeeded but failed "
         );
 
-        assert!(has_tx_events(&apply_blob_outcome),);
+        assert!(has_tx_events_deprecated(&apply_blob_outcome),);
         storage_manager
             .save_change_set(block_1.header(), result.change_set, SchemaBatch::new())
             .unwrap();
@@ -130,7 +133,8 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 
     let txs = simulate_da(admin_private_key);
 
-    let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+    let blob =
+        new_test_blob_from_batch_deprecated(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -158,7 +162,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
         "Sequencer execution should have succeeded but failed"
     );
 
-    assert!(has_tx_events(&apply_blob_outcome),);
+    assert!(has_tx_events_deprecated(&apply_blob_outcome),);
 
     let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
 
@@ -213,14 +217,14 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
         private_key,
     );
 
-    let blob1 = new_test_blob_from_batch(
+    let blob1 = new_test_blob_from_batch_deprecated(
         Batch {
             txs: vec![txs.remove(0)],
         },
         &direct_sequencer,
         [0; 32],
     );
-    let blob2 = new_test_blob_from_batch(
+    let blob2 = new_test_blob_from_batch_deprecated(
         Batch {
             txs: vec![txs.remove(0)],
         },
@@ -305,7 +309,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
     // was processed - the rest of the txs are dropped by blob-storage / kernel
     assert!(txs.len() > 1);
 
-    let blob = new_test_blob_from_batch(Batch { txs }, &direct_sequencer, [0; 32]);
+    let blob = new_test_blob_from_batch_deprecated(Batch { txs }, &direct_sequencer, [0; 32]);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -367,7 +371,7 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
 
     let private_key = read_private_keys::<TestSpec>().tx_signer.private_key;
     let txs = simulate_da_with_incorrect_direct_registration_msg(private_key);
-    let blob = new_test_blob_from_batch(Batch { txs }, &some_sequencer, [0; 32]);
+    let blob = new_test_blob_from_batch_deprecated(Batch { txs }, &some_sequencer, [0; 32]);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -431,7 +435,7 @@ fn test_unregistered_sequencer_first_batch_tx_must_be_register_call_message() {
         private_key.clone(),
     );
     let mut incorrect_tx = simulate_da_with_incorrect_direct_registration_msg(private_key);
-    let blob = new_test_blob_from_batch(
+    let blob = new_test_blob_from_batch_deprecated(
         Batch {
             txs: vec![
                 incorrect_tx.remove(0).clone(),
@@ -506,7 +510,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
         private_key.clone(),
     );
 
-    blobs.push(new_test_blob_from_batch(
+    blobs.push(new_test_blob_from_batch_deprecated(
         Batch { txs: register_tx },
         &some_sequencer,
         [0; 32],
@@ -515,7 +519,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     // fill the unregistered blobs per slot quota with invalid messages
     for _ in 0..unregistered_blobs_per_slot {
         let txs = simulate_da_with_incorrect_direct_registration_msg(private_key.clone());
-        let blob = new_test_blob_from_batch(Batch { txs }, &some_sequencer, [0; 32]);
+        let blob = new_test_blob_from_batch_deprecated(Batch { txs }, &some_sequencer, [0; 32]);
         blobs.push(blob);
     }
 
@@ -529,7 +533,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
         private_key.clone(),
     );
 
-    blobs.push(new_test_blob_from_batch(
+    blobs.push(new_test_blob_from_batch_deprecated(
         Batch { txs: register_tx2 },
         &some_sequencer,
         [0; 32],

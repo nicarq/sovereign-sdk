@@ -20,7 +20,7 @@ use sov_prover_storage_manager::SimpleStorageManager;
 use sov_sequencer_registry::SequencerConfig;
 use sov_state::{ProverStorage, Storage};
 use sov_test_utils::{
-    new_test_blob_from_batch, TestStorageSpec as StorageSpec, TEST_DEFAULT_USER_STAKE,
+    new_test_blob_from_batch_deprecated, TestStorageSpec as StorageSpec, TEST_DEFAULT_USER_STAKE,
 };
 use tracing::{debug, info};
 
@@ -840,7 +840,8 @@ fn assert_blob_matches_batch<B: BlobReaderTrait>(
             BlobData::Proof(_) => panic!("Expected a batch, but got a proof"),
         };
 
-        let mut actual_inner = new_test_blob_from_batch(batch, actual.1.as_ref(), actual_id);
+        let mut actual_inner =
+            new_test_blob_from_batch_deprecated(batch, actual.1.as_ref(), actual_id);
         assert_eq!(
             expected.hash(),
             actual_inner.hash(),

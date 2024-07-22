@@ -7,18 +7,21 @@ use sov_sequencer_registry::{CallMessage, SequencerRegistry};
 
 use crate::{Message, MessageGenerator};
 
+/// Defines the data required to register a sequencer.
 pub struct RegisterData<S: Spec> {
     sender_priv_key: <S::CryptoSpec as sov_modules_api::CryptoSpec>::PrivateKey,
     da_address: Vec<u8>,
     amount: Amount,
 }
 
+/// Defines the data required to deposit tokens as a sequencer.
 pub struct DepositData<S: Spec> {
     sender_priv_key: <S::CryptoSpec as sov_modules_api::CryptoSpec>::PrivateKey,
     da_address: Vec<u8>,
     amount: Amount,
 }
 
+/// Defines a message generator for the sequencer registry module.
 pub struct SequencerRegistryMessageGenerator<S: Spec, Da: DaSpec> {
     register_txs: Vec<RegisterData<S>>,
     deposit_txs: Vec<DepositData<S>>,
@@ -26,6 +29,7 @@ pub struct SequencerRegistryMessageGenerator<S: Spec, Da: DaSpec> {
 }
 
 impl<S: Spec, Da: DaSpec> SequencerRegistryMessageGenerator<S, Da> {
+    /// Generates a new [`SequencerRegistryMessageGenerator`] that will register a sequencer with the given DA address and amount.
     pub fn generate_sequencer_registration(
         da_address: Vec<u8>,
         amount: Amount,
@@ -42,6 +46,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistryMessageGenerator<S, Da> {
         }
     }
 
+    /// Generates a new [`SequencerRegistryMessageGenerator`] that will register multiple sequencers with the given DA addresses and amounts.
     pub fn generate_multiple_sequencer_registration(
         sequencer_and_stake: Vec<(Vec<u8>, Amount)>,
         private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
@@ -61,6 +66,8 @@ impl<S: Spec, Da: DaSpec> SequencerRegistryMessageGenerator<S, Da> {
         }
     }
 
+    /// Generates a new [`SequencerRegistryMessageGenerator`] that will register a sequencer with the given DA address and `initial_amount`.
+    /// Then deposits the additional given `amount`.
     pub fn generate_register_and_deposit(
         da_address: Vec<u8>,
         initial_amount: Amount,

@@ -4,8 +4,8 @@ use sov_db::schema::SchemaBatch;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::{Address, CryptoSpec, PrivateKey, Spec};
-use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
+use sov_modules_api::{Address, PrivateKey};
+use sov_modules_stf_blueprint::GenesisParams;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -19,22 +19,17 @@ use tokio::sync::watch;
 use crate::auth::TestAuth;
 use crate::runtime::optimistic::{create_genesis_config, TestRuntime};
 use crate::runtime::ChainStateConfig;
-use crate::{TestHasher, TestPrivateKey, TestSpec};
+use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint};
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 
-pub type Blueprint = StfBlueprint<
-    TestSpec,
-    MockDaSpec,
-    TestRuntime<TestSpec, MockDaSpec>,
-    BasicKernel<TestSpec, MockDaSpec>,
->;
-
+/// The default test sequencer type. A [`Sequencer`] with a [`MockDaService`] for DA interactions and a [`TestAuth`] for authentication.
 pub type TestSequencer<B> = Sequencer<B, MockDaService, TestAuth<TestSpec, MockDaSpec>>;
 
-pub type TestCryptoSpec = <TestSpec as Spec>::CryptoSpec;
-pub type AdminPrivateKey = <TestCryptoSpec as CryptoSpec>::PrivateKey;
-
+/// The default test fair batch builder type.
+/// An alias for a [`FairBatchBuilder`] with a [`TestSpec`],
+/// a [`MockDaService`] for DA interactions,
+/// a [`TestRuntime`], a [`BasicKernel`] and a [`TestAuth`] for authentication.
 pub type TestFairBatchBuilder = FairBatchBuilder<
     TestSpec,
     MockDaSpec,
@@ -48,10 +43,15 @@ pub type TestFairBatchBuilder = FairBatchBuilder<
 /// [`TestSequencerSetup::with_real_batch_builder`].
 pub struct TestSequencerSetup<B: BatchBuilder> {
     _dir: TempDir,
+    /// The [`MockDaService`] used by the [`Sequencer`].
     pub da_service: MockDaService,
+    /// The [`Sequencer`] used in the test.
     pub sequencer: TestSequencer<B>,
-    pub admin_private_key: AdminPrivateKey,
+    /// The admin private key used to create an external user account for transaction handling.
+    pub admin_private_key: TestPrivateKey,
+    /// The Axum server handle used to start the Axum server.
     pub axum_server_handle: axum_server::Handle,
+    /// The Axum server address.
     pub axum_addr: SocketAddr,
 }
 
@@ -115,7 +115,7 @@ where
             kernel: kernel_genesis,
         };
 
-        let blueprint = Blueprint::with_runtime(runtime.clone());
+        let blueprint = TestStfBlueprint::with_runtime(runtime.clone());
         let (_root_hash, change_set) = blueprint.init_chain(stf_state, params);
 
         storage_manager.save_change_set(&genesis_block_header, change_set, SchemaBatch::new())?;
@@ -151,12 +151,15 @@ where
         })
     }
 
+    /// Returns a [`Client`] REST handler for the sequencer.
     pub fn client(&self) -> Client {
         Client::new(&format!("http://{}", self.axum_addr))
     }
 }
 
 impl TestSequencerSetup<TestFairBatchBuilder> {
+    /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestRuntime`], [`ProverStorageManager`], executes genesis
+    /// and then builds a new [`FairBatchBuilder`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.  
     pub async fn with_real_batch_builder() -> anyhow::Result<Self> {
         let dir = tempfile::tempdir()?;
 
@@ -198,7 +201,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
             kernel: kernel_genesis,
         };
 
-        let blueprint = Blueprint::with_runtime(runtime.clone());
+        let blueprint = TestStfBlueprint::with_runtime(runtime.clone());
         let (_root_hash, change_set) = blueprint.init_chain(stf_state, params);
 
         storage_manager.save_change_set(&genesis_block_header, change_set, SchemaBatch::new())?;

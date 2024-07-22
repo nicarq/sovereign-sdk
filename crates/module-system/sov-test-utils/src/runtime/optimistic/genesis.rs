@@ -20,8 +20,11 @@ const DEFAULT_ADDITIONAL_BALANCE: u64 = 1_000_000_000;
 
 /// A genesis config for a minimal optimsitic runtime
 pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
+    /// The sequencer registry config.
     pub sequencer_registry: <SequencerRegistry<S, Da> as Genesis>::Config,
+    /// The attester incentives config.
     pub attester_incentives: <AttesterIncentives<S, Da> as Genesis>::Config,
+    /// The bank config.
     pub bank: <Bank<S> as Genesis>::Config,
 }
 
@@ -33,10 +36,15 @@ pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
 /// the [`From`] trait.
 #[derive(Debug, Clone)]
 pub struct HighLevelOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
+    /// The initial attester.
     pub initial_attester: SimpleStakedUser<S>,
+    /// The initial challenger.
     pub initial_challenger: SimpleStakedUser<S>,
+    /// The initial sequencer.
     pub initial_sequencer: Sequencer<S, Da>,
+    /// Additional accounts to be added to the genesis state.
     pub additional_accounts: Vec<User<S>>,
+    /// The name of the gas token.
     pub gas_token_name: String,
 }
 
@@ -111,6 +119,7 @@ impl<S: Spec, Da: DaSpec> From<HighLevelOptimisticGenesisConfig<S, Da>>
 }
 
 impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
+    /// Creates a new [`MinimalOptimisticGenesisConfig`] from the given arguments.
     pub fn from_args(
         initial_attester: SimpleStakedUser<S>,
         initial_challenger: SimpleStakedUser<S>,

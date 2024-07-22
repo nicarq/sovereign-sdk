@@ -101,6 +101,7 @@ fn events() -> Vec<StoredEvent> {
     ]
 }
 
+/// Materialize some complex data for the [`LedgerDb`]. Returns a [`SchemaBatch`] containing the description of the data to be stored.
 pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Result<SchemaBatch> {
     let mut slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>> =
         vec![SlotCommit::new(MockBlock {
@@ -196,8 +197,11 @@ fn batch2_tx_receipts() -> Vec<TransactionReceipt<TestTxReceiptContents>> {
         .collect()
 }
 
+/// The different types of data that can be used to test the [`LedgerDb`].
 pub enum LedgerTestServiceData {
+    /// The data used to test the [`LedgerDb`] is simple.
     Simple,
+    /// The data used to test the [`LedgerDb`] is complex.
     Complex,
 }
 
@@ -205,7 +209,9 @@ pub enum LedgerTestServiceData {
 pub struct LedgerTestService {
     // Must be kept in scope during the test to avoid directory deletion.
     _dir: TempDir,
+    /// An Axum server handle.
     pub axum_handle: axum_server::Handle,
+    /// An Axum client.
     pub axum_client: sov_ledger_json_client::Client,
 }
 

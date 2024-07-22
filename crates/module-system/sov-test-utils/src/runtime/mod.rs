@@ -32,28 +32,44 @@ use crate::runtime::traits::EndSlotHookRegistry;
 use crate::runtime::wrapper::{EndSlotClosure, StateRootClosure};
 use crate::{TestStfBlueprint, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
+/// Genesis configuration used the runtime.
 pub mod genesis;
 
 pub use genesis::StakedUser;
 
 pub(crate) mod macros;
+
+/// Utilities for testing a runtime in the optimistic execution context.
 pub mod optimistic;
+/// Traits used to define interfaces for the runtime.
 pub mod traits;
+/// Defines a [`TestRuntimeWrapper`] which allows to override hooks using closures.
 pub mod wrapper;
+/// Utilities for testing a runtime in the ZK execution context.
 pub mod zk;
 use traits::{MinimalGenesis, PostTxHookRegistry};
 pub use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
 
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
+/// Defines a test case at the slot level. This can be used to describe a rollup's test. It contains a list of [`BatchTestCase`]s and a post slot hook closure to
+/// be run after the slot has been executed.
+///
+/// ## Note
+/// This struct implements [`From<Vec<TxTestCase<RT, M, S>>>`] to create a [`SlotTestCase`] from a list of [`TxTestCase`]s.
+/// This is useful when you want to create a [`SlotTestCase`] with a single batch filled with transactions and without a post slot hook closure.
 pub struct SlotTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
+    /// The list of [`BatchTestCase`]s to be executed in the slot.
     pub batch_test_cases: Vec<BatchTestCase<RT, M, S>>,
+    /// The post slot hook closure to be executed after the slot has been executed.
     pub post_hook: EndSlotClosure<StateCheckpoint<S>>,
 }
 
+/// Defines a test case at the batch level. This can be used to describe a rollup's test. It contains a list of [`TxTestCase`]s.
 pub type BatchTestCase<RT, M, S> = Vec<TxTestCase<RT, M, S>>;
 
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
+    /// Creates an empty [`SlotTestCase`].
     pub fn empty() -> Self {
         Self {
             batch_test_cases: vec![],
@@ -61,6 +77,7 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
         }
     }
 
+    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s.
     pub fn from_txs(test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
         Self {
             batch_test_cases: vec![test_cases],
@@ -101,15 +118,19 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec>
     }
 }
 
+/// Defines the expected outcome of a transaction.
 pub enum TxExpectedResult {
     /// Expects that the tx was successful
     Applied,
     /// Expects that the tx was reverted
     Reverted,
 }
+/// Defines the expected outcome of a batch. This is simply a list of [`TxExpectedResult`]s.
 pub type BatchExpectedResult = Vec<TxExpectedResult>;
+/// Defines the expected outcomes of a slot. This is simply a list of [`BatchExpectedResult`]s.
 pub type SlotExpectedResult = Vec<BatchExpectedResult>;
 
+/// Defines the expected outcome of a transaction. If the transaction is successfully applied, one can provide a closure to be executed in the post_dispatch hook.
 pub enum TxOutcome<RT: TxHooks> {
     /// Expects that the tx was successful and runs the provided closure in the post_dispatch hook
     Applied(WorkingSetClosure<RT>),
@@ -118,18 +139,24 @@ pub enum TxOutcome<RT: TxHooks> {
 }
 
 impl<RT: TxHooks> TxOutcome<RT> {
+    /// Creates an [`TxOutcome`] that expects the transaction to be successfully applied without any post_dispatch hook closure.
     pub fn applied() -> Self {
         Self::Applied(Box::new(|_| {}))
     }
 }
 
+/// Defines the type of a message that can be sent to the runtime.
 pub enum MessageType<M: Module, S: Spec> {
+    /// A pre-signed transaction. Ie, a transaction that has already been signed and formatted by the sender
     PreSigned(RawTx),
+    /// A pre-encoded transaction. That is a transaction that has not been signed yet, but has been encoded for the module system
     PreEncoded(Vec<u8>, <S::CryptoSpec as CryptoSpec>::PrivateKey),
+    /// A plain transaction. That is a transaction that has not been signed or encoded yet
     Plain(M::CallMessage, <S::CryptoSpec as CryptoSpec>::PrivateKey),
 }
 
 impl<M: Module, S: Spec> MessageType<M, S> {
+    /// Converts a [`MessageType`] into a [`RawTx`].
     pub fn to_raw_tx<RT: EncodeCall<M>>(
         self,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
@@ -144,6 +171,7 @@ impl<M: Module, S: Spec> MessageType<M, S> {
         }
     }
 
+    /// Creates a [`MessageType`] from a [`UnsignedTransaction`].
     pub fn pre_signed(
         unsigned_tx: UnsignedTransaction<S>,
         key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
@@ -152,7 +180,7 @@ impl<M: Module, S: Spec> MessageType<M, S> {
         Self::PreSigned(RawTx { data: tx })
     }
 
-    pub fn sign_with_defaults(
+    fn sign_with_defaults(
         msg: Vec<u8>,
         key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
@@ -177,12 +205,37 @@ impl<M: Module, S: Spec> MessageType<M, S> {
     }
 }
 
+/// Defines a test case at the transaction level. It contains a [`TxOutcome`] which may specify a `post_dispatch_hook` closure and a [`MessageType`].
+///
+/// ## Example
+/// ```rust
+/// use sov_modules_api::PrivateKey;
+/// use sov_modules_api::transaction::UnsignedTransaction;
+/// use sov_modules_api::hooks::TxHooks;
+/// use sov_test_utils::runtime::{TxOutcome, MessageType, TxTestCase, ValueSetter};
+/// use sov_test_utils::{TestPrivateKey, TestSpec};
+/// use sov_mock_da::MockDaSpec;
+///
+/// let priv_key = TestPrivateKey::generate();
+/// sov_test_utils::generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
+///
+/// // This means to send a transaction that sets the value setter's state to 10 and expects it to be successfully applied
+/// TxTestCase {
+///     outcome: TxOutcome::Applied::<TestRuntime<TestSpec, MockDaSpec>>(Box::new(|state| {
+///         // Check that the state of the rollup has been updated correctly
+///     })),
+///     message: MessageType::<ValueSetter<TestSpec>, TestSpec>::Plain(sov_value_setter::CallMessage::SetValue(10), priv_key),
+/// };
+/// ```
 pub struct TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
+    /// The expected outcome of the transaction.
     pub outcome: TxOutcome<RT>,
+    /// The message to be sent to the runtime.
     pub message: MessageType<M, S>,
 }
 
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
+    /// Splits a [`TxTestCase`] into a [`TxRunner`] and an optional [`WorkingSetClosure`].
     pub fn split(self) -> (TxRunner<S, M>, Option<WorkingSetClosure<RT>>) {
         let (expected_result, is_post_check): (TxExpectedResult, Option<_>) = match self.outcome {
             TxOutcome::Applied(closure) => (TxExpectedResult::Applied, Option::Some(closure)),
@@ -199,6 +252,7 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
     }
 }
 
+/// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s.
 pub type SlotReceipt = Vec<BatchReceipt>;
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
@@ -212,9 +266,13 @@ pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
     default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
 }
 
+/// Defines a slot runner. A slot runner is a list of [`BatchRunner`]s.
 pub type SlotRunner<S, M> = Vec<BatchRunner<S, M>>;
+/// Defines a batch runner. A batch runner is a list of [`TxRunner`]s.
 pub type BatchRunner<S, M> = Vec<TxRunner<S, M>>;
 
+/// Defines a transaction runner. A transaction runner is a [`MessageType`] and an [`TxExpectedResult`].
+/// It is produced from a [`TxTestCase`].
 pub struct TxRunner<S: Spec, M: Module> {
     message: MessageType<M, S>,
     expected_result: TxExpectedResult,

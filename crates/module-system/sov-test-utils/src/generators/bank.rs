@@ -10,19 +10,31 @@ use crate::{
 };
 type PrivateKey<S> = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
+/// Defines the data required to transfer tokens.
 pub struct TransferData<S: Spec> {
+    /// The private key of the sender.
     pub sender_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
+    /// The address of the receiver.
     pub receiver_address: S::Address,
+    /// The token ID.
     pub token_id: TokenId,
+    /// The amount to transfer.
     pub transfer_amount: u64,
 }
 
+/// Defines the data required to create a token.
 pub struct TokenCreateData<S: Spec> {
+    /// The name of the token.
     pub token_name: String,
+    /// The salt.
     pub salt: u64,
+    /// The initial balance.
     pub initial_balance: u64,
+    /// The address to mint the tokens to.
     pub mint_to_address: S::Address,
+    /// The private key of the minter.
     pub minter_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
+    /// The authorized minters.
     pub authorized_minters: Vec<S::Address>,
 }
 
@@ -32,8 +44,11 @@ impl<S: Spec> TokenCreateData<S> {
     }
 }
 
+/// Defines a message generator for the bank module.
 pub struct BankMessageGenerator<S: Spec> {
+    /// The token create transactions.
     pub token_create_txs: Vec<TokenCreateData<S>>,
+    /// The transfer transactions.
     pub transfer_txs: Vec<TransferData<S>>,
 }
 
@@ -41,6 +56,7 @@ const DEFAULT_TOKEN_NAME: &str = "Token1";
 const DEFAULT_SALT: u64 = 10;
 const DEFAULT_INIT_BALANCE: u64 = 1000000;
 
+/// Gets the default token ID for the given address.
 pub fn get_default_token_id<S: Spec>(address: &<S as Spec>::Address) -> TokenId {
     get_token_id::<S>(DEFAULT_TOKEN_NAME, address, DEFAULT_SALT)
 }
@@ -160,6 +176,7 @@ where
 }
 
 impl BankMessageGenerator<TestSpec> {
+    /// Creates a new [`BankMessageGenerator`] that will create an invalid transfer transaction.
     pub fn create_invalid_transfer(
         minter_key: <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {

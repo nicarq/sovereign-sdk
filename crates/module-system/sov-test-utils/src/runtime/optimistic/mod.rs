@@ -11,6 +11,7 @@ use crate::{
     TEST_ROLLUP_FINALITY_PERIOD,
 };
 
+/// Contains genesis configuration utils for the optimistic runtime.
 pub mod genesis;
 #[cfg(test)]
 mod tests;

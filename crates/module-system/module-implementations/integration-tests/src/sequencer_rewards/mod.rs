@@ -11,8 +11,8 @@ use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::optimistic::TestRuntime;
 use sov_test_utils::{
-    new_test_blob_from_batch, MessageGenerator, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_USER_BALANCE,
-    TEST_DEFAULT_USER_STAKE,
+    new_test_blob_from_batch_deprecated, MessageGenerator, TEST_DEFAULT_GAS_LIMIT,
+    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{AttesterIncentivesParams, BankParams, SequencerParams, TestRollup, S};
@@ -85,7 +85,11 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64) -> Result
         post_genesis_registry_balance,
     )?;
 
-    let blob = new_test_blob_from_batch(Batch { txs: value_setter }, seq_da_addr.as_ref(), [0; 32]);
+    let blob = new_test_blob_from_batch_deprecated(
+        Batch { txs: value_setter },
+        seq_da_addr.as_ref(),
+        [0; 32],
+    );
 
     let exec_simulation =
         rollup.execution_simulation(1, init_root_hash, vec![blob.clone()], 0, None);

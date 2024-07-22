@@ -10,6 +10,7 @@ macro_rules! generate_runtime {
         base_fee_recipient: $base_fee_recipient:ident : $base_fee_recipient_ty:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path
     ) => {
+        /// Generated test runtime implementation using the testing framework.
         #[derive(
             Default,
             Clone,
@@ -25,12 +26,19 @@ macro_rules! generate_runtime {
             ::serde::Deserialize
         )]
         pub struct __GeneratedRuntimeInternals<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> {
+            /// The sequencer registry module.
             pub sequencer_registry: $crate::runtime::SequencerRegistry<S, Da>,
+            /// The bank module.
             pub bank: $crate::runtime::Bank<S>,
+            /// The module that will receive the base fee.
             pub $base_fee_recipient: $base_fee_recipient_ty,
-            $(pub $module_name: $module_ty),*
+            $(
+                /// An external module [`$module_ty`] of the generated runtime.
+                pub $module_name: $module_ty
+            ),*
         }
 
+        /// A type alias for the generated runtime.
         pub type $id<S, Da> = $crate::runtime::wrapper::TestRuntimeWrapper<S, Da, __GeneratedRuntimeInternals<S, Da>>;
 
 
@@ -83,6 +91,7 @@ macro_rules! generate_runtime {
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> GenesisConfig<S, Da> {
             #[allow(unused)]
+            /// Creates a new [`GenesisConfig`] from a minimal genesis config [`::sov_modules_api::Genesis::Config`].
             pub fn from_minimal_config(minimal_config: $minimal_genesis_config_ty,
                 $($module_name: <$module_ty as ::sov_modules_api::Genesis>::Config),*
             ) -> Self {
@@ -101,6 +110,7 @@ macro_rules! generate_runtime {
         where <S::InnerZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,
          <S::OuterZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,{
             #[allow(unused)]
+            /// Creates a [`$crate::runtime::GenesisParams`] from a [`GenesisConfig`].
             pub fn into_genesis_params(self) -> $crate::runtime::GenesisParams<Self, $crate::runtime::BasicKernelGenesisConfig<S, Da>> {
                 $crate::runtime::GenesisParams {
                     runtime: self,

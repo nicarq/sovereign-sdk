@@ -10,7 +10,7 @@ use sov_state::StorageRoot;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::attester_incentive::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::optimistic::TestRuntime;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator, TestStorageSpec};
+use sov_test_utils::{new_test_blob_from_batch_deprecated, MessageGenerator, TestStorageSpec};
 
 use super::{AttesterIncentivesTestHandler, TEST_DEFAULT_USER_BALANCE};
 use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
@@ -102,7 +102,7 @@ impl AttesterIncentivesTestHandler {
         .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
         let attestation_blob =
-            new_test_blob_from_batch(Batch { txs }, self.seq_da_addr.as_ref(), [3; 32]);
+            new_test_blob_from_batch_deprecated(Batch { txs }, self.seq_da_addr.as_ref(), [3; 32]);
 
         let exec_vars = rollup.execution_simulation(
             1,
@@ -230,7 +230,7 @@ impl AttesterIncentivesTestHandler {
         .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
         let attestation_blob =
-            new_test_blob_from_batch(Batch { txs }, self.seq_da_addr.as_ref(), [4; 32]);
+            new_test_blob_from_batch_deprecated(Batch { txs }, self.seq_da_addr.as_ref(), [4; 32]);
 
         let exec_vars =
             rollup.execution_simulation(1, attestation_state_root, vec![attestation_blob], 3, None);
