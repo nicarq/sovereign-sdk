@@ -9,7 +9,8 @@ use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::optimistic::TestRuntime;
 use sov_test_utils::{
-    has_tx_events, new_test_blob_from_batch, MessageGenerator, TEST_DEFAULT_USER_BALANCE,
+    has_tx_events_deprecated, new_test_blob_from_batch_deprecated, MessageGenerator,
+    TEST_DEFAULT_USER_BALANCE,
 };
 
 use crate::helpers::{
@@ -46,7 +47,11 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
     // Genesis
     let init_root_hash = rollup.genesis(admin_pub_key, seq_params, bank_params, attester_params);
 
-    let blob = new_test_blob_from_batch(Batch { txs: value_setter }, seq_da_addr.as_ref(), [2; 32]);
+    let blob = new_test_blob_from_batch_deprecated(
+        Batch { txs: value_setter },
+        seq_da_addr.as_ref(),
+        [2; 32],
+    );
 
     {
         let mut init_working_set = StateCheckpoint::<S>::new(rollup.storage());
@@ -135,7 +140,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
             "The new transition has not been correctly stored"
         );
 
-        assert!(has_tx_events(&apply_blob_outcome),);
+        assert!(has_tx_events_deprecated(&apply_blob_outcome),);
 
         (base_fee_per_gas, total_gas_used)
     };

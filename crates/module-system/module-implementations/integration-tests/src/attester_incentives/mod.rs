@@ -12,8 +12,8 @@ use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::optimistic::TestRuntime;
 use sov_test_utils::{
-    new_test_blob_from_batch, MessageGenerator, TestPrivateKey, TestStorageSpec as StorageSpec,
-    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
+    new_test_blob_from_batch_deprecated, MessageGenerator, TestPrivateKey,
+    TestStorageSpec as StorageSpec, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{
@@ -239,7 +239,7 @@ impl AttesterIncentivesTestHandler {
         genesis_root: StorageRoot<StorageSpec>,
         rollup: &mut TestRollup,
     ) -> Vec<ExecutionSimulationVars> {
-        let blob = new_test_blob_from_batch(
+        let blob = new_test_blob_from_batch_deprecated(
             Batch {
                 txs: self.value_setter.clone(),
             },

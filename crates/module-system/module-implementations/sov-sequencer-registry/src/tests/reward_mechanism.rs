@@ -6,7 +6,9 @@ use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward};
 use sov_modules_api::{
     Batch, BatchWithId, Gas, GasArray, GasMeter, GasUnit, ModuleInfo, RawTx, Spec,
 };
-use sov_test_utils::{generate_empty_tx, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
+use sov_test_utils::{
+    generate_empty_tx_deprecated, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
+};
 
 use super::helpers::{TestSequencer, S};
 use crate::BatchSequencerOutcome;
@@ -31,7 +33,7 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
 
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
 
-    let tx = generate_empty_tx(
+    let tx = generate_empty_tx_deprecated(
         PriorityFeeBips::from_percentage(10),
         balance_after_genesis,
         None,

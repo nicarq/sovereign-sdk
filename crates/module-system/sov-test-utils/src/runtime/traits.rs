@@ -27,11 +27,13 @@ pub trait MinimalRuntime<S: Spec, Da: DaSpec>: Default {
 /// A trait which allows access to the contents of the genesis configuration
 /// for a [`MinimalRuntime`] which implements [`Genesis`].
 pub trait MinimalGenesis<S: Spec>: Genesis<Spec = S> {
+    /// The DA layer spec.
     type Da: DaSpec;
+    /// Returns a reference to the sequencer registry config.
     fn sequencer_registry_config(
         config: &Self::Config,
     ) -> &<SequencerRegistry<S, Self::Da> as Genesis>::Config;
-
+    /// Returns a reference to the bank config.
     fn bank_config(config: &Self::Config) -> &<Bank<S> as Genesis>::Config;
 }
 
@@ -63,7 +65,9 @@ impl<S: Spec, Da: DaSpec, T> StandardRuntime<S, Da> for T where
 ///
 /// Implementers must also implement [`TestRuntimeHookOverrides`] to invoke the closures in their post tx hook.
 pub trait PostTxHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, Da> {
+    /// Adds a list of closures to be executed in the `post_dispatch_tx_hook` to the runtime.
     fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<WorkingSetClosure<Self>>);
+    /// Retrieves the next closure to be executed in the `post_dispatch_tx_hook` from the runtime.
     fn try_get_next_tx_action(&self) -> Option<Option<WorkingSetClosure<Self>>>;
 }
 
@@ -71,6 +75,7 @@ pub trait PostTxHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, D
 ///
 /// Implementers must also implement [`TestRuntimeHookOverrides`] to invoke the closures in their post tx hook.
 pub trait EndSlotHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, Da> {
+    /// Adds a list of closures to be executed in the `end_slot_hook` to the runtime.
     fn add_end_slot_hook_actions(&self, closures: Vec<EndSlotClosure<StateCheckpoint<S>>>);
     /// For backward compatibility, we allow tests not to configure end slot hooks at all.
     /// In this case, the outer option will be None and the hook will have no effect.
@@ -82,6 +87,7 @@ pub trait EndSlotHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, 
 pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
     TxHooks<Spec = S> + MinimalRuntime<S, Da>
 {
+    /// The contents of this method are used to override the `pre_dispatch_tx_hook` of the runtime.
     fn pre_dispatch_tx_hook_override(
         &self,
         _tx: &AuthenticatedTransactionData<S>,
@@ -89,6 +95,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
     ) -> anyhow::Result<()> {
         Ok(())
     }
+    /// The contents of this method are used to override the `post_dispatch_tx_hook` of the runtime.
     fn post_dispatch_tx_hook_override(
         &self,
         _tx: &AuthenticatedTransactionData<S>,
@@ -97,7 +104,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
     ) -> anyhow::Result<()> {
         Ok(())
     }
-
+    /// The contents of this method are used to override the `begin_batch_hook` of the runtime.
     fn begin_batch_hook_override(
         &self,
         batch: &BatchWithId,
@@ -107,7 +114,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
         self.sequencer_registry()
             .begin_batch_hook(batch, sender, state_checkpoint)
     }
-
+    /// The contents of this method are used to override the `end_batch_hook` of the runtime.
     fn end_batch_hook_override(
         &self,
         result: BatchSequencerOutcome,
@@ -121,16 +128,16 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
             state_checkpoint,
         );
     }
-
+    /// The contents of this method are used to override the `begin_slot_hook` of the runtime.
     fn begin_slot_hook_override(
         &self,
         _pre_state_root: S::VisibleHash,
         _state: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
     ) {
     }
-
+    /// The contents of this method are used to override the `end_slot_hook` of the runtime.
     fn end_slot_hook_override(&self, _state: &mut StateCheckpoint<S>) {}
-
+    /// The contents of this method are used to override the `finalize_hook` of the runtime.
     fn finalize_hook_override(
         &self,
         _root_hash: S::VisibleHash,

@@ -17,7 +17,7 @@ use sov_test_utils::runtime::genesis::User;
 use sov_test_utils::runtime::optimistic::{HighLevelOptimisticGenesisConfig, TestRuntime};
 use sov_test_utils::runtime::{MessageType, SlotTestCase, TestRunner, TxOutcome, TxTestCase};
 use sov_test_utils::{
-    generate_optimistic_runtime, new_test_blob_from_batch, MessageGenerator, TestHasher,
+    generate_optimistic_runtime, new_test_blob_from_batch_deprecated, MessageGenerator, TestHasher,
     TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
@@ -140,7 +140,11 @@ fn test_stf_internal_updates() {
         seq_rollup_addr,
     );
 
-    let blob = new_test_blob_from_batch(Batch { txs: value_setter }, seq_da_addr.as_ref(), [0; 32]);
+    let blob = new_test_blob_from_batch_deprecated(
+        Batch { txs: value_setter },
+        seq_da_addr.as_ref(),
+        [0; 32],
+    );
 
     let exec_simulation =
         rollup.execution_simulation(5, init_root_hash, vec![blob.clone()], 0, None);

@@ -7,6 +7,7 @@ use sov_value_setter::ValueSetterConfig;
 use crate::runtime::ValueSetter;
 use crate::TEST_DEFAULT_USER_STAKE;
 
+/// Contains genesis configuration utils for the zk runtime.
 pub mod genesis;
 
 /// Generates a zk runtime containing the [`Bank`](sov_bank::Bank), [`ProverIncentives`](sov_prover_incentives::ProverIncentives),

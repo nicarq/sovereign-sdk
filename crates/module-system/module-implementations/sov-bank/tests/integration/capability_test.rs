@@ -5,7 +5,9 @@ use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips
 use sov_modules_api::{
     Address, Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec, UnlimitedGasMeter, WorkingSet,
 };
-use sov_test_utils::{generate_empty_tx, simple_bank_setup, TEST_DEFAULT_USER_BALANCE};
+use sov_test_utils::{
+    generate_empty_tx_deprecated, simple_bank_setup_deprecated, TEST_DEFAULT_USER_BALANCE,
+};
 
 type S = sov_test_utils::TestSpec;
 
@@ -27,10 +29,10 @@ fn reserve_gas_helper(
     // The gas consumed by pre-execution checks
     gas_for_pre_execution_checks: &<S as Spec>::Gas,
 ) -> CapabilityTestParams {
-    let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
+    let (sender_address, bank, checkpoint) = simple_bank_setup_deprecated(initial_balance);
 
     let transaction: Transaction<S> =
-        generate_empty_tx(max_priority_fee_bips, initial_balance, gas_limit.clone());
+        generate_empty_tx_deprecated(max_priority_fee_bips, initial_balance, gas_limit.clone());
 
     let transaction_scratchpad = checkpoint.to_tx_scratchpad();
 
@@ -245,14 +247,14 @@ fn test_honest_reserve_gas_capability_with_priority_fee() -> anyhow::Result<()> 
 /// Tests that the `reserve_gas` method fails if the sender does not have a bank account for the gas token
 #[test]
 fn test_reserve_gas_no_account() {
-    let (_, bank, checkpoint) = simple_bank_setup(0);
+    let (_, bank, checkpoint) = simple_bank_setup_deprecated(0);
 
     let transaction_scratchpad = checkpoint.to_tx_scratchpad();
 
     let pre_exec_ws = transaction_scratchpad.pre_exec_ws_unmetered();
 
     // This transaction has a maximum fee of twice the initial balance.
-    let transaction: Transaction<S> = generate_empty_tx(PriorityFeeBips::ZERO, 0, None);
+    let transaction: Transaction<S> = generate_empty_tx_deprecated(PriorityFeeBips::ZERO, 0, None);
 
     let payer = Address::new([0u8; 32]);
 
@@ -277,7 +279,7 @@ fn test_reserve_gas_no_account() {
 #[test]
 fn test_reserve_gas_not_enough_balance() {
     let initial_balance = TEST_DEFAULT_USER_BALANCE;
-    let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
+    let (sender_address, bank, checkpoint) = simple_bank_setup_deprecated(initial_balance);
 
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
 
@@ -287,7 +289,7 @@ fn test_reserve_gas_not_enough_balance() {
 
     // This transaction has a maximum fee of twice the initial balance.
     let transaction: Transaction<S> =
-        generate_empty_tx(PriorityFeeBips::ZERO, 2 * initial_balance, None);
+        generate_empty_tx_deprecated(PriorityFeeBips::ZERO, 2 * initial_balance, None);
 
     // We try to reserve gas, this should fail because we have not enough balance.
     let reserve_gas_result =
@@ -310,10 +312,10 @@ fn test_reserve_gas_not_enough_balance() {
 #[test]
 fn test_reserve_gas_price_too_high() {
     let initial_balance = TEST_DEFAULT_USER_BALANCE;
-    let (sender_address, bank, checkpoint) = simple_bank_setup(initial_balance);
+    let (sender_address, bank, checkpoint) = simple_bank_setup_deprecated(initial_balance);
 
     // This transaction has gas limit set to [50; 2], which means the associated gas price is [1; 2].
-    let transaction: Transaction<S> = generate_empty_tx(
+    let transaction: Transaction<S> = generate_empty_tx_deprecated(
         PriorityFeeBips::ZERO,
         initial_balance,
         Some(GasUnit::from_slice(&[initial_balance / 2; 2])),

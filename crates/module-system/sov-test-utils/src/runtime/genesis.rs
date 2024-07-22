@@ -16,6 +16,7 @@ impl<S: Spec> User<S> {
         }
     }
 
+    /// Generates a new user with the given balance.
     pub fn generate(balance: u64) -> Self {
         Self {
             private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate(),
@@ -39,6 +40,7 @@ impl<S: Spec> User<S> {
     }
 }
 
+/// Defines a staked user. A staked user is a user that has bonded some amount of tokens.
 pub trait StakedUser<S: Spec>: Into<User<S>> {
     /// Returns the private key of the staked user.
     fn private_key(&self) -> &<S::CryptoSpec as CryptoSpec>::PrivateKey;
@@ -81,6 +83,7 @@ impl<S: Spec, Da: DaSpec> From<Sequencer<S, Da>> for User<S> {
 /// A simple representation of a user that is staked at genesis.
 #[derive(Debug, Clone)]
 pub struct SimpleStakedUser<S: Spec> {
+    /// The private key of the staked user.
     pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     /// The amount of tokens to bond at genesis. These tokens will be minted by the bank.
     pub bond: u64,
@@ -108,7 +111,9 @@ impl<S: Spec> StakedUser<S> for SimpleStakedUser<S> {
 /// A representation of a sequencer at genesis.
 #[derive(Debug, Clone)]
 pub struct Sequencer<S: Spec, Da: DaSpec> {
+    /// The private key of the sequencer.
     pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+    /// The DA address of the sequencer.
     pub da_address: Da::Address,
     /// The amount of tokens to bond at genesis. These tokens will be minted by the bank.
     pub bond: u64,

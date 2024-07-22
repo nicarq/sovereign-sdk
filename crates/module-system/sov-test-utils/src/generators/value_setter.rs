@@ -3,16 +3,22 @@ use sov_value_setter::ValueSetter;
 
 use crate::*;
 
+/// Defines a message that can be sent to the value setter module.
 pub struct ValueSetterMessage<S: Spec> {
+    /// The admin of the value setter.
     pub admin: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
+    /// The messages to be sent to the value setter. This is a list of values to be set.
     pub messages: Vec<u32>,
 }
 
+/// Defines a set of messages that can be sent to the value setter module.
 pub struct ValueSetterMessages<S: Spec> {
+    /// The messages to be sent to the value setter.
     pub messages: Vec<ValueSetterMessage<S>>,
 }
 
 impl<S: Spec> ValueSetterMessages<S> {
+    /// Creates a new [`ValueSetterMessages`] from a list of [`ValueSetterMessage`]s.
     pub fn new(messages: Vec<ValueSetterMessage<S>>) -> Self {
         Self { messages }
     }

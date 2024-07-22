@@ -6,7 +6,7 @@ use sov_modules_api::{Batch, StateCheckpoint};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::attester_incentive::AttesterIncentivesMessageGenerator;
 use sov_test_utils::runtime::optimistic::TestRuntime;
-use sov_test_utils::{new_test_blob_from_batch, MessageGenerator};
+use sov_test_utils::{new_test_blob_from_batch_deprecated, MessageGenerator};
 
 use super::AttesterIncentivesTestHandler;
 use crate::attester_incentives::{ROLLUP_FINALITY_PERIOD, TEST_DEFAULT_USER_BALANCE};
@@ -40,8 +40,11 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's unbond the attester.
-    let attestation_blob =
-        new_test_blob_from_batch(Batch { txs }, test_handler.seq_da_addr.as_ref(), [3; 32]);
+    let attestation_blob = new_test_blob_from_batch_deprecated(
+        Batch { txs },
+        test_handler.seq_da_addr.as_ref(),
+        [3; 32],
+    );
 
     let begin_unbond_result =
         rollup.execution_simulation(1, init_state_root, vec![attestation_blob.clone()], 0, None);
@@ -66,7 +69,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
 
     // We now need to wait for the finality period to pass. Let's simulate it by running a few value setter transactions.
     // Then we can finish the two phase unbonding process.
-    let blob = new_test_blob_from_batch(
+    let blob = new_test_blob_from_batch_deprecated(
         Batch {
             txs: test_handler.value_setter.clone(),
         },
@@ -101,8 +104,11 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process
-    let attestation_blob =
-        new_test_blob_from_batch(Batch { txs }, test_handler.seq_da_addr.as_ref(), [3; 32]);
+    let attestation_blob = new_test_blob_from_batch_deprecated(
+        Batch { txs },
+        test_handler.seq_da_addr.as_ref(),
+        [3; 32],
+    );
 
     let end_unbonding_result = rollup.execution_simulation(
         1,
@@ -175,8 +181,11 @@ fn test_unbonding_without_bonded() {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process
-    let attestation_blob =
-        new_test_blob_from_batch(Batch { txs }, test_handle.seq_da_addr.as_ref(), [3; 32]);
+    let attestation_blob = new_test_blob_from_batch_deprecated(
+        Batch { txs },
+        test_handle.seq_da_addr.as_ref(),
+        [3; 32],
+    );
 
     let exec_simulation =
         rollup.execution_simulation(1, init_state_root, vec![attestation_blob.clone()], 1, None);
@@ -221,8 +230,11 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's unbond the attester.
-    let attestation_blob =
-        new_test_blob_from_batch(Batch { txs }, test_handle.seq_da_addr.as_ref(), [3; 32]);
+    let attestation_blob = new_test_blob_from_batch_deprecated(
+        Batch { txs },
+        test_handle.seq_da_addr.as_ref(),
+        [3; 32],
+    );
 
     let exec_simulation =
         rollup.execution_simulation(1, init_state_root, vec![attestation_blob.clone()], 0, None);
@@ -262,8 +274,11 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process without waiting for the finality period to pass.
-    let attestation_blob =
-        new_test_blob_from_batch(Batch { txs }, test_handle.seq_da_addr.as_ref(), [3; 32]);
+    let attestation_blob = new_test_blob_from_batch_deprecated(
+        Batch { txs },
+        test_handle.seq_da_addr.as_ref(),
+        [3; 32],
+    );
 
     let exec_simulation =
         rollup.execution_simulation(1, new_state_root, vec![attestation_blob.clone()], 1, None);

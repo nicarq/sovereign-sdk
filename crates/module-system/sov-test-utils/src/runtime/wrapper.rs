@@ -28,9 +28,15 @@ use super::traits::{
     TestRuntimeHookOverrides,
 };
 
+/// A closure that takes an [`UnmeteredStateWrapper`] around a [`TxHooks::TxState`]. This is used within the
+/// testing framework to override the post dispatch tx hook.
 pub type WorkingSetClosure<T> =
     Box<dyn FnOnce(UnmeteredStateWrapper<<T as TxHooks>::TxState>) + Send + Sync>;
+/// A closure that takes a mutable reference to a `CallMessage`, a `StateRoot` and also a state accessor (usually a [`StateCheckpoint`]).
+/// This is used within the testing framework to override test call messages (like in the attester incentives tests).
 pub type StateRootClosure<Call, Root, Ws> = dyn FnMut(&mut Call, Root, &mut Ws) + Send + Sync;
+/// A closure that takes a mutable reference to a state accessor (usually a [`StateCheckpoint`]).
+/// This is used within the testing framework to override the end slot hook.
 pub type EndSlotClosure<T> = Box<dyn FnMut(&mut T) + Send + Sync>;
 
 /// A queue of closures which can be executed in a `Runtime`'s post transaction hook.
@@ -69,8 +75,10 @@ impl<T> ClosureQueue<T> {
     }
 }
 
+/// A wrapper around a runtime (which implements [`TxHooks`]) that allows to override `post_tx_hook` and `end_slot_hook` using closures.
 #[derive(Default, Clone)]
 pub struct TestRuntimeWrapper<S: Spec, Da: DaSpec, T: TxHooks<Spec = S>> {
+    /// The inner runtime.
     pub inner: T,
     pub(super) post_tx_hook_action_queue: Arc<ClosureQueue<WorkingSetClosure<T>>>,
     pub(super) end_slot_hook_action_queue: Arc<ClosureQueue<EndSlotClosure<StateCheckpoint<S>>>>,
