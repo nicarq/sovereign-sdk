@@ -31,7 +31,6 @@ sov-state = { workspace = true }
 tempfile = { workspace = true }
 module-template = { path = ".", version = "*", features = ["native"] }
 sov-test-utils = { workspace = true }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 
 [features]
 default = []

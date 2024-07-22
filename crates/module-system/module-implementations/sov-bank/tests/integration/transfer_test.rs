@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use sov_bank::{get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, Spec, StateAccessor, StateCheckpoint, WorkingSet};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 
 use crate::helpers::*;
 
@@ -16,7 +16,7 @@ fn transfer_initial_token() -> Result<(), Infallible> {
     let bank_config = create_bank_config_with_token(4, initial_balance);
     let token_name = bank_config.gas_token_config.token_name.clone();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let bank = Bank::default();
     let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
     bank.genesis(&bank_config, &mut genesis_state).unwrap();
@@ -248,7 +248,7 @@ fn transfer_initial_token() -> Result<(), Infallible> {
 fn transfer_deployed_token() -> Result<(), Infallible> {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
 
     let sender_address = generate_address::<S>("just_sender");
     let receiver_address = generate_address::<S>("just_receiver");

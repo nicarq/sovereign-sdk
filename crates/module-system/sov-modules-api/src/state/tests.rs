@@ -1,8 +1,8 @@
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_macros::config_value;
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::execution_mode::Native;
 use sov_state::{SlotKey, SlotValue, User};
+use sov_test_utils::storage::new_finalized_storage;
 
 use super::traits::{StateReader, StateWriter};
 use crate::default_spec::DefaultSpec;
@@ -15,7 +15,7 @@ fn create_working_set(
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
 ) -> WorkingSet<S> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let storage = new_finalized_storage(tmpdir.path());
     WorkingSet::new_with_gas_meter(storage, remaining_funds, gas_price)
 }
 

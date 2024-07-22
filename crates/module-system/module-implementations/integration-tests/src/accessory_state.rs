@@ -4,8 +4,8 @@ use sov_modules_api::{
     AccessoryStateValue, ApiStateAccessor, CallResponse, Context, GenesisState, Module,
     ModuleError, ModuleId, ModuleInfo, Spec, StateCheckpoint, TxState, WorkingSet,
 };
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::Storage;
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{TestSpec, TestStorageSpec as StorageSpec};
 
 #[derive(ModuleInfo)]

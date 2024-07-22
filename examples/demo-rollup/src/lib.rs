@@ -33,7 +33,7 @@ pub fn initialize_logging() {
         .with(fmt::layer())
         .with(
             EnvFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| {
-                "debug,hyper=info,risc0_zkvm=warn,sov_prover_storage_manager=info,jmt=info,sov_celestia_adapter=info,jsonrpsee-server=info,jsonrpsee-client=info,reqwest=info,sqlx=warn,tower_http=info"
+                "debug,hyper=info,risc0_zkvm=warn,sov_prover_storage_manager=info,jmt=info,sov_celestia_adapter=info,jsonrpsee-server=info,jsonrpsee-client=info,reqwest=info,sqlx=warn,tower_http=info,tungstenite=info"
                     .to_string()
             }))
             .unwrap(),

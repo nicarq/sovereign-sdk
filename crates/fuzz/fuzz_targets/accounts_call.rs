@@ -11,7 +11,7 @@ use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
 use sov_modules_api::{
     Context, CredentialId, Module, PrivateKey, PublicKey, Spec, StateCheckpoint,
 };
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
 type S = sov_test_utils::TestSpec;
@@ -41,7 +41,7 @@ fuzz_target!(
         let rng = &mut StdRng::from_seed(seed);
         let mut seed = [0u8; 32];
         let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let storage = new_finalized_storage(tmpdir.path());
         let state = StateCheckpoint::<S>::new(storage);
 
         let sequencer = <S as Spec>::Address::from(sequencer);

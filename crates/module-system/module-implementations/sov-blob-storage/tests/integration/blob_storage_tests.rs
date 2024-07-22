@@ -4,7 +4,7 @@ use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{
     BlobData, BlobDataWithId, KernelModule, KernelWorkingSet, RawTx, StateCheckpoint,
 };
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 
 type S = sov_test_utils::TestSpec;
 type Da = MockDaSpec;
@@ -12,7 +12,7 @@ type Da = MockDaSpec;
 #[test]
 fn empty_test() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut working_set = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
 
     let chain_state = ChainState::<S, Da>::default();
     let initial_slot_number = 1;
@@ -39,7 +39,7 @@ fn empty_test() {
 #[test]
 fn store_and_retrieve_standard() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut state_checkpoint = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
 
     let chain_state = ChainState::<S, Da>::default();
     let chain_state_config = ChainStateConfig {

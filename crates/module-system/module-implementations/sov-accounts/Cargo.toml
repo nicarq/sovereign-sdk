@@ -30,7 +30,6 @@ arbitrary = { workspace = true, optional = true }
 [dev-dependencies]
 sov-accounts = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
 sov-test-utils = { workspace = true }
 

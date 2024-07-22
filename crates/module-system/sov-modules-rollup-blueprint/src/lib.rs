@@ -45,7 +45,7 @@ mod blueprint {
 
     use async_trait::async_trait;
     use sov_db::ledger_db::LedgerDb;
-    use sov_db::schema::{CacheDb, SchemaBatch};
+    use sov_db::schema::{DeltaReader, SchemaBatch};
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::runtime::capabilities::Kernel;
     use sov_modules_api::{ProofSerializer, Spec, Zkvm};
@@ -62,7 +62,7 @@ mod blueprint {
         InitVariant, ProofManager, ProverService, RollupConfig, RollupProverConfig,
         StateTransitionRunner,
     };
-    use tokio::sync::{oneshot, watch};
+    use tokio::sync::oneshot;
 
     use crate::RollupBlueprint;
 
@@ -91,7 +91,7 @@ mod blueprint {
             Self::DaSpec,
             StfState = <Self::Spec as Spec>::Storage,
             StfChangeSet = <<Self::Spec as Spec>::Storage as Storage>::ChangeSet,
-            LedgerState = CacheDb,
+            LedgerState = DeltaReader,
             LedgerChangeSet = SchemaBatch,
         >;
 
@@ -113,7 +113,7 @@ mod blueprint {
         /// Creates RPC methods for the rollup.
         fn create_endpoints(
             &self,
-            storage: watch::Receiver<<Self::Spec as Spec>::Storage>,
+            storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
             ledger_db: &LedgerDb,
             sequencer_db: &SequencerDb,
             da_service: &Self::DaService,
@@ -173,7 +173,7 @@ mod blueprint {
             &self,
             ledger_state: <Self::StorageManager as HierarchicalStorageManager<Self::DaSpec>>::LedgerState,
         ) -> anyhow::Result<LedgerDb> {
-            LedgerDb::with_cache_db(ledger_state)
+            LedgerDb::with_reader(ledger_state)
         }
 
         /// Creates a new rollup.
@@ -302,7 +302,6 @@ mod blueprint {
             self.run_and_report_addr(None, None).await
         }
 
-        /// Runs the rollup. Reports RPC port to the caller using the provided channel.
         /// Runs the rollup. Reports RPC port to the caller using the provided channel.
         pub async fn run_and_report_addr(
             self,

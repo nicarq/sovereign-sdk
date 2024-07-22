@@ -1,18 +1,19 @@
 use std::sync::Arc;
 
 use sov_db::ledger_db::LedgerDb;
+use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockValidityCond,
     PlannedFork,
 };
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::{BlobData, RawTx, StateTransitionFunction};
-use sov_prover_storage_manager::{ProverStorageManager, SimpleStorageManager};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ArrayWitness, ProverStorage, Storage};
 use sov_stf_runner::InitVariant;
+use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
 
 use crate::helpers::hash_stf::{HashStf, S};
@@ -161,14 +162,12 @@ async fn check_runner(
 fn get_saved_root_hash(
     path: &std::path::Path,
 ) -> anyhow::Result<Option<<ProverStorage<S> as Storage>::Root>> {
-    let storage_config = sov_state::config::Config {
-        path: path.to_path_buf(),
-    };
-    let mut storage_manager = ProverStorageManager::<MockDaSpec, S>::new(storage_config).unwrap();
+    let mut storage_manager =
+        NativeStorageManager::<MockDaSpec, ProverStorage<S>>::new(path).unwrap();
     let mock_block_header = MockBlockHeader::from_height(1000000);
     let (stf_state, ledger_state) = storage_manager.create_state_for(&mock_block_header)?;
 
-    let ledger_db = LedgerDb::with_cache_db(ledger_state).unwrap();
+    let ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
 
     ledger_db
         .get_head_slot()?

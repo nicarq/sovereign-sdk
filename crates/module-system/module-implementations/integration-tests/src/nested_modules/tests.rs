@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
 use sov_modules_api::{ModulePrefix, Spec, StateCheckpoint, StateMap, TypedEvent};
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{Storage, ZkStorage};
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestSpec, ZkTestSpec};
 
 use super::helpers::{module_c, Event};
@@ -10,7 +10,7 @@ use super::helpers::{module_c, Event};
 #[test]
 fn nested_module_call_test() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let prover_storage = new_finalized_storage(tmpdir.path());
     let state = StateCheckpoint::new(prover_storage.clone());
 
     // Test the `native` execution.

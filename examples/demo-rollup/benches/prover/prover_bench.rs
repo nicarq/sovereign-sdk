@@ -1,6 +1,8 @@
 #![allow(clippy::float_arithmetic)]
 
 mod datagen;
+#[macro_use]
+extern crate prettytable;
 
 use std::collections::HashMap;
 use std::env;
@@ -9,11 +11,6 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
-
-#[macro_use]
-extern crate prettytable;
-
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use log4rs::config::{Appender, Config, Root};
@@ -21,10 +18,10 @@ use prettytable::Table;
 use regex::Regex;
 use risc0::MOCK_DA_ELF;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::SlotData;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 #[cfg(feature = "bench")]
 use sov_risc0_adapter::metrics::GLOBAL_HASHMAP;
@@ -36,6 +33,7 @@ use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
 use sov_stf_runner::read_json_file;
+use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
 
 use crate::datagen::{generate_genesis_config, get_bench_blocks};

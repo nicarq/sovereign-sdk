@@ -20,7 +20,6 @@ sov-celestia-adapter = { path = "../adapters/celestia", features = ["native"] }
 sov-modules-api = { path = "../module-system/sov-modules-api", features = ["arbitrary", "native"] }
 sov-accounts = { path = "../module-system/module-implementations/sov-accounts", features = ["arbitrary", "native"] }
 sov-bank = { path = "../module-system/module-implementations/sov-bank", features = ["native"] }
-sov-prover-storage-manager = { path = "../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-test-utils = { path = "../module-system/sov-test-utils", features = ["arbitrary"] }
 
 # Prevent this from interfering with workspaces.

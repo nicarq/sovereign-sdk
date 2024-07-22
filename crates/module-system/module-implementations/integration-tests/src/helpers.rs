@@ -8,7 +8,6 @@ use sov_modules_api::da::Time;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateCheckpoint, Zkvm};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, Runtime, StfBlueprint};
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::namespaces::User;
@@ -16,14 +15,15 @@ use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::Storage;
 use sov_test_utils::runtime::optimistic::{GenesisConfig, TestRuntime};
 use sov_test_utils::runtime::traits::MinimalRuntime;
+use sov_test_utils::storage::SimpleStorageManager;
 pub(crate) use sov_test_utils::TestStorageSpec as StorageSpec;
 use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 use sov_value_setter::ValueSetterConfig;
 
-type TestStf = StfBlueprint<S, MockDaSpec, TestRuntime<S, MockDaSpec>, BasicKernel<S, MockDaSpec>>;
-
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
+
+type TestStf = sov_test_utils::TestStfBlueprint<TestRuntime<S, Da>, S>;
 
 pub struct SequencerParams<S: Spec, Da: DaSpec> {
     pub rollup_address: S::Address,
@@ -31,7 +31,7 @@ pub struct SequencerParams<S: Spec, Da: DaSpec> {
     pub stake_amount: u64,
 }
 
-impl Default for SequencerParams<S, MockDaSpec> {
+impl Default for SequencerParams<S, Da> {
     fn default() -> Self {
         SequencerParams {
             rollup_address: [1_u8; 32].into(),

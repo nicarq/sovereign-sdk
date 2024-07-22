@@ -375,12 +375,11 @@ Integration tests are recommended to ensure that the module is implemented corre
 that all public APIs function as intended.
 
 Temporary storage is needed for testing, so we enable the `temp` feature of `sov-state` as a `dev-dependency`.
-Implementation of SnapshotQuery is also needed, so `sov-prover-storage-manager` is also added.
 
 ```toml,text
 [dev-dependencies]
 sov-state = { git = "https://github.com/Sovereign-Labs/sovereign-sdk.git", branch = "stable", features = ["temp"] }
-sov-prover-storage-manager = { git = "https://github.com/Sovereign-Labs/sovereign-sdk.git", branch = "stable" }
+sov-test-utils { git = "https://github.com/Sovereign-Labs/sovereign-sdk.git", branch = "stable" }
 ```
 
 Here is some boilerplate for NFT module integration tests:
@@ -389,10 +388,11 @@ Here is some boilerplate for NFT module integration tests:
 use simple_nft_module::{CallMessage, NonFungibleToken, NonFungibleTokenConfig, OwnerResponse};
 use sov_modules_api::{Address, Context, Module, WorkingSet};
 use simple_nft_module::Event;
-use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_state::ProverStorage;
+
 
 pub type S = sov_test_utils::TestSpec;
-pub type Storage = ProverStorage<DefaultStorageSpec<sov_test_utils::TestHasher>>;
+pub type Storage = ProverStorage<sov_test_utils::TestStorageSpec>;
 
 
 #[test]

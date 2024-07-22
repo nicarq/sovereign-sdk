@@ -3,9 +3,9 @@ use sha2::Sha256;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::crypto::Ed25519Signature;
 use sov_mock_zkvm::MockZkVerifier;
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::execution_mode::Native;
+use sov_test_utils::storage::new_finalized_storage;
 
 use crate::default_spec::DefaultSpec;
 use crate::gas::GasArray;
@@ -20,7 +20,7 @@ fn create_working_set(
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
 ) -> WorkingSet<S> {
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let storage = new_finalized_storage(tmpdir.path());
     WorkingSet::new_with_gas_meter(storage, remaining_funds, gas_price)
 }
 

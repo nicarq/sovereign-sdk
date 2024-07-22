@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use demo_stf::authentication::ModAuth;
-use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDb;
+use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{MockDaConfig, MockDaSpec};
@@ -14,13 +14,12 @@ use sov_modules_api::{CryptoSpec, SovApiProofSerializer, Spec, Zkvm};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
 use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
-use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::services::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::SequencerDb;
-use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
+use sov_state::{DefaultStorageSpec, ProverStorage, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverService, RollupConfig, RollupProverConfig};
 use tokio::sync::watch;
 
@@ -35,8 +34,8 @@ where
     DefaultSpec<Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
 {
     type Spec = DefaultSpec<Risc0Verifier, MockZkVerifier, M>;
-    type Runtime = Runtime<Self::Spec, Self::DaSpec>;
     type DaSpec = MockDaSpec;
+    type Runtime = Runtime<Self::Spec, Self::DaSpec>;
     type Kernel = BasicKernel<Self::Spec, Self::DaSpec>;
 }
 
@@ -47,9 +46,9 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
     type InnerZkvmHost = Risc0Host<'static>;
     type OuterZkvmHost = MockZkvm;
 
-    type StorageManager = ProverStorageManager<
+    type StorageManager = NativeStorageManager<
         MockDaSpec,
-        DefaultStorageSpec<<<Self::Spec as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
+        ProverStorage<DefaultStorageSpec<<<Self::Spec as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
     >;
 
     type ProverService = ParallelProverService<
@@ -143,9 +142,6 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         &self,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
     ) -> anyhow::Result<Self::StorageManager> {
-        let storage_config = StorageConfig {
-            path: rollup_config.storage.path.clone(),
-        };
-        ProverStorageManager::new(storage_config)
+        NativeStorageManager::new(&rollup_config.storage.path)
     }
 }

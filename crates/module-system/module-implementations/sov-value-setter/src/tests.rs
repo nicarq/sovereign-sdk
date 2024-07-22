@@ -1,15 +1,16 @@
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Address, Context, Module, Spec, StateCheckpoint};
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::ZkStorage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestSpec, ZkTestSpec};
 
 use super::{Event, ValueSetter};
 use crate::{call, ValueSetterConfig};
+
 #[test]
 fn test_value_setter() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
     let admin = Address::from([1; 32]);
     let sequencer = Address::from([2; 32]);
     // Test Native-Context
@@ -70,7 +71,7 @@ fn test_err_on_sender_is_not_admin() {
     let sequencer = Address::from([2; 32]);
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let storage = new_finalized_storage(tmpdir.path());
     let mut prover_state_checkpoint = StateCheckpoint::new(storage);
 
     let sender_not_admin = Address::from([2; 32]);

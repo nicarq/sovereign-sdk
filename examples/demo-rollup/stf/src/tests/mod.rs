@@ -5,8 +5,6 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_prover_storage_manager::ProverStorageManager;
-use sov_state::DefaultStorageSpec;
 use sov_stf_runner::read_json_file;
 
 use crate::genesis_config::{create_genesis_config, GenesisPaths};
@@ -24,15 +22,6 @@ pub(crate) type StfBlueprintTest = StfBlueprint<S, Da, RuntimeTest, BasicKernel<
 pub(crate) struct TestPrivateKeys<S: Spec> {
     pub token_deployer: PrivateKeyAndAddress<S>,
     pub tx_signer: PrivateKeyAndAddress<S>,
-}
-
-pub(crate) fn create_storage_manager_for_tests(
-    path: impl AsRef<Path>,
-) -> ProverStorageManager<MockDaSpec, DefaultStorageSpec<sov_test_utils::TestHasher>> {
-    let config = sov_state::config::Config {
-        path: path.as_ref().to_path_buf(),
-    };
-    ProverStorageManager::new(config).unwrap()
 }
 
 pub(crate) fn create_genesis_config_for_tests<Da: DaSpec>(

@@ -29,7 +29,6 @@ sov-state = { workspace = true }
 [dev-dependencies]
 sov-bank = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-test-utils = { workspace = true }
 
 [features]

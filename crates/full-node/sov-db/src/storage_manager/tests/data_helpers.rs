@@ -2,43 +2,41 @@
 //! tests are writing data related to each block,
 //! so it can be validated by looking at what data reader can provide.
 
+use jmt::storage::HasPreimage;
+use jmt::KeyHash;
 use rockbound::cache::delta_reader::DeltaReader;
-use rockbound::{Schema, SchemaBatch, SchemaKey, SchemaValue, SeekKeyEncoder};
+use rockbound::{SchemaBatch, SchemaKey, SchemaValue};
 use sov_mock_da::{MockBlockHeader, MockHash};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::stf::StoredEvent;
 
+use crate::accessory_db::AccessoryDb;
 use crate::namespaces::UserNamespace;
 use crate::schema::namespace::JmtValues;
-use crate::schema::tables::{EventByNumber, ModuleAccessoryState};
+use crate::schema::tables::EventByNumber;
 use crate::schema::types::EventNumber;
-use crate::storage_manager::{NativeChangeSet, StfStoragePlaceholder};
-
+use crate::state_db::StateDb;
+use crate::storage_manager::tests::TestNativeStorage;
+use crate::storage_manager::NativeChangeSet;
 // Encoding/Decoding data.
+
+pub type N = UserNamespace;
+pub const VERSION: jmt::Version = 0;
 
 pub fn encode_state_key(height: u64) -> (SchemaKey, jmt::Version) {
     let height_bytes = height.to_be_bytes().to_vec();
-    (height_bytes, 0u64)
+    (height_bytes, VERSION)
 }
 
-pub fn decode_state_key(raw_key: (SchemaKey, jmt::Version)) -> u64 {
-    let (raw_height, version) = raw_key;
-    assert_eq!(0, version);
-    let bytes = &raw_height[..8];
-
-    u64::from_be_bytes(bytes.try_into().expect("slice with incorrect length"))
+pub fn encode_height(height: u64) -> [u8; 32] {
+    let mut array: [u8; 32] = [0; 32];
+    let bytes = height.to_be_bytes();
+    array[(32 - bytes.len())..].copy_from_slice(&bytes);
+    array
 }
 
-pub fn decode_state_value(value: Option<SchemaValue>) -> MockHash {
-    MockHash::try_from(value.expect("Value must be always set"))
-        .expect("Failed to decode mock hash")
-}
-
-pub fn decode_state_item(
-    item: ((SchemaKey, jmt::Version), Option<SchemaValue>),
-) -> (u64, MockHash) {
-    let (key, value) = item;
-    (decode_state_key(key), decode_state_value(value))
+pub fn encode_height_as_key_hash(height: u64) -> KeyHash {
+    KeyHash(encode_height(height))
 }
 
 fn decode_ledger_item(item: (EventNumber, StoredEvent)) -> (u64, MockHash) {
@@ -49,14 +47,11 @@ fn decode_ledger_item(item: (EventNumber, StoredEvent)) -> (u64, MockHash) {
     (height, da_hash)
 }
 
-/// Helper for reading data from [`JmtValues<UserNamespace>`].
-pub fn get_state_value(
-    reader: &DeltaReader,
-    key: &(SchemaKey, jmt::Version),
-) -> Option<SchemaValue> {
-    reader
-        .get::<JmtValues<UserNamespace>>(key)
-        .unwrap()
+/// Helper for reading data from [`JmtValues<N>`].
+pub fn get_state_value(state_db: &StateDb, key: &(SchemaKey, jmt::Version)) -> Option<SchemaValue> {
+    let (key, version) = key;
+    state_db
+        .get_value_option_by_key::<N>(*version, key)
         .unwrap()
 }
 
@@ -67,7 +62,7 @@ pub fn produce_single_entry_native_changes(
     let mut stf_changes = NativeChangeSet::default();
     stf_changes
         .state_change_set
-        .put::<JmtValues<UserNamespace>>(key, value)
+        .put::<JmtValues<N>>(key, value)
         .unwrap();
     stf_changes
 }
@@ -76,25 +71,20 @@ pub fn produce_single_entry_native_changes(
 
 /// Build [`NativeChangeSet`] that contains data related to given [`MockBlockHeader`].
 /// What it writes:
-///  - [`JmtValues<UserNamespace>`]: block_height => block_hash.
+///  - [`KeyHashToKey<N>`]: block_height => block_hash.
 ///  - [`ModuleAccessoryState`]: block_height => block_hash.
 pub fn materialize_stf_changes(da_header: &MockBlockHeader) -> NativeChangeSet {
-    let mut state_change_set = SchemaBatch::default();
-    let mut accessory_change_set = SchemaBatch::default();
-
-    let key = encode_state_key(da_header.height());
-
+    // State
+    let key_as_hash = encode_height_as_key_hash(da_header.height());
     let hash_bytes = da_header.hash().0.to_vec();
-    let value = Some(hash_bytes);
 
-    state_change_set
-        .put::<JmtValues<UserNamespace>>(&key, &value)
-        .unwrap();
+    let item = (key_as_hash, &hash_bytes);
+    let state_change_set = StateDb::materialize_preimages::<N>([item]).unwrap();
 
-    accessory_change_set
-        .put::<ModuleAccessoryState>(&key, &value)
-        .unwrap();
-
+    // Accessory
+    let accessory_key = encode_height(da_header.height()).to_vec();
+    let accessory_change_set =
+        AccessoryDb::materialize_values([(accessory_key, Some(hash_bytes))], VERSION).unwrap();
     NativeChangeSet {
         state_change_set,
         accessory_change_set,
@@ -116,50 +106,46 @@ pub fn materialize_ledger_changes(da_header: &MockBlockHeader) -> SchemaBatch {
 }
 
 // Verifying
+pub fn verify_state_db(state_db: &StateDb, expected_values: &[(u64, MockHash)]) {
+    // We cannot check that extra data hasn't been written,
+    // because StateDb does not expose range API, but this is highly unlikely that some data is copied.
+    // And it will be better tested by integration tests with business logic.
+    // This test at least test presence of
+    let jmt_handler = state_db.get_jmt_handler::<N>();
+    for (expected_height, expected_hash) in expected_values {
+        let key_hash = encode_height_as_key_hash(*expected_height);
+        let pre_image = jmt_handler.preimage(key_hash).unwrap().unwrap();
+        assert_eq!(expected_hash.0.to_vec(), pre_image);
+    }
+}
 
-pub fn verify_reader<S: Schema, Sk: SeekKeyEncoder<S>, F>(
-    reader: &DeltaReader,
-    range: std::ops::Range<Sk>,
-    expected_values: &[(u64, MockHash)],
-    mapper_fn: F,
-) where
-    F: Fn((S::Key, S::Value)) -> (u64, MockHash),
-{
-    let actual_values: Vec<(u64, MockHash)> = reader
-        .collect_in_range::<S, Sk>(range)
-        .unwrap()
-        .into_iter()
-        .map(mapper_fn)
-        .collect();
-    assert_eq!(expected_values, &actual_values);
+pub fn verify_accessory_db(accessory_db: &AccessoryDb, expected_values: &[(u64, MockHash)]) {
+    for (expected_height, expected_hash) in expected_values {
+        let key = encode_height(*expected_height).to_vec();
+        let actual_value = accessory_db
+            .get_value_option(&key, VERSION)
+            .unwrap()
+            .expect("Missing value in AccessoryDb");
+        assert_eq!(expected_hash.0.to_vec(), actual_value);
+    }
 }
 
 /// Check that only expected heights and block hashes are available to given NativeStorage.
-pub fn verify_stf_storage(
-    stf_storage: &StfStoragePlaceholder,
-    expected_values: &[(u64, MockHash)],
-) {
-    // We take the whole range to check if there's some junk data.
-    let range = encode_state_key(0)..encode_state_key(u64::MAX);
-
-    verify_reader::<JmtValues<UserNamespace>, _, _>(
-        &stf_storage.state_reader,
-        range.clone(),
-        expected_values,
-        decode_state_item,
-    );
-
-    verify_reader::<ModuleAccessoryState, _, _>(
-        &stf_storage.accessory_reader,
-        range,
-        expected_values,
-        decode_state_item,
-    );
+pub fn verify_stf_storage(stf_storage: &TestNativeStorage, expected_values: &[(u64, MockHash)]) {
+    verify_state_db(&stf_storage.state, expected_values);
+    verify_accessory_db(&stf_storage.accessory_db, expected_values);
 }
 
 pub fn verify_ledger_storage(reader: &DeltaReader, expected_values: &[(u64, MockHash)]) {
     let range = EventNumber(0)..EventNumber(u64::MAX);
-    verify_reader::<EventByNumber, _, _>(reader, range, expected_values, decode_ledger_item);
+
+    let actual_values: Vec<(u64, MockHash)> = reader
+        .collect_in_range::<EventByNumber, _>(range)
+        .unwrap()
+        .into_iter()
+        .map(decode_ledger_item)
+        .collect();
+    assert_eq!(expected_values, &actual_values);
 }
 
 pub fn get_expected_chain_values(processed_chain: &[MockBlockHeader]) -> Vec<(u64, MockHash)> {

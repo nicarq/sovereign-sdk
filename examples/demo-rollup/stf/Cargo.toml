@@ -46,7 +46,6 @@ rand = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-mock-zkvm = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true, features = ["test-utils"] }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 
 [features]
 default = []

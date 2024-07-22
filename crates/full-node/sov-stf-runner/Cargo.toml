@@ -56,7 +56,7 @@ sov-stf-runner = { workspace = true, features = ["mock"] }
 
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
+sov-test-utils = { workspace = true }
 
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 tokio = { workspace = true, features = ["test-util", "macros"] }

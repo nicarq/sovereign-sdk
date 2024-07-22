@@ -4,9 +4,9 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{Context, Spec, StateCheckpoint, WorkingSet};
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_rollup_interface::zk::StateTransitionPublicData;
 use sov_state::StorageRoot;
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{TestStorageSpec, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::call::AttesterIncentiveErrors;

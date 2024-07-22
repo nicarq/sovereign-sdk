@@ -39,6 +39,5 @@ sov-kernels = { workspace = true, features = ["native"] }
 sov-attester-incentives = { workspace = true, features = ["native"] }
 sov-chain-state = { workspace = true, features = ["native"] }
 sov-value-setter = { workspace = true, features = ["native"] }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }

@@ -1,38 +1,17 @@
 extern crate criterion;
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use criterion::measurement::WallTime;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkGroup, BenchmarkId, Criterion,
 };
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
-use rockbound::cache::cache_container::CacheContainer;
-use rockbound::cache::cache_db::CacheDb;
-use rockbound::cache::change_set::ChangeSet;
-use rockbound::{ReadOnlyLock, SchemaBatch, DB};
+use rockbound::cache::delta_reader::DeltaReader;
+use rockbound::{SchemaBatch, DB};
 use sov_db::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use sov_db::state_db::{JmtHandler, StateDb};
-
-// TODO: Improve for collisions
-fn generate_random_bytes(count: usize) -> Vec<Vec<u8>> {
-    let seed: [u8; 32] = [1; 32];
-
-    // Create an RNG with the specified seed
-    let mut rng = StdRng::from_seed(seed);
-
-    let mut samples: Vec<Vec<u8>> = Vec::with_capacity(count);
-
-    for _ in 0..count {
-        let inner_vec_size = rng.gen_range(32..=256);
-        let storage_key: Vec<u8> = (0..inner_vec_size).map(|_| rng.gen::<u8>()).collect();
-        samples.push(storage_key);
-    }
-
-    samples
-}
+use sov_db::test_utils::generate_random_bytes;
 
 struct TestData {
     largest_key: Vec<u8>,
@@ -76,16 +55,14 @@ fn put_data<N: Namespace>(
 
 fn prepare_data(size: usize, rocksdb: DB) -> TestData {
     assert!(size > 0, "Do not generate empty TestData");
-    let to_parent = Arc::new(RwLock::new(Default::default()));
-    let cache_container = Arc::new(RwLock::new(CacheContainer::new(
-        rocksdb,
-        to_parent.clone().into(),
-    )));
-    let manager = ReadOnlyLock::new(cache_container.clone());
-    let cache_db = CacheDb::new(0, manager);
-    let state_db = StateDb::with_cache_db(cache_db).unwrap();
 
-    let mut raw_data = generate_random_bytes(size * 2 + 1);
+    let rocksdb = Arc::new(rocksdb);
+    let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
+    let db = StateDb::with_delta_reader(reader).unwrap();
+
+    let mut raw_data = generate_random_bytes(size * 2 + 1)
+        .into_iter()
+        .collect::<Vec<Vec<u8>>>();
     let non_existing_key = raw_data.pop().unwrap();
     let random_key = raw_data.first().unwrap().clone();
     let largest_key = raw_data
@@ -97,22 +74,16 @@ fn prepare_data(size: usize, rocksdb: DB) -> TestData {
         .clone();
 
     let version = 1;
-    let mut user_data = put_data::<UserNamespace>(&state_db, raw_data.clone(), version);
+    let mut user_data = put_data::<UserNamespace>(&db, raw_data.clone(), version);
     // TODO: Fails if kernel data does not have anything https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/648
-    let kernel_data = put_data::<KernelNamespace>(&state_db, vec![vec![1], vec![2]], version);
+    let kernel_data = put_data::<KernelNamespace>(&db, vec![vec![1], vec![2]], version);
     user_data.merge(kernel_data);
 
-    {
-        let mut cache_container = cache_container.write().unwrap();
-        let change_set = ChangeSet::new_with_operations(0, user_data);
-        cache_container.add_snapshot(change_set).unwrap();
-        cache_container.commit_snapshot(&0).unwrap();
-    }
+    rocksdb.write_schemas(&user_data).unwrap();
 
-    // re-initialize `StateDb` so latest version is updated.
-    let manager = ReadOnlyLock::new(cache_container.clone());
-    let cache_db = CacheDb::new(0, manager);
-    let db = StateDb::with_cache_db(cache_db).unwrap();
+    // re-initialize `StateDb` so the latest version is updated.
+    let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
+    let db = StateDb::with_delta_reader(reader).unwrap();
     let version = db.get_next_version() - 1;
     for chunk in raw_data.chunks(2) {
         let key = &chunk[0];

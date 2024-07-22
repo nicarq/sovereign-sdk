@@ -1,25 +1,25 @@
 use std::net::SocketAddr;
 
 use sov_db::schema::SchemaBatch;
+use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::{Address, PrivateKey};
 use sov_modules_stf_blueprint::GenesisParams;
-use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
 use sov_sequencer_json_client::Client;
-use sov_state::DefaultStorageSpec;
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use tempfile::TempDir;
 use tokio::sync::watch;
 
 use crate::auth::TestAuth;
 use crate::runtime::optimistic::{create_genesis_config, TestRuntime};
 use crate::runtime::ChainStateConfig;
-use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint};
+use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint, TestStorageManager};
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 
@@ -82,13 +82,10 @@ where
         let admin_pkey = TestPrivateKey::generate();
         let runtime = TestRuntime::<TestSpec, MockDaSpec>::default();
 
-        let storage_config = sov_state::config::Config {
-            path: dir.path().to_path_buf(),
-        };
-        let mut storage_manager =
-            ProverStorageManager::<MockDaSpec, DefaultStorageSpec<TestHasher>>::new(
-                storage_config,
-            )?;
+        let mut storage_manager = NativeStorageManager::<
+            MockDaSpec,
+            ProverStorage<DefaultStorageSpec<TestHasher>>,
+        >::new(dir.path())?;
         let genesis_block_header = MockBlockHeader::from_height(0);
         let (stf_state, _) = storage_manager.create_state_for(&genesis_block_header)?;
 
@@ -158,8 +155,8 @@ where
 }
 
 impl TestSequencerSetup<TestFairBatchBuilder> {
-    /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestRuntime`], [`ProverStorageManager`], executes genesis
-    /// and then builds a new [`FairBatchBuilder`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.  
+    /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestRuntime`], [`NativeStorageManager`], executes genesis
+    /// and then builds a new [`FairBatchBuilder`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.
     pub async fn with_real_batch_builder() -> anyhow::Result<Self> {
         let dir = tempfile::tempdir()?;
 
@@ -168,13 +165,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         let admin_pkey = TestPrivateKey::generate();
         let runtime = TestRuntime::<TestSpec, MockDaSpec>::default();
 
-        let storage_config = sov_state::config::Config {
-            path: dir.path().to_path_buf(),
-        };
-        let mut storage_manager =
-            ProverStorageManager::<MockDaSpec, DefaultStorageSpec<TestHasher>>::new(
-                storage_config,
-            )?;
+        let mut storage_manager: TestStorageManager = NativeStorageManager::new(dir.path())?;
         let genesis_block_header = MockBlockHeader::from_height(0);
         let (stf_state, _) = storage_manager.create_state_for(&genesis_block_header)?;
 

@@ -1,6 +1,4 @@
-use std::sync::Arc;
-
-use rockbound::cache::cache_db::CacheDb;
+use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
 
 use crate::schema::tables::{ModuleAccessoryState, ACCESSORY_TABLES};
@@ -13,8 +11,8 @@ pub type Version = u64;
 /// Typesafe transformer for data, that is not part of the provable state.
 #[derive(Clone, Debug)]
 pub struct AccessoryDb {
-    /// Pointer to [`CacheDb`] for up to date state
-    db: Arc<CacheDb>,
+    /// Pointer to [`DeltaReader`] for correct data.
+    db: DeltaReader,
 }
 
 impl AccessoryDb {
@@ -30,10 +28,9 @@ impl AccessoryDb {
         }
     }
 
-    /// Create instance of [`AccessoryDb`] from [`CacheDb`]
-    pub fn with_cache_db(db: CacheDb) -> anyhow::Result<Self> {
-        // We keep Result type, just for future archival state integration
-        Ok(Self { db: Arc::new(db) })
+    /// Create instance of [`AccessoryDb`] from [`DeltaReader`].
+    pub fn with_reader(reader: DeltaReader) -> anyhow::Result<Self> {
+        Ok(Self { db: reader })
     }
 
     /// Queries for a value in the [`AccessoryDb`], given a key.
@@ -60,7 +57,6 @@ impl AccessoryDb {
 
     /// Collects a sequence of key-value pairs into [`SchemaBatch`].
     pub fn materialize_values(
-        &self,
         key_value_pairs: impl IntoIterator<Item = (Vec<u8>, Option<Vec<u8>>)>,
         version: Version,
     ) -> anyhow::Result<SchemaBatch> {
@@ -74,58 +70,68 @@ impl AccessoryDb {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
-    use crate::test_utils::{commit_changes_through, setup_cache_db_with_container};
 
     #[test]
     fn get_after_set() {
         let tempdir = tempfile::tempdir().unwrap();
-        let (cache_db, cache_container) =
-            setup_cache_db_with_container(tempdir.path(), AccessoryDb::get_rockbound_options());
-        let db = AccessoryDb::with_cache_db(cache_db).unwrap();
+        let rocksdb = Arc::new(
+            AccessoryDb::get_rockbound_options()
+                .default_setup_db_in_path(tempdir.path())
+                .unwrap(),
+        );
+        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
+        let db = AccessoryDb::with_reader(reader).unwrap();
 
         let key = b"foo".to_vec();
         let value = b"bar".to_vec();
-        let changes1 = db
-            .materialize_values(vec![(key.clone(), Some(value.clone()))], 0)
-            .unwrap();
-        commit_changes_through(&cache_container, changes1);
+        let changes1 =
+            AccessoryDb::materialize_values(vec![(key.clone(), Some(value.clone()))], 0).unwrap();
+        rocksdb.write_schemas(&changes1).unwrap();
         assert_eq!(db.get_value_option(&key, 0).unwrap(), Some(value.clone()));
 
         let value2 = b"baz".to_vec();
-        let changes2 = db
-            .materialize_values(vec![(key.clone(), Some(value2.clone()))], 1)
-            .unwrap();
-        commit_changes_through(&cache_container, changes2);
+        let changes2 =
+            AccessoryDb::materialize_values(vec![(key.clone(), Some(value2.clone()))], 1).unwrap();
+        rocksdb.write_schemas(&changes2).unwrap();
         assert_eq!(db.get_value_option(&key, 0).unwrap(), Some(value));
     }
 
     #[test]
     fn get_after_delete() {
         let tempdir = tempfile::tempdir().unwrap();
-        let (cache_db, cache_container) =
-            setup_cache_db_with_container(tempdir.path(), AccessoryDb::get_rockbound_options());
-        let db = AccessoryDb::with_cache_db(cache_db).unwrap();
+        let rocksdb = Arc::new(
+            AccessoryDb::get_rockbound_options()
+                .default_setup_db_in_path(tempdir.path())
+                .unwrap(),
+        );
+        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
+        let db = AccessoryDb::with_reader(reader).unwrap();
 
         let key = b"deleted".to_vec();
         let value = b"baz".to_vec();
-        let changes1 = db
-            .materialize_values(vec![(key.clone(), Some(value.clone()))], 0)
-            .unwrap();
-        commit_changes_through(&cache_container, changes1);
+        let changes1 =
+            AccessoryDb::materialize_values(vec![(key.clone(), Some(value.clone()))], 0).unwrap();
+        rocksdb.write_schemas(&changes1).unwrap();
         assert_eq!(db.get_value_option(&key, 0).unwrap(), Some(value.clone()));
 
-        let changes2 = db.materialize_values(vec![(key.clone(), None)], 0).unwrap();
-        commit_changes_through(&cache_container, changes2);
+        let changes2 = AccessoryDb::materialize_values(vec![(key.clone(), None)], 0).unwrap();
+        rocksdb.write_schemas(&changes2).unwrap();
         assert_eq!(db.get_value_option(&key, 0).unwrap(), None);
     }
 
     #[test]
     fn get_nonexistent() {
         let tempdir = tempfile::tempdir().unwrap();
-        let (cache_db, _cache_container) =
-            setup_cache_db_with_container(tempdir.path(), AccessoryDb::get_rockbound_options());
-        let db = AccessoryDb::with_cache_db(cache_db).unwrap();
+        let rocksdb = Arc::new(
+            AccessoryDb::get_rockbound_options()
+                .default_setup_db_in_path(tempdir.path())
+                .unwrap(),
+        );
+        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
+        let db = AccessoryDb::with_reader(reader).unwrap();
 
         let key = b"spam".to_vec();
         assert_eq!(db.get_value_option(&key, 0).unwrap(), None);

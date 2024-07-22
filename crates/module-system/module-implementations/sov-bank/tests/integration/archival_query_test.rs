@@ -4,10 +4,10 @@ use sov_modules_api::{
     ApiStateAccessor, InfallibleStateAccessor, Module, Spec, StateCheckpoint, StateReader,
     StateWriter,
 };
-use sov_prover_storage_manager::SimpleStorageManager;
 use sov_state::namespaces::Accessory;
 use sov_state::storage::{SlotKey, SlotValue, StateUpdate};
 use sov_state::{ProverStorage, Storage};
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{TestStorageSpec as StorageSpec, TEST_DEFAULT_USER_BALANCE};
 
 use crate::helpers::*;

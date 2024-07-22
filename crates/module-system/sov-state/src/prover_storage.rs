@@ -9,7 +9,7 @@ use sov_db::namespaces::{
     UserNamespace,
 };
 use sov_db::state_db::{JmtHandler, StateDb};
-use sov_db::storage_manager::NativeChangeSet;
+use sov_db::storage_manager::{InitializableNativeStorage, NativeChangeSet, StfStorageHandlers};
 
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
 use crate::config::Config;
@@ -31,6 +31,26 @@ pub struct ProverStorage<S: MerkleProofSpec> {
     db: StateDb,
     accessory_db: AccessoryDb,
     _phantom_hasher: PhantomData<S::Hasher>,
+}
+
+impl<S: MerkleProofSpec> From<StfStorageHandlers> for ProverStorage<S> {
+    fn from(value: StfStorageHandlers) -> Self {
+        ProverStorage::with_db_handles(value.state, value.accessory)
+    }
+}
+
+impl<S: MerkleProofSpec> InitializableNativeStorage for ProverStorage<S> {
+    fn new(db: StateDb, accessory_db: AccessoryDb) -> Self {
+        Self {
+            db,
+            accessory_db,
+            _phantom_hasher: Default::default(),
+        }
+    }
+
+    fn init_db(db: &StateDb) -> NativeChangeSet {
+        ProverStorage::<S>::should_init_db(db).unwrap_or_default()
+    }
 }
 
 impl<S: MerkleProofSpec> ProverStorage<S> {
@@ -221,14 +241,14 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         accessory_writes: &OrderedReadsAndWrites,
     ) -> sov_db::schema::SchemaBatch {
         let latest_version = self.db.get_next_version() - 1;
-        self.accessory_db
-            .materialize_values(
-                accessory_writes.ordered_writes.iter().map(|(k, v_opt)| {
-                    (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))
-                }),
-                latest_version,
-            )
-            .expect("accessory db write must succeed")
+        AccessoryDb::materialize_values(
+            accessory_writes
+                .ordered_writes
+                .iter()
+                .map(|(k, v_opt)| (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))),
+            latest_version,
+        )
+        .expect("accessory db write must succeed")
     }
 
     fn get_with_proof_namespace<N: namespaces::Namespace>(

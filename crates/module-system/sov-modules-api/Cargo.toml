@@ -57,9 +57,9 @@ tempfile = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
-sov-prover-storage-manager = { workspace = true, features = ["test-utils"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-modules-api = { path = ".", features = ["test-utils"] }
+sov-test-utils = { workspace = true }
 
 [features]
 arbitrary = [
@@ -74,6 +74,7 @@ arbitrary = [
     "sov-rollup-interface/arbitrary",
     "sov-state/arbitrary",
     "sov-sequencer-registry/arbitrary",
+    "sov-test-utils/arbitrary",
     "sov-risc0-adapter/arbitrary"
 ]
 bench = [

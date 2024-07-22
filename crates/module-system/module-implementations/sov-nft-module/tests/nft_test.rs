@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 use sov_nft_module::utils::get_collection_id;
 use sov_nft_module::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestPrivateKey, TestSpec, TestStorageSpec as StorageSpec};
 
 #[test]
@@ -20,7 +20,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     let collection_id = get_collection_id::<TestSpec>(collection_name, creator_address.as_ref());
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage::<StorageSpec>(tmpdir.path()).unwrap();
+    let storage = new_finalized_storage::<StorageSpec>(tmpdir.path());
     let mut working_set = WorkingSet::<TestSpec>::new_deprecated(storage);
     let nft = NonFungibleToken::default();
 

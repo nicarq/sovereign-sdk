@@ -6,7 +6,7 @@ use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Context, Gas, GasArray, GasPrice, Module, Spec, StateCheckpoint, WorkingSet,
 };
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
 use tempfile::TempDir;
 
@@ -144,7 +144,7 @@ impl BankGasTestCase {
 
         // create a bank instance
         let bank = Bank::default();
-        let storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let storage = new_finalized_storage(tmpdir.path());
         let state = StateCheckpoint::new(storage);
         let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
         bank.genesis(&bank_config, &mut genesis_state).unwrap();

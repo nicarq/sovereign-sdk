@@ -2,13 +2,14 @@ use std::convert::Infallible;
 
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, StateCheckpoint};
-use sov_prover_storage_manager::SimpleStorageManager;
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::TEST_DEFAULT_USER_STAKE;
 
 use crate::call::AttesterIncentiveErrors;
 use crate::tests::helpers::{
     commit_get_new_storage, setup, ExecutionSimulationVars, DEFAULT_ROLLUP_FINALITY, INIT_HEIGHT,
 };
+
 type S = sov_test_utils::TestSpec;
 
 // Test the transition invariant

@@ -5,7 +5,7 @@ use sov_bank::{
 };
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, Spec, StateAccessor, StateCheckpoint, WorkingSet};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
 
 type S = sov_test_utils::TestSpec;
@@ -14,7 +14,7 @@ type S = sov_test_utils::TestSpec;
 fn freeze_token() -> Result<(), Infallible> {
     let bank = Bank::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
 
     let minter = generate_address::<S>("minter");
     let sequencer_address = generate_address::<S>("sequencer");

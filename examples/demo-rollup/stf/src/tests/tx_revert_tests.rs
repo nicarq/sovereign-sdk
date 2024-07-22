@@ -5,23 +5,17 @@ use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{ApiStateAccessor, Batch, PrivateKey, PublicKey, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::{SkippedReason, StfBlueprint, TxEffect};
-use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer_registry::BatchSequencerOutcome;
-use sov_state::DefaultStorageSpec;
 use sov_test_utils::generators::bank::get_default_token_id;
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{
-    has_tx_events_deprecated, new_test_blob_from_batch_deprecated, SchemaBatch, TestHasher,
-    TestSpec,
+    has_tx_events_deprecated, new_test_blob_from_batch_deprecated, TestHasher, TestSpec,
+    TestStorageSpec,
 };
 
-use super::{
-    create_genesis_config_for_tests, create_storage_manager_for_tests, read_private_keys,
-    RuntimeTest,
-};
+use super::{create_genesis_config_for_tests, read_private_keys, RuntimeTest};
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::{
     simulate_da_with_bad_nonce, simulate_da_with_bad_serialization, simulate_da_with_bad_sig,
@@ -49,16 +43,12 @@ fn test_tx_revert() -> Result<(), Infallible> {
     let admin_address: <TestSpec as Spec>::Address = admin_key.to_address();
 
     let storage = {
-        let mut storage_manager = create_storage_manager_for_tests(tempdir.path());
+        let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new(tempdir.path());
         let stf: StfBlueprintTest = StfBlueprint::new();
 
-        let (stf_state, _) = storage_manager
-            .create_state_for(genesis_block.header())
-            .unwrap();
-        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
-            .unwrap();
+        let stf_state = storage_manager.create_storage();
+        let (genesis_root, stf_changes) = stf.init_chain(stf_state, config);
+        storage_manager.commit(stf_changes);
 
         let txs = simulate_da_with_revert_msg(admin_key.clone());
         let blob =
@@ -69,7 +59,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
             batch_blobs: vec![blob],
         };
 
-        let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let stf_state = storage_manager.create_storage();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             stf_state,
@@ -97,17 +87,8 @@ fn test_tx_revert() -> Result<(), Infallible> {
         assert!(txn_receipts[1].receipt.is_successful());
         assert!(txn_receipts[2].receipt.is_reverted());
 
-        storage_manager
-            .save_change_set(
-                block_1.header(),
-                apply_block_result.change_set,
-                SchemaBatch::new(),
-            )
-            .unwrap();
-        let (storage, _) = storage_manager
-            .create_state_after(block_1.header())
-            .unwrap();
-        storage
+        storage_manager.commit(apply_block_result.change_set);
+        storage_manager.create_storage()
     };
 
     // Checks on storage after execution
@@ -163,15 +144,11 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
     let block_1 = genesis_block.next_mock();
     let admin_key = read_private_keys::<TestSpec>().token_deployer.private_key;
     let storage = {
-        let mut storage_manager = create_storage_manager_for_tests(path);
+        let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let (stf_state, _) = storage_manager
-            .create_state_for(genesis_block.header())
-            .unwrap();
-        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
-            .unwrap();
+        let stf_state = storage_manager.create_storage();
+        let (genesis_root, stf_changes) = stf.init_chain(stf_state, config);
+        storage_manager.commit(stf_changes);
 
         let txs = simulate_da_with_bad_sig(admin_key.clone());
 
@@ -183,7 +160,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
             batch_blobs: vec![blob],
         };
 
-        let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let stf_state = storage_manager.create_storage();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             stf_state,
@@ -208,17 +185,8 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 
         // The batch receipt contains no events.
         assert!(!has_tx_events_deprecated(&apply_blob_outcome));
-        storage_manager
-            .save_change_set(
-                block_1.header(),
-                apply_block_result.change_set,
-                SchemaBatch::new(),
-            )
-            .unwrap();
-        let (storage, _) = storage_manager
-            .create_state_after(block_1.header())
-            .unwrap();
-        storage
+        storage_manager.commit(apply_block_result.change_set);
+        storage_manager.create_storage()
     };
 
     {
@@ -239,11 +207,10 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 }
 
 fn get_attester_stake_for_block(
-    block: &MockBlock,
-    storage_manager: &mut ProverStorageManager<MockDaSpec, DefaultStorageSpec<TestHasher>>,
+    storage_manager: &mut SimpleStorageManager<TestStorageSpec>,
     stf: &StfBlueprintTest,
 ) -> Result<u64, Infallible> {
-    let (stf_state, _ledger_state) = storage_manager.create_state_for(block.header()).unwrap();
+    let stf_state = storage_manager.create_storage();
 
     let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(stf_state);
     Ok(stf
@@ -262,18 +229,13 @@ fn test_tx_bad_nonce() {
     let config = create_genesis_config_for_tests();
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
-    let block_2 = block_1.next_mock();
     let admin_key = read_private_keys::<TestSpec>().token_deployer.private_key;
     {
-        let mut storage_manager = create_storage_manager_for_tests(path);
+        let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
-        let (stf_state, _) = storage_manager
-            .create_state_for(genesis_block.header())
-            .unwrap();
+        let stf_state = storage_manager.create_storage();
         let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
-            .unwrap();
+        storage_manager.commit(stf_state);
 
         let txs = simulate_da_with_bad_nonce(admin_key);
 
@@ -285,10 +247,9 @@ fn test_tx_bad_nonce() {
             batch_blobs: vec![blob],
         };
 
-        let initial_sequencer_stake =
-            get_attester_stake_for_block(&block_1, &mut storage_manager, &stf);
+        let initial_sequencer_stake = get_attester_stake_for_block(&mut storage_manager, &stf);
 
-        let (stf_state, _) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let stf_state = storage_manager.create_storage();
 
         let apply_block_result = stf.apply_slot(
             &genesis_root,
@@ -324,16 +285,9 @@ fn test_tx_bad_nonce() {
         );
 
         // We can check that the sequencer staked amount went down.
-        storage_manager
-            .save_change_set(
-                block_1.header(),
-                apply_block_result.change_set,
-                SchemaBatch::new(),
-            )
-            .expect("Saving the change set should not fail");
+        storage_manager.commit(apply_block_result.change_set);
 
-        let final_sequencer_stake =
-            get_attester_stake_for_block(&block_2, &mut storage_manager, &stf);
+        let final_sequencer_stake = get_attester_stake_for_block(&mut storage_manager, &stf);
 
         assert!(
             final_sequencer_stake < initial_sequencer_stake,
@@ -353,24 +307,18 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
 
     let genesis_block = MockBlock::default();
     let block_1 = genesis_block.next_mock();
-    let mut storage_manager = create_storage_manager_for_tests(path);
+    let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new(path);
     let admin_key = read_private_keys::<TestSpec>().token_deployer.private_key;
 
     let (genesis_root, sequencer_balance_before) = {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
-        let (stf_state, _) = storage_manager
-            .create_state_for(genesis_block.header())
-            .unwrap();
-        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
-            .unwrap();
+        let stf_state = storage_manager.create_storage();
+        let (genesis_root, stf_changes) = stf.init_chain(stf_state, config);
+        storage_manager.commit(stf_changes);
 
         let balance = {
-            let (stf_state, _) = storage_manager
-                .create_state_after(genesis_block.header())
-                .unwrap();
+            let stf_state = storage_manager.create_storage();
             let runtime: RuntimeTest = Runtime::default();
             let mut state = StateCheckpoint::<TestSpec>::new(stf_state.clone());
 
@@ -396,7 +344,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
             batch_blobs: vec![blob],
         };
 
-        let (storage, _) = storage_manager.create_state_for(block_1.header()).unwrap();
+        let storage = storage_manager.create_storage();
         let apply_block_result = stf.apply_slot(
             &genesis_root,
             storage,
@@ -419,17 +367,8 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
 
         // The batch receipt contains no events.
         assert!(!has_tx_events_deprecated(&apply_blob_outcome));
-        storage_manager
-            .save_change_set(
-                block_1.header(),
-                apply_block_result.change_set,
-                SchemaBatch::new(),
-            )
-            .unwrap();
-        let (storage, _) = storage_manager
-            .create_state_after(block_1.header())
-            .unwrap();
-        storage
+        storage_manager.commit(apply_block_result.change_set);
+        storage_manager.create_storage()
     };
 
     {

@@ -1,6 +1,7 @@
 - #966 Adds gas & fees relevant logic to the `STF::process_proof` method.
+- #954 Replaces `ProverStorageManager` with `NativeStorageManager`. `StateDb`, `AccessoryDb` and `LedgerDb` now have different constructors.
 - #956 Split stf_blueprint into smaller chunks.
-- #950 Add metadata abou gas & fees to the serialized proof.
+- #950 Add metadata about gas & fees to the serialized proof.
 - #943 Add `ProofSerializer` trait which allow adding additional metadata to the proof blob.
 - #908 refactors the testing framework to achieve the following objectives:
    - Allow the execution of transactions from different modules in one test

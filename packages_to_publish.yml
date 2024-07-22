@@ -4,7 +4,6 @@
 - sov-rest-utils
 - sov-db
 - sov-state
-- sov-prover-storage-manager
 - sov-modules-macros # Requires --no-verify because it writes outside of OUT_DIR.
 - sov-modules-api
 - sov-metrics

@@ -163,12 +163,12 @@ impl<S: sov_modules_api::Spec> Token<S> {
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         if from == to {
-            tracing::debug!("Token transfer succeeded because it was transferring tokens to self.");
+            tracing::trace!("Token transfer succeeded because it was transferring tokens to self.");
             return Ok(());
         }
 
         if amount == 0 {
-            tracing::debug!("Token transfer succeeded because the transfer amount was zero.");
+            tracing::trace!("Token transfer succeeded because the transfer amount was zero.");
             return Ok(());
         }
 

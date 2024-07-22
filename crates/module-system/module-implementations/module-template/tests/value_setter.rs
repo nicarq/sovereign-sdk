@@ -1,14 +1,14 @@
 use module_template::{CallMessage, Event, ExampleModule, ExampleModuleConfig};
 use sov_modules_api::{Address, Context, Module, Spec, StateCheckpoint};
-use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::ZkStorage;
+use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestSpec, TestStorageSpec, ZkTestSpec};
 
 #[test]
 fn test_value_setter() {
     let tmpdir = tempfile::tempdir().unwrap();
 
-    let storage = new_orphan_storage::<TestStorageSpec>(tmpdir.path()).unwrap();
+    let storage = new_finalized_storage::<TestStorageSpec>(tmpdir.path());
     let state = StateCheckpoint::new(storage);
 
     let admin = Address::from([1; 32]);

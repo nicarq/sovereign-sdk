@@ -6,21 +6,34 @@ mod tests;
 
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::marker::PhantomData;
 
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 
+use crate::accessory_db::AccessoryDb;
+use crate::state_db::StateDb;
 use crate::storage_manager::groups::{DbGroup, SnapshotGroup};
 
-/// Just simplified version of ProverStorage, without StateDb and NativeDb.
+/// Container that can be used for building actual storage from [`StateDb`] and [`AccessoryDb`].
 #[derive(Debug, Clone)]
-pub struct StfStoragePlaceholder {
-    /// Placeholder for [`crate::state_db::StateDb`].
-    pub state_reader: DeltaReader,
-    /// Placeholder for [`crate::accessory_db::AccessoryDb`].
-    pub accessory_reader: DeltaReader,
+pub struct StfStorageHandlers {
+    #[allow(missing_docs)]
+    pub state: StateDb,
+    #[allow(missing_docs)]
+    pub accessory: AccessoryDb,
+}
+
+/// The only thing [`NativeStorageManager`] needs to know about thing it builds.
+pub trait InitializableNativeStorage: Sized + Send + Sync {
+    #[allow(missing_docs)]
+    fn new(db: StateDb, accessory_db: AccessoryDb) -> Self;
+    /// What changes needs to be written to newly created `StateDb` to be operated successfully.
+    fn init_db(_db: &StateDb) -> NativeChangeSet {
+        NativeChangeSet::default()
+    }
 }
 
 /// Change produced in native execution.
@@ -34,7 +47,7 @@ pub struct NativeChangeSet {
 
 /// Storage manager handles StateDb,
 /// AccessoryDb and LedgerDb lifecycle in relation to the Data Availability layer.
-pub struct NativeStorageManager<Da: DaSpec> {
+pub struct NativeStorageManager<Da: DaSpec, S: InitializableNativeStorage> {
     // L1 forks representation
     // Chain: prev_block -> child_blocks
     chain_forks: HashMap<Da::SlotHash, Vec<Da::SlotHash>>,
@@ -44,18 +57,28 @@ pub struct NativeStorageManager<Da: DaSpec> {
 
     // For writing commited changes.
     db_group: DbGroup,
+    phantom_storage: PhantomData<S>,
 }
 
-impl<Da: DaSpec> NativeStorageManager<Da> {
+impl<Da: DaSpec, S: InitializableNativeStorage> NativeStorageManager<Da, S> {
     /// Create new [`NativeStorageManager`] in a given path.
     pub fn new(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
-        let db_group = DbGroup::new_write(path.as_ref().to_path_buf())?;
+        let mut db_group = DbGroup::new_write(path.as_ref().to_path_buf())?;
+
+        let init_changes = S::init_db(&db_group.get_finalized_state_db()?);
+        let snapshot_group = SnapshotGroup::new(
+            init_changes.state_change_set,
+            init_changes.accessory_change_set,
+            SchemaBatch::new(),
+        );
+        db_group.commit(snapshot_group)?;
 
         Ok(Self {
             chain_forks: Default::default(),
             blocks_to_parent: Default::default(),
             snapshots: Default::default(),
             db_group,
+            phantom_storage: Default::default(),
         })
     }
 
@@ -109,10 +132,7 @@ impl<Da: DaSpec> NativeStorageManager<Da> {
     }
 
     // build a storage up to given block_hash (inclusive).
-    fn create_state_up_to(
-        &self,
-        block_hash: Da::SlotHash,
-    ) -> anyhow::Result<(StfStoragePlaceholder, DeltaReader)> {
+    fn create_state_up_to(&self, block_hash: Da::SlotHash) -> anyhow::Result<(S, DeltaReader)> {
         // Snapshots are in reversed order
         let mut rev_snapshots = Vec::new();
 
@@ -129,9 +149,7 @@ impl<Da: DaSpec> NativeStorageManager<Da> {
             }
         }
 
-        let (stf_storage, ledger_storage) = self.db_group.create_storage(rev_snapshots);
-
-        Ok((stf_storage, ledger_storage))
+        self.db_group.create_storage(rev_snapshots)
     }
 
     #[cfg(test)]
@@ -204,11 +222,12 @@ impl<Da: DaSpec> NativeStorageManager<Da> {
     }
 }
 
-impl<Da: DaSpec> HierarchicalStorageManager<Da> for NativeStorageManager<Da>
+impl<Da: DaSpec, S: InitializableNativeStorage> HierarchicalStorageManager<Da>
+    for NativeStorageManager<Da, S>
 where
     Da::SlotHash: Hash,
 {
-    type StfState = StfStoragePlaceholder;
+    type StfState = S;
     type StfChangeSet = NativeChangeSet;
     type LedgerState = DeltaReader;
     type LedgerChangeSet = SchemaBatch;
@@ -217,7 +236,7 @@ where
         #[cfg(debug_assertions)]
         self.validate_internal_consistency();
         // Create storage based on finalized data
-        let (stf_storage, ledger_storage) = self.db_group.create_storage(Vec::new());
+        let (stf_storage, ledger_storage) = self.db_group.create_storage(Vec::new())?;
         #[cfg(debug_assertions)]
         self.validate_internal_consistency();
         Ok((stf_storage, ledger_storage))
