@@ -51,6 +51,7 @@ risc0-zkvm = { workspace = true, default-features = false, features = ["std"], o
 risc0-zkvm-platform = { workspace = true, optional = true }
 
 [dev-dependencies]
+sov-risc0-adapter = { workspace = true, features = ["native"] }
 bincode = { workspace = true }
 tempfile = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
@@ -72,7 +73,8 @@ arbitrary = [
     "sov-rest-utils/arbitrary",
     "sov-rollup-interface/arbitrary",
     "sov-state/arbitrary",
-    "sov-sequencer-registry/arbitrary"
+    "sov-sequencer-registry/arbitrary",
+    "sov-risc0-adapter/arbitrary"
 ]
 bench = [
     "risc0-cycle-macros",
@@ -81,7 +83,8 @@ bench = [
     "risc0-zkvm-platform",
     "sov-modules-api/bench",
     "sov-state/bench",
-    "sov-sequencer-registry/bench"
+    "sov-sequencer-registry/bench",
+    "sov-risc0-adapter/bench"
 ]
 native = [
     "async-trait",
@@ -103,7 +106,9 @@ native = [
     "tokio",
     "utoipa",
     "utoipa-swagger-ui",
-    "sov-sequencer-registry/native"
+    "sov-sequencer-registry/native",
+    "sov-risc0-adapter/native"
+
 ]
 test-utils = []
 evm = []

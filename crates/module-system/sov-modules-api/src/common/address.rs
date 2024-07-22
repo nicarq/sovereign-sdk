@@ -374,6 +374,8 @@ mod test {
     use core::str::FromStr;
 
     use sha2::Sha256;
+    use sov_risc0_adapter::crypto::Risc0PublicKey;
+    use sov_rollup_interface::crypto::PublicKeyHex;
 
     use super::*;
 
@@ -398,5 +400,24 @@ mod test {
             "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqklh0qh"
         )
         .is_err());
+    }
+
+    #[test]
+    fn test_address_conversion() {
+        let pub_key_hex: PublicKeyHex =
+            "022e229198d957bf0c0a504e7d7bcec99a1d62cccc7861ed2452676ad0323ad8"
+                .try_into()
+                .unwrap();
+
+        let pub_key = Risc0PublicKey::try_from(&pub_key_hex).unwrap();
+
+        let sov_address = pub_key.to_address::<Address<Sha256>>();
+
+        let expected_addr = Address::<Sha256>::from_str(
+            "sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g2vvnwesa0k6gv",
+        )
+        .unwrap();
+
+        assert_eq!(sov_address, expected_addr);
     }
 }
