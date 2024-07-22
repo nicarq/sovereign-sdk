@@ -72,7 +72,7 @@ where
         visible_height: u64,
         is_registered_sequencer: bool,
     ) -> (StateCheckpoint<S>, BatchReceipt, S::Gas) {
-        let (apply_blob_result, mut next_checkpoint, gas_used) = apply_batch::<_, _, _, K>(
+        let (batch_receipt, mut next_checkpoint, gas_used) = apply_batch::<_, _, _, K>(
             &self.runtime,
             checkpoint,
             batch,
@@ -82,7 +82,6 @@ where
             is_registered_sequencer,
         );
 
-        let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
         info!(
             blob_idx,
             blob_hash = hex::encode(batch_receipt.batch_hash),

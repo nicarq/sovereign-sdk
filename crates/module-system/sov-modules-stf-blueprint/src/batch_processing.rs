@@ -1,7 +1,7 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    AuthenticationError, AuthenticationResult, AuthorizeSequencerError, FatalError, GasEnforcer,
+    AuthenticationError, AuthenticationResult, AuthorizeSequencerError, GasEnforcer,
     HasCapabilities, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
     TryReserveGasError, UnregisteredAuthenticationError,
 };
@@ -25,55 +25,11 @@ use crate::{
 /// The receipt type for a transacition using the STF blueprint.
 pub type TransactionReceipt = sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents>;
 
-type ApplyBatchResult<T> = Result<T, ApplyBatchError>;
 /// The receipt for a batch using the STF blueprint.
 pub type BatchReceipt =
     sov_rollup_interface::stf::BatchReceipt<BatchSequencerOutcome, TxReceiptContents>;
 
-#[allow(type_alias_bounds)]
-pub(crate) type ApplyBatch = ApplyBatchResult<BatchReceipt>;
-
-pub(crate) enum ApplyBatchError {
-    // Contains batch hash
-    Ignored {
-        /// The hash of the batch
-        hash: [u8; 32],
-        /// The reason the batch was ignored
-        reason: String,
-    },
-    Slashed {
-        // Contains batch hash
-        hash: [u8; 32],
-        tx_receipts: Vec<TransactionReceipt>,
-        // TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/595>`: change to `S::Gas`
-        gas_price: Vec<u64>,
-        reason: FatalError,
-    },
-}
-
-impl From<ApplyBatchError> for BatchReceipt {
-    fn from(value: ApplyBatchError) -> Self {
-        match value {
-            ApplyBatchError::Ignored { hash, reason } => BatchReceipt {
-                batch_hash: hash,
-                tx_receipts: Vec::new(),
-                inner: BatchSequencerOutcome::Ignored(reason),
-                gas_price: Vec::new(),
-            },
-            ApplyBatchError::Slashed {
-                hash,
-                tx_receipts,
-                gas_price,
-                reason,
-            } => BatchReceipt {
-                batch_hash: hash,
-                tx_receipts,
-                inner: BatchSequencerOutcome::Slashed(reason),
-                gas_price,
-            },
-        }
-    }
-}
+const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer";
 
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -85,7 +41,7 @@ pub(crate) fn apply_batch<S, Da, RT, K>(
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     is_registered_sequencer: bool,
-) -> (ApplyBatch, StateCheckpoint<S>, S::Gas)
+) -> (BatchReceipt, StateCheckpoint<S>, S::Gas)
 where
     S: Spec,
     Da: DaSpec,
@@ -105,17 +61,19 @@ where
         error!(
             error = %e,
             batch_id = hex::encode(batch_with_id.id),
-            "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer",
+            BEGIN_BATCH_HOOK_ERR,
         );
 
         return (
-                Err(ApplyBatchError::Ignored {
-                    hash: batch_with_id.id,
-                    reason: "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer".to_string(),
-                }),
-                checkpoint,
-                S::Gas::zero(),
-            );
+            BatchReceipt {
+                batch_hash: batch_with_id.id,
+                tx_receipts: Vec::new(),
+                inner: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
+                gas_price: Vec::new(),
+            },
+            checkpoint,
+            S::Gas::zero(),
+        );
     }
 
     let raw_txs = batch_with_id.batch.txs;
@@ -180,12 +138,12 @@ where
                                 err=%err, "Tx authentication raised a fatal error, sequencer slashed");
 
                         return (
-                            Err(ApplyBatchError::Slashed {
-                                hash: batch_with_id.id,
-                                reason: err,
+                            BatchReceipt {
+                                batch_hash: batch_with_id.id,
                                 tx_receipts,
+                                inner: BatchSequencerOutcome::Slashed(err),
                                 gas_price: gas_price.to_vec(),
-                            }),
+                            },
                             checkpoint,
                             gas_used,
                         );
@@ -198,10 +156,12 @@ where
                         );
 
                         return (
-                            Err(ApplyBatchError::Ignored {
-                                hash: batch_with_id.id,
-                                reason,
-                            }),
+                            BatchReceipt {
+                                batch_hash: batch_with_id.id,
+                                tx_receipts: Vec::new(),
+                                inner: BatchSequencerOutcome::Ignored(reason),
+                                gas_price: Vec::new(),
+                            },
                             checkpoint,
                             gas_used,
                         );
@@ -258,12 +218,12 @@ where
     };
 
     (
-        Ok(BatchReceipt {
+        BatchReceipt {
             batch_hash: batch_with_id.id,
             tx_receipts,
             inner: sequencer_outcome,
             gas_price: gas_price.to_vec(),
-        }),
+        },
         checkpoint,
         gas_used,
     )

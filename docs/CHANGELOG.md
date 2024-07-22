@@ -1,3 +1,4 @@
+- #1001 StfBlueprint cleanup: Remove ApplyBatch type.
 - #995  Move `SequencerRegistry::hooks` logic to `SequencerRemuneration` capability.
 - #966 Adds gas & fees relevant logic to the `STF::process_proof` method.
 - #954 Replaces `ProverStorageManager` with `NativeStorageManager`. `StateDb`, `AccessoryDb` and `LedgerDb` now have different constructors.
