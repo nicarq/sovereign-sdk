@@ -72,23 +72,5 @@ impl<P: sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerial
 {
 }
 
-// /// A PrivateKey used in the Module System.
-// #[cfg(feature = "native")]
-// pub trait PrivateKey: sov_rollup_interface::crypto::PrivateKey {
-//     /// The public key type associated with this signature scheme.
-//     type PublicKey: PublicKey;
-
-//     type Signature: Signature<PublicKey = Self::PublicKey>;
-// }
-
-// #[cfg(feature = "native")]
-// impl<
-//         P: sov_rollup_interface::crypto::PrivateKey
-//         S: Signature<PublicKey = P::PublicKey>,
-//     > PrivateKey for P
-// {
-//     type PublicKey = P::PublicKey;
-//     type Signature = S;
-// }
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey as PrivateKeyExt;

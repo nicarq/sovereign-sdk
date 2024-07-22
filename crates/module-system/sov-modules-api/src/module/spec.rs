@@ -8,7 +8,7 @@ use sov_rollup_interface::zk::{CryptoSpec, Zkvm};
 use sov_rollup_interface::RollupAddress;
 use sov_state::{Storage, Witness};
 
-use crate::common::Gas;
+use crate::gas::Gas;
 use crate::higher_kinded_types::Generic;
 use crate::transaction::Credentials;
 use crate::{PublicKeyExt, SignatureExt};
