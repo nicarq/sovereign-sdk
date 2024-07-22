@@ -72,6 +72,7 @@ impl<GU: Gas> Display for TransactionConsumption<GU> {
 
 /// The type used to represent the sequencer reward. This type should be obtained from the [`TransactionConsumption`] type.
 #[derive(
+    Copy,
     Debug,
     Clone,
     PartialEq,

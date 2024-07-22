@@ -1,17 +1,45 @@
 use std::convert::Infallible;
 
 use sov_bank::{IntoPayable, Payable, ReserveGasError};
-use sov_modules_api::hooks::ApplyBatchHooks;
-use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward};
-use sov_modules_api::{
-    Batch, BatchWithId, Gas, GasArray, GasMeter, GasUnit, ModuleInfo, RawTx, Spec,
-};
+use sov_mock_da::MockAddress;
+use sov_modules_api::transaction::PriorityFeeBips;
+use sov_modules_api::{Gas, GasArray, GasMeter, GasUnit, ModuleInfo, Spec};
 use sov_test_utils::{
     generate_empty_tx_deprecated, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
 };
 
 use super::helpers::{TestSequencer, S};
-use crate::BatchSequencerOutcome;
+use crate::tests::helpers::GENESIS_SEQUENCER_DA_ADDRESS;
+
+/// Test successful sequencer registration.
+#[test]
+fn test_allowed_sequencer_success() -> Result<(), Infallible> {
+    let (test_sequencer, mut state) =
+        TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
+
+    let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
+
+    assert_eq!(
+        TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_USER_STAKE,
+        balance_after_genesis
+    );
+
+    let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
+
+    test_sequencer
+        .registry
+        .is_sender_allowed(&genesis_sequencer_da_address, &mut state)
+        .unwrap();
+
+    let resp = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
+    assert_eq!(balance_after_genesis, resp);
+    let resp = test_sequencer
+        .registry
+        .resolve_da_address(&genesis_sequencer_da_address, &mut state)?;
+
+    assert!(resp.is_some());
+    Ok(())
+}
 
 /// Tests that the sequencer gets correctly rewarded when it processes a batch and:
 /// - the `GasEnforcer` capability is correctly used (hence the module has enough funds to pay for the reward)
@@ -33,25 +61,9 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
 
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
 
-    let tx = generate_empty_tx_deprecated(
-        PriorityFeeBips::from_percentage(10),
-        balance_after_genesis,
-        None,
-    );
-
-    let txs = vec![RawTx {
-        data: borsh::to_vec(&tx).unwrap(),
-    }];
-
-    // Execute the begin batch hook
-    let test_batch = BatchWithId {
-        batch: Batch { txs },
-        id: [0u8; 32],
-    };
-
     sequencer_test
         .registry
-        .begin_batch_hook(&test_batch, &seq_da_address, &mut state)
+        .is_sender_allowed(&seq_da_address, &mut state)
         .expect("The begin batch hook should succeed");
 
     let transaction_scratchpad = state.to_tx_scratchpad();
@@ -61,6 +73,11 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
         .authorize_sequencer(&seq_da_address, &gas_price, transaction_scratchpad)
         .expect("Impossible to authorize sequencer");
 
+    let tx = generate_empty_tx_deprecated(
+        PriorityFeeBips::from_percentage(10),
+        balance_after_genesis,
+        None,
+    );
     let tx = tx.into();
     // Reserves some gas for the bank
     let mut working_set = match sequencer_test
@@ -106,12 +123,9 @@ fn test_reward_sequencer() -> Result<(), Infallible> {
         "The tip has not been refunded to the sequencer registry"
     );
 
-    // We refund the tip to the sequencer account in the end batch hook
-    sequencer_test.registry.end_batch_hook(
-        BatchSequencerOutcome::Rewarded(SequencerReward(
-            registry_balance_after_refund - registry_balance_after_genesis,
-        )),
+    sequencer_test.registry.reward_sequencer(
         &seq_da_address,
+        registry_balance_after_refund - registry_balance_after_genesis,
         &mut checkpoint,
     );
 

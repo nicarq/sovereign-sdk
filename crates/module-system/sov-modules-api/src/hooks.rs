@@ -69,7 +69,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     /// If this hook returns Err rollup panics
     fn end_batch_hook(
         &self,
-        _result: Self::BatchResult,
+        _result: &Self::BatchResult,
         _sender: &Da::Address,
         _state_checkpoint: &mut StateCheckpoint<Self::Spec>,
     ) {

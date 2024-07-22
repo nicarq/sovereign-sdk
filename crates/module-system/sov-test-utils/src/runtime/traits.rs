@@ -2,7 +2,7 @@
 //! with configurable hooks.
 
 use sov_bank::{Bank, Payable};
-use sov_modules_api::hooks::{ApplyBatchHooks, TxHooks};
+use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BatchWithId, Context, DaSpec, DispatchCall, Genesis, RuntimeEventProcessor, Spec,
@@ -107,26 +107,19 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
     /// The contents of this method are used to override the `begin_batch_hook` of the runtime.
     fn begin_batch_hook_override(
         &self,
-        batch: &BatchWithId,
-        sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        _batch: &BatchWithId,
+        _sender: &Da::Address,
+        _state_checkpoint: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
-        self.sequencer_registry()
-            .begin_batch_hook(batch, sender, state_checkpoint)
+        Ok(())
     }
     /// The contents of this method are used to override the `end_batch_hook` of the runtime.
     fn end_batch_hook_override(
         &self,
-        result: BatchSequencerOutcome,
-        sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        _result: &BatchSequencerOutcome,
+        _sender: &Da::Address,
+        _state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
-            self.sequencer_registry(),
-            result,
-            sender,
-            state_checkpoint,
-        );
     }
     /// The contents of this method are used to override the `begin_slot_hook` of the runtime.
     fn begin_slot_hook_override(

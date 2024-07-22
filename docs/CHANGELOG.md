@@ -1,3 +1,4 @@
+- #995  Move `SequencerRegistry::hooks` logic to `SequencerRemuneration` capability.
 - #966 Adds gas & fees relevant logic to the `STF::process_proof` method.
 - #954 Replaces `ProverStorageManager` with `NativeStorageManager`. `StateDb`, `AccessoryDb` and `LedgerDb` now have different constructors.
 - #956 Split stf_blueprint into smaller chunks.

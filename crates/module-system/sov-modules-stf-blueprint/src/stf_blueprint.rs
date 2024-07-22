@@ -2,9 +2,11 @@ use std::marker::PhantomData;
 
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
+use sov_modules_api::capabilities::SequencerRemuneration;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{BatchWithId, DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage};
 use sov_rollup_interface::stf::StoredEvent;
+use sov_sequencer_registry::BatchSequencerOutcome;
 use tracing::{debug, info};
 
 use crate::batch_processing::{apply_batch, BatchReceipt};
@@ -65,16 +67,16 @@ where
         batch: BatchWithId,
         checkpoint: StateCheckpoint<S>,
         blob_idx: usize,
-        sender: &Da::Address,
+        sequencer_da_address: &Da::Address,
         gas_price: &<S::Gas as Gas>::Price,
         visible_height: u64,
         is_registered_sequencer: bool,
     ) -> (StateCheckpoint<S>, BatchReceipt, S::Gas) {
-        let (apply_blob_result, next_checkpoint, gas_used) = apply_batch::<_, _, _, K>(
+        let (apply_blob_result, mut next_checkpoint, gas_used) = apply_batch::<_, _, _, K>(
             &self.runtime,
             checkpoint,
             batch,
-            sender,
+            sequencer_da_address,
             gas_price,
             visible_height,
             is_registered_sequencer,
@@ -84,12 +86,38 @@ where
         info!(
             blob_idx,
             blob_hash = hex::encode(batch_receipt.batch_hash),
-            %sender,
+            %sequencer_da_address,
             num_txs = batch_receipt.tx_receipts.len(),
             sequencer_outcome = ?batch_receipt.inner,
             ?gas_used,
             "Applied blob and got the sequencer outcome"
         );
+
+        let batch_sequencer_outcome = &batch_receipt.inner;
+        self.runtime.end_batch_hook(
+            batch_sequencer_outcome,
+            sequencer_da_address,
+            &mut next_checkpoint,
+        );
+
+        match &batch_sequencer_outcome {
+            BatchSequencerOutcome::Rewarded(reward) => {
+                info!(%sequencer_da_address, ?reward, "Rewarding sequencer");
+                self.runtime.capabilities().reward_sequencer(
+                    sequencer_da_address,
+                    *reward,
+                    &mut next_checkpoint,
+                );
+            }
+            BatchSequencerOutcome::Slashed(reason) => {
+                info!(%sequencer_da_address, ?reason, "Slashing sequencer");
+                self.runtime
+                    .capabilities()
+                    .slash_sequencer(sequencer_da_address, &mut next_checkpoint);
+            }
+            BatchSequencerOutcome::Ignored(_) | BatchSequencerOutcome::NotRewardable => {}
+        }
+
         for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
             debug!(
                 tx_idx = i,

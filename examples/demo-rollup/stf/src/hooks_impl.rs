@@ -3,8 +3,7 @@ use sov_modules_api::{
     AccessoryStateReaderAndWriter, BatchWithId, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::da::DaSpec;
-use sov_sequencer_registry::{BatchSequencerOutcome, SequencerRegistry};
-use tracing::info;
+use sov_sequencer_registry::BatchSequencerOutcome;
 
 use crate::runtime::Runtime;
 
@@ -19,44 +18,19 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
 
     fn begin_batch_hook(
         &self,
-        batch: &BatchWithId,
-        sender: &Da::Address,
-        state: &mut StateCheckpoint<S>,
+        _batch: &BatchWithId,
+        _sender: &Da::Address,
+        _state: &mut StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
-        // Before executing each batch, check that the sender is registered as a sequencer
-        self.sequencer_registry
-            .begin_batch_hook(batch, sender, state)
+        Ok(())
     }
 
     fn end_batch_hook(
         &self,
-        result: Self::BatchResult,
-        sender: &Da::Address,
-        state: &mut StateCheckpoint<S>,
+        _result: &Self::BatchResult,
+        _sender: &Da::Address,
+        _state: &mut StateCheckpoint<S>,
     ) {
-        // Since we need to make sure the `StfBlueprint` doesn't depend on the module system, we need to
-        // convert the `SequencerOutcome` structures manually.
-        match &result {
-            BatchSequencerOutcome::Rewarded(amount) => {
-                info!(%sender, ?amount, "Rewarding sequencer");
-                <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
-                    &self.sequencer_registry,
-                    result,
-                    sender,
-                    state,
-                );
-            }
-            BatchSequencerOutcome::Ignored(_) | BatchSequencerOutcome::NotRewardable => {}
-            BatchSequencerOutcome::Slashed(reason) => {
-                info!(%sender, ?reason, "Slashing sequencer");
-                <SequencerRegistry<S, Da> as ApplyBatchHooks<Da>>::end_batch_hook(
-                    &self.sequencer_registry,
-                    result,
-                    sender,
-                    state,
-                );
-            }
-        }
     }
 }
 

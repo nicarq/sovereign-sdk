@@ -9,7 +9,6 @@ mod call;
 mod capabilities;
 mod event;
 mod genesis;
-mod hooks;
 
 #[cfg(test)]
 mod tests;

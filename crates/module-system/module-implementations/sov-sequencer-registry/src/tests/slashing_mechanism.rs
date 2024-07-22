@@ -1,21 +1,19 @@
 use std::convert::Infallible;
 
 use sov_bank::GAS_TOKEN_ID;
-use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::capabilities::FatalError;
-use sov_modules_api::hooks::ApplyBatchHooks;
-use sov_modules_api::{Batch, BatchWithId, Context, Module};
+use sov_mock_da::MockAddress;
+use sov_modules_api::{Context, Module};
 use sov_test_utils::{TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE};
 
 use crate::tests::helpers::{
-    generate_address, Da, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY,
+    generate_address, TestSequencer, GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY,
     REWARD_SEQUENCER_KEY, S, UNKNOWN_SEQUENCER_DA_ADDRESS,
 };
-use crate::{BatchSequencerOutcome, CallMessage, SequencerRegistry};
+use crate::CallMessage;
 
-/// Tests the slashing mechanism on the `end_batch_hook` method.
+/// Tests the slashing mechanism.
 #[test]
-fn end_batch_hook_slash() -> Result<(), Infallible> {
+fn test_slash_sequencer() -> Result<(), Infallible> {
     let (test_sequencer, mut state) =
         TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
@@ -23,23 +21,14 @@ fn end_batch_hook_slash() -> Result<(), Infallible> {
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
-    let test_batch = BatchWithId {
-        batch: Batch { txs: vec![] },
-        id: [0u8; 32],
-    };
+    test_sequencer
+        .registry
+        .is_sender_allowed(&genesis_sequencer_da_address, &mut state)
+        .unwrap();
 
     test_sequencer
         .registry
-        .begin_batch_hook(&test_batch, &genesis_sequencer_da_address, &mut state)
-        .unwrap();
-
-    let result = BatchSequencerOutcome::Slashed(FatalError::Other("error".to_string()));
-    <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
-        &test_sequencer.registry,
-        result,
-        &genesis_sequencer_da_address,
-        &mut state,
-    );
+        .slash_sequencer(&genesis_sequencer_da_address, &mut state);
 
     let resp = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
     assert_eq!(balance_after_genesis, resp);
@@ -53,29 +42,21 @@ fn end_batch_hook_slash() -> Result<(), Infallible> {
 
 /// Tests the slashing mechanism for a preferred sequencer on the `end_batch_hook`
 #[test]
-fn end_batch_hook_slash_preferred_sequencer() -> Result<(), Infallible> {
+fn test_slash_preferred_sequencer() -> Result<(), Infallible> {
     let (test_sequencer, mut state) =
         TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, true)?;
     let balance_after_genesis = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
-    let test_batch = BatchWithId {
-        batch: Batch { txs: vec![] },
-        id: [0u8; 32],
-    };
+    test_sequencer
+        .registry
+        .is_sender_allowed(&genesis_sequencer_da_address, &mut state)
+        .unwrap();
 
     test_sequencer
         .registry
-        .begin_batch_hook(&test_batch, &genesis_sequencer_da_address, &mut state)
-        .unwrap();
-
-    <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
-        &test_sequencer.registry,
-        BatchSequencerOutcome::Slashed(FatalError::Other("error".to_string())),
-        &genesis_sequencer_da_address,
-        &mut state,
-    );
+        .slash_sequencer(&genesis_sequencer_da_address, &mut state);
 
     let resp = test_sequencer.query_sequencer_balance(&mut state)?.unwrap();
     assert_eq!(balance_after_genesis, resp);
@@ -93,23 +74,14 @@ fn end_batch_hook_slash_preferred_sequencer() -> Result<(), Infallible> {
 }
 
 #[test]
-fn end_batch_hook_slash_unknown_sequencer() -> Result<(), Infallible> {
+fn test_slash_unknown_sequencer() -> Result<(), Infallible> {
     let (test_sequencer, mut state) =
         TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
-
-    let test_batch = BatchWithId {
-        batch: Batch { txs: vec![] },
-        id: [0u8; 32],
-    };
 
     let sequencer_address = MockAddress::from(UNKNOWN_SEQUENCER_DA_ADDRESS);
     test_sequencer
         .registry
-        .begin_batch_hook(
-            &test_batch,
-            &MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
-            &mut state,
-        )
+        .is_sender_allowed(&MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS), &mut state)
         .unwrap();
 
     let resp = test_sequencer
@@ -117,12 +89,9 @@ fn end_batch_hook_slash_unknown_sequencer() -> Result<(), Infallible> {
         .get_sequencer_address(sequencer_address, &mut state)?;
     assert!(resp.is_none());
 
-    <SequencerRegistry<S, Da> as ApplyBatchHooks<MockDaSpec>>::end_batch_hook(
-        &test_sequencer.registry,
-        BatchSequencerOutcome::Slashed(FatalError::Other("error".to_string())),
-        &MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS),
-        &mut state,
-    );
+    test_sequencer
+        .registry
+        .slash_sequencer(&sequencer_address, &mut state);
 
     let resp = test_sequencer
         .registry
@@ -133,24 +102,17 @@ fn end_batch_hook_slash_unknown_sequencer() -> Result<(), Infallible> {
 }
 
 #[test]
-fn begin_batch_hook_without_enough_stake() -> Result<(), Infallible> {
+fn test_sequencer_without_enough_stake() -> Result<(), Infallible> {
     let (test_sequencer, mut state) =
         TestSequencer::initialize_test(TEST_DEFAULT_USER_BALANCE, false)?;
 
     let genesis_sequencer_da_address = MockAddress::from(GENESIS_SEQUENCER_DA_ADDRESS);
 
-    let test_batch = BatchWithId {
-        batch: Batch { txs: vec![] },
-        id: [0u8; 32],
-    };
-
     test_sequencer.set_coins_amount_to_lock(TEST_DEFAULT_USER_STAKE + 1, &mut state)?;
 
-    let res = test_sequencer.registry.begin_batch_hook(
-        &test_batch,
-        &genesis_sequencer_da_address,
-        &mut state,
-    );
+    let res = test_sequencer
+        .registry
+        .is_sender_allowed(&genesis_sequencer_da_address, &mut state);
 
     assert!(
         res.is_err(),
@@ -240,21 +202,14 @@ fn slashed_sequencer_should_not_preserve_balance() -> Result<(), Infallible> {
         test_sequencer.query_if_sequencer_is_allowed(&genesis_sequencer_da_address, &mut state),
     );
 
-    let result = BatchSequencerOutcome::Slashed(FatalError::Other("error".to_string()));
-
-    let test_batch = BatchWithId {
-        batch: Batch { txs: vec![] },
-        id: [0u8; 32],
-    };
-
     test_sequencer
         .registry
-        .begin_batch_hook(&test_batch, &genesis_sequencer_da_address, &mut state)
+        .is_sender_allowed(&genesis_sequencer_da_address, &mut state)
         .unwrap();
 
     test_sequencer
         .registry
-        .end_batch_hook(result, &genesis_sequencer_da_address, &mut state);
+        .slash_sequencer(&genesis_sequencer_da_address, &mut state);
 
     assert!(
         !test_sequencer.query_if_sequencer_is_allowed(&genesis_sequencer_da_address, &mut state),

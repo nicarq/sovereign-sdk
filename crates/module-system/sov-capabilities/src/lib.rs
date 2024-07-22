@@ -2,11 +2,13 @@ use borsh::BorshDeserialize;
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
     AuthorizationData, AuthorizationResult, GasEnforcer, ProofProcessor, RuntimeAuthorization,
-    SequencerAuthorization, TryReserveGasError,
+    SequencerAuthorization, SequencerRemuneration, TryReserveGasError,
 };
 use sov_modules_api::prelude::tracing;
 use sov_modules_api::proof_metadata::SerializeProofWithDetails;
-use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
+use sov_modules_api::transaction::{
+    AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
+};
 use sov_modules_api::{
     Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome, ProofReceipt,
     Spec, StateCheckpoint, Storage, TxScratchpad, UnlimitedGasMeter, WorkingSet,
@@ -204,5 +206,24 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
                 )
             }
         }
+    }
+}
+
+impl<'a, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>
+    for StandardProvenRollupCapabilities<'a, S, Da>
+{
+    fn reward_sequencer(
+        &self,
+        sender: &Da::Address,
+        reward: SequencerReward,
+        state_checkpoint: &mut StateCheckpoint<S>,
+    ) {
+        self.sequencer_registry
+            .reward_sequencer(sender, reward.into(), state_checkpoint);
+    }
+
+    fn slash_sequencer(&self, sender: &Da::Address, state_checkpoint: &mut StateCheckpoint<S>) {
+        self.sequencer_registry
+            .slash_sequencer(sender, state_checkpoint);
     }
 }

@@ -32,6 +32,7 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
             SequencerStakeMeter = Self::SequencerStakeMeter,
             AuthorizationData = Self::AuthorizationData,
         > + ProofProcessor<S, Da>
+        + SequencerRemuneration<S, Da>
     where
         Self: 'a;
 
