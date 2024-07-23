@@ -1,6 +1,6 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateReader, WorkingSet};
+use sov_modules_api::{ApiStateAccessor, StateReader};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
 
@@ -57,7 +57,7 @@ where
     pub fn get_bond_proof(
         &self,
         address: S::Address,
-        state: &mut WorkingSet<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> StorageProof<<S::Storage as Storage>::Proof> {
         self.bonded_attesters.get_with_proof(&address, state)
     }

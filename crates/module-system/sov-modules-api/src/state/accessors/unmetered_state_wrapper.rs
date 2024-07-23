@@ -4,16 +4,12 @@ use sov_state::{
     CompileTimeNamespace, IsValueCached, SlotKey, SlotValue, StateCodec, StateItemCodec,
     StateItemDecoder,
 };
-#[cfg(feature = "native")]
-use sov_state::{ProvableCompileTimeNamespace, Storage, StorageProof};
 
 use crate::state::accessors::seal::CachedAccessor;
-#[cfg(feature = "native")]
-use crate::{ProvenStateAccessor, Spec, StateReaderAndWriter, WorkingSet};
 use crate::{StateReader, StateWriter};
 
 /// A wrapper around an accessor that does not charge gas for state accesses.
-/// This is used in the testing framework to wrap the [`WorkingSet`] and avoid charging gas in the `post_dispatch_hook` checks for tests.
+/// This is used in the testing framework to wrap the [`crate::WorkingSet`] and avoid charging gas in the `post_dispatch_hook` checks for tests.
 /// It is also currently used in the `EVM` module to avoid double-charging gas for state accesses.
 pub struct UnmeteredStateWrapper<'a, T> {
     pub(crate) inner: &'a mut T,
@@ -82,18 +78,5 @@ where
     fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
         <Self as CachedAccessor<N>>::delete_cached(self, key);
         Ok(())
-    }
-}
-
-#[cfg(feature = "native")]
-impl<'a, N: ProvableCompileTimeNamespace, S: Spec> ProvenStateAccessor<N>
-    for UnmeteredStateWrapper<'a, WorkingSet<S>>
-where
-    WorkingSet<S>: StateReaderAndWriter<N>,
-{
-    type Proof = <S::Storage as Storage>::Proof;
-
-    fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof> {
-        self.inner.get_with_proof(key)
     }
 }
