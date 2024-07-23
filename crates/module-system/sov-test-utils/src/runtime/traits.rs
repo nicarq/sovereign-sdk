@@ -5,10 +5,10 @@ use sov_bank::{Bank, Payable};
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BatchWithId, Context, DaSpec, DispatchCall, Genesis, RuntimeEventProcessor, Spec,
-    StateCheckpoint, WorkingSet,
+    BatchSequencerOutcome, BatchWithId, Context, DaSpec, DispatchCall, Genesis,
+    RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
 };
-use sov_sequencer_registry::{BatchSequencerOutcome, SequencerRegistry};
+use sov_sequencer_registry::SequencerRegistry;
 
 use super::wrapper::EndSlotClosure;
 use super::WorkingSetClosure;

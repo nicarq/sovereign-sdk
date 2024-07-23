@@ -13,16 +13,16 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
 };
 use sov_modules_api::{
-    BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis, GenesisState,
-    MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, ProofReceipt, RawTx,
-    RuntimeEventProcessor, Spec, StateAccessor, StateCheckpoint, TxScratchpad, TypedEvent,
-    UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
+    BatchSequencerOutcome, BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis,
+    GenesisState, MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet,
+    ProofReceipt, RawTx, RuntimeEventProcessor, Spec, StateAccessor, StateCheckpoint, TxScratchpad,
+    TypedEvent, UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::stf::ProofOutcome;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_sequencer_registry::{BatchSequencerOutcome, SequencerRegistry, SequencerStakeMeter};
+use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
 use sov_state::Storage;
 
 use super::traits::{

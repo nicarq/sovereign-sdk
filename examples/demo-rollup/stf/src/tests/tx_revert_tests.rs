@@ -3,11 +3,12 @@ use std::convert::Infallible;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{ApiStateAccessor, Batch, PrivateKey, PublicKey, Spec, StateCheckpoint};
+use sov_modules_api::{
+    ApiStateAccessor, Batch, BatchSequencerOutcome, PrivateKey, PublicKey, Spec, StateCheckpoint,
+};
 use sov_modules_stf_blueprint::{SkippedReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_sequencer_registry::BatchSequencerOutcome;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{

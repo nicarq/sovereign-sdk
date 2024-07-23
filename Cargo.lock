@@ -8350,7 +8350,6 @@ dependencies = [
  "serde",
  "sov-modules-api",
  "sov-rollup-interface",
- "sov-sequencer-registry",
  "sov-state",
  "thiserror",
  "tokio",

@@ -10,10 +10,10 @@ use sov_modules_api::transaction::{
     forced_sequencer_registration_cost, AuthenticatedTransactionData, SequencerReward,
 };
 use sov_modules_api::{
-    BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray, GasMeter, PreExecWorkingSet,
-    RawTx, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
+    BatchSequencerOutcome, BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray,
+    GasMeter, PreExecWorkingSet, RawTx, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter,
+    WorkingSet,
 };
-use sov_sequencer_registry::BatchSequencerOutcome;
 use tracing::{debug, error, info, warn};
 
 use crate::stf_blueprint::convert_to_runtime_events;

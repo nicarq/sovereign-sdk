@@ -2983,7 +2983,6 @@ dependencies = [
  "serde",
  "sov-modules-api",
  "sov-rollup-interface",
- "sov-sequencer-registry",
  "sov-state",
  "thiserror",
  "tracing",
@@ -3066,10 +3065,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "risc0-cycle-macros",
- "risc0-cycle-utils",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "serde",
  "sov-bank",
  "sov-modules-api",

@@ -14,15 +14,15 @@ use sov_modules_api::capabilities::{AuthenticationError, HasCapabilities, Runtim
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::SequencerReward;
-pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
-    BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
-    RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
+    BatchSequencerOutcome, BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis,
+    KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
+    WorkingSet,
 };
+pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
-use sov_sequencer_registry::BatchSequencerOutcome;
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
 pub use stf_blueprint::StfBlueprint;
