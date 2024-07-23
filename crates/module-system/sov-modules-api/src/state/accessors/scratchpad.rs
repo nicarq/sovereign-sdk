@@ -1,12 +1,8 @@
 //! Runtime state machine definitions.
 use sov_state::namespaces::User;
-#[cfg(feature = "native")]
-use sov_state::Storage;
 use sov_state::{
     CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue,
 };
-#[cfg(feature = "native")]
-use sov_state::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
 
 use super::checkpoints::StateCheckpoint;
 use super::internals::{Delta, RevertableWriter};
@@ -21,8 +17,6 @@ use crate::transaction::{
 #[cfg(feature = "test-utils")]
 use crate::UnlimitedGasMeter;
 use crate::{Gas, GasMeter, GasMeteringError};
-#[cfg(feature = "native")]
-use crate::{ProvenStateAccessor, StateReaderAndWriter};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 /// This structure is built from a [`StateCheckpoint`] and is used in the entire transaction lifecycle (from
@@ -79,11 +73,6 @@ impl<S: Spec> UniversalStateAccessor for TxScratchpad<S> {
 }
 
 impl<S: Spec> TxScratchpad<S> {
-    #[cfg(feature = "native")]
-    fn delta(&self) -> &Delta<S::Storage> {
-        &self.delta.inner
-    }
-
     /// Commits the changes of this [`TxScratchpad`] and returns a [`StateCheckpoint`].
     pub fn commit(self) -> StateCheckpoint<S> {
         StateCheckpoint {
@@ -358,7 +347,7 @@ impl<S: Spec> WorkingSet<S> {
 
 #[cfg(feature = "test-utils")]
 impl<S: Spec> WorkingSet<S> {
-    /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`].
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Spec::Storage`].
     ///
     /// ## Deprecated(@theochap)
     /// This method is deprecated and will be removed in the future. Please refrain from writing
@@ -383,7 +372,7 @@ impl<S: Spec> WorkingSet<S> {
     }
 
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
-    /// committing the changes to the underlying [`Storage`] via
+    /// committing the changes to the underlying [`Spec::Storage`] via
     /// [`StateCheckpoint::freeze`].
     ///
     /// ## Safety note
@@ -441,32 +430,5 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for WorkingSet<S> {
 impl<S: Spec> EventContainer for WorkingSet<S> {
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
         self.events.push(TypedEvent::new(event_key, event));
-    }
-}
-
-#[cfg(feature = "native")]
-impl<S: Spec> WorkingSet<S> {
-    fn version(&self) -> Option<u64> {
-        self.inner().delta().version
-    }
-
-    fn inner(&self) -> &TxScratchpad<S> {
-        &self.delta.inner
-    }
-
-    pub(crate) fn storage(&self) -> &S::Storage {
-        &self.inner().delta().inner
-    }
-}
-
-#[cfg(feature = "native")]
-impl<N: ProvableCompileTimeNamespace, S: Spec> ProvenStateAccessor<N> for WorkingSet<S>
-where
-    WorkingSet<S>: StateReaderAndWriter<N>,
-{
-    type Proof = <S::Storage as Storage>::Proof;
-
-    fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof> {
-        self.storage().get_with_proof::<N>(key, self.version())
     }
 }

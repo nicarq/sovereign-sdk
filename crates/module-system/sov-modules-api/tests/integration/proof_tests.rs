@@ -29,9 +29,9 @@ fn make_user_map_proof(
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
-    let mut working_set = WorkingSet::<S>::new_deprecated(storage);
+    let mut state = ApiStateAccessor::<S>::new(storage);
 
-    let proof = map.get_with_proof(&1, &mut working_set);
+    let proof = map.get_with_proof(&1, &mut state);
     (root, proof, map)
 }
 
@@ -46,11 +46,11 @@ fn make_user_value_proof(
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let mut working_set = StateCheckpoint::<S>::new(storage.clone());
+    let mut state = StateCheckpoint::<S>::new(storage.clone());
     let state_val = StateValue::new(Prefix::new(vec![0]));
-    state_val.set(&value, &mut working_set).unwrap_infallible();
+    state_val.set(&value, &mut state).unwrap_infallible();
 
-    let (cache_log, _, witness) = working_set.freeze();
+    let (cache_log, _, witness) = state.freeze();
 
     let (root, change_set) = storage
         .validate_and_materialize(cache_log, &witness)
@@ -58,9 +58,9 @@ fn make_user_value_proof(
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
-    let mut working_set = WorkingSet::<S>::new_deprecated(storage);
+    let mut state = ApiStateAccessor::<S>::new(storage);
 
-    let proof = state_val.get_with_proof(&mut working_set);
+    let proof = state_val.get_with_proof(&mut state);
     (root, proof, state_val)
 }
 

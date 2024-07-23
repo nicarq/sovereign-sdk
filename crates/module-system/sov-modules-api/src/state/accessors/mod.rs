@@ -20,7 +20,9 @@ pub use http_api::ApiStateAccessor;
 
 mod scratchpad;
 
-pub use checkpoints::{AccessoryStateCheckpoint, StateCheckpoint};
+#[cfg(feature = "native")]
+pub use checkpoints::native::AccessoryStateCheckpoint;
+pub use checkpoints::StateCheckpoint;
 pub use genesis::GenesisStateAccessor;
 pub use internals::AccessoryDelta;
 pub use kernel::{BootstrapWorkingSet, KernelWorkingSet, VersionedStateReadWriter};

@@ -3,17 +3,20 @@
 
 use std::convert::Infallible;
 
-use sov_state::{
-    Accessory, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
-};
+#[cfg(feature = "native")]
+use sov_state::Accessory;
+use sov_state::{SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User};
 
 use super::genesis::GenesisStateAccessor;
+#[cfg(feature = "native")]
 use super::internals::Delta;
 use super::seal::CachedAccessor;
 use crate::state::traits::{AccessoryStateWriter, ProvableStateReader, ProvableStateWriter};
+#[cfg(feature = "native")]
+use crate::AccessoryStateCheckpoint;
 use crate::{
-    AccessoryDelta, AccessoryStateCheckpoint, AccessoryStateReader, GasMeter, PreExecWorkingSet,
-    Spec, StateCheckpoint, StateReader, StateWriter, TxScratchpad, WorkingSet,
+    AccessoryDelta, AccessoryStateReader, GasMeter, PreExecWorkingSet, Spec, StateCheckpoint,
+    StateReader, StateWriter, TxScratchpad, WorkingSet,
 };
 
 macro_rules! inner_impl_unmetered_state_reader {
@@ -137,21 +140,17 @@ impl<S: Spec> AccessoryStateWriter for WorkingSet<S> {}
 #[cfg(feature = "test-utils")]
 impl<S: Spec> AccessoryStateReader for WorkingSet<S> {}
 
+#[cfg(feature = "native")]
 impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
     type Error = Infallible;
     fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        if !cfg!(feature = "native") {
-            // Note: We might want to have a special case for that
-            panic!("Trying to access a native-protected value {key:?}, from the accessory state, outside of native mode");
-        } else {
-            Ok(
-                <Delta<S::Storage> as CachedAccessor<Accessory>>::get_cached(
-                    &mut self.checkpoint.delta,
-                    key,
-                )
-                .0,
+        Ok(
+            <Delta<S::Storage> as CachedAccessor<Accessory>>::get_cached(
+                &mut self.checkpoint.delta,
+                key,
             )
-        }
+            .0,
+        )
     }
 
     /// Get a decoded value from the storage.
@@ -170,6 +169,8 @@ impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
             .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
     }
 }
+
+#[cfg(feature = "native")]
 impl<'a, S: Spec> AccessoryStateWriter for AccessoryStateCheckpoint<'a, S> {}
 
 pub mod kernel_state {

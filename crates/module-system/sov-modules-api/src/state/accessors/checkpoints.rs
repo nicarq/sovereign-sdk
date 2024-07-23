@@ -1,6 +1,4 @@
-use sov_state::{
-    Accessory, CompileTimeNamespace, IsValueCached, SlotKey, SlotValue, StateAccesses, Storage,
-};
+use sov_state::{CompileTimeNamespace, IsValueCached, SlotKey, SlotValue, StateAccesses, Storage};
 
 use super::internals::{AccessoryDelta, Delta};
 use super::seal::CachedAccessor;
@@ -22,14 +20,6 @@ impl<S: Spec> StateCheckpoint<S> {
         Self {
             delta: Delta::new(inner.clone(), None),
         }
-    }
-
-    /// Returns a handler for the accessory state (non-JMT state).
-    ///
-    /// You can use this method when calling getters and setters on accessory
-    /// state containers, like AccessoryStateMap.
-    pub fn accessory_state(&mut self) -> AccessoryStateCheckpoint<S> {
-        AccessoryStateCheckpoint { checkpoint: self }
     }
 
     /// Returns a handler for the kernel state (priveleged jmt state)
@@ -81,22 +71,44 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for StateCheckpoint<S> 
     }
 }
 
-/// A wrapper over [`crate::WorkingSet`] that only allows access to the accessory
-/// state (non-JMT state).
-pub struct AccessoryStateCheckpoint<'a, S: Spec> {
-    pub(in crate::state) checkpoint: &'a mut StateCheckpoint<S>,
-}
+#[cfg(feature = "native")]
+pub mod native {
+    use sov_state::{Accessory, IsValueCached, SlotKey, SlotValue};
 
-impl<'a, S: Spec> CachedAccessor<Accessory> for AccessoryStateCheckpoint<'a, S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <StateCheckpoint<S> as CachedAccessor<Accessory>>::get_cached(self.checkpoint, key)
+    use crate::state::accessors::seal::CachedAccessor;
+    use crate::{Spec, StateCheckpoint};
+
+    impl<S: Spec> StateCheckpoint<S> {
+        /// Returns a handler for the accessory state (non-JMT state).
+        ///
+        /// You can use this method when calling getters and setters on accessory
+        /// state containers, like AccessoryStateMap.
+        pub fn accessory_state(&mut self) -> AccessoryStateCheckpoint<S> {
+            AccessoryStateCheckpoint { checkpoint: self }
+        }
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <StateCheckpoint<S> as CachedAccessor<Accessory>>::set_cached(self.checkpoint, key, value)
+    /// A wrapper over [`crate::StateCheckpoint`] that only allows access to the accessory
+    /// state (non-JMT state).
+    pub struct AccessoryStateCheckpoint<'a, S: Spec> {
+        pub(in crate::state) checkpoint: &'a mut StateCheckpoint<S>,
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        <StateCheckpoint<S> as CachedAccessor<Accessory>>::delete_cached(self.checkpoint, key)
+    impl<'a, S: Spec> CachedAccessor<Accessory> for AccessoryStateCheckpoint<'a, S> {
+        fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+            <StateCheckpoint<S> as CachedAccessor<Accessory>>::get_cached(self.checkpoint, key)
+        }
+
+        fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
+            <StateCheckpoint<S> as CachedAccessor<Accessory>>::set_cached(
+                self.checkpoint,
+                key,
+                value,
+            )
+        }
+
+        fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
+            <StateCheckpoint<S> as CachedAccessor<Accessory>>::delete_cached(self.checkpoint, key)
+        }
     }
 }
