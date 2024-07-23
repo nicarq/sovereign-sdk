@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use borsh::BorshDeserialize;
 use sov_modules_api::capabilities::{
     AuthorizeSequencerError, GasEnforcer, HasCapabilities, SequencerAuthorization,
-    TryReserveGasError,
+    SequencerRemuneration, TryReserveGasError,
 };
 use sov_modules_api::proof_metadata::SerializeProofWithDetails;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
@@ -40,18 +40,18 @@ where
 {
     let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, &sequencer_da_address);
 
-    // Check if the sequencer is bonded, and create `pre_exec_working_set`.
-    let (sequencer_rollup_address, pre_exec_working_set) =
-        match workflow.authorize_sequencer(gas_price, state.to_tx_scratchpad()) {
-            WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
-            WorkflowResult::EarlyReturn(out) => {
-                tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
-                return out;
-            }
-        };
-
     match SerializeProofWithDetails::<S>::try_from_slice(&raw_proof) {
         Ok(proof_with_details) => {
+            // Check if the sequencer is bonded, and create `pre_exec_working_set`.
+            let (sequencer_rollup_address, pre_exec_working_set) =
+                match workflow.authorize_sequencer(gas_price, state.to_tx_scratchpad()) {
+                    WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
+                    WorkflowResult::EarlyReturn(out) => {
+                        tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
+                        return out;
+                    }
+                };
+
             // Reserve gas for the proof verification. The sequencer pays for the verification.
             // If the sequencer does not have enough funds, then penalize it and return early.
             let working_set = match workflow.try_reserve_gas(
@@ -85,7 +85,7 @@ where
         Err(_) => {
             // We could not deserialize the data from the DA. Penalize the sequencer and return early.
             tracing::debug!("{LOG_PREFIX}: unable to deserialize the aggregated proof");
-            workflow.penalize_for_bad_serialization(blob_hash, pre_exec_working_set)
+            workflow.slash_for_bad_serialization(blob_hash, state)
         }
     }
 }
@@ -176,21 +176,17 @@ where
         }
     }
 
-    fn penalize_for_bad_serialization(
+    fn slash_for_bad_serialization(
         &self,
         blob_hash: [u8; 32],
-        pre_exec_working_set: PreExecWorkingSet<
-            S,
-            <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
-        >,
+        mut state: StateCheckpoint<S>,
     ) -> ProcessProofOutput<S, Da> {
+        self.runtime
+            .capabilities()
+            .slash_sequencer(self.sequencer_da_address, &mut state);
+
         ProcessProofOutput {
-            checkpoint: self
-                .penalize_sequencer(
-                    "Proof processing workflow: Unable to deserialize the aggregated proof",
-                    pre_exec_working_set,
-                )
-                .commit(),
+            checkpoint: state,
             proof_receipt: invalid_proof_receipt::<S, Da>(blob_hash),
         }
     }
