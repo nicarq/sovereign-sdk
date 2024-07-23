@@ -123,7 +123,7 @@ sov-db = { path = "crates/full-node/sov-db", default-features = false, version =
 # Dependencies maintained by Sovereign
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "dc554608895439022f1f11809d2d7a5f76f9a13f" }
 reltester = { git = "https://github.com/sovereign-labs/reltester.git", branch = "main" }
-rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "cda9e2b5a96a0c51e47f0d67f64d5a174da5e60b" }
+rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "d640252e19c08ff47ce1dc2c209b9b1ba2bf9343" }
 # External dependencies
 async-trait = "0.1.71"
 anyhow = { version = "1.0.68" }
