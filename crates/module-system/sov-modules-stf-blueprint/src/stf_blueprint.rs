@@ -4,9 +4,10 @@ use std::marker::PhantomData;
 use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::capabilities::SequencerRemuneration;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::{BatchWithId, DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage};
+use sov_modules_api::{
+    BatchSequencerOutcome, BatchWithId, DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage,
+};
 use sov_rollup_interface::stf::StoredEvent;
-use sov_sequencer_registry::BatchSequencerOutcome;
 use tracing::{debug, info};
 
 use crate::batch_processing::{apply_batch, BatchReceipt};

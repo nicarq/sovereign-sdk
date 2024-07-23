@@ -1,9 +1,9 @@
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::{
-    AccessoryStateReaderAndWriter, BatchWithId, Spec, StateCheckpoint, WorkingSet,
+    AccessoryStateReaderAndWriter, BatchSequencerOutcome, BatchWithId, Spec, StateCheckpoint,
+    WorkingSet,
 };
 use sov_rollup_interface::da::DaSpec;
-use sov_sequencer_registry::BatchSequencerOutcome;
 
 use crate::runtime::Runtime;
 

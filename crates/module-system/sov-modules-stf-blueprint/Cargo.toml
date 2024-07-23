@@ -26,7 +26,6 @@ hex = { workspace = true }
 
 # WARNING: The `stf-blueprint` crate should NOT depend on any Sovereign module.
 sov-rollup-interface = { workspace = true }
-sov-sequencer-registry = { workspace = true }
 sov-state = { workspace = true }
 sov-modules-api = { workspace = true }
 risc0-cycle-macros = { workspace = true, optional = true }
@@ -42,7 +41,6 @@ bench = [
     "risc0-zkvm-platform",
     "sov-modules-api/bench",
     "sov-state/bench",
-    "sov-sequencer-registry/bench"
 ]
 default = []
 native = [
@@ -52,6 +50,5 @@ native = [
     "sov-rollup-interface/native",
     "sov-state/native",
     "tokio",
-    "sov-sequencer-registry/native"
 ]
 test-utils = []

@@ -24,8 +24,7 @@ pub use genesis::*;
 pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
-use sov_modules_api::capabilities::{AllowedSequencer, FatalError};
-use sov_modules_api::transaction::SequencerReward;
+use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::{
     CallResponse, Context, Error, EventEmitter, GenesisState, InfallibleStateAccessor, ModuleId,
     ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue, TxState,
@@ -52,27 +51,6 @@ pub enum AllowedSequencerError {
     /// The sequencer is not registered.
     #[error("The sequencer is not registered")]
     NotRegistered,
-}
-
-/// Represents the different outcomes that can occur for a sequencer after batch processing.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum BatchSequencerOutcome {
-    /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
-    Rewarded(SequencerReward),
-    /// Sequencer loses its deposit and receives no reward.
-    Slashed(
-        /// Reason why sequencer was slashed.
-        FatalError,
-    ),
-    /// Batch was ignored, sequencer deposit left untouched.
-    Ignored(
-        /// Reason why the batch was ignored.
-        String,
-    ),
-    /// The sequencer is not rewardable for the submitted batch.
-    /// This occurs when an unregistered sequencer submits a batch directly to the DA.
-    /// The batch might be applied but there is nobody to reward.
-    NotRewardable,
 }
 
 /// Reason why sequencer was slashed.

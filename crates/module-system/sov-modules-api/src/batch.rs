@@ -1,6 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+use crate::capabilities::FatalError;
+use crate::transaction::SequencerReward;
 /// RawTx represents a serialized rollup transaction received from the DA.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct RawTx {
@@ -53,4 +55,25 @@ pub struct BlobDataWithId {
     pub from_registered_sequencer: bool,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
+}
+
+/// Represents the different outcomes that can occur for a sequencer after batch processing.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum BatchSequencerOutcome {
+    /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
+    Rewarded(SequencerReward),
+    /// Sequencer loses its deposit and receives no reward.
+    Slashed(
+        /// Reason why sequencer was slashed.
+        FatalError,
+    ),
+    /// Batch was ignored, sequencer deposit left untouched.
+    Ignored(
+        /// Reason why the batch was ignored.
+        String,
+    ),
+    /// The sequencer is not rewardable for the submitted batch.
+    /// This occurs when an unregistered sequencer submits a batch directly to the DA.
+    /// The batch might be applied but there is nobody to reward.
+    NotRewardable,
 }
