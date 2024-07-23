@@ -33,7 +33,7 @@ impl<S: Spec> NonFungibleToken<S> {
 
 #[cfg(test)]
 mod test {
-    use sov_modules_api::utils::generate_address;
+    use sov_modules_api::test_utils::generate_address;
     use sov_modules_api::Spec;
     use sov_test_utils::TestSpec;
 

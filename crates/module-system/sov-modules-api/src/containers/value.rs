@@ -26,6 +26,7 @@ pub struct NamespacedStateValue<N, V, Codec = BorshCodec> {
 /// Error type for getters from state values method.
 #[derive(Debug, Error)]
 pub enum StateValueError<N: CompileTimeNamespace> {
+    /// The value was not found for the combination of (namespace, prefix) provided.
     #[error("Value not found for prefix: {0} in namespace: {}", std::any::type_name::<N>())]
     MissingValue(Prefix, PhantomData<N>),
 }

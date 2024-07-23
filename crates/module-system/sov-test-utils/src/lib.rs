@@ -16,8 +16,8 @@ pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::utils::generate_address;
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
     Batch, CryptoSpec, DaSpec, GasArray, GasUnit, Module, RawTx, Spec, StateCheckpoint,

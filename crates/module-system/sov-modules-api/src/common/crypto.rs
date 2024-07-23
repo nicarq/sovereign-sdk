@@ -1,7 +1,11 @@
-//! Asymmetric cryptography primitive definitions
+//! Asymmetric cryptography primitive definitions. These structures extend the traits defined in [`sov_rollup_interface::crypto`]
+//! to provide more constraints that are useful for the module system.
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
+/// An extended digital signature. This extends the [`sov_rollup_interface::crypto::Signature`] trait by requiring
+/// that the signature can be serialized and deserialized using Borsh. Borsh serialization and deserialization
+/// is used to serialize and deserialize standard rollup transactions.
 #[cfg(not(feature = "native"))]
 pub trait SignatureExt:
     sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize
@@ -14,7 +18,11 @@ impl<S: sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerial
 {
 }
 
-/// A digital signature.
+/// An extended digital signature.
+/// This extends the [`sov_rollup_interface::crypto::Signature`] trait by requiring
+/// that the signature can be serialized and deserialized using Borsh. Borsh serialization and deserialization
+/// is used to serialize and deserialize standard rollup transactions.
+/// When the `native` feature is enabled, we also have access to the [`schemars::JsonSchema`] and [`std::str::FromStr`] traits.
 #[cfg(feature = "native")]
 pub trait SignatureExt:
     sov_rollup_interface::crypto::Signature
@@ -25,7 +33,6 @@ pub trait SignatureExt:
 {
 }
 
-/// A digital signature.
 #[cfg(feature = "native")]
 impl<
         S: sov_rollup_interface::crypto::Signature
@@ -37,7 +44,10 @@ impl<
 {
 }
 
-/// PublicKey used in the Module System.
+/// PublicKey used in the Module System. This extends the [`sov_rollup_interface::crypto::PublicKey`] trait by requiring
+/// that the public key can be serialized and deserialized using Borsh. Borsh serialization and deserialization
+/// is used to serialize and deserialize standard rollup transactions.
+/// When the `native` feature is enabled, we also have access to the [`schemars::JsonSchema`] and [`std::str::FromStr`] traits.
 #[cfg(feature = "native")]
 pub trait PublicKeyExt:
     sov_rollup_interface::crypto::PublicKey
@@ -59,7 +69,9 @@ impl<
 {
 }
 
-/// PublicKey used in the Module System.
+/// PublicKey used in the Module System. This extends the [`sov_rollup_interface::crypto::PublicKey`] trait by requiring
+/// that the public key can be serialized and deserialized using Borsh. Borsh serialization and deserialization
+/// is used to serialize and deserialize standard rollup transactions.
 #[cfg(not(feature = "native"))]
 pub trait PublicKeyExt:
     sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize

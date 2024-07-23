@@ -30,6 +30,7 @@ use crate::{Gas, Spec};
 pub struct PriorityFeeBips(pub u64);
 
 impl PriorityFeeBips {
+    /// Creates a priority fee of zero. With a zero priority fee, the sequencer will not receive any reward for batch execution.
     pub const ZERO: Self = Self(0);
 
     /// Constant function to create a priority fee from a percentage.

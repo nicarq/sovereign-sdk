@@ -2,11 +2,11 @@ use std::rc::Rc;
 
 use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId};
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::utils::generate_address;
 use sov_modules_api::{CryptoSpec, PrivateKey as _, Spec};
 
 use crate::{
-    Message, MessageGenerator, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+    generate_address, Message, MessageGenerator, TestSpec, TEST_DEFAULT_MAX_FEE,
+    TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 type PrivateKey<S> = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 

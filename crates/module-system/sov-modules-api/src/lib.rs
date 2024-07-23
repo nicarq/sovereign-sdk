@@ -5,6 +5,7 @@
 //! We also define an interface to handle and process transactions inside the `transaction` module.
 //! General utilities used throughout the codebase are available inside the `common` module.
 
+#![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
 mod batch;
@@ -12,49 +13,77 @@ mod batch;
 #[cfg(feature = "native")]
 pub mod cli;
 
-/// Defines common types, concepts and utilities used throughout the codebase. Among those,
+/// Defines common types, concepts and utilities used throughout the codebase.
 pub mod common;
 
 /// Defines general containers types to interact with the modules' state.
 mod containers;
 
+/// Defines gas traits and metered utilities for gas accounting in the module system.
 pub mod gas;
 
+/// Defines default types and trait implementations for rollups built with the SDK
 pub mod default_spec;
+
+/// SDK internals. This module contains utilities for working with higher-kinded types and traits.
 pub mod higher_kinded_types;
+
+/// Defines hooks that can be used within the module system.
 pub mod hooks;
+
+/// Defines the module trait and its associated types. More generally, this module defines the
+/// way modules are represented in the SDK.
 pub mod module;
+
+/// Defines traits and utilities for writing REST(ful) APIs that expose rollup data.
 #[cfg(feature = "native")]
 pub mod rest;
+
+/// Defines traits for interacting with the ledger when using the sov module system.
 #[cfg(feature = "native")]
 pub mod rpc;
+
+/// Defines the interfaces to interact with the rollup's runtime, more specifically the capabilities
+/// that they may implemented and their possible interactions with the kernel.
 pub mod runtime;
+
+/// Defines the interfaces to interact with the rollup's state, more specifically the state accessors and event handlers/emitters.
 pub mod state;
 
-pub use batch::*;
-pub use common::*;
-pub use gas::*;
-pub use module::*;
-#[cfg(feature = "native")]
-pub use rpc::*;
-pub use runtime::*;
-pub use state::*;
-
+/// Defines the metadata that is used to generate execution proofs.
 pub mod proof_metadata;
 
 mod reexport_macros;
-pub use reexport_macros::*;
 
 #[cfg(test)]
 mod tests;
+
+/// Defines the transaction traits and utilities for working with transactions.
 pub mod transaction;
-#[cfg(feature = "native")]
-pub mod utils;
+
+/// Reexports traits and utilities for optimistic rollups.
+pub mod optimistic {
+    pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};
+}
+
+/// Reexports traits and utilities for DA layers.
+pub mod da {
+    pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
+}
+
 use std::collections::{HashMap, HashSet};
 
+pub use batch::*;
 #[cfg(feature = "native")]
 pub use clap;
+pub use common::*;
 pub use containers::*;
+pub use gas::*;
+pub use module::*;
+pub use reexport_macros::*;
+#[cfg(feature = "native")]
+pub use rpc::*;
+pub use runtime::*;
 #[cfg(feature = "native")]
 pub use schemars;
 #[cfg(feature = "native")]
@@ -70,17 +99,11 @@ pub use sov_rollup_interface::zk::{
 };
 pub use sov_rollup_interface::{digest, execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::Storage;
+pub use state::*;
 
 pub use crate::common::ModuleError as Error;
 pub use crate::proof_metadata::SovApiProofSerializer;
 pub use crate::state::StateReaderAndWriter;
-pub mod optimistic {
-    pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};
-}
-
-pub mod da {
-    pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
-}
 
 /// Prelude with re-exports of external crates used by macros, as well as
 /// important traits and types.

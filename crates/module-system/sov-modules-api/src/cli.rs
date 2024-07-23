@@ -4,13 +4,16 @@ use sov_modules_macros::config_value;
 
 use crate::{clap, CliWallet};
 
+/// A trait that defines the interface for a CLI wallet.
 pub trait CliFrontEnd<RT>
 where
     RT: CliWallet,
 {
+    /// The intermediate representation of the CLI wallet.
     type CliIntermediateRepr<U>;
 }
 
+/// A trait that defines the arguments for a CLI transaction import method.
 pub trait CliTxImportArg {
     /// The chain ID of the transaction.
     fn chain_id(&self) -> u64;

@@ -1,4 +1,4 @@
-use sov_modules_api::utils::generate_address as gen_addr_generic;
+use sov_modules_api::test_utils::generate_address as gen_addr_generic;
 use sov_modules_api::Spec;
 use sov_test_utils::TestSpec;
 

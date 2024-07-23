@@ -1,8 +1,8 @@
 use sov_bank::{Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, GAS_TOKEN_ID};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
-use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Context, Gas, GasArray, GasPrice, Module, Spec, StateCheckpoint, WorkingSet,
 };

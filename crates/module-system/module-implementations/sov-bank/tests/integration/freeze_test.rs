@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use sov_bank::{
     get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, TokenId, GAS_TOKEN_ID,
 };
-use sov_modules_api::utils::generate_address;
+use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::{Context, Error, Module, Spec, StateAccessor, StateCheckpoint, WorkingSet};
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TEST_DEFAULT_USER_BALANCE;

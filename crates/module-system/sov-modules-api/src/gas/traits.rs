@@ -312,14 +312,23 @@ pub enum GasMeteringError<GU: Gas> {
     /// The gas meter has ran out of gas.
     #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, remaining funds {remaining_funds}, total gas consumed {total_gas_consumed}")]
     OutOfGas {
+        /// The amount of gas to charge.
         gas_to_charge: GU,
+        /// The current gas price.
         gas_price: GU::Price,
+        /// The remaining funds in the meter.
         remaining_funds: u64,
+        /// The total amount of gas consumed.
         total_gas_consumed: GU,
     },
     /// The refund operation failed for the gas meter.
     #[error("The gas to refund is greater than the gas used. Gas to refund {gas_to_refund}, gas used {gas_used}")]
-    ImpossibleToRefundGas { gas_to_refund: GU, gas_used: GU },
+    ImpossibleToRefundGas {
+        /// Amount of gas to refund.
+        gas_to_refund: GU,
+        /// Amount of gas currently used by the meter.
+        gas_used: GU,
+    },
 }
 
 /// A type-safe trait that should track the gas consumed by a finite ressource over time.

@@ -41,6 +41,7 @@ impl<V> VersionedStateValue<V> {
 }
 
 impl<V, Codec> VersionedStateValue<V, Codec> {
+    /// The namespace where the versioned state value is stored.
     pub const NAMESPACE: Namespace = Namespace::Kernel;
 
     /// Creates a new [`VersionedStateValue`] with the given prefix and codec.

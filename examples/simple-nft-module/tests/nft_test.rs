@@ -4,7 +4,7 @@ use simple_nft_module::{
     CallMessage, Event, NonFungibleToken, NonFungibleTokenConfig, OwnerResponse,
 };
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::utils::generate_address as gen_addr_generic;
+use sov_modules_api::test_utils::generate_address as gen_addr_generic;
 use sov_modules_api::{Context, Module, Spec, StateCheckpoint};
 use sov_state::ProverStorage;
 use sov_test_utils::storage::new_finalized_storage;

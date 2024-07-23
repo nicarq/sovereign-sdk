@@ -17,7 +17,9 @@ use crate::{BlobData, Spec};
     serde::Deserialize,
 )]
 pub struct SerializeProofWithDetails<S: Spec> {
+    /// The serialized aggregated proof.
     pub proof: SerializedAggregatedProof,
+    /// The transaction metadata.
     pub details: TxDetails<S>,
 }
 

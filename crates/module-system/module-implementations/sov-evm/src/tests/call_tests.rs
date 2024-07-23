@@ -2,8 +2,8 @@ use std::convert::Infallible;
 
 use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
+use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::Credentials;
-use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     Context, KernelWorkingSet, Module, StateAccessor, StateCheckpoint, VersionedStateReadWriter,
 };
