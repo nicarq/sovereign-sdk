@@ -41,8 +41,11 @@ pub enum StateVecError<N> {
 
 type StateVecResult<N, V> = Result<V, StateVecError<N>>;
 
+/// A vector of state values stored in the user namespace.
 pub type StateVec<V, Codec = BorshCodec> = NamespacedStateVec<User, V, Codec>;
+/// A vector of state values stored in the accessory namespace.
 pub type AccessoryStateVec<V, Codec = BorshCodec> = NamespacedStateVec<Accessory, V, Codec>;
+/// A vector of state values stored in the kernel namespace.
 pub type KernelStateVec<V, Codec = BorshCodec> = NamespacedStateVec<Kernel, V, Codec>;
 
 impl<N, V> NamespacedStateVec<N, V>

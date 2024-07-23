@@ -5,8 +5,8 @@ use sov_chain_state::ChainState;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::runtime::capabilities::mocks::MockKernel;
+use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails};
-use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
     ApiStateAccessor, CryptoSpec, GasArray, GasMeter, Genesis, KernelModule, KernelWorkingSet,
     ModuleInfo, PrivateKey, Spec, StateCheckpoint, UnlimitedGasMeter,

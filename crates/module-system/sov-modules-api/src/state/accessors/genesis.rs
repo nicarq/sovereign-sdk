@@ -6,6 +6,8 @@ use super::seal::CachedAccessor;
 use crate::state::events::TypedEvent;
 use crate::{Gas, GasMeter, GasMeteringError, Genesis, Spec, UnlimitedGasMeter};
 
+/// A special state accessor which can only be used at genesis.
+/// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
 pub struct GenesisStateAccessor<S: Spec> {
     delta: Delta<S::Storage>,
     pub(super) events: Vec<TypedEvent>,
@@ -60,6 +62,7 @@ impl<S: Spec> GasMeter<S::Gas> for GenesisStateAccessor<S> {
 }
 
 impl<S: Spec> GenesisStateAccessor<S> {
+    /// Creates a new [`StateCheckpoint`] from this [`GenesisStateAccessor`].
     pub fn checkpoint(self) -> StateCheckpoint<S> {
         StateCheckpoint { delta: self.delta }
     }

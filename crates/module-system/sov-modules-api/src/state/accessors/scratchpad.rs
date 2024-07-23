@@ -84,18 +84,21 @@ impl<S: Spec> TxScratchpad<S> {
         &self.delta.inner
     }
 
+    /// Commits the changes of this [`TxScratchpad`] and returns a [`StateCheckpoint`].
     pub fn commit(self) -> StateCheckpoint<S> {
         StateCheckpoint {
             delta: self.delta.commit(),
         }
     }
 
+    /// Reverts the changes of this [`TxScratchpad`] and returns a [`StateCheckpoint`].
     pub fn revert(self) -> StateCheckpoint<S> {
         StateCheckpoint {
             delta: self.delta.revert(),
         }
     }
 
+    /// Converts this [`TxScratchpad`] into a [`PreExecWorkingSet`].
     pub fn to_pre_exec_working_set<Meter: GasMeter<S::Gas>>(
         self,
         gas_meter: Meter,
@@ -137,8 +140,11 @@ pub struct PreExecWorkingSet<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
     gas_meter: PreExecChecksMeter,
 }
 
+/// An error that can be raised when authorizing a transaction.
 pub struct AuthorizeTransactionError<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
+    /// The reason why the transaction was not authorized.
     pub reason: anyhow::Error,
+    /// An accessor to the current version of the state.
     pub pre_exec_working_set: PreExecWorkingSet<S, PreExecChecksMeter>,
 }
 

@@ -12,6 +12,9 @@ use crate::state::accessors::seal::CachedAccessor;
 use crate::{ProvenStateAccessor, Spec, StateReaderAndWriter, WorkingSet};
 use crate::{StateReader, StateWriter};
 
+/// A wrapper around an accessor that does not charge gas for state accesses.
+/// This is used in the testing framework to wrap the [`WorkingSet`] and avoid charging gas in the `post_dispatch_hook` checks for tests.
+/// It is also currently used in the `EVM` module to avoid double-charging gas for state accesses.
 pub struct UnmeteredStateWrapper<'a, T> {
     pub(crate) inner: &'a mut T,
 }
@@ -33,6 +36,7 @@ impl<'a, T: CachedAccessor<N>, N: CompileTimeNamespace> CachedAccessor<N>
 }
 
 impl<'a, Inner> UnmeteredStateWrapper<'a, Inner> {
+    /// Returns a reference to the inner state accessor.
     pub fn inner(&self) -> &Inner {
         self.inner
     }

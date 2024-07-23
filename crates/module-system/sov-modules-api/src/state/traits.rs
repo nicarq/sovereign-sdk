@@ -31,6 +31,7 @@ use crate::{Gas, GasMeter, GasMeteringError, Spec};
 ///
 /// ```
 pub trait StateAccessor: StateReaderAndWriter<User> {
+    /// Converts this accessor into an [`UnmeteredStateWrapper`]. This method should only be used either in tests or in the `EVM` module.
     #[cfg(any(feature = "test-utils", feature = "evm"))]
     fn to_unmetered(&mut self) -> UnmeteredStateWrapper<Self>
     where
@@ -40,6 +41,21 @@ pub trait StateAccessor: StateReaderAndWriter<User> {
     }
 }
 
+/// A trait that represents a [`StateAccessor`] that never fails on state accesses. Accessing the state with structs that implement
+/// this trait will return [`Infallible`].
+///
+/// ## Usage example
+/// ```
+/// use sov_modules_api::prelude::UnwrapInfallible;
+///
+/// fn delete_state_string<InfallibleAccessor: sov_modules_api::InfallibleStateAccessor>(value: sov_modules_api::StateValue<String>, state: &mut InfallibleAccessor)
+///  -> () {
+///     if let Some(original) = value.get(state).unwrap_infallible() {
+///         println!("original: {}", original);
+///     }
+///     value.delete(state).unwrap_infallible();
+/// }
+/// ```
 pub trait InfallibleStateAccessor:
     StateReader<User, Error = Infallible> + StateWriter<User, Error = Infallible>
 {
@@ -103,8 +119,11 @@ pub enum StateAccessorError<GU: Gas> {
         "An error occured while trying to get the value (key {key:?}) from the state: {inner}, namespace: {namespace:?}"
     )]
     Get {
+        /// The key of the value that was not found.
         key: SlotKey,
+        /// The error that occurred while trying to get the value.
         inner: GasMeteringError<GU>,
+        /// The namespace that was queried.
         namespace: ProvableNamespace,
     },
     /// An error occurred when trying to set a value in the state.
@@ -112,8 +131,11 @@ pub enum StateAccessorError<GU: Gas> {
         "An error occured while trying to set the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
     )]
     Set {
+        /// The key of the value that was not found.
         key: SlotKey,
+        /// The error that occurred while trying to set the value.
         inner: GasMeteringError<GU>,
+        /// The namespace that was queried.
         namespace: ProvableNamespace,
     },
     /// An error occurred when trying to decode a value retrieved from the state.
@@ -121,8 +143,11 @@ pub enum StateAccessorError<GU: Gas> {
         "An error occured while trying to decode the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
     )]
     Decode {
+        /// The key of the value that was not found.
         key: SlotKey,
+        /// The error that occurred while trying to decode the value.
         inner: GasMeteringError<GU>,
+        /// The namespace that was queried.
         namespace: ProvableNamespace,
     },
     /// An error occurred when trying to delete a value from the state.
@@ -130,8 +155,11 @@ pub enum StateAccessorError<GU: Gas> {
         "An error occured while trying to delete the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
     )]
     Delete {
+        /// The key of the value that was not found.
         key: SlotKey,
+        /// The error that occurred while trying to delete the value.
         inner: GasMeteringError<GU>,
+        /// The namespace that was queried.
         namespace: ProvableNamespace,
     },
 }
@@ -210,6 +238,22 @@ fn gas_to_refund_for_hot_delete<GU: Gas>() -> GU {
     GU::from_slice(&GAS_TO_REFUND_FOR_HOT_WRITE)
 }
 
+/// A trait that represents a [`StateReader`] and [`StateWriter`] to a given namespace that never fails on state accesses. Accessing the state with structs that implement
+/// this trait will return [`Infallible`].
+///
+/// ## Usage example
+/// ```
+/// use sov_modules_api::prelude::UnwrapInfallible;
+/// use sov_state::namespaces::User;
+///
+/// fn delete_state_string<InfallibleAccessor: sov_modules_api::InfallibleStateReaderAndWriter<User>>
+/// (value: sov_modules_api::StateValue<String>, state: &mut InfallibleAccessor) -> () {
+///     if let Some(original) = value.get(state).unwrap_infallible() {
+///         println!("original: {}", original);
+///     }
+///     value.delete(state).unwrap_infallible();
+/// }
+/// ```
 pub trait InfallibleStateReaderAndWriter<N: CompileTimeNamespace>:
     StateReader<N, Error = Infallible> + StateWriter<N, Error = Infallible>
 {
@@ -222,6 +266,8 @@ impl<
 {
 }
 
+/// A trait that represents a [`StateReader`] and [`StateWriter`] to the accessory namespace that never fails on state accesses.
+/// Basically a [`InfallibleStateReaderAndWriter<Accessory>`] for the accessory namespace.
 pub trait AccessoryStateReaderAndWriter: InfallibleStateReaderAndWriter<Accessory> {}
 impl<T: InfallibleStateReaderAndWriter<Accessory>> AccessoryStateReaderAndWriter for T {}
 
@@ -267,6 +313,7 @@ where
 
 /// A storage reader which can access a particular namespace.
 pub trait StateReader<N: CompileTimeNamespace>: CachedAccessor<N> {
+    /// The error type returned when a state read operation fails.
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Get a value from the storage. Basically a wrapper around [`StateReader::get`].
@@ -382,6 +429,7 @@ impl<T: AccessoryStateReader> StateReader<Accessory> for T {
 
 /// Provides write-only access to a particular namespace
 pub trait StateWriter<N: CompileTimeNamespace>: CachedAccessor<N> {
+    /// The error type returned when a state write operation fails.
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Sets a value in the storage. Basically a wrapper around [`StateWriter::set`].

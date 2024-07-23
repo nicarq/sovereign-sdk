@@ -4,11 +4,10 @@ use reth_primitives::U256;
 use sov_evm::{Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::ApiStateAccessor;
 use sov_rollup_interface::services::da::DaService;
 
-use crate::{Ethereum, ETH_RPC_ERROR};
+use crate::{to_jsonrpsee_error_object, Ethereum, ETH_RPC_ERROR};
 
 const DEFAULT_CHAIN_ID: u64 = config_value!("CHAIN_ID");
 

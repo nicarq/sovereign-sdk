@@ -4,7 +4,7 @@ use sov_bank::{
     get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, IntoPayable, Payable,
     TokenId, GAS_TOKEN_ID,
 };
-use sov_modules_api::utils::generate_address;
+use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::{
     Context, Error, Module, ModuleId, Spec, StateAccessor, StateCheckpoint, WorkingSet,
 };

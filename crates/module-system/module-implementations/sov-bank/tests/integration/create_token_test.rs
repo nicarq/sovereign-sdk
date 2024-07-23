@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use sov_bank::{get_token_id, Bank, CallMessage};
-use sov_modules_api::utils::generate_address;
+use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::{Context, Module, StateCheckpoint};
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TEST_DEFAULT_USER_BALANCE;

@@ -17,11 +17,11 @@
 //!
 //! | Trait | Derivable | Implemented by |
 //! | ----- | --------- | ---- |
-//! | [`HasRestApi`] | With [`ModuleRestApi`] and [`RuntimeRestApi`] | Modules and runtimes |
-//! | [`HasCustomRestApi`]   | ❌ | Modules and runtimes |
+//! | [`crate::rest::HasRestApi`] | With [`crate::macros::ModuleRestApi`] and [`crate::macros::RuntimeRestApi`] | Modules and runtimes |
+//! | [`crate::rest::HasCustomRestApi`]   | ❌ | Modules and runtimes |
 //!
 //! Implementing or deriving *any* of these traits is optional, but types
-//! implementing [`HasCustomRestApi`] ought to also derive [`HasRestApi`], or
+//! implementing [`crate::rest::HasCustomRestApi`] ought to also derive [`crate::rest::HasRestApi`], or
 //! no REST API will be available for them.
 
 use std::collections::HashMap;
@@ -64,6 +64,7 @@ pub extern crate sov_rest_utils as utils;
 ///   pagination for structured state items like
 ///   [`StateVec`](crate::containers::StateVec).
 pub trait HasRestApi<S: Spec> {
+    /// Returns an [`axum::Router`] on the provided [`StorageReceiver`] instance for the REST API.
     fn rest_api(&self, storage: StorageReceiver<S>) -> axum::Router<()>;
 
     /// Returns the OpenAPI specification for [`HasRestApi::rest_api`].
@@ -142,6 +143,7 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 /// # // END MODULE IMPL
 /// ```
 pub trait HasCustomRestApi<S: Spec>: Sized {
+    /// Returns an [`axum::Router`] on the provided [`ApiState`] instance for the REST API.
     fn custom_rest_api(&self, state: ApiState<Self, S>) -> axum::Router<()>;
 
     /// Returns the OpenAPI specification for [`HasCustomRestApi::custom_rest_api`].

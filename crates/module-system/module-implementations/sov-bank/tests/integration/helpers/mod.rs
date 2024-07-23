@@ -1,5 +1,5 @@
 use sov_bank::{BankConfig, GasTokenConfig};
-use sov_modules_api::utils::generate_address as gen_address_generic;
+use sov_modules_api::test_utils::generate_address as gen_address_generic;
 use sov_modules_api::Spec;
 
 type S = sov_test_utils::TestSpec;

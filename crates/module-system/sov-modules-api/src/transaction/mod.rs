@@ -35,16 +35,22 @@ type RawTxHash = [u8; 32];
     serde::Deserialize,
 )]
 pub struct Transaction<S: Spec> {
+    /// The signature of the transaction.
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
+    /// The public key of the sender of the transaction.
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+    /// The runtime message of the transaction. The message should have been encoded using the [`crate::EncodeCall`] trait.
     pub runtime_msg: Vec<u8>,
+    /// The nonce of the transaction.
     pub nonce: u64,
+    /// The transaction metadata. Contains gas parameters and the chain ID.
     pub details: TxDetails<S>,
 }
 
 /// Errors that can be raised by the [`Transaction::verify`] method.
 #[derive(Error, Debug)]
 pub enum TransactionVerificationError<GU: Gas> {
+    /// An error occurred when deserializing the transaction.
     #[error("Impossible to deserialize transaction: {0}")]
     TransactionDeserializationError(String),
     /// The signature check failed.
@@ -69,14 +75,17 @@ impl<GU: Gas> From<MeteredSigVerificationError<GU>> for TransactionVerificationE
 }
 
 impl<S: Spec> Transaction<S> {
+    /// Returns a reference to the signature of the transaction.
     pub fn signature(&self) -> &<S::CryptoSpec as CryptoSpec>::Signature {
         &self.signature
     }
 
+    /// Returns a reference to the public key of the sender of the transaction.
     pub fn pub_key(&self) -> &<S::CryptoSpec as CryptoSpec>::PublicKey {
         &self.pub_key
     }
 
+    /// Returns a reference to the runtime message of the transaction.
     pub fn runtime_msg(&self) -> &[u8] {
         &self.runtime_msg
     }
@@ -97,6 +106,7 @@ impl<S: Spec> Transaction<S> {
         Ok(())
     }
 
+    /// Creates a new transaction with the provided metadata.
     pub fn new_with_details(
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         message: Vec<u8>,
@@ -172,6 +182,7 @@ impl<S: Spec> UnsignedTransaction<S> {
         }
     }
 
+    /// Creates a new unsigned transaction with the provided metadata.
     pub const fn new_with_details(runtime_msg: Vec<u8>, nonce: u64, details: TxDetails<S>) -> Self {
         Self {
             runtime_msg,
@@ -197,8 +208,10 @@ impl<S: Spec> UnsignedTransaction<S> {
     }
 }
 
+/// A struct containing an authenticated transaction and its associated hash.
 pub struct AuthenticatedTransactionAndRawHash<S: Spec> {
     /// Hash of raw bytes.
     pub raw_tx_hash: RawTxHash,
+    /// Authenticated transaction data.
     pub authenticated_tx: AuthenticatedTransactionData<S>,
 }

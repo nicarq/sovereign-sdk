@@ -34,11 +34,13 @@ impl<GU: Gas> TransactionConsumption<GU> {
         gas_price: GU::Price::ZEROED,
     };
 
-    /// The base fee reward of the transaction expressed as a gas token amount.
+    /// The base fee reward of the transaction expressed in multidimensional gas units.
     pub const fn base_fee(&self) -> &GU {
         &self.base_fee
     }
 
+    /// The base fee reward of the transaction expressed as a gas token amount.
+    /// This amounts to compute the scalar product of [`Self::base_fee`] by the current gas price.
     pub fn base_fee_value(&self) -> u64 {
         self.base_fee.value(&self.gas_price)
     }
@@ -55,6 +57,7 @@ impl<GU: Gas> TransactionConsumption<GU> {
             .saturating_add(self.priority_fee)
     }
 
+    /// The remaining amount of gas tokens locked in the meter.
     pub fn remaining_funds(&self) -> u64 {
         self.remaining_funds
     }
@@ -145,6 +148,7 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
     }
 }
 
+/// A fixed gas cost to pay to register an unregistered sender as a sequencer.
 pub fn forced_sequencer_registration_cost<S: Spec>() -> S::Gas {
     const GAS_FORCED_SEQUENCER_REGISTRATION_COST: [u64; 2] =
         config_value!("GAS_FORCED_SEQUENCER_REGISTRATION_COST");

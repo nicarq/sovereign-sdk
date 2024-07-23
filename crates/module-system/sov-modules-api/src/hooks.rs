@@ -12,7 +12,7 @@ use crate::{
 /// runtime, compatible implementations are selected and utilized by the system to construct its
 /// setup procedures and define post-execution routines.
 pub trait TxHooks {
-    /// The [`Spec`] of the rollup, which defines the relevant types
+    /// The [`Spec`] of the runtime, which defines the relevant types
     type Spec: Spec;
 
     /// The state accessor expected by the methods of this hook.
@@ -51,7 +51,9 @@ pub trait TxHooks {
 /// In essence, the sequencer locks a bond at the beginning of the `StateTransitionFunction::apply_blob`,
 /// and is rewarded once a blob of transactions is processed.
 pub trait ApplyBatchHooks<Da: DaSpec> {
+    /// The runtime spec.
     type Spec: Spec;
+    /// The result of applying a batch.
     type BatchResult;
 
     /// Runs at the beginning of apply_blob, locks the sequencer bond.
@@ -81,8 +83,10 @@ pub type TransitionHeight = u64;
 
 /// Hooks that execute during the `StateTransitionFunction::begin_slot` and `end_slot` functions.
 pub trait SlotHooks {
+    /// The runtime spec.
     type Spec: Spec;
 
+    /// Hook that runs at the beginning of the `apply_slot` function inside the `StateTransitionFunction`.
     fn begin_slot_hook(
         &self,
         _pre_state_root: <Self::Spec as Spec>::VisibleHash,
@@ -90,12 +94,20 @@ pub trait SlotHooks {
     ) {
     }
 
+    /// Hook that runs at the end of the `apply_slot` function inside the `StateTransitionFunction`.
     fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
 }
 
+/// Trait that defines a hook that runs outside of the main slot processing loop.
 pub trait FinalizeHook {
+    /// The runtime spec.
     type Spec: Spec;
 
+    /// Hook that defines logic that runs after calculating the new state root hash.
+    /// At this point, it is impossible to alter state variables because the state root is fixed.
+    /// However, non-state data can be modified.
+    /// Use this hook to perform any post-processing changes to the accessory state (changes to the accessory
+    /// state are not proved and hence don't affect the state root hash).
     fn finalize_hook(
         &self,
         _root_hash: <Self::Spec as Spec>::VisibleHash,

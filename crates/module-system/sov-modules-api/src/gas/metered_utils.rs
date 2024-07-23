@@ -181,10 +181,12 @@ pub enum MeteredBorshDeserializeError<GU: Gas> {
 
 /// A wrapper around [`BorshDeserialize`] that charges gas for deserialization.
 pub trait MeteredBorshDeserialize<GU: Gas>: BorshDeserialize {
+    /// The default amount of gas to charge for each byte of struct to deserialize with borsh.
     const DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION: [u64; 2] =
         config_value!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION");
 
-    /// Verifies a signature with the provided gas meter. This method is a wrapper around [`Signature::verify`].
+    /// Deserializes a value from a byte slice with the provided gas meter. Charge the [`Self::DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION`]
+    /// amount of gas for each byte of the struct to deserialize.
     fn deserialize(
         buf: &mut &[u8],
         meter: &mut impl GasMeter<GU>,
@@ -195,6 +197,7 @@ pub trait MeteredBorshDeserialize<GU: Gas>: BorshDeserialize {
         Self::deserialize_with_custom_cost(buf, meter, deserialization_cost)
     }
 
+    /// Deserializes a value from a byte slice with the provided gas meter and custom deserialization cost.
     fn deserialize_with_custom_cost(
         buf: &mut &[u8],
         meter: &mut impl GasMeter<GU>,

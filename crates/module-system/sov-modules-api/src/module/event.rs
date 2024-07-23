@@ -42,6 +42,7 @@ where
         + serde::Serialize
         + serde::de::DeserializeOwned,
 {
+    /// A global identifier for the event. Event numbers are handed out in sequential order.
     pub event_number: u64,
     /// Event key that was emitted along with this event
     pub event_key: String,
