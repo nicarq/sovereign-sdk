@@ -24,24 +24,6 @@
       "enum": [
         "UnbondProver"
       ]
-    },
-    {
-      "description": "Verifies the provided proof (of format `Vec<u8>`)",
-      "type": "object",
-      "required": [
-        "VerifyProof"
-      ],
-      "properties": {
-        "VerifyProof": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          }
-        }
-      },
-      "additionalProperties": false
     }
   ]
 }

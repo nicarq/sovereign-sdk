@@ -1,6 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod call;
+mod capabilities;
 mod event;
 mod genesis;
 
@@ -88,9 +89,6 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
                 self.bond_prover(bond_amount, context.sender(), state)
             }
             call::CallMessage::UnbondProver => self.unbond_prover(context.sender(), state),
-            call::CallMessage::VerifyProof(proof) => {
-                self.process_proof(&proof, context.sender(), state)
-            }
         }
         .map_err(|e| Error::ModuleError(e.into()))
     }
