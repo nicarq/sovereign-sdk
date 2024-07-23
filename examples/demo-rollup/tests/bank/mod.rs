@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use anyhow::Context;
+use demo_stf::authentication::ModAuth;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
 use futures::StreamExt;
@@ -6,12 +9,15 @@ use sov_bank::event::Event as BankEvent;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Coins, TokenId};
 use sov_kernels::basic::BasicKernelGenesisPaths;
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
+use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{PrivateKey, Spec};
+use sov_modules_api::{BlobData, PrivateKey, RawTx, Spec};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::rpc::FinalityStatus;
+use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{
@@ -26,6 +32,7 @@ const TOKEN_NAME: &str = "test_token";
 struct TestCase {
     wait_for_aggregated_proof: bool,
     finalization_blocks: u32,
+    send_txs_via_sequencer: bool, // NOTE: As opposed to sending them directly to the DA layer.
 }
 
 impl TestCase {
@@ -42,20 +49,47 @@ impl TestCase {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_instant_finality() -> Result<(), anyhow::Error> {
+async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> Result<(), anyhow::Error>
+{
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,
+        send_txs_via_sequencer: true,
     };
     let rollup_prover_config = get_appropriate_rollup_prover_config();
     bank_tx_tests(test_case, rollup_prover_config).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_non_instant_finality() -> Result<(), anyhow::Error> {
+async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> Result<(), anyhow::Error>
+{
+    let test_case = TestCase {
+        wait_for_aggregated_proof: true,
+        finalization_blocks: 0,
+        send_txs_via_sequencer: false,
+    };
+    let rollup_prover_config = get_appropriate_rollup_prover_config();
+    bank_tx_tests(test_case, rollup_prover_config).await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn bank_tx_tests_non_instant_finality_using_da_layer_tx_submission(
+) -> Result<(), anyhow::Error> {
     let test_case = TestCase {
         wait_for_aggregated_proof: false,
         finalization_blocks: 2,
+        send_txs_via_sequencer: false,
+    };
+    bank_tx_tests(test_case, RollupProverConfig::Skip).await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
+) -> Result<(), anyhow::Error> {
+    let test_case = TestCase {
+        wait_for_aggregated_proof: false,
+        finalization_blocks: 2,
+        send_txs_via_sequencer: true,
     };
     bank_tx_tests(test_case, RollupProverConfig::Skip).await
 }
@@ -66,6 +100,25 @@ async fn bank_tx_tests(
 ) -> anyhow::Result<()> {
     let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
+    let (da_service_tx, da_service_rx) = tokio::sync::oneshot::channel();
+
+    // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
+    // Otherwise batches are going to be rejected
+    let sequencer_address = MockAddress::new([0; 32]);
+    let block_time_ms = 5_000;
+    let storable_mock_da_connection_string = "sqlite::memory:".to_string();
+
+    let mock_da_config = MockDaConfig {
+        connection_string: storable_mock_da_connection_string,
+        sender_address: sequencer_address,
+        finalization_blocks: test_case.finalization_blocks,
+        block_producing: if test_case.send_txs_via_sequencer {
+            BlockProducingConfig::OnSubmit
+        } else {
+            BlockProducingConfig::Periodic
+        },
+        block_time_ms,
+    };
 
     let rollup_task = tokio::spawn(async move {
         start_rollup(
@@ -76,15 +129,8 @@ async fn bank_tx_tests(
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
             rollup_prover_config,
-            MockDaConfig {
-                connection_string: "sqlite::memory:".to_string(),
-                // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
-                // Otherwise batches are going to be rejected
-                sender_address: MockAddress::new([0; 32]),
-                finalization_blocks: test_case.finalization_blocks,
-                block_producing: BlockProducingConfig::OnSubmit,
-                block_time_ms: 5_000,
-            },
+            mock_da_config,
+            Some(da_service_tx),
         )
         .await;
     });
@@ -92,11 +138,12 @@ async fn bank_tx_tests(
     let rpc_port = rpc_port_rx.await.unwrap().port();
     let rest_port = rest_port_rx.await.unwrap().port();
     let client = ApiClient::new(rpc_port, rest_port).await?;
+    let da_service = da_service_rx.await.unwrap();
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = rollup_task => err?,
-        res = send_test_bank_txs(test_case, &client) => res?,
+        res = send_test_bank_txs(test_case, &client, da_service, block_time_ms) => res?,
     };
     Ok(())
 }
@@ -175,7 +222,7 @@ fn build_multiple_transfers(
     txs
 }
 
-async fn send_transactions_and_wait_slot(
+async fn send_transactions_via_sequencer_and_wait_slot(
     client: &ApiClient,
     transactions: &[Transaction<TestSpec>],
 ) -> anyhow::Result<u64> {
@@ -198,6 +245,30 @@ async fn send_transactions_and_wait_slot(
         .unwrap_or_default();
 
     Ok(slot_number)
+}
+
+async fn send_transactions_direct_to_da_layer(
+    da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
+    _client: &ApiClient,
+    transactions: &[Transaction<TestSpec>],
+    block_time_ms: u64,
+) -> anyhow::Result<()> {
+    let authenticated_txs = transactions
+        .iter()
+        .map(|signed_tx| ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&signed_tx)?))
+        .collect::<anyhow::Result<Vec<RawTx>>>()?;
+
+    let batch = BlobData::new_batch(authenticated_txs);
+    let batch_bytes = borsh::to_vec(&batch)?;
+
+    let fee = da_service.estimate_fee(batch_bytes.len()).await?;
+
+    da_service.send_transaction(&batch_bytes, fee).await?;
+
+    let sleep_duration = block_time_ms * 2; // NOTE: We wait ~ 2 blocks
+    tokio::time::sleep(std::time::Duration::from_millis(sleep_duration)).await;
+
+    Ok(())
 }
 
 async fn assert_balance(
@@ -298,7 +369,12 @@ async fn assert_bank_event<S: Spec>(
     Ok(())
 }
 
-async fn send_test_bank_txs(test_case: TestCase, client: &ApiClient) -> Result<(), anyhow::Error> {
+async fn send_test_bank_txs(
+    test_case: TestCase,
+    client: &ApiClient,
+    da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
+    block_time_ms: u64,
+) -> Result<(), anyhow::Error> {
     let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
     let user_address: <TestSpec as Spec>::Address = key_and_address.address;
@@ -326,40 +402,65 @@ async fn send_test_bank_txs(test_case: TestCase, client: &ApiClient) -> Result<(
 
     // create token. height 2
     let tx = build_create_token_tx(&key, 0);
-    let slot_number = send_transactions_and_wait_slot(client, &[tx]).await?;
-    assert_eq!(1, slot_number);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    let use_sequencer = test_case.send_txs_via_sequencer;
+    if use_sequencer {
+        let slot_number = send_transactions_via_sequencer_and_wait_slot(client, &[tx]).await?;
+        assert_eq!(1, slot_number);
+        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    } else {
+        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx], block_time_ms)
+            .await?;
+    };
     assert_balance(client, 1000, token_id, user_address, None).await?;
 
     // transfer 100 tokens. assert sender balance. height 3
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
-    let slot_number = send_transactions_and_wait_slot(client, &[tx]).await?;
-    assert_eq!(2, slot_number);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    if use_sequencer {
+        let slot_number = send_transactions_via_sequencer_and_wait_slot(client, &[tx]).await?;
+        assert_eq!(2, slot_number);
+        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    } else {
+        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx], block_time_ms)
+            .await?;
+    };
     assert_balance(client, 900, token_id, user_address, None).await?;
 
     // transfer 200 tokens. assert sender balance. height 4
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
-    let slot_number = send_transactions_and_wait_slot(client, &[tx]).await?;
-    assert_eq!(3, slot_number);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    if use_sequencer {
+        let slot_number = send_transactions_via_sequencer_and_wait_slot(client, &[tx]).await?;
+        assert_eq!(3, slot_number);
+        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    } else {
+        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx], block_time_ms)
+            .await?;
+    };
     assert_balance(client, 700, token_id, user_address, None).await?;
 
-    // assert sender balance at height 2.
-    assert_balance(client, 1000, token_id, user_address, Some(2)).await?;
+    if use_sequencer {
+        // NOTE: Da Layer blob submission has no such exact height inclusion guarantees, so we can't assert them.
 
-    // assert sender balance at height 3.
-    assert_balance(client, 900, token_id, user_address, Some(3)).await?;
+        // assert sender balance at height 2.
+        assert_balance(client, 1000, token_id, user_address, Some(2)).await?;
 
-    // assert sender balance at height 4.
-    assert_balance(client, 700, token_id, user_address, Some(4)).await?;
+        // assert sender balance at height 3.
+        assert_balance(client, 900, token_id, user_address, Some(3)).await?;
+
+        // assert sender balance at height 4.
+        assert_balance(client, 700, token_id, user_address, Some(4)).await?;
+    };
 
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();
     let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
-    let slot_number = send_transactions_and_wait_slot(client, &txs).await?;
-    assert_eq!(4, slot_number);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    if use_sequencer {
+        let slot_number = send_transactions_via_sequencer_and_wait_slot(client, &txs).await?;
+        assert_eq!(4, slot_number);
+        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    } else {
+        send_transactions_direct_to_da_layer(da_service.clone(), client, &txs, block_time_ms)
+            .await?;
+    };
 
     assert_bank_event::<TestSpec>(
         client,
@@ -401,6 +502,13 @@ async fn send_test_bank_txs(test_case: TestCase, client: &ApiClient) -> Result<(
         },
     )
     .await?;
+
+    let slot_number = client
+        .ledger
+        .get_latest_slot(None)
+        .await
+        .map(|res| res.into_inner().data.number)
+        .unwrap_or_default();
 
     if test_case.wait_for_aggregated_proof {
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;

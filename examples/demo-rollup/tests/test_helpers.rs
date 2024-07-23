@@ -1,16 +1,19 @@
 use std::net::SocketAddr;
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use demo_stf::genesis_config::GenesisPaths;
 use sha2::Sha256;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
+use sov_rollup_interface::services::da::DaServiceWithRetries;
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig,
     StorageConfig,
@@ -101,17 +104,27 @@ pub async fn start_rollup(
     kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: RollupProverConfig,
     da_config: MockDaConfig,
+    da_service_tx: Option<oneshot::Sender<Arc<DaServiceWithRetries<StorableMockDaService>>>>,
 ) {
-    construct_rollup(
+    let rollup = construct_rollup(
         rt_genesis_paths,
         kernel_genesis_paths,
         rollup_prover_config,
         da_config,
     )
-    .await
-    .run_and_report_addr(Some(rpc_reporting_channel), Some(rest_reporting_channel))
-    .await
-    .unwrap();
+    .await;
+
+    if let Some(da_service_sender) = da_service_tx {
+        let da_service: std::sync::Arc<
+            DaServiceWithRetries<sov_mock_da::storable::service::StorableMockDaService>,
+        > = rollup.runner.da_service().clone();
+        let _ = da_service_sender.send(da_service);
+    };
+
+    rollup
+        .run_and_report_addr(Some(rpc_reporting_channel), Some(rest_reporting_channel))
+        .await
+        .unwrap();
 }
 
 pub fn get_appropriate_rollup_prover_config() -> RollupProverConfig {

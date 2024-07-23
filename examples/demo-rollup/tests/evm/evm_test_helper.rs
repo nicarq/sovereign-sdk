@@ -23,6 +23,7 @@ pub(crate) async fn start_node(
 ) -> (JoinHandle<()>, SocketAddr, SocketAddr) {
     let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
+    let da_service_channel = None;
 
     let rollup_task = tokio::spawn(async move {
         // Don't provide a prover since the EVM is not currently provable
@@ -44,6 +45,7 @@ pub(crate) async fn start_node(
                 // This parameter is important!
                 block_time_ms: 30_000,
             },
+            da_service_channel,
         )
         .await;
     });
