@@ -6,12 +6,11 @@ use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::{ModuleCallJsonSchema, Spec};
-use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::execution_mode;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_stf_runner::RollupConfig;
 
-type InnerZkvmHost = Risc0Host<'static>;
+type InnerZkvmHost = MockZkvm;
 type OuterZkvmHost = MockZkvm;
 type S = DefaultSpec<
     <<InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,

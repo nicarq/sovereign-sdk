@@ -8166,7 +8166,6 @@ dependencies = [
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-prover-incentives",
- "sov-risc0-adapter",
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-stf-runner",
