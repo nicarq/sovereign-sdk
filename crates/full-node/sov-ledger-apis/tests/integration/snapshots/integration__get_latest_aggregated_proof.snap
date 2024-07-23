@@ -1,5 +1,5 @@
 ---
-source: full-node/sov-ledger-apis/tests/integration/rest.rs
+source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
 expression: response
 ---
 {
@@ -14,6 +14,9 @@ expression: response
       "initialSlotHash": "aW5pdGlhbC1zbG90LWhhc2g=",
       "initialSlotNumber": 18446744073709551615,
       "initialStateRoot": "aW5pdGlhbC1zdGF0ZS1yb290",
+      "rewardedAddresses": [
+        "cHJvdmVyLWFkZHJlc3M="
+      ],
       "validityConditions": []
     },
     "type": "aggregatedProof"

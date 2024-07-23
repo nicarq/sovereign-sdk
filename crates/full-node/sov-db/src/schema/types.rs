@@ -87,6 +87,8 @@ pub struct StoredBatch {
     pub txs: std::ops::Range<TxNumber>,
     /// A customer "receipt" for this batch defined by the rollup.
     pub receipt: DbBytes,
+    /// This batch's parent slot number.
+    pub slot_number: SlotNumber,
 }
 
 impl<B: DeserializeOwned, T: TxReceiptContents> TryFrom<StoredBatch> for BatchResponse<B, T> {
@@ -97,6 +99,7 @@ impl<B: DeserializeOwned, T: TxReceiptContents> TryFrom<StoredBatch> for BatchRe
             receipt: bincode::deserialize(&value.receipt.0)?,
             tx_range: value.txs.start.into()..value.txs.end.into(),
             txs: None,
+            slot_number: value.slot_number.0,
         })
     }
 }
@@ -117,6 +120,8 @@ pub struct StoredTransaction {
     pub body: Option<Vec<u8>>,
     /// A customer "receipt" for this transaction defined by the rollup.
     pub receipt: DbBytes,
+    /// This transaction's parent batch number.
+    pub batch_number: BatchNumber,
 }
 
 impl<R: TxReceiptContents> TryFrom<StoredTransaction> for TxResponse<R> {
@@ -127,13 +132,16 @@ impl<R: TxReceiptContents> TryFrom<StoredTransaction> for TxResponse<R> {
             event_range: value.events.start.into()..value.events.end.into(),
             body: value.body,
             receipt: bincode::deserialize(&value.receipt.0)?,
+            batch_number: value.batch_number.0,
         })
     }
 }
 
-/// Split a `TransactionReceipt` into a `StoredTransaction` and a list of `Event`s for storage in the database.
+/// Split a [`TransactionReceipt`] into a [`StoredTransaction`] and a list of
+/// [`StoredEvent`]s for storage in the database.
 pub fn split_tx_for_storage<T: TxReceiptContents>(
     tx: TransactionReceipt<T>,
+    batch_number: BatchNumber,
     event_offset: u64,
 ) -> (StoredTransaction, Vec<StoredEvent>) {
     let event_range =
@@ -145,6 +153,7 @@ pub fn split_tx_for_storage<T: TxReceiptContents>(
         receipt: DbBytes::new(
             bincode::serialize(&tx.receipt).expect("Serialization to vec is infallible"),
         ),
+        batch_number,
     };
     (tx_for_storage, tx.events)
 }

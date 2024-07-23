@@ -186,6 +186,8 @@ pub struct BatchResponse<B, Tx: TxReceiptContents> {
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the batch.
     pub receipt: B,
+    /// The slot number this batch belongs to.
+    pub slot_number: u64,
 }
 
 /// The response to a JSON-RPC request for a particular transaction.
@@ -203,6 +205,8 @@ pub struct TxResponse<Tx: TxReceiptContents> {
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the transaction.
     pub receipt: TxEffect<Tx>,
+    /// The batch number this transaction belongs to.
+    pub batch_number: u64,
 }
 
 /// An RPC response which might contain a full item or just its hash.

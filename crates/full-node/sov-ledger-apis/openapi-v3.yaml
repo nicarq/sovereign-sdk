@@ -541,12 +541,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Tx"
+        slotNumber:
+          type: integer
+          format: uint64
       required:
         - type
         - number
         - hash
         - txRange
         - receipt
+        - slotNumber
     TxReceipt:
       type: object
       properties:
@@ -581,6 +585,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Event"
+        batchNumber:
+          type: integer
+          format: uint64
       required:
         - type
         - hash
@@ -588,6 +595,7 @@ components:
         - eventRange
         - body
         - receipt
+        - batchNumber
     Event:
       type: object
       properties:

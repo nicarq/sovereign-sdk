@@ -294,16 +294,20 @@ impl LedgerDb {
         let mut current_item_numbers = self.get_next_items_numbers()?;
         let mut schema_batch = SchemaBatch::new();
 
+        let slot_number = SlotNumber(current_item_numbers.slot_number);
+
         let first_batch_number = current_item_numbers.batch_number;
         let last_batch_number = first_batch_number + data_to_commit.batch_receipts.len() as u64;
         // Insert data from "bottom up" to ensure consistency if the application crashes during insertion
         for batch_receipt in data_to_commit.batch_receipts.into_iter() {
+            let batch_number = BatchNumber(current_item_numbers.batch_number);
+
             let first_tx_number = current_item_numbers.tx_number;
             let last_tx_number = first_tx_number + batch_receipt.tx_receipts.len() as u64;
             // Insert transactions and events from each batch before inserting the batch
             for tx in batch_receipt.tx_receipts.into_iter() {
                 let (tx_to_store, events) =
-                    split_tx_for_storage(tx, current_item_numbers.event_number);
+                    split_tx_for_storage(tx, batch_number, current_item_numbers.event_number);
                 for event in events.into_iter() {
                     self.put_event(
                         &event,
@@ -328,12 +332,9 @@ impl LedgerDb {
                 receipt: bincode::serialize(&batch_receipt.inner)
                     .expect("serialization to vec is infallible")
                     .into(),
+                slot_number,
             };
-            self.put_batch(
-                &batch_to_store,
-                &BatchNumber(current_item_numbers.batch_number),
-                &mut schema_batch,
-            )?;
+            self.put_batch(&batch_to_store, &batch_number, &mut schema_batch)?;
             current_item_numbers.batch_number += 1;
         }
 
@@ -345,11 +346,7 @@ impl LedgerDb {
             extra_data: vec![].into(),
             batches: BatchNumber(first_batch_number)..BatchNumber(last_batch_number),
         };
-        self.put_slot(
-            &slot_to_store,
-            &SlotNumber(current_item_numbers.slot_number),
-            &mut schema_batch,
-        )?;
+        self.put_slot(&slot_to_store, &slot_number, &mut schema_batch)?;
 
         self.notification_service
             .register_slot_notification(current_item_numbers.slot_number);

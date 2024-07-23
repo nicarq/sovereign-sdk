@@ -736,6 +736,7 @@ struct Batch<B, TxReceipt: TxReceiptContents, E> {
     pub tx_range: Range<u64>,
     pub receipt: B,
     pub txs: Vec<Transaction<TxReceipt, E>>,
+    pub slot_number: u64,
 }
 
 impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
@@ -754,6 +755,7 @@ impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
             tx_range: batch.tx_range,
             receipt: batch.receipt,
             txs,
+            slot_number: batch.slot_number,
         }
     }
 }
@@ -774,6 +776,7 @@ struct Transaction<TxReceipt: TxReceiptContents, E> {
     pub body: Vec<u8>,
     pub receipt: TxEffect<TxReceipt>,
     pub events: Vec<Event<E>>,
+    pub batch_number: u64,
 }
 
 impl<TxReceipt: TxReceiptContents, E> Transaction<TxReceipt, E> {
@@ -785,6 +788,7 @@ impl<TxReceipt: TxReceiptContents, E> Transaction<TxReceipt, E> {
             body: tx.body.unwrap_or_default(),
             receipt: tx.receipt.into(),
             events: vec![],
+            batch_number: tx.batch_number,
         }
     }
 }
