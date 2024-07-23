@@ -21,7 +21,7 @@ use sov_rollup_interface::da::CountedBufReader;
 #[cfg(feature = "native")]
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 
 use crate::shares::{Blob, BlobIterator, NamespaceGroup};
 use crate::utils::BoxError;
@@ -44,7 +44,7 @@ impl NamespaceWithShares {
         proof_shares: Self,
     ) -> (NamespaceData, NamespaceData) {
         // Parse out the pfds and store them for later retrieval.
-        debug!("Decoding pfb protobufs...");
+        trace!("Decoding pfb protobufs...");
         let mut batch_pbf_map = HashMap::new();
         let mut proof_pbf_map = HashMap::new();
         for tx in pfbs {
@@ -111,7 +111,7 @@ impl NamespaceData {
 
             let commitment = Commitment::from_shares(self.namespace, &blob_ref.celestia_shares())
                 .expect("blob must be valid");
-            info!(commitment = hex::encode(commitment.0), "Extracting blob");
+
             let sender = self
                 .relevant_pfbs
                 .get(&commitment.0[..])
@@ -122,10 +122,12 @@ impl NamespaceData {
 
             let blob: Blob = blob_ref.into();
 
+            let hash = HexHash::new(commitment.0);
+            info!(commitment = %hash, "Extracting blob");
             let blob_tx = BlobWithSender {
                 blob: CountedBufReader::new(blob.into_iter()),
                 sender: sender.parse().expect("Incorrect sender address"),
-                hash: HexHash::new(commitment.0),
+                hash,
             };
 
             output.push(blob_tx);
@@ -184,7 +186,7 @@ impl FilteredCelestiaBlock {
         let tx_data = NamespaceGroup::from(&etx_rows);
         let pfbs = parse_pfb_namespace(tx_data)?;
         // Parse out all of the rows containing etxs
-        debug!("Parsing namespaces...");
+        trace!("Parsing namespaces...");
         let pfb_rows =
             get_rows_containing_namespace(PFB_NAMESPACE, &header.dah, data_square.rows()?)?;
 

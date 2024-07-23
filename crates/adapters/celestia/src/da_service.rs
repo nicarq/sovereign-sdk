@@ -235,7 +235,6 @@ impl DaService for CelestiaService {
         let client = self.client.lock().await;
 
         // Fetch the header and relevant shares via RPC
-        debug!(height, "Fetching header at height...");
         let header = client
             .header_get_by_height(height)
             .await
@@ -243,7 +242,7 @@ impl DaService for CelestiaService {
         trace!(?header, height, "Got the header");
 
         // Fetch the rollup namespace shares, etx data and extended data square
-        debug!("Fetching rollup data...");
+        trace!("Fetching rollup data...");
 
         let etx_rows_future = client.share_get_shares_by_namespace(&header, PFB_NAMESPACE);
         let data_square_future = client.share_get_eds(&header);

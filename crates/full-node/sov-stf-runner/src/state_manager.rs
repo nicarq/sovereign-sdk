@@ -218,7 +218,7 @@ where
         SchemaBatch,
         Vec<StateTransitionInfo<StateRoot, Witness, Da::Spec>>,
     )> {
-        tracing::debug!(
+        tracing::trace!(
             last_finalized_height,
             seen_transitions = self.seen_state_transitions.len(),
             "Start processing finalized state transitions"
@@ -228,7 +228,7 @@ where
         // Checking all seen blocks, in case if there was delay in getting last finalized header.
         while let Some(earliest_seen_state_transition_info) = self.seen_state_transitions.front() {
             let earliest_header = earliest_seen_state_transition_info.da_block_header();
-            tracing::debug!(header = %earliest_header.display(), last_finalized_height, "Checking seen header");
+            tracing::trace!(header = %earliest_header.display(), last_finalized_height, "Checking seen header");
             let height = earliest_header.height();
 
             if height <= last_finalized_height {
@@ -246,7 +246,7 @@ where
 
             break;
         }
-        tracing::debug!(
+        tracing::trace!(
             finalized_transitions = finalized_transitions.len(),
             "Completed check for finalized transitions"
         );
@@ -257,7 +257,7 @@ where
         &mut self,
         block_header: &<<Da as DaService>::Spec as DaSpec>::BlockHeader,
     ) -> anyhow::Result<()> {
-        tracing::debug!(after_block = %block_header.display(), "Updating Ledger and RPC storage");
+        tracing::trace!(after_block = %block_header.display(), "Updating Ledger and RPC storage");
         let (rpc_storage, ledger_state) = self.storage_manager.create_state_after(block_header)?;
 
         // `send_replace` is superior to `send` for our use case. It never fails

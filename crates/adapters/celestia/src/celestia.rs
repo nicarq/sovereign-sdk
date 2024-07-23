@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, NanoSeconds, Time};
 #[cfg(feature = "native")]
 use sov_rollup_interface::services::da::SlotData;
-use tracing::debug;
+use tracing::trace;
 
 use crate::shares::{BlobRefIterator, NamespaceGroup};
 use crate::utils::{read_varint, BoxError};
@@ -335,7 +335,7 @@ pub(crate) fn pfb_from_iter(data: impl Buf, pfb_len: usize) -> Result<MsgPayForB
 fn next_pfb(mut data: &mut BlobRefIterator) -> Result<(MsgPayForBlobs, TxPosition), BoxError> {
     let (start_idx, start_offset) = data.current_position();
     let (len, prefix_len) = read_varint(&mut data).context("failed decoding varint")?;
-    debug!(
+    trace!(
         len_in_bytes = len,
         prefix_len_in_bytes = prefix_len,
         "Decoding wrapped PFB after stripping prefix metdata",

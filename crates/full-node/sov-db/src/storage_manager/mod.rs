@@ -287,7 +287,7 @@ where
         stf_change_set: Self::StfChangeSet,
         ledger_change_set: Self::LedgerChangeSet,
     ) -> anyhow::Result<()> {
-        tracing::debug!(block_header = %block_header.display(), "Saving changes");
+        tracing::trace!(block_header = %block_header.display(), "Saving changes");
         #[cfg(debug_assertions)]
         self.validate_internal_consistency();
         if !self.chain_forks.contains_key(&block_header.prev_hash()) {

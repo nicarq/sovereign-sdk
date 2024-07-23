@@ -333,9 +333,10 @@ where
         self.spawn_sync_status_updater(Duration::from_millis(self.da_polling_interval_ms));
 
         loop {
+            let prev_state_root = self.get_state_root().clone();
             debug!(
                 next_da_height,
-                current_state_root = hex::encode(self.get_state_root().as_ref()),
+                current_state_root = hex::encode(prev_state_root.as_ref()),
                 "Requesting DA block"
             );
             sov_metrics::update_metrics(|metrics| {
@@ -369,6 +370,7 @@ where
             info!(
                 batch_blobs_count = batch_blobs.len(),
                 next_da_height,
+                current_state_root = hex::encode(prev_state_root.as_ref()),
                 batch_blobs = ?batch_blobs
                     .iter()
                     .map(|b| format!(
@@ -455,7 +457,8 @@ where
                 .store(next_da_height, std::sync::atomic::Ordering::Release);
             debug!(
                 height = next_da_height,
-                state_root = hex::encode(self.get_state_root().as_ref()),
+                prev_state_root = hex::encode(prev_state_root.as_ref()),
+                new_state_root = hex::encode(self.get_state_root().as_ref()),
                 "Execution of block is completed"
             );
             next_da_height += 1;
