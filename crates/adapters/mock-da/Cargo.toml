@@ -45,8 +45,8 @@ sov-mock-da = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util", "macros"] }
 rand = { workspace = true }
-testcontainers = { version = "0.18", features = ["blocking"] }
-testcontainers-modules = { version = "0.6", features = ["postgres"] }
+testcontainers = { version = "0.20.1", features = ["blocking"] }
+testcontainers-modules = { version = "0.8.0", features = ["postgres"] }
 
 [features]
 default = []
