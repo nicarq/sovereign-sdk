@@ -1,5 +1,5 @@
 ---
-source: full-node/sov-ledger-apis/tests/integration/rest.rs
+source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
 expression: "&batch"
 ---
 {
@@ -7,6 +7,7 @@ expression: "&batch"
     "hash": "0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f",
     "number": 0,
     "receipt": 0.0,
+    "slotNumber": 0,
     "txRange": {
       "end": 2,
       "start": 0
