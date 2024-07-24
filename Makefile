@@ -39,6 +39,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov
 	cargo install cargo-hack
 	cargo install cargo-udeps
+	cargo install cargo-deny
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
 	cargo install cargo-risczero
@@ -61,6 +62,12 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	zepter
 	$(MAKE) check-fuzz
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
+
+cargo-deny-check-licenses:
+	cargo deny check licenses
+
+cargo-deny-check:   ## Runs a global cargo-deny check, not just the licenses.
+	cargo deny check --hide-inclusion-graph
 
 extra-check:   ## cargo check in non attached crates
 	cargo check

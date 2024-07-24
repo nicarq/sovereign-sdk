@@ -84,7 +84,7 @@ jobs:
       - nextest_all_features
       - doctests
       - coverage
-      - check-licenses
+      - cargo-deny-check-licenses
       - cargo-doc-artifact
       - deploy-github-pages
       - check-demo-rollup-table-of-contents
@@ -470,13 +470,13 @@ jobs:
           # When retry is implemented, we can enable it again: https://github.com/codecov/codecov-action/issues/926
           fail_ci_if_error: false
 
-  check-licenses:
+  cargo-deny-check-licenses:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v3
       - uses: taiki-e/install-action@cargo-deny
-      - run: cargo deny check licenses
+      - run: make cargo-deny-check-licenses
 
   cargo-doc-artifact:
     runs-on:

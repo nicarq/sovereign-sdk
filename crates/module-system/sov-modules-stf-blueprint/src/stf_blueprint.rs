@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use risc0_cycle_macros::cycle_tracker;
 use sov_modules_api::capabilities::SequencerRemuneration;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{

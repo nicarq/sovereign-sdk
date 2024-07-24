@@ -865,7 +865,25 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "crypto-bigint",
- "curve25519-dalek-derive",
+ "curve25519-dalek-derive 0.1.0 (git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1)",
+ "digest 0.10.7",
+ "fiat-crypto",
+ "hex",
+ "platforms",
+ "rustc_version 0.4.0",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek"
+version = "4.1.0"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "crypto-bigint",
+ "curve25519-dalek-derive 0.1.0 (git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67)",
  "digest 0.10.7",
  "fiat-crypto",
  "hex",
@@ -879,6 +897,16 @@ dependencies = [
 name = "curve25519-dalek-derive"
 version = "0.1.0"
 source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.55",
+]
+
+[[package]]
+name = "curve25519-dalek-derive"
+version = "0.1.0"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1095,7 +1123,20 @@ name = "ed25519-dalek"
 version = "2.0.0"
 source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
 dependencies = [
- "curve25519-dalek",
+ "curve25519-dalek 4.1.0 (git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1)",
+ "ed25519",
+ "serde",
+ "sha2",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "ed25519-dalek"
+version = "2.0.0"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+dependencies = [
+ "curve25519-dalek 4.1.0 (git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67)",
  "ed25519",
  "serde",
  "sha2",
@@ -2920,7 +2961,7 @@ dependencies = [
  "bincode",
  "borsh",
  "digest 0.10.7",
- "ed25519-dalek",
+ "ed25519-dalek 2.0.0 (git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1)",
  "hex",
  "serde",
  "sha2",
@@ -3033,7 +3074,7 @@ dependencies = [
  "borsh",
  "bytemuck",
  "digest 0.10.7",
- "ed25519-dalek",
+ "ed25519-dalek 2.0.0 (git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67)",
  "hex",
  "risc0-cycle-utils",
  "risc0-zkvm",
