@@ -1,5 +1,3 @@
-mod bonding_unbonding;
-
 #[cfg(test)]
 mod helpers;
 
