@@ -20,7 +20,7 @@ use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState};
 
-use crate::event::Event;
+pub use crate::event::Event;
 
 /// A new module:
 /// - Must derive `ModuleInfo`
