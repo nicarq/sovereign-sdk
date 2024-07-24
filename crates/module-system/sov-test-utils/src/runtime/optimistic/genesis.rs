@@ -7,16 +7,10 @@ use sov_modules_api::{CryptoSpec, DaSpec, Genesis, PrivateKey, Spec};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 
 use crate::runtime::genesis::{Sequencer, SimpleStakedUser, StakedUser, User};
-use crate::TestSpec;
-
-// Constants used in the genesis configuration of the test runtime
-const DEFAULT_MIN_USER_BOND: u64 = 100_000_000;
-const DEFAULT_MAX_ATTESTED_HEIGHT: u64 = 0;
-const DEFAULT_LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
-const DEFAULT_ROLLUP_FINALITY_PERIOD: u64 = 1;
-const DEFAULT_GAS_TOKEN_NAME: &str = "TestGasToken";
-const DEFAULT_BONDED_BALANCE: u64 = 100_000_000;
-const DEFAULT_ADDITIONAL_BALANCE: u64 = 1_000_000_000;
+use crate::{
+    TestSpec, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
+    TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
+};
 
 /// A genesis config for a minimal optimsitic runtime
 pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
@@ -62,7 +56,7 @@ impl<S: Spec, Da: DaSpec> HighLevelOptimisticGenesisConfig<S, Da> {
             initial_challenger,
             initial_sequencer,
             additional_accounts,
-            gas_token_name: DEFAULT_GAS_TOKEN_NAME.to_string(),
+            gas_token_name: TEST_GAS_TOKEN_NAME.to_string(),
         }
     }
 }
@@ -79,25 +73,25 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
     pub fn generate_with_additional_accounts(num_accounts: usize) -> Self {
         let attester = SimpleStakedUser {
             private_key: <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate(),
-            bond: DEFAULT_BONDED_BALANCE,
-            additional_balance: Some(DEFAULT_ADDITIONAL_BALANCE), // Give the attester extra tokens to pay for gas
+            bond: TEST_DEFAULT_USER_STAKE,
+            additional_balance: Some(TEST_DEFAULT_USER_BALANCE), // Give the attester extra tokens to pay for gas
         };
         let challenger = SimpleStakedUser {
             private_key: <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate(),
-            bond: DEFAULT_BONDED_BALANCE,
-            additional_balance: Some(DEFAULT_ADDITIONAL_BALANCE), // Give the attester extra tokens to pay for gas
+            bond: TEST_DEFAULT_USER_STAKE,
+            additional_balance: Some(TEST_DEFAULT_USER_BALANCE), // Give the attester extra tokens to pay for gas
         };
         let sequencer = Sequencer {
             private_key: <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate(),
             da_address: MockAddress::from([172; 32]),
-            bond: DEFAULT_BONDED_BALANCE,
-            additional_balance: Some(DEFAULT_ADDITIONAL_BALANCE),
+            bond: TEST_DEFAULT_USER_STAKE,
+            additional_balance: Some(TEST_DEFAULT_USER_BALANCE),
         };
 
         let mut additional_accounts = Vec::with_capacity(num_accounts);
 
         for _ in 0..num_accounts {
-            additional_accounts.push(User::<TestSpec>::generate(DEFAULT_ADDITIONAL_BALANCE));
+            additional_accounts.push(User::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE));
         }
 
         Self::with_defaults(attester, challenger, sequencer, additional_accounts)
@@ -135,15 +129,15 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
                 is_preferred_sequencer: true,
             },
             attester_incentives: AttesterIncentivesConfig {
-                minimum_attester_bond: DEFAULT_MIN_USER_BOND,
-                minimum_challenger_bond: DEFAULT_MIN_USER_BOND,
+                minimum_attester_bond: TEST_DEFAULT_USER_STAKE,
+                minimum_challenger_bond: TEST_DEFAULT_USER_STAKE,
                 initial_attesters: vec![(
                     initial_attester.address().clone(),
                     initial_attester.bond,
                 )],
-                rollup_finality_period: DEFAULT_ROLLUP_FINALITY_PERIOD,
-                maximum_attested_height: DEFAULT_MAX_ATTESTED_HEIGHT,
-                light_client_finalized_height: DEFAULT_LIGHT_CLIENT_FINALIZED_HEIGHT,
+                rollup_finality_period: TEST_ROLLUP_FINALITY_PERIOD,
+                maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
+                light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
                 phantom_data: PhantomData,
             },
 

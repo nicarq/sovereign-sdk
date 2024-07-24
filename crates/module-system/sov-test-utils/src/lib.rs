@@ -121,6 +121,8 @@ pub const TEST_LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
 /// The default rollup finality period. Used by the [`sov_attester_incentives::AttesterIncentives`] module to determine the
 /// range of heights that are eligible for attestations.
 pub const TEST_ROLLUP_FINALITY_PERIOD: u64 = 1;
+/// The default name to use for the gas token.
+pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 
 /// An implementation of [`TxReceiptContents`] for testing. TestTxReceiptContents uses
 /// a `u32` as the receipt contents.
