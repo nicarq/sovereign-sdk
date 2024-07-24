@@ -30,7 +30,18 @@ allow = ["LGPL-3.0"]
 name = "downloader"
 version = "0.2"
 
+[sources]
+# We're okay with sourcing crates from Git repositories.
+unknown-git = "allow"
+# If we source crates from Git repositories, we always ought to pin them by
+# commit. If we don't, we effectively allow maintainers to inject arbitrary code
+# into our dependency tree just by e.g. tagging a malicious commit.
+required-git-spec = "rev" 
+
 [bans]
+# We have so many duplicates, that warnings are barely useful. (I know, not a fan of this.)
+# TODO: See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1016>.
+multiple-versions = "allow" 
 # We'd prefer to use Rustls instead of OpenSSL; this helps up from accidentally
 # using OpenSSL. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/352>.
 deny = [{ name = "native-tls" }, { name = "openssl" }]

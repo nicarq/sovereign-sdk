@@ -1232,9 +1232,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.6.0"
+version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "514de17de45fdb8dc022b1a7975556c53c86f9f0aa5f534b98977b171857c2c9"
+checksum = "a12916984aab3fa6e39d655a33e09c0071eb36d6ab3aea5c2d78551f1df6d952"
 dependencies = [
  "serde",
 ]
@@ -1943,7 +1943,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.0"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -1978,7 +1978,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.0"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2413,7 +2413,7 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.0.0"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
 dependencies = [
  "curve25519-dalek 4.1.0",
  "ed25519",
@@ -4497,9 +4497,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.154"
+version = "0.2.155"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae743338b92ff9146ce83992f766a31066a91a8c84a45e0e9f21e7cf6de6d346"
+checksum = "97b3888a4aecf77e811145cadf6eef5901f4782c53886191b2f693f24761847c"
 
 [[package]]
 name = "libloading"
@@ -5140,9 +5140,9 @@ dependencies = [
 
 [[package]]
 name = "openssl"
-version = "0.10.64"
+version = "0.10.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95a0481286a310808298130d22dd1fef0fa571e05a8f44ec801801e84b216b1f"
+checksum = "9529f4786b70a3e8c61e11179af17ab6188ad8d0ded78c5529441ed39d4bd9c1"
 dependencies = [
  "bitflags 2.5.0",
  "cfg-if",
@@ -5172,9 +5172,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.102"
+version = "0.9.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c597637d56fbc83893a35eb0dd04b2b8e7a50c91e64e9493e398b5df4fb45fa2"
+checksum = "7f9e8deee91df40a943c71b917e5874b951d32a802526c85721ce3b776c929d6"
 dependencies = [
  "cc",
  "libc",
@@ -6156,7 +6156,7 @@ dependencies = [
 [[package]]
 name = "reltester"
 version = "2.0.0"
-source = "git+https://github.com/sovereign-labs/reltester.git?branch=main#d6209abff72929f5ba41614f5cea3e4a748428c3"
+source = "git+https://github.com/sovereign-labs/reltester.git?rev=d6209abff72929f5ba41614f5cea3e4a748428c3#d6209abff72929f5ba41614f5cea3e4a748428c3"
 dependencies = [
  "rand 0.8.5",
  "thiserror",
