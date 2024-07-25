@@ -54,7 +54,7 @@ pub(crate) struct Args {
     #[arg(long)]
     pub(crate) new_users_count: u64,
 
-    /// How many txs to send. Omit to send messages continously.
+    /// How many txs to send. Omit to send messages continuously.
     #[arg(long)]
     pub(crate) max_num_txs: Option<usize>,
 
