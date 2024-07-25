@@ -2,15 +2,16 @@ mod arbitrary;
 mod data_helpers;
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
 use proptest::prelude::*;
+use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
 use sov_mock_da::{MockBlockHeader, MockHash};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
+use tokio::time::Instant;
 
 use crate::accessory_db::AccessoryDb;
 use crate::state_db::StateDb;
@@ -27,7 +28,7 @@ type Da = sov_mock_da::MockDaSpec;
 
 type S = TestNativeStorage;
 
-// Checking typical lifecycle of the storage in linear progression of the chain,
+// Checking the typical lifecycle of the storage in linear progression of the chain,
 // meaning no forks happen, and DA height progresses incrementally by 1.
 // At each height:
 // 1. Bootstrap storage is created and validated.
@@ -242,7 +243,7 @@ proptest! {
 
 #[test]
 fn double_create_storage() {
-    // Checks that calling create storage multiple times for the same block works without errors
+    // Checks that calling creates storage multiple times for the same block works without errors
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
@@ -290,7 +291,7 @@ fn unknown_block_cannot_be_saved() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
-    // On empty map
+    // On an empty map
     let da_header_1 = MockBlockHeader::from_height(1);
     attempt_to_save_unknown_block(&mut storage_manager, &da_header_1);
     let _ = storage_manager.create_state_for(&da_header_1).unwrap();
@@ -340,7 +341,7 @@ fn create_state_after_not_saved_block() {
 
     let _ = storage_manager.create_state_for(&da_header).unwrap();
 
-    // It should throw error as changes for this block is not available.
+    // It should throw the error as changes for this block is not available.
     let result = storage_manager.create_state_after(&da_header);
     assert!(result.is_err());
     #[cfg(debug_assertions)]
@@ -353,7 +354,8 @@ fn create_state_after_not_saved_block() {
     storage_manager
         .save_change_set(&da_header, NativeChangeSet::default(), SchemaBatch::new())
         .unwrap();
-    // Can create it is when snapshot is available
+
+    // Now storage "after" the block can be created, as there's a snapshot for this block.
     let _ = storage_manager.create_state_after(&da_header).unwrap();
     storage_manager.finalize(&da_header).unwrap();
     assert!(storage_manager.is_empty());
@@ -383,30 +385,46 @@ fn finalize_only_last_block() {
 }
 
 #[test]
-fn parallel_forks_reading_while_finalization_happens() {
-    // 1    2    3    4    5    6    7    8
-    //                               / -> E
-    // A -> B -> C -> D -> E -> F -> G -> H
-    //                               \ -> G
-    //                                .....
+fn parallel_forks_reading_while_finalization_is_happening() {
+    // 1    2    ..   n-1   n
+    //                 / -> E
+    // A -> B -> .. -> C -> D
+    //                 \ -> F
+    //                      ..
+    //                   .. X
     // E, H, G, etc. are moved to a separate thread.
     // They read data from each snapshot all the time,
-    // checking that data from each for is present
+    // checking that data from each for is present.
 
-    let sub_forks_count = 20;
-    let main_fork_len = 8;
+    // Validation:
+    // First test measures how much time on average it takes
+    // to do such validation single threaded without any concurrent readings
+    // Then it starts X threads for each "fork" to do the same validation.
+    // Each thread does 2 iterations of reading:
+    // just concurrent reading and then concurrent reading while blocks are finalized.
+    // Then test checks
+    // that avg time each thread spent on these is not more than 3 times a single reading.
+
+    // this is X.
+    // So the total value of concurrent threads will be 8,
+    // which is a comfortable choice for many machines.
+    let sub_forks_count = 7;
+    // this is n
+    // Enough blocks will be written on disk during the finalization phase.
+    let main_fork_len = 30;
     let fork_description = ForkDescription {
         start_height: 1,
         length: main_fork_len,
         child_forks: vec![
             ForkDescription {
-                start_height: 7,
+                start_height: (main_fork_len - 1) as u64,
                 length: 1,
                 child_forks: Vec::new(),
             };
             sub_forks_count
         ],
     };
+
     let fork_map = ForkMap::from(fork_description);
     assert_eq!(
         sub_forks_count + main_fork_len as usize,
@@ -420,12 +438,10 @@ fn parallel_forks_reading_while_finalization_happens() {
     let start = fork_map.get_start().expect("Empty chain-map");
     let mut next_blocks = VecDeque::new();
     next_blocks.push_back(start);
-
     while let Some(block_hash) = next_blocks.pop_front() {
         for child in fork_map.get_child_hashes(&block_hash) {
             next_blocks.push_back(child);
         }
-
         let da_header = fork_map.get_block_header(&block_hash).unwrap();
         let _ = storage_manager
             .create_state_for(da_header)
@@ -437,15 +453,8 @@ fn parallel_forks_reading_while_finalization_happens() {
             .expect("Saving change set has failed");
     }
 
-    //
-    let total_forks = sub_forks_count + 1; // main fork
-    let duration_between_finalization = Duration::from_millis(10);
-    let is_running = Arc::new(AtomicBool::new(true));
-
-    let mut handles = vec![];
-    // Starting fork readers
-    for fork_id in 1..total_forks {
-        let block_hash = get_block_hash(fork_id as u64, main_fork_len as u64);
+    let mut prepare_for_reading = |fork_id: u64| {
+        let block_hash = get_block_hash(fork_id, main_fork_len as u64);
         let block_header = fork_map.get_block_header(&block_hash).unwrap();
         let this_chain = fork_map.get_chain_up_to(block_header.clone());
         let expected_values = get_expected_chain_values(&this_chain[..this_chain.len()]);
@@ -453,38 +462,83 @@ fn parallel_forks_reading_while_finalization_happens() {
             .create_state_after(block_header)
             .expect("Creating storage failed");
 
-        let is_running = is_running.clone();
-        let between = duration_between_finalization;
-        handles.push(std::thread::spawn(move || {
-            let mut full_reads_completed = 0;
-            while is_running.load(Ordering::Relaxed) {
-                // Do 10 rounds before checking is running a flag.
-                for _ in 0..10 {
-                    verify_stf_storage(&stf_storage, &expected_values[..]);
-                    verify_ledger_storage(&ledger_storage, &expected_values[..]);
-                    full_reads_completed += 1;
-                }
-            }
+        (stf_storage, ledger_storage, expected_values)
+    };
 
-            assert!(
-                full_reads_completed >= 50,
-                "thread was unable to complete at least 100 full reads between {:?}, completed only {}",
-                between,
-                full_reads_completed
-            );
-            full_reads_completed
+    let reading_count = 1000;
+
+    let record_reading =
+        move |stf: &S, ledger: &DeltaReader, expected: &[(u64, MockHash)]| -> Duration {
+            let mut spent_reading = Duration::default();
+            for _ in 0..reading_count {
+                let start_validation = Instant::now();
+                verify_stf_storage(stf, expected);
+                verify_ledger_storage(ledger, expected);
+                spent_reading += start_validation.elapsed();
+            }
+            spent_reading / reading_count
+        };
+
+    // Record how much it takes to do a round of reading from the main fork without any concurrency.
+    let average_reading_time_single_access = {
+        let (stf_storage, ledger_storage, expected_values) = prepare_for_reading(1);
+        record_reading(&stf_storage, &ledger_storage, &expected_values[..])
+    };
+
+    let avg_reading_time_threshold = average_reading_time_single_access.checked_mul(3).unwrap();
+
+    let total_forks = sub_forks_count + 1; // main fork
+    let barrier = Arc::new(Barrier::new(total_forks));
+
+    let mut handles = vec![];
+    // Starting fork readers
+    for fork_id in 1..total_forks {
+        let (stf_storage, ledger_storage, expected_values) = prepare_for_reading(fork_id as u64);
+
+        let barrier = Arc::clone(&barrier);
+
+        // Each fork counts how many reads it completed.
+        handles.push(std::thread::spawn(move || -> (Duration, Duration) {
+            // First, we record how much time each thread took reading concurrently;
+            let spent_reading_concurrently =
+                record_reading(&stf_storage, &ledger_storage, &expected_values[..]);
+
+            // Then we wait for finalization to start
+            barrier.wait();
+
+            let spent_reading_during_finalization =
+                record_reading(&stf_storage, &ledger_storage, &expected_values[..]);
+            (
+                spent_reading_concurrently,
+                spent_reading_during_finalization,
+            )
         }));
     }
 
+    barrier.wait();
+    let mut finalization_duration = Duration::default();
     for height in 1..=main_fork_len {
+        let start = Instant::now();
         let block_hash = get_block_hash(1, height as u64);
         let block_header = fork_map.get_block_header(&block_hash).unwrap();
         storage_manager.finalize(block_header).unwrap();
-        std::thread::sleep(duration_between_finalization);
+        finalization_duration += start.elapsed();
     }
-    is_running.store(false, Ordering::Release);
     for handle in handles {
-        handle.join().expect("Thread panicked");
+        let (spent_reading_concurrently, spent_reading_finalization) =
+            handle.join().expect("Thread panicked");
+        assert!(
+            spent_reading_concurrently < avg_reading_time_threshold,
+            "Concurrent reading {:?} is worse than max allowed {:?}",
+            spent_reading_concurrently,
+            avg_reading_time_threshold
+        );
+        assert!(
+            spent_reading_finalization < avg_reading_time_threshold,
+            "Concurrent reading during finalization {:?} is worse than max allowed {:?}",
+            spent_reading_finalization,
+            avg_reading_time_threshold
+        );
     }
     assert!(storage_manager.is_empty());
 }
@@ -555,7 +609,7 @@ fn check_snapshots_ordering() {
 #[test]
 fn several_jumping_forks() {
     // At each height there happens x forks.
-    // They all create storage for itself.
+    // They all create storage for themselves.
     // Then they all save some changes.
     // Then 1 is finalized after x blocks.
     // The purpose of this is to check that at a given height,
@@ -639,11 +693,11 @@ fn get_abc_blocks() -> (MockBlockHeader, MockBlockHeader, MockBlockHeader) {
 #[test]
 fn removed_fork_data_view() {
     // "Orphaned fork" is a fork appears when finalization happens on different fork past the start height of this fork.
-    // Meaning that this fork should be discarded completely, because data from sibling fork was finalized.
+    // Meaning that this fork should be discarded completely, because data from the sibling fork was finalized.
     // This test documents behavior that observed from this orphaned fork.
     // This might be useful to know if there's a long-running task that relies on data from a fork that has been orphaned.
     // Test details.
-    // Here is chain schema:
+    // Here is the chain schema:
     //  A -> B
     //   \-> C
     // Block A has key=1 value=1.
@@ -704,8 +758,8 @@ fn removed_fork_data_view() {
 #[test]
 fn fork_keeps_reference_to_snapshot_after_finalization() {
     // This test is similar to `removed_fork_data_view`,
-    // But it demonstrates that change happens only to data that has been in rocksdb before block is created.
-    // Data that has been in the snapshot when block has been created remains the same for the fork.
+    // But it demonstrates that change happens only to data that has been in rocksdb before the block is created.
+    // Data that has been in the snapshot when a block has been created remains the same for the fork.
 
     let key = encode_state_key(1);
     let value_1 = Some(vec![1u8; 32]);
