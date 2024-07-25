@@ -7,6 +7,7 @@ use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::rpc::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -15,7 +16,7 @@ use tokio::sync::watch;
 use tracing::{debug, error, info};
 
 use crate::state_manager::StateManager;
-use crate::{ProofManager, ProverService, RunnerConfig, StateTransitionInfo};
+use crate::{ProofManager, ProverService, RawGenesisStateRoot, RunnerConfig, StateTransitionInfo};
 
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
@@ -46,6 +47,7 @@ where
     listen_address_axum: SocketAddr,
     proof_manager: ProofManager<Ps>,
     sync_state: Arc<DaSyncState>,
+    genesis_state_root: RawGenesisStateRoot,
 }
 
 /// The state necessary to track the sync status of the node
@@ -159,7 +161,7 @@ where
     /// for execution. Otherwise, initializes the chain using the provided
     /// genesis config.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub async fn new(
         runner_config: RunnerConfig,
         da_service: Arc<Da>,
         mut ledger_db: LedgerDb,
@@ -177,10 +179,19 @@ where
         let rpc_config = runner_config.rpc_config;
         let axum_config = runner_config.axum_config;
 
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
+        let (prev_state_root, genesis_state_root) = match init_variant {
+            InitVariant::Initialized(prev_state_root) => {
                 debug!("Chain is already initialized; skipping initialization");
-                state_root
+                let raw_genesis_state_root = ledger_db
+                    .get_slot_by_number::<Stf::BatchReceiptContents, Stf::TxReceiptContents>(
+                        0,
+                        QueryMode::Compact,
+                    )
+                    .await?
+                    .expect("Rollup was already initialized. Slot 0 should exist")
+                    .state_root;
+
+                (prev_state_root, RawGenesisStateRoot(raw_genesis_state_root))
             }
             InitVariant::Genesis {
                 block,
@@ -193,14 +204,15 @@ where
                 );
                 let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header)?;
                 ledger_db.replace_reader(ledger_state);
-                let (genesis_root, initialized_storage) = stf.init_chain(stf_state, params);
+                let (genesis_state_root, initialized_storage) = stf.init_chain(stf_state, params);
                 let data_to_commit: SlotCommit<
                     _,
                     Stf::BatchReceiptContents,
                     Stf::TxReceiptContents,
                 > = SlotCommit::new(block);
                 let mut ledger_change_set =
-                    ledger_db.materialize_slot(data_to_commit, genesis_root.as_ref())?;
+                    ledger_db.materialize_slot(data_to_commit, genesis_state_root.as_ref())?;
+
                 let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(0)?;
                 ledger_change_set.merge(finalized_slot_changes);
                 storage_manager.save_change_set(
@@ -211,13 +223,17 @@ where
 
                 storage_manager.finalize(&block_header)?;
                 ledger_db.send_notifications();
-                info!(
-                    genesis_root = hex::encode(genesis_root.as_ref()),
-                    "Chain initialization is done"
-                );
-                genesis_root
+
+                let raw_genesis_state_root =
+                    RawGenesisStateRoot(genesis_state_root.as_ref().to_vec());
+                (genesis_state_root, raw_genesis_state_root)
             }
         };
+
+        info!(
+            genesis_state_root = hex::encode(&genesis_state_root.0),
+            "Chain initialization is done"
+        );
 
         let listen_address_rpc =
             SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
@@ -255,6 +271,7 @@ where
                 synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(u64::MAX),
             }),
+            genesis_state_root,
         })
     }
 
@@ -478,7 +495,7 @@ where
         for transition_data in finalized_transitions {
             // Post ZK proof to DA.
             self.proof_manager
-                .post_aggregated_proof_to_da_when_ready(transition_data)
+                .post_aggregated_proof_to_da_when_ready(transition_data, &self.genesis_state_root)
                 .await?;
         }
         Ok(())

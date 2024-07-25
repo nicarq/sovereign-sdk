@@ -120,7 +120,7 @@ impl ProofSerializer for DummyProofSerializer {
 }
 
 #[allow(clippy::type_complexity)]
-pub fn initialize_runner(
+pub async fn initialize_runner(
     da_service: Arc<DaServiceWithRetries<MockDaService>>,
     path: &std::path::Path,
     init_variant: MockInitVariant,
@@ -214,6 +214,7 @@ pub fn initialize_runner(
             init_variant,
             proof_manager,
         )
+        .await
         .unwrap(),
         TestNode {
             proof_posted_in_da_sub,

@@ -265,7 +265,7 @@ async fn send_transactions_direct_to_da_layer(
 
     da_service.send_transaction(&batch_bytes, fee).await?;
 
-    let sleep_duration = block_time_ms * 2; // NOTE: We wait ~ 2 blocks
+    let sleep_duration = block_time_ms * 4; // NOTE: We wait ~ 2 blocks
     tokio::time::sleep(std::time::Duration::from_millis(sleep_duration)).await;
 
     Ok(())

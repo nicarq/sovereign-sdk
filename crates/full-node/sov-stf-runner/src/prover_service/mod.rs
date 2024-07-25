@@ -15,6 +15,10 @@ use sov_rollup_interface::zk::Zkvm;
 pub use stf_info::StateTransitionInfo;
 use thiserror::Error;
 
+/// Bytes of the genesis state root.
+#[derive(Clone, Debug)]
+pub struct RawGenesisStateRoot(pub Vec<u8>);
+
 /// The possible configurations of the prover.
 #[derive(PartialEq, Eq, strum::EnumString, strum::Display)]
 // Note: it's best if all string conversions to and from this type (even
@@ -86,7 +90,7 @@ pub enum ProverServiceError {
 /// Currently, the cancellation of proving jobs for submitted witnesses is not supported,
 /// but this functionality will be added in the future (#1185).
 #[async_trait]
-pub trait ProverService {
+pub trait ProverService: Send + Sync {
     /// Ths root hash of state merkle tree.
     type StateRoot: Serialize + Clone + AsRef<[u8]>;
     /// Data that is produced during batch execution.
@@ -115,6 +119,7 @@ pub trait ProverService {
     async fn create_aggregated_proof(
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
+        genesis_state_root: &RawGenesisStateRoot,
     ) -> Result<ProofAggregationStatus, anyhow::Error>;
 }
 
