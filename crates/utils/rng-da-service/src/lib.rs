@@ -1,13 +1,15 @@
 use std::env;
 
 use async_trait::async_trait;
+use demo_stf::authentication::ModAuth;
 use demo_stf::runtime::Runtime;
 use futures::stream::BoxStream;
 use sov_bank::{Bank, Coins};
 use sov_mock_da::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash, MockValidityCond,
-    MockValidityCondChecker, MOCK_SEQUENCER_DA_ADDRESS,
+    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockDaVerifier, MockFee,
+    MockValidityCond, MOCK_SEQUENCER_DA_ADDRESS,
 };
+use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
@@ -16,7 +18,7 @@ use sov_modules_api::{
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable, SlotData};
+use sov_rollup_interface::services::da::{DaService, MaybeRetryable, SlotData};
 use sov_test_utils::{
     TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
@@ -49,59 +51,15 @@ impl RngDaService {
     }
 }
 
-/// A simple DaSpec for a random number generator.
-#[derive(
-    serde::Serialize,
-    serde::Deserialize,
-    PartialEq,
-    Eq,
-    Debug,
-    Clone,
-    Default,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-)]
-pub struct RngDaSpec;
-
-impl DaSpec for RngDaSpec {
-    type SlotHash = MockHash;
-    type BlockHeader = MockBlockHeader;
-    type BlobTransaction = MockBlob;
-    type Address = MockAddress;
-    type ValidityCondition = MockValidityCond;
-    type Checker = MockValidityCondChecker<MockValidityCond>;
-    type InclusionMultiProof = [u8; 32];
-    type CompletenessProof = ();
-    type ChainParams = ();
-}
-
-/// A unit type representing the (nonexistent) fees on the RngDaService.
-#[derive(Debug, Clone, Copy)]
-pub struct RngDaFee;
-
-impl Fee for RngDaFee {
-    type FeeRate = u64;
-
-    fn fee_rate(&self) -> Self::FeeRate {
-        0
-    }
-
-    fn set_fee_rate(&mut self, _rate: Self::FeeRate) {}
-
-    fn gas_estimate(&self) -> u64 {
-        0
-    }
-}
-
 #[async_trait]
 impl DaService for RngDaService {
-    type Spec = RngDaSpec;
-    type Verifier = RngDaVerifier;
+    type Spec = MockDaSpec;
+    type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
     type TransactionId = ();
     type Error = MaybeRetryable<anyhow::Error>;
-    type Fee = RngDaFee;
+    type Fee = MockFee;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         let num_bytes = height.to_le_bytes();
@@ -212,7 +170,7 @@ impl DaService for RngDaService {
 #[derive(Clone)]
 pub struct RngDaVerifier;
 impl DaVerifier for RngDaVerifier {
-    type Spec = RngDaSpec;
+    type Spec = MockDaSpec;
 
     type Error = anyhow::Error;
 
@@ -249,7 +207,7 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<RawTx> {
             },
         };
         let enc_msg =
-            <Runtime<TestSpec, RngDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
+            <Runtime<TestSpec, MockDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
         let tx = Transaction::<TestSpec>::new_signed_tx(
             &pk,
             UnsignedTransaction::new(
@@ -261,14 +219,10 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<RawTx> {
                 DEFAULT_ESTIMATED_GAS_USAGE,
             ),
         );
-        let ser_tx = borsh::to_vec(&tx).unwrap();
+        let ser_tx = ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&tx).unwrap()).unwrap();
         message_vec.push(ser_tx);
     }
-
     message_vec
-        .into_iter()
-        .map(|tx| RawTx { data: tx })
-        .collect()
 }
 
 pub fn generate_create_token_payload(start_nonce: u64) -> Vec<RawTx> {
@@ -282,7 +236,7 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<RawTx> {
         mint_to_address: minter,
         authorized_minters: vec![minter],
     };
-    let enc_msg = <Runtime<TestSpec, RngDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
+    let enc_msg = <Runtime<TestSpec, MockDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
     let tx = Transaction::<TestSpec>::new_signed_tx(
         &pk,
         UnsignedTransaction::new(
@@ -294,11 +248,8 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<RawTx> {
             DEFAULT_ESTIMATED_GAS_USAGE,
         ),
     );
-    let ser_tx = borsh::to_vec(&tx).unwrap();
+    let ser_tx = ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&tx).unwrap()).unwrap();
     message_vec.push(ser_tx);
 
     message_vec
-        .into_iter()
-        .map(|tx| RawTx { data: tx })
-        .collect()
 }

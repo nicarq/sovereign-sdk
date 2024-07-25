@@ -9,9 +9,9 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_mock_da::{MockBlock, MockBlockHeader};
+use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_rng_da_service::{RngDaService, RngDaSpec};
+use sov_rng_da_service::RngDaService;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_stf_runner::read_json_file;
@@ -38,8 +38,8 @@ fn rollup_bench(_bench: &mut Criterion) {
 
     let stf = StfBlueprint::<
         BenchSpec,
-        RngDaSpec,
-        Runtime<BenchSpec, RngDaSpec>,
+        MockDaSpec,
+        Runtime<BenchSpec, MockDaSpec>,
         BasicKernel<BenchSpec, _>,
     >::new();
 
