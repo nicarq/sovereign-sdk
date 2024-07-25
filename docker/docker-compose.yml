@@ -65,6 +65,35 @@ services:
 #      - credentials:/credentials:consistent
 #      - genesis:/genesis
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+    ports:
+      - "9090:9090"
+    profiles:
+      - monitoring
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - monitoring-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources/
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards/
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+    networks:
+      - monitoring-network
+
 volumes:
   # local volume where sequencer's credentials can persist
   credentials:
@@ -78,3 +107,7 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
+
+networks:
+  monitoring-network:
+    driver: bridge
