@@ -105,12 +105,30 @@ async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<
     da_blob_sender.send_messages_to_da().await;
 
     // Collating results...
-    tracing::info!("collecting results...");
+    tracing::info!("Collecting results...");
     let (successful_count, error_count) = slot_watcher_handle.await?;
+    let total_observed = successful_count + error_count;
+
+    if let Some(max_num_txs) = config.max_num_txs {
+        if (total_observed as usize) < max_num_txs {
+            tracing::warn!(
+                observer = total_observed,
+                sent = max_num_txs,
+                "Observed less transactions that submitted"
+            );
+        } else {
+            tracing::info!(
+                observer = total_observed,
+                sent = max_num_txs,
+                "Potentially observed all transactions"
+            );
+        }
+    }
 
     tracing::info!(
         successful = successful_count,
         error = error_count,
+        total_expected = ?config.max_num_txs,
         "All transactions has been submitted and should've been processed by now"
     );
 

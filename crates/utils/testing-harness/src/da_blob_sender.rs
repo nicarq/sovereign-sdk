@@ -64,9 +64,8 @@ impl<S: Spec, Auth: Authenticator> DaBlobSender<S, Auth> {
                 },
                 maybe_message = receiver.recv() => {
                     if let Some(serialized_message) = maybe_message {
-
-                        tracing::debug!("message received!");
                         let account_pool_index = serialized_message.account_pool_index;
+                        tracing::debug!(account_pool_index, "Message received!");
 
                         let account = self.account_pool.get_by_index(&account_pool_index).expect(
                             "there should be an account at account pool index: {account_pool_index}",
@@ -78,9 +77,9 @@ impl<S: Spec, Auth: Authenticator> DaBlobSender<S, Auth> {
                             serialized_message,
                         ) {
                             Err(err) => {
-                                tracing::error!("error when signing transaction: {err}");
+                                tracing::error!("Error when signing transaction: {err}");
                                 tracing::info!(
-                                    "ignoring transaction dues to failing to sign it, continuing..."
+                                    "Ignoring transaction dues to failing to sign it, continuing..."
                                 );
                                 continue;
                             }
@@ -95,11 +94,11 @@ impl<S: Spec, Auth: Authenticator> DaBlobSender<S, Auth> {
                                 tracing::debug!(
                                     num_txs_per_batch = num_txs_per_batch,
                                     num_txs_in_batch = num_txs_in_batch,
-                                    "batch status:"
+                                    "Batch status"
                                 );
 
                                 if batch_is_full {
-                                    tracing::info!("batch is full of txs, submitting to DA layer...");
+                                    tracing::info!(txs = num_txs_in_batch, "Batch is full of txs, submitting to DA layer...");
                                     let batch_to_submit = std::mem::take(&mut tx_batch);
                                     if let Err(err) =
                                         submit_transactions(&self.da_service, batch_to_submit).await

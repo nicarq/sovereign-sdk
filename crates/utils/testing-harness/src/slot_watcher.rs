@@ -13,7 +13,7 @@ pub(crate) fn start_slot_watcher_task(
     should_stop: Arc<AtomicBool>, // FIXME use this instead of updating slot numbers
 ) -> JoinHandle<(u64, u64)> {
     let rest_url = format!("{}/ledger", config.rest_url.clone());
-    tracing::info!("using REST URL: {rest_url}");
+    tracing::info!(url = rest_url, "Using REST URL");
 
     tokio::spawn(async move {
         let mut successful_count = 0;
@@ -45,7 +45,7 @@ pub(crate) fn start_slot_watcher_task(
             let slot_response = ledger_client
                 .get_slot_by_id(
                     &ledger_api_types::IntOrHash::Variant0(slot_number),
-                    Some(ledger_api_types::GetSlotByIdChildren::_0),
+                    Some(ledger_api_types::GetSlotByIdChildren::_1),
                 )
                 .await
                 .expect("should be able to get slots by id");

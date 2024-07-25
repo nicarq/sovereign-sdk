@@ -51,10 +51,12 @@ async fn get_gas_funding_txs<S: Spec>(
             .address_and_balances
             .into_iter()
             .for_each(|(address, balance)| {
-                if balance < MINIMAL_WHALE_BALANCE {
+                if balance >= MINIMAL_WHALE_BALANCE {
                     if let Some(index) = account_pool.get_index(&address) {
                         map.insert(address, *index);
-                    }
+                    } else {
+                        tracing::warn!(account = %address, "Account from bank config is not in account pool");
+                    };
                 }
             });
         map
@@ -73,7 +75,9 @@ async fn get_gas_funding_txs<S: Spec>(
 
     let mut txs = Vec::new();
 
-    if total_supply < (Amount::MAX / 2) {
+    let enough_supply = Amount::MAX / 2;
+
+    if total_supply < enough_supply {
         let gas_token_minter = bank_config
             .gas_token_config
             .authorized_minters
@@ -89,7 +93,11 @@ async fn get_gas_funding_txs<S: Spec>(
             .0 as u64;
         tracing::info!(gas_token_minter = %gas_token_minter, account_pool_index = %gas_token_minter_account_pool_index, "Gas token minter");
 
-        tracing::info!("Total supply of gas token is not large enough, need to mint!");
+        tracing::info!(
+            total_supply,
+            enough = enough_supply,
+            "Total supply of gas token is not large enough, need to mint!"
+        );
 
         let to_mint = Amount::MAX - 100 - total_supply;
         let to_mint_per_whale = to_mint / num_gas_whales as u64;
