@@ -13,7 +13,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
-use super::{ProverService, ProverServiceError};
+use super::{ProverService, ProverServiceError, RawGenesisStateRoot};
 use crate::verifier::StateTransitionVerifier;
 use crate::{
     ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
@@ -197,8 +197,12 @@ where
     async fn create_aggregated_proof(
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
+        genesis_state_root: &RawGenesisStateRoot,
     ) -> Result<ProofAggregationStatus, anyhow::Error> {
-        self.prover_state
-            .create_aggregated_proof(self.outer_vm.clone(), block_header_hashes)
+        self.prover_state.create_aggregated_proof(
+            self.outer_vm.clone(),
+            block_header_hashes,
+            genesis_state_root,
+        )
     }
 }

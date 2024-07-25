@@ -30,7 +30,7 @@ async fn run_make_proof_sync(
     let jump = test_case.jump();
 
     let nb_of_batches = test_case.input.nb_of_batches;
-    let (mut test_node, runner_task) = spawn(jump, nb_of_threads, tmpdir.path());
+    let (mut test_node, runner_task) = spawn(jump, nb_of_threads, tmpdir.path()).await;
 
     for batch_number in 0..nb_of_batches {
         test_node.send_transaction().await.unwrap();
@@ -65,7 +65,7 @@ async fn run_make_proof_async(
     let tmpdir = tempfile::tempdir().unwrap();
     let jump = test_case.jump();
     let nb_of_batches = test_case.input.nb_of_batches;
-    let (mut test_node, runner_task) = spawn(test_case.jump(), nb_of_threads, tmpdir.path());
+    let (mut test_node, runner_task) = spawn(test_case.jump(), nb_of_threads, tmpdir.path()).await;
 
     for _ in 0..nb_of_batches {
         test_node.send_transaction().await?;
@@ -108,7 +108,7 @@ fn calculate_and_check_slot_number(
     final_slot + 1
 }
 
-fn spawn(
+async fn spawn(
     jump: usize,
     nb_of_threads: usize,
     path: impl AsRef<std::path::Path>,
@@ -134,7 +134,8 @@ fn spawn(
         init_variant,
         jump,
         Some(nb_of_threads),
-    );
+    )
+    .await;
 
     let join_handle = tokio::spawn(async move {
         runner.run_in_process().await.unwrap();

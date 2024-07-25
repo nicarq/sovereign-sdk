@@ -10,6 +10,7 @@ use tokio::time::{sleep, Duration};
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
+use super::RawGenesisStateRoot;
 use crate::prover_service::AggregatedProofPublicData;
 use crate::{ProverService, StateTransitionInfo};
 
@@ -92,6 +93,7 @@ where
             Ps::Witness,
             <Ps::DaService as DaService>::Spec,
         >,
+        genesis_state_root: &RawGenesisStateRoot,
     ) -> anyhow::Result<()> {
         if let Some(prover_service) = self.prover_service.as_ref() {
             let block_hash = transition_data.da_block_header().hash();
@@ -117,7 +119,11 @@ where
                 self.proofs_to_create.close_newest_proof();
                 let metadata = self.proofs_to_create.take_oldest();
                 let agg_proof = self
-                    .create_aggregate_proof_with_retries(metadata, prover_service)
+                    .create_aggregate_proof_with_retries(
+                        metadata,
+                        prover_service,
+                        genesis_state_root,
+                    )
                     .await?;
 
                 tracing::debug!(
@@ -142,13 +148,14 @@ where
         &self,
         mut metadata: AggregateProofMetadata<Ps>,
         prover_service: &Ps,
+        genesis_state_root: &RawGenesisStateRoot,
     ) -> anyhow::Result<SerializedAggregatedProof> {
         let mut attempt_num = 1u32;
         let mut backoff_iter = self.backoff_policy.build();
 
         loop {
             let maybe_backoff_duration = backoff_iter.next();
-            match metadata.prove(prover_service).await {
+            match metadata.prove(prover_service, genesis_state_root).await {
                 Ok(proof) => return Ok(proof),
                 Err((returned_metadata, error)) => {
                     let error_message = format!("Failed to generate aggregate proof: {error}");

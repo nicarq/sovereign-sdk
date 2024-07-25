@@ -6,7 +6,7 @@ use crate::da::DaSpec;
 /// Storage manager, that supports tree-like hierarchy of states.
 /// So different rollup state can be mapped to DA state 1 to 1, including chain forks.
 /// State type represents a reference point to the current state and allows to build proper change set for given block.
-pub trait HierarchicalStorageManager<Da: DaSpec> {
+pub trait HierarchicalStorageManager<Da: DaSpec>: Send + Sync {
     /// Type that can be consumed by `[crate::state_machine::stf::StateTransitionFunction]` in native context.
     type StfState;
     /// Type that is produced by `[crate::state_machine::stf::StateTransitionFunction]`.

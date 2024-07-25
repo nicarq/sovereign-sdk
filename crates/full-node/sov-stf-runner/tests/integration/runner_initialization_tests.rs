@@ -14,7 +14,7 @@ type MockInitVariant = InitVariant<
     DaServiceWithRetries<MockDaService>,
 >;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {
     let genesis_block = MockBlock {
         header: Default::default(),
@@ -35,14 +35,14 @@ async fn init_and_restart() {
     )));
 
     let state_root_after_genesis = {
-        let (runner, _) = initialize_runner(da_service.clone(), path, init_variant, 1, None);
+        let (runner, _) = initialize_runner(da_service.clone(), path, init_variant, 1, None).await;
         *runner.get_state_root()
     };
 
     let init_variant_2 = InitVariant::Initialized(state_root_after_genesis);
 
     let state_root_2 = {
-        let (runner_2, _) = initialize_runner(da_service, path, init_variant_2, 1, None);
+        let (runner_2, _) = initialize_runner(da_service, path, init_variant_2, 1, None).await;
         *runner_2.get_state_root()
     };
 

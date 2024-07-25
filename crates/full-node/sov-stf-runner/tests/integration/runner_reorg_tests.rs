@@ -149,7 +149,7 @@ async fn check_runner(
     init_variant: MockInitVariant,
     expected_state_root: [u8; 32],
 ) {
-    let (mut runner, _) = initialize_runner(da_service, tmpdir.path(), init_variant, 1, None);
+    let (mut runner, _) = initialize_runner(da_service, tmpdir.path(), init_variant, 1, None).await;
     let before = *runner.get_state_root();
     let end = runner.run_in_process().await;
     assert!(end.is_err());

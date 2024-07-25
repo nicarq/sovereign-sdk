@@ -261,7 +261,8 @@ mod blueprint {
                 rpc_storage.0,
                 init_variant,
                 proof_manager,
-            )?;
+            )
+            .await?;
 
             Ok(Rollup { runner, endpoints })
         }

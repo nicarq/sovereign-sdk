@@ -1,3 +1,4 @@
+- #1025 Pass the `genesis_state_root` to the `ProverService`
 - #1021 Moves the `BatchSequencerOutcome` type to the `sov-modules-api` crate.
 - #1011 Rename `hooks.rs` to `capabilities.rs` in the `Accounts` module and add `capabilities.rs` for `ProverIncentives` module.
 - #1004 Slash the sequencer if the aggregated proof can't be deserialized in the proof processing workflow.
