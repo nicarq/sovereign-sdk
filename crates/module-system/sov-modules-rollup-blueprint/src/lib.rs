@@ -193,6 +193,16 @@ mod blueprint {
         where
             <Self::Spec as Spec>::Storage: NativeStorage,
         {
+            let genesis_config = self.create_genesis_config(
+                runtime_genesis_paths,
+                kernel_genesis_config,
+                &rollup_config,
+            )?;
+
+            let mut storage_manager = self.create_storage_manager(&rollup_config)?;
+            let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
+            let ledger_db = self.create_ledger_db(ledger_state)?;
+
             let da_service = Arc::new(self.create_da_service(&rollup_config).await);
             let relative_da_genesis_block = da_service
                 .get_block_at(rollup_config.runner.genesis_height)
@@ -205,16 +215,6 @@ mod blueprint {
                 ),
                 None => None,
             };
-
-            let genesis_config = self.create_genesis_config(
-                runtime_genesis_paths,
-                kernel_genesis_config,
-                &rollup_config,
-            )?;
-
-            let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-            let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
-            let ledger_db = self.create_ledger_db(ledger_state)?;
 
             let sequencer_db = SequencerDb::new(&rollup_config.storage.path)?;
 
