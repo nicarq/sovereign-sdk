@@ -487,6 +487,8 @@ jobs:
     env:
       RUSTDOCFLAGS: "-D warnings"
       SKIP_GUEST_BUILD: "1"
+      S3_BUCKET_NAME: "sovlabs-ci-rustdoc-artifacts"
+      AWS_REGION: "us-east-1"
     steps:
       - uses: actions/checkout@v3
         # Not sure installing `mold` is actually needed, but it's what the
@@ -517,6 +519,18 @@ jobs:
         uses: actions/upload-pages-artifact@v1
         with:
           path: target/doc
+      - run: mkdir "test-upload-dir"; echo "This is a test file from CI" > test-upload-dir/test_ci.txt
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Upload to doc artifacts to S3
+        run: |
+          TARGET_DIR="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}-doc";
+          aws --quiet s3 sync target/doc s3://${S3_BUCKET_NAME}/${TARGET_DIR};
+          echo "Docs are available at https://$S3_BUCKET_NAME.$AWS_REGION.amazonaws.com/${TARGET_DIR}/index.html";
 
   deploy-github-pages:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4
@@ -535,6 +549,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
+
   check-demo-rollup-table-of-contents:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4
     steps:
