@@ -14,3 +14,5 @@ Describe how these changes were tested. If you've added new features, have you a
 
 ## Docs
 Describe where this code is documented. If it changes a documented interface, have the docs been updated?
+
+Rendered docs are available at `https://sovlabs-ci-rustdoc-artifacts.us-east-1.amazonaws.com/<BRANCH_NAME>/index.html`
