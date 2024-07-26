@@ -8,23 +8,39 @@ use sov_modules_stf_blueprint::Runtime;
 use tokio::sync::mpsc::Sender;
 use tokio::time::{self, Duration};
 
-use crate::call_messages::{PreparedCallMessage, SerializedPreparedCallMessage};
+use crate::{PreparedCallMessage, SerializedPreparedCallMessage};
 
+/// A trait to be implemented by any structure wishing to send module messages for later broadcast
+/// to the rollup.
 #[async_trait]
-pub(crate) trait MessageSenderT {
+pub trait MessageSenderT {
+    /// This will start the implementor of this trait sending messages.
     async fn send_messages(self: Box<Self>, max_num_txs: Option<usize>, interval: Option<u64>);
 }
 
-pub(crate) struct MessageSender<R: Runtime<S, Da>, Da: DaSpec, S: Spec, M: Module<Spec = S>> {
+/// The [`MessageSender`] structure holds all that is required to create [`crate::PreparedCallMessage`]s,
+/// serialize them, and send those [`crate::SerializedPreparedCallMessage`]s on to whomever is in charge
+/// of signging ready for broadcasting to the rollup via the sequencer or directly to the DA layer.
+pub struct MessageSender<R: Runtime<S, Da>, Da: DaSpec, S: Spec, M: Module<Spec = S>> {
+    /// The name of this message sender.
     name: String,
+
+    /// A flag used to tell this message sender to stop sending messages.
     should_stop: Arc<AtomicBool>,
+
+    /// The message generator itself, whence [`PreparedCallMessages`] are generated.
     message_generator: Box<dyn Iterator<Item = PreparedCallMessage<S, M>> + Send + Sync>,
+
+    /// A channel down which [`SerializedPreparedCallMesssage`]s are sent to be later broadcast
+    /// to the rollup.
     sender: Sender<SerializedPreparedCallMessage>,
+
     _phantom: PhantomData<(R, Da)>,
 }
 
 impl<R: Runtime<S, Da>, Da: DaSpec, S: Spec, M: Module<Spec = S>> MessageSender<R, Da, S, M> {
-    pub(crate) fn new(
+    /// Creates a new [`MessageSender`].
+    pub fn new(
         name: &str,
         should_stop: Arc<AtomicBool>,
         message_generator: Box<dyn Iterator<Item = PreparedCallMessage<S, M>> + Send + Sync>,
@@ -86,12 +102,10 @@ where
                     break;
                 };
 
-                let runtime_msg = <R as EncodeCall<M>>::encode_call(message.call_message);
-
                 let serialized_msg = SerializedPreparedCallMessage {
-                    max_fee: message.max_fee,
-                    call_message: runtime_msg,
-                    account_pool_index: message.account_pool_index,
+                    max_fee: *message.max_fee(),
+                    account_pool_index: *message.account_pool_index(),
+                    call_message: <R as EncodeCall<M>>::encode_call(message.call_message),
                 };
 
                 match sender.send(serialized_msg).await {

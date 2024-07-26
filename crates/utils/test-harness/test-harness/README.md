@@ -10,7 +10,7 @@ Make sure the celestia version of the demo rollup is running in another terminal
 Then, from the repo root, to run:
 
 ```bash
-cargo run --bin testing-harness -- \
+cargo run --bin test-harness -- \
     --private-keys-dir examples/test-data/keys \
     --genesis-dir examples/test-data/genesis/demo/celestia \
     --rollup-config-path examples/demo-rollup/demo_rollup_config.toml \

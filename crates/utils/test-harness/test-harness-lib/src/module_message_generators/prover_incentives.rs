@@ -3,12 +3,14 @@ use std::marker::PhantomData;
 use sov_modules_api::{DaSpec, Spec};
 use sov_prover_incentives::ProverIncentives;
 
-use crate::account_pool::AccountPool;
-use crate::call_messages::PreparedCallMessage;
 use crate::constants::DEFAULT_MAX_FEE;
+use crate::{AccountPool, PreparedCallMessage};
 
+/// The [`crate::ProverIncentivesMessageGenerator`] structure holds all that is required to prepare
+/// [`sov_prover_incentives::ProverIncentives`] module call messages, that are sign- and broadcast-able by accounts
+/// from the [`AccountPool`].
 #[derive(Clone)]
-pub(crate) struct ProverIncentivesMessageGenerator<S: Spec, Da: DaSpec> {
+pub struct ProverIncentivesMessageGenerator<S: Spec, Da: DaSpec> {
     message_count: u64,
     account_pool: AccountPool<S>,
     account_pool_index: u64,
@@ -16,7 +18,9 @@ pub(crate) struct ProverIncentivesMessageGenerator<S: Spec, Da: DaSpec> {
 }
 
 impl<S: Spec, Da: DaSpec> ProverIncentivesMessageGenerator<S, Da> {
-    pub(crate) fn new(account_pool: AccountPool<S>) -> Self {
+    /// Creates a [`ProverIncentivesMessageGenerator`] with an [`AccountPool`] capabale of sending
+    /// [`sov_prover_incentives::ProverIncentives`] module messages.
+    pub fn new_from_account_pool(account_pool: AccountPool<S>) -> Self {
         Self {
             account_pool,
             message_count: 0,

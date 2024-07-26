@@ -1,10 +1,9 @@
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use derive_getters::Getters;
+use derive_more::Constructor;
 use jsonrpsee::http_client::HttpClientBuilder;
 use sov_bank::{Amount, Bank, BankRpcClient, CallMessage, GAS_TOKEN_ID};
 use sov_modules_api::prelude::tokio;
@@ -14,34 +13,34 @@ use tokio::sync::mpsc::Sender;
 
 use super::{MessageSender, MessageSenderT};
 use crate::account_pool::AccountPool;
-use crate::args::Args;
-use crate::call_messages::{PreparedCallMessage, SerializedPreparedCallMessage};
 use crate::constants::DEFAULT_MAX_FEE;
+use crate::{get_bank_config, PreparedCallMessage, SerializedPreparedCallMessage};
 
 // How much funds account should have to be considered a "whale".
 const MINIMAL_WHALE_BALANCE: u64 = 5_000_000;
 
-fn get_bank_config<S: Spec>(
-    genesis_dir: impl AsRef<Path>,
-) -> anyhow::Result<sov_bank::BankConfig<S>> {
-    let path = genesis_dir.as_ref().join("bank.json");
+/// [`GasFundingConfig`] holds the values required to create gas funding transactions,
+/// which mint and transfer the rollup's gas token to accounts in the [`crate::AccountPool`].
+#[derive(Clone, Debug, Constructor, Getters)]
+pub struct GasFundingConfig {
+    /// This is use to create an client in order to query the rollup for account balances,
+    /// nonces etc.
+    rpc_url: String,
 
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-
-    let bank_config = serde_json::from_reader(reader)?;
-
-    Ok(bank_config)
+    /// The genesis directory contains information pertaining to the genesis state of the
+    /// rollup, including initial allocations of the rollup's native gas token.
+    genesis_dir: String,
 }
 
-async fn get_gas_funding_txs<S: Spec>(
-    config: &Args,
+/// This function creates the call messages required to mint and distribute the rollup's gas-token -
+/// as defined in the genesis config - to the set of accounts in the account pool.
+pub async fn get_gas_funding_txs<S: Spec>(
+    gas_funding_config: GasFundingConfig,
     account_pool: &AccountPool<S>,
 ) -> anyhow::Result<Vec<PreparedCallMessage<S, Bank<S>>>> {
-    let genesis_dir = &config.genesis_dir;
-    let client = HttpClientBuilder::default().build(&config.rpc_url)?;
+    let client = HttpClientBuilder::default().build(gas_funding_config.rpc_url())?;
 
-    let bank_config = get_bank_config::<S>(genesis_dir)?;
+    let bank_config = get_bank_config::<S>(gas_funding_config.genesis_dir())?;
     tracing::info!(?bank_config, "Bank config");
 
     let gas_whale_account_pool_indices = {
@@ -56,7 +55,7 @@ async fn get_gas_funding_txs<S: Spec>(
                         map.insert(address, *index);
                     } else {
                         tracing::warn!(account = %address, "Account from bank config is not in account pool");
-                    };
+                    }
                 }
             });
         map
@@ -76,29 +75,17 @@ async fn get_gas_funding_txs<S: Spec>(
     let mut txs = Vec::new();
 
     let enough_supply = Amount::MAX / 2;
-
     if total_supply < enough_supply {
-        let gas_token_minter = bank_config
-            .gas_token_config
-            .authorized_minters
-            .iter()
-            .find(|address| account_pool.contains_address(address))
-            .expect("Haven't found gas token minter in available keys. Cannot proceed");
-
-        let gas_token_minter_account_pool_index = account_pool
-            .addresses()
-            .enumerate()
-            .find(|(_, address)| address == &gas_token_minter)
-            .expect("gas token minter should have an index")
-            .0 as u64;
+        let gas_token_minter_account_pool_index = account_pool.gas_token_minter_index();
+        let gas_token_minter = account_pool
+            .get_address_by_index(&gas_token_minter_account_pool_index)
+            .expect("gas token minter address should exist in account pool!");
         tracing::info!(gas_token_minter = %gas_token_minter, account_pool_index = %gas_token_minter_account_pool_index, "Gas token minter");
-
         tracing::info!(
             total_supply,
             enough = enough_supply,
             "Total supply of gas token is not large enough, need to mint!"
         );
-
         let to_mint = Amount::MAX - 100 - total_supply;
         let to_mint_per_whale = to_mint / num_gas_whales as u64;
         for whale_address in gas_whale_account_pool_indices.keys() {
@@ -153,13 +140,19 @@ async fn get_gas_funding_txs<S: Spec>(
     Ok(txs)
 }
 
-pub(crate) async fn get_gas_funding_message_sender<S: Spec, Da: DaService>(
-    config: &Args,
+/// The gas-funding message sender is a special case of `MessageSender`, whose iterator of messages is finite
+/// and is based on initial test-harness configuration. The gas funding messages consist of transactions that
+/// mint and allocate the rollup's gas funding token to all the accounts in the account pool, so that those
+/// accounts may take part in broadcasting call messages.
+pub async fn get_gas_funding_message_sender<S: Spec, Da: DaService>(
+    genesis_dir: String,
+    rpc_url: String,
     account_pool: AccountPool<S>,
     serialized_messages_tx: Sender<SerializedPreparedCallMessage>,
     should_stop: Arc<AtomicBool>,
 ) -> anyhow::Result<Box<dyn MessageSenderT>> {
-    let gas_funding_txs = get_gas_funding_txs(config, &account_pool).await?;
+    let gas_funding_txs =
+        get_gas_funding_txs(GasFundingConfig::new(rpc_url, genesis_dir), &account_pool).await?;
 
     let message_sender: MessageSender<
         demo_stf::runtime::Runtime<S, <Da as DaService>::Spec>,

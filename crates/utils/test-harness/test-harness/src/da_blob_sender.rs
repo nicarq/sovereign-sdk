@@ -8,12 +8,11 @@ use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{BlobData, RawTx, Spec};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
+use test_harness_lib::{Account, AccountPool, SerializedPreparedCallMessage};
 use tokio::sync::mpsc::Receiver;
 use tokio::time::sleep;
 
-use crate::account_pool::{Account, AccountPool};
 use crate::args::Args;
-use crate::call_messages::SerializedPreparedCallMessage;
 use crate::constants::TIME_OUT_DURATION;
 
 pub(crate) struct DaBlobSender<S: Spec, Auth: Authenticator> {
@@ -64,7 +63,7 @@ impl<S: Spec, Auth: Authenticator> DaBlobSender<S, Auth> {
                 },
                 maybe_message = receiver.recv() => {
                     if let Some(serialized_message) = maybe_message {
-                        let account_pool_index = serialized_message.account_pool_index;
+                        let account_pool_index = *serialized_message.account_pool_index();
                         tracing::debug!(account_pool_index, "Message received!");
 
                         let account = self.account_pool.get_by_index(&account_pool_index).expect(
@@ -143,16 +142,17 @@ pub(crate) fn authorize_serialized_call_message<S: Spec, Auth: Authenticator>(
     account: &Account<S>,
     serialized_message: SerializedPreparedCallMessage,
 ) -> anyhow::Result<RawTx> {
+    let (serialized_message, _, max_fee) = serialized_message.dissolve();
     let unsigned_tx = UnsignedTransaction::new(
-        serialized_message.call_message,
+        serialized_message,
         config.chain_id,
         PriorityFeeBips::from_percentage(config.priority_fee_percent),
-        serialized_message.max_fee,
-        account.nonce.load(std::sync::atomic::Ordering::Relaxed), // NOTE: The nonce is updated in the message sender above
+        max_fee,
+        account.nonce().load(std::sync::atomic::Ordering::Relaxed), // NOTE: The nonce is updated in the message sender above
         None,
     );
 
-    let signed_tx = Transaction::<S>::new_signed_tx(&account.private_key, unsigned_tx);
+    let signed_tx = Transaction::<S>::new_signed_tx(account.private_key(), unsigned_tx);
     let signed_and_encoded_tx = Auth::encode(borsh::to_vec(&signed_tx)?)?;
     Ok(signed_and_encoded_tx)
 }
