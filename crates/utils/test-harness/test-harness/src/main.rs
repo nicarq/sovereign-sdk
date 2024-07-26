@@ -1,14 +1,11 @@
 #![doc = include_str!("../README.md")]
 
-mod account_pool;
 mod args;
-mod call_messages;
 mod constants;
 mod ctrl_c_handler;
 mod da_blob_sender;
 mod harness_config;
 mod logging;
-mod module_message_generators;
 mod slot_watcher;
 mod types;
 mod utils;
@@ -16,8 +13,6 @@ mod utils;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use account_pool::AccountPool;
-use call_messages::SerializedPreparedCallMessage;
 use clap::Parser;
 use constants::DEFAULT_CHANNEL_SIZE;
 use harness_config::HarnessConfig;
@@ -29,13 +24,16 @@ use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::prelude::tokio;
 use sov_modules_api::Spec;
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
+use test_harness_lib::{
+    get_bank_config, get_gas_funding_message_sender, get_message_senders, AccountPool,
+    AccountPoolConfig, SerializedPreparedCallMessage,
+};
 use types::{ThisAuth, ThisDaService, ThisSpec};
 
 use crate::args::Args;
 use crate::ctrl_c_handler::start_ctrl_c_handler;
 use crate::da_blob_sender::DaBlobSender;
 use crate::logging::initialize_logging;
-use crate::module_message_generators::{get_gas_funding_message_sender, get_message_senders};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -46,7 +44,17 @@ async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<
     initialize_logging();
     let config = Args::parse();
 
-    let account_pool = AccountPool::new_from_config(&config).await?;
+    let bank_config = get_bank_config::<S>(&config.genesis_dir)?;
+    let authorized_gas_token_minters = bank_config.gas_token_config.authorized_minters;
+
+    let account_pool_config = AccountPoolConfig::new(
+        config.private_keys_dir.to_string(),
+        config.rpc_url.clone(),
+        config.new_users_count,
+        authorized_gas_token_minters,
+    );
+
+    let account_pool = AccountPool::new_from_config(account_pool_config).await?;
 
     let should_stop = Arc::new(AtomicBool::new(false));
 
@@ -64,7 +72,8 @@ async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<
     .await;
 
     let gas_funding_message_sender = get_gas_funding_message_sender::<S, Da>(
-        &config,
+        config.genesis_dir.clone(),
+        config.rpc_url.clone(),
         account_pool.clone(),
         serialized_messages_tx.clone(),
         should_stop.clone(),
@@ -75,7 +84,7 @@ async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<
         should_stop.clone(),
         account_pool.clone(),
         serialized_messages_tx.clone(),
-    );
+    )?;
 
     // NOTE: We send the funding messages first without waiting on an interval. We know this
     // iterator has a finite length.
