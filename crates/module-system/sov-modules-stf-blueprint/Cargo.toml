@@ -36,7 +36,6 @@ jsonrpsee = { workspace = true, features = ["server"], optional = true }
 [features]
 bench = [
     "risc0-cycle-macros",
-    "risc0-cycle-macros?/bench",
     "risc0-zkvm",
     "risc0-zkvm-platform",
     "sov-modules-api/bench",

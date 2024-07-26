@@ -44,7 +44,6 @@ sov-modules-api = { workspace = true, features = ["test-utils"] }
 [features]
 bench = [
     "risc0-cycle-macros",
-    "risc0-cycle-macros?/bench",
     "risc0-cycle-utils",
     "risc0-zkvm",
     "risc0-zkvm-platform",

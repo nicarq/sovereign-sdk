@@ -9,6 +9,9 @@ use crate::guest::Risc0Guest;
 /// provided to its execution.
 #[derive(Clone)]
 pub struct Risc0Host<'a> {
+    #[cfg(feature = "bincode")]
+    env: Vec<u8>,
+    #[cfg(not(feature = "bincode"))]
     env: Vec<u32>,
     elf: &'a [u8],
 }
@@ -21,15 +24,12 @@ fn add_benchmarking_callbacks(env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder
 
 #[cfg(feature = "bench")]
 fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
-    use risc0_cycle_utils::{cycle_count_callback, get_syscall_name, get_syscall_name_cycles};
+    use risc0_cycle_utils::get_syscall_name;
 
     use crate::metrics::metrics_callback;
 
     let metrics_syscall_name = get_syscall_name();
     env.io_callback(metrics_syscall_name, metrics_callback);
-
-    let cycles_syscall_name = get_syscall_name_cycles();
-    env.io_callback(cycles_syscall_name, cycle_count_callback);
 
     env
 }
@@ -46,17 +46,18 @@ impl<'a> Risc0Host<'a> {
     /// Run a computation in the zkVM without generating a receipt.
     /// This creates the "Session" trace without invoking the heavy cryptographic machinery.
     pub fn run_without_proving(&mut self) -> anyhow::Result<Session> {
-        let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-            .write_slice(&self.env)
-            .build()
-            .unwrap();
+        let mut env = add_benchmarking_callbacks(ExecutorEnvBuilder::default());
+        #[cfg(feature = "bincode")]
+        env.write_slice(&[self.env.len() as u32]);
+        let env = env.write_slice(&self.env).build().unwrap();
         let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
         executor.run()
     }
+
     /// Run a computation in the zkvm and generate a receipt.
     pub fn run(&mut self) -> anyhow::Result<Receipt> {
         let session = self.run_without_proving()?;
-        session.prove()
+        Ok(session.prove()?.receipt)
     }
 }
 
@@ -73,8 +74,15 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         self.env
             .reserve(std::mem::size_of::<T>() / std::mem::size_of::<u32>());
 
-        let mut serializer = risc0_zkvm::serde::Serializer::new(&mut self.env);
-        item.serialize(&mut serializer)
+        #[cfg(not(feature = "bincode"))]
+        {
+            let mut serializer = risc0_zkvm::serde::Serializer::new(&mut self.env);
+            item.serialize(&mut serializer)
+                .expect("Risc0 hint serialization is infallible");
+        }
+
+        #[cfg(feature = "bincode")]
+        bincode::serialize_into(&mut self.env, &item)
             .expect("Risc0 hint serialization is infallible");
     }
 

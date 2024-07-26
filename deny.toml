@@ -15,6 +15,7 @@ allow = [
     "OpenSSL",
     "Apache-2.0 WITH LLVM-exception",
     "Zlib",
+    "BSL-1.0", # Relevant discussion: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/985#issuecomment-2242712349>.
 ]
 
 [[licenses.clarify]]

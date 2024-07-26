@@ -12,7 +12,7 @@ use sov_risc0_adapter::Risc0Verifier;
 use sov_state::ZkStorage;
 
 #[cfg(feature = "bench")]
-fn report_bench_metrics(start_cycles: usize, end_cycles: usize) {
+fn report_bench_metrics(start_cycles: u64, end_cycles: u64) {
     let cycles_per_block = (end_cycles - start_cycles) as u64;
     let tuple = ("Cycles per block".to_string(), cycles_per_block);
     let mut serialized = Vec::new();
@@ -23,8 +23,9 @@ fn report_bench_metrics(start_cycles: usize, end_cycles: usize) {
 
     // calculate the syscall name.
     let cycle_string = String::from("cycle_metrics\0");
-    let metrics_syscall_name =
-        risc0_zkvm_platform::syscall::SyscallName::from_bytes_with_nul(cycle_string.as_ptr());
+    let metrics_syscall_name = unsafe { 
+        risc0_zkvm_platform::syscall::SyscallName::from_bytes_with_nul(cycle_string.as_ptr())
+    };
 
     risc0_zkvm::guest::env::send_recv_slice::<u8, u8>(metrics_syscall_name, &serialized);
 }

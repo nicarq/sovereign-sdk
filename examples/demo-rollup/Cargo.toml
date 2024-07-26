@@ -99,6 +99,7 @@ regex = "1.10"
 [features]
 default = []
 nft-script = ["sov-test-utils"]
+bincode = ["risc0/bincode", "sov-risc0-adapter/bincode"]
 
 bench = [
     "hex",
