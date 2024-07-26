@@ -54,6 +54,7 @@ native = [
 ]
 bench = ["native", "once_cell", "parking_lot", "risc0-cycle-utils/native"]
 arbitrary = ["dep:arbitrary", "sov-rollup-interface/arbitrary"]
+bincode = []
 
 [[test]]
 name = "native"

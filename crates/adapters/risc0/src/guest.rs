@@ -1,11 +1,7 @@
 //! This module implements the `ZkvmGuest` trait for the RISC0 VM.
-#[cfg(not(target_os = "zkvm"))]
-use std::ops::DerefMut;
 
 #[cfg(target_os = "zkvm")]
 use risc0_zkvm::guest::env;
-#[cfg(not(target_os = "zkvm"))]
-use risc0_zkvm::serde::{Deserializer, WordRead};
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::zk::ZkvmGuest;
 
@@ -13,6 +9,18 @@ use sov_rollup_interface::zk::ZkvmGuest;
 impl ZkvmGuest for Risc0Guest {
     type Verifier = crate::Risc0Verifier;
 
+    #[cfg(feature = "bincode")]
+    fn read_from_host<T: DeserializeOwned>(&self) -> T {
+        let mut len: u32 = 0;
+        env::read_slice(std::slice::from_mut(&mut len));
+
+        let mut bytes = vec![0u8; len as usize];
+        env::read_slice(&mut bytes);
+
+        bincode::deserialize(&bytes).unwrap()
+    }
+
+    #[cfg(not(feature = "bincode"))]
     fn read_from_host<T: DeserializeOwned>(&self) -> T {
         env::read()
     }
@@ -25,12 +33,22 @@ impl ZkvmGuest for Risc0Guest {
 #[cfg(not(target_os = "zkvm"))]
 #[derive(Default)]
 struct Hints {
+    #[cfg(feature = "bincode")]
+    values: Vec<u8>,
+    #[cfg(not(feature = "bincode"))]
     values: Vec<u32>,
+    #[cfg(not(feature = "bincode"))]
     position: usize,
 }
 
 #[cfg(not(target_os = "zkvm"))]
 impl Hints {
+    #[cfg(feature = "bincode")]
+    pub fn with_hints(hints: Vec<u8>) -> Self {
+        Hints { values: hints }
+    }
+
+    #[cfg(not(feature = "bincode"))]
     pub fn with_hints(hints: Vec<u32>) -> Self {
         Hints {
             values: hints,
@@ -39,8 +57,9 @@ impl Hints {
     }
 }
 
+#[cfg(not(feature = "bincode"))]
 #[cfg(not(target_os = "zkvm"))]
-impl WordRead for Hints {
+impl risc0_zkvm::serde::WordRead for Hints {
     fn read_words(&mut self, words: &mut [u32]) -> risc0_zkvm::serde::Result<()> {
         if let Some(slice) = self.values.get(self.position..self.position + words.len()) {
             words.copy_from_slice(slice);
@@ -87,7 +106,20 @@ impl Risc0Guest {
     ///
     /// This function is only available outside Risc0's environment.
     #[cfg(not(target_os = "zkvm"))]
+    #[cfg(not(feature = "bincode"))]
     pub fn with_hints(hints: Vec<u32>) -> Self {
+        Self {
+            hints: std::sync::Mutex::new(Hints::with_hints(hints)),
+            commits: Default::default(),
+        }
+    }
+
+    /// Constructs a new Risc0 Guest with the provided hints.
+    ///
+    /// This function is only available outside Risc0's environment.
+    #[cfg(not(target_os = "zkvm"))]
+    #[cfg(feature = "bincode")]
+    pub fn with_hints(hints: Vec<u8>) -> Self {
         Self {
             hints: std::sync::Mutex::new(Hints::with_hints(hints)),
             commits: Default::default(),
@@ -99,7 +131,17 @@ impl Risc0Guest {
 impl ZkvmGuest for Risc0Guest {
     type Verifier = crate::Risc0Verifier;
 
+    #[cfg(feature = "bincode")]
     fn read_from_host<T: DeserializeOwned>(&self) -> T {
+        bincode::deserialize(&self.hints.lock().unwrap().values).unwrap()
+    }
+
+    #[cfg(not(feature = "bincode"))]
+    fn read_from_host<T: DeserializeOwned>(&self) -> T {
+        use std::ops::DerefMut;
+
+        use risc0_zkvm::serde::Deserializer;
+
         let mut hints = self.hints.lock().unwrap();
         let mut hints = hints.deref_mut();
         T::deserialize(&mut Deserializer::new(&mut hints)).unwrap()

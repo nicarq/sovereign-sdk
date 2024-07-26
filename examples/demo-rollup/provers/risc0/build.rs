@@ -29,6 +29,9 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
     if cfg!(feature = "bench") {
         features.push("bench".to_string());
     }
+    if cfg!(feature = "bincode") {
+        features.push("bincode".to_string());
+    }
     guest_pkg_to_options.insert(
         "sov-demo-prover-guest-mock",
         risc0_build::GuestOptions {
