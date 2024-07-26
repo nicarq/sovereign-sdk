@@ -28,14 +28,6 @@ pub enum CallMessage {
 /// Error raised while processing the attester incentives
 #[derive(Debug, Error, PartialEq)]
 pub enum ProverIncentiveError {
-    #[error("The bond is not high enough")]
-    /// The bond is below the minimum bond
-    BondNotHighEnough,
-
-    #[error("Prover is not bonded at the time of the transaction")]
-    /// User is not bonded at the time of the transaction
-    ProverNotBonded,
-
     #[error("Error occurred when transferring funds to bond the prover. The prover's account may not have enough funds")]
     /// An error occurred when transferring funds to bond the prover
     BondTransferFailure,
