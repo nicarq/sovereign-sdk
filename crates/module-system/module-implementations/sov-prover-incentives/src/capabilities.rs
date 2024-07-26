@@ -3,9 +3,10 @@ use std::cmp::max;
 use sov_modules_api::{
     AggregatedProofPublicData, DaSpec, EventEmitter, Gas, Spec, StateAccessorError, TxState, Zkvm,
 };
+use thiserror::Error;
 
-use crate::event::{Event, SlashingReason};
-use crate::{ProverIncentiveError, ProverIncentives};
+use crate::event::SlashingReason;
+use crate::{Event, ProverIncentiveError, ProverIncentives};
 
 enum ErrorOrSlashed {
     Error(ProverIncentiveError),
@@ -24,6 +25,25 @@ impl From<SlashingReason> for ErrorOrSlashed {
     }
 }
 
+/// Error raised while processing the aggregated proof.
+#[derive(Debug, Error)]
+pub enum ProcessProofError<GU: Gas> {
+    #[error("The aggregated proof is invalid")]
+    InvalidProof,
+
+    #[error("Unable to reward sequencer: {0}")]
+    ProverIncentiveError(#[from] ProverIncentiveError),
+
+    #[error("Prover is not bonded at the time of the transaction")]
+    ProverNotBonded,
+
+    #[error("The bond is not high enough")]
+    BondNotHighEnough,
+
+    #[error("An error occurred when trying to access the state, error: {0}")]
+    StateAccessorError(#[from] StateAccessorError<GU>),
+}
+
 impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// Try to process a zk proof, if the prover is bonded.
     pub fn process_proof(
@@ -31,22 +51,20 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         proof: &[u8],
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<(), ProverIncentiveError> {
+    ) -> Result<AggregatedProofPublicData, ProcessProofError<S::Gas>> {
         // Get the prover's old balance.
         // Revert if they aren't bonded
         let old_balance = match self.bonded_provers.get(prover_address, state)? {
             Some(balance) => balance,
-            None => return Err(ProverIncentiveError::ProverNotBonded),
+            None => return Err(ProcessProofError::ProverNotBonded),
         };
 
         // Check that the prover has enough balance to process the proof.
-        let minimum_bond = self
-            .minimum_bond
-            .get(state)?
-            .expect("The minimum bond should be set at genesis");
+        let minimum_bond = self.minimum_bond.get(state)?;
+        let minimum_bond = minimum_bond.expect("The minimum bond should be set at genesis");
 
         if old_balance < minimum_bond {
-            return Err(ProverIncentiveError::BondNotHighEnough);
+            return Err(ProcessProofError::BondNotHighEnough);
         };
         let new_balance = old_balance.checked_sub(minimum_bond).expect(
             "Underflow happened, while it should've been checked previously. This is a bug.",
@@ -74,14 +92,14 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                     },
                 );
 
-                return Ok(());
+                return Err(ProcessProofError::InvalidProof);
             }
         };
 
         // Check that the public outputs are valid
         if let Err(err) = self.check_proof_outputs(&public_outputs, state) {
             match err {
-                ErrorOrSlashed::Error(err) => return Err(err),
+                ErrorOrSlashed::Error(err) => return Err(err.into()),
                 ErrorOrSlashed::Slashed(reason) => {
                     self.emit_event(
                         state,
@@ -90,7 +108,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                             reason,
                         },
                     );
-                    return Ok(());
+                    return Err(ProcessProofError::InvalidProof);
                 }
             }
         }
@@ -108,7 +126,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         self.bonded_provers
             .set(prover_address, &new_staked_balance, state)?;
 
-        Ok(())
+        Ok(public_outputs)
     }
 
     /// Computes the total reward from the aggregated state transition and rewards the prover with the unclaimed

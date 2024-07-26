@@ -1,17 +1,16 @@
-use borsh::BorshDeserialize;
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
     AuthorizationData, AuthorizationResult, GasEnforcer, ProofProcessor, RuntimeAuthorization,
     SequencerAuthorization, SequencerRemuneration, TryReserveGasError,
 };
-use sov_modules_api::prelude::tracing;
-use sov_modules_api::proof_metadata::SerializeProofWithDetails;
+use sov_modules_api::prelude::tracing::error;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
 };
 use sov_modules_api::{
-    Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome, ProofReceipt,
-    Spec, StateCheckpoint, Storage, TxScratchpad, UnlimitedGasMeter, WorkingSet,
+    Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome,
+    ProofReceiptContents, Spec, StateCheckpoint, Storage, TxScratchpad, UnlimitedGasMeter,
+    WorkingSet,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
@@ -173,37 +172,24 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
 {
     fn process_proof(
         &self,
-        raw_proof: Vec<u8>,
-        state: StateCheckpoint<S>,
-    ) -> (
-        ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()>,
-        StateCheckpoint<S>,
-    ) {
+        proof: &SerializedAggregatedProof,
+        prover_address: &S::Address,
+        state: &mut WorkingSet<S>,
+    ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root> {
         // TODO #815
-        match SerializeProofWithDetails::<S>::try_from_slice(&raw_proof) {
-            Ok(proof_with_details) => (
-                ProofReceipt {
-                    raw_proof: proof_with_details.proof,
-                    blob_hash: [0; 32],
-                    outcome: ProofOutcome::Ignored,
-                    extra_data: (),
-                },
-                state,
-            ),
+
+        let result = self.prover_incentives.process_proof(
+            &proof.raw_aggregated_proof,
+            prover_address,
+            state,
+        );
+
+        match result {
+            Ok(pub_data) => ProofOutcome::Valid(ProofReceiptContents::AggregateProof(pub_data)),
             Err(e) => {
-                tracing::warn!("Unable to deserialize raw proof from DA {}", e);
-                (
-                    ProofReceipt {
-                        // TODO #815: We will return the serialized proof only for verified proofs.
-                        raw_proof: SerializedAggregatedProof {
-                            raw_aggregated_proof: Default::default(),
-                        },
-                        blob_hash: [0; 32],
-                        outcome: ProofOutcome::Invalid,
-                        extra_data: (),
-                    },
-                    state,
-                )
+                // TODO #815: correctly handle errors
+                error!("Proof validation failed {:?}", e);
+                ProofOutcome::Invalid
             }
         }
     }

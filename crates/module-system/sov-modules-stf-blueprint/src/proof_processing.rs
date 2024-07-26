@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::capabilities::{
-    AuthorizeSequencerError, GasEnforcer, HasCapabilities, SequencerAuthorization,
+    AuthorizeSequencerError, GasEnforcer, HasCapabilities, ProofProcessor, SequencerAuthorization,
     SequencerRemuneration, TryReserveGasError,
 };
 use sov_modules_api::proof_metadata::SerializeProofWithDetails;
@@ -54,7 +54,7 @@ where
 
             // Reserve gas for the proof verification. The sequencer pays for the verification.
             // If the sequencer does not have enough funds, then penalize it and return early.
-            let working_set = match workflow.try_reserve_gas(
+            let mut working_set = match workflow.try_reserve_gas(
                 &sequencer_rollup_address,
                 proof_with_details.details.into(),
                 pre_exec_working_set,
@@ -68,6 +68,11 @@ where
                 }
             };
 
+            runtime.capabilities().process_proof(
+                &proof_with_details.proof,
+                &sequencer_rollup_address,
+                &mut working_set,
+            );
             // TODO:#815 here we will verify the proof via the `ProofProcessor` capability.
             let (tx_scratchpad, _transaction_consumption, _events) = working_set.finalize();
 

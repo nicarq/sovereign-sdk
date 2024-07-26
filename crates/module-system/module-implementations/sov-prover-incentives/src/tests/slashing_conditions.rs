@@ -53,9 +53,7 @@ fn prove_transition_log(
 ) {
     let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
 
-    module
-        .process_proof(&proof, &prover_address, state)
-        .expect("An invalid proof is not an error");
+    let _ = module.process_proof(&proof, &prover_address, state);
 }
 
 /// Checks if the prover has been slashed for the correct reason.
@@ -95,9 +93,7 @@ fn test_slash_on_invalid_proof() -> Result<(), Infallible> {
     // Process an invalid proof
     {
         let proof = &MockZkvm::create_serialized_proof(false, ());
-        module
-            .process_proof(proof, &prover_address, &mut state)
-            .expect("An invalid proof is not an error");
+        let _ = module.process_proof(proof, &prover_address, &mut state);
     }
 
     // Check that the prover is slashed
@@ -447,9 +443,7 @@ fn test_slash_on_invalid_output_format() -> Result<(), Infallible> {
     {
         let proof = MockZkvm::create_serialized_proof(true, ());
 
-        module
-            .process_proof(&proof, &prover_address, &mut working_set)
-            .expect("An invalid proof is not an error");
+        let _ = module.process_proof(&proof, &prover_address, &mut working_set);
     }
 
     // Check that the prover is slashed

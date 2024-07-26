@@ -14,9 +14,9 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     BatchSequencerOutcome, BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis,
-    GenesisState, MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet,
-    ProofReceipt, RawTx, RuntimeEventProcessor, Spec, StateAccessor, StateCheckpoint, TxScratchpad,
-    TypedEvent, UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
+    GenesisState, MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, RawTx,
+    RuntimeEventProcessor, Spec, StateAccessor, StateCheckpoint, TxScratchpad, TypedEvent,
+    UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::DaSpec;
@@ -560,23 +560,11 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
 {
     fn process_proof(
         &self,
-        _proof_batch: Vec<u8>,
-        state: StateCheckpoint<S>,
-    ) -> (
-        ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()>,
-        StateCheckpoint<S>,
-    ) {
-        (
-            ProofReceipt {
-                raw_proof: SerializedAggregatedProof {
-                    raw_aggregated_proof: vec![],
-                },
-                blob_hash: [0; 32],
-                outcome: ProofOutcome::Ignored,
-                extra_data: (),
-            },
-            state,
-        )
+        _proof: &SerializedAggregatedProof,
+        _prover_address: &S::Address,
+        _state: &mut WorkingSet<S>,
+    ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root> {
+        ProofOutcome::Ignored
     }
 }
 

@@ -3431,7 +3431,6 @@ name = "sov-capabilities"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh 1.4.0",
  "sov-accounts",
  "sov-bank",
  "sov-modules-api",
