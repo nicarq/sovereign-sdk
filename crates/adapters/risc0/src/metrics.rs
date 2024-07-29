@@ -33,7 +33,7 @@ fn deserialize_custom(serialized: Bytes) -> Result<(String, u64), anyhow::Error>
     let (string_bytes, size_bytes_with_null) = serialized.split_at(null_pos);
     let size_bytes = &size_bytes_with_null[1..]; // Skip the null terminator
     let string = String::from_utf8(string_bytes.to_vec())?;
-    let size = u64::from_ne_bytes(size_bytes.try_into()?); // Convert bytes back into usize
+    let size = u64::from_le_bytes(size_bytes.try_into()?); // Convert bytes back into usize
     Ok((string, size))
 }
 
