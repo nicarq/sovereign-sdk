@@ -6,7 +6,7 @@ use sea_orm::Set;
 
 use crate::storable::entity::{BATCH_NAMESPACE, PROOF_NAMESPACE};
 use crate::utils::hash_to_array;
-use crate::{MockAddress, MockBlob};
+use crate::{MockAddress, MockBlob, MockHash};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "blobs")]
@@ -32,23 +32,31 @@ pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
 
-fn build_blob(height: i32, data: &[u8], sender: &MockAddress, namespace: String) -> ActiveModel {
+fn build_blob(
+    height: i32,
+    data: &[u8],
+    sender: &MockAddress,
+    namespace: String,
+) -> (ActiveModel, MockHash) {
     let blob_hash = hash_to_array(data);
-    ActiveModel {
-        block_height: Set(height),
-        data: Set(data.to_vec()),
-        sender: Set(sender.as_ref().to_vec()),
-        namespace: Set(namespace),
-        hash: Set(blob_hash.to_vec()),
-        ..Default::default()
-    }
+    (
+        ActiveModel {
+            block_height: Set(height),
+            data: Set(data.to_vec()),
+            sender: Set(sender.as_ref().to_vec()),
+            namespace: Set(namespace),
+            hash: Set(blob_hash.to_vec()),
+            ..Default::default()
+        },
+        MockHash(blob_hash),
+    )
 }
 
-pub fn build_batch_blob(height: i32, data: &[u8], sender: &MockAddress) -> ActiveModel {
+pub fn build_batch_blob(height: i32, data: &[u8], sender: &MockAddress) -> (ActiveModel, MockHash) {
     build_blob(height, data, sender, BATCH_NAMESPACE.to_string())
 }
 
-pub fn build_proof_blob(height: i32, data: &[u8], sender: &MockAddress) -> ActiveModel {
+pub fn build_proof_blob(height: i32, data: &[u8], sender: &MockAddress) -> (ActiveModel, MockHash) {
     build_blob(height, data, sender, PROOF_NAMESPACE.to_string())
 }
 

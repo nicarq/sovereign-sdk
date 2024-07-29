@@ -5,7 +5,6 @@ use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{BatchSequencerOutcome, RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
 use tokio::sync::watch;
@@ -25,7 +24,6 @@ where
     B: FullNodeBlueprint<M> + 'static,
     M: ExecutionMode + 'static,
     B::Runtime: RuntimeEventProcessor,
-    <B::DaService as DaService>::TransactionId: Clone + Send + Sync + serde::Serialize,
     Auth: Authenticator<Spec = B::Spec, DispatchCall = B::Runtime>,
     <B::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::InnerZkvm>,
     <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,

@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobs, RelevantProofs, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaBlobHash, DaSpec, RelevantBlobs, RelevantProofs, Time,
 };
 use sov_rollup_interface::services::da::{DaService, MaybeRetryable, SlotData};
 use tokio::sync::{broadcast, Mutex, RwLock};
@@ -17,7 +17,7 @@ use crate::types::{GENESIS_BLOCK, GENESIS_HEADER, WAIT_ATTEMPT_PAUSE};
 use crate::utils::hash_to_array;
 use crate::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockDaVerifier, MockFee,
-    MockHash, Proof,
+    MockHash,
 };
 
 const DEFAULT_WAIT_ATTEMPTS: u64 = 100;
@@ -29,9 +29,9 @@ const DEFAULT_WAIT_ATTEMPTS: u64 = 100;
 #[derive(Clone)]
 pub struct MockDaService {
     sequencer_da_address: MockAddress,
-    aggregated_proof_buffer: Arc<Mutex<VecDeque<Proof>>>,
+    aggregated_proof_buffer: Arc<Mutex<VecDeque<MockBlob>>>,
     blocks: Arc<RwLock<VecDeque<MockBlock>>>,
-    /// Defines jow many blocks should be submitted, before block becomes finalized.
+    /// Defines how many blocks should be submitted, before block becomes finalized.
     /// Zero means instant finality.
     blocks_to_finality: u32,
     /// Used for calculating correct finality from state of `blocks`.
@@ -204,8 +204,9 @@ impl MockDaService {
         batch_blob: MockBlob,
         proof_blob: Vec<MockBlob>,
         blocks: &mut VecDeque<MockBlock>,
-    ) -> u64 {
+    ) -> (u64, MockHash) {
         let block = self.make_new_block(batch_blob, proof_blob, blocks);
+        let hash = block.header.hash();
 
         let height = block.header.height;
         tracing::debug!("Creating block at height {}", height);
@@ -221,7 +222,7 @@ impl MockDaService {
                 .unwrap();
         }
 
-        height
+        (height, hash)
     }
 
     /// Executes planned fork if it is planned at a given height.
@@ -244,11 +245,11 @@ impl MockDaService {
     }
 }
 
-fn block_hash(height: u64, blob_hashes: &[[u8; 32]], prev_hash: [u8; 32]) -> MockHash {
+fn block_hash(height: u64, blob_hashes: &[MockHash], prev_hash: [u8; 32]) -> MockHash {
     let mut block_to_hash = height.to_be_bytes().to_vec();
 
     for blob_hash in blob_hashes {
-        block_to_hash.extend_from_slice(blob_hash);
+        block_to_hash.extend_from_slice(blob_hash.as_ref());
     }
 
     block_to_hash.extend_from_slice(&prev_hash);
@@ -262,7 +263,6 @@ impl DaService for MockDaService {
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
-    type TransactionId = ();
     type Error = MaybeRetryable<anyhow::Error>;
     type Fee = MockFee;
 
@@ -352,19 +352,22 @@ impl DaService for MockDaService {
         block.get_relevant_proofs()
     }
 
-    async fn send_transaction(&self, blob: &[u8], _fee: Self::Fee) -> Result<(), Self::Error> {
+    async fn send_transaction(
+        &self,
+        blob: &[u8],
+        _fee: Self::Fee,
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         let mut proof_blobs = Vec::new();
-        while let Some(proof) = proof_buffer.pop_front() {
+        while let Some(blob) = proof_buffer.pop_front() {
             tracing::debug!("Including buffered proof in block");
-            proof_blobs.push(self.make_blob(proof.0));
+            proof_blobs.push(blob);
         }
 
         let mut blocks = self.blocks.write().await;
         let batch_blob = self.make_blob(blob.to_vec());
 
-        let _ = self.add_block(batch_blob, proof_blobs, &mut blocks);
-        Ok(())
+        Ok(self.add_block(batch_blob, proof_blobs, &mut blocks).1)
     }
 
     /// Sends aggregated proof to the MockDA. The submitted proof is internally buffered and will be included on the MockDA
@@ -373,14 +376,19 @@ impl DaService for MockDaService {
         &self,
         proof: &[u8],
         _fee: Self::Fee,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         tracing::debug!("Proof received. Buffering for later inclusion.");
+
+        let proof_blob = self.make_blob(proof.to_vec());
+        let hash = proof_blob.hash();
+
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
-        proof_buffer.push_back(Proof(proof.to_vec()));
+        proof_buffer.push_back(proof_blob);
         self.aggregated_proof_sender
             .send(())
             .map_err(|e| MaybeRetryable::Transient(e.into()))?;
-        Ok(())
+
+        Ok(hash)
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {

@@ -13,7 +13,7 @@ use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
+use sov_rollup_interface::da::{DaBlobHash, DaProof, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable};
 use tokio::sync::Mutex;
 use tracing::{debug, info, trace};
@@ -227,7 +227,6 @@ impl DaService for CelestiaService {
 
     type FilteredBlock = FilteredCelestiaBlock;
     type HeaderStream = BoxStream<'static, Result<CelestiaHeader, Self::Error>>;
-    type TransactionId = TmHash;
     type Error = MaybeRetryable<BoxError>;
     type Fee = CelestiaFee;
 
@@ -374,7 +373,7 @@ impl DaService for CelestiaService {
         &self,
         blob: &[u8],
         fee: Self::Fee,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         debug!("Submitting batch of transactions to Celestia");
         self.submit_blob_to_namespace(blob, fee, self.rollup_batch_namespace)
             .await
@@ -385,7 +384,7 @@ impl DaService for CelestiaService {
         &self,
         aggregated_proof: &[u8],
         fee: Self::Fee,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         debug!("Submitting aggregated proof to Celestia");
         self.submit_blob_to_namespace(aggregated_proof, fee, self.rollup_proof_namespace)
             .await

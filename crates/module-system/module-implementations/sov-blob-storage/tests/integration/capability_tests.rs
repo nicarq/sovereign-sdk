@@ -831,7 +831,7 @@ fn assert_blob_matches_batch<B: BlobReaderTrait>(
     // Reconstruct the original blob from the batch and its sender
     let actual_id = actual.0.id;
     if is_preferred {
-        assert_eq!(expected.hash(), actual.0.id);
+        assert_eq!(expected.hash().into(), actual.0.id);
         let expected = PreferredBlobData::try_from_slice(expected.full_data()).unwrap();
         assert_eq!(expected.data, actual.0.data);
     } else {
@@ -842,9 +842,11 @@ fn assert_blob_matches_batch<B: BlobReaderTrait>(
 
         let mut actual_inner =
             new_test_blob_from_batch_deprecated(batch, actual.1.as_ref(), actual_id);
+
+        let actual_hash: [u8; 32] = actual_inner.hash().into();
         assert_eq!(
-            expected.hash(),
-            actual_inner.hash(),
+            expected.hash().into(),
+            actual_hash,
             "incorrect hashes in {}",
             slot_hint
         );

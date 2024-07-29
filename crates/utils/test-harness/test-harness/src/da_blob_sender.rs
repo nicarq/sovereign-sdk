@@ -119,10 +119,7 @@ impl<S: Spec, Auth: Authenticator> DaBlobSender<S, Auth> {
 pub(crate) async fn submit_transactions<Da: DaService>(
     da_service: &Da,
     txs: Vec<RawTx>,
-) -> anyhow::Result<()>
-where
-    Da::TransactionId: std::fmt::Display,
-{
+) -> anyhow::Result<()> {
     let batch = BlobData::new_batch(txs);
     let batch_bytes = borsh::to_vec(&batch).expect("Failed to serialize batch");
     let fee = da_service

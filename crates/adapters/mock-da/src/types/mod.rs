@@ -242,7 +242,7 @@ pub struct MockDaVerifier {}
 /// A mock BlobTransaction from a DA layer used for testing.
 pub struct MockBlob {
     pub(crate) address: MockAddress,
-    pub(crate) hash: [u8; 32],
+    pub(crate) hash: MockHash,
     pub(crate) blob: CountedBufReader<Bytes>,
 }
 
@@ -252,14 +252,14 @@ impl MockBlob {
         Self {
             address,
             blob: CountedBufReader::new(Bytes::from(tx_blob)),
-            hash,
+            hash: MockHash(hash),
         }
     }
 
     /// Build new blob, but calculates hash from input data
     pub fn new_with_hash(blob: Vec<u8>, address: MockAddress) -> Self {
         let data_hash = hash_to_array(&blob).to_vec();
-        let blob_hash = hash_to_array(&data_hash);
+        let blob_hash = MockHash(hash_to_array(&data_hash));
         Self {
             address,
             blob: CountedBufReader::new(Bytes::from(blob)),

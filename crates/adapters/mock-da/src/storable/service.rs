@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobs, RelevantProofs,
+    BlobReaderTrait, BlockHeaderTrait, DaBlobHash, DaSpec, RelevantBlobs, RelevantProofs,
 };
 use sov_rollup_interface::services::da::{DaService, MaybeRetryable, SlotData};
 use tokio::sync::RwLock;
@@ -149,7 +149,6 @@ impl DaService for StorableMockDaService {
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
-    type TransactionId = ();
     type Error = MaybeRetryable<anyhow::Error>;
     type Fee = MockFee;
 
@@ -239,38 +238,39 @@ impl DaService for StorableMockDaService {
         &self,
         blob: &[u8],
         _fee: Self::Fee,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         tracing::debug!(batch = hex::encode(blob), "Submitting a batch");
-        {
+        let hash = {
             let da_layer = self.da_layer.read().await;
             da_layer
                 .submit_batch(blob, &self.sequencer_da_address)
-                .await?;
-        }
+                .await?
+        };
         if let BlockProducing::OnSubmit(_) = &self.block_producing {
             let mut da_layer = self.da_layer.write().await;
             da_layer.produce_block().await?;
         }
-        Ok(())
+        Ok(hash)
     }
 
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof_data: &[u8],
         _fee: Self::Fee,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         tracing::debug!(
             batch = hex::encode(aggregated_proof_data),
             "Submitting an aggregated proof"
         );
-        {
+        let hash = {
             let da_layer = self.da_layer.read().await;
             da_layer
                 .submit_proof(aggregated_proof_data, &self.sequencer_da_address)
-                .await?;
-        }
+                .await?
+        };
+
         // For compatibility with MockDa, produce blocks only on submitting a batch, not proof.
-        Ok(())
+        Ok(hash)
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {

@@ -11,7 +11,7 @@ use crate::storable::entity::blobs::Entity as Blobs;
 use crate::storable::entity::block_headers::Entity as BlockHeaders;
 use crate::storable::entity::{blobs, block_headers};
 use crate::types::{GENESIS_BLOCK, GENESIS_HEADER};
-use crate::{MockAddress, MockBlob, MockBlock, MockBlockHeader};
+use crate::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash};
 
 /// Struct that stores blobs and block headers. Controller of the sea orm entities.
 pub struct StorableMockDaLayer {
@@ -167,20 +167,20 @@ impl StorableMockDaLayer {
         &self,
         batch_data: &[u8],
         sender: &MockAddress,
-    ) -> anyhow::Result<()> {
-        let blob = blobs::build_batch_blob(self.next_height as i32, batch_data, sender);
+    ) -> anyhow::Result<MockHash> {
+        let (blob, hash) = blobs::build_batch_blob(self.next_height as i32, batch_data, sender);
         blob.insert(&self.conn).await?;
-        Ok(())
+        Ok(hash)
     }
 
     pub(crate) async fn submit_proof(
         &self,
         proof_data: &[u8],
         sender: &MockAddress,
-    ) -> anyhow::Result<()> {
-        let blob = blobs::build_proof_blob(self.next_height as i32, proof_data, sender);
+    ) -> anyhow::Result<MockHash> {
+        let (blob, hash) = blobs::build_proof_blob(self.next_height as i32, proof_data, sender);
         blob.insert(&self.conn).await?;
-        Ok(())
+        Ok(hash)
     }
 
     pub(crate) async fn get_head_block_header(&self) -> anyhow::Result<MockBlockHeader> {

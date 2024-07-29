@@ -37,13 +37,14 @@ pub const PARITY_SHARES_NAMESPACE: Namespace = Namespace::PARITY_SHARE;
 
 impl BlobReaderTrait for BlobWithSender {
     type Address = CelestiaAddress;
+    type BlobHash = TmHash;
 
     fn sender(&self) -> CelestiaAddress {
         self.sender.clone()
     }
 
-    fn hash(&self) -> [u8; 32] {
-        self.hash.0
+    fn hash(&self) -> Self::BlobHash {
+        TmHash(celestia_tendermint::Hash::Sha256(self.hash.0))
     }
 
     fn verified_data(&self) -> &[u8] {
