@@ -68,7 +68,7 @@ where
                 }
             };
 
-            runtime.capabilities().process_proof(
+            let outcome = runtime.capabilities().process_proof(
                 &proof_with_details.proof,
                 &sequencer_rollup_address,
                 &mut working_set,
@@ -81,7 +81,7 @@ where
                 proof_receipt: ProofReceipt {
                     raw_proof: proof_with_details.proof,
                     blob_hash,
-                    outcome: ProofOutcome::Ignored,
+                    outcome,
                     extra_data: (),
                 },
                 checkpoint: tx_scratchpad.commit(),

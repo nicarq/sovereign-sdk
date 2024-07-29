@@ -76,8 +76,9 @@ pub struct ProofReceipt<Address, Da: DaSpec, Root, Extra> {
     pub extra_data: Extra,
 }
 
-#[allow(clippy::large_enum_variant)]
 /// The contents of a proof receipt.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
 pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
     /// A receipt for an aggregate proof contains the public data form the proof.
     AggregateProof(AggregatedProofPublicData),
@@ -87,8 +88,9 @@ pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
     Attestation(StateTransitionPublicData<Address, Da, Root>),
 }
 
-#[allow(clippy::large_enum_variant)]
 /// The outcome of a proof
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
 pub enum ProofOutcome<Address, Da: DaSpec, Root> {
     /// The blob was filtered out as irrelevant
     Ignored,
@@ -133,10 +135,10 @@ pub struct ApplySlotOutput<
 /// the  same type.
 pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Sized {
     /// Root hash of state merkle tree
-    type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]>;
+    type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Debug;
 
     /// The address of the prover.
-    type Address: Serialize + DeserializeOwned + Clone;
+    type Address: Serialize + DeserializeOwned + Clone + Debug;
 
     /// The initial params of the rollup.
     type GenesisParams;

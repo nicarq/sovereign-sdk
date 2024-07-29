@@ -9,8 +9,11 @@ use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::rpc::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{
+    ProofOutcome, ProofReceipt, ProofReceiptContents, StateTransitionFunction,
+};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm, ZkvmGuest, ZkvmHost};
 use tokio::sync::watch;
 use tracing::{debug, error, info};
@@ -429,6 +432,7 @@ where
                 transaction_count += receipt.tx_receipts.len();
                 data_to_commit.add_batch(receipt);
             }
+
             let transition_data: StateTransitionWitness<Stf::StateRoot, Stf::Witness, Da::Spec> =
                 StateTransitionWitness {
                     initial_state_root: self.get_state_root().clone(),
@@ -438,14 +442,9 @@ where
                     relevant_blobs,
                     witness: slot_result.witness,
                 };
-            let zk_proofs_from_stf = slot_result
-                .proof_receipts
-                .into_iter()
-                .map(|proof_receipt| proof_receipt.raw_proof);
-            let aggregated_proofs = self
-                .proof_manager
-                .verify_aggregated_proofs(zk_proofs_from_stf)
-                .await?;
+
+            let aggregated_proofs =
+                Self::collect_aggregated_proofs(slot_result.proof_receipts.into_iter());
 
             // Processing finalized headers.
             let last_finalized = self.da_service.get_last_finalized_block_header().await?;
@@ -509,5 +508,25 @@ where
     /// Retrieve a handle for the underlying DA service
     pub fn da_service(&self) -> Arc<Da> {
         self.da_service.clone()
+    }
+
+    fn collect_aggregated_proofs(
+        receipts: impl Iterator<
+            Item = ProofReceipt<Stf::Address, Da::Spec, Stf::StateRoot, Stf::ProofReceiptContents>,
+        >,
+    ) -> Vec<AggregatedProof> {
+        let mut aggregated_proofs: Vec<AggregatedProof> = Vec::new();
+        for receipt in receipts {
+            match receipt.outcome {
+                ProofOutcome::Valid(ProofReceiptContents::AggregateProof(public_data)) => {
+                    aggregated_proofs.push(AggregatedProof::new(receipt.raw_proof, public_data));
+                }
+                _ => {
+                    tracing::error!("Invalid proof outcome, {:?}", receipt.outcome);
+                }
+            }
+        }
+
+        aggregated_proofs
     }
 }

@@ -171,22 +171,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         self.last_claimed_reward
             .set(&max(first_available_reward, final_slot_num), state)?;
 
-        if total_reward > 0 {
-            // We only reward a portion of the total reward - we burn some of it
-            // to avoid the provers to collude to prove empty blocks.
-            let reward_amount = self.burn_rate().apply(total_reward);
-            self.transfer_to_prover(reward_amount, sender, state)?;
-
-            self.emit_event(
-                state,
-                Event::<S>::ProcessedValidProof {
-                    prover: sender.clone(),
-                    reward: reward_amount,
-                },
-            );
-
-            Ok(old_balance)
-        } else {
+        if first_claimed_reward > final_slot_num {
             // We need to fine the prover
             let fine = self
                 .proving_penalty
@@ -206,8 +191,23 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                 },
             );
 
-            Ok(old_balance - fine)
+            return Ok(old_balance - fine);
         }
+
+        // We only reward a portion of the total reward - we burn some of it
+        // to avoid the provers to collude to prove empty blocks.
+        let reward_amount = self.burn_rate().apply(total_reward);
+        self.transfer_to_prover(reward_amount, sender, state)?;
+
+        self.emit_event(
+            state,
+            Event::<S>::ProcessedValidProof {
+                prover: sender.clone(),
+                reward: reward_amount,
+            },
+        );
+
+        Ok(old_balance)
     }
 
     /// Check that the initial and final state values of the proof output are valid against the chain state module

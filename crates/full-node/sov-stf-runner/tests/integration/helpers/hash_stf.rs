@@ -1,7 +1,10 @@
 use borsh::BorshDeserialize;
 use sha2::Digest;
 use sov_db::storage_manager::NativeChangeSet;
-use sov_modules_api::{BlobData, ProofOutcome, ProofReceipt};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
+use sov_modules_api::{
+    AggregatedProofPublicData, BlobData, ProofOutcome, ProofReceipt, ProofReceiptContents,
+};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -138,14 +141,29 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
             if !data.is_empty() {
                 match BlobData::try_from_slice(data).unwrap() {
                     BlobData::Batch(_) => hasher.update(data),
-                    BlobData::Proof(raw_proof) => proof_receipts.push(ProofReceipt {
-                        raw_proof: SerializedAggregatedProof {
-                            raw_aggregated_proof: raw_proof,
-                        },
-                        blob_hash: [0u8; 32],
-                        outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot>::Ignored,
-                        extra_data: (),
-                    }),
+                    BlobData::Proof(raw_proof) => {
+                        let public_data: AggregatedProofPublicData =
+                            match <MockZkVerifier as Zkvm>::verify(
+                                &raw_proof,
+                                &MockCodeCommitment::default(),
+                            ) {
+                                Ok(public_data) => public_data,
+                                Err(err) => {
+                                    panic!("Error when processing proof: {:?}", err);
+                                }
+                            };
+
+                        proof_receipts.push(ProofReceipt {
+                            raw_proof: SerializedAggregatedProof {
+                                raw_aggregated_proof: raw_proof,
+                            },
+                            blob_hash: [0u8; 32],
+                            outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot>::Valid(
+                                ProofReceiptContents::AggregateProof(public_data),
+                            ),
+                            extra_data: (),
+                        });
+                    }
                 };
             }
         }

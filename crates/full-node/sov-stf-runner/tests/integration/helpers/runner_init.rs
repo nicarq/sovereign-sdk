@@ -8,7 +8,7 @@ use sov_mock_da::{
     MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee, MockHash,
     MockValidityCond,
 };
-use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
+use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
 use sov_modules_api::{Address, BlobData, ProofSerializer, RawTx};
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
@@ -199,7 +199,6 @@ pub async fn initialize_runner(
     let proof_manager = ProofManager::new(
         da_service.clone(),
         prover_service,
-        MockCodeCommitment::default(),
         rollup_config.proof_manager.aggregated_proof_block_jump,
         Box::new(DummyProofSerializer::new()),
     );
