@@ -4,14 +4,12 @@ use backon::{BackoffBuilder, ExponentialBuilder};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::ProofSerializer;
-use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
-use sov_rollup_interface::zk::Zkvm;
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use tokio::time::{sleep, Duration};
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
 use super::RawGenesisStateRoot;
-use crate::prover_service::AggregatedProofPublicData;
 use crate::{ProverService, StateTransitionInfo};
 
 mod types;
@@ -24,7 +22,6 @@ const BACKOFF_POLICY_MAX_NUM_RETRIES: usize = 5;
 pub struct ProofManager<Ps: ProverService> {
     da_service: Arc<Ps::DaService>,
     prover_service: Option<Ps>,
-    outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
     proofs_to_create: UnAggregatedProofList<Ps>,
     aggregated_proof_block_jump: usize,
     proof_serializer: Box<dyn ProofSerializer>,
@@ -39,14 +36,12 @@ where
     pub fn new(
         da_service: Arc<Ps::DaService>,
         prover_service: Option<Ps>,
-        outer_code_commitment: <Ps::Verifier as Zkvm>::CodeCommitment,
         aggregated_proof_block_jump: usize,
         proof_serializer: Box<dyn ProofSerializer>,
     ) -> Self {
         Self {
             da_service,
             prover_service,
-            outer_code_commitment,
             proofs_to_create: UnAggregatedProofList::new(),
             aggregated_proof_block_jump,
             proof_serializer,
@@ -55,33 +50,6 @@ where
                 .with_max_delay(Duration::from_secs(BACKOFF_POLICY_MAX_DELAY))
                 .with_max_times(BACKOFF_POLICY_MAX_NUM_RETRIES),
         }
-    }
-
-    /// Verifies raw proofs and returns collection of verified aggregated proofs.
-    /// Stops on first invalid proof
-    pub(crate) async fn verify_aggregated_proofs(
-        &self,
-        serialized_proofs: impl Iterator<Item = SerializedAggregatedProof>,
-    ) -> anyhow::Result<Vec<AggregatedProof>> {
-        let mut aggregated_proofs_data: Vec<AggregatedProof> = Vec::new();
-        for serialized_proof in serialized_proofs {
-            // Verify aggregated proof before storing it into the database.
-            // TODO #815
-            let public_data: AggregatedProofPublicData = match <Ps::Verifier as Zkvm>::verify(
-                &serialized_proof.raw_aggregated_proof,
-                &self.outer_code_commitment,
-            ) {
-                Ok(public_data) => public_data,
-                Err(err) => {
-                    tracing::info!(?err, "Received invalid aggregated proof for the DA");
-                    return Ok(aggregated_proofs_data);
-                }
-            };
-
-            aggregated_proofs_data.push(AggregatedProof::new(serialized_proof, public_data));
-        }
-
-        Ok(aggregated_proofs_data)
     }
 
     /// Attempts to generate an `AggregatedProof` and then posts it to DA.

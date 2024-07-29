@@ -61,6 +61,17 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> Resul
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
+) -> Result<(), anyhow::Error> {
+    let test_case = TestCase {
+        wait_for_aggregated_proof: false,
+        finalization_blocks: 2,
+        send_txs_via_sequencer: true,
+    };
+    bank_tx_tests(test_case, RollupProverConfig::Skip).await
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> Result<(), anyhow::Error>
 {
     let test_case = TestCase {
@@ -79,17 +90,6 @@ async fn bank_tx_tests_non_instant_finality_using_da_layer_tx_submission(
         wait_for_aggregated_proof: false,
         finalization_blocks: 2,
         send_txs_via_sequencer: false,
-    };
-    bank_tx_tests(test_case, RollupProverConfig::Skip).await
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
-) -> Result<(), anyhow::Error> {
-    let test_case = TestCase {
-        wait_for_aggregated_proof: false,
-        finalization_blocks: 2,
-        send_txs_via_sequencer: true,
     };
     bank_tx_tests(test_case, RollupProverConfig::Skip).await
 }
