@@ -13,7 +13,7 @@ use serde::Serialize;
 #[cfg(feature = "native")]
 use tracing::error;
 
-use crate::da::{BlockHeaderTrait, RelevantBlobs, RelevantProofs};
+use crate::da::{BlockHeaderTrait, DaBlobHash, RelevantBlobs, RelevantProofs};
 #[cfg(feature = "native")]
 use crate::da::{DaSpec, DaVerifier};
 use crate::zk::ValidityCondition;
@@ -136,9 +136,6 @@ pub trait DaService: Send + Sync + 'static {
     type HeaderStream: futures::Stream<Item = Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>>
         + Send;
 
-    /// A transaction ID, used to identify the transaction in the DA layer.
-    type TransactionId: PartialEq + Eq + PartialOrd + Ord + core::hash::Hash;
-
     /// The error type for fallible methods.
     type Error: Debug + Send + Sync + Display;
 
@@ -214,14 +211,14 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         blob: &[u8],
         fee: Self::Fee,
-    ) -> Result<Self::TransactionId, Self::Error>;
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error>;
 
     /// Sends an aggregated ZK proofs to the DA layer.
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof_data: &[u8],
         fee: Self::Fee,
-    ) -> Result<Self::TransactionId, Self::Error>;
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error>;
 
     /// Fetches all aggregated ZK proofs at a specified block height.
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
@@ -306,7 +303,6 @@ where
     type HeaderStream =
         BoxStream<'static, Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>>;
 
-    type TransactionId = D::TransactionId;
     type Fee = D::Fee;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
@@ -320,7 +316,7 @@ where
         &self,
         blob: &[u8],
         fee: D::Fee,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
             D::send_transaction(&self.da_service, blob, fee)
         })
@@ -331,7 +327,7 @@ where
         &self,
         aggregated_proof_data: &[u8],
         fee: D::Fee,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
             D::send_aggregated_zk_proof(&self.da_service, aggregated_proof_data, fee)
         })

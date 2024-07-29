@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use crate::da::BlockHashTrait;
+
 /// A [`hex`]-encoded 32-byte hash. Note, this is not necessarily a transaction
 /// hash, rather a generic hash.
 pub type HexHash = HexString<[u8; 32]>;
@@ -14,6 +16,18 @@ impl<T> HexString<T> {
     /// Creates a new [`HexString`] from its inner contents.
     pub const fn new(bytes: T) -> Self {
         Self(bytes)
+    }
+}
+
+impl<T: AsRef<[u8]>> AsRef<[u8]> for HexString<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl From<HexHash> for [u8; 32] {
+    fn from(hash: HexHash) -> Self {
+        hash.0
     }
 }
 
@@ -74,6 +88,8 @@ where
         })?))
     }
 }
+
+impl BlockHashTrait for HexHash {}
 
 /// [`serde`] (de)serialization functions for [`HexString`], to be used with
 /// `#[serde(with = "...")]`.

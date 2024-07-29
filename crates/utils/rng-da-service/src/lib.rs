@@ -7,7 +7,7 @@ use futures::stream::BoxStream;
 use sov_bank::{Bank, Coins};
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockDaVerifier, MockFee,
-    MockValidityCond, MOCK_SEQUENCER_DA_ADDRESS,
+    MockHash, MockValidityCond, MOCK_SEQUENCER_DA_ADDRESS,
 };
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
@@ -57,7 +57,6 @@ impl DaService for RngDaService {
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
-    type TransactionId = ();
     type Error = MaybeRetryable<anyhow::Error>;
     type Fee = MockFee;
 
@@ -146,7 +145,11 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
-    async fn send_transaction(&self, _blob: &[u8], _fee: Self::Fee) -> Result<(), Self::Error> {
+    async fn send_transaction(
+        &self,
+        _blob: &[u8],
+        _fee: Self::Fee,
+    ) -> Result<MockHash, Self::Error> {
         unimplemented!()
     }
 
@@ -154,7 +157,7 @@ impl DaService for RngDaService {
         &self,
         _proof: &[u8],
         _fee: Self::Fee,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<MockHash, Self::Error> {
         unimplemented!()
     }
 

@@ -3,15 +3,16 @@ use std::sync::Arc;
 use dashmap::mapref::entry::Entry;
 use dashmap::DashMap;
 use mini_moka::sync::Cache as MokaCache;
+use sov_modules_api::DaSpec;
+use sov_rollup_interface::da::DaBlobHash;
 use sov_rollup_interface::services::batch_builder::TxHash;
-use sov_rollup_interface::services::da::DaService;
 use tokio::sync::broadcast;
 use tracing::warn;
 
 /// A rollup transaction status.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
-pub enum TxStatus<DaTxId> {
+pub enum TxStatus<BlobHash> {
     /// The sequencer has no knowledge of this transaction's status.
     Unknown,
     /// The transaction was successfully submitted to a sequencer and it's
@@ -22,29 +23,25 @@ pub enum TxStatus<DaTxId> {
     Published {
         /// The ID of the DA transaction that included the rollup transaction to
         /// which this [`TxStatus`] refers.
-        da_transaction_id: DaTxId,
+        da_transaction_id: BlobHash,
     },
     /// The transaction was published to the DA as part of a batch that is
     /// considered finalized.
     Finalized {
         /// The ID of the DA transaction that included the rollup transaction to
         /// which this [`TxStatus`] refers.
-        da_transaction_id: DaTxId,
+        da_transaction_id: BlobHash,
     },
 }
 
-pub struct TxStatusNotifier<Da: DaService> {
-    cache: MokaCache<TxHash, TxStatus<Da::TransactionId>>,
+pub struct TxStatusNotifier<Da: DaSpec> {
+    cache: MokaCache<TxHash, TxStatus<DaBlobHash<Da>>>,
     // **Note:** `DashMap` can deadlock on mutable operations, so make sure to
     // read the docs for all methods that you're using.
-    senders: DashMap<TxHash, broadcast::Sender<TxStatus<Da::TransactionId>>>,
+    senders: DashMap<TxHash, broadcast::Sender<TxStatus<DaBlobHash<Da>>>>,
 }
 
-impl<Da> TxStatusNotifier<Da>
-where
-    Da: DaService,
-    Da::TransactionId: Clone + Send + Sync,
-{
+impl<Da: DaSpec> TxStatusNotifier<Da> {
     // The cache capacity is kind of arbitrary, as long as it's big enough to
     // fit a handful of typical batches worth of transactions it won't make much
     // of a difference.
@@ -60,11 +57,11 @@ where
         }
     }
 
-    pub fn get_cached(&self, tx_hash: &TxHash) -> Option<TxStatus<Da::TransactionId>> {
+    pub fn get_cached(&self, tx_hash: &TxHash) -> Option<TxStatus<DaBlobHash<Da>>> {
         self.cache.get(tx_hash)
     }
 
-    pub fn notify(&self, tx_hash: TxHash, status: TxStatus<Da::TransactionId>) {
+    pub fn notify(&self, tx_hash: TxHash, status: TxStatus<DaBlobHash<Da>>) {
         self.get_or_create_sender(tx_hash)
             .send(status)
             .map_err(|error| warn!(%error, "Failed to send tx status update"))
@@ -83,17 +80,14 @@ where
         }
     }
 
-    fn get_or_create_sender(
-        &self,
-        tx_hash: TxHash,
-    ) -> broadcast::Sender<TxStatus<Da::TransactionId>> {
+    fn get_or_create_sender(&self, tx_hash: TxHash) -> broadcast::Sender<TxStatus<DaBlobHash<Da>>> {
         match self.senders.entry(tx_hash) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
                 // There is no sender for this transaction hash yet, so we need
                 // to create one.
                 let (sender, mut recv) =
-                    broadcast::channel::<TxStatus<Da::TransactionId>>(Self::CHANNEL_CAPACITY);
+                    broadcast::channel::<TxStatus<DaBlobHash<Da>>>(Self::CHANNEL_CAPACITY);
 
                 let cache = self.cache.clone();
 
@@ -123,11 +117,7 @@ where
 /// To avoid memory leaks, the [`TxStatusNotifier`] should be dropped **after**
 /// all receivers obtained through [`TxStatusReceiver::subscribe`] have been
 /// dropped.
-pub struct TxStatusSubscription<Da>
-where
-    Da: DaService,
-    Da::TransactionId: Clone + Send + Sync,
-{
+pub struct TxStatusSubscription<Da: DaSpec> {
     /// The WebSocket Axum handler function needs to take ownership over the
     /// [`broadcast::Receiver`] so that it can call
     /// [`tokio_stream::wrappers::BroadcastStream::new()`].
@@ -137,16 +127,12 @@ where
     /// sender here instead, it's possible to easily take ownership over
     /// new receivers while keeping [`TxStatusSubscription`] in scope,
     /// which is needed for proper cleanup logic.
-    pub sender: broadcast::Sender<TxStatus<Da::TransactionId>>,
+    pub sender: broadcast::Sender<TxStatus<DaBlobHash<Da>>>,
     tx_hash: TxHash,
     notifier: Arc<TxStatusNotifier<Da>>,
 }
 
-impl<Da> Drop for TxStatusSubscription<Da>
-where
-    Da: DaService,
-    Da::TransactionId: Clone + Send + Sync,
-{
+impl<Da: DaSpec> Drop for TxStatusSubscription<Da> {
     fn drop(&mut self) {
         match self.notifier.senders.entry(self.tx_hash) {
             Entry::Vacant(_) => {}
@@ -166,7 +152,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use sov_mock_da::MockDaService;
+    use sov_mock_da::{MockDaSpec, MockHash};
 
     use super::*;
 
@@ -176,13 +162,13 @@ mod tests {
 
     #[tokio::test]
     async fn get_cached() {
-        let notifier = TxStatusNotifier::<MockDaService>::new();
+        let notifier = TxStatusNotifier::<MockDaSpec>::new();
 
         notifier.notify([1; 32], TxStatus::Submitted);
         notifier.notify(
             [2; 32],
             TxStatus::Published {
-                da_transaction_id: (),
+                da_transaction_id: MockHash([100; 32]),
             },
         );
 
@@ -192,14 +178,14 @@ mod tests {
         assert_eq!(
             notifier.get_cached(&[2; 32]),
             Some(TxStatus::Published {
-                da_transaction_id: ()
+                da_transaction_id: MockHash([100; 32])
             })
         );
     }
 
     #[tokio::test]
     async fn multiple_subscribers() {
-        let notifier = Arc::new(TxStatusNotifier::<MockDaService>::new());
+        let notifier = Arc::new(TxStatusNotifier::<MockDaSpec>::new());
 
         let sub1a = notifier.clone().subscription([1; 32]);
         let sub1b = notifier.clone().subscription([1; 32]);
@@ -221,7 +207,7 @@ mod tests {
             notifier.notify(
                 [1; 32],
                 TxStatus::Published {
-                    da_transaction_id: (),
+                    da_transaction_id: MockHash([101; 32]),
                 },
             );
             wait().await;
@@ -245,7 +231,7 @@ mod tests {
             assert_eq!(
                 notifier.get_cached(&[1; 32]),
                 Some(TxStatus::Published {
-                    da_transaction_id: ()
+                    da_transaction_id: MockHash([101; 32])
                 })
             );
             assert_eq!(notifier.get_cached(&[2; 32]), None);

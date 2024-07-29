@@ -163,7 +163,6 @@ impl DaService for DaProvider {
 
     type FilteredBlock = AvailBlock;
     type HeaderStream = BoxStream<'static, anyhow::Result<AvailHeader>>;
-    type TransactionId = ();
     type Error = anyhow::Error;
 
     // Make an RPC call to the node to get the block at the given height, if one exists.

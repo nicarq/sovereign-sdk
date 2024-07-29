@@ -5,7 +5,7 @@ use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{
-    MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
+    MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee, MockHash,
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
@@ -57,7 +57,7 @@ pub struct TestNode {
 
 impl TestNode {
     /// Creates a DA block containing a transaction blob, optionally including an aggregated proof.
-    pub async fn send_transaction(&self) -> Result<(), anyhow::Error> {
+    pub async fn send_transaction(&self) -> anyhow::Result<MockHash> {
         let batch = BlobData::new_batch(vec![RawTx {
             data: vec![1, 2, 3],
         }]);
@@ -69,7 +69,7 @@ impl TestNode {
     }
 
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
-    pub async fn try_send_aggregated_proof(&self) -> Result<(), anyhow::Error> {
+    pub async fn try_send_aggregated_proof(&self) -> anyhow::Result<MockHash> {
         let batch = BlobData::new_batch(vec![RawTx { data: vec![] }]);
         let serialized_batch = borsh::to_vec(&batch).unwrap();
         self.da

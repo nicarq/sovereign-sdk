@@ -7,7 +7,7 @@ use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{BlobData, RawTx};
 use sov_rest_utils::serve_generic_ws_subscription;
 use sov_rollup_interface::common::{HexHash, HexString};
-use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::Mutex;
@@ -33,7 +33,7 @@ where
 struct Inner<B: BatchBuilder, Da: DaService, Auth: Authenticator> {
     batch_builder: Mutex<B>,
     da_service: Da,
-    tx_status_notifier: Arc<TxStatusNotifier<Da>>,
+    tx_status_notifier: Arc<TxStatusNotifier<Da::Spec>>,
     _phantom: PhantomData<Auth>,
 }
 
@@ -41,7 +41,6 @@ impl<B, Da, Auth> Sequencer<B, Da, Auth>
 where
     B: BatchBuilder + Send + Sync + 'static,
     Da: DaService,
-    Da::TransactionId: Clone + Send + Sync + serde::Serialize,
     Auth: Authenticator,
 {
     /// Creates new Sequencer from BatchBuilder and DaService
@@ -141,7 +140,7 @@ where
     async fn tx_status(
         &self,
         tx_hash: &TxHash,
-    ) -> anyhow::Result<Option<TxStatus<Da::TransactionId>>> {
+    ) -> anyhow::Result<Option<TxStatus<DaBlobHash<Da::Spec>>>> {
         let is_in_mempool = self.0.batch_builder.lock().await.contains(tx_hash).await?;
 
         if is_in_mempool {
@@ -201,10 +200,10 @@ mod axum_router {
     }
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
-    struct TxInfo<DaTxId> {
+    struct TxInfo<BlobHash> {
         id: HexString<TxHash>,
         #[serde(flatten)]
-        status: TxStatus<DaTxId>,
+        status: TxStatus<BlobHash>,
     }
 
     // Web server and Axum-related methods.
@@ -212,7 +211,6 @@ mod axum_router {
     where
         B: BatchBuilder + Send + Sync + 'static,
         Da: DaService,
-        Da::TransactionId: Clone + Send + Sync + serde::Serialize,
         Auth: Authenticator + Send + Sync + 'static,
     {
         /// Creates an Axum router for the sequencer.
@@ -280,7 +278,7 @@ mod axum_router {
         async fn axum_get_tx(
             sequencer: State<Self>,
             tx_hash: Path<HexString<TxHash>>,
-        ) -> ApiResult<TxInfo<Da::TransactionId>> {
+        ) -> ApiResult<TxInfo<DaBlobHash<Da::Spec>>> {
             let tx_status = sequencer.0 .0.tx_status_notifier.get_cached(&tx_hash.0 .0);
 
             if let Some(tx_status) = tx_status {
@@ -297,7 +295,7 @@ mod axum_router {
         async fn axum_accept_tx(
             sequencer: State<Self>,
             tx: Json<AcceptTx>,
-        ) -> ApiResult<TxInfo<Da::TransactionId>> {
+        ) -> ApiResult<TxInfo<DaBlobHash<Da::Spec>>> {
             let tx = tx.0.body.blob;
             let authed_tx = Auth::encode(tx)
                 .map_err(|e| errors::bad_request_400("Failed to encode transaction", e))?;

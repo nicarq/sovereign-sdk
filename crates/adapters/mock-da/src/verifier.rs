@@ -9,12 +9,13 @@ use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash, Mo
 
 impl BlobReaderTrait for MockBlob {
     type Address = MockAddress;
+    type BlobHash = MockHash;
 
     fn sender(&self) -> Self::Address {
         self.address
     }
 
-    fn hash(&self) -> [u8; 32] {
+    fn hash(&self) -> Self::BlobHash {
         self.hash
     }
 

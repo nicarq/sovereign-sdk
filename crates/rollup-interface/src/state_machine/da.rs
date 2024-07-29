@@ -11,6 +11,9 @@ use crate::zk::ValidityCondition;
 use crate::zk::ValidityConditionChecker;
 use crate::BasicAddress;
 
+/// The blob hash type of a given [`DaSpec`].
+pub type DaBlobHash<Da> = <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::BlobHash;
+
 /// A specification for the types used by a DA layer.
 pub trait DaSpec:
     'static + Default + Debug + PartialEq + Eq + Clone + Send + Sync + BorshSerialize + BorshDeserialize
@@ -151,11 +154,14 @@ pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static 
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress;
 
+    /// The hash type of all DA blobs (e.g. transactions and proofs).
+    type BlobHash: BlockHashTrait;
+
     /// Returns the address (on the DA layer) of the entity which submitted the blob transaction
     fn sender(&self) -> Self::Address;
 
     /// Returns the hash of the blob as it appears on the DA layer
-    fn hash(&self) -> [u8; 32];
+    fn hash(&self) -> Self::BlobHash;
 
     /// Returns a slice containing all the data accessible to the rollup at this point in time.
     /// When running in native mode, the rollup can extend this slice by calling `advance`. In zk-mode,

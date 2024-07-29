@@ -96,7 +96,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                         batches.push((
                             BlobDataWithId {
                                 data,
-                                id: blob.hash(),
+                                id: blob.hash().into(),
                                 from_registered_sequencer,
                             },
                             blob.sender(),
@@ -170,7 +170,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                 // If the blob has the next sequence number, we'll process it.
                 Some(PreferredBlobDataWithId {
                     inner: preferred_blob,
-                    id: blob.hash(),
+                    id: blob.hash().into(),
                 })
             }
             Ordering::Greater => {
@@ -181,7 +181,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                         &sequence_number,
                         &PreferredBlobDataWithId {
                             inner: preferred_blob,
-                            id: blob.hash(),
+                            id: blob.hash().into(),
                         },
                         state,
                     )
@@ -330,7 +330,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                             new_forced_blobs.push((
                                 BlobDataWithId {
                                     data,
-                                    id: blob.hash(),
+                                    id: blob.hash().into(),
                                     from_registered_sequencer,
                                 },
                                 blob.sender(),

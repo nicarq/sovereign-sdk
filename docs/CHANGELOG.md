@@ -1,4 +1,6 @@
 - #1025 Pass the `genesis_state_root` to the `ProverService`
+- #1024 removes the associate type `DaService::TransactionId` and replaces it with `BlobReaderTrait::BlobHash`. The type signatures of `DaService::send_aggregated_zk_proof` and `DaService::send_transaction` now return `BlobHash` instead of the unit type.
+- #1024 removes the associated type `DaService::TransactionId` and replaces it with `BlobReaderTrait::BlobHash`. The type signatures of `DaService::send_aggregated_zk_proof` and `DaService::send_transaction` now return `BlobHash` instead of the unit type.
 - #1021 Moves the `BatchSequencerOutcome` type to the `sov-modules-api` crate.
 - #1011 Rename `hooks.rs` to `capabilities.rs` in the `Accounts` module and add `capabilities.rs` for `ProverIncentives` module.
 - #1004 Slash the sequencer if the aggregated proof can't be deserialized in the proof processing workflow.
