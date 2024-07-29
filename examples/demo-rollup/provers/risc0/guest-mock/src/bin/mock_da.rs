@@ -18,12 +18,12 @@ fn report_bench_metrics(start_cycles: u64, end_cycles: u64) {
     let mut serialized = Vec::new();
     serialized.extend(tuple.0.as_bytes());
     serialized.push(0);
-    let size_bytes = tuple.1.to_ne_bytes();
+    let size_bytes = tuple.1.to_le_bytes();
     serialized.extend(&size_bytes);
 
     // calculate the syscall name.
     let cycle_string = String::from("cycle_metrics\0");
-    let metrics_syscall_name = unsafe { 
+    let metrics_syscall_name = unsafe {
         risc0_zkvm_platform::syscall::SyscallName::from_bytes_with_nul(cycle_string.as_ptr())
     };
 
