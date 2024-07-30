@@ -57,7 +57,7 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> Resul
         send_txs_via_sequencer: true,
     };
     let rollup_prover_config = get_appropriate_rollup_prover_config();
-    bank_tx_tests(test_case, rollup_prover_config).await
+    bank_tx_tests::<SequencerTxSender>(test_case, rollup_prover_config).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -68,7 +68,7 @@ async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
         finalization_blocks: 2,
         send_txs_via_sequencer: true,
     };
-    bank_tx_tests(test_case, RollupProverConfig::Skip).await
+    bank_tx_tests::<SequencerTxSender>(test_case, RollupProverConfig::Skip).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -80,7 +80,7 @@ async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> Result
         send_txs_via_sequencer: false,
     };
     let rollup_prover_config = get_appropriate_rollup_prover_config();
-    bank_tx_tests(test_case, rollup_prover_config).await
+    bank_tx_tests::<DaLayerTxSender>(test_case, rollup_prover_config).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -91,10 +91,10 @@ async fn bank_tx_tests_non_instant_finality_using_da_layer_tx_submission(
         finalization_blocks: 2,
         send_txs_via_sequencer: false,
     };
-    bank_tx_tests(test_case, RollupProverConfig::Skip).await
+    bank_tx_tests::<DaLayerTxSender>(test_case, RollupProverConfig::Skip).await
 }
 
-async fn bank_tx_tests(
+async fn bank_tx_tests<TxS: TxSender>(
     test_case: TestCase,
     rollup_prover_config: RollupProverConfig,
 ) -> anyhow::Result<()> {
@@ -140,10 +140,12 @@ async fn bank_tx_tests(
     let client = ApiClient::new(rpc_port, rest_port).await?;
     let da_service = da_service_rx.await.unwrap();
 
+    let sender = TxSender::new(da_service);
+
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = rollup_task => err?,
-        res = send_test_bank_txs(test_case, &client, da_service) => res?,
+        res = send_test_bank_txs::<TxS>(test_case, &client, sender) => res?,
     };
     Ok(())
 }
@@ -220,62 +222,6 @@ fn build_multiple_transfers(
         nonce += 1;
     }
     txs
-}
-
-async fn send_transactions_via_sequencer_and_wait_slot(
-    client: &ApiClient,
-    transactions: &[Transaction<TestSpec>],
-) -> anyhow::Result<u64> {
-    let mut slot_subscription = client
-        .ledger
-        .subscribe_slots()
-        .await
-        .context("Failed to subscribe to slots!")?;
-
-    client
-        .sequencer
-        .publish_batch_with_serialized_txs(transactions)
-        .await?;
-
-    let slot_number = slot_subscription
-        .next()
-        .await
-        .transpose()?
-        .map(|slot| slot.number)
-        .unwrap_or_default();
-
-    Ok(slot_number)
-}
-
-async fn send_transactions_direct_to_da_layer(
-    da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
-    client: &ApiClient,
-    transactions: &[Transaction<TestSpec>],
-) -> anyhow::Result<u64> {
-    let authenticated_txs = transactions
-        .iter()
-        .map(|signed_tx| ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&signed_tx)?))
-        .collect::<anyhow::Result<Vec<RawTx>>>()?;
-
-    let batch = BlobData::new_batch(authenticated_txs);
-    let batch_bytes = borsh::to_vec(&batch)?;
-
-    let fee = da_service.estimate_fee(batch_bytes.len()).await?;
-
-    let mut slot_subscription = client
-        .ledger
-        .subscribe_slots()
-        .await
-        .context("Failed to subscribe to slots!")?;
-    da_service.send_transaction(&batch_bytes, fee).await?;
-
-    let slot_number = slot_subscription
-        .next()
-        .await
-        .transpose()?
-        .map(|slot| slot.number)
-        .unwrap_or_default();
-    Ok(slot_number)
 }
 
 async fn assert_balance(
@@ -376,10 +322,10 @@ async fn assert_bank_event<S: Spec>(
     Ok(())
 }
 
-async fn send_test_bank_txs(
+async fn send_test_bank_txs<TxS: TxSender>(
     test_case: TestCase,
     client: &ApiClient,
-    da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
+    tx_sender: TxS,
 ) -> Result<(), anyhow::Error> {
     let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
@@ -409,35 +355,24 @@ async fn send_test_bank_txs(
     // create token. height 2
     let tx = build_create_token_tx(&key, 0);
     let use_sequencer = test_case.send_txs_via_sequencer;
-    if use_sequencer {
-        let slot_number = send_transactions_via_sequencer_and_wait_slot(client, &[tx]).await?;
-        assert_eq!(1, slot_number);
-        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
-    } else {
-        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx]).await?;
-    };
+
+    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+
     assert_balance(client, 1000, token_id, user_address, None).await?;
 
     // transfer 100 tokens. assert sender balance. height 3
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
-    if use_sequencer {
-        let slot_number = send_transactions_via_sequencer_and_wait_slot(client, &[tx]).await?;
-        assert_eq!(2, slot_number);
-        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
-    } else {
-        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx]).await?;
-    };
+    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+
     assert_balance(client, 900, token_id, user_address, None).await?;
 
     // transfer 200 tokens. assert sender balance. height 4
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
-    if use_sequencer {
-        let slot_number = send_transactions_via_sequencer_and_wait_slot(client, &[tx]).await?;
-        assert_eq!(3, slot_number);
-        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
-    } else {
-        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx]).await?;
-    };
+    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+
     assert_balance(client, 700, token_id, user_address, None).await?;
 
     if use_sequencer {
@@ -456,13 +391,8 @@ async fn send_test_bank_txs(
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();
     let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
-    if use_sequencer {
-        let slot_number = send_transactions_via_sequencer_and_wait_slot(client, &txs).await?;
-        assert_eq!(4, slot_number);
-        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
-    } else {
-        send_transactions_direct_to_da_layer(da_service.clone(), client, &txs).await?;
-    };
+    let slot_number = tx_sender.send_txs(client, &txs).await?;
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
 
     assert_bank_event::<TestSpec>(
         client,
@@ -524,4 +454,88 @@ async fn send_test_bank_txs(
     }
 
     Ok(())
+}
+
+trait TxSender {
+    fn new(da_service: Arc<DaServiceWithRetries<StorableMockDaService>>) -> Self;
+
+    async fn send_txs(
+        &self,
+        client: &ApiClient,
+        transactions: &[Transaction<TestSpec>],
+    ) -> anyhow::Result<u64>;
+}
+
+struct DaLayerTxSender {
+    da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
+}
+
+impl TxSender for DaLayerTxSender {
+    fn new(da_service: Arc<DaServiceWithRetries<StorableMockDaService>>) -> Self {
+        Self { da_service }
+    }
+
+    async fn send_txs(
+        &self,
+        client: &ApiClient,
+        transactions: &[Transaction<TestSpec>],
+    ) -> anyhow::Result<u64> {
+        let authenticated_txs = transactions
+            .iter()
+            .map(|signed_tx| ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&signed_tx)?))
+            .collect::<anyhow::Result<Vec<RawTx>>>()?;
+
+        let batch = BlobData::new_batch(authenticated_txs);
+        let batch_bytes = borsh::to_vec(&batch)?;
+
+        let fee = self.da_service.estimate_fee(batch_bytes.len()).await?;
+
+        let mut slot_subscription = client
+            .ledger
+            .subscribe_slots()
+            .await
+            .context("Failed to subscribe to slots!")?;
+        self.da_service.send_transaction(&batch_bytes, fee).await?;
+
+        let slot_number = slot_subscription
+            .next()
+            .await
+            .transpose()?
+            .map(|slot| slot.number)
+            .unwrap_or_default();
+        Ok(slot_number)
+    }
+}
+struct SequencerTxSender;
+
+impl TxSender for SequencerTxSender {
+    fn new(_da_service: Arc<DaServiceWithRetries<StorableMockDaService>>) -> Self {
+        Self {}
+    }
+
+    async fn send_txs(
+        &self,
+        client: &ApiClient,
+        transactions: &[Transaction<TestSpec>],
+    ) -> anyhow::Result<u64> {
+        let mut slot_subscription = client
+            .ledger
+            .subscribe_slots()
+            .await
+            .context("Failed to subscribe to slots!")?;
+
+        client
+            .sequencer
+            .publish_batch_with_serialized_txs(transactions)
+            .await?;
+
+        let slot_number = slot_subscription
+            .next()
+            .await
+            .transpose()?
+            .map(|slot| slot.number)
+            .unwrap_or_default();
+
+        Ok(slot_number)
+    }
 }
