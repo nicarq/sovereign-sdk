@@ -164,9 +164,9 @@ mod tests {
     async fn get_cached() {
         let notifier = TxStatusNotifier::<MockDaSpec>::new();
 
-        notifier.notify([1; 32], TxStatus::Submitted);
+        notifier.notify(TxHash::new([1; 32]), TxStatus::Submitted);
         notifier.notify(
-            [2; 32],
+            TxHash::new([2; 32]),
             TxStatus::Published {
                 da_transaction_id: MockHash([100; 32]),
             },
@@ -174,9 +174,12 @@ mod tests {
 
         wait().await;
 
-        assert_eq!(notifier.get_cached(&[1; 32]), Some(TxStatus::Submitted));
         assert_eq!(
-            notifier.get_cached(&[2; 32]),
+            notifier.get_cached(&TxHash::new([1; 32])),
+            Some(TxStatus::Submitted)
+        );
+        assert_eq!(
+            notifier.get_cached(&TxHash::new([2; 32])),
             Some(TxStatus::Published {
                 da_transaction_id: MockHash([100; 32])
             })
@@ -187,9 +190,9 @@ mod tests {
     async fn multiple_subscribers() {
         let notifier = Arc::new(TxStatusNotifier::<MockDaSpec>::new());
 
-        let sub1a = notifier.clone().subscription([1; 32]);
-        let sub1b = notifier.clone().subscription([1; 32]);
-        let sub2 = notifier.clone().subscription([2; 32]);
+        let sub1a = notifier.clone().subscription(TxHash::new([1; 32]));
+        let sub1b = notifier.clone().subscription(TxHash::new([1; 32]));
+        let sub2 = notifier.clone().subscription(TxHash::new([2; 32]));
 
         {
             let mut sub1a = sub1a.sender.subscribe();
@@ -203,9 +206,9 @@ mod tests {
             assert_eq!(sub1b.len(), 0);
             assert_eq!(sub2.len(), 0);
 
-            notifier.notify([1; 32], TxStatus::Submitted);
+            notifier.notify(TxHash::new([1; 32]), TxStatus::Submitted);
             notifier.notify(
-                [1; 32],
+                TxHash::new([1; 32]),
                 TxStatus::Published {
                     da_transaction_id: MockHash([101; 32]),
                 },
@@ -229,12 +232,12 @@ mod tests {
             assert_eq!(sub2.len(), 0);
 
             assert_eq!(
-                notifier.get_cached(&[1; 32]),
+                notifier.get_cached(&TxHash::new([1; 32])),
                 Some(TxStatus::Published {
                     da_transaction_id: MockHash([101; 32])
                 })
             );
-            assert_eq!(notifier.get_cached(&[2; 32]), None);
+            assert_eq!(notifier.get_cached(&TxHash::new([2; 32])), None);
         }
 
         // Mix up the order of dropping the subscribers to catch any potential

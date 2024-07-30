@@ -21,10 +21,12 @@ fn generate_txs(admin_private_key: TestPrivateKey) -> (TxHash, Vec<Transaction<T
         txs.push(tx);
     }
 
-    let tx_hash: TxHash = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(
-        borsh::to_vec(&txs[0]).unwrap(),
-    )
-    .into();
+    let tx_hash = TxHash::new(
+        <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(
+            borsh::to_vec(&txs[0]).unwrap(),
+        )
+        .into(),
+    );
 
     (tx_hash, txs)
 }
