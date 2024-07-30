@@ -143,7 +143,7 @@ async fn bank_tx_tests(
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = rollup_task => err?,
-        res = send_test_bank_txs(test_case, &client, da_service, block_time_ms) => res?,
+        res = send_test_bank_txs(test_case, &client, da_service) => res?,
     };
     Ok(())
 }
@@ -249,10 +249,9 @@ async fn send_transactions_via_sequencer_and_wait_slot(
 
 async fn send_transactions_direct_to_da_layer(
     da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
-    _client: &ApiClient,
+    client: &ApiClient,
     transactions: &[Transaction<TestSpec>],
-    block_time_ms: u64,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<u64> {
     let authenticated_txs = transactions
         .iter()
         .map(|signed_tx| ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&signed_tx)?))
@@ -263,12 +262,20 @@ async fn send_transactions_direct_to_da_layer(
 
     let fee = da_service.estimate_fee(batch_bytes.len()).await?;
 
+    let mut slot_subscription = client
+        .ledger
+        .subscribe_slots()
+        .await
+        .context("Failed to subscribe to slots!")?;
     da_service.send_transaction(&batch_bytes, fee).await?;
 
-    let sleep_duration = block_time_ms * 4; // NOTE: We wait ~ 2 blocks
-    tokio::time::sleep(std::time::Duration::from_millis(sleep_duration)).await;
-
-    Ok(())
+    let slot_number = slot_subscription
+        .next()
+        .await
+        .transpose()?
+        .map(|slot| slot.number)
+        .unwrap_or_default();
+    Ok(slot_number)
 }
 
 async fn assert_balance(
@@ -373,7 +380,6 @@ async fn send_test_bank_txs(
     test_case: TestCase,
     client: &ApiClient,
     da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
-    block_time_ms: u64,
 ) -> Result<(), anyhow::Error> {
     let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
@@ -408,8 +414,7 @@ async fn send_test_bank_txs(
         assert_eq!(1, slot_number);
         assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
     } else {
-        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx], block_time_ms)
-            .await?;
+        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx]).await?;
     };
     assert_balance(client, 1000, token_id, user_address, None).await?;
 
@@ -420,8 +425,7 @@ async fn send_test_bank_txs(
         assert_eq!(2, slot_number);
         assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
     } else {
-        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx], block_time_ms)
-            .await?;
+        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx]).await?;
     };
     assert_balance(client, 900, token_id, user_address, None).await?;
 
@@ -432,8 +436,7 @@ async fn send_test_bank_txs(
         assert_eq!(3, slot_number);
         assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
     } else {
-        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx], block_time_ms)
-            .await?;
+        send_transactions_direct_to_da_layer(da_service.clone(), client, &[tx]).await?;
     };
     assert_balance(client, 700, token_id, user_address, None).await?;
 
@@ -458,8 +461,7 @@ async fn send_test_bank_txs(
         assert_eq!(4, slot_number);
         assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
     } else {
-        send_transactions_direct_to_da_layer(da_service.clone(), client, &txs, block_time_ms)
-            .await?;
+        send_transactions_direct_to_da_layer(da_service.clone(), client, &txs).await?;
     };
 
     assert_bank_event::<TestSpec>(
