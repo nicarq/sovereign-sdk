@@ -5,7 +5,7 @@ use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{GasMeter, UnmeteredStateWrapper, WorkingSet};
 use sov_prover_incentives::{CallMessage, Event};
-use sov_test_utils::{MessageType, SlotTestCase, StakedUser, TxOutcome, TxTestCase};
+use sov_test_utils::{MessageType, SlotTestCase, TxOutcome, TxTestCase};
 
 use crate::helpers::{setup, TestProverIncentives};
 
@@ -21,16 +21,16 @@ fn test_genesis_bond() {
             assert_eq!(
                 TestProverIncentives::default()
                     .bonded_provers
-                    .get(&genesis_prover.address(), state)
+                    .get(&genesis_prover.user_info.address(), state)
                     .unwrap(),
-                Some(genesis_prover.bond()),
+                Some(genesis_prover.bond),
                 "The genesis prover should be bonded"
             );
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&genesis_prover.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(genesis_prover.free_balance()),
+                Some(genesis_prover.user_info.available_balance),
                 "The balance of the prover should be equal to the free balance"
             );
         }),
@@ -41,10 +41,12 @@ fn test_genesis_bond() {
 fn test_unbonding() {
     let (mut runner, genesis_prover, _) = setup();
 
-    let expected_final_balance = Arc::new(AtomicU64::new(genesis_prover.total_balance()));
+    let expected_final_balance =
+        Arc::new(AtomicU64::new(genesis_prover.user_info.available_balance));
     let expected_balance_ref1 = expected_final_balance.clone();
-    let genesis_prover_address = genesis_prover.address();
-    let genesis_prover_key = genesis_prover.private_key();
+    let genesis_prover_address = genesis_prover.user_info.address();
+    let genesis_prover_bond = genesis_prover.bond;
+    let genesis_prover_key = genesis_prover.user_info.private_key();
 
     runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase {
         batch_test_cases: vec![vec![TxTestCase {
@@ -56,6 +58,9 @@ fn test_unbonding() {
                             ws.inner().gas_used_value(),
                             std::sync::atomic::Ordering::SeqCst,
                         );
+
+                        expected_final_balance
+                            .fetch_add(genesis_prover_bond, std::sync::atomic::Ordering::SeqCst);
                     }
                     assert!(ws.inner().events().iter().any(|event| matches!(
                         event.downcast_ref::<Event<S>>(),

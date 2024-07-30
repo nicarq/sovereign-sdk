@@ -1,21 +1,29 @@
-use sov_modules_api::{CryptoSpec, DaSpec, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, Module, PrivateKey, Spec};
 
+mod attester_incentives;
+mod prover;
 mod sequencer;
-pub use sequencer::Sequencer;
+pub use attester_incentives::*;
+pub use prover::{TestProver, TestProverConfig};
+pub use sequencer::{TestSequencer, TestSequencerConfig};
+
+use super::MessageType;
 
 /// A representation of a simple user that is not staked at genesis.
 #[derive(Debug, Clone)]
-pub struct User<S: Spec> {
-    private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-    balance: u64,
+pub struct TestUser<S: Spec> {
+    /// The private key of the user.
+    pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+    /// The bank balance of the user for the default gas token.
+    pub available_balance: u64,
 }
 
-impl<S: Spec> User<S> {
+impl<S: Spec> TestUser<S> {
     /// Creates a new user with the given private key and balance.
     pub fn new(private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey, balance: u64) -> Self {
         Self {
             private_key,
-            balance,
+            available_balance: balance,
         }
     }
 
@@ -23,7 +31,7 @@ impl<S: Spec> User<S> {
     pub fn generate(balance: u64) -> Self {
         Self {
             private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate(),
-            balance,
+            available_balance: balance,
         }
     }
 
@@ -39,74 +47,33 @@ impl<S: Spec> User<S> {
 
     /// Returns the balance of the user.
     pub fn balance(&self) -> u64 {
-        self.balance
+        self.available_balance
     }
 }
 
-/// Defines a staked user. A staked user is a user that has bonded some amount of tokens.
-pub trait StakedUser<S: Spec>: Into<User<S>> {
-    /// Returns the private key of the staked user.
-    fn private_key(&self) -> &<S::CryptoSpec as CryptoSpec>::PrivateKey;
-
-    /// Only returns the bank balance of the staked user. Ie, the balance that is not staked.
-    fn free_balance(&self) -> u64;
-
-    /// Returns the bond amount of the staked user.
-    fn bond(&self) -> u64;
-
-    /// The total balance of the staked user, including the bond and any additional balance.
-    fn total_balance(&self) -> u64 {
-        self.bond() + self.free_balance()
+impl<S: Spec> AsUser<S> for TestUser<S> {
+    fn as_user(&self) -> &TestUser<S> {
+        self
     }
 
-    /// Compute and return the address of the staked user.
-    fn address(&self) -> S::Address {
-        <S as Spec>::Address::from(&self.private_key().pub_key())
+    fn as_user_mut(&mut self) -> &mut TestUser<S> {
+        self
     }
 }
 
-impl<S: Spec> From<SimpleStakedUser<S>> for User<S> {
-    fn from(staked_user: SimpleStakedUser<S>) -> Self {
-        Self {
-            private_key: staked_user.private_key,
-            balance: staked_user.additional_balance.unwrap_or_default(),
-        }
-    }
-}
+/// A trait that can be used to convert a special into a [`TestUser`] struct.
+pub trait AsUser<S: Spec> {
+    /// Returns a reference to an underlying [`TestUser`].
+    fn as_user(&self) -> &TestUser<S>;
 
-impl<S: Spec, Da: DaSpec> From<Sequencer<S, Da>> for User<S> {
-    fn from(sequencer: Sequencer<S, Da>) -> Self {
-        Self {
-            private_key: sequencer.private_key,
-            balance: sequencer.additional_balance.unwrap_or_default(),
-        }
-    }
-}
+    /// Returns a mutable reference to an underlying [`TestUser`].
+    fn as_user_mut(&mut self) -> &mut TestUser<S>;
 
-/// A simple representation of a user that is staked at genesis.
-#[derive(Debug, Clone)]
-pub struct SimpleStakedUser<S: Spec> {
-    /// The private key of the staked user.
-    pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-    /// The amount of tokens to bond at genesis. These tokens will be minted by the bank.
-    pub bond: u64,
-    /// Any additional (not bonded) balance that the bank should mint for the user.
-    pub additional_balance: Option<u64>,
-}
-
-impl<S: Spec> StakedUser<S> for SimpleStakedUser<S> {
-    /// Returns the private key of the staked user.
-    fn private_key(&self) -> &<S::CryptoSpec as CryptoSpec>::PrivateKey {
-        &self.private_key
-    }
-
-    /// Only returns the bank balance of the staked user. Ie, the balance that is not staked.
-    fn free_balance(&self) -> u64 {
-        self.additional_balance.unwrap_or(0)
-    }
-
-    /// Returns the bond amount of the staked user.
-    fn bond(&self) -> u64 {
-        self.bond
+    /// Creates a plain message from the user.
+    fn create_plain_message<M: Module<Spec = S>>(
+        &self,
+        message: M::CallMessage,
+    ) -> MessageType<M, S> {
+        MessageType::Plain(message, self.as_user().private_key().clone())
     }
 }

@@ -1,6 +1,6 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::hooks::TxHooks;
-use sov_modules_api::{CryptoSpec, Module, Spec, StateCheckpoint};
+use sov_modules_api::{Module, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::Runtime;
 
 use super::messages::MessageType;
@@ -39,36 +39,12 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
             post_hook: Box::new(|_| {}),
         }
     }
-}
 
-impl<T: Into<TxTestCase<RT, M, S>>, RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> From<Vec<T>>
-    for SlotTestCase<RT, M, S>
-{
-    fn from(test_cases: Vec<T>) -> Self {
+    /// Converts a list of [`BatchTestCase`] into a [`SlotTestCase`] without any post-hook.
+    pub fn from_batches(batches: Vec<BatchTestCase<RT, M, S>>) -> Self {
         SlotTestCase {
-            batch_test_cases: vec![test_cases.into_iter().map(Into::into).collect()],
+            batch_test_cases: batches,
             post_hook: Box::new(|_| {}),
-        }
-    }
-}
-
-impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec>
-    From<(
-        <S::CryptoSpec as CryptoSpec>::PrivateKey,
-        WorkingSetClosure<RT>,
-        <M as Module>::CallMessage,
-    )> for TxTestCase<RT, M, S>
-{
-    fn from(
-        (sender_key, post_check, message): (
-            <S::CryptoSpec as CryptoSpec>::PrivateKey,
-            WorkingSetClosure<RT>,
-            <M as Module>::CallMessage,
-        ),
-    ) -> Self {
-        TxTestCase {
-            outcome: TxOutcome::Applied(post_check),
-            message: MessageType::Plain(message, sender_key),
         }
     }
 }
@@ -144,5 +120,22 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
             },
             is_post_check,
         )
+    }
+
+    /// Creates a new [`TxTestCase`] with the [`TxOutcome::Applied`] outcome.
+    pub fn applied(message: MessageType<M, S>, post_dispatch_hook: WorkingSetClosure<RT>) -> Self {
+        Self {
+            outcome: TxOutcome::Applied(post_dispatch_hook),
+            message,
+        }
+    }
+
+    /// Creates a new [`TxTestCase`] with the [`TxOutcome::Reverted`] outcome.
+    /// Since the transaction is supposed to revert, there is no need to provide a post_dispatch_hook.
+    pub fn reverted(message: MessageType<M, S>) -> Self {
+        Self {
+            outcome: TxOutcome::Reverted,
+            message,
+        }
     }
 }

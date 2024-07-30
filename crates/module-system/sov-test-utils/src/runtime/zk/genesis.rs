@@ -1,12 +1,13 @@
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{DaSpec, Genesis, PrivateKey, Spec};
+use sov_modules_api::{DaSpec, Genesis, Spec};
 use sov_prover_incentives::ProverIncentives;
 use sov_sequencer_registry::SequencerRegistry;
 
+use crate::interface::AsUser;
 use crate::runtime::{BankConfig, ProverIncentivesConfig, SequencerConfig};
 use crate::{
-    Sequencer, SimpleStakedUser, StakedUser, TestPrivateKey, TestSpec, User,
+    TestProver, TestProverConfig, TestSequencer, TestSequencerConfig, TestSpec, TestUser,
     TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
 };
 
@@ -24,11 +25,11 @@ pub struct MinimalZkGenesisConfig<S: Spec, Da: DaSpec> {
 #[derive(Debug, Clone)]
 pub struct HighLevelZkGenesisConfig<S: Spec, Da: DaSpec> {
     /// The initial prover.
-    pub initial_prover: SimpleStakedUser<S>,
+    pub initial_prover: TestProver<S>,
     /// The initial sequencer.
-    pub initial_sequencer: Sequencer<S, Da>,
+    pub initial_sequencer: TestSequencer<S, Da>,
     /// Additional accounts to be added to the genesis state.
-    pub additional_accounts: Vec<User<S>>,
+    pub additional_accounts: Vec<TestUser<S>>,
     /// The name of the gas token
     pub gas_token_name: String,
 }
@@ -37,9 +38,9 @@ impl<S: Spec, Da: DaSpec> HighLevelZkGenesisConfig<S, Da> {
     /// Creates a new high-level genesis config with the given initial prover and sequencer using
     /// the default gas token name.
     pub fn with_defaults(
-        initial_prover: SimpleStakedUser<S>,
-        initial_sequencer: Sequencer<S, Da>,
-        additional_accounts: Vec<User<S>>,
+        initial_prover: TestProver<S>,
+        initial_sequencer: TestSequencer<S, Da>,
+        additional_accounts: Vec<TestUser<S>>,
     ) -> Self {
         Self {
             initial_prover,
@@ -60,21 +61,19 @@ impl HighLevelZkGenesisConfig<TestSpec, MockDaSpec> {
     /// Generates a new high-level genesis config with random addresses and constant amounts (1_000_000_000 tokens)
     /// and `num_accounts` additional accounts.
     pub fn generate_with_additional_accounts(num_accounts: usize) -> Self {
-        let prover = SimpleStakedUser {
-            private_key: TestPrivateKey::generate(),
+        let prover = TestProver::generate(TestProverConfig {
+            additional_balance: TEST_DEFAULT_USER_BALANCE,
             bond: TEST_DEFAULT_USER_STAKE,
-            additional_balance: Some(TEST_DEFAULT_USER_BALANCE),
-        };
-        let sequencer = Sequencer {
-            private_key: TestPrivateKey::generate(),
+        });
+        let sequencer = TestSequencer::generate(TestSequencerConfig {
+            additional_balance: TEST_DEFAULT_USER_BALANCE,
+            bond: TEST_DEFAULT_USER_STAKE,
             da_address: MockAddress::from([172; 32]),
-            bond: TEST_DEFAULT_USER_STAKE,
-            additional_balance: Some(TEST_DEFAULT_USER_BALANCE),
-        };
+        });
         let mut additional_accounts = Vec::with_capacity(num_accounts);
 
         for _ in 0..num_accounts {
-            additional_accounts.push(User::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE));
+            additional_accounts.push(TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE));
         }
 
         Self::with_defaults(prover, sequencer, additional_accounts)
@@ -95,14 +94,14 @@ impl<S: Spec, Da: DaSpec> From<HighLevelZkGenesisConfig<S, Da>> for MinimalZkGen
 impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
     /// Creates a new [`MinimalZkGenesisConfig`] from the given arguments.
     pub fn from_args(
-        initial_prover: SimpleStakedUser<S>,
-        initial_sequencer: Sequencer<S, Da>,
-        additional_accounts: &[User<S>],
+        initial_prover: TestProver<S>,
+        initial_sequencer: TestSequencer<S, Da>,
+        additional_accounts: &[TestUser<S>],
         gas_token_name: String,
     ) -> Self {
         Self {
             sequencer_registry: SequencerConfig {
-                seq_rollup_address: initial_sequencer.address().clone(),
+                seq_rollup_address: initial_sequencer.as_user().address().clone(),
                 seq_da_address: initial_sequencer.da_address.clone(),
                 minimum_bond: initial_sequencer.bond,
                 is_preferred_sequencer: true,
@@ -110,23 +109,32 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
             prover_incentives: ProverIncentivesConfig {
                 minimum_bond: TEST_DEFAULT_USER_STAKE,
                 proving_penalty: TEST_DEFAULT_USER_STAKE / 2,
-                initial_provers: vec![(initial_prover.address().clone(), initial_prover.bond)],
+                initial_provers: vec![(
+                    initial_prover.as_user().address().clone(),
+                    initial_prover.bond,
+                )],
             },
             bank: BankConfig {
                 gas_token_config: sov_bank::GasTokenConfig {
                     token_name: gas_token_name,
                     address_and_balances: {
-                        additional_accounts
+                        let mut additional_accounts_vec: Vec<_> = additional_accounts
                             .iter()
                             .map(|user| (user.address(), user.balance()))
-                            .chain([
-                                (initial_prover.address(), initial_prover.total_balance()),
-                                (
-                                    initial_sequencer.address(),
-                                    initial_sequencer.free_balance(),
-                                ),
-                            ])
-                            .collect()
+                            .collect();
+                        additional_accounts_vec.append(&mut vec![
+                            (
+                                initial_sequencer.as_user().address(),
+                                initial_sequencer.bond
+                                    + initial_sequencer.as_user().available_balance,
+                            ),
+                            (
+                                initial_prover.as_user().address(),
+                                initial_prover.bond + initial_prover.as_user().available_balance,
+                            ),
+                        ]);
+
+                        additional_accounts_vec
                     },
                     authorized_minters: vec![],
                 },
