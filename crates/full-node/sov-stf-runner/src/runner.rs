@@ -353,6 +353,7 @@ where
         self.spawn_sync_status_updater(Duration::from_millis(self.da_polling_interval_ms));
 
         loop {
+            let loop_start = std::time::Instant::now();
             let prev_state_root = self.get_state_root().clone();
             debug!(
                 next_da_height,
@@ -365,8 +366,9 @@ where
 
             let mut transaction_count = 0;
             let mut batch_count = 0;
+            let get_block_start = std::time::Instant::now();
             let filtered_block = self.da_service.get_block_at(next_da_height).await?;
-            debug!(header = %filtered_block.header().display(), "Fetched block header");
+            debug!(header = %filtered_block.header().display(), request_time = ?get_block_start.elapsed(), "Fetched block header");
 
             let (stf_pre_state, filtered_block) = self
                 .state_manager
@@ -384,6 +386,7 @@ where
             }
 
             // STF execution
+            let stf_execution_start = std::time::Instant::now();
             let mut relevant_blobs = self.da_service.extract_relevant_blobs(&filtered_block);
             let batch_blobs = &mut relevant_blobs.batch_blobs;
             let proof_blobs = &relevant_blobs.proof_blobs;
@@ -475,13 +478,36 @@ where
                 height = next_da_height,
                 prev_state_root = hex::encode(prev_state_root.as_ref()),
                 new_state_root = hex::encode(self.get_state_root().as_ref()),
+                time = ?loop_start.elapsed(),
                 "Execution of block is completed"
             );
             next_da_height += 1;
 
             sov_metrics::update_metrics(|metrics| {
+                metrics.da_blocks_processed.inc();
                 metrics.rollup_batches_processed.inc_by(batch_count);
                 metrics.rollup_txns_processed.inc_by(transaction_count as _);
+                let synced_da_height = self
+                    .sync_state
+                    .synced_da_height
+                    .load(std::sync::atomic::Ordering::Acquire);
+                let target_da_height = self
+                    .sync_state
+                    .target_da_height
+                    .load(std::sync::atomic::Ordering::Acquire);
+
+                let distance = target_da_height as i64 - synced_da_height as i64;
+                metrics.sync_distance.set(distance);
+
+                metrics
+                    .process_slot_sec
+                    .observe(loop_start.elapsed().as_secs_f64());
+                metrics
+                    .stf_transition_sec
+                    .observe(stf_execution_start.elapsed().as_secs_f64());
+                metrics
+                    .get_block_sec
+                    .observe(get_block_start.elapsed().as_secs_f64());
             });
         }
     }

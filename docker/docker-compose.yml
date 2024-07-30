@@ -1,6 +1,7 @@
 services:
   validator:
     image: validator
+    hostname: validator
     build:
       context: .
       dockerfile: Dockerfile.validator
@@ -17,9 +18,12 @@ services:
     volumes:
       - credentials:/credentials
       - genesis:/genesis
+    networks:
+      - monitoring-network
 
   sequencer-0:
     image: bridge
+    hostname: sequencer-0
     build:
       context: .
       dockerfile: Dockerfile.bridge
@@ -40,6 +44,8 @@ services:
     volumes:
       - credentials:/credentials:consistent
       - genesis:/genesis
+    networks:
+      - monitoring-network
 
 #  #   Uncomment for another sequencer
 #  #   remember to adjust services.validator.command

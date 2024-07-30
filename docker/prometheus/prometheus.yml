@@ -4,8 +4,11 @@ global:
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: [ 'localhost:9090' ]
 
   - job_name: 'demo-rollup'
     static_configs:
-      - targets: ['host.docker.internal:9845']
+      - targets: [ 'host.docker.internal:9845' ]
+  - job_name: 'celestia'
+    static_configs:
+      - targets: [ 'validator:26660']
