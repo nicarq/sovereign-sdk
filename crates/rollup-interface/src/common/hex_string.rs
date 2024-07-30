@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use borsh::{BorshDeserialize, BorshSerialize};
+
 use crate::da::BlockHashTrait;
 
 /// A [`hex`]-encoded 32-byte hash. Note, this is not necessarily a transaction
@@ -71,7 +73,7 @@ where
         D: serde::Deserializer<'de>,
     {
         let bytes = if deserializer.is_human_readable() {
-            let string = String::deserialize(deserializer)?;
+            let string: String = serde::Deserialize::deserialize(deserializer)?;
             let s = string
                 .strip_prefix("0x")
                 .ok_or_else(|| serde::de::Error::custom("Missing 0x prefix"))?;
@@ -80,12 +82,24 @@ where
                 .map_err(|e| anyhow::anyhow!("failed to decode hex: {}", e))
                 .map_err(serde::de::Error::custom)?
         } else {
-            Vec::<u8>::deserialize(deserializer)?
+            serde::Deserialize::deserialize(deserializer)?
         };
 
         Ok(HexString(bytes.try_into().map_err(|_| {
             serde::de::Error::custom("Invalid hex string length")
         })?))
+    }
+}
+
+impl<T: BorshSerialize> BorshSerialize for HexString<T> {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        self.0.serialize(writer)
+    }
+}
+
+impl<T: BorshDeserialize> BorshDeserialize for HexString<T> {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        T::deserialize_reader(reader).map(Self)
     }
 }
 

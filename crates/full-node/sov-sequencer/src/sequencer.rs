@@ -6,7 +6,6 @@ use futures::StreamExt;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{BlobData, RawTx};
 use sov_rest_utils::serve_generic_ws_subscription;
-use sov_rollup_interface::common::{HexHash, HexString};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
 use sov_rollup_interface::services::da::DaService;
@@ -64,10 +63,7 @@ where
                 self.0
                     .tx_status_notifier
                     .notify(tx_hash, TxStatus::Submitted);
-                AcceptTxResponse {
-                    tx,
-                    tx_hash: HexHash::new(tx_hash),
-                }
+                AcceptTxResponse { tx, tx_hash }
             });
             accept_tx_results.push(result);
         }
@@ -201,7 +197,7 @@ mod axum_router {
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct TxInfo<BlobHash> {
-        id: HexString<TxHash>,
+        id: TxHash,
         #[serde(flatten)]
         status: TxStatus<BlobHash>,
     }
@@ -241,7 +237,7 @@ mod axum_router {
             // without waiting for it to change for the first time.
             let initial_status = self.tx_status(&tx_hash).await?.unwrap_or(TxStatus::Unknown);
             let ws_msg = ws::Message::Text(serde_json::to_string(&TxInfo {
-                id: HexString(tx_hash),
+                id: tx_hash,
                 status: initial_status,
             })?);
             dbg!(&ws_msg);
@@ -252,22 +248,22 @@ mod axum_router {
 
         async fn axum_get_tx_ws(
             sequencer: State<Self>,
-            tx_hash: Path<HexString<TxHash>>,
+            tx_hash: Path<TxHash>,
             ws: ws::WebSocketUpgrade,
         ) -> impl IntoResponse {
             let notifier = sequencer.0 .0.tx_status_notifier.clone();
-            let sub = notifier.subscription(tx_hash.0 .0);
+            let sub = notifier.subscription(tx_hash.0);
 
             ws.on_upgrade(move |mut socket| async move {
                 sequencer
-                    .send_initial_status_to_ws(tx_hash.0 .0, &mut socket)
+                    .send_initial_status_to_ws(tx_hash.0, &mut socket)
                     .await
                     .ok();
 
                 let subscription = BroadcastStream::new(sub.sender.subscribe()).map(|data| {
                     data.context("Failed to subscribe to proofs")
                         .map(|status| TxInfo {
-                            id: HexString(tx_hash.0 .0),
+                            id: tx_hash.0,
                             status,
                         })
                 });
@@ -277,13 +273,13 @@ mod axum_router {
 
         async fn axum_get_tx(
             sequencer: State<Self>,
-            tx_hash: Path<HexString<TxHash>>,
+            tx_hash: Path<TxHash>,
         ) -> ApiResult<TxInfo<DaBlobHash<Da::Spec>>> {
-            let tx_status = sequencer.0 .0.tx_status_notifier.get_cached(&tx_hash.0 .0);
+            let tx_status = sequencer.0 .0.tx_status_notifier.get_cached(&tx_hash.0);
 
             if let Some(tx_status) = tx_status {
                 Ok(TxInfo {
-                    id: HexString(tx_hash.0 .0),
+                    id: tx_hash.0,
                     status: tx_status,
                 }
                 .into())
@@ -315,7 +311,7 @@ mod axum_router {
             };
 
             Ok(TxInfo {
-                id: HexString(tx_hash),
+                id: tx_hash,
                 status: TxStatus::Submitted,
             }
             .into())
@@ -386,7 +382,7 @@ mod tests {
     impl BatchBuilder for MockBatchBuilder {
         async fn accept_tx(&mut self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
             self.mempool.push(tx);
-            Ok([0; 32])
+            Ok(TxHash::new([0; 32]))
         }
 
         async fn contains(&self, _tx_hash: &TxHash) -> anyhow::Result<bool> {
@@ -401,7 +397,7 @@ mod tests {
                 .into_iter()
                 .map(|raw_tx| TxWithHash {
                     raw_tx,
-                    hash: [0; 32],
+                    hash: TxHash::new([0; 32]),
                 })
                 .collect();
             Ok(txs)

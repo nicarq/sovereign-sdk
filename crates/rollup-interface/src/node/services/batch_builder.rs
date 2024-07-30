@@ -2,8 +2,10 @@
 
 use async_trait::async_trait;
 
+use crate::common::HexHash;
+
 /// A rollup transaction hash. Used by [`BatchBuilder`].
-pub type TxHash = [u8; 32];
+pub type TxHash = HexHash;
 
 /// BlockBuilder trait is responsible for managing mempool and building batches.
 #[async_trait]

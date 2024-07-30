@@ -177,13 +177,13 @@ where
         let hash = calculate_hash::<S>(&raw);
         tracing::debug!(
             raw_tx = hex::encode(&raw),
-            hash = hex::encode(hash),
+            %hash,
             "Adding a transaction to the mempool"
         );
 
         self.mempool.add_new_tx(hash, raw)?;
         tracing::debug!(
-            hash = hex::encode(hash),
+            %hash,
             "Transaction has been added to the mempool"
         );
         Ok(hash)
@@ -237,7 +237,7 @@ where
             match tx_receipt.map(|r| r.receipt) {
                 Some(TxEffect::Successful(_)) => {
                     tracing::info!(
-                        hash = hex::encode(mempool_tx.hash),
+                        hash = %mempool_tx.hash,
                         "Transaction has been included in the batch",
                     );
 
@@ -258,7 +258,7 @@ where
                     tracing::warn!(
                         ?tx_receipt,
                         tx = hex::encode(&mempool_tx.tx_bytes),
-                        hash = hex::encode(mempool_tx.hash),
+                        hash = %mempool_tx.hash,
                         "Error during transaction dispatch"
                     );
                     continue;
@@ -299,7 +299,7 @@ struct BatchConstructionContext<S: Spec> {
 }
 
 fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
-    <S::CryptoSpec as CryptoSpec>::Hasher::digest(tx_raw).into()
+    TxHash::new(<S::CryptoSpec as CryptoSpec>::Hasher::digest(tx_raw).into())
 }
 
 #[cfg(test)]

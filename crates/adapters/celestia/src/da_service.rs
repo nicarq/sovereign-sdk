@@ -111,7 +111,7 @@ impl CelestiaService {
 
         info!(
             height = tx_response.height,
-            tx_hash = ?tx_hash,
+            tx_hash = %tx_hash,
             gas_used = %tx_response.gas_used,
             gas_wanted = %tx_response.gas_wanted,
             code = %tx_response.code,

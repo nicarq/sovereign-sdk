@@ -5,7 +5,7 @@ use base64::prelude::*;
 use borsh::BorshSerialize;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use sov_rollup_interface::common::HexHash;
+use sov_rollup_interface::services::batch_builder::TxHash;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
 
@@ -44,14 +44,14 @@ impl Client {
 
     pub async fn subscribe_to_tx_status_updates(
         &self,
-        tx_hash: [u8; 32],
+        tx_hash: TxHash,
     ) -> Result<BoxStream<anyhow::Result<types::TxInfo>>, WsError> {
         let url = format!(
             "{}/txs/{}/ws",
             // The base URL can't be used for WebSocket connections; we need to
             // change the protocol.
             self.baseurl().replace("http://", "ws://"),
-            HexHash::new(tx_hash)
+            tx_hash
         );
 
         let (ws, _) = connect_async(url).await?;

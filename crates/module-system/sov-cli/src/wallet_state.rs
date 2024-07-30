@@ -331,13 +331,12 @@ impl<S: sov_modules_api::Spec> std::fmt::Display for KeyIdentifier<S> {
 }
 
 mod pubkey_serde {
-    use borsh::{BorshDeserialize, BorshSerialize};
     use serde::de::Error;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use sov_modules_api::PublicKey;
     use sov_rollup_interface::common::HexString;
 
-    pub fn serialize<P: PublicKey + BorshSerialize, S>(
+    pub fn serialize<P: PublicKey + borsh::BorshSerialize, S>(
         data: &P,
         serializer: S,
     ) -> Result<S::Ok, S::Error>
@@ -354,7 +353,7 @@ mod pubkey_serde {
     /// even be mixed (e.g. `f9b4ca`, `F9B4CA` and `f9B4Ca` are all valid strings).
     pub fn deserialize<'de, C, D>(deserializer: D) -> Result<C, D::Error>
     where
-        C: PublicKey + BorshDeserialize,
+        C: PublicKey + borsh::BorshDeserialize,
         D: Deserializer<'de>,
     {
         let hex_s = HexString::<Vec<u8>>::deserialize(deserializer)?;
