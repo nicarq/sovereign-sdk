@@ -6,10 +6,10 @@ use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{CryptoSpec, DaSpec, Genesis, PrivateKey, Spec};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 
-use crate::runtime::genesis::{Sequencer, SimpleStakedUser, StakedUser, User};
 use crate::{
-    TestSpec, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
-    TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
+    Sequencer, SimpleStakedUser, StakedUser, TestSpec, User, TEST_DEFAULT_USER_BALANCE,
+    TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
+    TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 /// A genesis config for a minimal optimsitic runtime

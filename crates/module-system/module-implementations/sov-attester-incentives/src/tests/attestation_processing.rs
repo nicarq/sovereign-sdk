@@ -12,10 +12,11 @@ use sov_test_utils::runtime::optimistic::genesis::HighLevelOptimisticGenesisConf
 use sov_test_utils::runtime::sov_attester_incentives::{
     AttesterIncentives, CallMessage, Event, Role, WrappedAttestation,
 };
-use sov_test_utils::runtime::{
-    MessageType, SlotTestCase, StakedUser, TestRunner, TxOutcome, TxTestCase,
+use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::{
+    generate_optimistic_runtime, MessageType, SlotTestCase, StakedUser, TxOutcome, TxTestCase,
+    TEST_DEFAULT_USER_STAKE,
 };
-use sov_test_utils::{generate_optimistic_runtime, TEST_DEFAULT_USER_STAKE};
 
 use crate::tests::helpers::create_attestation;
 

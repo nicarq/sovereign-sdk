@@ -4,11 +4,10 @@ use sov_modules_api::{DaSpec, Genesis, PrivateKey, Spec};
 use sov_prover_incentives::ProverIncentives;
 use sov_sequencer_registry::SequencerRegistry;
 
-use crate::runtime::genesis::{Sequencer, SimpleStakedUser, StakedUser, User};
 use crate::runtime::{BankConfig, ProverIncentivesConfig, SequencerConfig};
 use crate::{
-    TestPrivateKey, TestSpec, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
-    TEST_GAS_TOKEN_NAME,
+    Sequencer, SimpleStakedUser, StakedUser, TestPrivateKey, TestSpec, User,
+    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
 };
 
 /// Minimal genesis configuration for the zk runtime.

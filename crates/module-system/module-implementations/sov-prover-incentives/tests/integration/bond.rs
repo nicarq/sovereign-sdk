@@ -5,7 +5,7 @@ use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{GasMeter, UnmeteredStateWrapper, WorkingSet};
 use sov_prover_incentives::{CallMessage, Event};
-use sov_test_utils::runtime::{MessageType, SlotTestCase, StakedUser, TxOutcome, TxTestCase};
+use sov_test_utils::{MessageType, SlotTestCase, StakedUser, TxOutcome, TxTestCase};
 
 use crate::helpers::{setup, TestProverIncentives};
 
