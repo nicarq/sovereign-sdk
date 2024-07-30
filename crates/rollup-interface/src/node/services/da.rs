@@ -2,6 +2,7 @@
 
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display};
+use std::time::Duration;
 
 #[cfg(feature = "native")]
 use backon::Retryable;
@@ -230,6 +231,7 @@ pub trait DaService: Send + Sync + 'static {
 async fn run_maybe_retryable_async_fn_with_retries<F, Fut, T, E>(
     backoff_policy: &impl BackoffBuilder,
     fxn: F,
+    da_method_name: &str,
 ) -> Result<T, E>
 where
     F: Fn() -> Fut,
@@ -237,6 +239,12 @@ where
     E: std::fmt::Display,
 {
     fxn.retry(backoff_policy)
+        .notify(|err: &MaybeRetryable<E>, dur: Duration| {
+            tracing::warn!(
+                method_name = da_method_name, error = %err, duration = ?dur,
+                "Error in DA Service, will retry in specified duration."
+            );
+        })
         .when(MaybeRetryable::is_retryable)
         .await
         .map_err(MaybeRetryable::into_err)
@@ -306,9 +314,11 @@ where
     type Fee = D::Fee;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
-            D::get_block_at(&self.da_service, height)
-        })
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::get_block_at(&self.da_service, height),
+            "get_block_at",
+        )
         .await
     }
 
@@ -317,9 +327,11 @@ where
         blob: &[u8],
         fee: D::Fee,
     ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
-            D::send_transaction(&self.da_service, blob, fee)
-        })
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::send_transaction(&self.da_service, blob, fee),
+            "send_transaction",
+        )
         .await
     }
 
@@ -328,32 +340,40 @@ where
         aggregated_proof_data: &[u8],
         fee: D::Fee,
     ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
-            D::send_aggregated_zk_proof(&self.da_service, aggregated_proof_data, fee)
-        })
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::send_aggregated_zk_proof(&self.da_service, aggregated_proof_data, fee),
+            "send_aggregated_zk_proof",
+        )
         .await
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
-            D::get_aggregated_proofs_at(&self.da_service, height)
-        })
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::get_aggregated_proofs_at(&self.da_service, height),
+            "get_aggregated_proofs_at",
+        )
         .await
     }
 
     async fn estimate_fee(&self, blob_size: usize) -> Result<D::Fee, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
-            D::estimate_fee(&self.da_service, blob_size)
-        })
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::estimate_fee(&self.da_service, blob_size),
+            "estimate_fee",
+        )
         .await
     }
 
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<D::Spec as DaSpec>::BlockHeader, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
-            D::get_last_finalized_block_header(&self.da_service)
-        })
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::get_last_finalized_block_header(&self.da_service),
+            "get_last_finalized_block_header",
+        )
         .await
     }
 
@@ -366,9 +386,11 @@ where
     }
 
     async fn get_head_block_header(&self) -> Result<<D::Spec as DaSpec>::BlockHeader, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(&self.backoff_policy, || {
-            D::get_head_block_header(&self.da_service)
-        })
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::get_head_block_header(&self.da_service),
+            "get_head_block_header",
+        )
         .await
     }
 
@@ -427,11 +449,15 @@ mod tests {
         let max_retries = 3;
         let backoff_policy = ExponentialBuilder::default().with_max_times(max_retries);
 
-        let r = run_maybe_retryable_async_fn_with_retries(&backoff_policy, || async {
-            let mut count = retry_counter.lock().await;
-            *count += 1;
-            Result::<(), MaybeRetryable<String>>::Err(MaybeRetryable::Transient(error.clone()))
-        })
+        let r = run_maybe_retryable_async_fn_with_retries(
+            &backoff_policy,
+            || async {
+                let mut count = retry_counter.lock().await;
+                *count += 1;
+                Result::<(), MaybeRetryable<String>>::Err(MaybeRetryable::Transient(error.clone()))
+            },
+            "test_function",
+        )
         .await;
 
         assert_eq!(r, Err(error));
