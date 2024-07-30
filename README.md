@@ -21,11 +21,11 @@ logical components:
 
 ### The Rollup Interface
 
-At the heart of the Sovereign SDK is [the Rollup Interface](./rollup-interface/specs/overview.md), which defines the _interfaces_ that rollups
+At the heart of the Sovereign SDK is [the Rollup Interface](./crates/rollup-interface/specs/overview.md), which defines the _interfaces_ that rollups
 must implement. In the Sovereign SDK, we define a rollup as the combination of three components:
 
-1. A [State Transition Function](./rollup-interface/specs/interfaces/stf.md) ("STF") which defines the "business logic" of the rollup
-1. A [Data Availability Layer](./rollup-interface/specs/interfaces/da.md) ("DA layer") which determines the set of transactions that are fed
+1. A [State Transition Function](./crates/rollup-interface/specs/interfaces/stf.md) ("STF") which defines the "business logic" of the rollup
+1. A [Data Availability Layer](./crates/rollup-interface/specs/interfaces/da.md) ("DA layer") which determines the set of transactions that are fed
    to the state transition function
 1. A Zero Knowledge proving system (aka "Zero Knowledge Virtual Machine" or "zkVM"), which takes the compiled rollup code and
    produces succinct proofs that the logic has been executed correctly.
@@ -39,8 +39,8 @@ to a specific DA layer off the shelf.
 Similarly, teams building DA layers shouldn't need to worry about what kinds of state transitions will be built using their chain.
 All they need to do is implement the DA layer interface, and they're automatically compatible with all state transition functions.
 
-The code for the Rollup Interface lives in the [rollup-interface](./rollup-interface/) folder. For a technical description, we recommend the overview
-[here](./rollup-interface/specs/overview.md). If you want a less technical introduction, see this [blog post](https://mirror.xyz/sovlabs.eth/pZl5kAtNIRQiKAjuFvDOQCmFIamGnf0oul3as_DhqGA).
+The code for the Rollup Interface lives in the [rollup-interface](./crates/rollup-interface) folder. For a technical description, we recommend the overview
+[here](./crates/rollup-interface/specs/overview.md). If you want a less technical introduction, see this [blog post](https://mirror.xyz/sovlabs.eth/pZl5kAtNIRQiKAjuFvDOQCmFIamGnf0oul3as_DhqGA).
 
 ### The Module System
 
@@ -51,7 +51,7 @@ it has no built-in notion of state, accounts, tokens, and the like. This means t
 a rollup as easy as deploying a smart contract. So, we've built out an additional set of tools for defining your state transition function
 called the Module System.
 
-At the heart of the Module System is the package [`sov-modules-api`](./module-system/sov-modules-api/). This package defines
+At the heart of the Module System is the package [`sov-modules-api`](./crates/module-system/sov-modules-api/README.md). This package defines
 a group of core traits which express how functionality implemented in separate modules can be combined into a `Runtime`
 capable of processing transactions and serving JSON-RPC and web server requests. It also defines macros for implementing most of these traits.
 For many applications, defining your state transition function using the Module System should be as simple as picking
@@ -59,11 +59,11 @@ some modules off the shelf and defining a struct which glues them together.
 To deliver this experience, the Module System relies on a set of common types and traits that are used in every module. The
 `sov-modules-api` crate defines these traits (like `Context` and `MerkleTreeSpec`) and types like `Address`.
 
-On top of the module API, we provide a [state storage layer](./module-system/sov-state/) backed by a [Jellyfish Merkle Tree](https://github.com/penumbra-zone/jmt)
+On top of the module API, we provide a [state storage layer](./crates/module-system/sov-state/README.md) backed by a [Jellyfish Merkle Tree](https://github.com/penumbra-zone/jmt)
 and a bunch of helpful utilities for working with stateful transactions. Finally, we provide a set of modules implementing common
 blockchain functionality like `Accounts`, and fungible `Tokens`.
 
-For more information on the Module System, see its [README](./module-system/README.md). You can also find a tutorial on
+For more information on the Module System, see its [README](./crates/module-system/README.md). You can also find a tutorial on
 implementing and deploying a custom module [here](./examples/simple-nft-module/README.md).
 
 ### The Full Node
