@@ -1,9 +1,8 @@
 use sov_mock_da::MockDaSpec;
 use sov_prover_incentives::ProverIncentives;
-use sov_test_utils::runtime::genesis::{SimpleStakedUser, User};
 use sov_test_utils::runtime::zk::genesis::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{generate_zk_runtime, TestSpec};
+use sov_test_utils::{generate_zk_runtime, SimpleStakedUser, TestSpec, User};
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type TestProverIncentives = ProverIncentives<S, MockDaSpec>;
