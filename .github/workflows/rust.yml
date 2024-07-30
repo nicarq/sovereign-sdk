@@ -528,8 +528,8 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Upload to doc artifacts to S3
         run: |
-          TARGET_DIR="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}-doc";
-          aws --quiet s3 sync target/doc s3://${S3_BUCKET_NAME}/${TARGET_DIR};
+          TARGET_DIR="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}-doc" && \
+          aws --quiet s3 sync target/doc s3://${S3_BUCKET_NAME}/${TARGET_DIR} && \
           echo "Docs are available at https://$S3_BUCKET_NAME.$AWS_REGION.amazonaws.com/${TARGET_DIR}/index.html";
 
   deploy-github-pages:
