@@ -382,9 +382,9 @@ sov-state = { git = "https://github.com/Sovereign-Labs/sovereign-sdk.git", branc
 sov-test-utils { git = "https://github.com/Sovereign-Labs/sovereign-sdk.git", branch = "stable" }
 ```
 
-Here is some boilerplate for NFT module integration tests:
+Here's an example of setting up a module and calling its methods:
 
-```rust
+```rust,no_run 
 use simple_nft_module::{CallMessage, NonFungibleToken, NonFungibleTokenConfig, OwnerResponse};
 use sov_modules_api::{Address, Context, Module, WorkingSet};
 use simple_nft_module::Event;
@@ -395,22 +395,6 @@ pub type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<sov_test_utils::TestStorageSpec>;
 
 
-#[test]
-#[ignore = "Not implemented yet"]
-fn genesis_and_mint() {}
-
-#[test]
-#[ignore = "Not implemented yet"]
-fn transfer() {}
-
-#[test]
-#[ignore = "Not implemented yet"]
-fn burn() {}
-```
-
-Here's an example of setting up a module and calling its methods:
-
-```rust
 #[test]
 fn transfer() {
     // Preparation

@@ -244,9 +244,9 @@ note: the trait `sov_modules_api::Spec` must be implemented
     | |_____________^
     = help: items from traits can only be used if the trait is implemented and in scope
     = note: the following traits define an item `default`, perhaps you need to implement one of them:
-            candidate #1: `std::default::Default`
-            candidate #2: `tinyvec::array::Array`
-            candidate #3: `sea_orm::entity::active_model::ActiveModelTrait`
+            candidate #1: `sea_orm::entity::active_model::ActiveModelTrait`
+            candidate #2: `std::default::Default`
+            candidate #3: `tinyvec::array::Array`
 
 error[E0277]: the trait bound `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
    --> tests/integration/rpc/expose_rpc_first_generic_not_spec.rs:124:24
@@ -268,9 +268,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                        ^^^^^^^^^^^^^^^^^^^^^^^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
               DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
               DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
+              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
 note: required by a bound in `Runtime`
    --> tests/integration/rpc/expose_rpc_first_generic_not_spec.rs:108:32
     |
@@ -305,9 +305,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                                                               ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
               DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
               DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
+              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
 note: required by a bound in `Runtime`
    --> tests/integration/rpc/expose_rpc_first_generic_not_spec.rs:108:32
     |
@@ -342,9 +342,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |          ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
               DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
               DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
+              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
 note: required by a bound in `Runtime`
    --> tests/integration/rpc/expose_rpc_first_generic_not_spec.rs:108:32
     |
@@ -406,9 +406,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                  ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
               DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
               DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
+              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
 note: required by a bound in `Runtime`
    --> tests/integration/rpc/expose_rpc_first_generic_not_spec.rs:108:32
     |
