@@ -1,3 +1,5 @@
+// TODO: Rust 1.80 upgrade https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1059
+#![allow(clippy::blocks_in_conditions)]
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -16,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaBlobHash, DaProof, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable};
 use tokio::sync::Mutex;
-use tracing::{debug, info, trace};
+use tracing::{debug, info, instrument, trace};
 
 use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
 use crate::utils::BoxError;
@@ -230,6 +232,7 @@ impl DaService for CelestiaService {
     type Error = MaybeRetryable<BoxError>;
     type Fee = CelestiaFee;
 
+    #[instrument]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         let client = self.client.lock().await;
 
@@ -280,6 +283,7 @@ impl DaService for CelestiaService {
         .map_err(MaybeRetryable::Permanent)
     }
 
+    #[instrument]
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
@@ -304,6 +308,7 @@ impl DaService for CelestiaService {
             .boxed())
     }
 
+    #[instrument]
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
@@ -369,6 +374,7 @@ impl DaService for CelestiaService {
         RelevantProofs { proof, batch }
     }
 
+    #[instrument(skip(blob), err)]
     async fn send_transaction(
         &self,
         blob: &[u8],
@@ -380,6 +386,7 @@ impl DaService for CelestiaService {
             .map_err(MaybeRetryable::Transient)
     }
 
+    #[instrument(skip(aggregated_proof), err)]
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof: &[u8],
@@ -391,6 +398,7 @@ impl DaService for CelestiaService {
             .map_err(MaybeRetryable::Transient)
     }
 
+    #[instrument(err)]
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         let blobs = self
             .client
@@ -411,6 +419,7 @@ impl DaService for CelestiaService {
         }
     }
 
+    #[instrument(err)]
     async fn estimate_fee(&self, blob_size: usize) -> Result<Self::Fee, Self::Error> {
         Ok(CelestiaFee::estimated(blob_size))
     }
