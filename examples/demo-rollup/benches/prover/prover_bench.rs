@@ -206,7 +206,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // TODO: Fix this with genesis logic.
     let blocks = get_bench_blocks().await?;
 
-    for filtered_block in &blocks {
+    for filtered_block in blocks {
         num_blocks += 1;
         let mut host = Risc0Host::new(MOCK_DA_ELF);
 
@@ -217,7 +217,7 @@ async fn main() -> Result<(), anyhow::Error> {
             hex::encode(prev_state_root.root_hash())
         );
         let (mut relevant_blobs, relevant_proofs) = da_service
-            .extract_relevant_blobs_with_proof(filtered_block)
+            .extract_relevant_blobs_with_proof(&filtered_block)
             .await;
 
         if !relevant_blobs.batch_blobs.is_empty() {
@@ -249,7 +249,7 @@ async fn main() -> Result<(), anyhow::Error> {
             MockDaSpec,
         > {
             initial_state_root: prev_state_root,
-            da_block_header: filtered_block.header().clone(),
+            da_block_header: filtered_block.header,
             relevant_proofs,
             witness: result.witness,
             relevant_blobs,

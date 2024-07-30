@@ -1,4 +1,5 @@
 - #1062 Adds `remove` method to `StateVec`
+- #978 Upgrades rust toolchain to 1.79.
 - #1047 Use ProverIncentive module in the StfBlueprint for proof verification.
 - #1025 Pass the `genesis_state_root` to the `ProverService`
 - #1024 removes the associate type `DaService::TransactionId` and replaces it with `BlobReaderTrait::BlobHash`. The type signatures of `DaService::send_aggregated_zk_proof` and `DaService::send_transaction` now return `BlobHash` instead of the unit type.
