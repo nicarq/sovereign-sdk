@@ -53,6 +53,7 @@ impl BlockProducing {
             tokio::spawn(async move {
                 tracing::debug!(interval = ?duration, "Spawning a task for periodic producing");
                 loop {
+                    tokio::time::sleep(duration).await;
                     {
                         let mut da_layer = da_layer.write().await;
                         let res = da_layer.produce_block().await;
@@ -63,7 +64,6 @@ impl BlockProducing {
                             }
                         }
                     }
-                    tokio::time::sleep(duration).await;
                 }
             });
         }

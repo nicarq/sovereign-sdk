@@ -21,7 +21,7 @@ use sov_test_utils::{
 use tokio::task::JoinHandle;
 
 use super::{TOKEN_NAME, TOKEN_SALT};
-use crate::test_helpers::{read_private_keys, start_rollup};
+use crate::test_helpers::{read_private_keys, start_rollup_in_background};
 
 pub(crate) struct TestCase {
     pub(crate) wait_for_aggregated_proof: bool,
@@ -55,7 +55,6 @@ impl TestRollup {
     ) -> anyhow::Result<TestRollup> {
         let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
         let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
-        let (da_service_tx, da_service_rx) = tokio::sync::oneshot::channel();
 
         // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
         // Otherwise batches are going to be rejected
@@ -71,25 +70,21 @@ impl TestRollup {
             block_time_ms,
         };
 
-        let rollup_task = tokio::spawn(async move {
-            start_rollup(
-                rpc_port_tx,
-                rest_port_tx,
-                GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-                BasicKernelGenesisPaths {
-                    chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-                },
-                rollup_prover_config,
-                mock_da_config,
-                Some(da_service_tx),
-            )
-            .await;
-        });
+        let (rollup_task, da_service) = start_rollup_in_background(
+            rpc_port_tx,
+            rest_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            rollup_prover_config,
+            mock_da_config,
+        )
+        .await;
 
         let rpc_port = rpc_port_rx.await.unwrap().port();
         let rest_port = rest_port_rx.await.unwrap().port();
         let client = ApiClient::new(rpc_port, rest_port).await?;
-        let da_service = da_service_rx.await.unwrap();
 
         Ok(TestRollup {
             rollup_task,

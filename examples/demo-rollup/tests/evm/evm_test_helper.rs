@@ -14,7 +14,7 @@ use sov_test_utils::SimpleStorageContract;
 use tokio::task::JoinHandle;
 
 use super::test_client::TestClient;
-use crate::test_helpers::start_rollup;
+use crate::test_helpers::start_rollup_in_background;
 
 /// Starts test rollup node.  
 pub(crate) async fn start_node(
@@ -23,11 +23,10 @@ pub(crate) async fn start_node(
 ) -> (JoinHandle<()>, SocketAddr, SocketAddr) {
     let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
-    let da_service_channel = None;
 
-    let rollup_task = tokio::spawn(async move {
+    let (rollup_task, _da_service) =
         // Don't provide a prover since the EVM is not currently provable
-        start_rollup(
+        start_rollup_in_background(
             rpc_port_tx,
             rest_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
@@ -45,10 +44,8 @@ pub(crate) async fn start_node(
                 // This parameter is important!
                 block_time_ms: 30_000,
             },
-            da_service_channel,
         )
         .await;
-    });
 
     let rpc_port = rpc_port_rx.await.unwrap();
     let rest_port = rest_port_rx.await.unwrap();
