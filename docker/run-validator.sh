@@ -35,7 +35,7 @@ wait_for_block() {
   local block_num="$1"
   local block_hash=""
 
-  # Wait for the block to be created 
+  # Wait for the block to be created
   while [[ -z "$block_hash" ]]; do
     # `|| echo` fallbacks to an empty string in case it's not ready
     block_hash="$(celestia-appd query block "$block_num" 2>/dev/null | jq '.block_id.hash' || echo)"
@@ -133,6 +133,10 @@ setup_private_validator() {
   # https://gist.github.com/andre3k1/e3a1a7133fded5de5a9ee99c87c6fa0d?permalink_comment_id=3082272#gistcomment-3082272
   sed -i'.bak' 's|"tcp://127.0.0.1:26657"|"tcp://0.0.0.0:26657"|g' "$CONFIG_DIR/config/config.toml"
   sed -i'.bak' 's|"null"|"kv"|g' "$CONFIG_DIR/config/config.toml"
+
+  # Enable prometheus
+  sed -i'.bak' 's/prometheus = false/prometheus = true/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/prometheus_listen_addr = ":26660"/prometheus_listen_addr = "0.0.0.0:26660"/g' "$CONFIG_DIR/config/config.toml"
 
   # Adjusting for faster block times
   # Numbers are derived by trial and error.
