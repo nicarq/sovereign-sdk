@@ -25,7 +25,6 @@ use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::runtime::traits::EndSlotHookRegistry;
-use crate::runtime::wrapper::StateRootClosure;
 use crate::{
     MessageType, SlotExpectedResult, SlotTestCase, TestStfBlueprint, TxExpectedResult, TxTestCase,
 };
@@ -180,29 +179,19 @@ where
         stf_state: &ProverStorage<
             DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
         >,
-        tx_setup_fn: &mut StateRootClosure<
-            <M as Module>::CallMessage,
-            <<S as Spec>::Storage as Storage>::Root,
-            ApiStateAccessor<S>,
-        >,
         slot_runner: Vec<Vec<TxRunner<S, M>>>,
     ) -> (Vec<MockBlob>, SlotExpectedResult)
     where
         RT: EncodeCall<M>,
     {
         let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
-        let state_root = *self.state_root();
 
         let (blobs, expected_slot_results): (Vec<_>, Vec<_>) = slot_runner
             .into_iter()
             .map(|batch_runner| {
-                let build_batch_txs = |mut runner: TxRunner<S, M>| {
-                    if let MessageType::Plain(message, _) = &mut runner.message {
-                        tx_setup_fn(message, state_root, &mut state);
-                    }
-
+                let build_batch_txs = |runner: TxRunner<S, M>| {
                     (
-                        runner.message.to_raw_tx::<RT>(&mut self.nonces),
+                        runner.message.to_raw_tx::<RT>(&mut self.nonces, &mut state),
                         runner.expected_result,
                     )
                 };
@@ -264,15 +253,8 @@ where
     }
 
     /// Executes a single slot with a given setup function
-    fn execute_slot<M: Module>(
-        &mut self,
-        tx_setup_fn: &mut StateRootClosure<
-            <M as Module>::CallMessage,
-            <<S as Spec>::Storage as Storage>::Root,
-            ApiStateAccessor<S>,
-        >,
-        slot_runner: SlotRunner<S, M>,
-    ) where
+    fn execute_slot<M: Module>(&mut self, slot_runner: SlotRunner<S, M>)
+    where
         RT: EncodeCall<M>,
     {
         let block_header = MockBlockHeader::from_height(self.curr_slot_number() + 1);
@@ -282,8 +264,7 @@ where
             .create_state_for(&block_header)
             .expect("Block builds on height zero");
 
-        let (mut blobs, expected_slot_results) =
-            self.build_batch(&stf_state, tx_setup_fn, slot_runner);
+        let (mut blobs, expected_slot_results) = self.build_batch(&stf_state, slot_runner);
 
         // TODO(@theochap): add support for proof blobs
         let relevant_blobs = RelevantBlobIters {
@@ -303,22 +284,15 @@ where
         self.check_and_apply_slot_result(block_header, expected_slot_results, result);
     }
 
-    /// Executes the provided slots with a given setup function
-    pub fn execute_slots_with_setup_fn<M: Module>(
-        &mut self,
-        tx_setup_fn: &mut StateRootClosure<
-            <M as Module>::CallMessage,
-            <<S as Spec>::Storage as Storage>::Root,
-            ApiStateAccessor<S>,
-        >,
-        slots_test_cases: Vec<SlotTestCase<RT, M, S>>,
-    ) where
+    /// Executes the provided slots
+    pub fn execute_slots<M: Module>(&mut self, slots_test_cases: Vec<SlotTestCase<RT, M, S>>)
+    where
         RT: EncodeCall<M>,
     {
         let slots_runner = self.register_hooks(slots_test_cases);
 
         for slot_runner in slots_runner {
-            self.execute_slot(tx_setup_fn, slot_runner);
+            self.execute_slot(slot_runner);
         }
 
         assert!(
@@ -336,22 +310,17 @@ where
         );
     }
 
-    /// Executes the provided slots without a setup function. This is a helper function for [`TestRunner::execute_slots_with_setup_fn`]
-    pub fn execute_slots<M: Module>(&mut self, slots_test_cases: Vec<SlotTestCase<RT, M, S>>)
-    where
-        RT: EncodeCall<M>,
-    {
-        self.execute_slots_with_setup_fn(&mut |_, _, _| {}, slots_test_cases);
-    }
-
     /// Run a test on the given runtime
     ///
     /// The test is defined by a series of slot test cases, where the workflow is...
     /// 1. Run genesis
-    /// 2. For each call message, execute the message and apply the post-execution closure to check
+    /// 2. For each slot, apply the provided pre-execution closure to each call message
+    /// with the current state as an argument. This allows us to set update any call messages
+    /// that depend on the current state.
+    /// 3. For each call message, execute the message and apply the post-execution closure to check
     /// that the result is valid.
     ///
-    /// This method is a helper function for [`TestRunner::run_test_with_setup_fn`]
+    /// This method calls successively [`TestRunner::new_with_genesis`] followed by [`TestRunner::execute_slots`].
     pub fn run_test<M>(
         genesis_config: GenesisParams<
             <RT as Genesis>::Config,
@@ -363,37 +332,7 @@ where
         RT: EncodeCall<M>,
         M: Module,
     {
-        Self::run_test_with_setup_fn(genesis_config, &mut |_, _, _| {}, slots, runtime);
-    }
-
-    /// Run a test on the given runtime
-    ///
-    /// The test is defined by a series of slot test cases, where the workflow is...
-    /// 1. Run genesis
-    /// 2. For each slot, apply the provided pre-execution closure to each call message
-    /// with the current state as an argument. This allows us to set update any call messages
-    /// that depend on the current state.
-    /// 3. For each call message, execute the message and apply the post-execution closure to check
-    /// that the result is valid.
-    ///
-    /// This method calls successively [`TestRunner::new_with_genesis`] followed by [`TestRunner::execute_slots_with_setup_fn`].
-    pub fn run_test_with_setup_fn<M>(
-        genesis_config: GenesisParams<
-            <RT as Genesis>::Config,
-            BasicKernelGenesisConfig<S, MockDaSpec>,
-        >,
-        tx_setup_fn: &mut StateRootClosure<
-            <M as Module>::CallMessage,
-            <<S as Spec>::Storage as Storage>::Root,
-            ApiStateAccessor<S>,
-        >,
-        slots: Vec<SlotTestCase<RT, M, S>>,
-        runtime: RT,
-    ) where
-        RT: EncodeCall<M>,
-        M: Module,
-    {
         let mut runner = TestRunner::new_with_genesis(genesis_config, runtime);
-        runner.execute_slots_with_setup_fn(tx_setup_fn, slots);
+        runner.execute_slots(slots);
     }
 }

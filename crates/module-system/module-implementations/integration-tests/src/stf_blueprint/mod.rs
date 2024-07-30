@@ -17,7 +17,8 @@ use sov_test_utils::runtime::optimistic::{HighLevelOptimisticGenesisConfig, Test
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     generate_optimistic_runtime, new_test_blob_from_batch_deprecated, MessageGenerator,
-    MessageType, SlotTestCase, TestHasher, TxOutcome, TxTestCase, User, TEST_DEFAULT_USER_BALANCE,
+    MessageType, SlotTestCase, TestHasher, TestUser, TxOutcome, TxTestCase,
+    TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
 
@@ -191,7 +192,7 @@ fn test_enforces_chain_id() {
         let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
         genesis_config
             .additional_accounts
-            .push(User::<S>::generate(TEST_DEFAULT_USER_BALANCE));
+            .push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
 
         let admin_account = genesis_config.additional_accounts[0].clone();
 

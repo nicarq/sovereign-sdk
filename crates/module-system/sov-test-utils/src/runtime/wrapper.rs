@@ -34,9 +34,6 @@ use super::traits::{
 /// testing framework to override the post dispatch tx hook.
 pub type WorkingSetClosure<T> =
     Box<dyn FnOnce(UnmeteredStateWrapper<<T as TxHooks>::TxState>) + Send + Sync>;
-/// A closure that takes a mutable reference to a `CallMessage`, a `StateRoot` and also a state accessor (usually a [`StateCheckpoint`]).
-/// This is used within the testing framework to override test call messages (like in the attester incentives tests).
-pub type StateRootClosure<Call, Root, Ws> = dyn FnMut(&mut Call, Root, &mut Ws) + Send + Sync;
 /// A closure that takes a mutable reference to a state accessor (usually a [`StateCheckpoint`]).
 /// This is used within the testing framework to override the end slot hook.
 pub type EndSlotClosure<T> = Box<dyn FnMut(&mut T) + Send + Sync>;

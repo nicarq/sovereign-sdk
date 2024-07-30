@@ -10,8 +10,8 @@ use super::*;
 use crate::runtime::optimistic::genesis::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{ChainStateConfig, SlotTestCase, TestRunner, TxTestCase, WorkingSetClosure};
 use crate::{
-    generate_optimistic_runtime, TestPrivateKey, TestSpec, TEST_DEFAULT_USER_BALANCE,
-    TEST_DEFAULT_USER_STAKE,
+    generate_optimistic_runtime, MessageType, TestPrivateKey, TestSpec, TxOutcome,
+    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
 };
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
@@ -93,13 +93,16 @@ fn run_value_setter_txs_with_assertions(
         .into_iter()
         .map(|(value, assertion)| {
             let msg = sov_value_setter::CallMessage::SetValue(value);
-            TxTestCase::<_, ValueSetter<TestSpec>, _>::from((admin_pkey.clone(), assertion, msg))
+            TxTestCase::<_, ValueSetter<TestSpec>, _> {
+                outcome: TxOutcome::Applied(assertion),
+                message: MessageType::Plain(msg, admin_pkey.clone()),
+            }
         })
         .collect::<Vec<_>>();
 
     TestRunner::run_test(
         params,
-        vec![SlotTestCase::from(tx_test_cases)],
+        vec![SlotTestCase::from_txs(tx_test_cases)],
         TestRuntime::<TestSpec, MockDaSpec>::default(),
     );
 }
