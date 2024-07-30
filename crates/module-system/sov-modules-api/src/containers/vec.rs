@@ -191,6 +191,40 @@ where
         Ok(Some(elem))
     }
 
+    /// Removes the value at the specified index and returns it
+    pub fn remove<ReaderAndWriter: StateReaderAndWriter<N>>(
+        &self,
+        index: usize,
+        state: &mut ReaderAndWriter,
+    ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
+        let len = self.len(state)?;
+
+        let new_len = match len.checked_sub(1) {
+            Some(i) => i,
+            None => return Ok(None),
+        };
+
+        Ok(if index < len {
+            let elem = match self.elems().remove(&(index), state)? {
+                Some(elem) => elem,
+                None => return Ok(None),
+            };
+
+            for i in index..new_len {
+                let next_elem = self.elems().remove(&(i + 1), state)?;
+                if let Some(next_elem) = next_elem {
+                    self.elems().set(&i, &next_elem, state)?;
+                }
+            }
+
+            self.set_len(new_len, state)?;
+
+            Some(elem)
+        } else {
+            None
+        })
+    }
+
     /// Removes all values from this vector.
     pub fn clear<ReaderAndWriter: StateReaderAndWriter<N>>(
         &self,
@@ -374,6 +408,7 @@ mod test {
     enum TestCaseAction<T> {
         Push(T),
         Pop(T),
+        Remove(usize, T),
         Last(T),
         Set(usize, T),
         SetAll(Vec<T>),
@@ -415,6 +450,8 @@ mod test {
             TestCaseAction::CheckContents(vec![1, 2, 3]),
             TestCaseAction::CheckContentsReverse(vec![3, 2, 1]),
             TestCaseAction::Last(3),
+            TestCaseAction::Remove(0, 1),
+            TestCaseAction::CheckContents(vec![2, 3]),
         ]
     }
 
@@ -467,6 +504,10 @@ mod test {
             TestCaseAction::CheckContentsReverse(expected) => {
                 let contents: Vec<T> = state_vec.iter(state).rev().collect();
                 assert_eq!(expected, contents);
+            }
+            TestCaseAction::Remove(index, expected) => {
+                let actual = state_vec.remove(index, state).unwrap_infallible();
+                assert_eq!(actual, Some(expected));
             }
         }
     }

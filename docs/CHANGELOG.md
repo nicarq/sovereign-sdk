@@ -1,3 +1,4 @@
+- #1062 Adds `remove` method to `StateVec`
 - #1047 Use ProverIncentive module in the StfBlueprint for proof verification.
 - #1025 Pass the `genesis_state_root` to the `ProverService`
 - #1024 removes the associate type `DaService::TransactionId` and replaces it with `BlobReaderTrait::BlobHash`. The type signatures of `DaService::send_aggregated_zk_proof` and `DaService::send_transaction` now return `BlobHash` instead of the unit type.
@@ -8,6 +9,7 @@
 - #1007 adds `slotNumber` to batch objects and `batchNumber` to transaction objects returned by the ledger API.
 - #1001 StfBlueprint cleanup: Remove ApplyBatch type.
 - #995  Move `SequencerRegistry::hooks` logic to `SequencerRemuneration` capability.
+- #1062 Adds `remove` method to `StateVec`
 - #966 Adds gas & fees relevant logic to the `STF::process_proof` method.
 - #954 Replaces `ProverStorageManager` with `NativeStorageManager`. `StateDb`, `AccessoryDb` and `LedgerDb` now have different constructors.
 - #956 Split stf_blueprint into smaller chunks.
