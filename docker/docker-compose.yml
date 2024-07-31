@@ -100,6 +100,27 @@ services:
     networks:
       - monitoring-network
 
+  toxiproxy:
+    image: shopify/toxiproxy
+    hostname: toxiproxy
+    depends_on:
+      - sequencer-0
+    ports:
+      - 26659:26659
+      - 8474:8474
+    networks:
+      - monitoring-network
+
+  toxiproxy-config:
+    image: curlimages/curl:8.9.1
+    depends_on:
+      - toxiproxy
+    networks:
+      - monitoring-network
+    volumes:
+      - ./toxiproxy:/opt/toxiproxy
+    command: [ "/opt/toxiproxy/configure.sh" ]
+
 volumes:
   # local volume where sequencer's credentials can persist
   credentials:
