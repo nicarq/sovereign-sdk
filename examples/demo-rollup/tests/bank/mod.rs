@@ -10,7 +10,7 @@ use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{BlobData, RawTx};
+use sov_modules_api::{Batch, RawTx};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_test_utils::{ApiClient, TestSpec};
 
@@ -46,7 +46,7 @@ impl TxSender for DaLayerTxSender {
             .map(|signed_tx| ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&signed_tx)?))
             .collect::<anyhow::Result<Vec<RawTx>>>()?;
 
-        let batch = BlobData::new_batch(authenticated_txs);
+        let batch = Batch::new(authenticated_txs);
         let batch_bytes = borsh::to_vec(&batch)?;
 
         let fee = self.da_service.estimate_fee(batch_bytes.len()).await?;

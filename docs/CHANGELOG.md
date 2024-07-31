@@ -1,3 +1,4 @@
+- #1003 Removes the `BlobData` enum, requiring sequencers to post the `Batch` struct directly on chain.
 - #1062 Adds `remove` method to `StateVec`
 - #978 Upgrades rust toolchain to 1.79.
 - #1047 Use ProverIncentive module in the StfBlueprint for proof verification.

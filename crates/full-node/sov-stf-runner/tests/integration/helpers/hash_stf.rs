@@ -1,9 +1,8 @@
-use borsh::BorshDeserialize;
 use sha2::Digest;
 use sov_db::storage_manager::NativeChangeSet;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::{
-    AggregatedProofPublicData, BlobData, ProofOutcome, ProofReceipt, ProofReceiptContents,
+    AggregatedProofPublicData, ProofOutcome, ProofReceipt, ProofReceiptContents,
 };
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -102,11 +101,6 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        let all_blobs = relevant_blobs
-            .batch_blobs
-            .into_iter()
-            .chain(relevant_blobs.proof_blobs);
-
         // Note: Uses native code, so won't work in ZK
         let storage_root_hash = pre_state.get_root_hash(slot_header.height()).unwrap();
 
@@ -135,37 +129,36 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         hasher.update(existing_cache.value());
 
         let mut proof_receipts = Vec::new();
-        for blob in all_blobs {
+        for blob in relevant_blobs.batch_blobs.into_iter() {
             let data = blob.full_data();
-
             if !data.is_empty() {
-                match BlobData::try_from_slice(data).unwrap() {
-                    BlobData::Batch(_) => hasher.update(data),
-                    BlobData::Proof(raw_proof) => {
-                        let public_data: AggregatedProofPublicData =
-                            match <MockZkVerifier as Zkvm>::verify(
-                                &raw_proof,
-                                &MockCodeCommitment::default(),
-                            ) {
-                                Ok(public_data) => public_data,
-                                Err(err) => {
-                                    panic!("Error when processing proof: {:?}", err);
-                                }
-                            };
+                hasher.update(data);
+            }
+        }
 
-                        proof_receipts.push(ProofReceipt {
-                            raw_proof: SerializedAggregatedProof {
-                                raw_aggregated_proof: raw_proof,
-                            },
-                            blob_hash: [0u8; 32],
-                            outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot>::Valid(
-                                ProofReceiptContents::AggregateProof(public_data),
-                            ),
-                            extra_data: (),
-                        });
+        for blob in relevant_blobs.proof_blobs.into_iter() {
+            let raw_proof = blob.full_data();
+            if raw_proof.is_empty() {
+                continue;
+            }
+            let public_data: AggregatedProofPublicData =
+                match <MockZkVerifier as Zkvm>::verify(raw_proof, &MockCodeCommitment::default()) {
+                    Ok(public_data) => public_data,
+                    Err(err) => {
+                        panic!("Error when processing proof: {:?}", err);
                     }
                 };
-            }
+
+            proof_receipts.push(ProofReceipt {
+                raw_proof: SerializedAggregatedProof {
+                    raw_aggregated_proof: raw_proof.to_vec(),
+                },
+                blob_hash: [0u8; 32],
+                outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot>::Valid(
+                    ProofReceiptContents::AggregateProof(public_data),
+                ),
+                extra_data: (),
+            });
         }
 
         let (state_root, change_set) =

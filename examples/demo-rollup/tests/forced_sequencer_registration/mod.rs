@@ -7,7 +7,7 @@ use futures::StreamExt;
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{BlobData, RawTx};
+use sov_modules_api::RawTx;
 use sov_modules_macros::config_value;
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::RollupProverConfig;
@@ -112,6 +112,6 @@ fn build_register_sequencer_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<
 
 fn transaction_into_blob(transaction: Transaction<TestSpec>) -> Vec<u8> {
     let tx_data = borsh::to_vec(&transaction).unwrap();
-    let blob_data = BlobData::new_batch(vec![RawTx { data: tx_data }]);
+    let blob_data = RawTx { data: tx_data };
     borsh::to_vec(&blob_data).unwrap()
 }

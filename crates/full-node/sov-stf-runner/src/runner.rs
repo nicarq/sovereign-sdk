@@ -405,9 +405,10 @@ where
                 proof_blobs = ?proof_blobs
                     .iter()
                     .map(|b| format!(
-                        "sequencer={} blob_hash=0x{}",
+                        "sequencer={} blob_hash=0x{}, len={}",
                         b.sender(),
-                        hex::encode(b.hash())
+                        hex::encode(b.hash()),
+                        b.total_len()
                     ))
                     .collect::<Vec<_>>(),
                 "Extracted relevant blobs"

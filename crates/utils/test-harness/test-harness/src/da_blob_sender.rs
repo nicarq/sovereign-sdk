@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use sov_celestia_adapter::CelestiaService;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{BlobData, RawTx, Spec};
+use sov_modules_api::{Batch, RawTx, Spec};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use test_harness_lib::{Account, AccountPool, SerializedPreparedCallMessage};
 use tokio::sync::mpsc::Receiver;
@@ -120,7 +120,7 @@ pub(crate) async fn submit_transactions<Da: DaService>(
     da_service: &Da,
     txs: Vec<RawTx>,
 ) -> anyhow::Result<()> {
-    let batch = BlobData::new_batch(txs);
+    let batch = Batch::new(txs);
     let batch_bytes = borsh::to_vec(&batch).expect("Failed to serialize batch");
     let fee = da_service
         .estimate_fee(batch_bytes.len())

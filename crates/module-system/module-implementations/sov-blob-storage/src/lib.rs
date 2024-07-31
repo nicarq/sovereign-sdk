@@ -7,7 +7,7 @@ use sov_chain_state::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    BlobData, BlobDataWithId, KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet,
+    Batch, BlobDataWithId, KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet,
     ModuleId, StateCheckpoint, StateMap,
 };
 use sov_state::codec::BcsCodec;
@@ -104,22 +104,91 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> KernelModule for Blo
 }
 
 /// Contains data obtained from the DA blob, plus metadata required for blobs
-/// from the preferred sequencer.
+/// from the preferred sequencer. This is deserialized directly from the DA layer.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct PreferredBlobData {
-    /// The sequence number of the batch. The rollup attempts to process batches in order by sequence number.
+pub struct PreferredBatchData {
+    /// The sequence number of the batch/proof. The rollup attempts to process items in order by sequence number.
+    /// For example, if the sequencer sends a batch with sequence number 2 followed by a proof with sequencer number 1,
+    /// the rollup will defer processsing of the batch until the proof is received.
     pub sequence_number: u64,
     /// The actual data of the blob.
-    pub data: BlobData,
+    pub data: Batch,
     /// The number of virtual slots to advance after processing the batch. Minimum 1.
     pub virtual_slots_to_advance: u8,
 }
 
-/// A preferred blob and the ID (hash) of the blob that it was deserialized from
+/// A trait implemented by blobs sent through the preferred sequencer. This allows the rollup to process them in order.
+/// even if they are subsuequently reorded by the DA layer.
+pub trait PreferredSequenced: Into<PreferredBlobData> {
+    /// The monotonic sequence number of the blob. The sequence number is shared across data types (so ordering is enforced between proofs and batches).
+    fn sequence_number(&self) -> SequenceNumber;
+}
+
+impl From<PreferredBatchData> for PreferredBlobData {
+    fn from(data: PreferredBatchData) -> Self {
+        Self::Batch(data)
+    }
+}
+
+impl PreferredSequenced for PreferredBatchData {
+    fn sequence_number(&self) -> SequenceNumber {
+        self.sequence_number
+    }
+}
+
+/// Contains data obtained from the DA blob, plus metadata required for blobs
+/// from the preferred sequencer. This is deserialized directly from the DA layer.
+#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct PreferredProofData {
+    /// The sequence number of the batch/proof. The rollup attempts to process items in order by sequence number.
+    /// For example, if the sequencer sends a batch with sequence number 2 followed by a proof with sequencer number 1,
+    /// the rollup will defer processsing of the batch until the proof is received.
+    pub sequence_number: u64,
+    /// The actual data of the blob.
+    pub data: Vec<u8>,
+}
+
+impl PreferredSequenced for PreferredProofData {
+    fn sequence_number(&self) -> SequenceNumber {
+        self.sequence_number
+    }
+}
+
+impl From<PreferredProofData> for PreferredBlobData {
+    fn from(data: PreferredProofData) -> Self {
+        Self::Proof(data)
+    }
+}
+
+/// A preferred blob and the ID (hash) of the blob that it was deserialized from.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct PreferredBlobDataWithId {
     /// Raw transactions.
     pub inner: PreferredBlobData,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
+}
+
+/// The contents of a blob from the preferred sequencer, with the ID of the blob that it was deserialized from.
+#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub enum PreferredBlobData {
+    /// A preferred blob from the batch namespace.
+    Batch(PreferredBatchData),
+    /// A preferred blob from the proof namespace.
+    Proof(PreferredProofData),
+}
+
+impl PreferredBlobData {
+    /// Returns the sequence number of the blob.
+    pub fn sequence_number(&self) -> u64 {
+        match self {
+            PreferredBlobData::Batch(b) => b.sequence_number,
+            PreferredBlobData::Proof(p) => p.sequence_number,
+        }
+    }
+
+    /// Returns true if the blob is a batch.
+    pub fn is_batch(&self) -> bool {
+        matches!(self, PreferredBlobData::Batch(_))
+    }
 }

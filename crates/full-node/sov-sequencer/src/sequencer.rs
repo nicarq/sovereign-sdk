@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use futures::StreamExt;
 use sov_modules_api::capabilities::Authenticator;
-use sov_modules_api::{BlobData, RawTx};
+use sov_modules_api::{Batch, RawTx};
 use sov_rest_utils::serve_generic_ws_subscription;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
 use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
@@ -89,7 +89,7 @@ where
             tx_hashes.push(tx.hash);
         }
 
-        let batch = BlobData::new_batch(txs);
+        let batch = Batch { txs };
         let serialized_batch = borsh::to_vec(&batch)?;
 
         let fee = match self.0.da_service.estimate_fee(serialized_batch.len()).await {
@@ -446,16 +446,11 @@ mod tests {
         let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
         let block_data = submitted_block.batch_blobs[0].full_data();
 
-        let proof_or_batch = BlobData::try_from_slice(block_data).unwrap();
+        let batch = Batch::try_from_slice(block_data).unwrap();
 
-        match proof_or_batch {
-            BlobData::Batch(batch) => {
-                assert_eq!(batch.txs.len(), 2);
-                assert_eq!(tx1, batch.txs[0].data);
-                assert_eq!(tx2, batch.txs[1].data);
-            }
-            BlobData::Proof(_) => panic!("Expected a batch, but got a proof"),
-        }
+        assert_eq!(batch.txs.len(), 2);
+        assert_eq!(tx1, batch.txs[0].data);
+        assert_eq!(tx2, batch.txs[1].data);
     }
 
     #[tokio::test]
@@ -492,13 +487,8 @@ mod tests {
         let mut submitted_block = da_service.get_block_at(1).await.unwrap();
         let block_data = submitted_block.batch_blobs[0].full_data();
 
-        let proof_or_batch = BlobData::try_from_slice(block_data).unwrap();
+        let batch = Batch::try_from_slice(block_data).unwrap();
 
-        match proof_or_batch {
-            BlobData::Batch(batch) => {
-                assert_eq!(tx, batch.txs[0].data);
-            }
-            BlobData::Proof(_) => panic!("Expected a batch, but got a proof"),
-        }
+        assert_eq!(tx, batch.txs[0].data);
     }
 }

@@ -11,7 +11,7 @@ use sov_db::storage_manager::NativeStorageManager;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, BlobData, CryptoSpec, DaSpec, EncodeCall, Genesis, Module,
+    ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Genesis, Module,
     SlotData, Spec,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
@@ -199,7 +199,7 @@ where
                 let (batch_of_raw_txs, expected_tx_results): (Vec<_>, Vec<_>) =
                     batch_runner.into_iter().map(build_batch_txs).unzip();
 
-                let batch = BlobData::new_batch(batch_of_raw_txs);
+                let batch = Batch::new(batch_of_raw_txs);
                 let blob = MockBlob::new_with_hash(
                     borsh::to_vec(&batch).unwrap(),
                     self.default_sequencer_da_address,

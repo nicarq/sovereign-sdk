@@ -9,7 +9,7 @@ use sov_mock_da::{
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
-use sov_modules_api::{Address, BlobData, ProofSerializer, RawTx};
+use sov_modules_api::{Address, Batch, ProofSerializer, RawTx};
 use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -58,7 +58,7 @@ pub struct TestNode {
 impl TestNode {
     /// Creates a DA block containing a transaction blob, optionally including an aggregated proof.
     pub async fn send_transaction(&self) -> anyhow::Result<MockHash> {
-        let batch = BlobData::new_batch(vec![RawTx {
+        let batch = Batch::new(vec![RawTx {
             data: vec![1, 2, 3],
         }]);
 
@@ -70,7 +70,7 @@ impl TestNode {
 
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
     pub async fn try_send_aggregated_proof(&self) -> anyhow::Result<MockHash> {
-        let batch = BlobData::new_batch(vec![RawTx { data: vec![] }]);
+        let batch = Batch::new(vec![RawTx { data: vec![] }]);
         let serialized_batch = borsh::to_vec(&batch).unwrap();
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
@@ -83,20 +83,20 @@ impl TestNode {
     }
 
     /// The aggregated proof was posted to DA and will be included in the NEXT block.
-    pub async fn wait_for_aggregated_proof_posted_to_da(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn wait_for_aggregated_proof_posted_to_da(&mut self) -> anyhow::Result<()> {
         Ok(self.proof_posted_in_da_sub.recv().await?)
     }
 
     /// The aggregated proof was saved in the db.
     pub async fn wait_for_aggregated_proof_saved_in_db(
         &mut self,
-    ) -> Result<AggregatedProofResponse, anyhow::Error> {
+    ) -> anyhow::Result<AggregatedProofResponse> {
         Ok(self.agg_proof_saved_in_db_sub.recv().await?)
     }
 
     pub async fn get_latest_public_data(
         &self,
-    ) -> Result<Option<AggregatedProofPublicData>, anyhow::Error> {
+    ) -> anyhow::Result<Option<AggregatedProofPublicData>> {
         let proof_from_db = self.ledger_db.get_latest_aggregated_proof().await?;
         Ok(proof_from_db.map(|p| p.proof.public_data().clone()))
     }
@@ -113,9 +113,7 @@ impl ProofSerializer for DummyProofSerializer {
         &self,
         serialized_proof: SerializedAggregatedProof,
     ) -> anyhow::Result<Vec<u8>> {
-        let proof = BlobData::new_proof(serialized_proof.raw_aggregated_proof);
-        let serialized_proof = borsh::to_vec(&proof)?;
-        Ok(serialized_proof)
+        Ok(serialized_proof.raw_aggregated_proof)
     }
 }
 

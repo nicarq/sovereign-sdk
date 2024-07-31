@@ -83,7 +83,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         let public_outputs = match verification_result {
             Ok(public_outputs) => public_outputs,
-            Err(_) => {
+            Err(e) => {
+                tracing::debug!(verification_error = ?e, "Slashing prover for invalid proof");
                 self.emit_event(
                     state,
                     Event::<S>::ProverSlashed {
@@ -101,6 +102,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             match err {
                 ErrorOrSlashed::Error(err) => return Err(err.into()),
                 ErrorOrSlashed::Slashed(reason) => {
+                    tracing::debug!(?reason, "Slashing prover");
                     self.emit_event(
                         state,
                         Event::<S>::ProverSlashed {
