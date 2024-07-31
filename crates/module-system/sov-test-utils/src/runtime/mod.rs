@@ -25,9 +25,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::runtime::traits::EndSlotHookRegistry;
-use crate::{
-    MessageType, SlotExpectedResult, SlotTestCase, TestStfBlueprint, TxExpectedResult, TxTestCase,
-};
+use crate::{MessageType, SlotExpectedReceipt, SlotMessages, SlotTestCase, TestStfBlueprint};
 
 pub(crate) mod macros;
 
@@ -57,17 +55,12 @@ pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
     default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
 }
 
-/// Defines a slot runner. A slot runner is a list of [`BatchRunner`]s.
-pub type SlotRunner<S, M> = Vec<BatchRunner<S, M>>;
-/// Defines a batch runner. A batch runner is a list of [`TxRunner`]s.
-pub type BatchRunner<S, M> = Vec<TxRunner<S, M>>;
-
-/// Defines a transaction runner. A transaction runner is a [`MessageType`] and an [`TxExpectedResult`].
-/// It is produced from a [`TxTestCase`].
-pub struct TxRunner<S: Spec, M: Module> {
-    pub(crate) message: MessageType<M, S>,
-    pub(crate) expected_result: TxExpectedResult,
-}
+type TestApplySlotOutput<RT, S> = ApplySlotOutput<
+    <S as Spec>::InnerZkvm,
+    <S as Spec>::OuterZkvm,
+    MockDaSpec,
+    TestStfBlueprint<RT, S>,
+>;
 
 impl<RT, S> TestRunner<RT, S>
 where
@@ -141,105 +134,107 @@ where
     // Register the transaction hooks with the runtime and builds a [`SlotRunner`] for each slot.
     fn register_hooks<M: Module>(
         &mut self,
-        slots: Vec<SlotTestCase<RT, M, S>>,
-    ) -> Vec<SlotRunner<S, M>> {
-        let (slot_runners, post_slot_closures): (Vec<_>, Vec<_>) = slots
+        slot: SlotTestCase<RT, M, S>,
+    ) -> (SlotMessages<M, S>, SlotExpectedReceipt) {
+        let (batch_messages, slot_receipts): (Vec<_>, Vec<_>) = slot
+            .batch_test_cases
             .into_iter()
-            .map(
-                |SlotTestCase {
-                     batch_test_cases,
-                     post_hook,
-                 }| {
-                    let batch_runners: Vec<_> = batch_test_cases
-                        .into_iter()
-                        .map(|batch_test_case| {
-                            let (batch_runners, post_checks): (Vec<_>, Vec<_>) =
-                                batch_test_case.into_iter().map(TxTestCase::split).unzip();
+            .map(|batch_test_case| {
+                let (batch_messages, post_dispatch_closures, batch_receipt) =
+                    batch_test_case.split();
 
-                            self.runtime().add_post_dispatch_tx_hook_actions(
-                                post_checks.into_iter().flatten().collect(),
-                            );
+                self.runtime()
+                    .add_post_dispatch_tx_hook_actions(post_dispatch_closures);
 
-                            batch_runners
-                        })
-                        .collect();
-
-                    (batch_runners, post_hook)
-                },
-            )
+                (batch_messages, batch_receipt)
+            })
             .unzip();
 
-        self.runtime().add_end_slot_hook_actions(post_slot_closures);
+        self.runtime()
+            .override_end_slot_hook_actions(slot.post_hook);
 
-        slot_runners
+        (batch_messages, slot_receipts)
     }
 
-    fn build_batch<M: Module>(
+    fn build_blobs<M: Module>(
         &mut self,
         stf_state: &ProverStorage<
             DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
         >,
-        slot_runner: Vec<Vec<TxRunner<S, M>>>,
-    ) -> (Vec<MockBlob>, SlotExpectedResult)
+        slot_messages: SlotMessages<M, S>,
+    ) -> Vec<MockBlob>
     where
         RT: EncodeCall<M>,
     {
         let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
 
-        let (blobs, expected_slot_results): (Vec<_>, Vec<_>) = slot_runner
+        let blobs: Vec<_> = slot_messages
             .into_iter()
-            .map(|batch_runner| {
-                let build_batch_txs = |runner: TxRunner<S, M>| {
-                    (
-                        runner.message.to_raw_tx::<RT>(&mut self.nonces, &mut state),
-                        runner.expected_result,
-                    )
+            .map(|batch_messages| {
+                let build_batch_txs = |message: MessageType<M, S>| {
+                    message.to_raw_tx::<RT>(&mut self.nonces, &mut state)
                 };
 
-                let (batch_of_raw_txs, expected_tx_results): (Vec<_>, Vec<_>) =
-                    batch_runner.into_iter().map(build_batch_txs).unzip();
+                let batch_of_raw_txs: Vec<_> =
+                    batch_messages.into_iter().map(build_batch_txs).collect();
 
                 let batch = Batch::new(batch_of_raw_txs);
-                let blob = MockBlob::new_with_hash(
+                MockBlob::new_with_hash(
                     borsh::to_vec(&batch).unwrap(),
                     self.default_sequencer_da_address,
-                );
-
-                (blob, expected_tx_results)
+                )
             })
-            .unzip();
+            .collect();
 
-        (blobs, expected_slot_results)
+        blobs
     }
 
     /// Checks the slot results and apply the changes to the state
     fn check_and_apply_slot_result(
         &mut self,
         block_header: MockBlockHeader,
-        expected_slot_results: SlotExpectedResult,
-        result: ApplySlotOutput<
-            <S as Spec>::InnerZkvm,
-            <S as Spec>::OuterZkvm,
-            MockDaSpec,
-            TestStfBlueprint<RT, S>,
-        >,
+        expected_slot_results: SlotExpectedReceipt,
+        result: TestApplySlotOutput<RT, S>,
     ) {
         let slot_receipts = result.batch_receipts;
+
+        assert_eq!(
+            expected_slot_results.len(),
+            slot_receipts.len(),
+            "Slot receipts length mismatch! This should not happen, this means that some batches were not executed. Expected length: {}, observed length: {}",
+            expected_slot_results.len(),
+            slot_receipts.len(),
+        );
 
         for (batch_receipt, expected_batch_results) in
             slot_receipts.iter().zip(expected_slot_results)
         {
-            for (tx_receipt, expected_tx_result) in
-                batch_receipt.tx_receipts.iter().zip(expected_batch_results)
+            assert_eq!(
+                expected_batch_results.batch_outcome, batch_receipt.inner,
+                "The observed batch outcome does not match the expected outcome. Expected outcome: {:?}, observed outcome: {:?}",
+                expected_batch_results.batch_outcome,
+                batch_receipt.inner
+            );
+
+            assert_eq!(
+                expected_batch_results.tx_receipts.len(),
+                batch_receipt.tx_receipts.len(),
+                "Batch receipts length mismatch! This should not happen, this means that some transactions were not executed. Expected length: {}, observed length: {}",
+                expected_batch_results.tx_receipts.len(),
+                batch_receipt.tx_receipts.len(),
+            );
+
+            for (tx_receipt, expected_tx_result) in batch_receipt
+                .tx_receipts
+                .iter()
+                .zip(expected_batch_results.tx_receipts)
             {
-                match expected_tx_result {
-                    TxExpectedResult::Applied => {
-                        assert!(tx_receipt.receipt.is_successful());
-                    }
-                    TxExpectedResult::Reverted => {
-                        assert!(tx_receipt.receipt.is_reverted());
-                    }
-                }
+                assert_eq!(
+                    expected_tx_result, tx_receipt.receipt,
+                    "The observed transaction outcome does not match the expected outcome. Expected outcome: {:?}, observed outcome: {:?}",
+                    expected_tx_result,
+                    tx_receipt.receipt
+                );
             }
         }
 
@@ -253,18 +248,20 @@ where
     }
 
     /// Executes a single slot with a given setup function
-    fn execute_slot<M: Module>(&mut self, slot_runner: SlotRunner<S, M>)
+    fn execute_slot<M: Module>(
+        &mut self,
+        block_header: &MockBlockHeader,
+        slot_messages: SlotMessages<M, S>,
+    ) -> TestApplySlotOutput<RT, S>
     where
         RT: EncodeCall<M>,
     {
-        let block_header = MockBlockHeader::from_height(self.curr_slot_number() + 1);
-
         let (stf_state, _) = self
             .storage_manager
-            .create_state_for(&block_header)
+            .create_state_for(block_header)
             .expect("Block builds on height zero");
 
-        let (mut blobs, expected_slot_results) = self.build_batch(&stf_state, slot_runner);
+        let mut blobs = self.build_blobs(&stf_state, slot_messages);
 
         // TODO(@theochap): add support for proof blobs
         let relevant_blobs = RelevantBlobIters {
@@ -272,16 +269,14 @@ where
             batch_blobs: blobs.iter_mut().collect(),
         };
 
-        let result = self.stf.apply_slot(
+        self.stf.apply_slot(
             self.state_root(),
             stf_state,
             Default::default(),
-            &block_header,
+            block_header,
             &Default::default(),
             relevant_blobs,
-        );
-
-        self.check_and_apply_slot_result(block_header, expected_slot_results, result);
+        )
     }
 
     /// Executes the provided slots
@@ -289,25 +284,29 @@ where
     where
         RT: EncodeCall<M>,
     {
-        let slots_runner = self.register_hooks(slots_test_cases);
+        for slot_test_case in slots_test_cases {
+            let (slot_messages, slot_expected_receipt) = self.register_hooks(slot_test_case);
 
-        for slot_runner in slots_runner {
-            self.execute_slot(slot_runner);
+            let block_header = MockBlockHeader::from_height(self.curr_slot_number() + 1);
+
+            let result = self.execute_slot(&block_header, slot_messages);
+
+            self.check_and_apply_slot_result(block_header, slot_expected_receipt, result);
+
+            assert!(
+                self.stf
+                    .runtime()
+                    .try_pop_next_tx_action()
+                    .flatten()
+                    .is_none(),
+                "All post tx hooks must have run! This should be unreachable!"
+            );
+
+            assert!(
+                self.stf.runtime().take_next_slot_action().is_none(),
+                "The slot hook must have run! This should be unreachable!"
+            );
         }
-
-        assert!(
-            self.stf.runtime().try_get_next_tx_action().flatten().is_none(),
-            "All post tx hooks must have run! This error indicates that at least one transaction failed that was expected to succeed!"
-        );
-
-        assert!(
-            self.stf
-                .runtime()
-                .try_get_next_slot_action()
-                .flatten()
-                .is_none(),
-            "All end slot hooks must have run! This should be unreachable!"
-        );
     }
 
     /// Run a test on the given runtime

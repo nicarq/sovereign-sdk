@@ -2,12 +2,13 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{GasMeter, UnmeteredStateWrapper, WorkingSet};
+use sov_modules_api::GasMeter;
 use sov_prover_incentives::{CallMessage, Event};
-use sov_test_utils::{MessageType, SlotTestCase, TxOutcome, TxTestCase};
+use sov_test_utils::{BatchTestCase, MessageType, SlotTestCase, TxTestCase};
 
-use crate::helpers::{setup, TestProverIncentives};
+use crate::helpers::{setup, ProverRuntime, TestProverIncentives};
 
 pub(crate) type S = sov_test_utils::TestSpec;
 
@@ -49,27 +50,29 @@ fn test_unbonding() {
     let genesis_prover_key = genesis_prover.user_info.private_key();
 
     runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase {
-        batch_test_cases: vec![vec![TxTestCase {
-            outcome: TxOutcome::Applied(Box::new(
-                move |ws: UnmeteredStateWrapper<WorkingSet<S>>| {
-                    {
-                        // Pay for gas from the provers balance
-                        expected_final_balance.fetch_sub(
-                            ws.inner().gas_used_value(),
-                            std::sync::atomic::Ordering::SeqCst,
-                        );
+        batch_test_cases: vec![BatchTestCase::rewarded(vec![TxTestCase::<
+            ProverRuntime<S, MockDaSpec>,
+            _,
+            _,
+        >::applied(
+            MessageType::Plain(CallMessage::UnbondProver, genesis_prover_key.clone()),
+            Box::new(move |ws| {
+                {
+                    // Pay for gas from the provers balance
+                    expected_final_balance.fetch_sub(
+                        ws.inner().gas_used_value(),
+                        std::sync::atomic::Ordering::SeqCst,
+                    );
 
-                        expected_final_balance
-                            .fetch_add(genesis_prover_bond, std::sync::atomic::Ordering::SeqCst);
-                    }
-                    assert!(ws.inner().events().iter().any(|event| matches!(
-                        event.downcast_ref::<Event<S>>(),
-                        Some(Event::UnBondedProver { .. })
-                    )));
-                },
-            )),
-            message: MessageType::Plain(CallMessage::UnbondProver, genesis_prover_key.clone()),
-        }]],
+                    expected_final_balance
+                        .fetch_add(genesis_prover_bond, std::sync::atomic::Ordering::SeqCst);
+                }
+                assert!(ws.inner().events().iter().any(|event| matches!(
+                    event.downcast_ref::<Event<S>>(),
+                    Some(Event::UnBondedProver { .. })
+                )));
+            }),
+        )])],
         post_hook: Box::new(move |state| {
             assert_eq!(
                 expected_balance_ref1.load(std::sync::atomic::Ordering::SeqCst),

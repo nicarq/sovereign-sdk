@@ -1,6 +1,6 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{
-    AuthorizationData, AuthorizeSequencerError, SequencerAuthorization,
+    AuthorizationData, AuthorizeSequencerError, FatalError, SequencerAuthorization,
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
@@ -16,8 +16,8 @@ use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::optimistic::{HighLevelOptimisticGenesisConfig, TestRuntime};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    generate_optimistic_runtime, new_test_blob_from_batch_deprecated, MessageGenerator,
-    MessageType, SlotTestCase, TestHasher, TestUser, TxOutcome, TxTestCase,
+    generate_optimistic_runtime, new_test_blob_from_batch_deprecated, BatchSequencerOutcome,
+    MessageGenerator, MessageType, SlotTestCase, TestHasher, TestUser, TxTestCase,
     TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
@@ -187,7 +187,8 @@ fn test_enforces_chain_id() {
     // Run an indivdual transaction with the given chain id on a fresh chain. Assert that the outcome is as expected.
     fn test_tx_with_chain_id(
         chain_id: u64,
-        expected_outcome: TxOutcome<IntegTestRuntime<S, MockDaSpec>>,
+        maybe_tx_effect: Option<TxEffect>,
+        batch_expected_outcome: BatchSequencerOutcome,
     ) {
         let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
         genesis_config
@@ -210,15 +211,15 @@ fn test_enforces_chain_id() {
 
         let utx =
             UnsignedTransaction::new(encoded_message, chain_id, 100.into(), 100_000_000, 0, None);
-        TestRunner::run_test(
+        TestRunner::<IntegTestRuntime<S, MockDaSpec>, S>::run_test(
             genesis.into_genesis_params(),
-            vec![SlotTestCase::from_txs(vec![TxTestCase {
-                outcome: expected_outcome,
-                message: MessageType::<ValueSetter<S>, S>::pre_signed(
-                    utx,
-                    admin_account.private_key(),
-                ),
-            }])],
+            vec![SlotTestCase::from_batch_with_outcome(
+                vec![TxTestCase::from_expected_outcome(
+                    MessageType::<ValueSetter<S>, S>::pre_signed(utx, admin_account.private_key()),
+                    maybe_tx_effect,
+                )],
+                batch_expected_outcome,
+            )],
             Default::default(),
         );
     }
@@ -226,6 +227,17 @@ fn test_enforces_chain_id() {
     let real_chain_id = config_value!("CHAIN_ID");
     let fake_chain_id = real_chain_id + 1;
 
-    test_tx_with_chain_id(real_chain_id, TxOutcome::applied());
-    test_tx_with_chain_id(fake_chain_id, TxOutcome::Reverted);
+    test_tx_with_chain_id(
+        real_chain_id,
+        Some(TxEffect::Successful(())),
+        BatchSequencerOutcome::Rewarded,
+    );
+    test_tx_with_chain_id(
+        fake_chain_id,
+        None,
+        BatchSequencerOutcome::Slashed(FatalError::InvalidChainId {
+            expected: real_chain_id,
+            got: fake_chain_id,
+        }),
+    );
 }

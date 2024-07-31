@@ -1,11 +1,12 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::hooks::TxHooks;
-use sov_modules_api::{Module, Spec, StateCheckpoint};
-use sov_modules_stf_blueprint::Runtime;
+use sov_modules_api::capabilities::FatalError;
+use sov_modules_api::{Module, ModuleError, Spec, StateCheckpoint, TxEffect};
+use sov_modules_stf_blueprint::{Runtime, SkippedReason, TxReceiptContents};
 
-use super::messages::MessageType;
+use super::messages::{BatchMessages, MessageType};
+use super::{BatchExpectedReceipt, BatchSequencerOutcome};
 use crate::runtime::wrapper::EndSlotClosure;
-use crate::runtime::{TxRunner, WorkingSetClosure};
+use crate::runtime::WorkingSetClosure;
 
 /// Defines a test case at the slot level. This can be used to describe a rollup's test. It contains a list of [`BatchTestCase`]s and a post slot hook closure to
 /// be run after the slot has been executed.
@@ -20,9 +21,6 @@ pub struct SlotTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
     pub post_hook: EndSlotClosure<StateCheckpoint<S>>,
 }
 
-/// Defines a test case at the batch level. This can be used to describe a rollup's test. It contains a list of [`TxTestCase`]s.
-pub type BatchTestCase<RT, M, S> = Vec<TxTestCase<RT, M, S>>;
-
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
     /// Creates an empty [`SlotTestCase`].
     pub fn empty() -> Self {
@@ -32,10 +30,39 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
         }
     }
 
-    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s.
-    pub fn from_txs(test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
+    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::Rewarded`].
+    pub fn from_rewarded_batch(tx_test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
+        Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::Rewarded)
+    }
+
+    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::Slashed`].
+    pub fn from_slashed_batch(
+        tx_test_cases: Vec<TxTestCase<RT, M, S>>,
+        reason: FatalError,
+    ) -> Self {
+        Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::Slashed(reason))
+    }
+
+    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::Ignored`].
+    pub fn from_ignored_batch(tx_test_cases: Vec<TxTestCase<RT, M, S>>, reason: String) -> Self {
+        Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::Ignored(reason))
+    }
+
+    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::NotRewardable`].
+    pub fn from_not_rewardable_batch(tx_test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
+        Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::NotRewardable)
+    }
+
+    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome `batch_outcome`.
+    pub fn from_batch_with_outcome(
+        tx_test_cases: Vec<TxTestCase<RT, M, S>>,
+        batch_outcome: BatchSequencerOutcome,
+    ) -> Self {
         Self {
-            batch_test_cases: vec![test_cases],
+            batch_test_cases: vec![BatchTestCase {
+                tx_test_cases,
+                outcome: batch_outcome,
+            }],
             post_hook: Box::new(|_| {}),
         }
     }
@@ -49,93 +76,167 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
     }
 }
 
-/// Defines the expected outcome of a transaction.
-pub enum TxExpectedResult {
-    /// Expects that the tx was successful
-    Applied,
-    /// Expects that the tx was reverted
-    Reverted,
-}
-/// Defines the expected outcome of a batch. This is simply a list of [`TxExpectedResult`]s.
-pub type BatchExpectedResult = Vec<TxExpectedResult>;
-/// Defines the expected outcomes of a slot. This is simply a list of [`BatchExpectedResult`]s.
-pub type SlotExpectedResult = Vec<BatchExpectedResult>;
-
-/// Defines the expected outcome of a transaction. If the transaction is successfully applied, one can provide a closure to be executed in the post_dispatch hook.
-pub enum TxOutcome<RT: TxHooks> {
-    /// Expects that the tx was successful and runs the provided closure in the post_dispatch hook
-    Applied(WorkingSetClosure<RT>),
-    /// Expects that the tx was reverted
-    Reverted,
+/// Defines a test case at the batch level. This can be used to describe a rollup's test. It contains a list of [`TxTestCase`]s.
+pub struct BatchTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
+    tx_test_cases: Vec<TxTestCase<RT, M, S>>,
+    outcome: BatchSequencerOutcome,
 }
 
-impl<RT: TxHooks> TxOutcome<RT> {
-    /// Creates an [`TxOutcome`] that expects the transaction to be successfully applied without any post_dispatch hook closure.
-    pub fn applied() -> Self {
-        Self::Applied(Box::new(|_| {}))
+impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> BatchTestCase<RT, M, S> {
+    /// Creates a new rewarded [`BatchTestCase`].
+    pub fn rewarded(tx_test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
+        Self::with_outcome(tx_test_cases, BatchSequencerOutcome::Rewarded)
     }
-}
 
-/// Defines a test case at the transaction level. It contains a [`TxOutcome`] which may specify a `post_dispatch_hook` closure and a [`MessageType`].
-///
-/// ## Example
-/// ```rust
-/// use sov_modules_api::PrivateKey;
-/// use sov_modules_api::transaction::UnsignedTransaction;
-/// use sov_modules_api::hooks::TxHooks;
-/// use sov_test_utils::runtime::ValueSetter;
-/// use sov_test_utils::{TestPrivateKey, TestSpec, TxOutcome, MessageType, TxTestCase};
-/// use sov_mock_da::MockDaSpec;
-///
-/// let priv_key = TestPrivateKey::generate();
-/// sov_test_utils::generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
-///
-/// // This means to send a transaction that sets the value setter's state to 10 and expects it to be successfully applied
-/// TxTestCase {
-///     outcome: TxOutcome::Applied::<TestRuntime<TestSpec, MockDaSpec>>(Box::new(|state| {
-///         // Check that the state of the rollup has been updated correctly
-///     })),
-///     message: MessageType::<ValueSetter<TestSpec>, TestSpec>::Plain(sov_value_setter::CallMessage::SetValue(10), priv_key),
-/// };
-/// ```
-pub struct TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
-    /// The expected outcome of the transaction.
-    pub outcome: TxOutcome<RT>,
-    /// The message to be sent to the runtime.
-    pub message: MessageType<M, S>,
-}
+    /// Creates a new slashed [`BatchTestCase`].
+    pub fn slashed(tx_test_cases: Vec<TxTestCase<RT, M, S>>, reason: FatalError) -> Self {
+        Self::with_outcome(tx_test_cases, BatchSequencerOutcome::Slashed(reason))
+    }
 
-impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
-    /// Splits a [`TxTestCase`] into a [`TxRunner`] and an optional [`WorkingSetClosure`].
-    pub fn split(self) -> (TxRunner<S, M>, Option<WorkingSetClosure<RT>>) {
-        let (expected_result, is_post_check): (TxExpectedResult, Option<_>) = match self.outcome {
-            TxOutcome::Applied(closure) => (TxExpectedResult::Applied, Option::Some(closure)),
-            TxOutcome::Reverted => (TxExpectedResult::Reverted, None),
-        };
-
-        (
-            TxRunner {
-                message: self.message,
-                expected_result,
-            },
-            is_post_check,
+    /// Creates a new ignored [`BatchTestCase`].
+    pub fn ignored(tx_test_cases: Vec<TxTestCase<RT, M, S>>, ignored_reason: String) -> Self {
+        Self::with_outcome(
+            tx_test_cases,
+            BatchSequencerOutcome::Ignored(ignored_reason),
         )
     }
 
-    /// Creates a new [`TxTestCase`] with the [`TxOutcome::Applied`] outcome.
-    pub fn applied(message: MessageType<M, S>, post_dispatch_hook: WorkingSetClosure<RT>) -> Self {
+    /// Creates a new not rewardable [`BatchTestCase`].
+    pub fn not_rewardable(tx_test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
+        Self::with_outcome(tx_test_cases, BatchSequencerOutcome::NotRewardable)
+    }
+
+    /// Creates a new [`BatchTestCase`] with a custom outcome.
+    pub fn with_outcome(
+        tx_test_cases: Vec<TxTestCase<RT, M, S>>,
+        outcome: BatchSequencerOutcome,
+    ) -> Self {
         Self {
-            outcome: TxOutcome::Applied(post_dispatch_hook),
-            message,
+            tx_test_cases,
+            outcome,
         }
     }
 
-    /// Creates a new [`TxTestCase`] with the [`TxOutcome::Reverted`] outcome.
-    /// Since the transaction is supposed to revert, there is no need to provide a post_dispatch_hook.
-    pub fn reverted(message: MessageType<M, S>) -> Self {
-        Self {
-            outcome: TxOutcome::Reverted,
+    /// Splits a [`BatchTestCase`] into a list of [`MessageType`], closures to be executed in the post_dispatch_hook, and an expected [`BatchExpectedReceipt`].
+    /// We are
+    pub fn split(
+        self,
+    ) -> (
+        BatchMessages<M, S>,
+        Vec<WorkingSetClosure<RT>>,
+        BatchExpectedReceipt,
+    ) {
+        let (messages_and_post_dispatch_closures, maybe_expected_tx_receipts): (Vec<_>, Vec<_>) =
+            self.tx_test_cases
+                .into_iter()
+                .map(|tx_test_case| match tx_test_case {
+                    TxTestCase::Applied {
+                        message,
+                        post_dispatch_hook,
+                    } => (
+                        (message, Some(post_dispatch_hook)),
+                        Some(TxEffect::Successful(())),
+                    ),
+                    TxTestCase::Reverted { message, reason } => {
+                        ((message, None), Some(TxEffect::Reverted(reason)))
+                    }
+                    TxTestCase::Skipped {
+                        message,
+                        skipped_reason,
+                    } => ((message, None), Some(TxEffect::Skipped(skipped_reason))),
+                    TxTestCase::Dropped(message) => ((message, None), None),
+                })
+                .unzip();
+
+        let batch_receipt = BatchExpectedReceipt {
+            tx_receipts: maybe_expected_tx_receipts.into_iter().flatten().collect(),
+            batch_outcome: self.outcome,
+        };
+
+        let (messages, post_dispatch_closures): (Vec<_>, Vec<_>) =
+            messages_and_post_dispatch_closures.into_iter().unzip();
+
+        (
+            messages,
+            post_dispatch_closures.into_iter().flatten().collect(),
+            batch_receipt,
+        )
+    }
+}
+
+/// Defines a test case at the transaction level.
+pub enum TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
+    /// The transaction should be applied successfully and the `post_dispatch_hook` should be executed.
+    Applied {
+        /// The message to be sent to the runtime.
+        message: MessageType<M, S>,
+        /// A post_dispatch_hook closure to be executed if the transaction is applied successfully.
+        post_dispatch_hook: WorkingSetClosure<RT>,
+    },
+    /// The transaction should be reverted.
+    Reverted {
+        /// The message to be sent to the runtime.
+        message: MessageType<M, S>,
+        /// The reason why the transaction should be reverted.
+        reason: ModuleError,
+    },
+    /// The transaction should be skipped. Ie, the transaction's ID has been computed and a receipt was emitted but
+    /// the transaction was never executed.
+    Skipped {
+        /// The message to be sent to the runtime.
+        message: MessageType<M, S>,
+        /// The reason why the transaction should be skipped.
+        skipped_reason: SkippedReason,
+    },
+    /// The transaction should be dropped from the batch. Ie, the transaction should not generate a receipt.
+    Dropped(MessageType<M, S>),
+}
+
+impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
+    /// Creates a new [`TxTestCase::Applied`].
+    pub fn applied(message: MessageType<M, S>, post_dispatch_hook: WorkingSetClosure<RT>) -> Self {
+        Self::Applied {
             message,
+            post_dispatch_hook,
+        }
+    }
+
+    /// Creates a new [`TxTestCase::Reverted`].
+    /// Since the transaction is supposed to revert, there is no need to provide a post_dispatch_hook.
+    pub fn reverted(message: MessageType<M, S>, reason: ModuleError) -> Self {
+        Self::Reverted { message, reason }
+    }
+
+    /// Creates a new [`TxTestCase`] which is skipped.
+    pub fn skipped(message: MessageType<M, S>, skipped_reason: SkippedReason) -> Self {
+        Self::Skipped {
+            message,
+            skipped_reason,
+        }
+    }
+
+    /// Creates a new [`TxTestCase`] which is dropped.
+    pub fn dropped(message: MessageType<M, S>) -> Self {
+        Self::Dropped(message)
+    }
+
+    /// Creates a new [`TxTestCase`] from an expected outcome. Doesn't include a post_dispatch_hook in the successful case.
+    /// If the effect is [`None`], the transaction is dropped.
+    pub fn from_expected_outcome(
+        message: MessageType<M, S>,
+        effect: Option<TxEffect<TxReceiptContents>>,
+    ) -> Self {
+        match effect {
+            Some(TxEffect::Successful(_)) => Self::Applied {
+                message,
+                post_dispatch_hook: Box::new(|_| {}),
+            },
+            Some(TxEffect::Reverted(reason)) => Self::Reverted { message, reason },
+            Some(TxEffect::Skipped(skipped_reason)) => Self::Skipped {
+                message,
+                skipped_reason,
+            },
+            None => Self::Dropped(message),
         }
     }
 }
