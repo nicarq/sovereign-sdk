@@ -6,6 +6,11 @@ use sov_modules_api::{ApiStateAccessor, CryptoSpec, EncodeCall, Module, PrivateK
 
 use crate::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
+/// A list of messages that are contained in a slot.
+pub type SlotMessages<M, S> = Vec<BatchMessages<M, S>>;
+/// A list of messages that are contained in a batch.
+pub type BatchMessages<M, S> = Vec<MessageType<M, S>>;
+
 /// A special configuration trait for messages that need to be configured before they can be sent.
 pub trait IntoCallMessage<M: Module, S: Spec> {
     /// Executes the configuration logic and returns the associated call message.

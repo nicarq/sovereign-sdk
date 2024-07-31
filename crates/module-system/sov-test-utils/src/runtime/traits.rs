@@ -68,7 +68,7 @@ pub trait PostTxHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, D
     /// Adds a list of closures to be executed in the `post_dispatch_tx_hook` to the runtime.
     fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<WorkingSetClosure<Self>>);
     /// Retrieves the next closure to be executed in the `post_dispatch_tx_hook` from the runtime.
-    fn try_get_next_tx_action(&self) -> Option<Option<WorkingSetClosure<Self>>>;
+    fn try_pop_next_tx_action(&self) -> Option<Option<WorkingSetClosure<Self>>>;
 }
 
 /// The PostTxHookRegistry trait allows a `Runtime` to inject closures into its post transaction hook.
@@ -76,11 +76,11 @@ pub trait PostTxHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, D
 /// Implementers must also implement [`TestRuntimeHookOverrides`] to invoke the closures in their post tx hook.
 pub trait EndSlotHookRegistry<S: Spec, Da: DaSpec>: TestRuntimeHookOverrides<S, Da> {
     /// Adds a list of closures to be executed in the `end_slot_hook` to the runtime.
-    fn add_end_slot_hook_actions(&self, closures: Vec<EndSlotClosure<StateCheckpoint<S>>>);
+    fn override_end_slot_hook_actions(&self, closures: EndSlotClosure<StateCheckpoint<S>>);
     /// For backward compatibility, we allow tests not to configure end slot hooks at all.
     /// In this case, the outer option will be None and the hook will have no effect.
     /// if the outer Option is some, then the runtime will expect exactly one inner Option per call.
-    fn try_get_next_slot_action(&self) -> Option<Option<EndSlotClosure<StateCheckpoint<S>>>>;
+    fn take_next_slot_action(&self) -> Option<EndSlotClosure<StateCheckpoint<S>>>;
 }
 
 /// Allows the implementer to override the hooks in a wrapped runtime.

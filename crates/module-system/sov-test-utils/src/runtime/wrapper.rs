@@ -56,21 +56,41 @@ impl<T> Default for ClosureQueue<T> {
 }
 
 impl<T> ClosureQueue<T> {
-    pub fn insert_all(&self, closures: Vec<T>) {
-        // Sleep until the the queue is empty. This ensures that two different tests using the same runtime
-        // cannot pollute each other's closure queues. Note that this requires a catch_unwind handler when a test panics
-        // to empty the queue so that other tests can run.
+    pub fn empty_and_insert_all(&self, closures: Vec<T>) {
         let mut guard = self.closures.lock().unwrap();
-        let contents = guard.get_or_insert_with(Default::default);
-        contents.extend(closures);
+
+        // We need to replace the contents of the queue with the new closures
+        guard.replace(VecDeque::from(closures));
     }
 
-    pub fn try_get_next(&self) -> Option<Option<T>> {
+    pub fn try_pop_front(&self) -> Option<Option<T>> {
         self.closures
             .lock()
             .unwrap()
             .as_mut()
             .map(|x| x.pop_front())
+    }
+}
+
+/// A wrapper around an a closure that can be used to store end slot hook closures.
+pub(crate) struct ClosureMutex<T>(Mutex<Option<T>>);
+
+impl<T> Default for ClosureMutex<T> {
+    fn default() -> Self {
+        Self(Mutex::new(None))
+    }
+}
+
+impl<T> ClosureMutex<T> {
+    pub fn set(&self, closure: T) {
+        let mut guard = self.0.lock().unwrap();
+        *guard = Some(closure);
+    }
+
+    /// Takes the closure out of the mutex.
+    pub fn take(&self) -> Option<T> {
+        let mut guard = self.0.lock().unwrap();
+        guard.take()
     }
 }
 
@@ -80,32 +100,33 @@ pub struct TestRuntimeWrapper<S: Spec, Da: DaSpec, T: TxHooks<Spec = S>> {
     /// The inner runtime.
     pub inner: T,
     pub(super) post_tx_hook_action_queue: Arc<ClosureQueue<WorkingSetClosure<T>>>,
-    pub(super) end_slot_hook_action_queue: Arc<ClosureQueue<EndSlotClosure<StateCheckpoint<S>>>>,
+    pub(super) end_slot_hook_action: Arc<ClosureMutex<EndSlotClosure<StateCheckpoint<S>>>>,
     phantom: PhantomData<(S, Da)>,
 }
 
 impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> PostTxHookRegistry<S, Da>
     for TestRuntimeWrapper<S, Da, T>
 {
-    fn try_get_next_tx_action(&self) -> Option<Option<WorkingSetClosure<Self>>> {
-        self.post_tx_hook_action_queue.try_get_next()
+    fn try_pop_next_tx_action(&self) -> Option<Option<WorkingSetClosure<Self>>> {
+        self.post_tx_hook_action_queue.try_pop_front()
     }
 
     // Add assertions to the post dispatch hook. Callers should provide exactly one assertion per transaction.
     fn add_post_dispatch_tx_hook_actions(&self, closures: Vec<WorkingSetClosure<Self>>) {
-        self.post_tx_hook_action_queue.insert_all(closures);
+        self.post_tx_hook_action_queue
+            .empty_and_insert_all(closures);
     }
 }
 
 impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> EndSlotHookRegistry<S, Da>
     for TestRuntimeWrapper<S, Da, T>
 {
-    fn add_end_slot_hook_actions(&self, closures: Vec<EndSlotClosure<StateCheckpoint<S>>>) {
-        self.end_slot_hook_action_queue.insert_all(closures);
+    fn override_end_slot_hook_actions(&self, closures: EndSlotClosure<StateCheckpoint<S>>) {
+        self.end_slot_hook_action.set(closures);
     }
 
-    fn try_get_next_slot_action(&self) -> Option<Option<EndSlotClosure<StateCheckpoint<S>>>> {
-        self.end_slot_hook_action_queue.try_get_next()
+    fn take_next_slot_action(&self) -> Option<EndSlotClosure<StateCheckpoint<S>>> {
+        self.end_slot_hook_action.take()
     }
 }
 
@@ -118,27 +139,23 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> TestRuntimeHookOverrides<S,
         &self,
         _tx: &AuthenticatedTransactionData<S>,
         _ctx: &Context<S>,
-        working_set: &mut <Self as TxHooks>::TxState,
+        state: &mut <Self as TxHooks>::TxState,
     ) -> anyhow::Result<()> {
-        if let Some(queue) = self.try_get_next_tx_action() {
+        if let Some(queue) = self.try_pop_next_tx_action() {
             let closure = queue
                 .into_iter()
                 .next()
-                .expect("Must provide one closure per transaction");
+                .expect("There is no closure left in the queue. Each successful transaction must have an associated closure. 
+                This means that there is some transactions in the batch that were expected to revert but that were successful");
 
-            closure(working_set.to_unmetered());
+            closure(state.to_unmetered());
         }
         Ok(())
     }
 
-    fn end_slot_hook_override(&self, working_set: &mut StateCheckpoint<S>) {
-        if let Some(queue) = self.try_get_next_slot_action() {
-            let mut closure = queue
-                .into_iter()
-                .next()
-                .expect("Must provide one closure per transaction");
-
-            closure(working_set);
+    fn end_slot_hook_override(&self, state: &mut StateCheckpoint<S>) {
+        if let Some(mut closure) = self.take_next_slot_action() {
+            closure(state);
         }
     }
 }
