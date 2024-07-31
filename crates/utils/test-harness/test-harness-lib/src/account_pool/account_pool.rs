@@ -75,7 +75,7 @@ impl<S: Spec> AccountPool<S> {
     }
 
     /// Gets an iterator of all the public addresses held in the account pool.
-    pub fn addresses(&self) -> impl Iterator<Item = &S::Address> + std::clone::Clone {
+    pub fn addresses(&self) -> impl Iterator<Item = &S::Address> + Clone {
         self.ordered_accounts
             .values()
             .map(|account| account.address())
@@ -163,7 +163,7 @@ impl<S: Spec> AccountPool<S> {
         let gas_token_minter_index = if let Some(index) = maybe_minter_index {
             index as u64
         } else {
-            anyhow::bail!("cannot proceed withough an account that can mint the rollup gas token!");
+            anyhow::bail!("cannot proceed without an account that can mint the rollup gas token!");
         };
 
         let account_pool = AccountPool::new_from_accounts(accounts, gas_token_minter_index);
@@ -198,7 +198,7 @@ impl<S: Spec> AccountPool<S> {
         }
     }
 
-    /// Returns how many [`crate::account_pool::account::Account`]s exist in this [`AccountPool`].
+    /// Returns how many [`Account`]s exist in this [`AccountPool`].
     pub fn len(&self) -> usize {
         self.ordered_accounts.len()
     }

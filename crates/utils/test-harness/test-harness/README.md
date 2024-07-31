@@ -1,6 +1,6 @@
 # Testing harness
 
-This crate contains binary that can execute a set of transactions against [sov-demo-rollup](../../examples/demo-rollup/README_CELESTIA.md) on Celestia DA.
+This crate contains binary that can execute a set of transactions against [sov-demo-rollup](../../../../examples/demo-rollup/README_CELESTIA.md) on Celestia DA.
 
 
 ### Example command:

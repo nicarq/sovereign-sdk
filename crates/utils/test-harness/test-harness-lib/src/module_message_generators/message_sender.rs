@@ -31,7 +31,7 @@ pub struct MessageSender<R: Runtime<S, Da>, Da: DaSpec, S: Spec, M: Module<Spec 
     /// The message generator itself, whence [`PreparedCallMessages`] are generated.
     message_generator: Box<dyn Iterator<Item = PreparedCallMessage<S, M>> + Send + Sync>,
 
-    /// A channel down which [`SerializedPreparedCallMesssage`]s are sent to be later broadcast
+    /// A channel down which [`SerializedPreparedCallMessage`]s are sent to be later broadcast
     /// to the rollup.
     sender: Sender<SerializedPreparedCallMessage>,
 

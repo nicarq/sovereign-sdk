@@ -13,6 +13,7 @@ mod utils;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use anyhow::Context;
 use clap::Parser;
 use constants::DEFAULT_CHANNEL_SIZE;
 use harness_config::HarnessConfig;
@@ -60,7 +61,16 @@ async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<
 
     let (serialized_messages_tx, serialized_messages_rx) =
         tokio::sync::mpsc::channel::<SerializedPreparedCallMessage>(DEFAULT_CHANNEL_SIZE);
-    let harness_config = HarnessConfig::from_toml_path(&config.rollup_config_path)?;
+
+    let harness_config =
+        HarnessConfig::from_toml_path(&config.rollup_config_path).with_context(|| {
+            format!(
+                "failed to parse rollup config at {}",
+                config.rollup_config_path
+            )
+        })?;
+    tracing::debug!(config = ?harness_config, "HarnessConfig is parsed");
+
     let da_service = CelestiaService::new(
         harness_config.da,
         RollupParams {
@@ -79,6 +89,7 @@ async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<
         should_stop.clone(),
     )
     .await?;
+    tracing::debug!("Gas funding messages sender gas been initialized");
 
     let module_message_senders = get_message_senders::<S, Da>(
         should_stop.clone(),

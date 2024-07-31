@@ -18,7 +18,7 @@ pub(crate) struct Args {
     #[arg(long)]
     pub(crate) max_batch_size_tx: u64,
 
-    /// How big batch can be maximum in bytes.
+    /// How big batch can be maximum, in bytes.
     /// Together with `max_batch_size_tx`
     #[arg(long)]
     pub(crate) max_batch_size_bytes: u64,
@@ -66,10 +66,10 @@ pub(crate) struct Args {
 impl Args {
     pub(crate) fn get_rollup_batch_namespace(&self) -> anyhow::Result<Namespace> {
         if !self.celestia_batch_namespace.is_ascii() {
-            anyhow::bail!("--rollup-namespace should be ASCII string");
+            anyhow::bail!("--celestia-batch-namespace should be ASCII string");
         }
         if self.celestia_batch_namespace.len() > NS_ID_V0_SIZE {
-            anyhow::bail!("--rollup-namespace should be 10 symbols or less");
+            anyhow::bail!("--celestia-batch-namespace should be 10 symbols or less");
         }
         // Padded with 0;
         let mut raw_namespace: [u8; 10] = [0; NS_ID_V0_SIZE];
