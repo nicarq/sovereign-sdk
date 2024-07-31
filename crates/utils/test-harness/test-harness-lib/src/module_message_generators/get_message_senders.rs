@@ -40,7 +40,7 @@ pub fn get_message_senders<S: Spec, Da: DaService>(
             S,
             Bank<S>,
         >::new(
-            "token transferer",
+            "token sender",
             should_stop.clone(),
             Box::new(TokenTransferMessageGenerator::new_from_account_pool(
                 account_pool.clone(),

@@ -153,6 +153,10 @@ pub async fn get_gas_funding_message_sender<S: Spec, Da: DaService>(
 ) -> anyhow::Result<Box<dyn MessageSenderT>> {
     let gas_funding_txs =
         get_gas_funding_txs(GasFundingConfig::new(rpc_url, genesis_dir), &account_pool).await?;
+    tracing::debug!(
+        txs = gas_funding_txs.len(),
+        "Gas funding messages have been generated"
+    );
 
     let message_sender: MessageSender<
         demo_stf::runtime::Runtime<S, <Da as DaService>::Spec>,
@@ -165,6 +169,5 @@ pub async fn get_gas_funding_message_sender<S: Spec, Da: DaService>(
         Box::new(gas_funding_txs.into_iter()),
         serialized_messages_tx.clone(),
     );
-
     Ok(Box::new(message_sender))
 }

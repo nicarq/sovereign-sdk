@@ -18,7 +18,7 @@ pub struct ProverIncentivesMessageGenerator<S: Spec, Da: DaSpec> {
 }
 
 impl<S: Spec, Da: DaSpec> ProverIncentivesMessageGenerator<S, Da> {
-    /// Creates a [`ProverIncentivesMessageGenerator`] with an [`AccountPool`] capabale of sending
+    /// Creates a [`ProverIncentivesMessageGenerator`] with an [`AccountPool`] capable of sending
     /// [`sov_prover_incentives::ProverIncentives`] module messages.
     pub fn new_from_account_pool(account_pool: AccountPool<S>) -> Self {
         Self {
