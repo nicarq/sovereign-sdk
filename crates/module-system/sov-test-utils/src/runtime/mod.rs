@@ -151,7 +151,7 @@ where
             .unzip();
 
         self.runtime()
-            .override_end_slot_hook_actions(slot.post_hook);
+            .override_end_slot_hook_actions(slot.end_slot_hook);
 
         (batch_messages, slot_receipts)
     }

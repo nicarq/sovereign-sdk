@@ -47,29 +47,26 @@ pub(crate) fn setup() -> SetupParams {
     // Execute an empty slot to make sure the genesis is valid
     runner.execute_slots::<TestAttesterIncentives>(vec![
         // Start by checking the attester balance and bond.
-        SlotTestCase {
-            batch_test_cases: vec![],
-            post_hook: Box::new(move |state| {
-                // Check that the attester account is bonded
-                assert_eq!(
-                    TestAttesterIncentives::default()
-                        .bonded_attesters
-                        .get(&attester_address, state)
-                        .unwrap(),
-                    Some(attester_bond),
-                    "The genesis attester should be bonded"
-                );
+        SlotTestCase::empty().with_end_slot_hook(Box::new(move |state| {
+            // Check that the attester account is bonded
+            assert_eq!(
+                TestAttesterIncentives::default()
+                    .bonded_attesters
+                    .get(&attester_address, state)
+                    .unwrap(),
+                Some(attester_bond),
+                "The genesis attester should be bonded"
+            );
 
-                // Check the balance of the attester is equal to the free balance
-                assert_eq!(
-                    Bank::<S>::default()
-                        .get_balance_of(&attester_address, GAS_TOKEN_ID, state)
-                        .unwrap_infallible(),
-                    Some(attester_balance),
-                    "The balance of the attester should be equal to the free balance"
-                );
-            }),
-        },
+            // Check the balance of the attester is equal to the free balance
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&attester_address, GAS_TOKEN_ID, state)
+                    .unwrap_infallible(),
+                Some(attester_balance),
+                "The balance of the attester should be equal to the free balance"
+            );
+        })),
     ]);
 
     (

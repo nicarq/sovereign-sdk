@@ -93,7 +93,7 @@ fn run_value_setter_txs_with_assertions(
         .into_iter()
         .map(|(value, assertion)| {
             let msg = sov_value_setter::CallMessage::SetValue(value);
-            TxTestCase::<_, ValueSetter<TestSpec>, _>::applied(
+            TxTestCase::<_, ValueSetter<TestSpec>, _>::applied_with_hook(
                 MessageType::Plain(msg, admin_pkey.clone()),
                 assertion,
             )
