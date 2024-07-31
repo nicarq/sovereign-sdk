@@ -6,7 +6,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::GasMeter;
 use sov_prover_incentives::{CallMessage, Event};
-use sov_test_utils::{BatchTestCase, MessageType, SlotTestCase, TxTestCase};
+use sov_test_utils::{MessageType, SlotTestCase, TxTestCase};
 
 use crate::helpers::{setup, ProverRuntime, TestProverIncentives};
 
@@ -16,9 +16,8 @@ pub(crate) type S = sov_test_utils::TestSpec;
 fn test_genesis_bond() {
     let (mut runner, genesis_prover, _) = setup();
 
-    runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase {
-        batch_test_cases: vec![],
-        post_hook: Box::new(move |state| {
+    runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::empty().with_end_slot_hook(
+        Box::new(move |state| {
             assert_eq!(
                 TestProverIncentives::default()
                     .bonded_provers
@@ -35,7 +34,7 @@ fn test_genesis_bond() {
                 "The balance of the prover should be equal to the free balance"
             );
         }),
-    }]);
+    )]);
 }
 
 #[test]
@@ -49,12 +48,8 @@ fn test_unbonding() {
     let genesis_prover_bond = genesis_prover.bond;
     let genesis_prover_key = genesis_prover.user_info.private_key();
 
-    runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase {
-        batch_test_cases: vec![BatchTestCase::rewarded(vec![TxTestCase::<
-            ProverRuntime<S, MockDaSpec>,
-            _,
-            _,
-        >::applied(
+    runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
+        TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
             MessageType::Plain(CallMessage::UnbondProver, genesis_prover_key.clone()),
             Box::new(move |ws| {
                 {
@@ -72,15 +67,15 @@ fn test_unbonding() {
                     Some(Event::UnBondedProver { .. })
                 )));
             }),
-        )])],
-        post_hook: Box::new(move |state| {
-            assert_eq!(
-                expected_balance_ref1.load(std::sync::atomic::Ordering::SeqCst),
-                Bank::<S>::default()
-                    .get_balance_of(&genesis_prover_address, GAS_TOKEN_ID, state)
-                    .unwrap_infallible()
-                    .unwrap()
-            );
-        }),
-    }]);
+        ),
+    ])
+    .with_end_slot_hook(Box::new(move |state| {
+        assert_eq!(
+            expected_balance_ref1.load(std::sync::atomic::Ordering::SeqCst),
+            Bank::<S>::default()
+                .get_balance_of(&genesis_prover_address, GAS_TOKEN_ID, state)
+                .unwrap_infallible()
+                .unwrap()
+        );
+    }))]);
 }

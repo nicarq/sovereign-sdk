@@ -16,9 +16,9 @@ use crate::runtime::WorkingSetClosure;
 /// This is useful when you want to create a [`SlotTestCase`] with a single batch filled with transactions and without a post slot hook closure.
 pub struct SlotTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
     /// The list of [`BatchTestCase`]s to be executed in the slot.
-    pub batch_test_cases: Vec<BatchTestCase<RT, M, S>>,
-    /// The post slot hook closure to be executed after the slot has been executed.
-    pub post_hook: EndSlotClosure<StateCheckpoint<S>>,
+    pub(crate) batch_test_cases: Vec<BatchTestCase<RT, M, S>>,
+    /// The end slot hook closure to be executed after the slot has been executed.
+    pub(crate) end_slot_hook: EndSlotClosure<StateCheckpoint<S>>,
 }
 
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
@@ -26,16 +26,18 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
     pub fn empty() -> Self {
         Self {
             batch_test_cases: vec![],
-            post_hook: Box::new(|_| {}),
+            end_slot_hook: Box::new(|_| {}),
         }
     }
 
     /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::Rewarded`].
+    /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
     pub fn from_rewarded_batch(tx_test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
         Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::Rewarded)
     }
 
     /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::Slashed`].
+    /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
     pub fn from_slashed_batch(
         tx_test_cases: Vec<TxTestCase<RT, M, S>>,
         reason: FatalError,
@@ -44,16 +46,19 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
     }
 
     /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::Ignored`].
+    /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
     pub fn from_ignored_batch(tx_test_cases: Vec<TxTestCase<RT, M, S>>, reason: String) -> Self {
         Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::Ignored(reason))
     }
 
     /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::NotRewardable`].
+    /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
     pub fn from_not_rewardable_batch(tx_test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
         Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::NotRewardable)
     }
 
     /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome `batch_outcome`.
+    /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
     pub fn from_batch_with_outcome(
         tx_test_cases: Vec<TxTestCase<RT, M, S>>,
         batch_outcome: BatchSequencerOutcome,
@@ -63,23 +68,32 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
                 tx_test_cases,
                 outcome: batch_outcome,
             }],
-            post_hook: Box::new(|_| {}),
+            end_slot_hook: Box::new(|_| {}),
         }
     }
 
-    /// Converts a list of [`BatchTestCase`] into a [`SlotTestCase`] without any post-hook.
+    /// Converts a list of [`BatchTestCase`] into a [`SlotTestCase`] without any end_slot-hook.
+    /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
     pub fn from_batches(batches: Vec<BatchTestCase<RT, M, S>>) -> Self {
         SlotTestCase {
             batch_test_cases: batches,
-            post_hook: Box::new(|_| {}),
+            end_slot_hook: Box::new(|_| {}),
+        }
+    }
+
+    /// Adds a end_slot hook to the [`SlotTestCase`].
+    pub fn with_end_slot_hook(self, end_slot_hook: EndSlotClosure<StateCheckpoint<S>>) -> Self {
+        SlotTestCase {
+            batch_test_cases: self.batch_test_cases,
+            end_slot_hook,
         }
     }
 }
 
 /// Defines a test case at the batch level. This can be used to describe a rollup's test. It contains a list of [`TxTestCase`]s.
 pub struct BatchTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
-    tx_test_cases: Vec<TxTestCase<RT, M, S>>,
-    outcome: BatchSequencerOutcome,
+    pub(crate) tx_test_cases: Vec<TxTestCase<RT, M, S>>,
+    pub(crate) outcome: BatchSequencerOutcome,
 }
 
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> BatchTestCase<RT, M, S> {
@@ -193,8 +207,19 @@ pub enum TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
 }
 
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
-    /// Creates a new [`TxTestCase::Applied`].
-    pub fn applied(message: MessageType<M, S>, post_dispatch_hook: WorkingSetClosure<RT>) -> Self {
+    /// Creates a new [`TxTestCase::Applied`]. This set the `post_dispatch_hook` to a no-op closure. To specify a post_dispatch_hook, use [`TxTestCase::applied_with_hook`].
+    pub fn applied(message: MessageType<M, S>) -> Self {
+        Self::Applied {
+            message,
+            post_dispatch_hook: Box::new(|_| {}),
+        }
+    }
+
+    /// Creates a new [`TxTestCase::Applied`] with a post_dispatch_hook.
+    pub fn applied_with_hook(
+        message: MessageType<M, S>,
+        post_dispatch_hook: WorkingSetClosure<RT>,
+    ) -> Self {
         Self::Applied {
             message,
             post_dispatch_hook,
@@ -207,7 +232,7 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
         Self::Reverted { message, reason }
     }
 
-    /// Creates a new [`TxTestCase`] which is skipped.
+    /// Creates a new [`TxTestCase::Skipped`] which is skipped.
     pub fn skipped(message: MessageType<M, S>, skipped_reason: SkippedReason) -> Self {
         Self::Skipped {
             message,
