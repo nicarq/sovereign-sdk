@@ -12,8 +12,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::storage::{NativeStorageManager, SimpleStorageManager};
 use sov_test_utils::{
-    has_tx_events_deprecated, new_test_blob_from_batch_deprecated, SchemaBatch, TestSpec,
-    TestStorageManager,
+    has_tx_events_deprecated, new_test_blob_for_direct_registration,
+    new_test_blob_from_batch_deprecated, SchemaBatch, TestSpec, TestStorageManager,
 };
 
 use super::da_simulation::simulate_da_with_multiple_direct_registration_msg;
@@ -203,20 +203,8 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
         private_key,
     );
 
-    let blob1 = new_test_blob_from_batch_deprecated(
-        Batch {
-            txs: vec![txs.remove(0)],
-        },
-        &direct_sequencer,
-        [0; 32],
-    );
-    let blob2 = new_test_blob_from_batch_deprecated(
-        Batch {
-            txs: vec![txs.remove(0)],
-        },
-        &other_sequencer,
-        [1; 32],
-    );
+    let blob1 = new_test_blob_for_direct_registration(txs.remove(0), &direct_sequencer, [0; 32]);
+    let blob2 = new_test_blob_for_direct_registration(txs.remove(0), &other_sequencer, [1; 32]);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -291,8 +279,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
         private_key,
     );
 
-    // ensure there's more than 1 tx, later we check there's only 1 receipt indicating only 1 tx
-    // was processed - the rest of the txs are dropped by blob-storage / kernel
+    // ensure there's more than 1 tx. This batch will be rejected,
     assert!(txs.len() > 1);
 
     let blob = new_test_blob_from_batch_deprecated(Batch { txs }, &direct_sequencer, [0; 32]);
@@ -311,11 +298,8 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
         relevant_blobs.as_iters(),
     );
 
-    let batch_receipt = &apply_block_result.batch_receipts[0];
-    assert_eq!(batch_receipt.inner, BatchSequencerOutcome::NotRewardable);
-    let tx_receipts = &batch_receipt.tx_receipts;
-    assert_eq!(1, tx_receipts.len());
-    assert_eq!(tx_receipts[0].receipt, TxEffect::Successful(()));
+    // Ensure that the batch was rejected for containing too many txs.
+    assert_eq!(0, apply_block_result.batch_receipts.len());
 
     let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
     storage_manager.commit(apply_block_result.change_set);
@@ -326,7 +310,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
         .is_registered_sequencer(&direct_sequencer.into(), &mut state)
         .unwrap();
 
-    assert!(successful_reg);
+    assert!(!successful_reg);
 
     let other_seq = runtime
         .sequencer_registry
@@ -356,82 +340,8 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
     let some_sequencer: [u8; 32] = [121; 32];
 
     let private_key = read_private_keys::<TestSpec>().tx_signer.private_key;
-    let txs = simulate_da_with_incorrect_direct_registration_msg(private_key);
-    let blob = new_test_blob_from_batch_deprecated(Batch { txs }, &some_sequencer, [0; 32]);
-
-    let mut relevant_blobs = RelevantBlobs {
-        proof_blobs: Default::default(),
-        batch_blobs: vec![blob],
-    };
-
-    let apply_block_result = stf.apply_slot(
-        &genesis_root,
-        storage_manager.create_storage(),
-        Default::default(),
-        &block_1.header,
-        &block_1.validity_cond,
-        relevant_blobs.as_iters(),
-    );
-
-    assert_eq!(1, apply_block_result.batch_receipts.len());
-    let receipt = &apply_block_result.batch_receipts[0];
-    assert_eq!(
-        receipt.inner,
-        BatchSequencerOutcome::Ignored(
-            "The runtime call included in the transaction was invalid.".to_string()
-        )
-    );
-
-    let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-    storage_manager.commit(apply_block_result.change_set);
-
-    let mut state = ApiStateAccessor::<TestSpec>::new(storage_manager.create_storage());
-    let registered = runtime
-        .sequencer_registry
-        .is_registered_sequencer(&MockAddress::new(some_sequencer), &mut state)
-        .unwrap();
-
-    assert!(!registered);
-}
-
-// Ensure that if there's a valid register call message it must be the first tx in the batch
-// If it is not then the batch should be ignored because we only check the first tx
-#[test]
-fn test_unregistered_sequencer_first_batch_tx_must_be_register_call_message() {
-    let tempdir = tempfile::tempdir().unwrap();
-    let path = tempdir.path();
-
-    let mut config = create_genesis_config_for_tests();
-    config.runtime.sequencer_registry.is_preferred_sequencer = false;
-
-    let mut storage_manager = SimpleStorageManager::new(path);
-    let stf: StfBlueprintTest = StfBlueprint::new();
-    let stf_state = storage_manager.create_storage();
-    let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
-    storage_manager.commit(stf_state);
-
-    let genesis_block = MockBlock::default();
-    let block_1 = genesis_block.next_mock();
-
-    let some_sequencer: [u8; 32] = [121; 32];
-
-    let private_key = read_private_keys::<TestSpec>().tx_signer.private_key;
-    let mut register_tx = simulate_da_with_multiple_direct_registration_msg(
-        vec![some_sequencer.to_vec()],
-        private_key.clone(),
-    );
-    let mut incorrect_tx = simulate_da_with_incorrect_direct_registration_msg(private_key);
-    let blob = new_test_blob_from_batch_deprecated(
-        Batch {
-            txs: vec![
-                incorrect_tx.remove(0).clone(),
-                register_tx.remove(0).clone(),
-            ],
-        },
-        &some_sequencer,
-        [0; 32],
-    );
-
+    let tx = simulate_da_with_incorrect_direct_registration_msg(private_key);
+    let blob = new_test_blob_for_direct_registration(tx, &some_sequencer, [0; 32]);
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
         batch_blobs: vec![blob],
@@ -496,16 +406,16 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
         private_key.clone(),
     );
 
-    blobs.push(new_test_blob_from_batch_deprecated(
-        Batch { txs: register_tx },
+    blobs.push(new_test_blob_for_direct_registration(
+        register_tx[0].clone(),
         &some_sequencer,
         [0; 32],
     ));
 
     // fill the unregistered blobs per slot quota with invalid messages
     for _ in 0..unregistered_blobs_per_slot {
-        let txs = simulate_da_with_incorrect_direct_registration_msg(private_key.clone());
-        let blob = new_test_blob_from_batch_deprecated(Batch { txs }, &some_sequencer, [0; 32]);
+        let tx = simulate_da_with_incorrect_direct_registration_msg(private_key.clone());
+        let blob = new_test_blob_for_direct_registration(tx, &some_sequencer, [0; 32]);
         blobs.push(blob);
     }
 
@@ -519,8 +429,8 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
         private_key.clone(),
     );
 
-    blobs.push(new_test_blob_from_batch_deprecated(
-        Batch { txs: register_tx2 },
+    blobs.push(new_test_blob_for_direct_registration(
+        register_tx2[0].clone(),
         &some_sequencer,
         [0; 32],
     ));

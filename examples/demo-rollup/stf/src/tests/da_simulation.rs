@@ -92,14 +92,14 @@ fn encode_with_auth(tx: Transaction<S>) -> RawTx {
     ModAuth::<S, Da>::encode(tx_bytes).unwrap()
 }
 
-pub fn simulate_da_with_incorrect_direct_registration_msg(admin: TestPrivateKey) -> Vec<RawTx> {
+pub fn simulate_da_with_incorrect_direct_registration_msg(admin: TestPrivateKey) -> RawTx {
     let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(admin);
     let create_token_message = bank_generator.create_default_messages().remove(0);
     let tx = create_token_message.to_tx::<Runtime<S, Da>>();
 
-    vec![RawTx {
+    RawTx {
         data: borsh::to_vec(&tx).unwrap(),
-    }]
+    }
 }
 
 pub fn simulate_da_with_multiple_direct_registration_msg(

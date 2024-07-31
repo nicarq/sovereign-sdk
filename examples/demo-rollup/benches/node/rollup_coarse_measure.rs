@@ -20,7 +20,7 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{BatchSequencerOutcome, BlobData, EncodeCall, RawTx, Spec};
+use sov_modules_api::{Batch, BatchSequencerOutcome, EncodeCall, RawTx, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
 use sov_rollup_interface::da::{BlockHeaderTrait, RelevantBlobs};
@@ -271,7 +271,7 @@ fn setup(
         deployer_nonce += 1;
     }
 
-    let batch = BlobData::new_batch(setup_txs);
+    let batch = Batch::new(setup_txs);
     let setup_blob = MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), SEQUENCER_ADDRESS);
     let mut setup_blobs = RelevantBlobs::<MockBlob> {
         proof_blobs: Vec::new(),
@@ -341,7 +341,7 @@ fn setup(
             txs.push(ser_tx);
         }
 
-        let batch = BlobData::new_batch(txs);
+        let batch = Batch::new(txs);
         let blob =
             MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), MockAddress::new([0; 32]));
 

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
+use sov_modules_api::capabilities::BlobOrigin;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
@@ -74,7 +75,7 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for SoftConfirmationsKernel<S, Da> {
         state: &mut KernelWorkingSet<'k, Self::Spec>,
     ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
     where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
+        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
     {
         self.blob_storage
             .get_blobs_for_this_slot(current_blobs, state)

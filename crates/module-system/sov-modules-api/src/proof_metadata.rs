@@ -3,7 +3,7 @@ use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
 use crate::transaction::{PriorityFeeBips, TxDetails};
-use crate::{BlobData, Spec};
+use crate::Spec;
 
 /// Proof with metadata need for verification.
 #[derive(
@@ -54,10 +54,9 @@ impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
             details,
         };
 
-        let serialized_proof_with_details = borsh::to_vec(&proof_with_details)?;
+        // TODO: Put SerializedAggregatedProof directly on chain without wrapping in a vec <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1065>
+        let serialized_proof_with_details = borsh::to_vec(&borsh::to_vec(&proof_with_details)?)?;
 
-        let proof = BlobData::new_proof(serialized_proof_with_details);
-        let serialized_proof = borsh::to_vec(&proof)?;
-        Ok(serialized_proof)
+        Ok(serialized_proof_with_details)
     }
 }

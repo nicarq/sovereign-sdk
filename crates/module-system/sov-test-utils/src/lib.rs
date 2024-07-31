@@ -22,7 +22,7 @@ pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
     Batch, CryptoSpec, DaSpec, GasArray, GasUnit, Module, RawTx, Spec, StateCheckpoint,
 };
-use sov_modules_stf_blueprint::{BatchReceipt, BlobData, StfBlueprint};
+use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::stf::TxReceiptContents;
 
 use crate::runtime::BasicKernel;
@@ -209,7 +209,18 @@ pub fn new_test_blob_from_batch_deprecated(
     address: &[u8],
     hash: [u8; 32],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
-    let batch = BlobData::Batch(batch);
+    let address = MockAddress::try_from(address).unwrap();
+    let data = borsh::to_vec(&batch).unwrap();
+    MockBlob::new(data, address, hash)
+}
+
+/// Builds a new test blob for direct sequencer registration.
+pub fn new_test_blob_for_direct_registration(
+    tx: RawTx,
+    address: &[u8],
+    hash: [u8; 32],
+) -> <MockDaSpec as DaSpec>::BlobTransaction {
+    let batch = tx;
     let address = MockAddress::try_from(address).unwrap();
     let data = borsh::to_vec(&batch).unwrap();
     MockBlob::new(data, address, hash)
@@ -377,14 +388,14 @@ pub trait MessageGenerator {
     }
 
     /// Generates a list of blobs originating from the module using default transaction details.
-    /// This function calls [`MessageGenerator::create_default_raw_txs`] and then wraps the resulting vec of [`RawTx`]s into [`BlobData`]s.
+    /// This function calls [`MessageGenerator::create_default_raw_txs`] and then wraps the resulting vec of [`RawTx`]s into a [`Batch`].
     fn create_blobs<Encoder: EncodeCall<Self::Module>, Auth: Authenticator>(&self) -> Vec<u8> {
         let txs: Vec<RawTx> = self
             .create_default_raw_txs::<Encoder, Auth>()
             .into_iter()
             .collect();
 
-        let batch = BlobData::new_batch(txs);
+        let batch = Batch::new(txs);
 
         borsh::to_vec(&batch).unwrap()
     }

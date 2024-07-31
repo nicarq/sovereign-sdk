@@ -28,7 +28,12 @@ borsh = { workspace = true, features = ["rc"] }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+jsonrpsee = { workspace = true, features = [
+    "macros",
+    "client-core",
+    "server",
+], optional = true }
+tracing = { workspace = true }
 
 sov-bank = { workspace = true }
 sov-modules-api = { workspace = true }

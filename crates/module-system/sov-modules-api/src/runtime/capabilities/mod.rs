@@ -56,7 +56,7 @@ pub mod mocks {
 
     use sov_rollup_interface::da::DaSpec;
 
-    use super::{BlobSelector, Kernel, Spec};
+    use super::{BlobOrigin, BlobSelector, Kernel, Spec};
     use crate::{BootstrapWorkingSet, KernelWorkingSet, StateCheckpoint};
 
     /// A mock kernel for use in tests
@@ -119,7 +119,7 @@ pub mod mocks {
             _state: &mut crate::KernelWorkingSet<'k, Self::Spec>,
         ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
         where
-            I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
+            I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
         {
             // Ok(current_blobs
             //     .into_iter()

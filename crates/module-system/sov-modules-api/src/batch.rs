@@ -17,6 +17,13 @@ pub struct Batch {
     pub txs: Vec<RawTx>,
 }
 
+impl Batch {
+    /// Construct a new batch containing the given txs.
+    pub fn new(txs: Vec<RawTx>) -> Self {
+        Self { txs }
+    }
+}
+
 /// Batch with ID.
 pub struct BatchWithId {
     /// Batch of transactions.
@@ -26,10 +33,13 @@ pub struct BatchWithId {
 }
 
 /// Contains blob data obtained from the DA.
+//
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub enum BlobData {
     /// Batch of transactions.
     Batch(Batch),
+    /// Emergency Registration
+    EmergencyRegistration(RawTx),
     /// Aggregated proof posted on the DA.
     Proof(Vec<u8>),
 }
@@ -38,6 +48,11 @@ impl BlobData {
     /// Batch variant constructor.
     pub fn new_batch(txs: Vec<RawTx>) -> BlobData {
         BlobData::Batch(Batch { txs })
+    }
+
+    /// Emergency Registration variant constructor.
+    pub fn new_emergency_registration(tx: RawTx) -> BlobData {
+        BlobData::EmergencyRegistration(tx)
     }
 
     /// Proof variant constructor.
@@ -51,8 +66,6 @@ impl BlobData {
 pub struct BlobDataWithId {
     /// Raw transactions.
     pub data: BlobData,
-    /// The blob came from a registered sequencer
-    pub from_registered_sequencer: bool,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
 }

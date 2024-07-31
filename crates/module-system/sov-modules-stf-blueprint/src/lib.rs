@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 mod stf_blueprint;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::TxScratchpad;
+use sov_modules_api::{Batch, TxScratchpad};
 mod batch_processing;
 mod proof_processing;
 #[cfg(feature = "test-utils")]
@@ -10,7 +10,9 @@ mod utils;
 pub use batch_processing::{process_tx, BatchReceipt, TransactionReceipt};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use risc0_cycle_macros::cycle_tracker;
-use sov_modules_api::capabilities::{AuthenticationError, HasCapabilities, RuntimeAuthenticator};
+use sov_modules_api::capabilities::{
+    AuthenticationError, BlobOrigin, HasCapabilities, RuntimeAuthenticator,
+};
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::SequencerReward;
@@ -351,7 +353,13 @@ where
         let all_blobs = relevant_blobs
             .batch_blobs
             .into_iter()
-            .chain(relevant_blobs.proof_blobs);
+            .map(BlobOrigin::Batch)
+            .chain(
+                relevant_blobs
+                    .proof_blobs
+                    .into_iter()
+                    .map(BlobOrigin::Proof),
+            );
 
         let selected_blobs = self
             .kernel
@@ -370,23 +378,31 @@ where
 
         let mut total_gas = S::Gas::zero();
         for (blob_idx, (blob, sender)) in selected_blobs.into_iter().enumerate() {
+            let mut apply_batch = |batch, is_registered, checkpoint| {
+                let batch_with_id = BatchWithId { batch, id: blob.id };
+
+                let (next_checkpoint, batch_receipt, gas_used) = self.process_batch(
+                    batch_with_id,
+                    checkpoint,
+                    blob_idx,
+                    &sender,
+                    &gas_price,
+                    visible_height,
+                    is_registered,
+                );
+
+                batch_receipts.push(batch_receipt);
+                total_gas.combine(&gas_used);
+                next_checkpoint
+            };
             match blob.data {
                 BlobData::Batch(batch) => {
-                    let batch_with_id = BatchWithId { batch, id: blob.id };
-
-                    let (next_checkpoint, batch_receipt, gas_used) = self.process_batch(
-                        batch_with_id,
-                        checkpoint,
-                        blob_idx,
-                        &sender,
-                        &gas_price,
-                        visible_height,
-                        blob.from_registered_sequencer,
-                    );
-
+                    let next_checkpoint = apply_batch(batch, true, checkpoint);
                     checkpoint = next_checkpoint;
-                    batch_receipts.push(batch_receipt);
-                    total_gas.combine(&gas_used);
+                }
+                BlobData::EmergencyRegistration(tx) => {
+                    let next_checkpoint = apply_batch(Batch { txs: vec![tx] }, false, checkpoint);
+                    checkpoint = next_checkpoint;
                 }
                 BlobData::Proof(proof) => {
                     let (receipt, next_checkpoint) =

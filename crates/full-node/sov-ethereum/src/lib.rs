@@ -1,7 +1,6 @@
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 #[cfg(feature = "local")]
 pub use sov_eth_dev_signer::DevSigner;
-use sov_modules_api::BlobData;
 mod batch_builder;
 mod gas_price;
 #[cfg(feature = "local")]
@@ -15,7 +14,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
 use sov_evm::{EthApiError, Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::Authenticator;
-use sov_modules_api::ApiStateAccessor;
+use sov_modules_api::{ApiStateAccessor, Batch};
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::watch;
 
@@ -135,8 +134,8 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
             .into_iter()
             .map(|tx| Auth::encode(tx).map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR)))
             .collect::<Result<Vec<_>, _>>()?;
+        let batch = Batch::new(txs);
 
-        let batch = BlobData::new_batch(txs);
         let serialized_batch =
             borsh::to_vec(&batch).map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
